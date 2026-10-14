@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClearanceSignature extends Model
 {
+    protected static function booted(): void
+    {
+        static::addGlobalScope('current_signatures', fn ($query) => $query->whereNull('clearance_signatures.retired_at'));
+    }
+
     protected $fillable = [
         'clearance_period_id',
         'student_id',

@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { Bot, CheckCircle, ImagePlus, Send } from 'lucide-react';
@@ -216,15 +217,15 @@ export default function CreateAnnouncementPage() {
             <div className="mt-4 space-y-4">
               <div>
                 <label htmlFor="announcement-audience" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Audience" />Audience</label>
-                <select id="announcement-audience" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <HiusaSelect id="announcement-audience" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   {AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </HiusaSelect>
               </div>
               <div>
                 <label htmlFor="announcement-category" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category" />Category</label>
-                <select id="announcement-category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <HiusaSelect id="announcement-category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   {CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </HiusaSelect>
               </div>
               <div>
                 <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Poster or image" />Poster or image <span className="font-medium text-slate-500">(optional)</span></label>

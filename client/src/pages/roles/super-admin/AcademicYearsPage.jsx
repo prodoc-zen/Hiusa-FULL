@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarRange, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -244,7 +245,7 @@ export default function AcademicYearsPage() {
 
       <Modal open={Boolean(semesterYear)} title={`Add semester to AY ${semesterYear?.label || ''}`} onClose={busy ? undefined : () => setSemesterYear(null)} maxWidth="max-w-lg" footer={<><Button variant="secondary" disabled={busy} onClick={() => setSemesterYear(null)}>Cancel</Button><Button loading={busy} disabled={!semesterForm.starts_on || !semesterForm.ends_on} onClick={saveSemester}>Add semester</Button></>}>
         <div className="space-y-4">
-          <Field label="Semester" required error={semesterErrors.number?.[0]}><select value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))} className="h-11 w-full rounded-lg border border-line-soft bg-white px-3"><option value="1">1st Semester</option><option value="2">2nd Semester</option></select></Field>
+          <Field label="Semester" required error={semesterErrors.number?.[0]}><HiusaSelect value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))} className="h-11 w-full rounded-lg border border-line-soft bg-white px-3"><option value="1">1st Semester</option><option value="2">2nd Semester</option></HiusaSelect></Field>
           <Field label="Starts on" required error={semesterErrors.starts_on?.[0]}><Input type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm((current) => ({ ...current, starts_on: event.target.value }))} /></Field>
           <Field label="Ends on" required error={semesterErrors.ends_on?.[0]}><Input type="date" value={semesterForm.ends_on} onChange={(event) => setSemesterForm((current) => ({ ...current, ends_on: event.target.value }))} /></Field>
         </div>

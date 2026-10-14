@@ -45,6 +45,8 @@ const PAGE_META = {
   '/dashboard/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/organizations': { title: 'Organizations', purpose: 'Review the student organizations in your college.' },
+  '/dashboard/department-head/documents': { title: 'College files', purpose: 'Search organization folders and open submitted files from your college.' },
+  '/dashboard/department-head/compliance': { title: 'College compliance', purpose: 'Track organization requirements and send reminders to members and college reviewers.' },
   '/dashboard/submitted-files': { title: 'Submitted files', purpose: 'View documents submitted by your organization or college.', group: 'Records', byRole: { DEPARTMENT_HEAD: { group: null } } },
   '/dashboard/approval-requests/new': { title: 'New request', purpose: 'Choose a request type to begin the approval process.', byRole: { ADMIN: { group: 'Approvals' } } },
   '/dashboard/approval-requests/new/announcement': {
@@ -143,7 +145,7 @@ const PAGE_META = {
 
   '/dashboard/compliance': { title: 'Compliance', purpose: 'Submit and track your organization\'s accreditation requirements.', group: 'Records' },
   '/dashboard/grievances': { title: 'Grievances', purpose: 'Review confidential concerns filed by students against your organization.', group: 'Records' },
-  '/dashboard/clearances': { title: 'Clearance signing', purpose: 'Sign, hold, or clear a hold for your organization\'s students.', group: 'Records', byRole: { SBO_OFFICER: { group: null } } },
+  '/dashboard/clearances': { title: 'Clearance signing', purpose: 'Clear, hold, or reopen your students\' clearance signatures.', group: 'Records', byRole: { SBO_OFFICER: { group: null }, DEPARTMENT_HEAD: { group: null, purpose: 'Clear, hold, or reopen Department Head signatures for students in your college.' } } },
   '/dashboard/my-grievances': { title: 'My grievances', purpose: 'File a confidential concern and follow how it is handled.', group: 'Support' },
   '/dashboard/my-clearance': { title: 'My clearance', purpose: 'See which signatures you still need and why a clearance is on hold.', group: 'Support' },
 

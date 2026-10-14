@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
-import { Button, Field, Input } from '../../../components/ui';
+import { Button, Field, Input, Select } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import RichTextEditor from '../../../components/RichText';
 import { createClearancePeriod } from '../../../services/clearanceService';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
 import notify from '../../../lib/notify';
-import { ROLE_PRESETS, humanizeRole, normalizeRoleInput } from './clearanceLabels';
+import { ROLE_PRESETS } from './clearanceLabels';
 
 export default function CreateClearancePeriodModal({ open, onClose, onCreated }) {
   const [academicYear, setAcademicYear] = useState('');
@@ -14,7 +13,6 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
   const [roles, setRoles] = useState([]);
-  const [customRole, setCustomRole] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -37,7 +35,6 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
     setDescription('');
     setDeadline('');
     setRoles([]);
-    setCustomRole('');
     setFieldErrors({});
   }
 
@@ -45,17 +42,6 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
     if (submitting) return;
     reset();
     onClose();
-  }
-
-  function togglePreset(value) {
-    setRoles((current) => (current.includes(value) ? current.filter((role) => role !== value) : [...current, value]));
-  }
-
-  function addCustomRole() {
-    const normalized = normalizeRoleInput(customRole);
-    if (!normalized || roles.includes(normalized) || roles.length >= 10) return;
-    setRoles((current) => [...current, normalized]);
-    setCustomRole('');
   }
 
   async function handleSubmit(event) {
@@ -119,40 +105,10 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
           <Input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
         </Field>
 
-        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]} hint="Every active student needs a cleared line for each role you add here.">
-          <div className="flex flex-wrap gap-2">
-            {ROLE_PRESETS.map((preset) => (
-              <button
-                key={preset.value}
-                type="button"
-                onClick={() => togglePreset(preset.value)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors duration-150 ${roles.includes(preset.value) ? 'border-brand-600 bg-brand-50 text-navy-800' : 'border-line bg-surface text-ink-muted hover:bg-subtle'}`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-2 flex gap-2">
-            <Input
-              value={customRole}
-              onChange={(event) => setCustomRole(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomRole(); } }}
-              placeholder="Add another role, e.g. Org Secretary"
-            />
-            <Button type="button" variant="secondary" onClick={addCustomRole} disabled={!customRole.trim()}>Add</Button>
-          </div>
-          {roles.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {roles.map((role) => (
-                <li key={role} className="inline-flex items-center gap-1.5 rounded-full bg-subtle px-2.5 py-1 text-xs font-semibold text-ink">
-                  {humanizeRole(role)}
-                  <button type="button" aria-label={`Remove ${humanizeRole(role)}`} onClick={() => togglePreset(role)} className="text-ink-soft hover:text-danger-strong">
-                    <X size={12} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]} hint="Organization admins or officers, the Department Head, and SAO can sign their own lines.">
+          <Select multiple value={roles} onChange={(event) => setRoles(Array.from(event.target.selectedOptions, (option) => option.value))}>
+            {ROLE_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+          </Select>
         </Field>
       </form>
     </Modal>

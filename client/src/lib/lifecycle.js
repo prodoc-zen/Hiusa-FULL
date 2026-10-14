@@ -799,9 +799,8 @@ export function venueBookingLifecycle(booking, viewerRole) {
 
 // ---------------------------------------------------------------------------------------------
 // Clearance for one student and one period, shaped like GET /clearances/mine: signatures is a list
-// of { required_role, status, remarks } with status pending, cleared or held. required_role is free
-// text chosen by the SAO ('sao', 'adviser', ...); 'sao' is signed by SUPER_ADMIN and every other role
-// by an Admin or Officer of the student's organization. Signatures can be given in any order, so
+// of { required_role, status, remarks } with status pending, cleared or held.
+// Organization staff, Department Heads, and SAO each own their own line. Signatures can be given in any order, so
 // pending lines are upcoming rather than current.
 
 const SIGNATURE_STATUSES = ['pending', 'cleared', 'held'];
@@ -813,7 +812,7 @@ function signatoryLabel(role) {
 export function clearanceLifecycle(clearance, viewerRole) {
   const c = clearance ?? {};
   const signatures = Array.isArray(c.signatures) ? c.signatures : [];
-  const defs = signatures.length === 0 ? [{ key: 'signatures', label: 'Signatures' }] : signatures.map((signature) => ({ key: String(signature.required_role), label: signatoryLabel(signature.required_role), actor: signature.required_role === 'sao' ? 'SAO' : 'Admin, Officer' }));
+  const defs = signatures.length === 0 ? [{ key: 'signatures', label: 'Signatures' }] : signatures.map((signature) => ({ key: String(signature.required_role), label: signatoryLabel(signature.required_role), actor: signature.required_role === 'sao' ? 'SAO' : signature.required_role === 'department_head' ? 'Department Head' : 'Admin, Officer' }));
   const href = viewerRole === 'STUDENT' || !viewerRole ? '/dashboard/my-clearance' : viewerRole === 'SUPER_ADMIN' ? '/dashboard/super-admin/clearances' : '/dashboard/clearances';
 
   if (signatures.length === 0 || signatures.some((signature) => !SIGNATURE_STATUSES.includes(signature.status))) {
@@ -836,7 +835,7 @@ export function clearanceLifecycle(clearance, viewerRole) {
   }
 
   const open = [...held, ...pending];
-  const signerFor = (signature) => (signature.required_role === 'sao' ? ['SUPER_ADMIN'] : ['ADMIN', 'SBO_OFFICER']);
+  const signerFor = (signature) => (signature.required_role === 'sao' ? ['SUPER_ADMIN'] : signature.required_role === 'department_head' ? ['DEPARTMENT_HEAD'] : ['ADMIN', 'SBO_OFFICER']);
   const first = open[0];
   const actorRole = signerFor(first)[0];
   const canSign = Boolean(viewerRole) && viewerRole !== 'STUDENT' && open.some((signature) => signerFor(signature).includes(viewerRole));

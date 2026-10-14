@@ -229,7 +229,7 @@ class SaoGovernanceDemoSeederTest extends TestCase
         $period = ClearancePeriod::firstOrFail();
         $students = User::where('role', 'STUDENT')->where('account_status', 'active')->count();
 
-        $this->assertSame(['organization_treasurer', 'adviser', 'sao'], $period->required_roles);
+        $this->assertSame(['organization', 'department_head', 'sao'], $period->required_roles);
         $this->assertSame($students * count($period->required_roles), ClearanceSignature::where('clearance_period_id', $period->id)->count());
 
         foreach (ClearanceSignature::with('signer')->get() as $signature) {
@@ -246,6 +246,9 @@ class SaoGovernanceDemoSeederTest extends TestCase
 
             if ($signature->required_role === 'sao') {
                 $this->assertSame('SUPER_ADMIN', $signer->role, "Signature #{$signature->id}");
+            } elseif ($signature->required_role === 'department_head') {
+                $this->assertSame('DEPARTMENT_HEAD', $signer->role, "Signature #{$signature->id}");
+                $this->assertContains($signature->organization_id, $signer->scopedOrganizationIds(), "Signature #{$signature->id} is outside the signer's college.");
             } else {
                 $this->assertContains($signer->role, ['ADMIN', 'SBO_OFFICER'], "Signature #{$signature->id}");
                 $this->assertEquals($signature->organization_id, $signer->organization_id, "Signature #{$signature->id} is signed from another organization.");

@@ -23,7 +23,8 @@ describe('SuperAdminHomePage', () => {
     render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
 
     expect(await screen.findByText('Registered organizations')).toBeInTheDocument();
-    expect(screen.getByText('Financial reports to review').closest('div')).toHaveTextContent('4');
+    expect(screen.queryByText('Financial reports to review')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unread notifications')).not.toBeInTheDocument();
     expect(screen.queryByText(/SBOs/)).not.toBeInTheDocument();
     expect(screen.queryByText('Pending SAO Approvals')).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Super Admin actions' })).toBeInTheDocument();

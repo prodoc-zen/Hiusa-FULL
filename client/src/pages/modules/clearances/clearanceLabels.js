@@ -5,13 +5,12 @@ import { clearanceLifecycle } from '../../../lib/lifecycle';
 export const SAO_ROLE = 'sao';
 
 export const ROLE_PRESETS = [
+  { value: 'organization', label: 'Organization' },
+  { value: 'department_head', label: 'Department Head' },
   { value: SAO_ROLE, label: 'Student Affairs Office (SAO)' },
-  { value: 'adviser', label: 'Organization adviser' },
-  { value: 'organization_treasurer', label: 'Organization treasurer' },
-  { value: 'organization_president', label: 'Organization president' },
 ];
 
-const ROLE_PRESET_LABEL = Object.fromEntries(ROLE_PRESETS.map((preset) => [preset.value, preset.label]));
+const ROLE_PRESET_LABEL = { adviser: 'Organization adviser', organization_treasurer: 'Organization treasurer', organization_president: 'Organization president', ...Object.fromEntries(ROLE_PRESETS.map((preset) => [preset.value, preset.label])) };
 
 export function humanizeRole(role) {
   if (ROLE_PRESET_LABEL[role]) return ROLE_PRESET_LABEL[role];
@@ -38,6 +37,8 @@ export function clearanceStageText(clearance) {
 export function whoToSee(requiredRole) {
   return requiredRole === SAO_ROLE
     ? 'the Student Affairs Office'
+    : requiredRole === 'department_head' ? 'your Department Head'
+    : requiredRole === 'organization' ? 'your organization admin or officer'
     : `your organization's ${humanizeRole(requiredRole).toLowerCase()}`;
 }
 

@@ -49,6 +49,7 @@ function Probe() {
 }
 
 function renderPage(entry = '/dashboard/super-admin/compliance') {
+  if (entry === '/dashboard/super-admin/compliance?tab=review') entry += '&organization=7';
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <SaoCompliancePage />
@@ -94,7 +95,7 @@ describe('SaoCompliancePage', () => {
     ['events', 'Event requirements', 'Event requirements content'],
     ['financial', 'Financial reports', 'Financial reports content'],
   ])('opens the %s tab from the query', async (key, label, content) => {
-    renderPage(`/dashboard/super-admin/compliance?tab=${key}`);
+    renderPage(`/dashboard/super-admin/compliance?tab=${key}&organization=7`);
     expect(await screen.findByText(content)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: label })).toHaveAttribute('aria-selected', 'true');
   });
@@ -102,6 +103,26 @@ describe('SaoCompliancePage', () => {
   it('redirects old document links to the separate files page', async () => {
     renderPage('/dashboard/super-admin/compliance?tab=documents');
     await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('/dashboard/super-admin/documents'));
+  });
+
+  it('starts reviews with searchable organization folders and opens only the chosen organization', async () => {
+    renderPage('/dashboard/super-admin/compliance?tab=review&group=organizations');
+    expect(await screen.findByRole('heading', { name: 'Review submissions by organization' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search review organizations'), { target: { value: 'Computing' } });
+    expect(screen.queryByText('Arts Guild')).not.toBeInTheDocument();
+    await chooseAction('Computing Society', 'Open submissions');
+    expect((await screen.findAllByText('Semestral Accomplishment Report')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: undefined })));
+    expect(screen.getByTestId('search')).toHaveTextContent('organization=7');
+    fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'roster' } });
+    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', search: 'roster' })));
+  });
+
+  it('groups financial reviews by organization before showing reports', async () => {
+    renderPage('/dashboard/super-admin/compliance?tab=financial');
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Arts Guild' }))[0]);
+    expect(await screen.findByText('Financial reports content')).toBeInTheDocument();
+    expect(screen.getByTestId('search')).toHaveTextContent('organization=8');
   });
 
   it('separates review work from requirement settings and keeps the active route', async () => {
@@ -149,6 +170,7 @@ describe('SaoCompliancePage', () => {
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Progress by organization' }), { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: 'Review submissions (1)' })).toHaveFocus();
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=review');
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Computing Society' }))[0]);
     expect((await screen.findAllByText('Semestral Accomplishment Report')).length).toBeGreaterThan(0);
   });
 
@@ -407,7 +429,7 @@ describe('SaoCompliancePage', () => {
 
       expect((await screen.findAllByText('Could not load the review queue.')).length).toBeGreaterThan(0);
       fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-      expect((await screen.findAllByText('Nothing to review')).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText('No submissions match these filters')).length).toBeGreaterThan(0);
     });
   });
 });

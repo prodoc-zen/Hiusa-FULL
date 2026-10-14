@@ -921,6 +921,7 @@ class DashboardBriefingService
         $row = $this->balances->rows(collect([$user]), $organizationId)->first();
 
         $counts = DB::table('clearance_signatures')
+            ->whereNull('retired_at')
             ->where('student_id', $user->school_id)
             ->where('clearance_period_id', fn ($query) => $query->selectRaw('MAX(clearance_period_id)')->from('clearance_signatures')->where('student_id', $user->school_id))
             ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as held', ['pending', 'held'])
@@ -1288,7 +1289,7 @@ class DashboardBriefingService
             ];
         }
 
-        $pendingSaoClearances = DB::table('clearance_signatures')->where('required_role', 'sao')->where('status', 'pending')->count();
+        $pendingSaoClearances = DB::table('clearance_signatures')->whereNull('retired_at')->where('required_role', 'sao')->where('status', 'pending')->count();
         if ($pendingSaoClearances > 0) {
             $items[] = [
                 'id' => 'sao_queue-clearance',

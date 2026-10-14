@@ -116,7 +116,7 @@ export default function SaoClearancesPage() {
         />
       )}
 
-      {!loading && !error && periods.length > 0 && (
+      {!selectedPeriod && !loading && !error && periods.length > 0 && (
         <div className="flex flex-col gap-3">
           {periods.map((period) => {
             const stats = progress[period.id];
@@ -162,7 +162,7 @@ export default function SaoClearancesPage() {
         onConfirm={confirmDelete}
       />
       <CreateClearancePeriodModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setProgress({}); if (page === 1) load(); else setPage(1); }} />
-      <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setRecordId(null)} onSignatureChanged={() => setProgress((current) => { const next = { ...current }; if (selectedPeriod) delete next[selectedPeriod.id]; return next; })} />
+      {selectedPeriod && <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setRecordId(null)} onSignatureChanged={() => { setProgress({}); load(); }} />}
     </div>
   );
 }

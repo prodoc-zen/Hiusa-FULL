@@ -6,7 +6,6 @@ import AiInsightCard from './AiInsightCard';
 import AttentionList from './AttentionList';
 import BriefingHeader from './BriefingHeader';
 import BriefingSkeleton from './BriefingSkeleton';
-import OrganizationsHealthTable from './OrganizationsHealthTable';
 import PillarPulse from './PillarPulse';
 import ReviewInbox from './ReviewInbox';
 import SetupChecklist from './SetupChecklist';
@@ -39,7 +38,7 @@ const ACTIONS = {
 };
 
 function BriefingBody({ data, introduction }) {
-  const { user, summary, attention: rawAttention = [], pillars = {}, insights = [], organizations } = data;
+  const { user, summary, attention: rawAttention = [], pillars = {}, insights = [] } = data;
   const role = user?.role;
   const userKey = `${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`;
   const [setupHidden, setSetupHidden] = useState(() => readSetupHidden(userKey));
@@ -95,14 +94,14 @@ function BriefingBody({ data, introduction }) {
       <BriefingHeader user={user} summary={{ ...summary, headline }} actions={actions} />
       {introduction}
       {inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}
-      <details className="group overflow-hidden rounded-card border border-line bg-surface">
+      {role !== 'SUPER_ADMIN' && <details className="group overflow-hidden rounded-card border border-line bg-surface">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
           <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
-      </details>
-      {insights.length > 0 && (
+      </details>}
+      {role !== 'SUPER_ADMIN' && insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
           <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-bold text-ink sm:px-6">What HIUSA noticed</h2>
           <div className="divide-y divide-line-soft px-5 sm:px-6">
@@ -110,7 +109,6 @@ function BriefingBody({ data, introduction }) {
           </div>
         </section>
       )}
-      {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <OrganizationsHealthTable organizations={organizations} />}
     </div>
   );
 }

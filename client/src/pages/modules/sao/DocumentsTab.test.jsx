@@ -83,4 +83,14 @@ describe('SAO submitted files', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('button', { name: /Computing Society/ })).toBeInTheDocument();
   });
+
+  it('searches files inside a folder and keeps Department Head files read only', async () => {
+    render(<MemoryRouter><DocumentsTab role="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await openFolder();
+    fireEvent.change(screen.getByLabelText('Find a file'), { target: { value: 'bylaws' } });
+    await waitFor(() => expect(compliance.getComplianceDocuments).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, search: 'bylaws', page: 1 })));
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for bylaws.pdf' }));
+    expect(screen.queryByRole('menuitem', { name: 'Delete file' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View file' })).toBeInTheDocument();
+  });
 });

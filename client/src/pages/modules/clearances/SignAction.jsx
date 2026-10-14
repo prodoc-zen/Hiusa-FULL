@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleCheck, PauseCircle } from 'lucide-react';
+import { CircleCheck, PauseCircle, RotateCcw } from 'lucide-react';
 import { Button, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import TableRowActions from '../../../components/TableRowActions';
@@ -22,7 +22,7 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
     setSubmitting(true);
     setError('');
     try {
-      await onSign(mode === 'hold' ? 'held' : 'cleared', mode === 'hold' ? remarksDraft.trim() : undefined);
+      await onSign(mode === 'hold' ? 'held' : mode === 'reopen' ? 'pending' : 'cleared', mode === 'hold' || mode === 'reopen' ? remarksDraft.trim() : undefined);
       setMode(null);
       setRemarksDraft('');
     } catch (err) {
@@ -35,18 +35,20 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
   return (
     <div className="flex flex-col items-start gap-2">
       {showStatus && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
-      {status !== 'cleared' && <TableRowActions subject={roleLabel} actions={[
+      <TableRowActions subject={roleLabel} actions={[
         { label: status === 'held' ? 'Clear hold' : 'Clear', icon: CircleCheck, onClick: () => setMode('clear') },
         status === 'pending' && { label: 'Hold', icon: PauseCircle, danger: true, onClick: () => setMode('hold') },
-      ]} />}
+        status === 'cleared' && { label: 'Reopen clearance', icon: RotateCcw, danger: true, onClick: () => setMode('reopen') },
+      ].filter((action) => status !== 'cleared' || action.label === 'Reopen clearance')} />
       {showStatus && status === 'held' && remarks && <p className="text-xs font-medium text-ink-muted">Reason: {remarks}</p>}
 
       <Modal
         open={Boolean(mode)}
-        title={mode === 'hold' ? `Hold ${roleLabel}` : `Clear ${roleLabel}`}
+        title={mode === 'hold' ? `Hold ${roleLabel}` : mode === 'reopen' ? `Reopen ${roleLabel} clearance` : `Clear ${roleLabel}`}
         description={mode === 'hold'
           ? 'The student will see this reason and who to follow up with.'
-          : 'The student will be notified that this line is cleared.'}
+          : mode === 'reopen' ? 'This removes the cleared signature. The student will see your reason and must be cleared again.'
+            : 'The student will be notified that this line is cleared.'}
         onClose={submitting ? undefined : close}
         closeOnBackdrop={!submitting}
         closeOnEscape={!submitting}
@@ -55,17 +57,17 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
           <>
             <Button variant="secondary" onClick={close} disabled={submitting}>Cancel</Button>
             <Button
-              variant={mode === 'hold' ? 'danger' : 'primary'}
+              variant={mode === 'hold' || mode === 'reopen' ? 'danger' : 'primary'}
               onClick={confirm}
               loading={submitting}
-              disabled={mode === 'hold' && !remarksDraft.trim()}
+              disabled={(mode === 'hold' || mode === 'reopen') && !remarksDraft.trim()}
             >
-              {mode === 'hold' ? 'Hold this signature' : 'Confirm clear'}
+              {mode === 'hold' ? 'Hold this signature' : mode === 'reopen' ? 'Reopen clearance' : 'Confirm clear'}
             </Button>
           </>
         )}
       >
-        {mode === 'hold' && (
+        {(mode === 'hold' || mode === 'reopen') && (
           <Field label="Reason" required hint="Tell the student what needs to be resolved.">
             <Textarea value={remarksDraft} onChange={(event) => setRemarksDraft(event.target.value)} rows={3} placeholder="e.g. Unpaid organization dues" />
           </Field>

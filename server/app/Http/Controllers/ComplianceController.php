@@ -385,6 +385,7 @@ class ComplianceController extends Controller
         $filters = $request->validate([
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
             'status' => ['nullable', 'in:submitted,approved,returned'],
+            'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -407,8 +408,13 @@ class ComplianceController extends Controller
                 ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->where('organization_id', $id));
         }
         $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+        if ($search = trim($filters['search'] ?? '')) {
+            $like = '%'.addcslashes($search, '\\%_').'%';
+            $query->where(fn ($match) => $match->where('file_original_name', 'like', $like)
+                ->orWhereHas('requirementType', fn ($type) => $type->where('name', 'like', $like)));
+        }
 
-        $page = $query->orderByDesc('submitted_at')->paginate($filters['per_page'] ?? 20);
+        $page = $query->orderByDesc('submitted_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
         // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
         $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
             'is_registration',
@@ -498,7 +504,9 @@ class ComplianceController extends Controller
 
         $submission = $result['submission'];
         $isResubmission = $result['is_resubmission'];
-        if ($result['old_path']) Storage::disk('local')->delete($result['old_path']);
+        if ($result['old_path']) {
+            Storage::disk('local')->delete($result['old_path']);
+        }
 
         AuditLog::create([
             'organization_id' => $organizationId,
@@ -560,7 +568,9 @@ class ComplianceController extends Controller
                 return $oldPath;
             });
         } catch (\Throwable $exception) {
-            if ($newPath) Storage::disk('local')->delete($newPath);
+            if ($newPath) {
+                Storage::disk('local')->delete($newPath);
+            }
             throw $exception;
         }
         Storage::disk('local')->delete($oldPath);
@@ -576,7 +586,7 @@ class ComplianceController extends Controller
         }
         abort_unless(Organization::whereKey($submission->organization_id)->where('lifecycle_status', 'active')->exists(), 409, 'Registration and archived files cannot be deleted here.');
         $data = $request->validate(['submitted_at' => ['required', 'date']]);
-        $oldPath = DB::transaction(function () use ($submission, $data, $request) {
+        $oldPath = DB::transaction(function () use ($submission, $data) {
             $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
             $oldPath = $locked->file_path;
@@ -606,7 +616,9 @@ class ComplianceController extends Controller
                 ->orWhere(fn ($heads) => $heads->where('role', 'DEPARTMENT_HEAD')->whereHas('organization', fn ($home) => $home->where('organization_type', 'COLLEGE')->where('college_id', $organization->college_id)));
         })->get(['school_id', 'organization_id']);
         foreach ($recipients as $recipient) {
-            if ($recipient->school_id === $request->user()->school_id) continue;
+            if ($recipient->school_id === $request->user()->school_id) {
+                continue;
+            }
             Notification::create([
                 'organization_id' => $recipient->organization_id, 'user_id' => $recipient->school_id,
                 'notification_type' => 'general', 'title' => 'Submitted file '.$action,
@@ -756,7 +768,8 @@ class ComplianceController extends Controller
         }
 
         $organizationIds = $organizationId ? [(int) $organizationId] : $scope;
-        if ($search = trim($filters['search'] ?? '')) {
+        $search = trim($filters['search'] ?? '');
+        if ($search && ($filters['group'] ?? null) === 'organization') {
             $like = '%'.addcslashes($search, '\%_').'%';
             $organizationIds = Organization::whereIn('id', $organizationIds)
                 ->where(fn ($match) => $match->where('name', 'like', $like)->orWhere('acronym', 'like', $like))
@@ -776,7 +789,7 @@ class ComplianceController extends Controller
         if ($page * $perPage > ComplianceDocumentService::MAX_WINDOW) {
             throw ValidationException::withMessages(['page' => 'That page is too deep to load. Narrow the list with a filter or a search.']);
         }
-        [$rows, $total] = $documents->page(...$arguments, page: $page, perPage: $perPage);
+        [$rows, $total] = $documents->page(...$arguments, page: $page, perPage: $perPage, search: $search ?: null);
 
         return response()->json(new LengthAwarePaginator($rows, $total, $perPage, $page, $options));
     }

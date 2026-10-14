@@ -57,6 +57,9 @@ class ApprovalRequestController extends Controller
         ]);
         $submitted = ($filters['scope'] ?? null) === 'submitted';
         $user = $request->user();
+        if ($user->role === 'SUPER_ADMIN') {
+            $filters += $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id']]);
+        }
         if ($user->role === 'SBO_OFFICER' && ! $submitted) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
@@ -69,6 +72,7 @@ class ApprovalRequestController extends Controller
         }
 
         $status = $filters['status'] ?? ($submitted ? 'all' : 'pending');
+        $query->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->where('organization_id', $id));
 
         if ($status !== 'all') {
             $query->where('status', $status);

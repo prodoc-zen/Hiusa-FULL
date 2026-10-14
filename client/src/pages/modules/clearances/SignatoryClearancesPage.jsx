@@ -69,7 +69,8 @@ export default function SignatoryClearancesPage() {
   const filters = useMemo(() => ({
     clearance_period_id: periodId || undefined,
     status: status || undefined,
-  }), [periodId, status]);
+    q: search.trim() || undefined,
+  }), [periodId, status, search]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -160,7 +161,8 @@ export default function SignatoryClearancesPage() {
 
   async function sign(row, nextStatus, remarks) {
     await updateClearanceSignature(row.id, { status: nextStatus, remarks });
-    notify.success(nextStatus === 'cleared' ? 'Signature cleared.' : 'Signature put on hold.');
+    setPinned({ ...row, status: nextStatus, remarks: remarks || null });
+    notify.success(nextStatus === 'cleared' ? 'Signature cleared.' : nextStatus === 'pending' ? 'Clearance reopened.' : 'Signature put on hold.');
     load();
   }
 
@@ -192,7 +194,7 @@ export default function SignatoryClearancesPage() {
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
               <div className="min-w-[180px] flex-1 sm:flex-none sm:w-56">
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students on this page" />
+                <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />
               </div>
               <div className="w-48">
                 <Select aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -213,7 +215,7 @@ export default function SignatoryClearancesPage() {
               {selectedIds.size > 0 && (
                 <Button size="sm" onClick={() => setBulkOpen(true)}>Clear {selectedIds.size} selected</Button>
               )}
-              <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} in queue{search ? ' · search applies to this page' : ''}</p>
+              <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} in queue</p>
             </div>
           )}
           emptyState={periodId || status || search ? (
@@ -223,7 +225,7 @@ export default function SignatoryClearancesPage() {
               kind="first-run"
               icon={ClipboardCheck}
               title="Nothing waiting on your signature"
-              description="The SAO opens a clearance period each semester. Once it does, your organization's students who need your signature show up here."
+              description={role === 'DEPARTMENT_HEAD' ? 'The SAO opens a clearance period each semester. Students from your college who need your Department Head signature appear here.' : "The SAO opens a clearance period each semester. Once it does, your organization's students who need your signature show up here."}
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="signatures" />}

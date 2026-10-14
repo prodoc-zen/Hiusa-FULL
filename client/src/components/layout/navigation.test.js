@@ -81,7 +81,9 @@ const SPEC = {
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
-    { label: 'Submitted files', path: '/dashboard/submitted-files' },
+    { label: 'College files', path: '/dashboard/department-head/documents' },
+    { label: 'College compliance', path: '/dashboard/department-head/compliance' },
+    { label: 'Clearance signing', path: '/dashboard/clearances' },
     { band: 'College view (read only)', label: 'Finance', children: FINANCE_MANAGER_LEAVES },
     { band: 'College view (read only)', label: 'Calendar', path: '/dashboard/events/activity-calendar' },
     { band: 'College view (read only)', label: 'Election results', path: '/dashboard/elections/election-results' },
@@ -140,7 +142,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it.each([
     ['ADMIN', 10, 34],
     ['SBO_OFFICER', 9, 24],
-    ['DEPARTMENT_HEAD', 9, 12],
+    ['DEPARTMENT_HEAD', 11, 14],
     ['STUDENT', 7, 11],
     ['SUPER_ADMIN', 7, 15],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {

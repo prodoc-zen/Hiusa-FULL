@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getClearancePeriodStudents: vi.fn(),
   createClearancePeriod: vi.fn(),
   deleteClearancePeriod: vi.fn(),
+  updateClearanceSignature: vi.fn(),
 }));
 
 vi.mock('../../../services/clearanceService', () => ({
@@ -15,13 +16,15 @@ vi.mock('../../../services/clearanceService', () => ({
   getClearancePeriodStudents: mocks.getClearancePeriodStudents,
   createClearancePeriod: mocks.createClearancePeriod,
   deleteClearancePeriod: mocks.deleteClearancePeriod,
+  updateClearanceSignature: mocks.updateClearanceSignature,
 }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([]) }));
 
 function envelope(data) {
   return { data: { data, current_page: 1, last_page: 1, per_page: 20, total: data.length } };
 }
 
-const PERIOD = { id: 1, title: 'Second Semester Clearance', academic_year: '2026-2027', description: null, required_roles: ['sao', 'adviser'], deadline_at: null };
+const PERIOD = { id: 1, title: 'Second Semester Clearance', academic_year: '2026-2027', description: null, required_roles: ['sao', 'department_head'], deadline_at: null };
 
 describe('SaoClearancesPage', () => {
   beforeEach(() => {
@@ -53,7 +56,7 @@ describe('SaoClearancesPage', () => {
 
     render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('Second Semester Clearance')).toBeInTheDocument();
-    expect(screen.getByText('Organization adviser')).toBeInTheDocument();
+    expect(screen.getByText('Department Head')).toBeInTheDocument();
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
   });
 
@@ -98,7 +101,7 @@ describe('SaoClearancesPage', () => {
     // the asterisk marker, no separating space), so exact matches miss them.
     fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'Second Semester Clearance' } });
     fireEvent.change(screen.getByLabelText(/^Academic year/), { target: { value: '2026-2027' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Student Affairs Office (SAO)' }));
+    fireEvent.change(screen.getByLabelText(/Required signatory roles/), { target: { value: 'sao' } });
 
     const submit = screen.getByRole('button', { name: 'Open this period' });
     expect(submit).not.toBeDisabled();
@@ -111,5 +114,24 @@ describe('SaoClearancesPage', () => {
       required_roles: ['sao'],
       deadline_at: undefined,
     }));
+  });
+
+  it('opens the roster on the page and reopens a cleared SAO line with a reason', async () => {
+    mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));
+    mocks.getClearancePeriodStudents.mockResolvedValue(envelope([{ student_id: 501, student_name: 'Maria Santos', is_complete: true, signatures: [{ id: 11, required_role: 'sao', status: 'cleared' }, { id: 12, required_role: 'department_head', status: 'cleared' }] }]));
+    mocks.updateClearanceSignature.mockResolvedValue({ data: {} });
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Second Semester Clearance' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View students' }));
+    const table = await screen.findByRole('table', { name: 'Student clearance signatures' });
+    expect(table.closest('[role="dialog"]')).toBeNull();
+    fireEvent.click(within(table).getByRole('button', { name: 'Actions for Student Affairs Office (SAO)' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reopen clearance' }));
+    const dialog = screen.getByRole('dialog', { name: /Reopen .* clearance/ });
+    const confirm = within(dialog).getByRole('button', { name: 'Reopen clearance' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: 'Cleared the wrong record.' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'pending', remarks: 'Cleared the wrong record.' }));
   });
 });

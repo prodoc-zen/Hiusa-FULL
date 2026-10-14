@@ -116,4 +116,14 @@ class ApprovalOrganizationFilterTest extends TestCase
 
         $this->assertSame([$own->id], $this->ids("?organization_id={$this->second->id}"));
     }
+
+    public function test_sao_can_narrow_its_review_inbox_to_one_organization(): void
+    {
+        $first = $this->pendingEventApproval($this->first);
+        $this->pendingEventApproval($this->second);
+        ApprovalRequest::query()->update(['required_role' => 'SUPER_ADMIN']);
+        Sanctum::actingAs(User::factory()->superAdmin()->create(['account_status' => 'active']));
+        $this->getJson("/api/approval-requests?entity_type=event&organization_id={$this->first->id}")->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $first->id);
+        $this->getJson('/api/approval-requests?organization_id=invalid')->assertUnprocessable()->assertJsonValidationErrors('organization_id');
+    }
 }

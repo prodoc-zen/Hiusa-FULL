@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -156,7 +157,7 @@ export default function GeneralAuditLogPage() {
           secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           actions={<button type="button" onClick={handleExport} disabled={exporting || meta.total === 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={16} aria-hidden="true" />{exporting ? 'Exporting...' : 'Export CSV'}</button>}
         >
-          <select
+          <HiusaSelect
             aria-label="Module"
             value={filters.module}
             onChange={(event) => update("module", event.target.value)}
@@ -168,8 +169,8 @@ export default function GeneralAuditLogPage() {
                 {humanizeIdentifier(module)}
               </option>
             ))}
-          </select>
-          <select
+          </HiusaSelect>
+          <HiusaSelect
             aria-label="Action category"
             value={filters.category}
             onChange={(event) => update("category", event.target.value)}
@@ -179,8 +180,8 @@ export default function GeneralAuditLogPage() {
             {ACTION_CATEGORY_OPTIONS.map((category) => (
               <option key={category.value} value={category.value}>{category.label}</option>
             ))}
-          </select>
-          <select
+          </HiusaSelect>
+          <HiusaSelect
             aria-label="Actor role"
             value={filters.role}
             onChange={(event) => update("role", event.target.value)}
@@ -192,8 +193,8 @@ export default function GeneralAuditLogPage() {
                 <option key={role} value={role}>{label}</option>
               ),
             )}
-          </select>
-          <select
+          </HiusaSelect>
+          <HiusaSelect
             aria-label="Actor department"
             value={filters.department}
             onChange={(event) => update("department", event.target.value)}
@@ -203,8 +204,8 @@ export default function GeneralAuditLogPage() {
             {departments.map((value) => (
               <option key={value}>{value}</option>
             ))}
-          </select>
-          <select
+          </HiusaSelect>
+          <HiusaSelect
             aria-label="Actor program"
             value={filters.program}
             onChange={(event) => update("program", event.target.value)}
@@ -214,7 +215,7 @@ export default function GeneralAuditLogPage() {
             {programs.map((value) => (
               <option key={value}>{value}</option>
             ))}
-          </select>
+          </HiusaSelect>
           <label className="text-[10px] font-bold uppercase text-slate-500">
             <FieldIcon label="From" />From
             <DateTimeInput
@@ -233,7 +234,7 @@ export default function GeneralAuditLogPage() {
               className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-xs"
             />
           </label>
-          <select
+          <HiusaSelect
             aria-label="Sort audit logs"
             value={filters.sort}
             onChange={(event) => update("sort", event.target.value)}
@@ -245,7 +246,7 @@ export default function GeneralAuditLogPage() {
             <option value="role">User role</option>
             <option value="module">Module</option>
             <option value="action">Action</option>
-          </select>
+          </HiusaSelect>
         </TableFilterBar>
       </section>
 

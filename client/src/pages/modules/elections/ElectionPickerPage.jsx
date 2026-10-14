@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -319,12 +320,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       <PageHeader primary={canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         {academicPeriods.length > 0 && <label className="block px-4 pt-4 text-xs font-semibold text-[#0F172A] sm:px-5">Academic period
-          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select>
+          <HiusaSelect value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect>
         </label>}
         {viewingHistory && <p className="px-4 pt-3 text-xs font-medium text-[#64748B] sm:px-5">Completed semester elections are available for viewing only.</p>}
         <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
           <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-          <select aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></select>
+          <HiusaSelect aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></HiusaSelect>
         </div>
       </section>
 

@@ -13,12 +13,14 @@ import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import TableRowActions from '../../../components/TableRowActions';
+import { fetchAllPages } from '../../../services/pagination';
 
 const empty = { name: '', description: '', allowed_extensions: ['pdf'], venue_type: 'all', is_optional: false, is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
 const VENUE_TYPE_LABEL = { on_campus: 'On campus', off_campus: 'Off campus' };
 
-export default function EventRequirementsTab({ mode = 'settings' }) {
+export default function EventRequirementsTab({ mode = 'settings', organizationId = '' }) {
+  const [reviewSearch, setReviewSearch] = useState('');
   const [requirements, setRequirements] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [form, setForm] = useState(empty);
@@ -47,8 +49,8 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     setLoading(true);
     try {
       if (mode === 'reviews') {
-        const response = await getApprovalRequests({ entity_type: 'event', status: 'pending', per_page: 100 });
-        setApprovals(response.data?.data || []);
+        const rows = await fetchAllPages((params) => getApprovalRequests({ ...params, entity_type: 'event', status: 'pending', organization_id: organizationId || undefined }).then((response) => response.data));
+        setApprovals(rows);
       } else {
         const response = await getEventRequirements();
         setRequirements(response.data || []);
@@ -59,7 +61,7 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [mode, organizationId]);
   useEffect(() => { load(); }, [load]);
 
   function resetForm() {
@@ -359,11 +361,12 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
       </section>}
 
       {mode === 'reviews' && <Card title="Events waiting for SAO" description="Review each event's files, then approve it or reject it with remarks.">
+        <Input type="search" className="mb-4" aria-label="Search event submissions" placeholder="Search event or requester" value={reviewSearch} onChange={(event) => setReviewSearch(event.target.value)} />
         {loading ? <p role="status" className="text-sm text-ink-muted">Loading events for review…</p> : approvals.length === 0 ? (
           !loadError && <EmptyState kind="first-run" icon={FileText} title="No event submissions are waiting for review." />
         ) : (
           <ul className="divide-y divide-line">
-            {approvals.map((approval) => (
+            {approvals.filter((approval) => `${approval.title || ''} ${approval.requester?.first_name || ''} ${approval.requester?.last_name || ''}`.toLowerCase().includes(reviewSearch.trim().toLowerCase())).map((approval) => (
               <li key={approval.id} className="py-4 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -383,6 +386,7 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
             ))}
           </ul>
         )}
+        {!loading && approvals.length > 0 && !approvals.some((approval) => `${approval.title || ''} ${approval.requester?.first_name || ''} ${approval.requester?.last_name || ''}`.toLowerCase().includes(reviewSearch.trim().toLowerCase())) && <EmptyState kind="filtered" title="No matching event submissions" description="Try another event title or requester name." />}
       </Card>}
 
       <ConfirmModal

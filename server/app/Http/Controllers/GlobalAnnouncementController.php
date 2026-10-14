@@ -25,7 +25,7 @@ class GlobalAnnouncementController extends Controller
     {
         $data = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'status' => ['nullable', 'in:all,draft,published,archived']]);
         $query = Announcement::with(['creator:school_id,first_name,last_name,position_title', 'sourceOrganization:id,name,acronym'])
-            ->withCount('recipients')->where('announcement_source', 'SAO');
+            ->withCount('recipients')->whereIn('announcement_source', ['SAO', 'COMPLIANCE']);
         match ($data['status'] ?? 'all') {
             'draft' => $query->where('is_published', false),
             'published' => $query->where('is_published', true)->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now())),

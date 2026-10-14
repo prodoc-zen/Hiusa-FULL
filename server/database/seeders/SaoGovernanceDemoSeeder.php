@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class SaoGovernanceDemoSeeder extends Seeder
 {
-    /** Statuses of the treasurer, adviser and SAO lines, in that order, cycled across the student list. */
+    /** Organization, Department Head and SAO statuses, in that order. */
     private const CLEARANCE_OUTCOMES = [
         ['cleared', 'cleared', 'pending'],
         ['cleared', 'cleared', 'cleared'],
@@ -44,8 +44,8 @@ class SaoGovernanceDemoSeeder extends Seeder
     ];
 
     private const CLEARANCE_HOLD_REMARKS = [
-        'organization_treasurer' => 'Unpaid organization membership fee for the semester. Please settle it with the organization treasurer.',
-        'adviser' => 'The committee accomplishment report has not been submitted to the adviser yet.',
+        'organization' => 'Unpaid organization membership fee for the semester. Please contact an organization admin or officer.',
+        'department_head' => 'The college accomplishment report has not been submitted to the Department Head yet.',
     ];
 
     private User $sao;
@@ -365,7 +365,7 @@ class SaoGovernanceDemoSeeder extends Seeder
     {
         $academicYear = $this->academicYear();
         $semester = now()->month >= 6 ? 'First Semester' : 'Second Semester';
-        $roles = ['organization_treasurer', 'adviser', 'sao'];
+        $roles = ['organization', 'department_head', 'sao'];
         $openedAt = $this->at(-14, 9);
 
         $period = $this->findOrCreate(ClearancePeriod::class, [
@@ -386,14 +386,15 @@ class SaoGovernanceDemoSeeder extends Seeder
 
             foreach ($roles as $roleIndex => $role) {
                 $status = $outcomes[$roleIndex];
-                // Signing dates are spread over the last ten days or so, treasurer first, then adviser, then SAO.
+                // Spread signing dates over the last ten days.
                 $signedAt = $status !== 'pending' ? $this->at(-(11 - $index % 5 - $roleIndex), 10 + $roleIndex) : null;
                 $signer = $signedAt ? match ($role) {
                     'sao' => $this->sao,
-                    'adviser' => $this->signatory($student->organization_id, 'Adviser'),
+                    'department_head' => User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
+                        ->whereHas('organization', fn ($home) => $home->where('organization_type', 'COLLEGE')->where('college_id', Organization::whereKey($student->organization_id)->value('college_id')))->first(),
                     default => $this->signatory($student->organization_id, 'Treasurer'),
                 } : null;
-                // With no one in the organization able to sign, the line simply stays pending.
+                // A missing signatory leaves the line pending.
                 if ($signedAt && ! $signer) {
                     [$status, $signedAt] = ['pending', null];
                 }
