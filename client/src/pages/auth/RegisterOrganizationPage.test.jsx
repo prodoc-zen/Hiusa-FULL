@@ -3,13 +3,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from './LandingPage';
 import RegisterOrganizationPage from './RegisterOrganizationPage';
-import { getApplicationRequirements, getRegistrationColleges, getRejectedApplication, requestApplicationEditLink, resubmitRejectedApplication, submitOrganizationApplication } from '../../services/organizationApplicationService';
+import { getApplicationRequirements, getRegistrationColleges, getRejectedApplication, requestApplicationEditLink, requestApplicationTrackingLink, resubmitRejectedApplication, submitOrganizationApplication } from '../../services/organizationApplicationService';
 import RequestApplicationEditLinkPage from './RequestApplicationEditLinkPage';
 
 const sampleMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../utils/openProtectedFile', () => sampleMocks);
 
-vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), getRejectedApplication: vi.fn(), requestApplicationEditLink: vi.fn(), resubmitRejectedApplication: vi.fn(), submitOrganizationApplication: vi.fn() }));
+vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), getRejectedApplication: vi.fn(), requestApplicationEditLink: vi.fn(), requestApplicationTrackingLink: vi.fn(), resubmitRejectedApplication: vi.fn(), submitOrganizationApplication: vi.fn() }));
 
 describe('Public organization onboarding', () => {
   beforeEach(() => {
@@ -21,6 +21,7 @@ describe('Public organization onboarding', () => {
   it('offers registration and login from the landing page', () => {
     render(<MemoryRouter><LandingPage /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Register an organization' })).toHaveAttribute('href', '/register-organization');
+    expect(screen.getByRole('link', { name: /Already applied\? Track your application/ })).toHaveAttribute('href', '/track-organization');
     expect(screen.getAllByRole('link', { name: 'Log in' })).toHaveLength(2);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('From your first application to everyday campus work.');
     expect(screen.getByRole('img', { name: 'Students together outside a university building' })).toBeInTheDocument();
@@ -126,5 +127,16 @@ describe('Public organization onboarding', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Email edit link' }).closest('form'));
     await waitFor(() => expect(requestApplicationEditLink).toHaveBeenCalledWith({ school_id: '12345678', email: 'alex@example.test', organization_name: 'Computing Council' }));
     expect(await screen.findByRole('status')).toHaveTextContent('If those details match a rejected application');
+  });
+
+  it('lets an applicant request a private status link from the public tracker', async () => {
+    requestApplicationTrackingLink.mockResolvedValue({ data: { message: 'If those details match an application, we will email a private tracking link.' } });
+    render(<MemoryRouter><RequestApplicationEditLinkPage tracking /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/^School ID/), { target: { value: '12345678' } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'alex@example.test' } });
+    fireEvent.change(screen.getByLabelText(/^Organization name/), { target: { value: 'Computing Council' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Email tracking link' }).closest('form'));
+    await waitFor(() => expect(requestApplicationTrackingLink).toHaveBeenCalledWith({ school_id: '12345678', email: 'alex@example.test', organization_name: 'Computing Council' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('private tracking link');
   });
 });

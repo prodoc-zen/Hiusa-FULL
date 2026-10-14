@@ -142,6 +142,8 @@ class OrganizationApplicationTest extends TestCase
         $orgId = $response->json('organization_id');
         $this->assertDatabaseHas('users', ['school_id' => 87651234, 'role' => 'ADMIN', 'organization_id' => $orgId, 'first_name' => 'Alex', 'email' => 'alex@example.test']);
         $this->assertDatabaseHas('account_profiles', ['user_school_id' => 87651234, 'organization_id' => $orgId, 'role' => 'ADMIN']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $head->getRawOriginal('organization_id'), 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $orgId, 'role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseHas('sbo_positions', ['organization_id' => $orgId, 'role' => 'ADMIN', 'title' => 'President']);
         $this->assertDatabaseHas('organization_compliance_submissions', ['organization_id' => $orgId, 'requirement_type_id' => $this->requirementId, 'status' => 'submitted']);
         $submission = OrganizationComplianceSubmission::where('organization_id', $orgId)->firstOrFail();
@@ -150,6 +152,20 @@ class OrganizationApplicationTest extends TestCase
         Mail::assertQueued(PasswordResetMail::class, fn ($mail) => $mail->hasTo('alex@example.test'));
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'approve'])->assertConflict();
         $this->assertSame(1, Organization::where('name', 'Computing Council')->count());
+        $approvedTracking = URL::temporarySignedRoute('organization-applications.track', now()->addDay(), ['application' => $application->id], absolute: false);
+        $this->getJson($approvedTracking)->assertJsonPath('application.status', 'approved')
+            ->assertJsonPath('application.remarks', null);
+        $this->app['auth']->forgetGuards();
+        $headToken = $this->postJson('/api/login', ['school_id' => $head->school_id, 'password' => 'password'])
+            ->assertOk()->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $profiles = $this->withToken($headToken)->getJson('/api/user/profiles')->assertOk()->json('profiles');
+        $this->assertCount(2, $profiles);
+        $organizationProfile = collect($profiles)->firstWhere('organization_id', $orgId);
+        $this->assertSame('DEPARTMENT_HEAD', $organizationProfile['role']);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($headToken)->postJson('/api/user/profiles/'.$organizationProfile['id'].'/switch')
+            ->assertOk()->assertJsonPath('user.organization_id', $orgId)->assertJsonPath('user.role', 'DEPARTMENT_HEAD');
     }
 
     public function test_validation_duplicate_applications_expired_links_and_forbidden_roles(): void
@@ -328,6 +344,82 @@ class OrganizationApplicationTest extends TestCase
         $this->assertNotEmpty($matches[1] ?? null);
         $this->getJson('/api/organization-applications/'.$application->id.'/edit?'.$matches[1])
             ->assertOk()->assertJsonPath('application.remarks', 'Fix the format.');
+    }
+
+    public function test_applicant_can_track_email_verification_and_request_a_new_private_link(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $this->post('/api/organization-applications', $this->upload($college), ['Accept' => 'application/json'])->assertCreated();
+        $application = OrganizationApplication::firstOrFail();
+        $body = Mail::mailer('array')->getSymfonyTransport()->messages()->last()->getOriginalMessage()->getTextBody();
+        preg_match('~https?://[^\s]+/track-organization/'.$application->id.'\?([^\s]+)~', $body, $matches);
+        $this->assertNotEmpty($matches[1] ?? null);
+        $tracking = '/api/organization-applications/'.$application->id.'/track?'.$matches[1];
+
+        $this->getJson($tracking)->assertOk()->assertJsonPath('application.status', 'pending_verification')
+            ->assertJsonPath('application.college', $college->name)->assertJsonMissingPath('application.email')
+            ->assertJsonMissingPath('application.school_id')->assertJsonMissingPath('application.documents');
+        $this->getJson('/api/organization-applications/'.$application->id.'/track')->assertForbidden();
+        $other = OrganizationApplication::create([
+            ...$this->payload($college), 'name' => 'Other Council', 'acronym' => 'OC', 'school_id' => 12344321,
+        ]);
+        $this->getJson(str_replace('/'.$application->id.'/track', '/'.$other->id.'/track', $tracking))->assertForbidden();
+        $expired = URL::temporarySignedRoute('organization-applications.track', now()->subMinute(), ['application' => $application->id], absolute: false);
+        $this->getJson($expired)->assertForbidden();
+        $this->get(URL::temporarySignedRoute('organization-applications.verify', now()->addDay(), ['application' => $application->id]))->assertRedirect();
+        $this->getJson($tracking)->assertJsonPath('application.status', 'pending_endorsement')
+            ->assertJsonPath('application.email_verified_at', $application->fresh()->email_verified_at->toJSON());
+        $verifiedMail = Mail::mailer('array')->getSymfonyTransport()->messages()->last()->getOriginalMessage()->getTextBody();
+        $this->assertStringContainsString('now with your Department Head', $verifiedMail);
+        $this->assertStringContainsString('/track-organization/'.$application->id, $verifiedMail);
+
+        $details = ['school_id' => $application->school_id, 'email' => $application->email, 'organization_name' => $application->name];
+        $this->postJson('/api/organization-applications/tracking-link', [])->assertUnprocessable()
+            ->assertJsonValidationErrors(['school_id', 'email', 'organization_name']);
+        $count = Mail::mailer('array')->getSymfonyTransport()->messages()->count();
+        $message = 'If those details match an application, we will email a private tracking link.';
+        $this->postJson('/api/organization-applications/tracking-link', [...$details, 'email' => 'wrong@example.test'])
+            ->assertOk()->assertJsonPath('message', $message);
+        $this->assertSame($count, Mail::mailer('array')->getSymfonyTransport()->messages()->count());
+        $this->postJson('/api/organization-applications/tracking-link', $details)->assertOk()->assertJsonPath('message', $message);
+        $this->assertSame($count + 1, Mail::mailer('array')->getSymfonyTransport()->messages()->count());
+    }
+
+    public function test_tracking_shows_head_and_sao_decisions_without_private_applicant_data(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $application = OrganizationApplication::create([...$this->payload($college), 'status' => 'pending_endorsement', 'email_verified_at' => now()]);
+        $this->attachDocument($application);
+        $tracking = URL::temporarySignedRoute('organization-applications.track', now()->addDay(), ['application' => $application->id], absolute: false);
+        $head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create([
+            'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE',
+        ])->id]);
+        Sanctum::actingAs($head);
+        $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'endorse'])->assertOk();
+        $this->getJson($tracking)->assertJsonPath('application.status', 'endorsed')->assertJsonMissingPath('application.email');
+        $endorsedMail = Mail::mailer('array')->getSymfonyTransport()->messages()->last()->getOriginalMessage()->getTextBody();
+        $this->assertStringContainsString('/track-organization/'.$application->id, $endorsedMail);
+
+        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
+        $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'reject', 'remarks' => 'Please correct the form.'])->assertOk();
+        $this->getJson($tracking)->assertJsonPath('application.status', 'rejected')
+            ->assertJsonPath('application.remarks', 'Please correct the form.');
+    }
+
+    public function test_existing_approved_organization_receives_head_profile_when_backfilled(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $home = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE']);
+        $head = User::factory()->departmentHead()->create(['organization_id' => $home->id]);
+        $organization = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        OrganizationApplication::create([...$this->payload($college), 'status' => 'approved', 'email_verified_at' => now(), 'organization_id' => $organization->id]);
+        $other = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+
+        $this->artisan('hiusa:sync-department-head-profiles')->assertExitCode(0);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $other->id]);
+        $this->artisan('hiusa:sync-department-head-profiles')->assertExitCode(0);
+        $this->assertSame(1, $head->accountProfiles()->where('organization_id', $organization->id)->count());
     }
 
     public function test_department_head_role_in_a_student_organization_cannot_review_applications(): void

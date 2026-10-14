@@ -64,7 +64,9 @@ Route::get('/organization-applications/requirements', [OrganizationApplicationCo
 Route::get('/organization-applications/requirements/{requirementType}/template', [ComplianceController::class, 'publicRequirementTemplate'])->middleware('throttle:public');
 Route::post('/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:registration');
 Route::post('/organization-applications/edit-link', [OrganizationApplicationController::class, 'requestEditLink'])->middleware('throttle:registration');
+Route::post('/organization-applications/tracking-link', [OrganizationApplicationController::class, 'requestTrackingLink'])->middleware('throttle:registration');
 Route::get('/organization-applications/{application}/verify', [OrganizationApplicationController::class, 'verify'])->middleware(['signed', 'throttle:public'])->name('organization-applications.verify');
+Route::get('/organization-applications/{application}/track', [OrganizationApplicationController::class, 'track'])->middleware(['signed:relative', 'throttle:public'])->name('organization-applications.track');
 Route::get('/organization-applications/{application}/edit', [OrganizationApplicationController::class, 'edit'])->middleware(['signed:relative', 'throttle:public'])->name('organization-applications.edit');
 Route::post('/organization-applications/{application}/edit', [OrganizationApplicationController::class, 'resubmit'])->middleware(['signed:relative', 'throttle:registration']);
 Route::get('/organization-applications/{application}/edit/documents/{document}', [OrganizationApplicationController::class, 'editDocument'])->middleware(['signed:relative', 'throttle:public'])->name('organization-applications.edit-document');

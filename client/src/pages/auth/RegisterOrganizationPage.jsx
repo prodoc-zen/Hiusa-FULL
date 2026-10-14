@@ -128,6 +128,7 @@ export default function RegisterOrganizationPage() {
       </form>}
       <p className="mt-6 text-sm text-[#475569]">Already have access? <Link to="/login" className="font-bold text-[#0878B7]">Log in</Link></p>
       {!editing && <p className="mt-3 text-sm text-[#475569]">Application rejected or lost the email? <Link to="/register-organization/edit-link" className="font-bold text-[#0878B7] underline underline-offset-2">Request an edit link</Link></p>}
+      {!editing && <p className="mt-3 text-sm text-[#475569]">Already applied? <Link to="/track-organization" className="font-bold text-[#0878B7] underline underline-offset-2">Track your application</Link></p>}
     </section>
   </div></main>;
 }
