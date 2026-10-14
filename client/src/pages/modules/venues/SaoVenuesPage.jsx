@@ -2,13 +2,14 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
-  Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, Input, NextStep, PageHeader,
+  Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
 } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import BookingSchedulePreview from './BookingSchedulePreview';
+import TableRowActions from '../../../components/TableRowActions';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
@@ -328,7 +329,7 @@ export default function SaoVenuesPage() {
     { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{formatDisplayText(venue.name)}</span> },
     { key: 'location', header: 'Location' },
     { key: 'capacity', header: 'Capacity', align: 'right' },
-    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${formatDisplayText(venue.name)} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-success' : 'bg-ink-soft'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
+    { key: 'is_active', header: 'Status', render: (venue) => <StatusBadge status={venue.is_active ? 'active' : 'inactive'} /> },
   ];
 
   const bookingColumns = [
@@ -395,10 +396,11 @@ export default function SaoVenuesPage() {
             error={venues.error}
             onRetry={loadVenues}
             actions={(venue) => (
-              <div className="flex justify-end gap-1.5">
-                <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => openVenueModal(venue)}>Edit</Button>
-                <IconButton icon={Trash2} label={`Delete ${formatDisplayText(venue.name)}`} variant="danger" onClick={() => setDeleteTarget(venue)} />
-              </div>
+              <TableRowActions subject={formatDisplayText(venue.name)} actions={[
+                { label: 'Edit', onClick: () => openVenueModal(venue) },
+                { label: venue.is_active ? 'Mark inactive' : 'Mark active', disabled: togglingVenueId === venue.id, onClick: () => toggleVenueActive(venue) },
+                { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(venue) },
+              ]} />
             )}
             emptyState={(
               <EmptyState
@@ -430,14 +432,14 @@ export default function SaoVenuesPage() {
             filtersActive={bookingFiltersActive}
             filters={(
               <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:items-center sm:p-4">
-                <Select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="sm:w-56">
+                <Select filter aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="sm:w-56">
                   <option value="pending">Awaiting decision</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                   <option value="withdrawn">Withdrawn</option>
                   <option value="">All statuses</option>
                 </Select>
-                <Select aria-label="Filter by venue" value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)} className="sm:w-56">
+                <Select filter aria-label="Filter by venue" value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)} className="sm:w-56">
                   <option value="">All venues</option>
                   {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
                 </Select>
@@ -446,13 +448,11 @@ export default function SaoVenuesPage() {
               </div>
             )}
             actions={(booking) => (
-                <div className="flex justify-end gap-1.5">
-                  <Button size="sm" variant="secondary" onClick={() => setScheduleBooking(booking)}>View schedule</Button>
-                  {booking.status === 'pending' && <>
-                  <Button size="sm" variant="secondary" onClick={() => openReview(booking, 'reject')}>Reject</Button>
-                  <Button size="sm" onClick={() => openReview(booking, 'approve')}>Approve</Button>
-                  </>}
-                </div>
+                <TableRowActions subject={`${booking.venue?.name || 'Venue'} booking ${booking.id}`} actions={[
+                  { label: 'View schedule', onClick: () => setScheduleBooking(booking) },
+                  booking.status === 'pending' && { label: 'Reject', danger: true, onClick: () => openReview(booking, 'reject') },
+                  booking.status === 'pending' && { label: 'Approve', onClick: () => openReview(booking, 'approve') },
+                ]} />
             )}
             pagination={(
               <PaginationControls

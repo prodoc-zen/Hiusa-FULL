@@ -22,6 +22,7 @@ use App\Services\EventApprovalChain;
 use App\Services\EventVenueRelease;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
+use App\Support\FilterValues;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -51,10 +52,10 @@ class EventController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:planning,approved,ongoing,completed,cancelled'],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:planning,approved,ongoing,completed,cancelled'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'sort' => ['nullable', 'in:start_asc,start_desc,newest,title'],
-            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
+            'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
         ]);
 
         $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
@@ -67,7 +68,7 @@ class EventController extends Controller
             ]);
         $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
         if ($selectedSemesterId) {
-            $query->where('academic_semester_id', $selectedSemesterId);
+            $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
@@ -87,7 +88,7 @@ class EventController extends Controller
             });
         }
         if (! empty($paging['status'])) {
-            $query->where('status', $paging['status']);
+            $query->whereIn('status', FilterValues::values($paging['status']));
         }
         if (! empty($paging['date'])) {
             $query->whereDate('start_time', $paging['date']);
@@ -1130,7 +1131,7 @@ class EventController extends Controller
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:present,late,excused,absent'],
+            'status' => ['nullable', FilterValues::rule(['in:present,late,excused,absent'])],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -1155,7 +1156,7 @@ class EventController extends Controller
             ->mapWithKeys(fn (string $status) => [$status => (clone $recordsQuery)->where('status', $status)->count()]);
 
         if (! empty($filters['status'])) {
-            $recordsQuery->where('status', $filters['status']);
+            $recordsQuery->whereIn('status', FilterValues::values($filters['status']));
         }
         if (! empty($filters['search'])) {
             $search = trim($filters['search']);

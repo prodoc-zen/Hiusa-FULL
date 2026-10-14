@@ -11,6 +11,7 @@ use App\Models\ElectionPosition;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
+use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -75,14 +76,14 @@ class ElectionController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->validate(['academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id']]);
+        $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
         $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds());
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
         if ($selectedSemesterId) {
-            $query->where('academic_semester_id', $selectedSemesterId);
+            $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
         if ($request->user()?->role === 'STUDENT') {

@@ -1,4 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
+import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
@@ -161,9 +162,9 @@ export default function ManageAnnouncementsPage() {
 
   const activeAnnouncementFilters = [
     search.trim() && `Search: ${search.trim()}`,
-    categoryFilter !== 'all' && `Category: ${CATEGORY_LABEL[categoryFilter] || categoryFilter}`,
-    audienceFilter !== 'all' && `Audience: ${ROLE_LABEL[audienceFilter] || audienceFilter}`,
-    statusFilter !== 'all' && `Status: ${statusFilter === 'draft' ? 'Unpublished / Draft' : 'Published'}`,
+    categoryFilter !== 'all' && `Category: ${filterLabel(categoryFilter, (value) => CATEGORY_LABEL[value] || value)}`,
+    audienceFilter !== 'all' && `Audience: ${filterLabel(audienceFilter, (value) => ROLE_LABEL[value] || value)}`,
+    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter, (value) => value === 'draft' ? 'Unpublished / Draft' : 'Published')}`,
     from && `From: ${from}`,
     to && `To: ${to}`,
     sort !== 'newest' && `Sort: ${sort.replaceAll('_', ' ')}`,
@@ -319,9 +320,9 @@ export default function ManageAnnouncementsPage() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
       <div className="-mx-5 mb-4">
         <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <HiusaSelect value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
-          <HiusaSelect value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</HiusaSelect>
-          <HiusaSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></HiusaSelect>
+          <HiusaSelect filter value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
+          <HiusaSelect filter value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</HiusaSelect>
+          <HiusaSelect filter value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></HiusaSelect>
           <DateTimeInput type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
           <DateTimeInput type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
           <HiusaSelect value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></HiusaSelect>

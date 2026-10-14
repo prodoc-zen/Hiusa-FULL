@@ -105,7 +105,7 @@ class OrganizationApplicationTest extends TestCase
 
         $type->update(['is_active' => false]);
         $this->get("/api/organization-applications/requirements/{$type->id}/template")->assertNotFound();
-        $type->update(['is_active' => true, 'name' => ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT]);
+        $type->update(['is_active' => true, 'category' => 'semestral_report']);
         $this->get("/api/organization-applications/requirements/{$type->id}/template")->assertNotFound();
     }
 

@@ -7,6 +7,7 @@ import { dashboardPopupLeft, dashboardPopupTop } from '../utils/dashboardPopupPo
 export default function TableRowActions({ subject, actions, label = 'Actions' }) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
+  const [portalContainer, setPortalContainer] = useState(null);
   const [position, setPosition] = useState({ left: 12, top: 12 });
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
@@ -31,6 +32,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
 
   useEffect(() => {
     if (!open) return undefined;
+    menuRef.current?.showPopover?.();
     menuRef.current?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
     const closeOutside = (event) => {
       if (!triggerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
@@ -83,6 +85,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
       return;
     }
     setPosition(measure().position);
+    setPortalContainer(triggerRef.current.closest('[role="dialog"]') || document.body);
     setOpen(true);
   };
 
@@ -103,10 +106,12 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={menuRef}
+          popover={typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype ? 'manual' : undefined}
           id={menuId}
           role="menu"
           aria-label={`${label} for ${subject}`}
-          style={position}
+          style={{ margin: 0, bottom: 'auto', right: 'auto', ...position }}
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setOpen(false); triggerRef.current?.focus(); } }}
           className="fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)]"
         >
           <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
@@ -121,10 +126,10 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
                 key={action.label}
                 {...(ActionElement === Link ? { to: action.to } : { type: 'button', disabled: action.disabled })}
                 role="menuitem"
-                onClick={() => { setOpen(false); triggerRef.current?.focus(); action.onClick?.(); }}
+                onClick={(event) => { event.stopPropagation(); setOpen(false); triggerRef.current?.focus(); action.onClick?.(); }}
                 className={`group flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? 'text-red-700 hover:bg-red-50' : 'text-slate-700 hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
               >
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border ${action.danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#DDE7EF] bg-[#EEF6FB] text-[#0F2F62]'}`}>
+                <span aria-hidden="true" className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border ${!Icon ? 'border-transparent' : action.danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#DDE7EF] bg-[#EEF6FB] text-[#0F2F62]'}`}>
                   {Icon && <Icon size={14} strokeWidth={2.1} aria-hidden="true" />}
                 </span>
                 <span className="min-w-0 flex-1">{action.label}</span>
@@ -133,7 +138,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
             );
           })}
         </div>,
-        document.body,
+        portalContainer || document.body,
       )}
     </div>
   );

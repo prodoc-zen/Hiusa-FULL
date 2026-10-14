@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\CashAdvance;
@@ -15,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -24,9 +26,10 @@ class TransactionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'budget_id' => ['nullable', 'integer'],
-            'event_id' => ['nullable', 'integer'],
-            'type' => ['nullable', 'in:income,expense'],
+            'budget_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
+            'event_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
+            'type' => ['nullable', FilterValues::rule(['nullable', 'in:income,expense'])],
+            'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'in:10'],
@@ -45,12 +48,21 @@ class TransactionController extends Controller
 
         $query->whereIn('organization_id', $this->readableOrganizationIds($request));
 
+        if (! empty($filters['academic_semester_id'])) {
+            $periods = AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get();
+            $query->where(function ($matches) use ($periods) {
+                foreach ($periods as $period) {
+                    $matches->orWhereBetween('transaction_date', [$period->starts_on->startOfDay(), $period->ends_on->endOfDay()]);
+                }
+            });
+        }
+
         if (! empty($filters['budget_id'])) {
-            $query->where('budget_id', $filters['budget_id']);
+            $query->whereIn('budget_id', FilterValues::values($filters['budget_id']));
         }
 
         if (! empty($filters['event_id'])) {
-            $query->where('event_id', $filters['event_id']);
+            $query->whereIn('event_id', FilterValues::values($filters['event_id']));
         }
 
         if (! empty($filters['event_search'])) {
@@ -59,7 +71,7 @@ class TransactionController extends Controller
         }
 
         if (! empty($filters['type'])) {
-            $query->where('type', $filters['type']);
+            $query->whereIn('type', FilterValues::values($filters['type']));
         }
 
         if (! empty($filters['from'])) {

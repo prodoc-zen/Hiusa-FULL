@@ -1,11 +1,12 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Building2, ChevronDown } from 'lucide-react';
-import { Button, DataTable, EmptyState, ErrorState, SkeletonStat, SkeletonTable, Stat, StatusBadge } from '../../../components/ui';
+import { DataTable, EmptyState, ErrorState, SkeletonStat, SkeletonTable, Stat, StatusBadge } from '../../../components/ui';
 import { RegistrationRowStatus } from '../../../components/organizations/RegistrationFlow';
 import { getSystemAgency } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { organizationOverviewPath } from './agencyStatus';
+import TableRowActions from '../../../components/TableRowActions';
 
 const PENDING_REVIEW_PATH = '/dashboard/super-admin/organizations?status=pending';
 const reviewPath = (organizationId) => `${PENDING_REVIEW_PATH}&review=${organizationId}`;
@@ -66,11 +67,11 @@ const COLUMNS = [
 function rowActions(row) {
   const name = formatDisplayText(row.name);
   return (
-    <span className="inline-flex items-center gap-2">
-      {row.lifecycle_status === 'pending' && <Button to={reviewPath(row.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`}>Review</Button>}
-      {needsAdministrator(row) && <Button to={provisionPath(row.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Provision administrator for ${name}`}>Provision administrator</Button>}
-      <Button to={organizationOverviewPath(row.id)} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`Open ${name}`}>Open</Button>
-    </span>
+    <TableRowActions subject={name} actions={[
+      row.lifecycle_status === 'pending' && { label: `Review ${name}`, to: reviewPath(row.id) },
+      needsAdministrator(row) && { label: `Provision administrator for ${name}`, to: provisionPath(row.id) },
+      { label: `Open ${name}`, to: organizationOverviewPath(row.id) },
+    ]} />
   );
 }
 

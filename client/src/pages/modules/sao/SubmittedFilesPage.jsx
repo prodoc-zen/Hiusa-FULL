@@ -90,7 +90,7 @@ export default function SubmittedFilesPage({ role }) {
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line p-4">
           <label className="block text-xs font-semibold text-ink">Document type
-            <Select value={family} onChange={(event) => { setFamily(event.target.value); setPage(1); }} className="mt-1 min-w-48">
+            <Select filter value={family} onChange={(event) => { setFamily(event.target.value); setPage(1); }} className="mt-1 min-w-48">
               <option value="">All document types</option>
               {TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </Select>

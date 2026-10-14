@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\GroqResponsesService;
+use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -135,10 +136,10 @@ class AnnouncementController extends Controller
         $user = $request->user();
 
         $filters = $request->validate([
-            'category' => ['nullable', 'in:general,election,training,events,merchandise'],
-            'target_role' => ['nullable', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
-            'approval_status' => ['nullable', 'in:draft,pending,approved,rejected'],
-            'publication_status' => ['nullable', 'in:published,draft'],
+            'category' => ['nullable', FilterValues::rule(['nullable', 'in:general,election,training,events,merchandise'])],
+            'target_role' => ['nullable', FilterValues::rule(['nullable', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'])],
+            'approval_status' => ['nullable', FilterValues::rule(['nullable', 'in:draft,pending,approved,rejected'])],
+            'publication_status' => ['nullable', FilterValues::rule(['nullable', 'in:published,draft'])],
             'search' => ['nullable', 'string', 'max:120'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
@@ -146,9 +147,6 @@ class AnnouncementController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
-
-        $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
-        $category = strtolower((string) ($filters['category'] ?? ''));
 
         $query = Announcement::with([
             'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
@@ -165,20 +163,20 @@ class AnnouncementController extends Controller
                     });
             });
 
-        if ($category !== '' && in_array($category, $allowedCategories, true)) {
-            $query->where('category', $category);
+        if (! empty($filters['category'])) {
+            $query->whereIn('category', FilterValues::values($filters['category']));
         }
 
         if (! empty($filters['target_role'])) {
-            $query->where('target_role', $filters['target_role']);
+            $query->whereIn('target_role', FilterValues::values($filters['target_role']));
         }
 
         if (! empty($filters['approval_status'])) {
-            $query->where('approval_status', $filters['approval_status']);
+            $query->whereIn('approval_status', FilterValues::values($filters['approval_status']));
         }
 
         if (! empty($filters['publication_status'])) {
-            $query->where('is_published', $filters['publication_status'] === 'published');
+            $query->whereIn('is_published', array_map(fn ($status) => $status === 'published', FilterValues::values($filters['publication_status'])));
         }
 
         if (! empty($filters['search'])) {

@@ -410,11 +410,11 @@ export default function DepartmentHeadApprovalsPage() {
               <Search size={15} className="absolute left-3 top-3.5 text-slate-500" aria-hidden="true" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." aria-label="Search requests" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
             </label>
-            <HiusaSelect aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+            <HiusaSelect filter aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
               <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </HiusaSelect>
             {isDepartmentHead && (
-              <HiusaSelect aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+              <HiusaSelect filter aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
                 <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
               </HiusaSelect>
             )}

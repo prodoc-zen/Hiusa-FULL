@@ -11,9 +11,11 @@ class ComplianceRequirementType extends Model
     protected $hidden = ['template_path'];
 
     public const SEMESTRAL_ACCOMPLISHMENT_REPORT = 'Semestral Accomplishment Report';
+
     public const SUPPORTED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
 
     protected $fillable = [
+        'category',
         'academic_year',
         'academic_semester_id',
         'name',
@@ -26,6 +28,13 @@ class ComplianceRequirementType extends Model
         'is_active',
         'created_by',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $type) {
+            $type->category ??= $type->name === self::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization';
+        });
+    }
 
     protected function casts(): array
     {
@@ -42,7 +51,7 @@ class ComplianceRequirementType extends Model
             return $this->allowed_extensions;
         }
 
-        return $this->academic_semester_id && $this->name !== self::SEMESTRAL_ACCOMPLISHMENT_REPORT
+        return $this->academic_semester_id && $this->category !== 'semestral_report'
             ? ['pdf']
             : self::SUPPORTED_EXTENSIONS;
     }

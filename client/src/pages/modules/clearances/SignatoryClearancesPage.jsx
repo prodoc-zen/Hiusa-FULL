@@ -197,13 +197,13 @@ export default function SignatoryClearancesPage() {
                 <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />
               </div>
               <div className="w-48">
-                <Select aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+                <Select filter aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
                   <option value="">All periods</option>
                   {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}</option>)}
                 </Select>
               </div>
               <div className="w-40">
-                <Select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>

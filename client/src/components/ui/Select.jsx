@@ -1,6 +1,7 @@
 import { Children, forwardRef, isValidElement, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, X } from 'lucide-react';
+import { encodeFilter, filterValues } from '../../utils/filterValues';
 
 function readOptions(children, groupDisabled = false) {
   return Children.toArray(children).flatMap((child) => {
@@ -24,7 +25,7 @@ function popupPosition(element) {
     : { bottom: window.innerHeight - bounds.top + 4, maxHeight: Math.max(80, Math.min(300, above - 16)) }) };
 }
 
-const Select = forwardRef(function Select({ className = '', children, onChange, multiple = false, ...props }, ref) {
+const Select = forwardRef(function Select({ className = '', children, onChange, multiple = false, filter = false, ...props }, ref) {
   const nativeRef = useRef(null);
   const popupRef = useRef(null);
   const searchRef = useRef(null);
@@ -35,7 +36,9 @@ const Select = forwardRef(function Select({ className = '', children, onChange, 
   const [uncontrolled, setUncontrolled] = useState(props.defaultValue);
   const options = readOptions(children);
   const currentValue = props.value ?? uncontrolled ?? (multiple ? [] : options[0]?.value ?? '');
-  const selectedValues = (Array.isArray(currentValue) ? currentValue : [currentValue]).map(String);
+  const emptyOption = options.find((option) => option.value === '' || option.value === 'all' || /^All\b/i.test(option.label));
+  const selectedValues = filter ? filterValues(currentValue).filter((value) => value !== emptyOption?.value) : (Array.isArray(currentValue) ? currentValue : [currentValue]).map(String);
+  const multi = multiple || filter;
   const selected = options.filter((option) => selectedValues.includes(option.value));
   const visible = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
   const layoutClass = className.split(/\s+/).filter((token) => /(^|:)(w-|min-w-|max-w-|m[trblxy]?-|flex|grow|shrink|basis-|col-|row-|self-|order-|hidden|block|inline-block|inline-flex|pl-)/.test(token)).join(' ');
@@ -73,6 +76,13 @@ const Select = forwardRef(function Select({ className = '', children, onChange, 
 
   function choose(value) {
     const select = nativeRef.current;
+    if (filter) {
+      const next = value === emptyOption?.value ? [] : selectedValues.includes(value) ? selectedValues.filter((item) => item !== value) : [...selectedValues, value];
+      const encoded = encodeFilter(next, emptyOption?.value ?? '');
+      setUncontrolled(encoded);
+      onChange?.({ target: { value: encoded }, currentTarget: { value: encoded }, type: 'change' });
+      return;
+    }
     if (multiple) {
       const next = selectedValues.includes(value) ? selectedValues.filter((item) => item !== value) : [...selectedValues, value];
       for (const option of select.options) option.selected = next.includes(option.value);
@@ -98,7 +108,7 @@ const Select = forwardRef(function Select({ className = '', children, onChange, 
 
   return <div className={`relative min-w-0 ${layoutClass}`}>
     <div className={`flex min-h-11 w-full items-center gap-1.5 rounded-control border bg-surface px-3 pr-9 text-sm font-medium text-ink transition-colors focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-accent/15 ${props['aria-invalid'] ? 'border-danger' : 'border-line'} ${props.disabled ? 'cursor-not-allowed bg-subtle text-ink-soft' : ''}`}>
-      <select {...props} multiple={multiple} ref={(element) => { nativeRef.current = element; if (typeof ref === 'function') ref(element); else if (ref) ref.current = element; }}
+      <select {...props} value={filter ? currentValue : props.value} multiple={multiple} ref={(element) => { nativeRef.current = element; if (typeof ref === 'function') ref(element); else if (ref) ref.current = element; }}
         aria-expanded={open} aria-controls={open ? `${id}-list` : undefined}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
         onMouseDown={(event) => { if (event.button === 0) { event.preventDefault(); nativeRef.current.focus(); } }}
@@ -106,17 +116,19 @@ const Select = forwardRef(function Select({ className = '', children, onChange, 
         onKeyDown={(event) => { if (['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); show(); } else if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); } }}
         onChange={(event) => { setOpen(false); setUncontrolled(multiple ? Array.from(event.target.selectedOptions, (option) => option.value) : event.target.value); onChange?.(event); }}>
         {children}
+        {filter && selectedValues.length > 1 && <option hidden value={currentValue}>{selected.map((option) => option.label).join(', ')}</option>}
       </select>
       <span aria-hidden="true" className="pointer-events-none flex min-w-0 flex-1 flex-wrap gap-1 py-1.5">
-        {selected.length ? selected.map((option) => <span key={option.value} data-label={option.label} className={`max-w-full truncate before:content-[attr(data-label)] ${option.value ? 'rounded bg-[#15803D] px-2 py-1 text-xs font-semibold text-white' : 'text-ink-muted'}`} />) : <span>Choose…</span>}
+        {selected.length ? selected.slice(0, 3).map((option) => <span key={option.value} data-label={option.label} className={`max-w-full truncate before:content-[attr(data-label)] ${option.value ? 'rounded bg-[#EEF6FB] px-2 py-1 text-xs font-semibold text-[#0F2F62]' : 'text-ink-muted'}`} />) : <span data-label={filter ? emptyOption?.label || 'All options' : 'Choose…'} className="before:content-[attr(data-label)]" />}
+        {selected.length > 3 && <span data-label={`+${selected.length - 3} more`} className="text-xs text-ink-muted before:content-[attr(data-label)]" />}
       </span>
       <ChevronDown size={16} className="pointer-events-none absolute right-3 text-ink-muted" aria-hidden="true" />
     </div>
     {open && createPortal(<div ref={popupRef} popover={typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype ? 'manual' : undefined} style={{ top: 'auto', right: 'auto', bottom: 'auto', margin: 0, ...position }} onKeyDown={move} className="z-[130] flex flex-col overflow-hidden rounded-control border border-line bg-surface shadow-lg">
-      {multiple && selected.length > 0 && <div className="flex flex-wrap gap-1 border-b border-line p-2">{selected.map((option) => <span key={option.value} className="inline-flex items-center gap-1 rounded bg-[#15803D] px-2 py-1 text-xs font-semibold text-white">{option.label}<button type="button" aria-label={`Remove ${option.label}`} onClick={() => choose(option.value)} className="rounded p-1 hover:bg-white/20"><X size={12} aria-hidden="true" /></button></span>)}</div>}
+      {multi && selected.length > 0 && <div className="flex max-h-32 shrink-0 flex-wrap gap-1 overflow-y-auto border-b border-line p-2">{selected.map((option) => <span key={option.value} className="inline-flex items-center gap-1 rounded bg-[#EEF6FB] px-2 py-1 text-xs font-semibold text-[#0F2F62]">{option.label}<button type="button" aria-label={`Remove ${option.label}`} onClick={() => choose(option.value)} className="grid min-h-11 min-w-11 place-items-center rounded hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-600"><X size={12} aria-hidden="true" /></button></span>)}</div>}
       <input ref={searchRef} type="search" aria-label="Search dropdown options" placeholder="Type to search…" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); const first = visible.find((option) => !option.disabled); if (first) choose(first.value); } }} className="m-2 min-h-10 rounded border border-line px-3 text-sm text-ink outline-none focus:border-brand-600 focus:ring-2 focus:ring-accent/20" />
-      <div id={`${id}-list`} role="listbox" aria-label="Dropdown options" aria-multiselectable={multiple || undefined} className="min-h-0 overflow-y-auto p-1">
-        {visible.map((option) => <button key={option.value} type="button" role="option" aria-selected={selectedValues.includes(option.value)} data-option disabled={option.disabled} onClick={() => choose(option.value)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded px-3 py-2 text-left text-sm text-ink hover:bg-subtle focus:bg-subtle focus:outline-2 focus:outline-brand-600 disabled:text-ink-soft"><span>{option.label}</span>{selectedValues.includes(option.value) && <Check size={15} className="shrink-0 text-[#15803D]" aria-hidden="true" />}</button>)}
+      <div id={`${id}-list`} role="listbox" aria-label="Dropdown options" aria-multiselectable={multi || undefined} className="min-h-0 overflow-y-auto p-1">
+        {visible.map((option) => <button key={option.value} type="button" role="option" aria-selected={selectedValues.includes(option.value) || (filter && !selectedValues.length && option === emptyOption)} data-option disabled={option.disabled} onClick={() => choose(option.value)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded px-3 py-2 text-left text-sm text-ink hover:bg-subtle focus:bg-subtle focus:outline-2 focus:outline-brand-600 disabled:text-ink-soft"><span>{option.label}</span>{selectedValues.includes(option.value) && <Check size={15} className="shrink-0 text-[#0878B7]" aria-hidden="true" />}</button>)}
         {!visible.length && <p role="status" className="px-3 py-4 text-sm text-ink-muted">No matching options</p>}
       </div>
     </div>, nativeRef.current?.closest('[role="dialog"]') || document.body)}

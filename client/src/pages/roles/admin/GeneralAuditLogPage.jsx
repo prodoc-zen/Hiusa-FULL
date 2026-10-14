@@ -1,4 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
+import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -115,11 +116,11 @@ export default function GeneralAuditLogPage() {
   );
   const activeAuditFilters = [
     filters.search.trim() && `Search: ${filters.search.trim()}`,
-    filters.module && `Module: ${humanizeIdentifier(filters.module)}`,
-    filters.category && `Action: ${humanizeIdentifier(filters.category)}`,
-    filters.role && `Role: ${ROLE_LABELS[filters.role] || filters.role}`,
-    filters.department && `Department: ${filters.department}`,
-    filters.program && `Program: ${filters.program}`,
+    filters.module && `Module: ${filterLabel(filters.module, humanizeIdentifier)}`,
+    filters.category && `Action: ${filterLabel(filters.category, humanizeIdentifier)}`,
+    filters.role && `Role: ${filterLabel(filters.role, (role) => ROLE_LABELS[role] || role)}`,
+    filters.department && `Department: ${filterLabel(filters.department)}`,
+    filters.program && `Program: ${filterLabel(filters.program)}`,
     filters.from && `From: ${filters.from}`,
     filters.to && `To: ${filters.to}`,
     filters.sort !== 'newest' && `Sort: ${humanizeIdentifier(filters.sort)}`,
@@ -157,7 +158,7 @@ export default function GeneralAuditLogPage() {
           secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           actions={<button type="button" onClick={handleExport} disabled={exporting || meta.total === 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={16} aria-hidden="true" />{exporting ? 'Exporting...' : 'Export CSV'}</button>}
         >
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Module"
             value={filters.module}
             onChange={(event) => update("module", event.target.value)}
@@ -170,7 +171,7 @@ export default function GeneralAuditLogPage() {
               </option>
             ))}
           </HiusaSelect>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Action category"
             value={filters.category}
             onChange={(event) => update("category", event.target.value)}
@@ -181,7 +182,7 @@ export default function GeneralAuditLogPage() {
               <option key={category.value} value={category.value}>{category.label}</option>
             ))}
           </HiusaSelect>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Actor role"
             value={filters.role}
             onChange={(event) => update("role", event.target.value)}
@@ -194,7 +195,7 @@ export default function GeneralAuditLogPage() {
               ),
             )}
           </HiusaSelect>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Actor department"
             value={filters.department}
             onChange={(event) => update("department", event.target.value)}
@@ -205,7 +206,7 @@ export default function GeneralAuditLogPage() {
               <option key={value}>{value}</option>
             ))}
           </HiusaSelect>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Actor program"
             value={filters.program}
             onChange={(event) => update("program", event.target.value)}

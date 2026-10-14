@@ -7,6 +7,7 @@ import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, NextSt
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
+import TableRowActions from '../../../components/TableRowActions';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
@@ -306,7 +307,7 @@ export default function VenueBookingPage() {
           loading={bookings.loading}
           error={bookings.error}
           onRetry={() => loadBookings(bookingsPage)}
-          actions={(booking) => canWithdraw(booking) ? <Button size="sm" variant="secondary" onClick={() => setWithdrawTarget(booking)}>Withdraw</Button> : null}
+          actions={(booking) => canWithdraw(booking) ? <TableRowActions subject={booking.venue?.name || `Booking ${booking.id}`} actions={[{ label: 'Withdraw', danger: true, onClick: () => setWithdrawTarget(booking) }]} /> : null}
           pagination={(
             <PaginationControls
               currentPage={bookings.meta.currentPage}

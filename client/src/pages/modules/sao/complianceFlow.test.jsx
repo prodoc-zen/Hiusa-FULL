@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OrganizationCompliancePage from './OrganizationCompliancePage';
@@ -74,6 +74,34 @@ describe('compliance stage text', () => {
 });
 
 describe('OrganizationCompliancePage', () => {
+  it('ignores an older category response after switching to semestral reports', async () => {
+    let finishOrganization;
+    const organization = new Promise((resolve) => { finishOrganization = resolve; });
+    mocks.getComplianceStatus.mockImplementation((params) => params?.category === 'semestral_report'
+      ? Promise.resolve(adminStatus('incomplete', [requirement('not_submitted', { requirement_name: 'Current semester evidence' })]))
+      : organization);
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Semestral report' }));
+    await screen.findAllByText('Current semester evidence');
+    await act(async () => { finishOrganization(adminStatus('incomplete', [requirement('not_submitted', { requirement_name: 'Older organization response' })])); });
+    expect(screen.queryByText('Older organization response')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Current semester evidence').length).toBeGreaterThan(0);
+  });
+  it('loads the separate semestral report requirements and keeps upload actions available', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    mocks.getComplianceStatus.mockImplementation((params) => Promise.resolve(adminStatus('incomplete', [requirement('not_submitted', { requirement_name: params?.category === 'semestral_report' ? 'Semester narrative' : 'Constitution' })])));
+    mocks.getRequirementTypes.mockResolvedValue({ data: [] });
+    mocks.getSubmissions.mockResolvedValue(queue([]));
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    await screen.findAllByText('Constitution');
+    fireEvent.click(screen.getByRole('tab', { name: 'Semestral report' }));
+    await screen.findAllByText('Semester narrative');
+    expect(mocks.getRequirementTypes).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' }));
+    expect(mocks.getSubmissions).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Semester narrative' })[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Upload document' }));
+    expect(screen.getByRole('dialog', { name: 'Semester narrative' })).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
@@ -247,7 +275,7 @@ describe('SaoCompliancePage review queue', () => {
   it('keeps ?tab= working and shows a compact accreditation stepper on each organization row', async () => {
     renderAt('/dashboard/super-admin/compliance', <SaoCompliancePage />);
     expect((await screen.findAllByRole('progressbar', { name: 'Accreditation progress for Computing Society' })).length).toBeGreaterThan(0);
-    expect(screen.getByRole('tab', { name: 'Progress by organization' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Organization accreditation' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it.each([

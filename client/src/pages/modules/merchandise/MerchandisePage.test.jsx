@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -408,10 +409,10 @@ describe("MerchandisePage fulfillment experience", () => {
     render(<MemoryRouter><MerchandisePage initialTab="inventory" /></MemoryRouter>);
     expect(await screen.findByText("Top sellers")).toBeInTheDocument();
     expect(await screen.findByText(/1,400\.00 collected/)).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" })[0]);
+    fireEvent.click(await findRowAction("Add Stock"));
     fireEvent.change(screen.getByPlaceholderText("e.g. New delivery received"), { target: { value: "New delivery" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" }).at(-1));
+    fireEvent.click(screen.getByRole("button", { name: "Add Stock" }));
     await waitFor(() => expect(merchandiseMocks.adjustStock).toHaveBeenCalledWith(1, 1, "New delivery", null));
   });
 });
@@ -770,8 +771,8 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deleted." } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
-    expect(await screen.findByRole("button", { name: "Delete HIUSA Shirt" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete HIUSA Shirt" }));
+    expect(await findRowAction("Delete HIUSA Shirt")).toBeInTheDocument();
+    fireEvent.click(await findRowAction("Delete HIUSA Shirt"));
     const dialog = await screen.findByRole("dialog", { name: "Delete Product" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 

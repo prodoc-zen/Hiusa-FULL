@@ -1,3 +1,4 @@
+import { filterLabel, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
@@ -452,7 +453,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     const activeFilters = { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), ...organizationScope };
     // Budgets, forecasts, reports, and the event dropdown source have no server-side
     // filter that narrows them down, and every one of them doubles as either a full
-    // catalog view or a <HiusaSelect> option list elsewhere on this page - so they are
+    // catalog view or a dropdown option list elsewhere on this page - so they are
     // fetched in full (across every page) rather than left truncated at page one.
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
@@ -1009,8 +1010,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
   const activeTransactionFilters = [
     search.trim() && `Search: ${search.trim()}`,
-    txFilters.type && `Type: ${txFilters.type}`,
-    txFilters.event_id && `Event: ${events.find((event) => String(event.id) === String(txFilters.event_id))?.title || txFilters.event_id}`,
+    txFilters.type && `Type: ${filterLabel(txFilters.type)}`,
+    txFilters.event_id && `Event: ${filterLabel(txFilters.event_id, (value) => events.find((event) => String(event.id) === value)?.title || value)}`,
     txFilters.from && `From: ${txFilters.from}`,
     txFilters.to && `To: ${txFilters.to}`,
   ].filter(Boolean);
@@ -1024,9 +1025,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   };
   const visibleReports = reports.filter((report) =>
     (!reportFilter.search || String(report.title || '').toLowerCase().includes(reportFilter.search.trim().toLowerCase()))
-    && (!reportFilter.status || report.submission_status === reportFilter.status)
-    && (!reportFilter.document_type || report.document_type === reportFilter.document_type)
-    && (!reportFilter.event_id || String(report.event_id) === reportFilter.event_id));
+    && matchesFilter(reportFilter.status, report.submission_status)
+    && matchesFilter(reportFilter.document_type, report.document_type)
+    && matchesFilter(reportFilter.event_id, report.event_id));
   const clearReportFilters = () => setReportFilter({ search: '', status: '', document_type: '', event_id: '' });
   const reportFiltersActive = Boolean(reportFilter.search || reportFilter.status || reportFilter.document_type || reportFilter.event_id);
 
@@ -1065,7 +1066,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       {isDepartmentHead && OVERSIGHT_TABS.includes(activeTab) && (
         <div className="max-w-sm">
           <label htmlFor="finance-organization" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Organization" />Organization</label>
-          <HiusaSelect
+          <HiusaSelect filter
             id="finance-organization"
             value={organizationFilter}
             onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, search, event.target.value); }}
@@ -1123,8 +1124,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
           >
-            <HiusaSelect aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; const period = academicPeriods.find((item) => String(item.id) === id); setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, from: period?.starts_on?.slice(0, 10) || '', to: period?.ends_on?.slice(0, 10) || '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
-            <HiusaSelect
+            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, academic_semester_id: id, from: '', to: '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
+            <HiusaSelect filter
               value={txFilters.type}
               onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -1134,7 +1135,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <option value="income">Income</option>
               <option value="expense">Expense</option>
             </HiusaSelect>
-            <HiusaSelect
+            <HiusaSelect filter
               value={txFilters.event_id}
               onChange={(e) => setTxFilters({ ...txFilters, event_id: e.target.value })}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -1201,8 +1202,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <p>Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                     </div>
                     {canManageLedger && lockNote && <p className="mt-3 text-xs font-medium text-slate-500">{lockNote}</p>}
-                    {canManageLedger && !lockNote && <button type="button" onClick={() => openTransactionForm(tx)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Pencil size={14} />Edit transaction</button>}
-                    {canManageLedger && !lockNote && <button type="button" onClick={() => askDelete('transaction', tx)} className="ml-2 mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete transaction</button>}
+                    {canManageLedger && !lockNote && <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={[
+                      { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+                      { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
+                    ]} />}
                   </li>;
                 })}
               </ul>
@@ -1408,19 +1411,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button size="sm" variant="secondary" aria-label={`View details for ${formatDisplayText(b.title)}`} onClick={() => setRecordId(b.id)}>View details</Button>
-                    {canGenerateBudgetAdvice && <button
-                        type="button"
-                        onClick={() => handleGenerateBudgetAdvice(b.id)}
-                        disabled={budgetAdviceGenerating === b.id}
-                        className="flex min-h-11 items-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold text-[#0F2F62] transition hover:bg-[#F8FBFD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50"
-                      >
-                        <Sparkles size={14} />
-                        {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
-                      </button>}
-                    {canProposeBudget && b.submission_status !== 'approved' && <button type="button" onClick={() => askDelete('budget', b)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete budget</button>}
-                  </div>
+                  <TableRowActions subject={formatDisplayText(b.title)} actions={[
+                    { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
+                    canGenerateBudgetAdvice && { label: 'AI Advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
+                    canProposeBudget && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, onClick: () => askDelete('budget', b) },
+                  ]} />
                 </div>
                 );
               })}
@@ -1509,7 +1504,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       )}
                       {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
                       {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-[11px] font-semibold text-amber-700">AI explanation was unavailable. The OLS forecast and deterministic risk calculations completed normally; generate again to retry the explanation.</p>}
-                      {canDeleteForecast && <div className="mt-3 border-t border-[#DDE7EF] pt-3"><button type="button" onClick={() => askDelete('forecast', f)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete forecast</button></div>}
+                      {canDeleteForecast && <div className="mt-3 border-t border-[#DDE7EF] pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, onClick: () => askDelete('forecast', f) }]} /></div>}
                     </div>
                   );
                 })}
@@ -1706,9 +1701,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <p className="mt-1 text-xs text-slate-600">Each saved report moves from draft to the Department Head, then the SAO.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-                <HiusaSelect aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</HiusaSelect>
-                <HiusaSelect aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></HiusaSelect>
-                <HiusaSelect aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
               </div>
             </div>
             {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('report')}</div>}
@@ -1741,11 +1736,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     </div>
                     <FlowStepper variant="compact" ariaLabel={`Report progress for ${formatDisplayText(report.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-3 max-w-sm" />
                     <p className="mt-1 hidden text-xs font-semibold text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="secondary" aria-label={`View details for ${formatDisplayText(report.title)}`} onClick={() => setRecordId(report.id)}>View details</Button>
-                      <button type="button" disabled={reportExcelDownloading === report.id} onClick={() => handleExportSavedReport(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><FileSpreadsheet size={14} />{reportExcelDownloading === report.id ? 'Preparing...' : 'Export Excel'}</button><button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handleDownloadReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Download size={14} />{reportPdfDownloading === report.id ? 'Preparing...' : 'Download PDF'}</button>
-                      <button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handlePreviewReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Eye size={14} />Preview / print</button>
-                    </div>
+                    <TableRowActions subject={formatDisplayText(report.title)} actions={[
+                      { label: `View details for ${formatDisplayText(report.title)}`, icon: Eye, onClick: () => setRecordId(report.id) },
+                      { label: 'Export Excel', icon: FileSpreadsheet, disabled: reportExcelDownloading === report.id, onClick: () => handleExportSavedReport(report) },
+                      { label: 'Download PDF', icon: Download, disabled: reportPdfDownloading === report.id, onClick: () => handleDownloadReportPdf(report) },
+                      { label: 'Preview / print', icon: Eye, disabled: reportPdfDownloading === report.id, onClick: () => handlePreviewReportPdf(report) },
+                    ]} />
                   </div>
                   );
                 })}

@@ -25,14 +25,15 @@ const TABS = [
   { key: 'settings', label: 'Requirement settings', icon: ClipboardList, panelId: PANEL_ID, defaultTab: 'requirements' },
 ];
 const ORGANIZATION_TABS = [
-  { key: 'accreditation', label: 'Progress by organization', panelId: SUB_PANEL_ID },
+  { key: 'accreditation', label: 'Organization accreditation', panelId: SUB_PANEL_ID },
   { key: 'review', label: 'Review submissions', icon: Check, panelId: SUB_PANEL_ID },
 ];
 const SETTING_TABS = [
   { key: 'requirements', label: 'Organization requirements', panelId: SUB_PANEL_ID },
   { key: 'events', label: 'Event requirements', panelId: SUB_PANEL_ID },
+  { key: 'semestral-requirements', label: 'Semestral report requirements', panelId: SUB_PANEL_ID },
 ];
-const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'event-reviews': 'event-reviews', financial: 'financial' };
+const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'semestral-requirements': 'settings', 'event-reviews': 'event-reviews', financial: 'financial' };
 
 function getCurrentRole() {
   try {
@@ -124,6 +125,7 @@ export default function SaoCompliancePage() {
           {activeTab === 'requirements' && (
             <RequirementsTab currentAcademicYear={overview.academicYear} onChanged={loadOverview} />
           )}
+          {activeTab === 'semestral-requirements' && <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} onChanged={loadOverview} />}
           {activeTab === 'review' && (
             <ReviewQueueTab
               organizations={[...overview.organizations, ...pendingRegistrations]}

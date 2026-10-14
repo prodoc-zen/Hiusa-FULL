@@ -1,4 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
+import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -136,9 +137,9 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
 
   const activeFilters = useMemo(() => [
     filters.search.trim() && `Search: ${filters.search.trim()}`,
-    organizationId && `Organization: ${organizations.find((organization) => String(organization.id) === String(organizationId))?.acronym || organizationId}`,
-    filters.status && `Status: ${statusLabel(filters.status)}`,
-    filters.document_type && `Document: ${documentLabel(filters.document_type)}`,
+    organizationId && `Organization: ${filterLabel(organizationId, (value) => organizations.find((organization) => String(organization.id) === value)?.acronym || value)}`,
+    filters.status && `Status: ${filterLabel(filters.status, statusLabel)}`,
+    filters.document_type && `Document: ${filterLabel(filters.document_type, documentLabel)}`,
   ].filter(Boolean), [filters, organizationId, organizations]);
 
   const clearFilters = () => {
@@ -171,16 +172,16 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
           resultLabel={meta.total === 1 ? 'financial report' : 'financial reports'}
           secondaryClassName="grid gap-3 sm:grid-cols-3"
         >
-          {!initialOrganizationId && <HiusaSelect aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          {!initialOrganizationId && <HiusaSelect filter aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All organizations</option>
             {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym} - {formatDisplayText(organization.name)}</option>)}
           </HiusaSelect>}
-          <HiusaSelect aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          <HiusaSelect filter aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All document types</option>
             <option value="financial_report">Financial reports</option>
             <option value="income_statement">Income statements</option>
           </HiusaSelect>
-          <HiusaSelect aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          <HiusaSelect filter aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All statuses</option>
             <option value="pending_sao">Awaiting SAO review</option>
             <option value="approved">Approved</option>

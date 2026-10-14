@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\OrderFulfillmentService;
 use App\Services\StudentAccountBalances;
 use App\Support\Csv;
+use App\Support\FilterValues;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
@@ -87,10 +88,10 @@ class FinancialAccountabilityController extends Controller
 
     public function collections(Request $request)
     {
-        $filters = $request->validate(['status' => ['nullable', 'in:pending,verified']]);
+        $filters = $request->validate(['status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,verified'])]]);
         $query = Collection::with(['remittances', 'organization:id,name,acronym'])
             ->whereIn('organization_id', $this->readableOrganizationIds($request))
-            ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(! empty($filters['status']), fn ($query) => $query->whereIn('status', FilterValues::values($filters['status'])))
             ->latest('collected_at');
         if ($request->filled('search')) {
             $query->where(fn ($q) => $q->where('reference', 'like', '%'.$request->search.'%')->orWhere('source', 'like', '%'.$request->search.'%'));
@@ -154,10 +155,10 @@ class FinancialAccountabilityController extends Controller
 
     public function advances(Request $request)
     {
-        $filters = $request->validate(['status' => ['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid']]);
+        $filters = $request->validate(['status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid'])]]);
         $query = CashAdvance::with(['repayments', 'organization:id,name,acronym', 'borrower:school_id,first_name,last_name'])
             ->whereIn('organization_id', $this->readableOrganizationIds($request))
-            ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(! empty($filters['status']), fn ($query) => $query->whereIn('status', FilterValues::values($filters['status'])))
             ->latest();
 
         return response()->json($query->get()->map(fn ($advance) => $this->advanceData($advance)));
@@ -244,8 +245,8 @@ class FinancialAccountabilityController extends Controller
     {
         $filters = $request->validate([
             'student_id' => ['nullable', 'integer'], 'search' => ['nullable', 'string', 'max:100'],
-            'department' => ['nullable', 'string', 'max:150'], 'program' => ['nullable', 'string', 'max:150'],
-            'year_level' => ['nullable', 'string', 'max:50'], 'status' => ['nullable', 'in:all,owing,cleared,overdue,pending_payment'],
+            'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:150'])], 'program' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:150'])],
+            'year_level' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:50'])], 'status' => ['nullable', FilterValues::rule(['nullable', 'in:all,owing,cleared,overdue,pending_payment'])],
             'sort' => ['nullable', 'in:highest_debt,name,recent'], 'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'in:10'],
         ]);
@@ -281,13 +282,14 @@ class FinancialAccountabilityController extends Controller
         }
         foreach (['department', 'program', 'year_level'] as $field) {
             if (! empty($filters[$field])) {
-                $accounts = $accounts->where('student.'.$field, $filters[$field]);
+                $accounts = $accounts->whereIn('student.'.$field, FilterValues::values($filters[$field]));
             }
         }
-        $accounts = match ($filters['status'] ?? 'all') {
-            'owing' => $accounts->where('total_debt', '>', 0), 'cleared' => $accounts->where('total_debt', '<=', 0),
-            'overdue' => $accounts->where('overdue_invoice_count', '>', 0), 'pending_payment' => $accounts->where('pending_payment_count', '>', 0), default => $accounts,
-        };
+        $statuses = FilterValues::values($filters['status'] ?? 'all');
+        $accounts = $accounts->filter(fn ($account) => collect($statuses)->contains(fn ($status) => match ($status) {
+            'owing' => $account['total_debt'] > 0, 'cleared' => $account['total_debt'] <= 0,
+            'overdue' => $account['overdue_invoice_count'] > 0, 'pending_payment' => $account['pending_payment_count'] > 0, default => true,
+        }));
         $accounts = match ($filters['sort'] ?? 'highest_debt') {
             'name' => $accounts->sortBy('student.name', SORT_NATURAL | SORT_FLAG_CASE), 'recent' => $accounts->sortByDesc('last_activity_at'), default => $accounts->sortByDesc('total_debt'),
         };
@@ -425,18 +427,18 @@ class FinancialAccountabilityController extends Controller
     private function filteredAuditLogs(Request $request): Builder
     {
         $organizationId = $request->user()->organization_id;
-        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'in:CREATE,UPDATE,DELETE,APPROVE,REJECT,PAYMENT,COLLECTION,REMITTANCE,ATTENDANCE,STATUS_CHANGE'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
+        $filters = $request->validate(['user_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])], 'role' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:30'])], 'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])], 'program' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])], 'year_level' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:30'])], 'section' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:60'])], 'position_title' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:100'])], 'module' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:50'])], 'action' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:100'])], 'category' => ['nullable', FilterValues::rule(['nullable', 'in:CREATE,UPDATE,DELETE,APPROVE,REJECT,PAYMENT,COLLECTION,REMITTANCE,ATTENDANCE,STATUS_CHANGE'])], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
         $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')
             ->when($request->user()->role !== 'SUPER_ADMIN', fn ($q) => $q->where('organization_id', $organizationId)->where('module', '!=', 'grievances'))
             ->when($request->user()->role === 'SUPER_ADMIN', fn ($q) => $q->whereNotIn('module', self::SUPER_ADMIN_HIDDEN_MODULES)->with('organization:id,name'));
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
-                $query->where($field, $filters[$field]);
+                $query->whereIn($field, FilterValues::values($filters[$field]));
             }
         }
         foreach (['role', 'department', 'program', 'year_level', 'section', 'position_title'] as $userField) {
             if (! empty($filters[$userField])) {
-                $query->whereHas('user', fn ($q) => $q->where($userField, $filters[$userField]));
+                $query->whereHas('user', fn ($q) => $q->whereIn($userField, FilterValues::values($filters[$userField])));
             }
         }
         if (! empty($filters['from'])) {
@@ -449,7 +451,11 @@ class FinancialAccountabilityController extends Controller
             $query->where(fn ($q) => $q->where('module', 'like', "%$search%")->orWhere('action', 'like', "%$search%")->orWhere('record_id', 'like', "%$search%")->orWhereHas('user', fn ($u) => $u->where('first_name', 'like', "%$search%")->orWhere('last_name', 'like', "%$search%")->orWhere('school_id', 'like', "%$search%")));
         }
         if (! empty($filters['category'])) {
-            $this->applyActionCategoryFilter($query, $filters['category']);
+            $query->where(function ($categories) use ($filters) {
+                foreach (FilterValues::values($filters['category']) as $category) {
+                    $categories->orWhere(fn ($match) => $this->applyActionCategoryFilter($match, $category));
+                }
+            });
         }
         match ($filters['sort'] ?? 'newest') {
             'oldest' => $query->oldest('created_at'), 'user' => $query->orderBy(User::select('last_name')->whereColumn('users.school_id', 'audit_logs.user_id'))->orderBy(User::select('first_name')->whereColumn('users.school_id', 'audit_logs.user_id')), 'role' => $query->orderBy(User::select('role')->whereColumn('users.school_id', 'audit_logs.user_id')), 'module' => $query->orderBy('module')->orderByDesc('created_at'), 'action','category' => $query->orderBy('action')->orderByDesc('created_at'), default => $query->latest('created_at')

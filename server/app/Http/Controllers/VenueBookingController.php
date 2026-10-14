@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -29,9 +30,9 @@ class VenueBookingController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'status' => ['nullable', 'in:pending,approved,rejected,withdrawn'],
-            'venue_id' => ['nullable', 'integer', 'exists:venues,id'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,approved,rejected,withdrawn'])],
+            'venue_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:venues,id'])],
+            'organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')])],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -45,13 +46,13 @@ class VenueBookingController extends Controller
         ]);
 
         if ($request->user()->role === 'SUPER_ADMIN') {
-            $query->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->where('organization_id', $id));
+            $query->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->whereIn('organization_id', FilterValues::values($id)));
         } else {
             $query->where('organization_id', $request->user()->organization_id);
         }
         $query
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['venue_id'] ?? null, fn ($q, $id) => $q->where('venue_id', $id))
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)))
+            ->when($filters['venue_id'] ?? null, fn ($q, $id) => $q->whereIn('venue_id', FilterValues::values($id)))
             ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', $this->localTime($from)))
             ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', $this->localTime($to)));
 

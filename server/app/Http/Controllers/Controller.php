@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\FilterValues;
 use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -34,8 +35,8 @@ abstract class Controller
             return $scoped;
         }
 
-        $filter = $request->validate(['organization_id' => ['nullable', 'integer', Rule::in($scoped)]]);
+        $filter = $request->validate(['organization_id' => ['nullable', FilterValues::rule(['integer', Rule::in($scoped)])]]);
 
-        return isset($filter['organization_id']) ? [(int) $filter['organization_id']] : $scoped;
+        return isset($filter['organization_id']) ? array_map('intval', FilterValues::values($filter['organization_id'])) : $scoped;
     }
 }

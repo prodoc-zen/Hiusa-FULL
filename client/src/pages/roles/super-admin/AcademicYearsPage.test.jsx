@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,8 +39,9 @@ describe('AcademicYearsPage', () => {
     expect(screen.getByRole('link', { name: /accreditation requirements/ })).toHaveAttribute('href', '/dashboard/super-admin/compliance');
     expect(screen.getByRole('link', { name: /Hand over administrator roles/ })).toHaveAttribute('href', '/dashboard/super-admin/admins');
     // The table renders a desktop row and a mobile card for each year.
-    expect(screen.queryAllByRole('button', { name: 'Remove 2026-2027' })).toHaveLength(0);
-    expect(screen.getAllByRole('button', { name: 'Remove 2027-2028' }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for 2026-2027' })[0]);
+    expect(screen.queryByRole('menuitem', { name: 'Remove 2026-2027' })).not.toBeInTheDocument();
+    expect(await findRowAction('Remove 2027-2028', '2027-2028')).toBeInTheDocument();
   });
 
   it('makes another year current after confirmation', async () => {
@@ -47,7 +49,7 @@ describe('AcademicYearsPage', () => {
     vi.mocked(makeAcademicYearCurrent).mockResolvedValue({ ...years[0], is_current: true });
     renderPage();
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Make current' }))[0]);
+    fireEvent.click(await findRowAction('Make current'));
     const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Make current' }));
 
@@ -60,7 +62,7 @@ describe('AcademicYearsPage', () => {
     ]);
     vi.mocked(closeAcademicYear).mockResolvedValue({ ...years[1], is_current: false });
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Close year' }))[0]);
+    fireEvent.click(await findRowAction('Close year'));
     const dialog = await screen.findByRole('dialog', { name: 'Complete academic year' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close year' }));
     await waitFor(() => expect(closeAcademicYear).toHaveBeenCalledWith(1));
@@ -75,15 +77,16 @@ describe('AcademicYearsPage', () => {
     it('offers delete only for semesters that are not active', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       renderPage();
-      expect(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
+      expect(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Actions for 1st semester of AY 2026-2027' }));
+      expect(screen.queryByRole('menuitem', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
     });
 
     it('deletes after confirmation and reloads the calendar', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(deleteAcademicSemester).mockResolvedValue('');
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
+      fireEvent.click(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027'));
       const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
 
@@ -95,7 +98,7 @@ describe('AcademicYearsPage', () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(deleteAcademicSemester).mockRejectedValue({ response: { status: 409, data: { message: 'This semester cannot be deleted because of: events, tasks.', reasons: ['events', 'tasks'] } } });
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
+      fireEvent.click(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027'));
       const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
 

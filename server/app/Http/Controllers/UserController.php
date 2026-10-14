@@ -9,6 +9,7 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -40,15 +41,15 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
-            'account_status' => ['nullable', 'in:active,inactive,disabled'],
+            'role' => ['nullable', FilterValues::rule(['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'])],
+            'account_status' => ['nullable', FilterValues::rule(['nullable', 'in:active,inactive,disabled'])],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'department' => ['nullable', 'string', 'max:120'],
-            'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'string', 'max:30'],
-            'section' => ['nullable', 'string', 'max:60'],
+            'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],
+            'program' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],
+            'year_level' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:30'])],
+            'section' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:60'])],
         ]);
 
         $query = User::query()
@@ -65,16 +66,16 @@ class UserController extends Controller
         }
 
         if (! empty($filters['role'])) {
-            $query->where('membership.role', $filters['role']);
+            $query->whereIn('membership.role', FilterValues::values($filters['role']));
         }
 
         if (! empty($filters['account_status'])) {
-            $query->where('membership.account_status', $filters['account_status']);
+            $query->whereIn('membership.account_status', FilterValues::values($filters['account_status']));
         }
 
         foreach (['department', 'program', 'year_level', 'section'] as $field) {
             if (! empty($filters[$field])) {
-                $query->where('users.'.$field, $filters[$field]);
+                $query->whereIn('users.'.$field, FilterValues::values($filters[$field]));
             }
         }
 

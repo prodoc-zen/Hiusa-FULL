@@ -7,6 +7,7 @@ use App\Models\Grievance;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\HiusaAiService;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -44,10 +45,10 @@ class GrievanceController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'status' => ['nullable', 'in:submitted,under_review,resolved,dismissed'],
-            'urgency' => ['nullable', 'in:Low,Medium,High,Critical'],
-            'category' => ['nullable', 'string', 'max:100'],
-            'addressed_to' => ['nullable', 'in:organization,sao'],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:submitted,under_review,resolved,dismissed'])],
+            'urgency' => ['nullable', FilterValues::rule(['nullable', 'in:Low,Medium,High,Critical'])],
+            'category' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:100'])],
+            'addressed_to' => ['nullable', FilterValues::rule(['nullable', 'in:organization,sao'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -58,14 +59,17 @@ class GrievanceController extends Controller
             default => $query,
         };
         $query
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['urgency'] ?? null, fn ($q, $urgency) => $q->where('urgency', $urgency))
-            ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
-            ->when($filters['addressed_to'] ?? null, fn ($q, $addressedTo) => $addressedTo === 'sao'
-                ? $q->whereNull('organization_id')
-                : $q->whereNotNull('organization_id'));
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)))
+            ->when($filters['urgency'] ?? null, fn ($q, $urgency) => $q->whereIn('urgency', FilterValues::values($urgency)))
+            ->when($filters['category'] ?? null, fn ($q, $category) => $q->whereIn('category', FilterValues::values($category)))
+            ->when($filters['addressed_to'] ?? null, function ($q, $addressedTo) {
+                $values = FilterValues::values($addressedTo);
+                if (count($values) === 1) {
+                    $values[0] === 'sao' ? $q->whereNull('organization_id') : $q->whereNotNull('organization_id');
+                }
+            });
 
-        $grievances = $query->orderByDesc('created_at')->paginate($filters['per_page'] ?? 20);
+        $grievances = $query->orderByDesc('created_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
         $grievances->getCollection()->transform(fn (Grievance $grievance) => $this->redact($grievance, $request->user()->role));
 
         return response()->json($grievances);

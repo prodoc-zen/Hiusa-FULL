@@ -1,4 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
+import { matchesFilter } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -183,11 +184,8 @@ export default function SystemAdminsPage() {
           admin.organization?.name,
           admin.organization?.acronym,
         ].some((value) => (value || "").toLowerCase().includes(needle));
-      const matchesOrganization =
-        !organizationFilter ||
-        String(admin.organization_id) === organizationFilter;
-      const matchesStatus =
-        statusFilter === "all" || admin.account_status === statusFilter;
+      const matchesOrganization = matchesFilter(organizationFilter, admin.organization_id);
+      const matchesStatus = matchesFilter(statusFilter, admin.account_status);
       return matchesSearch && matchesOrganization && matchesStatus;
     }).sort((left, right) => Number(Boolean(left.organization?.parent_organization_id)) - Number(Boolean(right.organization?.parent_organization_id)));
   }, [admins, organizationFilter, search, statusFilter]);
@@ -378,7 +376,7 @@ export default function SystemAdminsPage() {
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </label>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Filter by organization"
             value={organizationFilter}
             onChange={(event) => setOrganizationFilter(event.target.value)}
@@ -391,7 +389,7 @@ export default function SystemAdminsPage() {
               </option>
             ))}
           </HiusaSelect>
-          <HiusaSelect
+          <HiusaSelect filter
             aria-label="Filter by account status"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}

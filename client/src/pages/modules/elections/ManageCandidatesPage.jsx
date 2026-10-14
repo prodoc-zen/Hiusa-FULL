@@ -1,3 +1,4 @@
+import TableRowActions from '../../../components/TableRowActions';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -583,25 +584,10 @@ export default function ManageCandidatesPage() {
                       </div>
                     </div>
                     {election.status !== 'closed' && !ballotLocked && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(candidate)}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-[#EEF6FB] px-3 py-1.5 text-xs font-bold text-[#0F2F62] transition hover:bg-[#E6F6FD]"
-                        >
-                          <Pencil size={12} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteId(candidate.id)}
-                          disabled={workingId === candidate.id}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                        >
-                          <Trash2 size={12} />
-                          Remove
-                        </button>
-                      </div>
+                      <TableRowActions subject={formatDisplayText(name)} actions={[
+                        { label: 'Edit', icon: Pencil, onClick: () => openEdit(candidate) },
+                        { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === candidate.id, onClick: () => setConfirmDeleteId(candidate.id) },
+                      ]} />
                     )}
                   </div>
                 </div>

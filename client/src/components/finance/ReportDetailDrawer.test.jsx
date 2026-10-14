@@ -1,3 +1,4 @@
+import { findRowAction } from '../../test/rowActions';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportDetailDrawer from './ReportDetailDrawer';
@@ -21,7 +22,7 @@ describe('ReportDetailDrawer', () => {
 
     expect(screen.getAllByText('receipts.pdf').length).toBeGreaterThan(0);
     expect(screen.getByText('Resubmit for review')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'View file' })[0]);
+    fireEvent.click(await findRowAction('View file'));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/financial-reports/8/documents/0'));
   });
 });

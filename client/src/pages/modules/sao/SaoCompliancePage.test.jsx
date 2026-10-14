@@ -87,8 +87,17 @@ describe('SaoCompliancePage', () => {
   it('defaults to the accreditation tab and falls back from unknown values', async () => {
     renderPage('/dashboard/super-admin/compliance?tab=nonsense');
     expect((await screen.findAllByText('Computing Society')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('tab', { name: 'Progress by organization' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel', { name: 'Progress by organization' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Organization accreditation' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'Organization accreditation' })).toBeInTheDocument();
+  });
+
+  it('offers a separate catalog for SAO semestral report requirements', async () => {
+    renderPage('/dashboard/super-admin/compliance?tab=semestral-requirements');
+    expect(await screen.findByRole('heading', { name: 'Semestral report requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Semestral report requirements' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(mocks.getRequirementTypes).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' })));
+    fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
+    expect(screen.getByRole('dialog', { name: 'New semestral report requirement' })).toBeInTheDocument();
   });
 
   it.each([
@@ -130,7 +139,7 @@ describe('SaoCompliancePage', () => {
     await screen.findAllByText('Computing Society');
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Organizations', 'Event reviews', 'Financial reports', 'Requirement settings', 'Progress by organization', 'Review submissions (1)',
+      'Organizations', 'Event reviews', 'Financial reports', 'Requirement settings', 'Organization accreditation', 'Review submissions (1)',
     ]);
     expect(screen.queryByRole('tab', { name: 'Documents' })).not.toBeInTheDocument();
   });
@@ -167,7 +176,7 @@ describe('SaoCompliancePage', () => {
     renderPage();
     await screen.findAllByText('Computing Society');
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Progress by organization' }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Organization accreditation' }), { key: 'ArrowRight' });
     expect(screen.getByRole('tab', { name: 'Review submissions (1)' })).toHaveFocus();
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=review');
     fireEvent.click((await screen.findAllByRole('button', { name: 'Computing Society' }))[0]);

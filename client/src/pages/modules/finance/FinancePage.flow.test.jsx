@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -142,7 +143,7 @@ describe('FinancePage budget lifecycle', () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [budget()] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View details for Sports Fest Budget' }));
+    fireEvent.click(await findRowAction('View details for Sports Fest Budget'));
     expect(await screen.findByRole('dialog', { name: 'Sports Fest Budget' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(`${BUDGETS}?record=5`);
 
@@ -297,7 +298,7 @@ describe('FinancePage financial report lifecycle', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report()] });
     renderPage('ADMIN', REPORTS, { initialTab: 'reports' });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View details for August Report' }));
+    fireEvent.click(await findRowAction('View details for August Report'));
     expect(await screen.findByRole('dialog', { name: 'August Report' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(`${REPORTS}?record=61`);
   });
@@ -343,7 +344,7 @@ describe('FinancePage empty states', () => {
     fireEvent.change(await screen.findByLabelText('Search report history'), { target: { value: 'nothing like this' } });
     expect(await screen.findByText('No saved reports match these filters')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(await screen.findByRole('button', { name: 'View details for August Report' })).toBeInTheDocument();
+    expect(await findRowAction('View details for August Report')).toBeInTheDocument();
   });
 
   it('explains the first-run report list and the restricted one', async () => {
