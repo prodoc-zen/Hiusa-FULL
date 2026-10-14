@@ -51,6 +51,29 @@ class OrganizationApplicationTest extends TestCase
         $application->documents()->create(['requirement_type_id' => $this->requirementId, 'file_path' => 'organization-applications/test/constitution.pdf', 'file_original_name' => 'constitution.pdf', 'mime_type' => 'application/pdf', 'file_size' => 8]);
     }
 
+    private function rejectWithEditLink(College $college): array
+    {
+        $application = OrganizationApplication::create([
+            ...$this->payload($college), 'status' => 'pending_endorsement', 'email_verified_at' => now(),
+            'requires_documents' => true, 'required_documents_count' => 1,
+        ]);
+        $this->attachDocument($application);
+        $head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create([
+            'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE',
+        ])->id]);
+        Sanctum::actingAs($head);
+        $this->patchJson('/api/organization-applications/'.$application->id.'/review', [
+            'action' => 'reject', 'remarks' => 'Replace the incorrect format.',
+        ])->assertOk()->assertJsonPath('status', 'rejected')->assertJsonMissingPath('edit_token_hash');
+        $message = Mail::mailer('array')->getSymfonyTransport()->messages()->last()->getOriginalMessage()->getTextBody();
+        $this->assertStringContainsString('Replace the incorrect format.', $message);
+        $this->assertMatchesRegularExpression('~register-organization/edit/'.$application->id.'\?~', $message);
+        preg_match('~https?://[^\s]+/register-organization/edit/'.$application->id.'\?([^\s]+)~', $message, $matches);
+        $this->assertNotEmpty($matches[1] ?? null);
+
+        return [$application, '/api/organization-applications/'.$application->id.'/edit?'.$matches[1]];
+    }
+
     public function test_public_registration_uses_sao_file_types(): void
     {
         Mail::fake();
@@ -98,7 +121,7 @@ class OrganizationApplicationTest extends TestCase
         $this->assertCount(1, $application->documents);
         $this->getJson('/api/organization-applications/'.$application->id.'/verify')->assertForbidden();
         $this->get(URL::temporarySignedRoute('organization-applications.verify', now()->addDay(), ['application' => $application->id]))->assertRedirect();
-        $head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $college->name])->id]);
+        $head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE'])->id]);
         $sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]);
         Sanctum::actingAs($sao);
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'approve'])->assertConflict();
@@ -207,7 +230,7 @@ class OrganizationApplicationTest extends TestCase
         $application = OrganizationApplication::firstOrFail();
         $this->get(URL::temporarySignedRoute('organization-applications.verify', now()->addDay(), ['application' => $application->id]))->assertRedirect();
         Storage::disk('local')->delete($application->documents->firstOrFail()->file_path);
-        Sanctum::actingAs(User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $college->name])->id]));
+        Sanctum::actingAs(User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE'])->id]));
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'endorse'])->assertConflict();
         $this->assertSame('pending_endorsement', $application->fresh()->status);
         $application->documents()->delete();
@@ -226,5 +249,96 @@ class OrganizationApplicationTest extends TestCase
         User::factory()->officer()->create(['school_id' => 87651234, 'email' => 'alex@example.test', 'account_status' => 'disabled']);
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'approve'])->assertConflict();
         $this->assertDatabaseMissing('organizations', ['name' => 'Computing Council']);
+    }
+
+    public function test_rejection_email_opens_a_private_edit_form_and_resubmission_keeps_existing_files(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        [$application, $url] = $this->rejectWithEditLink($college);
+        $originalPath = $application->documents()->firstOrFail()->file_path;
+
+        $response = $this->getJson($url)->assertOk()
+            ->assertJsonPath('application.remarks', 'Replace the incorrect format.')
+            ->assertJsonPath('requirements.0.current_file.name', 'constitution.pdf')
+            ->assertJsonMissingPath('application.edit_token_hash');
+        $viewUrl = $response->json('requirements.0.current_file.view_url');
+        $this->get('/api'.$viewUrl)->assertOk();
+
+        $fields = $this->payload($college);
+        unset($fields['school_id'], $fields['email']);
+        $fields['description'] = 'Revised application description.';
+        $this->postJson($url, $fields)->assertOk()->assertJsonPath('message', 'Application resubmitted for Department Head endorsement.');
+        $this->assertDatabaseHas('organization_applications', [
+            'id' => $application->id, 'status' => 'pending_endorsement', 'description' => 'Revised application description.',
+            'remarks' => null, 'edit_token_hash' => null,
+        ]);
+        Storage::disk('local')->assertExists($originalPath);
+        $this->getJson($url)->assertNotFound();
+        $this->get('/api'.$viewUrl)->assertNotFound();
+        $this->postJson($url, $fields)->assertNotFound();
+    }
+
+    public function test_rejected_application_can_replace_only_the_files_it_needs_and_cannot_use_an_invalid_link(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        [$application, $url] = $this->rejectWithEditLink($college);
+        $oldPath = $application->documents()->firstOrFail()->file_path;
+        $fields = $this->payload($college);
+        unset($fields['school_id'], $fields['email']);
+
+        $wrong = URL::temporarySignedRoute('organization-applications.edit', now()->addDay(), [
+            'application' => $application->id, 'token' => 'someone-elses-token',
+        ], absolute: false);
+        $this->getJson($wrong)->assertNotFound();
+        $expired = URL::temporarySignedRoute('organization-applications.edit', now()->subMinute(), [
+            'application' => $application->id, 'token' => 'someone-elses-token',
+        ], absolute: false);
+        $this->getJson($expired)->assertForbidden();
+        $this->postJson($wrong, $fields)->assertNotFound();
+
+        $this->post($url, [...$fields, 'files' => [
+            $this->requirementId => UploadedFile::fake()->create('wrong.png', 10, 'image/png'),
+        ]], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors("files.{$this->requirementId}");
+        $this->assertSame('rejected', $application->fresh()->status);
+        $this->post($url, [...$fields, 'files' => [
+            $this->requirementId => UploadedFile::fake()->create('fixed.pdf', 10, 'application/pdf'),
+        ]], ['Accept' => 'application/json'])->assertOk();
+        $this->assertSame('fixed.pdf', $application->documents()->firstOrFail()->file_original_name);
+        Storage::disk('local')->assertMissing($oldPath);
+    }
+
+    public function test_rejected_applicant_can_request_a_new_edit_link_for_an_older_rejection(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $application = OrganizationApplication::create([
+            ...$this->payload($college), 'status' => 'rejected', 'email_verified_at' => now(),
+            'remarks' => 'Fix the format.', 'requires_documents' => true, 'required_documents_count' => 1,
+        ]);
+        $this->attachDocument($application);
+        $details = ['school_id' => $application->school_id, 'email' => $application->email, 'organization_name' => $application->name];
+        $message = 'If those details match a rejected application, we will email a private edit link.';
+
+        $this->postJson('/api/organization-applications/edit-link', [...$details, 'email' => 'wrong@example.test'])
+            ->assertOk()->assertJsonPath('message', $message);
+        $this->assertNull($application->fresh()->edit_token_hash);
+        $this->postJson('/api/organization-applications/edit-link', $details)->assertOk()->assertJsonPath('message', $message);
+        $this->assertNotNull($application->fresh()->edit_token_hash);
+        $body = Mail::mailer('array')->getSymfonyTransport()->messages()->last()->getOriginalMessage()->getTextBody();
+        preg_match('~https?://[^\s]+/register-organization/edit/'.$application->id.'\?([^\s]+)~', $body, $matches);
+        $this->assertNotEmpty($matches[1] ?? null);
+        $this->getJson('/api/organization-applications/'.$application->id.'/edit?'.$matches[1])
+            ->assertOk()->assertJsonPath('application.remarks', 'Fix the format.');
+    }
+
+    public function test_department_head_role_in_a_student_organization_cannot_review_applications(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $application = OrganizationApplication::create([...$this->payload($college), 'status' => 'pending_endorsement', 'email_verified_at' => now()]);
+        $impostor = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create([
+            'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION',
+        ])->id]);
+        Sanctum::actingAs($impostor);
+        $this->getJson('/api/organization-applications')->assertOk()->assertJsonCount(0, 'data');
+        $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'endorse'])->assertNotFound();
     }
 }

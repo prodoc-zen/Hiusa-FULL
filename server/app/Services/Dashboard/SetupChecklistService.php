@@ -97,40 +97,20 @@ class SetupChecklistService
 
     private function departmentHeadSteps(User $user): array
     {
-        $byStatus = DB::table('organizations')->whereIn('id', $user->scopedOrganizationIds())
-            ->selectRaw('lifecycle_status, COUNT(*) as total')->groupBy('lifecycle_status')->pluck('total', 'lifecycle_status');
-        $total = (int) $byStatus->sum();
-        $returned = (int) ($byStatus['returned'] ?? 0);
-        $pending = (int) ($byStatus['pending'] ?? 0);
-        $active = (int) ($byStatus['active'] ?? 0);
-        $semesterOpen = DB::table('academic_semesters')->where('status', 'active')->exists();
-
-        $followHref = match (true) {
-            $returned > 0 => '/dashboard/department-head/organizations?status=returned',
-            $pending > 0 => '/dashboard/department-head/organizations?status=pending',
-            default => null,
-        };
+        $collegeId = $user->organization?->organization_type === 'COLLEGE' ? $user->organization?->college_id : null;
+        $applications = DB::table('organization_applications')->where('college_id', $collegeId);
+        $awaitingEndorsement = (clone $applications)->where('status', 'pending_endorsement')->count();
+        $reviewed = (clone $applications)->where(fn ($query) => $query->where('endorsed_by', $user->school_id)->orWhere('reviewed_by', $user->school_id))->exists();
 
         return [
             $this->step(
-                'register',
-                'Register your first student organization',
-                'Each organization you register goes to the Student Affairs Office for review.',
-                $total > 0,
-                '/dashboard/department-head/organizations',
-                $semesterOpen ? null : 'Waiting for the SAO to open the semester',
-            ),
-            $this->step(
-                'follow',
-                'Follow your registration',
-                match (true) {
-                    $total === 0 => 'Register an organization first.',
-                    $returned > 0 => "{$returned} returned by the SAO: edit and resubmit.",
-                    $pending > 0 => 'Waiting for SAO review.',
-                    default => 'Your organizations are active.',
-                },
-                $returned === 0 && $pending === 0 && $active > 0,
-                $followHref,
+                'endorse',
+                'Review organization applications',
+                $awaitingEndorsement > 0
+                    ? "{$awaitingEndorsement} verified application".($awaitingEndorsement === 1 ? '' : 's').' awaiting your endorsement before SAO review.'
+                    : 'Applicants apply from the HIUSA home page. Review their requirements before endorsing them to SAO.',
+                $reviewed,
+                '/dashboard/organization-applications',
             ),
             $this->step(
                 'review',

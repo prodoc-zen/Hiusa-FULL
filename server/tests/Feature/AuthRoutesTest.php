@@ -73,6 +73,21 @@ class AuthRoutesTest extends TestCase
             ->assertJsonPath('email', 'student@example.com');
     }
 
+    public function test_authenticated_sessions_expire_after_four_hours(): void
+    {
+        $user = User::factory()->create(['password_hash' => 'password123']);
+        $token = $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'password123'])
+            ->assertOk()->assertJsonPath('session_expires_in_seconds', 14400)->json('access_token');
+
+        $this->withToken($token)->getJson('/api/user')->assertOk();
+        $this->travel(239)->minutes();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user')->assertOk();
+        $this->travel(2)->minutes();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user')->assertUnauthorized();
+    }
+
     public function test_login_infers_role_from_school_id(): void
     {
         $admin = User::factory()->create([

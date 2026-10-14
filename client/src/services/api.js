@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { createApiGetCache } from './apiCache';
 import { resolveRuntimeApiUrl } from '../utils/runtimeApiUrl';
+import { clearAuthSession } from '../utils/authSession';
 
 const api = axios.create({
   baseURL: resolveRuntimeApiUrl(import.meta.env.VITE_API_URL),
@@ -59,8 +60,7 @@ api.interceptors.response.use(
 
     if (status === 401) {
       clearApiCache();
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
+      clearAuthSession();
       if (error.config?.url !== '/login') {
         window.location.assign('/');
       }

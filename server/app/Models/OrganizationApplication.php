@@ -10,6 +10,8 @@ class OrganizationApplication extends Model
 {
     protected $guarded = [];
 
+    protected $hidden = ['edit_token_hash'];
+
     protected function casts(): array
     {
         return ['email_verified_at' => 'datetime', 'endorsed_at' => 'datetime', 'reviewed_at' => 'datetime', 'requires_documents' => 'boolean', 'required_documents_count' => 'integer'];

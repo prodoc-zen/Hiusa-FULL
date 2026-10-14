@@ -6,9 +6,9 @@ const setup = (...keys) => ({ completed: 0, total: keys.length, steps: steps(...
 const order = (role, ...keys) => shapeSetup(role, setup(...keys)).steps.map((step) => step.key);
 
 describe('shapeSetup', () => {
-  it('puts the three steps of docs/UX_FLOW.md section 7 first for each role', () => {
+  it('puts the current setup steps first for each role', () => {
     expect(order('ADMIN', 'positions', 'members', 'academic', 'compliance', 'budget', 'event').slice(0, 3)).toEqual(['positions', 'members', 'event']);
-    expect(order('DEPARTMENT_HEAD', 'register', 'follow', 'review')).toEqual(['register', 'follow', 'review']);
+    expect(order('DEPARTMENT_HEAD', 'review', 'endorse')).toEqual(['endorse', 'review']);
     expect(order('SUPER_ADMIN', 'academic-year', 'college-heads', 'admins', 'requirements', 'venues', 'announcement').slice(0, 3)).toEqual(['academic-year', 'college-heads', 'requirements']);
     expect(order('STUDENT', 'contact', 'fingerprint', 'event').slice(0, 3)).toEqual(['contact', 'event', 'statement']);
     expect(order('SBO_OFFICER', 'contact', 'fingerprint')).toEqual(['contact', 'fingerprint', 'tasks']);
@@ -33,11 +33,10 @@ describe('shapeSetup', () => {
     expect(shaped.steps.find((step) => step.key === 'tasks')).toMatchObject({ href: '/dashboard/tasks/assigned-tasks', action: 'Open My tasks' });
   });
 
-  it('offers Edit and resubmit while a registration is returned', () => {
-    const returned = shapeSetup('DEPARTMENT_HEAD', { completed: 1, total: 3, steps: [{ ...steps('register')[0], done: true, href: null }, { ...steps('follow')[0], href: '/dashboard/department-head/organizations?status=returned' }, ...steps('review')] });
-    expect(returned.steps.find((step) => step.key === 'follow').action).toBe('Edit and resubmit');
-    const pending = shapeSetup('DEPARTMENT_HEAD', { completed: 1, total: 3, steps: [{ ...steps('register')[0], done: true, href: null }, { ...steps('follow')[0], href: '/dashboard/department-head/organizations?status=pending' }, ...steps('review')] });
-    expect(pending.steps.find((step) => step.key === 'follow').action).toBe('Open registrations');
+  it('offers the Department Head an endorsement queue', () => {
+    const shaped = shapeSetup('DEPARTMENT_HEAD', setup('review', 'endorse'));
+    expect(shaped.steps.find((step) => step.key === 'endorse').action).toBe('Review applications');
+    expect(shaped.steps.find((step) => step.key === 'review').action).toBe('Open approvals');
   });
 
   it('returns null when the role has no checklist', () => {

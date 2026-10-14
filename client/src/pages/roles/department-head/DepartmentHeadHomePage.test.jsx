@@ -76,7 +76,8 @@ describe('DepartmentHeadHomePage', () => {
     renderPage();
 
     expect(await screen.findByText('No student organizations yet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Register an organization' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
+    expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+    expect(screen.queryByRole('link', { name: 'Register an organization' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Returned/ })).not.toBeInTheDocument();
   });
 

@@ -4,10 +4,12 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import RouteLoadingFallback from './components/layout/RouteLoadingFallback';
 import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
+import SessionExpiry from './components/auth/SessionExpiry';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const LandingPage = lazy(() => import('./pages/auth/LandingPage'));
 const RegisterOrganizationPage = lazy(() => import('./pages/auth/RegisterOrganizationPage'));
+const RequestApplicationEditLinkPage = lazy(() => import('./pages/auth/RequestApplicationEditLinkPage'));
 const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/OrganizationApplicationsPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
@@ -192,11 +194,15 @@ function NotFoundRedirect() {
 
 function App() {
   return (
+    <>
+    <SessionExpiry />
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
       {/* Authentication */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/register-organization" element={<RegisterOrganizationPage />} />
+      <Route path="/register-organization/edit-link" element={<RequestApplicationEditLinkPage />} />
+      <Route path="/register-organization/edit/:applicationId" element={<RegisterOrganizationPage />} />
       {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
@@ -333,6 +339,7 @@ function App() {
       <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
     </Suspense>
+    </>
   );
 }
 

@@ -6,6 +6,7 @@ import AuthField from '../../components/auth/AuthField';
 import PasswordField from '../../components/auth/PasswordField';
 import { Button } from '../../components/ui';
 import { login } from '../../services/authService';
+import { startAuthSession } from '../../utils/authSession';
 
 const ROLE_REDIRECTS = {
   SUPER_ADMIN: '/dashboard/super-admin',
@@ -34,8 +35,7 @@ export default function LoginPage() {
 
     try {
       const response = await login(credentials);
-      localStorage.setItem('auth_token', response.data.access_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      startAuthSession(response.data);
 
       if (response.data.user?.must_change_password) {
         navigate('/change-password', { replace: true });
