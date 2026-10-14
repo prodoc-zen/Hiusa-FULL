@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Input } from '../../../components/ui';
+import { Button, Card, Input, PageHeader } from '../../../components/ui';
 import { getFileStorage, updateFileStorage } from '../../../services/complianceService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
@@ -39,7 +39,7 @@ export default function StorageOverview() {
 
   const data = state.data;
   const organizations = [...(data?.organizations || [])].sort((a, b) => b.stored_bytes - a.stored_bytes || a.name.localeCompare(b.name));
-  return <Card title="File storage" description="Private submitted files on this server and the upload limits set by SAO.">
+  return <div className="space-y-5 pb-8"><PageHeader title="Storage and limits" description="Track private files and set upload limits for organizations." /><Card title="File storage" description="Private submitted files on this server and the upload limits set by SAO.">
     {state.loading ? <p role="status" className="text-sm text-ink-muted">Checking storage…</p> : state.error ? <div><p role="alert" className="text-sm text-danger-strong">{state.error}</p><Button variant="secondary" onClick={load}>Try again</Button></div> : <>
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-line bg-subtle p-3"><dt className="text-xs font-semibold text-ink-muted">Private files</dt><dd className="mt-1 text-lg font-bold text-ink">{size(data.stored_bytes)}</dd><p className="text-xs text-ink-muted">{data.stored_files} files</p></div>
@@ -60,5 +60,5 @@ export default function StorageOverview() {
         </div>
       </div>
     </>}
-  </Card>;
+  </Card></div>;
 }

@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Building2, ExternalLink, FileText, PencilLine, UserPlus, Users } from 'lucide-react';
+import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getSystemAgency, getSystemColleges, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
@@ -274,7 +274,7 @@ export default function SystemOrganizationsPage() {
     const token = ++requestToken.current;
     setLoading(true);
     try {
-      const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 100, page: requestedPage });
+      const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 12, page: requestedPage });
       if (token !== requestToken.current) return;
       setItems([...(data.data || [])].sort((left, right) =>
         (left.college || '').localeCompare(right.college || '')
@@ -434,23 +434,27 @@ export default function SystemOrganizationsPage() {
       {error && !form && <ErrorState description={error} onRetry={() => load()} />}
       {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-      {loading && !error && <section aria-label="Loading organizations" className="grid gap-4 lg:grid-cols-2"><SkeletonCard /><SkeletonCard /></section>}
-      {!loading && !error && <section className="grid gap-4 lg:grid-cols-2">
+      {loading && !error && <section aria-label="Loading organizations" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3"><SkeletonCard /><SkeletonCard /></section>}
+      {!loading && !error && <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {items.map((org, index) => {
           const lifecycle = org.lifecycle_status || status;
           const name = formatDisplayText(org.name);
-          return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] lg:col-span-2"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className={`rounded-lg border border-[#DDE7EF] p-5 ${lifecycle === 'archived' ? 'bg-subtle' : 'bg-white'}`}><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div><h3 className="font-bold text-slate-900">{name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No college assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><LifecycleBadge status={lifecycle} /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
+          return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] md:col-span-2 2xl:col-span-3"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className={`min-w-0 rounded-lg border border-[#DDE7EF] p-4 ${lifecycle === 'archived' ? 'bg-subtle' : 'bg-white'}`}><div className="flex flex-wrap justify-between gap-3"><div className="flex min-w-0 gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div className="min-w-0"><h3 className="break-words font-bold text-slate-900">{name}</h3><p className="break-words text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No college assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><LifecycleBadge status={lifecycle} /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
             <RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" className="mt-3" />
             {lifecycle === 'pending' && org.submitted_at && <p className="mt-3 text-xs font-semibold text-slate-500">Submitted {manilaDate(org.submitted_at)}</p>}
             {lifecycle === 'returned' && <p className="mt-3 rounded-lg bg-subtle p-3 text-sm text-ink"><span className="block text-xs font-bold text-ink-muted">Returned with remarks</span>{org.review_remarks || 'No remarks were recorded.'}</p>}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
-              <span className="flex items-center gap-1">
-                <Button to={organizationOverviewPath(org.id)} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`Open ${name}`}>Open</Button>
-                {lifecycle === 'pending' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setReviewTarget(org); setReviewOpen(true); }} aria-label={`Review ${name}`}>Review</Button>}
-                {needsAdministrator({ ...org, lifecycle_status: lifecycle }) && <Button to={provisionPath(org.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Provision administrator for ${name}`}>Provision administrator</Button>}
-                {lifecycle === 'archived' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setLifecycleError(''); setRestoreTarget(org); }} aria-label={`Restore ${name}`}>Restore</Button>}
-                {lifecycle === 'active' && <TableRowActions subject={name} label="Organization actions" actions={[{ label: 'Edit organization', icon: PencilLine, onClick: () => { setLogoFile(null); setForm(org); } }, { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college, onClick: () => setMembershipOrganization(org) }, { label: 'Manage user profiles', icon: Users, onClick: () => setProfileOrganization(org) }, { label: 'Archive organization', icon: Archive, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } }]} />}
-              </span></div></article></Fragment>;
+              <TableRowActions subject={name} label="Organization actions" actions={[
+                { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
+                lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
+                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Provision administrator', icon: UserPlus, to: provisionPath(org.id) },
+                lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
+                lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, onClick: () => { setLogoFile(null); setForm(org); } },
+                lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college, onClick: () => setMembershipOrganization(org) },
+                lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, onClick: () => setProfileOrganization(org) },
+                lifecycle === 'active' && { label: 'Archive organization', icon: Archive, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
+              ]} />
+              </div></article></Fragment>;
         })}
       </section>}
       {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} />}

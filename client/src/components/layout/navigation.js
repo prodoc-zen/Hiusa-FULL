@@ -143,6 +143,7 @@ const NAV_BY_ROLE = {
   ],
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
+    { id: 'sao-users', label: 'University users', icon: UsersRound, path: '/dashboard/super-admin/users' },
     group('sao-organizations-group', 'Organizations', Building2, [
       leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),
       leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
@@ -153,6 +154,10 @@ const NAV_BY_ROLE = {
       leaf('sao-venues', 'Venues', '/dashboard/super-admin/venues', MapPin),
       leaf('sao-grievances', 'Grievances', '/dashboard/super-admin/grievances', MessageSquare),
       leaf('sao-clearances', 'Clearances', '/dashboard/super-admin/clearances', ShieldCheck),
+    ]),
+    group('sao-files', 'Files', FileText, [
+      leaf('sao-documents', 'Submitted files', '/dashboard/super-admin/documents', FileText),
+      leaf('sao-storage', 'Storage and limits', '/dashboard/super-admin/file-storage', Settings),
     ]),
     group('sao-updates', 'Updates', Megaphone, [
       leaf('sao-announcements', 'University announcements', '/dashboard/super-admin/announcements', Megaphone),

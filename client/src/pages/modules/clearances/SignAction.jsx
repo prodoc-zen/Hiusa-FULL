@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { CircleCheck, PauseCircle } from 'lucide-react';
 import { Button, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import TableRowActions from '../../../components/TableRowActions';
 import { clearanceStatusTone } from './clearanceLabels';
 
-export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, size = 'sm', showStatus = true }) {
+export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, showStatus = true }) {
   const [mode, setMode] = useState(null);
   const [remarksDraft, setRemarksDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -34,12 +35,10 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
   return (
     <div className="flex flex-col items-start gap-2">
       {showStatus && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
-      {status !== 'cleared' && (
-        <div className="flex flex-col gap-1.5">
-          <Button size={size} variant="secondary" leftIcon={CircleCheck} className="border-green-200 text-green-800 hover:bg-green-50" onClick={() => setMode('clear')}>{status === 'held' ? 'Clear hold' : 'Clear'}</Button>
-          {status === 'pending' && <Button size={size} variant="secondary" leftIcon={PauseCircle} className="border-amber-200 text-amber-800 hover:bg-amber-50" onClick={() => setMode('hold')}>Hold</Button>}
-        </div>
-      )}
+      {status !== 'cleared' && <TableRowActions subject={roleLabel} actions={[
+        { label: status === 'held' ? 'Clear hold' : 'Clear', icon: CircleCheck, onClick: () => setMode('clear') },
+        status === 'pending' && { label: 'Hold', icon: PauseCircle, danger: true, onClick: () => setMode('hold') },
+      ]} />}
       {showStatus && status === 'held' && remarks && <p className="text-xs font-medium text-ink-muted">Reason: {remarks}</p>}
 
       <Modal

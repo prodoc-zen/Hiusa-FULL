@@ -62,7 +62,8 @@ describe('SaoClearancesPage', () => {
       mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));
       mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
       render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
-      fireEvent.click(await screen.findByRole('button', { name: /Delete Second Semester Clearance/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Second Semester Clearance' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete period' }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete this clearance period?' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete period' }));
     }

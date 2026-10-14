@@ -20,6 +20,7 @@ export default function DataTable({
   pagination,
   caption,
   stickyHeader = true,
+  minTableWidth = '',
 }) {
   if (loading) {
     return (
@@ -79,8 +80,8 @@ export default function DataTable({
     <div>
       {filters}
 
-      <div className="hidden md:block" data-view="table">
-        <table className="w-full border-collapse text-sm">
+      <div className={`hidden min-w-0 md:block ${minTableWidth ? 'overflow-x-auto' : ''}`} data-view="table">
+        <table className={`w-full border-collapse text-sm ${minTableWidth}`}>
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className={`${stickyHeader ? 'sticky top-0 z-10' : ''} bg-subtle`}>
             <tr>

@@ -1,7 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardCheck, Plus, Trash2 } from 'lucide-react';
-import { Button, Card, EmptyState, ErrorState, IconButton, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, Card, EmptyState, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
+import TableRowActions from '../../../components/TableRowActions';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -136,10 +137,10 @@ export default function SaoClearancesPage() {
                       <p className="text-xs font-medium text-ink-muted">Calculating progress...</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" onClick={() => setRecordId(period.id)}>View students</Button>
-                    <IconButton icon={Trash2} label={`Delete ${formatDisplayText(period.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(period); }} />
-                  </div>
+                  <TableRowActions subject={formatDisplayText(period.title)} actions={[
+                    { label: 'View students', icon: ClipboardCheck, onClick: () => setRecordId(period.id) },
+                    { label: 'Delete period', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(period); } },
+                  ]} />
                 </div>
               </Card>
             );

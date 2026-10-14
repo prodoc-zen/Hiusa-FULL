@@ -98,6 +98,7 @@ const SPEC = {
   ],
   SUPER_ADMIN: [
     { label: 'Dashboard', path: '/dashboard/super-admin' },
+    { label: 'University users', path: '/dashboard/super-admin/users' },
     {
       label: 'Organizations',
       children: [
@@ -115,6 +116,7 @@ const SPEC = {
         ['Clearances', '/dashboard/super-admin/clearances'],
       ],
     },
+    { label: 'Files', children: [['Submitted files', '/dashboard/super-admin/documents'], ['Storage and limits', '/dashboard/super-admin/file-storage']] },
     { label: 'Updates', children: [['University announcements', '/dashboard/super-admin/announcements'], ['Notifications', '/dashboard/super-admin/notifications']] },
     { label: 'Setup and records', children: [['Academic years', '/dashboard/super-admin/academic-years'], ['Audit trail', '/dashboard/super-admin/audit-logs']] },
   ],
@@ -140,7 +142,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     ['SBO_OFFICER', 9, 24],
     ['DEPARTMENT_HEAD', 9, 12],
     ['STUDENT', 7, 11],
-    ['SUPER_ADMIN', 5, 12],
+    ['SUPER_ADMIN', 7, 15],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -161,7 +163,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it('opens a group on its first page', () => {
-    const group = getNavForRole('SUPER_ADMIN')[1];
+    const group = getNavForRole('SUPER_ADMIN')[2];
     expect(resolveItemPath(group)).toBe('/dashboard/organization-applications');
     expect(getVisibleChildren(group)).toHaveLength(3);
   });

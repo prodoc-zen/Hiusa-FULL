@@ -3,6 +3,9 @@ import api from './api';
 const unwrap = async (response) => (await response).data;
 
 export const getSystemOverview = (params) => unwrap(api.get('/system/overview', { params }));
+export const getSystemUsers = (params) => unwrap(api.get('/system/users', { params }));
+export const getSystemUser = (schoolId) => unwrap(api.get(`/system/users/${schoolId}`));
+export const deleteSystemUser = (schoolId) => unwrap(api.delete(`/system/users/${schoolId}`, { data: { school_id: schoolId } }));
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params }));
 export const updateSystemOrganization = (id, payload) => unwrap(api.put(`/system/organizations/${id}`, payload));
 export const uploadSystemOrganizationLogo = (id, file) => {

@@ -251,7 +251,8 @@ describe('SystemOrganizationsPage', () => {
     });
     const openReview = async () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
-      fireEvent.click(await screen.findByRole('button', { name: 'Review Robotics Club' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Robotics Club' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Review registration' }));
       return screen.findByRole('dialog', { name: 'Review registration' });
     };
 
@@ -330,7 +331,7 @@ describe('SystemOrganizationsPage', () => {
 
     it('says on the card that the SAO reviews a pending registration', async () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
-      const card = (await screen.findByRole('button', { name: 'Review Robotics Club' })).closest('article');
+      const card = (await screen.findByRole('button', { name: 'Actions for Robotics Club' })).closest('article');
       expect(within(card).getByText('Review this registration')).toBeInTheDocument();
       expect(within(card).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
     });
@@ -414,19 +415,22 @@ describe('SystemOrganizationsPage', () => {
       expect(names).toEqual(['Chess Club', 'Art Club']);
       const card = screen.getByText('Chess Club').closest('article');
       expect(within(card).getByText('Provision an administrator')).toBeInTheDocument();
-      expect(within(card).getByRole('link', { name: 'Provision administrator for Chess Club' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
+      fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
+      expect(screen.getByRole('menuitem', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
       const done = screen.getByText('Art Club').closest('article');
       expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
-      expect(within(done).queryByRole('link', { name: /Provision administrator/ })).not.toBeInTheDocument();
+      fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
+      expect(screen.queryByRole('menuitem', { name: 'Provision administrator' })).not.toBeInTheDocument();
     });
   });
 
-  it('shows returned remarks read-only with no actions menu', async () => {
+  it('shows returned remarks with only the open action', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ lifecycle_status: 'returned', is_active: false, review_remarks: 'Add the adviser signature.' })]));
     renderPage('/dashboard/super-admin/organizations?status=returned');
     expect(await screen.findByText('Add the adviser signature.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Review|Archive|Restore/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    expect(screen.getByRole('menuitem', { name: 'Open organization' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Review|Archive|Restore/ })).not.toBeInTheDocument();
   });
 
   describe('archived tab', () => {
@@ -437,9 +441,10 @@ describe('SystemOrganizationsPage', () => {
     it('is read-only with only Open and Restore', async () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
       expect(await screen.findByText('Archived organizations are read-only. Restore to make changes.')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Actions for|Edit|Archive organization|Review/ })).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Open Main SBO' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/3');
-      expect(screen.getByRole('button', { name: 'Restore Main SBO' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+      expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/3');
+      expect(screen.getByRole('menuitem', { name: 'Restore organization' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Edit|Archive|Review/ })).not.toBeInTheDocument();
     });
 
     it('is visibly muted and announced as read only', async () => {
@@ -452,7 +457,8 @@ describe('SystemOrganizationsPage', () => {
     it('restores after confirmation', async () => {
       mocks.restoreSystemOrganization.mockResolvedValue({});
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      fireEvent.click(await screen.findByRole('button', { name: 'Restore Main SBO' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Restore organization' }));
       fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
       await waitFor(() => expect(mocks.restoreSystemOrganization).toHaveBeenCalledWith(3));
       expect(await screen.findByRole('status')).toHaveTextContent('Main SBO restored.');
@@ -461,7 +467,8 @@ describe('SystemOrganizationsPage', () => {
     it('shows the server message and reloads when restore conflicts', async () => {
       mocks.restoreSystemOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'Only an archived organization can be restored.' } } });
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      fireEvent.click(await screen.findByRole('button', { name: 'Restore Main SBO' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Restore organization' }));
       fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
       expect(await screen.findByText('Only an archived organization can be restored.')).toBeInTheDocument();
     });
