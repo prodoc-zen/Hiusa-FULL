@@ -140,10 +140,9 @@ describe('RoleBriefing', () => {
       expect(screen.queryByRole('link', { name: /New announcement/ })).not.toBeInTheDocument();
     });
 
-    it('DEPARTMENT_HEAD: a blocked register step shows its note and no button', async () => {
+    it('DEPARTMENT_HEAD: the first action opens applications for endorsement', async () => {
       const setup = withProgress([
-        step('register', 'Register your first student organization', { href: null, blocked: true, note: 'Waiting for the SAO to open the semester' }),
-        step('follow', 'Follow your registration', { href: null }),
+        step('endorse', 'Review organization applications', { href: '/dashboard/organization-applications' }),
         step('review', 'Review approvals', { href: '/dashboard/department-head/approvals' }),
       ]);
       vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup }));
@@ -151,20 +150,17 @@ describe('RoleBriefing', () => {
 
       const card = (await screen.findByRole('heading', { name: 'Getting started' })).closest('section');
       expect(screen.getByText(/Your college: Supreme Student Council/)).toBeInTheDocument();
-      const [register, follow, review] = within(card).getAllByRole('listitem');
-      expect(register).toHaveTextContent('Register your first student organization');
-      expect(register).toHaveTextContent('Waiting for the SAO to open the semester');
-      expect(within(register).queryByRole('link')).not.toBeInTheDocument();
-      expect(within(register).queryByRole('button')).not.toBeInTheDocument();
-      expect(within(follow).queryByRole('link')).not.toBeInTheDocument();
+      const [endorse, review] = within(card).getAllByRole('listitem');
+      expect(endorse).toHaveTextContent('Review organization applications');
+      expect(within(endorse).getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
       expect(within(review).getByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/dashboard/department-head/approvals');
+      expect(within(card).queryByText(/Register your first student organization/)).not.toBeInTheDocument();
     });
 
-    it('DEPARTMENT_HEAD: a returned registration offers Edit and resubmit and leads the attention list', async () => {
+    it('DEPARTMENT_HEAD: a completed endorsement leaves approvals actionable', async () => {
       const setup = withProgress([
-        { ...step('register', 'Register your first student organization'), done: true, href: null },
-        step('follow', 'Follow your registration', { href: '/dashboard/department-head/organizations?status=returned' }),
-        step('review', 'Review approvals'),
+        { ...step('endorse', 'Review organization applications'), done: true, href: null },
+        step('review', 'Review approvals', { href: '/dashboard/department-head/approvals' }),
       ]);
       const attention = [
         { id: 'approval-1', type: 'approval', severity: 'high', title: 'Foundation Week', detail: 'Event requested', due_at: null, href: null },
@@ -173,7 +169,7 @@ describe('RoleBriefing', () => {
       vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup, attention }));
       renderBriefing();
 
-      expect(await screen.findByRole('link', { name: 'Edit and resubmit' })).toHaveAttribute('href', '/dashboard/department-head/organizations?status=returned');
+      expect(await screen.findByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/dashboard/department-head/approvals');
       const queue = screen.getByRole('heading', { name: 'Needs attention' }).closest('section');
       expect(within(queue).getAllByRole('listitem').map((row) => row.textContent)[0]).toContain('Registration returned: Robotics Club');
     });

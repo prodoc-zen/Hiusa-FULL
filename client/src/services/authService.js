@@ -1,4 +1,5 @@
 import api from './api';
+import { clearAuthSession } from '../utils/authSession';
 
 export const login = (credentials) => {
   return api.post('/login', credentials);
@@ -10,8 +11,7 @@ export const register = (data) => {
 
 export const logout = () => {
   return api.post('/logout').finally(() => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
+    clearAuthSession();
   });
 };
 

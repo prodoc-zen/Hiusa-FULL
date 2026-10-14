@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CalendarDays, ClipboardCheck, Users } from 'lucide-react';
 import logo from '../../assets/Hiusa Logo.png';
 import campusPhoto from '../../assets/landing-campus.jpg';
@@ -17,6 +17,7 @@ const registrationSteps = [
 ];
 
 export default function LandingPage() {
+  const [params] = useSearchParams();
   return <div className="min-h-screen bg-[#EEF6FB] font-sans text-[#0F172A]">
     <header className="border-b border-[#DDE7EF] bg-white">
       <nav aria-label="Public navigation" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
@@ -30,6 +31,8 @@ export default function LandingPage() {
         </div>
       </nav>
     </header>
+
+    {params.get('session') === 'expired' && <p role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-[#78350F]">Your four-hour session ended. Sign in again to continue.</p>}
 
     <main>
       <section aria-labelledby="landing-title" className="overflow-hidden bg-[#0B1831] text-white">

@@ -136,21 +136,177 @@ class OrganizationApplicationController extends Controller
             $application->update(['status' => 'pending_endorsement', 'email_verified_at' => now()]);
             $college = $application->college;
             User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
-                ->where(fn ($q) => $q->where('department', $college->name)->orWhereHas('organization', fn ($org) => $org->where('college', $college->name)))
+                ->whereHas('organization', fn ($org) => $org->where('organization_type', 'COLLEGE')->where('college_id', $college->id))
                 ->get()->each(fn ($user) => $this->notify($user, $application, 'Organization application awaiting endorsement'));
         });
 
         return redirect(rtrim(config('app.frontend_url'), '/').'/register-organization?verified=1');
     }
 
+    private function authorizeEdit(Request $request, OrganizationApplication $application): void
+    {
+        $token = (string) $request->query('token');
+        abort_unless($application->status === 'rejected' && $application->email_verified_at
+            && $application->edit_token_hash && $token !== ''
+            && hash_equals($application->edit_token_hash, hash('sha256', $token)), 404);
+    }
+
+    private function editUrl(OrganizationApplication $application, string $token): string
+    {
+        $signed = URL::temporarySignedRoute('organization-applications.edit', now()->addDays(14), [
+            'application' => $application->id, 'token' => $token,
+        ], absolute: false);
+
+        return rtrim(config('app.frontend_url'), '/').'/register-organization/edit/'.$application->id.'?'.parse_url($signed, PHP_URL_QUERY);
+    }
+
+    public function requestEditLink(Request $request)
+    {
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'email' => ['required', 'email', 'max:255'],
+            'organization_name' => ['required', 'string', 'max:255'],
+        ]);
+        $email = Str::lower(trim($data['email']));
+        $name = Str::lower(trim($data['organization_name']));
+        $application = OrganizationApplication::where('status', 'rejected')->whereNotNull('email_verified_at')
+            ->where('school_id', $data['school_id'])->whereRaw('LOWER(email) = ?', [$email])
+            ->whereRaw('LOWER(name) = ?', [$name])->latest()->first();
+
+        if ($application) {
+            $token = Str::random(48);
+            $application->update(['edit_token_hash' => hash('sha256', $token)]);
+            try {
+                $url = $this->editUrl($application, $token);
+                Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nOpen your rejected organization application and review the remarks here:\n{$url}\n\nThis private link expires in 14 days and stops working after you resubmit.",
+                    fn ($mail) => $mail->to($application->email)->subject('HIUSA application edit link'));
+            } catch (\Throwable $error) {
+                report($error);
+            }
+        }
+
+        return response()->json(['message' => 'If those details match a rejected application, we will email a private edit link.']);
+    }
+
+    public function edit(Request $request, OrganizationApplication $application)
+    {
+        $this->authorizeEdit($request, $application);
+        [$semester, $types] = $this->registrationRequirements();
+        $documents = $application->documents()->get()->keyBy('requirement_type_id');
+
+        return response()->json([
+            'application' => $application->only(['id', 'college_id', 'name', 'acronym', 'description', 'first_name', 'last_name', 'school_id', 'email', 'position_title', 'remarks']),
+            'academic_semester' => $semester ? ['id' => $semester->id, 'number' => $semester->number, 'academic_year' => $semester->academicYear->label] : null,
+            'requirements' => $types->map(function (ComplianceRequirementType $type) use ($application, $documents, $request) {
+                $document = $documents->get($type->id);
+
+                return [
+                    ...$type->only(['id', 'name', 'description', 'deadline_at', 'template_original_name', 'template_url']),
+                    'allowed_extensions' => $type->acceptedExtensions(),
+                    'current_file' => $document ? [
+                        'name' => $document->file_original_name,
+                        'view_url' => Str::after(URL::temporarySignedRoute('organization-applications.edit-document', now()->addMinutes(30), [
+                            'application' => $application->id, 'document' => $document->id, 'token' => $request->query('token'),
+                        ], absolute: false), '/api'),
+                    ] : null,
+                ];
+            })->values(),
+        ]);
+    }
+
+    public function editDocument(Request $request, OrganizationApplication $application, OrganizationApplicationDocument $document)
+    {
+        $this->authorizeEdit($request, $application);
+        abort_unless($document->organization_application_id === $application->id && Storage::disk('local')->exists($document->file_path), 404);
+
+        return Storage::disk('local')->response($document->file_path, $document->file_original_name);
+    }
+
+    public function resubmit(Request $request, OrganizationApplication $application)
+    {
+        $this->authorizeEdit($request, $application);
+        [$semester, $types] = $this->registrationRequirements();
+        if (! $semester || $types->isEmpty()) {
+            return response()->json(['message' => self::NO_REQUIREMENTS], 422);
+        }
+        $data = $request->validate([
+            'college_id' => ['required', Rule::exists('colleges', 'id')->where('is_active', true)->whereNull('deleted_at')],
+            'name' => ['required', 'string', 'max:255', 'unique:organizations,name'],
+            'acronym' => ['required', 'string', 'max:50', 'unique:organizations,acronym'],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'first_name' => ['required', 'string', 'max:60'],
+            'last_name' => ['required', 'string', 'max:60'],
+            'position_title' => ['required', 'string', 'max:100'],
+            'files' => ['sometimes', 'array:'.$types->pluck('id')->implode(',')],
+            ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['sometimes', ...$type->uploadRules()]])->all(),
+        ]);
+        unset($data['files']);
+        $stored = [];
+        $obsolete = [];
+        try {
+            $application = DB::transaction(function () use ($application, $data, $request, $semester, $types, &$stored, &$obsolete) {
+                $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+                $this->authorizeEdit($request, $application);
+                College::whereKey($data['college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail();
+                abort_unless(AcademicSemester::active()?->id === $semester->id
+                    && $this->registrationRequirements()[1]->pluck('id')->all() === $types->pluck('id')->all(), 409, 'Registration requirements changed. Reload the form.');
+                if (OrganizationApplication::whereKeyNot($application->id)->whereNotIn('status', ['rejected', 'approved', 'expired'])
+                    ->where(fn ($query) => $query->where('name', $data['name'])->orWhere('acronym', $data['acronym']))->exists()) {
+                    throw ValidationException::withMessages(['name' => ['An application for this organization is already being reviewed.']]);
+                }
+
+                $currentIds = $types->pluck('id')->all();
+                foreach ($application->documents()->get() as $document) {
+                    if (! in_array((int) $document->requirement_type_id, $currentIds, true)) {
+                        $obsolete[] = $document->file_path;
+                        $document->delete();
+                    }
+                }
+                foreach ($types as $type) {
+                    $file = $request->file("files.{$type->id}");
+                    $document = $application->documents()->where('requirement_type_id', $type->id)->first();
+                    if (! $file) {
+                        if (! $document || ! Storage::disk('local')->exists($document->file_path)) {
+                            throw ValidationException::withMessages(["files.{$type->id}" => ['Upload this required document.']]);
+                        }
+                        continue;
+                    }
+                    $stored[] = $path = $file->store('organization-applications/'.$application->id, 'local');
+                    abort_unless($path, 500, 'Could not save the replacement document.');
+                    if ($document) {
+                        $obsolete[] = $document->file_path;
+                        $document->update(['file_path' => $path, 'file_original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getClientMimeType(), 'file_size' => $file->getSize()]);
+                    } else {
+                        $application->documents()->create(['requirement_type_id' => $type->id, 'file_path' => $path, 'file_original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getClientMimeType(), 'file_size' => $file->getSize()]);
+                    }
+                }
+
+                $application->fill($data);
+                $application->forceFill(['status' => 'pending_endorsement', 'remarks' => null, 'endorsed_by' => null, 'endorsed_at' => null, 'reviewed_by' => null, 'reviewed_at' => null, 'edit_token_hash' => null, 'requires_documents' => true, 'required_documents_count' => $types->count()])->save();
+                AuditLog::create(['organization_id' => null, 'user_id' => null, 'actor_role' => 'APPLICANT', 'module' => 'organization_applications', 'action' => 'resubmitted', 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['status' => 'pending_endorsement', 'school_id' => $application->school_id], 'created_at' => now(), 'ip_address' => $request->ip()]);
+
+                return $application;
+            });
+        } catch (\Throwable $error) {
+            Storage::disk('local')->delete($stored);
+            throw $error;
+        }
+        Storage::disk('local')->delete($obsolete);
+        $college = $application->college;
+        User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
+            ->whereHas('organization', fn ($query) => $query->where('organization_type', 'COLLEGE')->where('college_id', $college->id))
+            ->get()->each(fn ($user) => $this->notify($user, $application, 'Resubmitted organization application awaiting endorsement'));
+
+        return response()->json(['message' => 'Application resubmitted for Department Head endorsement.'], 200);
+    }
+
     private function scopeForHead($query, User $user)
     {
-        if ($user->organization?->college_id) {
+        if ($user->organization?->organization_type === 'COLLEGE' && $user->organization?->college_id) {
             return $query->where('college_id', $user->organization->college_id);
         }
-        $collegeName = $user->organization?->college ?: $user->department;
 
-        return $query->whereHas('college', fn ($q) => $q->where('name', $collegeName ?: '__unassigned__'));
+        return $query->whereRaw('1 = 0');
     }
 
     public function index(Request $request)
@@ -186,10 +342,14 @@ class OrganizationApplicationController extends Controller
         }
         $data = $request->validate(['action' => ['required', Rule::in($actor->role === 'DEPARTMENT_HEAD' ? ['endorse', 'reject'] : ['approve', 'reject'])], 'remarks' => ['nullable', 'string', 'max:2000', 'required_if:action,reject']]);
         $newUser = false;
+        $editToken = null;
         $copied = [];
         try {
-            $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser, &$copied) {
+            $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser, &$editToken, &$copied) {
                 $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+                if ($actor->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $actor)->exists()) {
+                    abort(404);
+                }
                 $expected = $actor->role === 'DEPARTMENT_HEAD' ? 'pending_endorsement' : 'endorsed';
                 abort_if($application->status !== $expected, 409, 'This application is not awaiting your review. Refresh the queue.');
                 abort_unless($application->email_verified_at, 409, 'The applicant must verify their email before review.');
@@ -236,6 +396,10 @@ class OrganizationApplicationController extends Controller
                     'endorse' => 'endorsed', 'approve' => 'approved', default => 'rejected'
                 };
                 $application->remarks = $data['remarks'] ?? null;
+                if ($data['action'] === 'reject') {
+                    $editToken = Str::random(48);
+                    $application->edit_token_hash = hash('sha256', $editToken);
+                }
                 if ($data['action'] === 'endorse') {
                     $application->endorsed_by = $actor->school_id;
                     $application->endorsed_at = now();
@@ -258,7 +422,12 @@ class OrganizationApplicationController extends Controller
             if ($newUser) {
                 $passwords->issue($admin);
             }
-            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nYour application for {$application->name} is now {$application->status}.\n".($application->remarks ?: '').($admin ? "\nYou are the organization's first administrator. Sign in at ".rtrim(config('app.frontend_url'), '/').'/login'.($newUser ? '. A separate email contains your password setup link.' : ' using your existing account.') : ''), fn ($mail) => $mail->to($application->email)->subject('HIUSA organization application update'));
+            $editInstructions = '';
+            if ($editToken) {
+                $editUrl = $this->editUrl($application, $editToken);
+                $editInstructions = "\n\nReview the remarks, edit your application, and resubmit it here:\n{$editUrl}\nThis private link expires in 14 days and stops working after you resubmit.";
+            }
+            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nYour application for {$application->name} is now {$application->status}.\n".($application->remarks ?: '').$editInstructions.($admin ? "\nYou are the organization's first administrator. Sign in at ".rtrim(config('app.frontend_url'), '/').'/login'.($newUser ? '. A separate email contains your password setup link.' : ' using your existing account.') : ''), fn ($mail) => $mail->to($application->email)->subject('HIUSA organization application update'));
             $application->setAttribute('email_sent', true);
         } catch (\Throwable $error) {
             report($error);

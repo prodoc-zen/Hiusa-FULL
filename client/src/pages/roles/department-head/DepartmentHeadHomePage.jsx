@@ -118,8 +118,8 @@ export default function DepartmentHeadHomePage() {
             kind="first-run"
             icon={Building2}
             title="No student organizations yet"
-            description="Register your first student organization. It goes to the SAO for review, and you follow it from here."
-            action={<Button to={ORGANIZATIONS_PATH}>Register an organization</Button>}
+            description="Applicants register from the HIUSA home page. Review their submitted requirements and endorse eligible applications to SAO."
+            action={<Button to="/dashboard/organization-applications">Review applications</Button>}
           />
         ) : (
           <ul className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">

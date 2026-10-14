@@ -715,6 +715,7 @@ class UserController extends Controller
             'user' => $user,
             'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
+            'session_expires_in_seconds' => config('sanctum.expiration') * 60,
         ], 201);
     }
 
@@ -772,6 +773,7 @@ class UserController extends Controller
             'user' => $user,
             'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
+            'session_expires_in_seconds' => config('sanctum.expiration') * 60,
         ]);
     }
 

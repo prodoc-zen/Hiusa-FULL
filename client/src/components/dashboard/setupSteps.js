@@ -4,7 +4,7 @@ import { formatDisplayText } from '../../utils/displayText.js';
 // order (and a few extra steps), so the client re-sorts; a key not listed goes last in server order.
 const STEP_ORDER = {
   ADMIN: ['positions', 'members', 'event', 'academic', 'compliance', 'budget'],
-  DEPARTMENT_HEAD: ['register', 'follow', 'review'],
+  DEPARTMENT_HEAD: ['endorse', 'review'],
   SUPER_ADMIN: ['academic-year', 'college-heads', 'requirements', 'admins', 'venues', 'announcement'],
   STUDENT: ['contact', 'event', 'statement', 'fingerprint'],
   SBO_OFFICER: ['contact', 'fingerprint', 'tasks'],
@@ -12,7 +12,7 @@ const STEP_ORDER = {
 
 const ACTION_LABELS = {
   ADMIN: { positions: 'Add positions', members: 'Add members', event: 'Propose an event', academic: 'Set up programs', compliance: 'Open compliance', budget: 'Propose a budget' },
-  DEPARTMENT_HEAD: { register: 'Register an organization', follow: 'Open registrations', review: 'Open approvals' },
+  DEPARTMENT_HEAD: { endorse: 'Review applications', review: 'Open approvals' },
   SUPER_ADMIN: { 'academic-year': 'Set the academic year', 'college-heads': 'Open colleges', requirements: 'Publish requirements', admins: 'Open administrators', venues: 'List venues', announcement: 'Write an announcement' },
   STUDENT: { contact: 'Add contact number', event: 'Find an event', statement: 'Open statement' },
   SBO_OFFICER: { contact: 'Add contact number', tasks: 'Open My tasks' },
@@ -25,9 +25,6 @@ const ADVISORY_STEPS = {
 };
 
 function actionFor(role, step) {
-  if (role === 'DEPARTMENT_HEAD' && step.key === 'follow') {
-    return step.href?.includes('status=returned') ? 'Edit and resubmit' : 'Open registrations';
-  }
   return ACTION_LABELS[role]?.[step.key];
 }
 

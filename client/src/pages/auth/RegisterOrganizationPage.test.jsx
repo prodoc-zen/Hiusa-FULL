@@ -3,12 +3,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from './LandingPage';
 import RegisterOrganizationPage from './RegisterOrganizationPage';
-import { getApplicationRequirements, getRegistrationColleges, submitOrganizationApplication } from '../../services/organizationApplicationService';
+import { getApplicationRequirements, getRegistrationColleges, getRejectedApplication, requestApplicationEditLink, resubmitRejectedApplication, submitOrganizationApplication } from '../../services/organizationApplicationService';
+import RequestApplicationEditLinkPage from './RequestApplicationEditLinkPage';
 
 const sampleMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../utils/openProtectedFile', () => sampleMocks);
 
-vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), submitOrganizationApplication: vi.fn() }));
+vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), getRejectedApplication: vi.fn(), requestApplicationEditLink: vi.fn(), resubmitRejectedApplication: vi.fn(), submitOrganizationApplication: vi.fn() }));
 
 describe('Public organization onboarding', () => {
   beforeEach(() => {
@@ -87,5 +88,43 @@ describe('Public organization onboarding', () => {
     render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
     expect(await screen.findByText('No registration requirements are open. The SAO must activate a semester first.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit application' })).not.toBeInTheDocument();
+  });
+
+  it('opens the emailed edit link with existing details and keeps unchanged documents', async () => {
+    getRejectedApplication.mockResolvedValue({ data: {
+      application: { id: 8, college_id: 2, name: 'Computing Council', acronym: 'CC', first_name: 'Alex', last_name: 'Rivera', school_id: 12345678, email: 'alex@example.test', position_title: 'President', remarks: 'Replace the wrong format.' },
+      academic_semester: { academic_year: '2026-2027', number: 1 },
+      requirements: [{ id: 7, name: 'Constitution', current_file: { name: 'constitution.pdf', view_url: '/organization-applications/8/edit/documents/3?signature=example' } }],
+    } });
+    resubmitRejectedApplication.mockResolvedValue({ data: { message: 'Application resubmitted for Department Head endorsement.' } });
+    sampleMocks.openProtectedFile.mockResolvedValue();
+    render(<MemoryRouter initialEntries={['/register-organization/edit/8?expires=123&signature=abc&token=private']}><Routes>
+      <Route path="/register-organization/edit/:applicationId" element={<RegisterOrganizationPage />} />
+    </Routes></MemoryRouter>);
+
+    expect(await screen.findByRole('heading', { name: 'Edit your application' })).toBeInTheDocument();
+    expect(screen.getByText('Replace the wrong format.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Organization name/)).toHaveValue('Computing Council');
+    expect(screen.getByText('alex@example.test')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Email/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Constitution/)).not.toBeRequired();
+    fireEvent.click(screen.getByRole('button', { name: 'View constitution.pdf' }));
+    expect(sampleMocks.openProtectedFile).toHaveBeenCalledWith('/organization-applications/8/edit/documents/3?signature=example');
+    fireEvent.change(screen.getByLabelText(/^Organization name/), { target: { value: 'Computing and Design Council' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Resubmit application' }).closest('form'));
+
+    await waitFor(() => expect(resubmitRejectedApplication).toHaveBeenCalledWith('8', 'expires=123&signature=abc&token=private', expect.objectContaining({ name: 'Computing and Design Council', college_id: 2 }), {}));
+    expect(await screen.findByRole('status')).toHaveTextContent('Application resubmitted for Department Head endorsement.');
+  });
+
+  it('lets a rejected applicant request a fresh link using their original details', async () => {
+    requestApplicationEditLink.mockResolvedValue({ data: { message: 'If those details match a rejected application, we will email a private edit link.' } });
+    render(<MemoryRouter><RequestApplicationEditLinkPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/^School ID/), { target: { value: '12345678' } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'alex@example.test' } });
+    fireEvent.change(screen.getByLabelText(/^Organization name/), { target: { value: 'Computing Council' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Email edit link' }).closest('form'));
+    await waitFor(() => expect(requestApplicationEditLink).toHaveBeenCalledWith({ school_id: '12345678', email: 'alex@example.test', organization_name: 'Computing Council' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('If those details match a rejected application');
   });
 });

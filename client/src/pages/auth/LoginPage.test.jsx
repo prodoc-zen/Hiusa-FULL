@@ -49,6 +49,7 @@ describe('LoginPage', () => {
       password: 'Demo@12345',
     }));
     expect(await screen.findByText('Student dashboard')).toBeInTheDocument();
+    expect(Number(localStorage.getItem('auth_expires_at'))).toBeGreaterThan(Date.now());
   });
 
   it('sends a user who must change a default password to the change password page instead of the dashboard', async () => {

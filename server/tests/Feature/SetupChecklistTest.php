@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\AcademicSemester;
-use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\College;
 use App\Models\Organization;
+use App\Models\OrganizationApplication;
 use App\Models\SboPosition;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,7 +84,7 @@ class SetupChecklistTest extends TestCase
 
         $steps = $this->steps($this->checklistFor($director));
 
-        $this->assertArrayNotHasKey('organizations', $steps, 'Only Department Heads register organizations now.');
+        $this->assertArrayNotHasKey('organizations', $steps, 'Applicants register organizations from the public home page.');
         $this->assertFalse($steps['admins']['done']);
         $this->assertSame('1 of 2 organizations have an active administrator.', $steps['admins']['detail']);
         $this->assertSame('/dashboard/organization-applications', $steps['admins']['href']);
@@ -145,7 +144,7 @@ class SetupChecklistTest extends TestCase
         $this->assertFalse($steps['college-heads']['done']);
     }
 
-    public function test_a_department_head_checklist_is_register_follow_review_and_waits_for_the_semester(): void
+    public function test_a_department_head_checklist_points_to_endorsement_instead_of_registration(): void
     {
         $college = $this->makeCollege('CCS');
         $head = $this->makeCollegeHead($college, ['contact_number' => null]);
@@ -153,48 +152,31 @@ class SetupChecklistTest extends TestCase
         $setup = $this->checklistFor($head);
         $steps = $this->steps($setup);
 
-        $this->assertSame(['register', 'follow', 'review'], array_keys($steps));
+        $this->assertSame(['endorse', 'review'], array_keys($steps));
         $this->assertSame(0, $setup['completed']);
-        $this->assertSame(3, $setup['total']);
-        $this->assertTrue($steps['register']['blocked']);
-        $this->assertSame('Waiting for the SAO to open the semester', $steps['register']['note']);
-        $this->assertNull($steps['register']['href'], 'A blocked step has no button.');
-        $this->assertFalse($steps['register']['done']);
-        $this->assertArrayNotHasKey('blocked', $steps['follow']);
-
-        $this->openSemester();
-
-        $steps = $this->steps($this->checklistFor($head));
-
-        $this->assertArrayNotHasKey('blocked', $steps['register']);
-        $this->assertSame('/dashboard/department-head/organizations', $steps['register']['href']);
+        $this->assertSame(2, $setup['total']);
+        $this->assertSame('Review organization applications', $steps['endorse']['label']);
+        $this->assertSame('/dashboard/organization-applications', $steps['endorse']['href']);
+        $this->assertStringContainsString('Applicants apply from the HIUSA home page', $steps['endorse']['detail']);
+        $this->assertArrayNotHasKey('register', $steps);
     }
 
-    public function test_the_department_head_follow_step_tracks_pending_returned_and_active_registrations(): void
+    public function test_the_department_head_endorsement_step_tracks_verified_applications_in_its_college(): void
     {
         $college = $this->makeCollege('CCS');
         $head = $this->makeCollegeHead($college);
-        $this->openSemester();
-
-        $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'pending']);
+        $otherCollege = $this->makeCollege('CBE');
+        $this->application($otherCollege, 'pending_endorsement');
+        $pending = $this->application($college, 'pending_endorsement');
         $steps = $this->steps($this->checklistFor($head));
-        $this->assertTrue($steps['register']['done']);
-        $this->assertNull($steps['register']['href']);
-        $this->assertFalse($steps['follow']['done']);
-        $this->assertSame('Waiting for SAO review.', $steps['follow']['detail']);
-        $this->assertSame('/dashboard/department-head/organizations?status=pending', $steps['follow']['href']);
+        $this->assertFalse($steps['endorse']['done']);
+        $this->assertSame('1 verified application awaiting your endorsement before SAO review.', $steps['endorse']['detail']);
 
-        $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'returned']);
+        $pending->update(['status' => 'endorsed', 'endorsed_by' => $head->school_id, 'endorsed_at' => now()]);
         $this->app['auth']->forgetGuards();
         $steps = $this->steps($this->checklistFor($head));
-        $this->assertFalse($steps['follow']['done']);
-        $this->assertSame('1 returned by the SAO: edit and resubmit.', $steps['follow']['detail']);
-        $this->assertSame('/dashboard/department-head/organizations?status=returned', $steps['follow']['href']);
-
-        Organization::query()->where('college_id', $college->id)->where('organization_type', 'STUDENT_ORGANIZATION')->update(['lifecycle_status' => 'active']);
-        $this->app['auth']->forgetGuards();
-        $steps = $this->steps($this->checklistFor($head));
-        $this->assertTrue($steps['follow']['done']);
+        $this->assertTrue($steps['endorse']['done']);
+        $this->assertNull($steps['endorse']['href']);
         $this->assertFalse($steps['review']['done']);
         $this->assertSame('/dashboard/department-head/approvals', $steps['review']['href']);
     }
@@ -220,12 +202,16 @@ class SetupChecklistTest extends TestCase
         $this->app['auth']->forgetGuards();
         $steps = $this->steps($this->checklistFor($otherHead));
         $this->assertFalse($steps['review']['done'], 'Another head reviewing does not tick this head step.');
-        $this->assertTrue($steps['follow']['done']);
+        $this->assertFalse($steps['endorse']['done']);
     }
 
-    private function openSemester(): void
+    private function application(College $college, string $status): OrganizationApplication
     {
-        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
-        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+        return OrganizationApplication::create([
+            'college_id' => $college->id, 'name' => 'Application '.$college->id,
+            'acronym' => 'APP'.$college->id, 'school_id' => 87651234,
+            'first_name' => 'Alex', 'last_name' => 'Rivera', 'email' => 'alex@example.test',
+            'position_title' => 'President', 'status' => $status, 'email_verified_at' => now(),
+        ]);
     }
 }
