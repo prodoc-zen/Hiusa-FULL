@@ -1,3 +1,4 @@
+import TableRowActions from '../../../components/TableRowActions';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
@@ -495,30 +496,10 @@ export default function ManagePartylistsPage() {
                       <RichTextBody value={partylist.description || 'No party description provided yet.'} className="mt-1 text-sm text-[#64748B]" />
                     </div>
                     {election.status !== 'closed' && !election.finalized_at && (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditTab('general');
-                            setEditBannerFile(null);
-                            setEditBannerPreview(partylist.banner_url || null);
-                            setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' });
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#0878B7] transition hover:bg-[#F8FBFD]"
-                        >
-                          <Edit2 size={12} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(partylist)}
-                          disabled={workingId === partylist.id}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <Trash2 size={12} />
-                          Remove
-                        </button>
-                      </div>
+                      <TableRowActions subject={formatDisplayText(partylist.name)} actions={[
+                          { label: 'Edit', icon: Edit2, onClick: () => { setEditTab('general'); setEditBannerFile(null); setEditBannerPreview(partylist.banner_url || null); setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' }); } },
+                          { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === partylist.id, onClick: () => setDeleteTarget(partylist) },
+                        ]} />
                     )}
                   </div>
 

@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GlobalAnnouncementsPage from './GlobalAnnouncementsPage';
@@ -25,14 +26,15 @@ describe('GlobalAnnouncementsPage delete', () => {
   it('offers delete for drafts only, and keeps Archive for published notices', async () => {
     render(<GlobalAnnouncementsPage />);
     expect(await screen.findByText(/enrollment reminder/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Delete draft/ })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: /Archive/ })).toBeInTheDocument();
+    expect(await findRowAction(/Delete draft/)).toBeInTheDocument();
+    expect(await findRowAction(/Archive/)).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Delete draft/ })).not.toBeInTheDocument();
   });
 
   it('deletes a draft after confirmation and reloads the list', async () => {
     vi.mocked(deleteGlobalAnnouncement).mockResolvedValue({ message: 'Deleted.' });
     render(<GlobalAnnouncementsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /Delete draft/ }));
+    fireEvent.click(await findRowAction(/Delete draft/));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this draft?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
 
@@ -43,7 +45,7 @@ describe('GlobalAnnouncementsPage delete', () => {
   it('shows the server message when the announcement cannot be deleted', async () => {
     vi.mocked(deleteGlobalAnnouncement).mockRejectedValue({ response: { status: 409, data: { message: 'Published announcements cannot be deleted. Archive them instead.' } } });
     render(<GlobalAnnouncementsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /Delete draft/ }));
+    fireEvent.click(await findRowAction(/Delete draft/));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this draft?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
 

@@ -1,3 +1,4 @@
+import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
@@ -19,6 +20,7 @@ import {
   ChevronRight,
   PhilippinePeso,
   Download,
+  Eye,
   ImagePlus,
   Info,
   Minus,
@@ -1640,7 +1642,7 @@ export default function MerchandisePage({ initialTab }) {
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
   const lowStock = items.filter((i) => i.is_low_stock).length;
   const topSellers = [...(orderSummary?.breakdown || [])].sort((left, right) => Number(right.quantity) - Number(left.quantity)).slice(0, 5);
-  const tokenOrders = orders.filter((o) => tokenStatusFilter === 'claimable' ? ['paid', 'claimed'].includes(o.status) : o.status === tokenStatusFilter);
+  const tokenOrders = orders.filter((o) => tokenStatusFilter === 'claimable' ? ['paid', 'claimed'].includes(o.status) : matchesFilter(tokenStatusFilter, o.status));
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
   );
@@ -1660,7 +1662,7 @@ export default function MerchandisePage({ initialTab }) {
 
   const inventoryCategories = [...new Set(items.map((item) => item.category).filter(Boolean))].sort();
   const filteredInventoryItems = items.filter((item) =>
-    (inventoryCategory === "all" || item.category === inventoryCategory) &&
+    matchesFilter(inventoryCategory, item.category) &&
     item.name?.toLowerCase().includes(inventorySearch.toLowerCase()),
   );
 
@@ -1676,7 +1678,7 @@ export default function MerchandisePage({ initialTab }) {
     .filter(
       (item) =>
         item.is_active &&
-        (studentCategory === "all" || item.category === studentCategory) &&
+        matchesFilter(studentCategory, item.category) &&
         [item.name, item.category, item.description].some((value) =>
           (value ?? "")
             .toLowerCase()
@@ -1716,18 +1718,13 @@ export default function MerchandisePage({ initialTab }) {
   );
 
   const filteredOfficerOrders = orders;
-  const selectedProgram = orderFilterOptions.programs?.find(
-    (program) => program.name === orderFilters.program,
+  const selectedPrograms = orderFilterOptions.programs?.filter(
+    (program) => matchesFilter(orderFilters.program, program.name),
   );
   const availableSections =
-    selectedProgram?.sections?.filter(
+    selectedPrograms?.flatMap((program) => program.sections || []).filter(
       (section) =>
-        !orderFilters.year_level ||
-        Number(section.year_level) ===
-          ["1st Year", "2nd Year", "3rd Year", "4th Year"].indexOf(
-            orderFilters.year_level,
-          ) +
-            1,
+        filterValues(orderFilters.year_level).length === 0 || filterValues(orderFilters.year_level).some((year) => Number(section.year_level) === ["1st Year", "2nd Year", "3rd Year", "4th Year"].indexOf(year) + 1),
     ) || [];
   const activeOrderFilterCount = Object.entries(orderFilters).filter(
     ([key, value]) => !["sort", "per_page"].includes(key) && value,
@@ -1923,7 +1920,7 @@ export default function MerchandisePage({ initialTab }) {
                     className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-500"
                   />
                 </label>
-                <div className="relative"><SlidersHorizontal size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect
+                <div className="relative"><SlidersHorizontal size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect filter
                   aria-label="Filter merchandise category"
                   value={studentCategory}
                   onChange={(event) => setStudentCategory(event.target.value)}
@@ -2854,7 +2851,7 @@ export default function MerchandisePage({ initialTab }) {
               </p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
-              <div className="relative min-w-0"><SlidersHorizontal size={14} className="pointer-events-none absolute left-3 top-3 text-[#0878B7]" aria-hidden="true" /><HiusaSelect aria-label="Filter inventory by category" value={inventoryCategory} onChange={(event) => setInventoryCategory(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><option value="all">All categories</option>{inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}</HiusaSelect></div>
+              <div className="relative min-w-0"><SlidersHorizontal size={14} className="pointer-events-none absolute left-3 top-3 text-[#0878B7]" aria-hidden="true" /><HiusaSelect filter aria-label="Filter inventory by category" value={inventoryCategory} onChange={(event) => setInventoryCategory(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><option value="all">All categories</option>{inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}</HiusaSelect></div>
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-500" />
                 <input
@@ -2944,7 +2941,6 @@ export default function MerchandisePage({ initialTab }) {
                   </div>
 
                   {item.variants?.length > 0 && <p className="mt-2 text-xs text-slate-600">{item.variants.map((variant) => `${variant.name}: ${variant.stock_quantity}`).join(" · ")}</p>}
-                  {role === "ADMIN" && <button type="button" onClick={async () => { try { const response = await getMerchandiseAuditLogs(item.id); setAuditModal({ item, logs: response.data }); } catch { showFeedback("error", "Could not load product history."); } }} className="mt-2 text-xs font-semibold text-[#0878B7] hover:underline">View audit history</button>}
 
                   <div className="mt-3 rounded-lg bg-[#F8FBFD] px-3 py-2">
                     <p className="text-xs font-medium text-slate-500">
@@ -2957,35 +2953,13 @@ export default function MerchandisePage({ initialTab }) {
                     </p>
                   </div>
 
-                  {role === "ADMIN" && <div className="mt-3 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openAddStockModal(item)}
-                      className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0F2F62] transition hover:bg-[#E6F6FD]"
-                    >
-                      Add Stock
-                    </button>
-                    <button type="button" role="switch" aria-checked={item.is_active} aria-label={`Selling status for ${formatDisplayText(item.name)}`} onClick={() => confirmSellingToggle(item)} className="inline-flex items-center gap-2 text-xs font-bold text-[#0F2F62]"><span>{item.is_active ? "ACTIVE" : "INACTIVE"}</span><span className={`relative h-6 w-11 rounded-full transition ${item.is_active ? "bg-emerald-600" : "bg-slate-400"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${item.is_active ? "left-6" : "left-1"}`} /></span></button>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(item)}
-                        className="inline-flex h-7 items-center gap-1 rounded-md border border-[#DDE7EF] px-2 text-[11px] font-bold text-[#0878B7] transition hover:bg-[#F8FBFD]"
-                      >
-                        <Pencil size={12} />
-                        Edit
-                      </button>
-                      {item.is_active && <button
-                        type="button"
-                        onClick={() => confirmDeleteProduct(item)}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-100 px-3 text-xs font-bold text-red-700 transition hover:bg-red-50"
-                        aria-label={`Delete ${formatDisplayText(item.name)}`}
-                      >
-                        <Trash2 size={13} />
-                        Delete
-                      </button>}
-                    </div>
-                  </div>}
+                  {role === "ADMIN" && <TableRowActions subject={formatDisplayText(item.name)} actions={[
+                    { label: 'View audit history', icon: Eye, onClick: async () => { try { const response = await getMerchandiseAuditLogs(item.id); setAuditModal({ item, logs: response.data }); } catch { showFeedback("error", "Could not load product history."); } } },
+                    { label: 'Add Stock', icon: Plus, onClick: () => openAddStockModal(item) },
+                    { label: item.is_active ? 'Stop selling' : 'Start selling', onClick: () => confirmSellingToggle(item) },
+                    { label: 'Edit', icon: Pencil, onClick: () => openEditForm(item) },
+                    item.is_active && { label: `Delete ${formatDisplayText(item.name)}`, icon: Trash2, danger: true, onClick: () => confirmDeleteProduct(item) },
+                  ]} />}
                 </article>
               ))}
             </div>
@@ -3063,7 +3037,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]"
                 />
               </label>
-              <HiusaSelect
+              <HiusaSelect filter
                 aria-label="Merchandise item"
                 value={orderFilters.merchandise_id}
                 onChange={(event) =>
@@ -3101,7 +3075,7 @@ export default function MerchandisePage({ initialTab }) {
             {showAdvancedFilters && (
               <div id="order-advanced-filters" className="mt-4 border-t border-[#DDE7EF] pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="Program or course"
                     value={orderFilters.program}
                     onChange={(event) =>
@@ -3121,7 +3095,7 @@ export default function MerchandisePage({ initialTab }) {
                       </option>
                     ))}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="Major or specialization"
                     value={orderFilters.major}
                     onChange={(event) =>
@@ -3137,7 +3111,7 @@ export default function MerchandisePage({ initialTab }) {
                       <option key={value}>{value}</option>
                     ))}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="Year level"
                     value={orderFilters.year_level}
                     disabled={!orderFilters.program}
@@ -3157,7 +3131,7 @@ export default function MerchandisePage({ initialTab }) {
                       ),
                     )}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="Section"
                     value={orderFilters.section}
                     disabled={!orderFilters.program || !orderFilters.year_level}
@@ -3176,7 +3150,7 @@ export default function MerchandisePage({ initialTab }) {
                       </option>
                     ))}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="User role"
                     value={orderFilters.role}
                     onChange={(event) =>
@@ -3194,7 +3168,7 @@ export default function MerchandisePage({ initialTab }) {
                       </option>
                     ))}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="SBO position"
                     value={orderFilters.position_title}
                     onChange={(event) =>
@@ -3210,7 +3184,7 @@ export default function MerchandisePage({ initialTab }) {
                       <option key={value}>{value}</option>
                     ))}
                   </HiusaSelect>
-                  <HiusaSelect
+                  <HiusaSelect filter
                     aria-label="Payment method"
                     value={orderFilters.payment_method}
                     onChange={(event) =>
@@ -3904,7 +3878,7 @@ export default function MerchandisePage({ initialTab }) {
                 Orders waiting to be claimed and orders already released.
               </p>
               </div>
-              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></HiusaSelect></div>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect filter aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></HiusaSelect></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">

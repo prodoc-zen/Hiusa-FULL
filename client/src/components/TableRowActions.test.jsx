@@ -4,6 +4,18 @@ import { MemoryRouter } from 'react-router-dom';
 import TableRowActions from './TableRowActions';
 
 describe('TableRowActions', () => {
+  it('keeps a dialog menu inside its focus boundary and Escape closes only the menu', () => {
+    const close = vi.fn();
+    render(<div role="dialog" onKeyDown={close}><TableRowActions subject="Attachment" actions={[{ label: 'View file', onClick: vi.fn() }]} /></div>);
+    const trigger = screen.getByRole('button', { name: 'Actions for Attachment' });
+    fireEvent.click(trigger);
+    const menu = screen.getByRole('menu');
+    expect(menu.closest('[role="dialog"]')).toBe(screen.getByRole('dialog'));
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(close).not.toHaveBeenCalled();
+  });
   it('renders a route action as a link inside the menu', () => {
     render(<MemoryRouter><TableRowActions subject="Registration" actions={[{ label: 'Open review', to: '/reviews/7' }]} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Registration' }));

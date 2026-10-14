@@ -8,6 +8,7 @@ use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
 use App\Models\Notification;
 use App\Models\User;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -235,8 +236,8 @@ class ClearanceController extends Controller
     public function signaturesIndex(Request $request)
     {
         $filters = $request->validate([
-            'clearance_period_id' => ['nullable', 'integer', 'exists:clearance_periods,id'],
-            'status' => ['nullable', 'in:pending,cleared,held'],
+            'clearance_period_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:clearance_periods,id'])],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,cleared,held'])],
             'q' => ['nullable', 'string', 'max:150'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -251,8 +252,8 @@ class ClearanceController extends Controller
                 ->where('organization_id', $request->user()->organization_id);
         }
         $query
-            ->when($filters['clearance_period_id'] ?? null, fn ($q, $id) => $q->where('clearance_period_id', $id))
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+            ->when($filters['clearance_period_id'] ?? null, fn ($q, $id) => $q->whereIn('clearance_period_id', FilterValues::values($id)))
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)));
         if ($search = trim($filters['q'] ?? '')) {
             $query->whereHas('student', fn ($student) => $student->where('school_id', 'like', "%{$search}%")
                 ->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%"));

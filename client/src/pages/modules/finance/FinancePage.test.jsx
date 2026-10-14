@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render as renderUi, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -137,7 +138,7 @@ describe('FinancePage transaction search', () => {
     expect(within(ledgerTable).getByText('HIUSA-1-00000007')).toBeInTheDocument();
     const mobileLedger = screen.getByRole('list', { name: 'Transactions' });
     expect(within(mobileLedger).getByText('Venue reservation')).toBeInTheDocument();
-    expect(within(mobileLedger).getByRole('button', { name: 'Edit transaction' })).toBeInTheDocument();
+    expect(await findRowAction('Edit transaction')).toBeInTheDocument();
     expect(screen.getAllByText('Sports Fest').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
@@ -300,7 +301,7 @@ describe('FinancePage transaction search', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
     await screen.findByText('August Report');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
+    fireEvent.click(await findRowAction('Export Excel'));
     await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
     expect(URL.createObjectURL.mock.calls[0][0].type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -337,7 +338,7 @@ describe('FinancePage transaction search', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
     await screen.findByText('October Report');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
+    fireEvent.click(await findRowAction('Export Excel'));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
     const workbookBuffer = await new Promise((resolve) => {
       const reader = new FileReader();
@@ -426,14 +427,14 @@ describe('FinancePage deleting budgets and transactions', () => {
 
   async function confirmBudgetDelete() {
     render(<FinancePage initialTab="budgets" />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete budget' }));
+    fireEvent.click(await findRowAction('Delete budget'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this budget?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete budget' }));
   }
 
   async function confirmTransactionDelete() {
     render(<FinancePage initialTab="transactions" />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete transaction' }))[0]);
+    fireEvent.click(await findRowAction('Delete transaction'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete transaction' }));
   }
@@ -617,8 +618,11 @@ describe('FinancePage rows the server will not let the ledger change', () => {
 
     const mobileLedger = await screen.findByRole('list', { name: 'Transactions' });
     const [manual, system, locked] = within(mobileLedger).getAllByRole('listitem');
-    expect(within(manual).getByRole('button', { name: 'Edit transaction' })).toBeInTheDocument();
-    expect(within(manual).getByRole('button', { name: 'Delete transaction' })).toBeInTheDocument();
+    expect(within(manual).getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+    expect(await findRowAction('Edit transaction')).toBeInTheDocument();
+    expect(await findRowAction('Delete transaction')).toBeInTheDocument();
     expect(within(system).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
     expect(within(system).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
     expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
@@ -661,7 +665,7 @@ describe('FinancePage forecast delete and approved budgets', () => {
     financeMocks.deleteForecast.mockResolvedValue({ data: { message: 'Forecast deleted successfully.' } });
     render(<FinancePage initialTab="forecasting" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    fireEvent.click(await findRowAction('Delete forecast'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
     expect(financeMocks.deleteForecast).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
@@ -674,7 +678,7 @@ describe('FinancePage forecast delete and approved budgets', () => {
     financeMocks.deleteForecast.mockRejectedValue({ response: { status: 404, data: { message: 'Forecast not found.' } } });
     render(<FinancePage initialTab="forecasting" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    fireEvent.click(await findRowAction('Delete forecast'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
 
@@ -697,7 +701,9 @@ describe('FinancePage forecast delete and approved budgets', () => {
     render(<FinancePage initialTab="budgets" />);
 
     expect(await screen.findByText('Approved Budget')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Delete budget' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Approved Budget' }));
+    expect(screen.queryByRole('menuitem', { name: 'Delete budget' })).not.toBeInTheDocument();
+    expect(await findRowAction('Delete budget', 'Draft Budget')).toBeInTheDocument();
   });
 });
 

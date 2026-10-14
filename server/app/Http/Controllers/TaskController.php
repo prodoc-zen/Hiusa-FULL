@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
 use App\Services\TaskDelegationService;
+use App\Support\FilterValues;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,9 +40,13 @@ class TaskController extends Controller
         $paging = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
-            'task_kind' => ['nullable', 'in:event_related,standalone'],
-            'priority' => ['nullable', 'in:low,medium,high,critical'],
+            'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
+            'task_kind' => ['nullable', FilterValues::rule(['nullable', 'in:event_related,standalone'])],
+            'priority' => ['nullable', FilterValues::rule(['nullable', 'in:low,medium,high,critical'])],
+            'status' => ['nullable', FilterValues::rule(['in:pending,in_progress,completed,overdue'])],
+            'event_id' => ['nullable', FilterValues::rule(['integer'])],
+            'assigned_to' => ['nullable', FilterValues::rule(['integer'])],
+            'task_type' => ['nullable', FilterValues::rule(['string', 'max:100'])],
             'deadline_from' => ['nullable', 'date'],
             'deadline_to' => ['nullable', 'date', 'after_or_equal:deadline_from'],
         ]);
@@ -58,7 +63,7 @@ class TaskController extends Controller
             ->orderBy('id');
         $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
         if ($selectedSemesterId) {
-            $query->where('academic_semester_id', $selectedSemesterId);
+            $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
         if ($request->user()->role === 'SBO_OFFICER') {
@@ -66,29 +71,29 @@ class TaskController extends Controller
         }
 
         if ($request->filled('event_id')) {
-            $query->where('event_id', $request->event_id);
+            $query->whereIn('event_id', FilterValues::values($request->event_id));
         }
 
         if ($request->filled('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
+            $query->whereIn('assigned_to', FilterValues::values($request->assigned_to));
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->whereIn('status', FilterValues::values($request->status));
         }
 
         if ($request->filled('task_type')) {
-            $query->where('task_type', $request->task_type);
+            $query->whereIn('task_type', FilterValues::values($request->task_type));
         }
 
-        if ($request->task_kind === 'event_related') {
+        if (FilterValues::values($request->task_kind) === ['event_related']) {
             $query->whereNotNull('event_id');
-        } elseif ($request->task_kind === 'standalone') {
+        } elseif (FilterValues::values($request->task_kind) === ['standalone']) {
             $query->whereNull('event_id');
         }
 
         if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
+            $query->whereIn('priority', FilterValues::values($request->priority));
         }
         if ($request->filled('deadline_from')) {
             $query->whereDate('deadline', '>=', $request->deadline_from);

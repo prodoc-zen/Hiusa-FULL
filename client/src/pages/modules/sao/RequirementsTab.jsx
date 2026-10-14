@@ -9,7 +9,8 @@ import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
 import TableRowActions from '../../../components/TableRowActions';
 import { manilaDate } from '../../../lib/format';
-import { unwrapList } from '../../../services/pagination';
+import { listMeta, unwrapList } from '../../../services/pagination';
+import PaginationControls from '../../../components/PaginationControls';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
 import { fileAccept, fileTypesLabel, SUPPORTED_REQUIREMENT_EXTENSIONS, validateRequirementFile } from '../../../utils/requirementFiles';
@@ -27,8 +28,10 @@ import {
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
 
-export default function RequirementsTab({ currentAcademicYear, onChanged }) {
-  const [types, setTypes] = useState({ loading: true, error: null, items: [] });
+export default function RequirementsTab({ currentAcademicYear, onChanged, category = 'organization' }) {
+  const semestral = category === 'semestral_report';
+  const [types, setTypes] = useState({ loading: true, error: null, items: [], total: 0 });
+  const [page, setPage] = useState(1);
   const [typeModal, setTypeModal] = useState(null);
   const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM);
   const [academicYears, setAcademicYears] = useState([]);
@@ -47,10 +50,10 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
 
   const loadTypes = useCallback(() => {
     setTypes((current) => ({ ...current, loading: true, error: null }));
-    getRequirementTypes({ per_page: 100 })
-      .then((response) => setTypes({ loading: false, error: null, items: unwrapList(response.data) }))
+    getRequirementTypes({ per_page: 10, page, category })
+      .then((response) => setTypes({ loading: false, error: null, items: unwrapList(response.data), total: listMeta(response.data).total }))
       .catch((err) => setTypes((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load requirement types.') })));
-  }, []);
+  }, [category, page]);
 
   useEffect(() => { loadTypes(); }, [loadTypes]);
   useEffect(() => { getAcademicYears().then(setAcademicYears).catch(() => setAcademicYears([])); }, []);
@@ -98,6 +101,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     setTypeSaving(true);
     setTypeFormError(null);
     const payload = {
+      ...(typeModal.mode === 'create' ? { category } : {}),
       ...(typeModal.mode === 'create' ? { academic_year: typeForm.academic_year.trim() } : {}),
       name: typeForm.name.trim(),
       description: typeForm.description.trim() || null,
@@ -196,8 +200,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
   return (
     <>
       <Card
-        title="Organization requirements"
-        description="Files for organization registration and accreditation, with deadlines and accepted formats."
+        title={semestral ? 'Semestral report requirements' : 'Organization requirements'}
+        description={semestral ? 'Files organization admins submit to SAO for their semestral report, with deadlines, accepted formats and samples.' : 'Files for organization registration and accreditation, with deadlines and accepted formats.'}
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
         {deleteError && (
@@ -210,6 +214,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
           loading={types.loading}
           error={types.error}
           onRetry={loadTypes}
+          pagination={<PaginationControls currentPage={page} totalItems={types.total} pageSize={10} onPageChange={setPage} label="requirements" />}
           actions={(type) => <TableRowActions subject={formatDisplayText(type.name)} actions={[
             (type.template_url || type.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewSample(type) },
             { label: 'Edit requirement', icon: Pencil, onClick: () => openTypeModal(type) },
@@ -221,7 +226,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
               kind="first-run"
               icon={ClipboardList}
               title="No requirements defined yet"
-              description="Add the documents every organization must submit for accreditation this academic year."
+              description={semestral ? 'Add the documents every organization must submit for its semestral report.' : 'Add the documents every organization must submit for accreditation this academic year.'}
               action={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
             />
           )}
@@ -230,8 +235,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
 
       <Modal
         open={Boolean(typeModal)}
-        title={typeModal?.mode === 'edit' ? 'Edit organization requirement' : 'New organization requirement'}
-        description="Used for accreditation. Current-semester requirements also appear during organization registration."
+        title={`${typeModal?.mode === 'edit' ? 'Edit' : 'New'} ${semestral ? 'semestral report' : 'organization'} requirement`}
+        description={semestral ? 'Organization admins submit these files from the Semestral report tab in Compliance.' : 'Used for accreditation. Current-semester requirements also appear during organization registration.'}
         onClose={typeSaving ? undefined : () => setTypeModal(null)}
         closeOnEscape={!typeSaving}
         footer={(

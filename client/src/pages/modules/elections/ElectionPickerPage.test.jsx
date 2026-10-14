@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionPickerPage from './ElectionPickerPage';
@@ -44,7 +45,7 @@ describe('ElectionPickerPage', () => {
 
     expect(screen.queryByRole('heading', { name: 'Election Workspace' })).not.toBeInTheDocument();
     await screen.findByText('HIUSA General Election 2026');
-    fireEvent.click(screen.getByRole('button', { name: /Open election/ }));
+    fireEvent.click(await findRowAction(/Open election/));
     expect(onSelect).toHaveBeenCalledWith(7);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create election' }));
@@ -86,14 +87,14 @@ describe('ElectionPickerPage', () => {
     expect(within(card).getByText('Returned')).toBeInTheDocument();
     expect(within(card).getByText('Reason: Add the voting room.')).toBeInTheDocument();
     expect(within(card).getByText('Next: Returned: edit and resubmit')).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: /Edit and resubmit/ })).toBeInTheDocument();
+    expect(await findRowAction(/Edit and resubmit/)).toBeInTheDocument();
     expect(within(card).queryByText('In review')).not.toBeInTheDocument();
   });
 
   it('opens the submitted informative letter after a rejection', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Revise the letter.', has_informative_letter: true }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'View informative letter' }));
+    fireEvent.click(await findRowAction('View informative letter'));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/elections/7/informative-letter'));
   });
 
@@ -178,7 +179,8 @@ describe('ElectionPickerPage delete rules', () => {
     render(<ElectionPickerPage onSelect={vi.fn()} />);
     const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
 
-    fireEvent.click(within(card).getByRole('button', { name: /Delete/ }));
+    expect(within(card).getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
+    fireEvent.click(await findRowAction(/Delete/));
     const dialog = await screen.findByRole('dialog', { name: 'Delete Election' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
@@ -191,7 +193,7 @@ describe('ElectionPickerPage delete rules', () => {
     const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
 
     expect(within(card).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: /Close/ })).toBeInTheDocument();
+    expect(await findRowAction(/Close/)).toBeInTheDocument();
   });
 
   it('hides Delete for a closed election and for any election that has votes', async () => {

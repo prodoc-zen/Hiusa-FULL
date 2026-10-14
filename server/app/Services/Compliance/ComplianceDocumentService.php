@@ -5,7 +5,6 @@ namespace App\Services\Compliance;
 use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
 use App\Models\College;
-use App\Models\ComplianceRequirementType;
 use App\Models\Event;
 use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
@@ -13,6 +12,7 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\EventApprovalChain;
+use App\Support\FilterValues;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -72,6 +72,13 @@ class ComplianceDocumentService
 
     private ?string $search = null;
 
+    private function familySource(?string $family): ?string
+    {
+        $sources = array_unique(array_map(fn ($value) => self::FAMILY_SOURCE[$value], FilterValues::values($family)));
+
+        return count($sources) === 1 ? reset($sources) : null;
+    }
+
     private function matchesSearch(?string $text): bool
     {
         return $this->search === null || str_contains(mb_strtolower($text ?? ''), mb_strtolower($this->search));
@@ -89,11 +96,11 @@ class ComplianceDocumentService
      * @param  array<int, int>  $organizationIds
      * @return array{0: Collection<int, array<string, mixed>>, 1: int}
      */
-    public function page(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $page, int $perPage, ?string $search = null): array
+    public function page(array $organizationIds, int|string|null $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $page, int $perPage, ?string $search = null): array
     {
         $this->search = trim($search ?? '') ?: null;
-        $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
-        if ($family && $source !== self::FAMILY_SOURCE[$family]) {
+        $source ??= $this->familySource($family);
+        if ($family && $source !== null && ! in_array($source, array_map(fn ($value) => self::FAMILY_SOURCE[$value], FilterValues::values($family)), true)) {
             return [collect(), 0];
         }
 
@@ -130,10 +137,10 @@ class ComplianceDocumentService
      * @param  array<int, int>  $organizationIds
      * @return Collection<int, array<string, mixed>>
      */
-    public function organizationSummaries(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
+    public function organizationSummaries(array $organizationIds, int|string|null $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
     {
         $this->search = null;
-        $counts = $this->counts($organizationIds, $semesterId, $source ?? ($family ? self::FAMILY_SOURCE[$family] : null), $viewerRole, $family);
+        $counts = $this->counts($organizationIds, $semesterId, $source ?? ($this->familySource($family)), $viewerRole, $family);
 
         $organizations = Organization::whereIn('id', $counts->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id'])->keyBy('id');
         $colleges = College::whereIn('id', $organizations->pluck('college_id')->filter()->unique())->pluck('name', 'id');
@@ -159,7 +166,7 @@ class ComplianceDocumentService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    private function counts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family): Collection
+    private function counts(array $organizationIds, int|string|null $semesterId, ?string $source, ?string $viewerRole, ?string $family): Collection
     {
         $counts = collect();
         if ($source === null || $source === 'compliance') {
@@ -172,30 +179,30 @@ class ComplianceDocumentService
             $counts = $counts->concat($this->financialCounts($organizationIds, $semesterId, $source, $viewerRole));
         }
 
-        return $counts->when($family, fn (Collection $kept) => $kept->where('family', $family))->where('total', '>', 0);
+        return $counts->when($family, fn (Collection $kept) => $kept->whereIn('family', FilterValues::values($family)))->where('total', '>', 0);
     }
 
     /** SQL twin of settle(): the same registration, semestral and renewal split, so counts match the file list. */
-    private const COMPLIANCE_FAMILY_SQL = "case when s.is_registration_document = 1 or o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end";
+    private const COMPLIANCE_FAMILY_SQL = "case when s.is_registration_document = 1 or o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.category = ? then 'semestral_report' else 'semester_renewal' end";
 
-    private function complianceCounts(array $organizationIds, ?int $semesterId): Collection
+    private function complianceCounts(array $organizationIds, int|string|null $semesterId): Collection
     {
         return DB::table('organization_compliance_submissions as s')
             ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
             ->join('organizations as o', 'o.id', '=', 's.organization_id')
             ->whereIn('s.organization_id', $organizationIds)
             ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->where('s.file_original_name', 'like', $this->searchLike())->orWhere('t.name', 'like', $this->searchLike())))
-            ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
+            ->when($semesterId, fn ($query) => $query->whereIn('t.academic_semester_id', FilterValues::values($semesterId)))
             ->selectRaw(
                 's.organization_id, '.self::COMPLIANCE_FAMILY_SQL.' as family, count(*) as total, max(s.submitted_at) as latest',
-                [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT],
+                ['semestral_report'],
             )
             ->groupBy('s.organization_id', 'family')
             ->get()
             ->map(fn (object $row) => $this->countPart($row->organization_id, $row->family, $row->total, $row->latest));
     }
 
-    private function eventCounts(array $organizationIds, ?int $semesterId, ?string $viewerRole): Collection
+    private function eventCounts(array $organizationIds, int|string|null $semesterId, ?string $viewerRole): Collection
     {
         return $this->eventFiles($organizationIds, $semesterId, $viewerRole)
             ->selectRaw('f.organization_id, count(*) as total, max(f.created_at) as latest')->groupBy('f.organization_id')->toBase()->get()
@@ -203,7 +210,7 @@ class ComplianceDocumentService
     }
 
     /** Reports and their supporting documents, with the report's period resolved in SQL the way reportSemesterId() does. */
-    private function financialCounts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole): Collection
+    private function financialCounts(array $organizationIds, int|string|null $semesterId, ?string $source, ?string $viewerRole): Collection
     {
         $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
         if ($this->search !== null) {
@@ -241,7 +248,7 @@ class ComplianceDocumentService
     }
 
     /** Submitted reports in scope, including files still awaiting Department Head review. */
-    private function submittedReports(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
+    private function submittedReports(array $organizationIds, int|string|null $semesterId, ?string $viewerRole): Builder
     {
         $fileName = DB::connection()->getDriverName() === 'sqlite' ? "(title || '.pdf')" : "concat(title, '.pdf')";
         $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
@@ -249,7 +256,7 @@ class ComplianceDocumentService
 
         return FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
             ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->whereRaw($fileName.' like ?', [$this->searchLike()])->orWhere('supporting_documents', 'like', $this->searchLike())))
-            ->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]));
+            ->when($semesterId, fn ($filtered) => $filtered->whereIn(DB::raw($period), array_map('intval', FilterValues::values($semesterId))));
     }
 
     private function documentCountSql(Builder $query): string
@@ -265,9 +272,9 @@ class ComplianceDocumentService
     }
 
     /** The newest `$limit` rows of the list, which is every row a page of up to that depth can show. */
-    private function collect(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $limit, bool $withEventState = true): Collection
+    private function collect(array $organizationIds, int|string|null $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $limit, bool $withEventState = true): Collection
     {
-        $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
+        $source ??= $this->familySource($family);
         $semesters = AcademicSemester::all()->keyBy('id');
         $rows = collect();
 
@@ -278,14 +285,16 @@ class ComplianceDocumentService
             $rows = $rows->concat($this->eventRows($organizationIds, $semesterId, $viewerRole, $withEventState, $limit));
         }
         if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
-            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source, $viewerRole, $limit));
+            $financialFamilies = array_values(array_intersect(FilterValues::values($family), ['financial_report', 'financial_supporting_document']));
+            $financialSource = count($financialFamilies) === 1 ? $financialFamilies[0] : $source;
+            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $financialSource, $viewerRole, $limit));
         }
 
         $organizations = Organization::whereIn('id', $rows->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'submitted_at', 'reviewed_at'])->keyBy('id');
 
         return $rows
             ->map(fn (array $row) => $this->settle($row, $organizations->get($row['organization_id'])))
-            ->when($family, fn (Collection $settled) => $settled->where('family', $family))
+            ->when($family, fn (Collection $settled) => $settled->whereIn('family', FilterValues::values($family)))
             ->sortByDesc(fn (array $row) => $row['submitted_at']?->getTimestamp() ?? 0)
             ->values();
     }
@@ -326,16 +335,16 @@ class ComplianceDocumentService
         return $row;
     }
 
-    private function complianceRows(array $organizationIds, ?int $semesterId, ?string $family, int $limit, Collection $semesters): Collection
+    private function complianceRows(array $organizationIds, int|string|null $semesterId, ?string $family, int $limit, Collection $semesters): Collection
     {
         return OrganizationComplianceSubmission::from('organization_compliance_submissions as s')
             ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
             ->join('organizations as o', 'o.id', '=', 's.organization_id')
             ->whereIn('s.organization_id', $organizationIds)
             ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->where('s.file_original_name', 'like', $this->searchLike())->orWhere('t.name', 'like', $this->searchLike())))
-            ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
-            ->when($family, fn ($query) => $query->whereRaw(self::COMPLIANCE_FAMILY_SQL.' = ?', [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $family]))
-            ->with('requirementType:id,academic_year,academic_semester_id,name')
+            ->when($semesterId, fn ($query) => $query->whereIn('t.academic_semester_id', FilterValues::values($semesterId)))
+            ->when($family, fn ($query) => $query->whereIn(DB::raw(str_replace('?', "'semestral_report'", self::COMPLIANCE_FAMILY_SQL)), FilterValues::values($family)))
+            ->with('requirementType:id,academic_year,academic_semester_id,name,category')
             ->orderByDesc('s.submitted_at')->orderByDesc('s.id')->limit($limit)
             ->get(['s.id', 's.organization_id', 's.requirement_type_id', 's.status', 's.file_original_name', 's.is_registration_document', 's.submitted_by', 's.submitted_at', 's.reviewed_at'])
             ->map(function (OrganizationComplianceSubmission $submission) use ($semesters) {
@@ -348,7 +357,7 @@ class ComplianceDocumentService
                     'allowed_extensions' => $type->acceptedExtensions(),
                     'source' => 'compliance',
                     'family' => 'semester_renewal',
-                    'is_semestral' => $type->name === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT,
+                    'is_semestral' => $type->category === 'semestral_report',
                     'is_registration_document' => $submission->is_registration_document,
                     'organization_id' => $submission->organization_id,
                     'item' => $type->name,
@@ -365,14 +374,14 @@ class ComplianceDocumentService
             });
     }
 
-    private function eventFiles(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
+    private function eventFiles(array $organizationIds, int|string|null $semesterId, ?string $viewerRole): Builder
     {
         // Joins, not IN subselects: with every organization in scope the optimizer turned the two subselects into a
         // loose scan joined to events through a block nested loop, which is quadratic. Each join below is on an indexed
         // key, so the cost follows the rows read. The distinct derived table keeps an event with several SAO reviews to one row.
         return EventRequirementFile::from('event_requirement_files as f')
             ->whereIn('f.organization_id', $organizationIds)
-            ->when($semesterId, fn ($query) => $query->join('events as e', 'e.id', '=', 'f.event_id')->where('e.academic_semester_id', $semesterId))
+            ->when($semesterId, fn ($query) => $query->join('events as e', 'e.id', '=', 'f.event_id')->whereIn('e.academic_semester_id', FilterValues::values($semesterId)))
             ->when($this->search !== null, function ($query) use ($semesterId) {
                 if (! $semesterId) {
                     $query->join('events as e', 'e.id', '=', 'f.event_id');
@@ -390,7 +399,7 @@ class ComplianceDocumentService
             ));
     }
 
-    private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState, int $limit): Collection
+    private function eventRows(array $organizationIds, int|string|null $semesterId, ?string $viewerRole, bool $withState, int $limit): Collection
     {
         $files = $this->eventFiles($organizationIds, $semesterId, $viewerRole)
             ->with('requirement:id,name')
@@ -425,7 +434,7 @@ class ComplianceDocumentService
     }
 
     /** A report yields at least one row of the kind asked for, so `$limit` reports are enough for `$limit` rows. */
-    private function financialRows(array $organizationIds, ?int $semesterId, Collection $semesters, ?string $source, ?string $viewerRole, int $limit): Collection
+    private function financialRows(array $organizationIds, int|string|null $semesterId, Collection $semesters, ?string $source, ?string $viewerRole, int $limit): Collection
     {
         $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
         $reports = $query

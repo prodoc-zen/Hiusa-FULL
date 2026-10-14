@@ -14,6 +14,7 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\OrderFulfillmentService;
 use App\Support\Csv;
+use App\Support\FilterValues;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -182,17 +183,17 @@ class OrderController extends Controller
     {
         return $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'department' => ['nullable', 'string', 'max:120'],
-            'program' => ['nullable', 'string', 'max:120'],
-            'major' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
-            'section' => ['nullable', 'string', 'max:60'],
-            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN'],
-            'position_title' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:pending,paid,claimed,cancelled,claimable'],
-            'payment_status' => ['nullable', 'in:pending,paid,cancelled'],
-            'payment_method' => ['nullable', 'in:cash,gcash,other'],
-            'merchandise_id' => ['nullable', 'integer'],
+            'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],
+            'program' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],
+            'major' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],
+            'year_level' => ['nullable', FilterValues::rule(['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'])],
+            'section' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:60'])],
+            'role' => ['nullable', FilterValues::rule(['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN'])],
+            'position_title' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:100'])],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,paid,claimed,cancelled,claimable'])],
+            'payment_status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,paid,cancelled'])],
+            'payment_method' => ['nullable', FilterValues::rule(['nullable', 'in:cash,gcash,other'])],
+            'merchandise_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
             'ordered_from' => ['nullable', 'date'],
             'ordered_to' => ['nullable', 'date', 'after_or_equal:ordered_from'],
             'paid_from' => ['nullable', 'date'],
@@ -237,22 +238,18 @@ class OrderController extends Controller
     private function applyOrderRecordFilters($query, array $filters): void
     {
         if (! empty($filters['status'])) {
-            $filters['status'] === 'claimable'
-                ? $query->whereIn('orders.status', ['paid', 'claimed'])
-                : $query->where('orders.status', $filters['status']);
+            $statuses = collect(FilterValues::values($filters['status']))->flatMap(fn ($status) => $status === 'claimable' ? ['paid', 'claimed'] : [$status])->unique()->all();
+            $query->whereIn('orders.status', $statuses);
         }
         if (! empty($filters['payment_status'])) {
-            match ($filters['payment_status']) {
-                'paid' => $query->whereIn('orders.status', ['paid', 'claimed']),
-                'cancelled' => $query->where('orders.status', 'cancelled'),
-                default => $query->where('orders.status', 'pending'),
-            };
+            $statuses = collect(FilterValues::values($filters['payment_status']))->flatMap(fn ($status) => $status === 'paid' ? ['paid', 'claimed'] : [$status])->unique()->all();
+            $query->whereIn('orders.status', $statuses);
         }
         if (! empty($filters['payment_method'])) {
-            $query->where('orders.payment_method', $filters['payment_method']);
+            $query->whereIn('orders.payment_method', FilterValues::values($filters['payment_method']));
         }
         if (! empty($filters['merchandise_id'])) {
-            $query->where('orders.merchandise_id', $filters['merchandise_id']);
+            $query->whereIn('orders.merchandise_id', FilterValues::values($filters['merchandise_id']));
         }
         if (! empty($filters['ordered_from'])) {
             $query->whereDate('orders.created_at', '>=', $filters['ordered_from']);
@@ -282,7 +279,7 @@ class OrderController extends Controller
     {
         foreach (['department', 'program', 'major', 'year_level', 'section', 'role', 'position_title'] as $field) {
             if (! empty($filters[$field])) {
-                $query->where($field, $filters[$field]);
+                $query->whereIn($field, FilterValues::values($filters[$field]));
             }
         }
     }

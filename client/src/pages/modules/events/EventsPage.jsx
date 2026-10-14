@@ -1,3 +1,4 @@
+import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
@@ -166,12 +167,12 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
     : [...new Set(scopedUsers.map((user) => user.program).filter(Boolean))].sort();
   const configuredSections = configuredPrograms
     ? configuredPrograms
-      .filter((program) => !selectedProgram || program.name === selectedProgram)
+      .filter((program) => matchesFilter(selectedProgram, program.name))
       .flatMap((program) => program.sections || [])
       .filter((section) => !selectedYearLevels.length || selectedYearLevels.includes(attendanceYearLevels[Number(section.year_level) - 1]))
       .map((section) => section.name)
     : scopedUsers
-      .filter((user) => (!selectedProgram || user.program === selectedProgram)
+      .filter((user) => (matchesFilter(selectedProgram, user.program))
         && (!selectedYearLevels.length || selectedYearLevels.includes(user.year_level)))
       .map((user) => user.section);
   const sectionOptions = [...new Set(configuredSections.filter(Boolean))].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
@@ -180,18 +181,18 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
     if (!Array.isArray(academicStructure?.programs)) return;
 
     const configuredProgramNames = academicStructure.programs.map((program) => program.name).filter(Boolean);
-    if (selectedProgram && !configuredProgramNames.includes(selectedProgram)) {
+    if (filterValues(selectedProgram).some((value) => !configuredProgramNames.includes(value))) {
       setSelectedProgram('');
       setSelectedSection('');
       return;
     }
 
     const validSections = academicStructure.programs
-      .filter((program) => !selectedProgram || program.name === selectedProgram)
+      .filter((program) => matchesFilter(selectedProgram, program.name))
       .flatMap((program) => program.sections || [])
       .filter((section) => !selectedYearLevels.length || selectedYearLevels.includes(attendanceYearLevels[Number(section.year_level) - 1]))
       .map((section) => section.name);
-    if (selectedSection && !validSections.includes(selectedSection)) setSelectedSection('');
+    if (filterValues(selectedSection).some((value) => !validSections.includes(value))) setSelectedSection('');
   }, [academicStructure, selectedProgram, selectedSection, selectedYearLevels]);
 
   function clearCandidate() {
@@ -218,8 +219,8 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
       const capture = await reader.identifyFingerprint();
       const response = await identifyAttendanceFingerprint(eventId, capture, {
         ...(selectedYearLevels.length ? { year_levels: selectedYearLevels } : {}),
-        ...(selectedProgram ? { programs: [selectedProgram] } : {}),
-        ...(selectedSection ? { sections: [selectedSection] } : {}),
+        ...(selectedProgram ? { programs: filterValues(selectedProgram) } : {}),
+        ...(selectedSection ? { sections: filterValues(selectedSection) } : {}),
       });
       setPendingConfirmation(response.data);
     } catch (scanError) {
@@ -286,13 +287,13 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <label className="text-[11px] font-bold text-slate-600"><FieldIcon label="Program" />Program
-            <HiusaSelect aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+            <HiusaSelect filter aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
               <option value="">All programs</option>
               {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
             </HiusaSelect>
           </label>
           <label className="text-[11px] font-bold text-slate-600"><FieldIcon label="Section" />Section
-            <HiusaSelect aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+            <HiusaSelect filter aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
               <option value="">All sections</option>
               {sectionOptions.map((section) => <option key={section} value={section}>{section}</option>)}
             </HiusaSelect>
@@ -1108,7 +1109,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
           {academicPeriods.length > 0 ? <label className="block w-full max-w-sm text-xs font-semibold text-slate-700">Academic period
-            <HiusaSelect value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">
+            <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">
               <option value="">Active period</option>
               {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
             </HiusaSelect>
@@ -1149,7 +1150,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 secondaryClassName="grid gap-3 sm:grid-cols-3"
               >
                 <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Event date" />Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Status" />Status<HiusaSelect value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Status" />Status<HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
                 <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Sort by" />Sort by<HiusaSelect value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></label>
               </TableFilterBar>
             </div>
@@ -1677,7 +1678,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           </div>
                           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_auto]">
                             <label className="relative"><span className="sr-only">Search attendance</span><Search size={14} className="absolute left-3 top-3 text-slate-500" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile" className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></label>
-                            <HiusaSelect aria-label="Filter attendance status" value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</HiusaSelect>
+                            <HiusaSelect filter aria-label="Filter attendance status" value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</HiusaSelect>
                             {canManageAttendance && <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0] bg-white px-3 text-xs font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={14} /> Export CSV</button>}
                           </div>
                         </div>

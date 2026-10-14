@@ -13,12 +13,14 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
+use App\Support\FilterValues;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** SAO-only administration and read-only university oversight. */
 class SystemAdministrationController extends Controller
@@ -145,15 +147,15 @@ class SystemAdministrationController extends Controller
 
     public function admins(Request $request)
     {
-        $filters = $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id'], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,disabled,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
+        $filters = $request->validate(['organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:organizations,id'])], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', FilterValues::rule(['nullable', 'in:active,inactive,disabled,all'])], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = User::with('organization:id,name,acronym,college,parent_organization_id')
             ->where('role', 'ADMIN')
             ->whereHas('organization', fn ($organization) => $organization->student());
         if (! empty($filters['organization_id'])) {
-            $query->where('organization_id', $filters['organization_id']);
+            $query->whereIn('organization_id', FilterValues::values($filters['organization_id']));
         }
         if (($filters['status'] ?? 'all') !== 'all') {
-            $query->where('account_status', $filters['status']);
+            $query->whereIn('account_status', FilterValues::values($filters['status']));
         }
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('first_name', 'like', '%'.$filters['search'].'%')->orWhere('last_name', 'like', '%'.$filters['search'].'%')->orWhere('email', 'like', '%'.$filters['search'].'%')->orWhere('school_id', 'like', '%'.$filters['search'].'%'));
@@ -314,7 +316,7 @@ class SystemAdministrationController extends Controller
                     || ! $user->accountProfiles()->where('organization_id', $primaryOrganization->id)->where('account_status', 'active')->exists()
                     || $user->accountProfiles()->where('organization_id', $home->id)->exists()
                     || $user->accountProfiles()->where('role', 'DEPARTMENT_HEAD')->exists()) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'school_id' => ['Choose an active student or officer account from this college.'],
                     ]);
                 }

@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,7 +37,7 @@ describe('OrganizationGrievancesPage', () => {
     mocks.getGrievances.mockResolvedValue(envelope([{ ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Repaired.' }]));
     mocks.deleteGrievance.mockResolvedValue({});
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
+    fireEvent.click(await findRowAction('View details'));
     fireEvent.click(screen.getByRole('button', { name: 'Delete closed grievance' }));
     const confirm = screen.getByRole('dialog', { name: 'Delete closed grievance?' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete closed grievance' }));

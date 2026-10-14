@@ -8,6 +8,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 import { peso } from '../../lib/format';
 import notify from '../../lib/notify';
+import TableRowActions from '../TableRowActions';
 import { Button, EmptyState, Field, Input, StatusBadge, Textarea } from '../ui';
 
 const STATUS_FILTERS = [
@@ -118,18 +119,12 @@ export default function CashAdvancesSection({ onLedgerChange }) {
   }
 
   function rowAction(advance) {
-    if (advance.status === 'pending') {
-      return advance.borrower_id === me
-        ? <p className="max-w-48 text-xs font-medium text-ink-muted sm:text-right">Another admin approves your request.</p>
-        : <Button size="sm" variant="secondary" loading={busy === `approve-${advance.id}`} onClick={() => run(`approve-${advance.id}`, () => approveCashAdvance(advance.id), 'Cash advance approved')}>Approve</Button>;
-    }
-    if (advance.status === 'approved') {
-      return <Button size="sm" variant="secondary" onClick={() => setReleaseTarget(advance)}>Release funds</Button>;
-    }
-    if (['released', 'partially_repaid'].includes(advance.status)) {
-      return <Button size="sm" variant="secondary" onClick={() => { setFormError(''); setRepayment(EMPTY_REPAYMENT); setRepayTarget(advance); }}>Record repayment</Button>;
-    }
-    return null;
+    if (advance.status === 'pending' && advance.borrower_id === me) return <p className="max-w-48 text-xs font-medium text-ink-muted sm:text-right">Another admin approves your request.</p>;
+    return <TableRowActions subject={advance.purpose} actions={[
+      advance.status === 'pending' && { label: 'Approve', disabled: busy === `approve-${advance.id}`, onClick: () => run(`approve-${advance.id}`, () => approveCashAdvance(advance.id), 'Cash advance approved') },
+      advance.status === 'approved' && { label: 'Release funds', onClick: () => setReleaseTarget(advance) },
+      ['released', 'partially_repaid'].includes(advance.status) && { label: 'Record repayment', onClick: () => { setFormError(''); setRepayment(EMPTY_REPAYMENT); setRepayTarget(advance); } },
+    ]} />;
   }
 
   return (
@@ -142,7 +137,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold text-slate-600">
             <span className="block">Status</span>
-            <HiusaSelect value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A]">
+            <HiusaSelect filter value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A]">
               {STATUS_FILTERS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
             </HiusaSelect>
           </label>

@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
@@ -8,6 +8,7 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
+import TableRowActions from '../../../components/TableRowActions';
 import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
@@ -165,7 +166,7 @@ export default function SaoGrievancesPage() {
         <DataTable
           columns={columns}
           rows={sortedRows}
-          actions={(row) => <Button size="sm" variant="secondary" onClick={() => open(row)}>View details</Button>}
+          actions={(row) => <TableRowActions subject={formatDisplayText(row.title)} actions={[{ label: 'View details', onClick: () => open(row) }]} />}
           loading={loading}
           error={error}
           onRetry={load}
@@ -175,22 +176,22 @@ export default function SaoGrievancesPage() {
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
               <div className="w-44">
-                <Select aria-label="Filter by addressed to" value={addressedTo} onChange={(event) => setAddressedTo(event.target.value)}>
+                <Select filter aria-label="Filter by addressed to" value={addressedTo} onChange={(event) => setAddressedTo(event.target.value)}>
                   {ADDRESSED_TO_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
               <div className="w-40">
-                <Select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
               <div className="w-40">
-                <Select aria-label="Filter by urgency" value={urgency} onChange={(event) => setUrgency(event.target.value)}>
+                <Select filter aria-label="Filter by urgency" value={urgency} onChange={(event) => setUrgency(event.target.value)}>
                   {URGENCY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
               <div className="w-48">
-                <Select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Select filter aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
                   <option value="">All categories</option>
                   {CATEGORIES.map((option) => <option key={option} value={option}>{option}</option>)}
                 </Select>

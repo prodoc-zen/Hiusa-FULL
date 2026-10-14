@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Eye } from 'lucide-react';
-import { Button, DataTable, Drawer, FlowStepper, NextStep } from '../ui';
+import { DataTable, Drawer, FlowStepper, NextStep } from '../ui';
 import { financialReportLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import { formatDisplayText } from '../../utils/displayText.js';
 import { openProtectedFile } from '../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../utils/apiError';
+import TableRowActions from '../TableRowActions';
 
 export function withDraftDefault(report) {
   return { ...report, submission_status: report.submission_status || 'draft' };
@@ -59,7 +60,7 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
             rows={documents}
             rowKey={(document) => document.index}
             columns={[{ key: 'file', header: 'File', render: (document) => <span className="break-all">{document.name}</span> }]}
-            actions={(document) => <Button variant="secondary" size="sm" onClick={() => viewDocument(document)}><Eye size={14} aria-hidden="true" />View file</Button>}
+            actions={(document) => <TableRowActions subject={document.name} actions={[{ label: 'View file', icon: Eye, onClick: () => viewDocument(document) }]} />}
           /> : <p className="mt-2 text-xs font-medium text-ink-muted">No supporting files submitted.</p>}
         </div>
         {canSubmit && (

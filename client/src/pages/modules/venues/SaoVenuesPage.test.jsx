@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,14 +47,10 @@ describe('SaoVenuesPage', () => {
     expect(getPageMeta('/dashboard/super-admin/venues', 'SUPER_ADMIN').purpose).toBe('See who has each venue and when, and decide booking requests with conflicts in view.');
   });
 
-  it('changes venue status through the status switch', async () => {
+  it('changes venue status through the three-dot menu', async () => {
     render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('tab', { name: /Venue catalog/ }));
-    const [switchControl] = await screen.findAllByRole('switch', { name: 'Main Hall active status' });
-    expect(switchControl).toHaveAttribute('aria-checked', 'true');
-    expect(screen.queryByRole('button', { name: 'Mark inactive' })).not.toBeInTheDocument();
-
-    fireEvent.click(switchControl);
+    fireEvent.click(await findRowAction('Mark inactive', 'Main Hall'));
     await waitFor(() => expect(venueMocks.updateVenue).toHaveBeenCalledWith(8, { is_active: false }));
   });
 
@@ -225,7 +222,7 @@ describe('SaoVenuesPage', () => {
 
       render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       openTab(/Booking requests/);
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+      fireEvent.click(await findRowAction('Approve'));
 
       const dialog = within(await screen.findByRole('dialog', { name: 'Approve this booking?' }));
       expect(await dialog.findByText('Overlaps 2 other bookings for this venue')).toBeInTheDocument();
@@ -242,7 +239,7 @@ describe('SaoVenuesPage', () => {
 
       render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       openTab(/Booking requests/);
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+      fireEvent.click(await findRowAction('Approve'));
 
       const dialog = within(await screen.findByRole('dialog', { name: 'Approve this booking?' }));
       expect(await dialog.findByText('Could not check for overlapping bookings. Check the calendar before approving.')).toBeInTheDocument();

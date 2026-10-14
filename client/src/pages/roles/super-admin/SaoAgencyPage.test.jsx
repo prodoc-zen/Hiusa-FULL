@@ -1,3 +1,4 @@
+import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -59,7 +60,7 @@ describe('SaoAgencyPage', () => {
     expect(within(first).getByText('12')).toBeInTheDocument();
     expect(within(first).getByText('2 approvals, 4 documents')).toBeInTheDocument();
     expect(within(first).queryByText('Accredited')).not.toBeInTheDocument();
-    expect(within(first).getByRole('link', { name: 'Open Computing Society' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/1');
+    expect(await findRowAction('Open Computing Society')).toHaveAttribute('href', '/dashboard/super-admin/organizations/1');
     const second = within(table).getByText('Robotics Club').closest('tr');
     expect(within(second).getByText('Nothing waiting')).toBeInTheDocument();
   });
@@ -72,8 +73,8 @@ describe('SaoAgencyPage', () => {
 
   it('links Review to the organization in the review drawer, not the whole list', async () => {
     renderPage();
-    const reviewLinks = await screen.findAllByRole('link', { name: 'Review Robotics Club' });
-    expect(reviewLinks[0]).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=2');
+    const reviewLink = await findRowAction('Review Robotics Club');
+    expect(reviewLink).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=2');
   });
 
   it('marks archived organizations as read only for assistive technology', async () => {
@@ -195,7 +196,7 @@ describe('SaoAgencyPage', () => {
       mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([waiting, quiet], { active: 2 })] }));
       renderPage();
 
-      const link = (await screen.findAllByRole('link', { name: 'Provision administrator for Chess Club' }))[0];
+      const link = await findRowAction('Provision administrator for Chess Club');
       expect(link).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=3&create=1');
       expect(screen.queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
     });

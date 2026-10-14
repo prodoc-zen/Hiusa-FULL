@@ -22,7 +22,7 @@ const BELOW_DRAWER_HEADER = { position: 'bottom-center' };
 
 function documentKind(submission) {
   if (submission.is_registration) return 'Registration document';
-  return /semestral/i.test(submission.requirement_type?.name || '') ? 'Semestral report' : 'Renewal document';
+  return submission.requirement_type?.category === 'semestral_report' || /semestral/i.test(submission.requirement_type?.name || '') ? 'Semestral report' : 'Renewal document';
 }
 
 // A registration file is decided with the rest of the registration, so the queue points there instead of offering a decision.
@@ -218,13 +218,13 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:items-center sm:p-4">
             <Button variant="secondary" size="sm" onClick={() => { setRecordId(null); setFileSearch(''); onFiltersChange({ organizationId: '', status: DEFAULT_STATUS }); }}>All organizations</Button>
             <Input type="search" aria-label="Search submissions" placeholder="Search requirement or file" value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} />
-            <Select aria-label="Filter by status" value={status} onChange={(event) => onFiltersChange({ ...filters, status: event.target.value })} className="sm:w-56">
+            <Select filter aria-label="Filter by status" value={status} onChange={(event) => onFiltersChange({ ...filters, status: event.target.value })} className="sm:w-56">
               <option value="submitted">Awaiting review</option>
               <option value="approved">Approved</option>
               <option value="returned">Returned</option>
               <option value="">All statuses</option>
             </Select>
-            <Select aria-label="Filter by organization" value={organizationId} onChange={(event) => onFiltersChange({ ...filters, organizationId: event.target.value })} className="sm:w-56">
+            <Select filter aria-label="Filter by organization" value={organizationId} onChange={(event) => onFiltersChange({ ...filters, organizationId: event.target.value })} className="sm:w-56">
               <option value="">All organizations</option>
               {organizations.map((org) => <option key={org.organization_id} value={org.organization_id}>{org.organization_name}</option>)}
             </Select>

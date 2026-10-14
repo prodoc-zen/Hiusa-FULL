@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\ClearanceSignature;
 use App\Models\User;
+use App\Support\FilterValues;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,16 +19,16 @@ class SystemUsersController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:120'],
-            'role' => ['nullable', Rule::in(self::ROLES)],
-            'status' => ['nullable', Rule::in(['active', 'inactive', 'disabled'])],
-            'organization_id' => ['nullable', 'integer', 'exists:organizations,id'],
+            'role' => ['nullable', FilterValues::rule(['nullable', Rule::in(self::ROLES)])],
+            'status' => ['nullable', FilterValues::rule(['nullable', Rule::in(['active', 'inactive', 'disabled'])])],
+            'organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:organizations,id'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = User::query()->with('organization:id,name,acronym')
-            ->when($filters['role'] ?? null, fn ($query, $role) => $query->where('role', $role))
-            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('account_status', $status))
-            ->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->where('organization_id', $id))
+            ->when($filters['role'] ?? null, fn ($query, $role) => $query->whereIn('role', FilterValues::values($role)))
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->whereIn('account_status', FilterValues::values($status)))
+            ->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->whereIn('organization_id', FilterValues::values($id)))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($matches) => $matches
                 ->where('first_name', 'like', '%'.$search.'%')
                 ->orWhere('last_name', 'like', '%'.$search.'%')

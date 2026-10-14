@@ -1,3 +1,4 @@
+import { findRowAction } from '../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CashAdvancesSection from './CashAdvancesSection';
@@ -44,11 +45,11 @@ describe('CashAdvancesSection', () => {
     render(<CashAdvancesSection />);
 
     const rows = await screen.findAllByRole('listitem');
-    expect(within(rows[0]).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(await findRowAction('Approve', 'Venue deposit 1')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Another admin approves your request.')).toBeInTheDocument();
     expect(within(rows[1]).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(rows[2]).getByRole('button', { name: 'Release funds' })).toBeInTheDocument();
-    expect(within(rows[3]).getByRole('button', { name: 'Record repayment' })).toBeInTheDocument();
+    expect(await findRowAction('Release funds', 'Venue deposit 3')).toBeInTheDocument();
+    expect(await findRowAction('Record repayment', 'Venue deposit 4')).toBeInTheDocument();
     expect(within(rows[3]).getByText('₱300.00 outstanding')).toBeInTheDocument();
     expect(within(rows[4]).queryByRole('button')).not.toBeInTheDocument();
   });
@@ -61,15 +62,15 @@ describe('CashAdvancesSection', () => {
     vi.mocked(repayCashAdvance).mockResolvedValue({ data: {} });
     render(<CashAdvancesSection onLedgerChange={onLedgerChange} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    fireEvent.click(await findRowAction('Approve'));
     await waitFor(() => expect(approveCashAdvance).toHaveBeenCalledWith(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Release funds' }));
+    fireEvent.click(await findRowAction('Release funds'));
     const confirm = await screen.findByRole('dialog', { name: 'Release funds' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Release funds' }));
     await waitFor(() => expect(releaseCashAdvance).toHaveBeenCalledWith(3));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record repayment' }));
+    fireEvent.click(await findRowAction('Record repayment'));
     const dialog = await screen.findByRole('dialog', { name: 'Record repayment' });
     fireEvent.change(within(dialog).getByLabelText(/Amount repaid/), { target: { value: '150' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record repayment' }));
@@ -85,7 +86,7 @@ describe('CashAdvancesSection', () => {
     expect(await screen.findByText(/not counted as income or expense in reports and forecasts/)).toBeInTheDocument();
     expect(screen.queryByText(/posts an expense/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Release funds' }));
+    fireEvent.click(await findRowAction('Release funds'));
     const confirm = await screen.findByRole('dialog', { name: 'Release funds' });
     expect(confirm).toHaveTextContent(/neither is counted as income or expense/);
     expect(confirm).not.toHaveTextContent(/as a cash advance expense|come back as income/);

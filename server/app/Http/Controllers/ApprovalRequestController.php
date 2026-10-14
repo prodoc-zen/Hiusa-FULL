@@ -20,6 +20,7 @@ use App\Services\ApprovalEntityLabel;
 use App\Services\EventApprovalChain;
 use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
+use App\Support\FilterValues;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -47,8 +48,8 @@ class ApprovalRequestController extends Controller
         ]);
 
         $filters = $request->validate([
-            'status' => ['nullable', 'in:pending,approved,rejected,all'],
-            'entity_type' => ['nullable', 'in:event,budget,election,announcement,payment,financial_report'],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:pending,approved,rejected,all'])],
+            'entity_type' => ['nullable', FilterValues::rule(['nullable', 'in:event,budget,election,announcement,payment,financial_report'])],
             'search' => ['nullable', 'string', 'max:120'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
@@ -58,7 +59,7 @@ class ApprovalRequestController extends Controller
         $submitted = ($filters['scope'] ?? null) === 'submitted';
         $user = $request->user();
         if ($user->role === 'SUPER_ADMIN') {
-            $filters += $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id']]);
+            $filters += $request->validate(['organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:organizations,id'])]]);
         }
         if ($user->role === 'SBO_OFFICER' && ! $submitted) {
             return response()->json(['message' => 'Forbidden.'], 403);
@@ -72,14 +73,14 @@ class ApprovalRequestController extends Controller
         }
 
         $status = $filters['status'] ?? ($submitted ? 'all' : 'pending');
-        $query->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->where('organization_id', $id));
+        $query->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->whereIn('organization_id', FilterValues::values($id)));
 
         if ($status !== 'all') {
-            $query->where('status', $status);
+            $query->whereIn('status', FilterValues::values($status));
         }
 
         if (! empty($filters['entity_type'])) {
-            $query->where('entity_type', $filters['entity_type']);
+            $query->whereIn('entity_type', FilterValues::values($filters['entity_type']));
         }
 
         if (! empty($filters['search'])) {

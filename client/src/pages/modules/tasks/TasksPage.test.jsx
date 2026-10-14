@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { findRowAction } from '../../../test/rowActions';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import TasksPage from './TasksPage';
@@ -357,7 +358,7 @@ describe('TasksPage', () => {
     });
   });
 
-  describe('direct row actions on the desktop table', () => {
+  describe('row actions on the desktop table', () => {
     const base = { event_id: null, priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 };
     const rowOf = async (title) => {
       await screen.findAllByText(title);
@@ -365,15 +366,17 @@ describe('TasksPage', () => {
     };
     const serve = (...records) => mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(records)));
 
-    it('lets the assignee start a pending task from its row without opening the menu', async () => {
+    it('lets the assignee start a pending task from its three-dot menu', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
       const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'pending' };
       serve(task);
       mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'in_progress', progress_percent: 1 } });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       const row = await rowOf('Stage Task');
-      expect(row.queryByRole('button', { name: 'Complete' })).not.toBeInTheDocument();
-      fireEvent.click(row.getByRole('button', { name: 'Start' }));
+      expect(row.getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
+      const action = await findRowAction('Start');
+      expect(screen.queryByRole('menuitem', { name: 'Complete' })).not.toBeInTheDocument();
+      fireEvent.click(action);
       await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'in_progress', progress_note: 'Task work started.', progress_percent: 1 }));
     });
 
@@ -384,8 +387,10 @@ describe('TasksPage', () => {
       mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'completed', progress_percent: 100 } });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       const row = await rowOf('Stage Task');
-      expect(row.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
-      fireEvent.click(row.getByRole('button', { name: 'Complete' }));
+      expect(row.getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
+      const action = await findRowAction('Complete');
+      expect(screen.queryByRole('menuitem', { name: 'Start' })).not.toBeInTheDocument();
+      fireEvent.click(action);
       fireEvent.click(await screen.findByRole('button', { name: 'Confirm Completion' }));
       await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'completed', progress_note: 'Task marked as completed.', progress_percent: 100 }));
     });

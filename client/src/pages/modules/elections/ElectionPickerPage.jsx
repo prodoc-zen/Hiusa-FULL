@@ -1,3 +1,5 @@
+import TableRowActions from '../../../components/TableRowActions';
+import { matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
@@ -6,11 +8,8 @@ import notify from '../../../lib/notify';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
-  CheckCircle2,
-  ChevronRight,
   Eye,
   Clock3,
-  LoaderCircle,
   MapPin,
   PencilLine,
   Plus,
@@ -232,7 +231,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
 
   const filteredElections = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    return elections.filter((election) => (statusFilter === 'all' || election.status === statusFilter) && (!query || String(election.title || '').toLowerCase().includes(query)));
+    return elections.filter((election) => matchesFilter(statusFilter, election.status) && (!query || String(election.title || '').toLowerCase().includes(query)));
   }, [elections, searchTerm, statusFilter]);
   useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
   const pagedElections = filteredElections.slice((page - 1) * pageSize, page * pageSize);
@@ -320,12 +319,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       <PageHeader primary={canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         {academicPeriods.length > 0 && <label className="block px-4 pt-4 text-xs font-semibold text-[#0F172A] sm:px-5">Academic period
-          <HiusaSelect value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect>
+          <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect>
         </label>}
         {viewingHistory && <p className="px-4 pt-3 text-xs font-medium text-[#64748B] sm:px-5">Completed semester elections are available for viewing only.</p>}
         <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
           <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-          <HiusaSelect aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></HiusaSelect>
+          <HiusaSelect filter aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></HiusaSelect>
         </div>
       </section>
 
@@ -361,7 +360,6 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
         <section className="grid gap-4 lg:grid-cols-2">
           {pagedElections.map((election) => {
             const votes = getElectionVoteCount(election);
-            const isBusy = statusBusy.id === election.id;
             const returned = isReturned(election);
             const lifecycle = electionLifecycle(withApprovalState(election), currentUser?.role);
             return (
@@ -381,17 +379,17 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
                   </div>
                   <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
-                  <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Open election <ChevronRight size={16} /></button>
-                  {election.has_informative_letter && currentUser?.role !== 'STUDENT' && <button type="button" onClick={() => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((requestError) => notify.error(getApiErrorMessage(requestError, 'Unable to open the letter.')))} className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#0878B7] hover:underline"><Eye size={14} aria-hidden="true" /> View informative letter</button>}
-                  {canManageElections && !viewingHistory && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
-                      {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> {returned ? 'Edit and resubmit' : 'Edit'}</button>}
-                      {!['active', 'closed'].includes(election.status) && votes === 0 && <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>}
-                      {election.status === 'pending_approval' && !returned && <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700"><CheckCircle2 size={14} /> In review</span>}
-                      {election.status === 'upcoming' && election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'active')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Power size={14} />} Open voting</button>}
-                      {election.status === 'active' && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'closed')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <PowerOff size={14} />} Close</button>}
-                    </div>
-                  )}
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    {election.status === 'pending_approval' && !returned && <span className="text-xs font-semibold text-ink-muted">In review</span>}
+                    <TableRowActions subject={formatDisplayText(election.title)} actions={[
+                      { label: 'Open election', onClick: () => onSelect?.(election.id) },
+                      election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
+                      canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
+                      canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
+                      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
+                      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'closed') },
+                    ]} />
+                  </div>
                 </div>
               </article>
             );

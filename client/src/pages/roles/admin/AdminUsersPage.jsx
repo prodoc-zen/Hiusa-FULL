@@ -1,3 +1,4 @@
+import { filterLabel, filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -771,11 +772,11 @@ export default function AdminUsersPage() {
 
   const activeUserFilters = [
     search.trim() && `Search: ${search.trim()}`,
-    roleFilter !== 'all' && `Role: ${ROLE_LABELS[roleFilter] || roleFilter}`,
-    programFilter !== 'all' && `Program: ${programFilter}`,
-    yearLevelFilter !== 'all' && `Year: ${yearLevelFilter}`,
-    sectionFilter !== 'all' && `Section: ${sectionFilter}`,
-    statusFilter !== 'all' && `Status: ${statusFilter}`,
+    roleFilter !== 'all' && `Role: ${filterLabel(roleFilter, (role) => ROLE_LABELS[role] || role)}`,
+    programFilter !== 'all' && `Program: ${filterLabel(programFilter)}`,
+    yearLevelFilter !== 'all' && `Year: ${filterLabel(yearLevelFilter)}`,
+    sectionFilter !== 'all' && `Section: ${filterLabel(sectionFilter)}`,
+    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter)}`,
     sort !== 'name' && `Sort: ${sort.replaceAll('_', ' ')}`,
   ].filter(Boolean);
 
@@ -836,7 +837,7 @@ export default function AdminUsersPage() {
           resultLabel={meta.total === 1 ? 'user' : 'users'}
           secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
-          <HiusaSelect
+          <HiusaSelect filter
             value={roleFilter}
             onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -846,10 +847,10 @@ export default function AdminUsersPage() {
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </HiusaSelect>
-          <HiusaSelect aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
-          <HiusaSelect aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
-          <HiusaSelect aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
-          <HiusaSelect aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => matchesFilter(programFilter, program.name)).flatMap((program) => program.sections || []).filter((section) => filterValues(yearLevelFilter).length === 0 || filterValues(yearLevelFilter).some((year) => Number(section.year_level) === yearNumber(year))).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
           <HiusaSelect aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></HiusaSelect>
         </TableFilterBar>
         <div className="space-y-3 md:hidden" aria-label="Users">

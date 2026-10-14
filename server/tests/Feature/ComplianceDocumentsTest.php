@@ -175,6 +175,34 @@ class ComplianceDocumentsTest extends TestCase
         $this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&source=financial_report&search=.pdf')->assertOk()->assertJsonPath('total', 1);
     }
 
+    public function test_multiple_document_families_and_semesters_keep_repository_totals_and_pages_aligned(): void
+    {
+        $this->periods();
+        $organization = $this->studentOrganization('Multi filter club');
+        $this->documentsFor($organization, $this->submitter($organization));
+        Sanctum::actingAs($this->director());
+        $filters = ['organization_id' => $organization->id, 'family' => json_encode(['event_requirement', 'financial_supporting_document']), 'academic_semester_id' => json_encode([$this->first->id, $this->second->id]), 'per_page' => 1];
+        $ids = [];
+        for ($page = 1; $page <= 3; $page++) {
+            $row = $this->getJson('/api/compliance/documents?'.http_build_query($filters + ['page' => $page]))->assertOk()->assertJsonPath('total', 3)->assertJsonCount(1, 'data')->json('data.0');
+            $this->assertContains($row['family'], ['event_requirement', 'financial_supporting_document']);
+            $ids[] = $row['open_url'];
+        }
+        $this->assertCount(3, array_unique($ids));
+        $this->getJson('/api/compliance/documents?'.http_build_query($filters + ['group' => 'organization']))->assertOk()->assertJsonPath('data.0.file_count', 3);
+    }
+
+    public function test_multiple_organization_submission_filters_cannot_cross_a_heads_college_boundary(): void
+    {
+        $this->periods();
+        $college = $this->college('Computing');
+        $own = $this->studentOrganization('Within scope', $college);
+        $outside = $this->studentOrganization('Outside scope', $this->college('Arts'));
+        Sanctum::actingAs($this->collegeHead($college));
+        $this->getJson('/api/compliance/submissions?'.http_build_query(['organization_id' => json_encode([$own->id, $outside->id])]))->assertForbidden();
+        $this->getJson('/api/compliance/submissions?organization_id='.$own->id)->assertOk();
+    }
+
     public function test_documents_union_lists_every_source_with_the_normalized_shape(): void
     {
         $this->periods();

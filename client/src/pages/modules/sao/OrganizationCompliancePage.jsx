@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, File, Pencil, ShieldCheck, Upload } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonCard, StatusBadge, Tabs } from '../../../components/ui';
 import { accreditationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import notify from '../../../lib/notify';
 import { manilaDate, relativeTime } from '../../../lib/format';
-import { unwrapList } from '../../../services/pagination';
+import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus, getRequirementTypes, getSubmissions, submitComplianceDocument } from '../../../services/complianceService';
 import ComplianceDropzone, { validateComplianceFile } from './ComplianceDropzone';
 import { complianceStageText } from './complianceStage';
 import { RichTextBody } from '../../../components/RichText';
 import TableRowActions from '../../../components/TableRowActions';
+import PaginationControls from '../../../components/PaginationControls';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
 
@@ -38,30 +39,35 @@ function deadlineTone(requirement) {
 
 export default function OrganizationCompliancePage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const [category, setCategory] = useState('organization');
+  const [page, setPage] = useState(1);
   const [state, setState] = useState({ loading: true, error: null, academicYear: null, accreditationStatus: null, requirements: [] });
   const [uploadTarget, setUploadTarget] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const requestSequence = useRef(0);
 
   const load = useCallback(() => {
+    const request = ++requestSequence.current;
     setState((current) => ({ ...current, loading: true, error: null }));
-    Promise.all([getComplianceStatus(), getRequirementTypes(), getSubmissions()])
-      .then(([statusRes, typesRes, submissionsRes]) => {
+    Promise.all([getComplianceStatus({ category }), fetchAllPages((params) => getRequirementTypes({ ...params, category }).then((response) => response.data)), fetchAllPages((params) => getSubmissions({ ...params, category }).then((response) => response.data))])
+      .then(([statusRes, types, submissions]) => {
+        if (request !== requestSequence.current) return;
         const org = statusRes.data?.organizations || null;
         setState({
           loading: false,
           error: null,
           academicYear: statusRes.data?.academic_year ?? null,
           accreditationStatus: org?.accreditation_status ?? null,
-          requirements: org ? mergeRequirements(org.requirements || [], unwrapList(typesRes.data), unwrapList(submissionsRes.data)) : [],
+          requirements: org ? mergeRequirements(org.requirements || [], types, submissions) : [],
         });
       })
-      .catch((err) => setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load your compliance requirements.') })));
-  }, []);
+      .catch((err) => { if (request === requestSequence.current) setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load your compliance requirements.') })); });
+  }, [category]);
 
-  useEffect(() => { if (role === 'ADMIN') load(); }, [load, role]);
+  useEffect(() => { if (role === 'ADMIN') load(); return () => { requestSequence.current += 1; }; }, [load, role]);
 
   function openUpload(requirement) {
     setUploadTarget(requirement);
@@ -134,7 +140,7 @@ export default function OrganizationCompliancePage() {
 
   const approvedCount = state.requirements.filter((requirement) => requirement.status === 'approved').length;
   const ready = !state.loading && !state.error && state.requirements.length > 0;
-  const accreditation = ready && state.accreditationStatus
+  const accreditation = category === 'organization' && ready && state.accreditationStatus
     ? accreditationLifecycle({ status: state.accreditationStatus, total: state.requirements.length, approved: approvedCount }, 'ADMIN')
     : null;
 
@@ -152,6 +158,8 @@ export default function OrganizationCompliancePage() {
         stepper={accreditation && <FlowStepper steps={accreditation.steps} ariaLabel="Accreditation progress" />}
         nextStep={accreditation && <NextStep {...toNextStepProps(accreditation)} primary={undefined} />}
       />
+
+      <Tabs value={category} onChange={(next) => { setPage(1); setCategory(next); }} tabs={[{ key: 'organization', label: 'Organization accreditation' }, { key: 'semestral_report', label: 'Semestral report' }]} />
 
       {state.loading && (
         <div className="space-y-3">
@@ -178,9 +186,10 @@ export default function OrganizationCompliancePage() {
         <Card>
           <DataTable
             stickyHeader={false}
-            caption="Organization compliance requirements"
+            caption={category === 'semestral_report' ? 'Semestral report requirements' : 'Organization compliance requirements'}
             rowKey={(requirement) => requirement.requirement_type_id}
-            rows={state.requirements}
+            rows={state.requirements.slice((page - 1) * 10, page * 10)}
+            pagination={<PaginationControls currentPage={page} totalItems={state.requirements.length} pageSize={10} onPageChange={setPage} label="requirements" />}
             columns={[
               { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>}</div> },
               { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },

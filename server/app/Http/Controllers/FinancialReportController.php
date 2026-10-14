@@ -17,6 +17,7 @@ use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
 use App\Services\GroqResponsesService;
 use App\Services\SubmissionStoragePolicy;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -36,9 +37,9 @@ class FinancialReportController extends Controller
         $filters = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
-            'status' => ['nullable', 'in:draft,pending_department_head,pending_sao,approved,rejected'],
-            'document_type' => ['nullable', 'in:financial_report,income_statement'],
+            'organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')])],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:draft,pending_department_head,pending_sao,approved,rejected'])],
+            'document_type' => ['nullable', FilterValues::rule(['nullable', 'in:financial_report,income_statement'])],
             'search' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -51,7 +52,7 @@ class FinancialReportController extends Controller
             'saoApprover:school_id,first_name,last_name',
         ]);
         if ($request->user()->role === 'SUPER_ADMIN') {
-            $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
+            $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->whereIn('organization_id', FilterValues::values($organizationId)));
             $query->whereNotNull('department_head_approved_at');
         } elseif ($request->user()->role === 'DEPARTMENT_HEAD') {
             $query->whereIn('organization_id', $this->readableOrganizationIds($request))
@@ -60,8 +61,8 @@ class FinancialReportController extends Controller
             $query->where('organization_id', $request->user()->organization_id);
         }
         $query
-            ->when($filters['status'] ?? null, fn ($builder, $status) => $builder->where('submission_status', $status))
-            ->when($filters['document_type'] ?? null, fn ($builder, $documentType) => $builder->where('document_type', $documentType))
+            ->when($filters['status'] ?? null, fn ($builder, $status) => $builder->whereIn('submission_status', FilterValues::values($status)))
+            ->when($filters['document_type'] ?? null, fn ($builder, $documentType) => $builder->whereIn('document_type', FilterValues::values($documentType)))
             ->when($filters['search'] ?? null, fn ($builder, $search) => $builder->where('title', 'like', '%'.trim($search).'%'));
 
         return response()->json($query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
@@ -217,7 +218,9 @@ class FinancialReportController extends Controller
         ];
         $summary = $this->summary($reportContext);
 
-        if ($request->hasFile('letterhead')) app(SubmissionStoragePolicy::class)->assertUpload([$request->file('letterhead')], $organizationId, field: 'letterhead');
+        if ($request->hasFile('letterhead')) {
+            app(SubmissionStoragePolicy::class)->assertUpload([$request->file('letterhead')], $organizationId, field: 'letterhead');
+        }
         $letterheadPath = $request->hasFile('letterhead')
             ? $request->file('letterhead')->store('financial-report-letterheads/'.$organizationId, 'local')
             : null;

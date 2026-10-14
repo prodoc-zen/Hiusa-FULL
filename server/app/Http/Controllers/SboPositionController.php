@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -15,7 +16,7 @@ class SboPositionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'role' => ['nullable', 'in:ADMIN,SBO_OFFICER'],
+            'role' => ['nullable', FilterValues::rule(['nullable', 'in:ADMIN,SBO_OFFICER'])],
             'active_only' => ['nullable', 'boolean'],
         ]);
         $query = SboPosition::where('organization_id', $request->user()->organization_id)
@@ -24,7 +25,7 @@ class SboPositionController extends Controller
         if ($request->user()->role === 'SBO_OFFICER') {
             $query->where('role', 'SBO_OFFICER');
         } elseif (! empty($filters['role'])) {
-            $query->where('role', $filters['role']);
+            $query->whereIn('role', FilterValues::values($filters['role']));
         }
         if ($request->boolean('active_only')) {
             $query->where('is_active', true);

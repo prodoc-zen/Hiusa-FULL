@@ -2,9 +2,10 @@ import HiusaSelect from '../../../components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarRange, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, Card, DataTable, EmptyState, Field, IconButton, Input, PageHeader, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
+import TableRowActions from '../../../components/TableRowActions';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -209,12 +210,12 @@ export default function AcademicYearsPage() {
           error={years.error}
           onRetry={load}
           actions={(year) => (
-            <div className="flex justify-end gap-1.5">
-              {!year.is_current && !year.closed_at && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => setCurrentTarget(year)}>Make current</Button>}
-              {year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => setCloseYearTarget(year)}>Close year</Button>}
-              <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => openModal(year)}>Edit</Button>
-              {!year.is_current && <IconButton icon={Trash2} label={`Remove ${year.label}`} variant="danger" onClick={() => { setYearDeleteError(''); setDeleteTarget(year); }} />}
-            </div>
+            <TableRowActions subject={year.label} actions={[
+              !year.is_current && !year.closed_at && { label: 'Make current', onClick: () => setCurrentTarget(year) },
+              year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && { label: 'Close year', onClick: () => setCloseYearTarget(year) },
+              { label: 'Edit', onClick: () => openModal(year) },
+              !year.is_current && { label: `Remove ${year.label}`, icon: Trash2, danger: true, onClick: () => { setYearDeleteError(''); setDeleteTarget(year); } },
+            ]} />
           )}
           emptyState={(
             <EmptyState
@@ -232,13 +233,15 @@ export default function AcademicYearsPage() {
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
-            {(year.semesters || []).length < 2 && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); }}>Add semester</Button>}
+            {(year.semesters || []).length < 2 && <TableRowActions subject={`Semesters of ${year.label}`} actions={[{ label: 'Add semester', onClick: () => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); } }]} />}
           </div>
           <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
             <div><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="ml-2 text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><span className="ml-2 text-xs font-semibold capitalize text-ink-muted">{semester.status}</span></div>
-            {semester.status === 'upcoming' && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>Set as active</Button>}
-            {semester.status === 'active' && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" disabled={busy} onClick={() => changeSemester(semester, 'close')}>Close semester</Button>}
-            {semester.status !== 'active' && <IconButton icon={Trash2} label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} variant="danger" disabled={busy} onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }} />}
+            <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[
+              semester.status === 'upcoming' && { label: 'Set as active', disabled: busy, onClick: () => changeSemester(semester, 'activate') },
+              semester.status === 'active' && { label: 'Close semester', disabled: busy, onClick: () => changeSemester(semester, 'close') },
+              semester.status !== 'active' && { label: `Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`, icon: Trash2, danger: true, disabled: busy, onClick: () => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); } },
+            ]} />
           </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
         </div>)}
       </Card>

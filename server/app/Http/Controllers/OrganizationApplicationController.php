@@ -16,6 +16,7 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use App\Services\SubmissionStoragePolicy;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -34,7 +35,7 @@ class OrganizationApplicationController extends Controller
         $semester = AcademicSemester::active();
         $types = $semester
             ? ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('is_active', true)
-                ->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->orderBy('id')->get()
+                ->where('category', 'organization')->orderBy('id')->get()
             : collect();
 
         return [$semester, $types];
@@ -141,6 +142,7 @@ class OrganizationApplicationController extends Controller
             User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
                 ->whereHas('organization', fn ($org) => $org->where('organization_type', 'COLLEGE')->where('college_id', $college->id))
                 ->get()->each(fn ($user) => $this->notify($user, $application, 'Organization application awaiting endorsement'));
+
             return true;
         });
 
@@ -333,6 +335,7 @@ class OrganizationApplicationController extends Controller
                         if (! $document || ! Storage::disk('local')->exists($document->file_path)) {
                             throw ValidationException::withMessages(["files.{$type->id}" => ['Upload this required document.']]);
                         }
+
                         continue;
                     }
                     $stored[] = $path = $file->store('organization-applications/'.$application->id, 'local');
@@ -376,13 +379,13 @@ class OrganizationApplicationController extends Controller
 
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', 'in:pending_endorsement,endorsed,approved,rejected'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
+        $data = $request->validate(['status' => ['nullable', FilterValues::rule(['in:pending_endorsement,endorsed,approved,rejected'])], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = OrganizationApplication::with(['college:id,name', 'documents.requirementType:id,name,description'])->whereNotNull('email_verified_at');
         if ($request->user()->role === 'DEPARTMENT_HEAD') {
             $this->scopeForHead($query, $request->user());
         }
         if (! empty($data['status'])) {
-            $query->where('status', $data['status']);
+            $query->whereIn('status', FilterValues::values($data['status']));
         }
 
         return response()->json($query->latest()->paginate($data['per_page'] ?? 10));

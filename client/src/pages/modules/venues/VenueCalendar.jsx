@@ -52,7 +52,7 @@ export default function VenueCalendar({
           <IconButton icon={ChevronRight} label={`Next ${unit}`} variant="secondary" onClick={() => onChange({ view, anchor: shiftAnchor(view, anchor, 1) })} />
           <Input type="date" aria-label="Jump to date" value={anchor} onChange={(event) => event.target.value && onChange({ view, anchor: event.target.value })} className="w-44" />
         </div>
-        <Select aria-label="Venue to show" value={venueId} onChange={(event) => onVenueChange(event.target.value)} className="lg:w-60">
+        <Select filter aria-label="Venue to show" value={venueId} onChange={(event) => onVenueChange(event.target.value)} className="lg:w-60">
           <option value="">All venues</option>
           {venues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
         </Select>

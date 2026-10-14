@@ -1,4 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
+import { matchesFilter } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
@@ -49,7 +50,7 @@ export default function ManageSboPositionsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return positions.filter((position) => (!roleFilter || position.role === roleFilter)
+    return positions.filter((position) => matchesFilter(roleFilter, position.role)
       && (!query || `${position.title} ${position.description || ''}`.toLowerCase().includes(query)));
   }, [positions, roleFilter, search]);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -108,7 +109,7 @@ export default function ManageSboPositionsPage() {
     <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-4 sm:flex-row">
         <label className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3"><Search size={15} className="text-slate-500" /><span className="sr-only">Search positions</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or responsibilities..." className="w-full bg-transparent text-sm outline-none" /></label>
-        <HiusaSelect aria-label="Filter positions by account role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All account roles</option><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></HiusaSelect>
+        <HiusaSelect filter aria-label="Filter positions by account role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All account roles</option><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></HiusaSelect>
       </div>
       {error && <p className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
       <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left"><thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Position</th><th className="px-5 py-3">Account Role</th><th className="px-5 py-3">Responsibilities</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">

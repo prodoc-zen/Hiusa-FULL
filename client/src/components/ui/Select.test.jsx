@@ -12,6 +12,25 @@ function Example({ multiple = false, disabled = false }) {
 }
 
 describe('Searchable Select', () => {
+  it('keeps several filter options selected, removes one, and clears with All', () => {
+    function Filters() {
+      const [value, setValue] = useState('');
+      return <Select filter aria-label="Status filter" value={value} onChange={(event) => setValue(event.target.value)}><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option></Select>;
+    }
+    render(<Filters />);
+    const select = screen.getByRole('combobox', { name: 'Status filter' });
+    fireEvent.click(select);
+    const options = () => within(screen.getByRole('listbox', { name: 'Dropdown options' }));
+    fireEvent.click(options().getByRole('option', { name: 'Pending' }));
+    fireEvent.click(options().getByRole('option', { name: 'Approved' }));
+    expect(select).toHaveValue('["pending","approved"]');
+    expect(options().getByRole('option', { name: 'Pending' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Pending' }));
+    expect(select).toHaveValue('approved');
+    fireEvent.click(options().getByRole('option', { name: 'All statuses' }));
+    expect(select).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Remove Approved' })).not.toBeInTheDocument();
+  });
   it('searches options, selects a single value, and returns focus', async () => {
     render(<Example />);
     const select = screen.getByRole('combobox', { name: 'College' });

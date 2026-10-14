@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
 use App\Services\SubmissionStoragePolicy;
+use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -42,10 +43,11 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'academic_year' => ['nullable', 'string', 'max:20'],
+            'category' => ['nullable', 'in:organization,semestral_report'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = ComplianceRequirementType::query();
+        $query = ComplianceRequirementType::query()->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category));
 
         if ($request->user()->role === 'ADMIN') {
             // ADMIN only needs what it must act on: active requirements for
@@ -56,7 +58,7 @@ class ComplianceController extends Controller
             $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
         }
 
-        return response()->json($query->orderByDesc('academic_year')->orderBy('name')->paginate($filters['per_page'] ?? 20));
+        return response()->json($query->orderByDesc('academic_year')->orderBy('name')->orderBy('id')->paginate($filters['per_page'] ?? 20));
     }
 
     public function storeRequirementType(Request $request)
@@ -64,6 +66,7 @@ class ComplianceController extends Controller
         $data = $request->validate([
             'academic_year' => ['required', 'string', 'max:20', ...(AcademicYear::exists() ? [Rule::exists('academic_years', 'label')] : [])],
             'name' => ['required', 'string', 'max:255'],
+            'category' => ['sometimes', 'required', 'in:organization,semestral_report'],
             'description' => ['nullable', 'string', 'max:3000'],
             'allowed_extensions' => ['sometimes', 'required', 'array', 'min:1'],
             'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(ComplianceRequirementType::SUPPORTED_EXTENSIONS)],
@@ -255,7 +258,7 @@ class ComplianceController extends Controller
     {
         $semester = AcademicSemester::active();
         if (! $semester || ! $requirementType->is_active || $requirementType->academic_semester_id !== $semester->id
-            || $requirementType->name === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT) {
+            || $requirementType->category === 'semestral_report') {
             abort(404);
         }
 
@@ -321,6 +324,7 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'academic_year' => ['nullable', 'string', 'max:20'],
+            'category' => ['nullable', 'in:organization,semestral_report'],
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
         ]);
 
@@ -341,6 +345,7 @@ class ComplianceController extends Controller
 
         $academicYear = $filters['academic_year'] ?? $this->accreditation->currentAcademicYear();
         $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
+            ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         $organizationIds = $organizations->pluck('id');
@@ -357,6 +362,7 @@ class ComplianceController extends Controller
                 return [
                     'requirement_type_id' => $type->id,
                     'requirement_name' => $type->name,
+                    'category' => $type->category,
                     'deadline_at' => $type->deadline_at,
                     'status' => $submission->status ?? 'not_submitted',
                     'submission_id' => $submission->id ?? null,
@@ -383,15 +389,16 @@ class ComplianceController extends Controller
     public function submissions(Request $request, ComplianceDocumentService $documents)
     {
         $filters = $request->validate([
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
-            'status' => ['nullable', 'in:submitted,approved,returned'],
+            'organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')])],
+            'status' => ['nullable', FilterValues::rule(['nullable', 'in:submitted,approved,returned'])],
+            'category' => ['nullable', 'in:organization,semestral_report'],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = OrganizationComplianceSubmission::with([
             'organization:id,name,acronym,lifecycle_status,submitted_at,reviewed_at',
-            'requirementType:id,academic_year,name,deadline_at',
+            'requirementType:id,academic_year,name,category,deadline_at',
             'submitter:school_id,first_name,last_name',
             'reviewer:school_id,first_name,last_name',
         ]);
@@ -401,13 +408,14 @@ class ComplianceController extends Controller
             $query->where('organization_id', $user->organization_id);
         } else {
             $scope = $this->scopedOrganizationIds($user);
-            if ($scope !== null && ($filters['organization_id'] ?? null) && ! in_array((int) $filters['organization_id'], $scope, true)) {
+            if ($scope !== null && ($filters['organization_id'] ?? null) && array_diff(array_map('intval', FilterValues::values($filters['organization_id'])), $scope)) {
                 return response()->json(['message' => 'That organization is outside your college.'], 403);
             }
             $query->when($scope !== null, fn ($q) => $q->whereIn('organization_id', $scope))
-                ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->where('organization_id', $id));
+                ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->whereIn('organization_id', FilterValues::values($id)));
         }
-        $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+        $query->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)));
+        $query->when($filters['category'] ?? null, fn ($q, $category) => $q->whereHas('requirementType', fn ($type) => $type->where('category', $category)));
         if ($search = trim($filters['search'] ?? '')) {
             $like = '%'.addcslashes($search, '\\%_').'%';
             $query->where(fn ($match) => $match->where('file_original_name', 'like', $like)
@@ -753,9 +761,9 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'organization_id' => ['nullable', 'integer'],
-            'academic_semester_id' => ['nullable', 'integer', Rule::exists('academic_semesters', 'id')],
+            'academic_semester_id' => ['nullable', FilterValues::rule(['nullable', 'integer', Rule::exists('academic_semesters', 'id')])],
             'source' => ['nullable', Rule::in(ComplianceDocumentService::SOURCES)],
-            'family' => ['nullable', Rule::in(ComplianceDocumentService::FAMILIES)],
+            'family' => ['nullable', FilterValues::rule(['nullable', Rule::in(ComplianceDocumentService::FAMILIES)])],
             'group' => ['nullable', 'in:organization'],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
