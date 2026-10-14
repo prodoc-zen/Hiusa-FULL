@@ -149,7 +149,8 @@ describe('SignatoryClearancesPage', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Maria Santos' });
     expect(within(drawer).getByRole('list', { name: 'Clearance signature' })).toBeInTheDocument();
     expect(within(drawer).getByText('Sign this clearance')).toBeInTheDocument();
-    expect(within(drawer).getByRole('button', { name: 'Hold' })).toBeInTheDocument();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Actions for Organization treasurer' }));
+    expect(screen.getByRole('menuitem', { name: 'Hold' })).toBeInTheDocument();
   });
 
   it('shows the Officer the same sign callout as the Admin', async () => {
@@ -164,7 +165,8 @@ describe('SignatoryClearancesPage', () => {
     renderAt('/dashboard/clearances?record=11', <SignatoryClearancesPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Maria Santos' });
     mocks.getClearanceSignatures.mockResolvedValue(page([]));
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Clear' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Actions for Organization treasurer' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm clear' }));
     await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'cleared', remarks: undefined }));
     expect(screen.getByRole('dialog', { name: 'Maria Santos' })).toBeInTheDocument();
@@ -226,7 +228,8 @@ describe('SaoClearancesPage', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Second Semester Clearance' });
     expect(await within(drawer).findByText('Maria Santos')).toBeInTheDocument();
     expect(within(drawer).getByText('Waiting for SAO signature')).toBeInTheDocument();
-    expect(within(drawer).getByRole('progressbar', { name: 'Clearance progress for Maria Santos' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('table', { name: 'Student clearance signatures' })).toBeInTheDocument();
+    expect(within(drawer).getByText('1 of 2')).toBeInTheDocument();
   });
 
   it('shows a held student as blocked with the signatory named', async () => {
@@ -241,9 +244,10 @@ describe('SaoClearancesPage', () => {
     await waitFor(() => expect(mocks.notifyError).toHaveBeenCalledWith('That clearance period no longer exists.'));
   });
 
-  it('opens the roster from the View students button and keeps one New clearance period button', async () => {
+  it('opens the roster from the period action menu and keeps one New clearance period button', async () => {
     renderAt('/dashboard/super-admin/clearances', <SaoClearancesPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'View students' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Second Semester Clearance' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View students' }));
     expect(await screen.findByRole('dialog', { name: 'Second Semester Clearance' })).toBeInTheDocument();
   });
 

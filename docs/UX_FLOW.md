@@ -279,10 +279,12 @@ Format: group (band): children in order, each `Label  route`.
 - Updates (single link): Announcements `/dashboard/announcements/view-announcements`
 - Support: My clearance `/dashboard/my-clearance`; My grievances `/dashboard/my-grievances`
 
-**SUPER_ADMIN (SAO)** (5 rows, was 2 rows with 12 flat leaves)
+**SUPER_ADMIN (SAO)** (7 rows, 15 leaves)
 - Dashboard `/dashboard/super-admin` (the inbox: attention list is a queue count per review area, each deep linked)
-- Organizations: Agency overview `/dashboard/super-admin/agency`; Registrations and organizations `/dashboard/super-admin/organizations` (opens on Pending review); Administrators `/dashboard/super-admin/admins`; Colleges `/dashboard/super-admin/colleges`
-- Reviews: Compliance `/dashboard/super-admin/compliance` (tabs: Accreditation, Requirements, Review queue, Event requirements, Financial reports, Track documents); Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
+- University users `/dashboard/super-admin/users` (university-wide account and clearance directory)
+- Organizations: Organization applications `/dashboard/organization-applications`; Registrations and organizations `/dashboard/super-admin/organizations?status=pending`; Colleges `/dashboard/super-admin/colleges`
+- Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
+- Files: Submitted files `/dashboard/super-admin/documents` (organization folders); Storage and limits `/dashboard/super-admin/file-storage`
 - Updates: University announcements `/dashboard/super-admin/announcements`; Notifications `/dashboard/super-admin/notifications`
 - Setup and records: Academic years `/dashboard/super-admin/academic-years`; Audit trail `/dashboard/super-admin/audit-logs`
 

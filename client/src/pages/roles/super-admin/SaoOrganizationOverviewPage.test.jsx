@@ -180,7 +180,7 @@ describe('SaoOrganizationOverviewPage', () => {
     const compliance = screen.getByRole('region', { name: 'Compliance' });
     expect(within(compliance).getByRole('link', { name: 'Open the review queue' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=review');
     const documents = screen.getByRole('region', { name: 'Latest documents' });
-    expect(within(documents).getByRole('link', { name: 'View all documents' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=documents');
+    expect(within(documents).getByRole('link', { name: 'View all documents' })).toHaveAttribute('href', '/dashboard/super-admin/documents');
     expect(within(screen.getByRole('region', { name: 'Pending approvals' })).queryByRole('link')).not.toBeInTheDocument();
   });
 

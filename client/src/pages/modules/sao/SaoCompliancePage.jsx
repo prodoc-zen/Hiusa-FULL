@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, ClipboardList, FolderSearch, ShieldCheck, Wallet } from 'lucide-react';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { CalendarCheck, Check, ClipboardList, ShieldCheck, Wallet } from 'lucide-react';
 import { Card, EmptyState, PageHeader, Tabs } from '../../../components/ui';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus } from '../../../services/complianceService';
 import { fetchAllPages } from '../../../services/pagination';
 import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import AccreditationTab from './AccreditationTab';
-import DocumentsTab from './DocumentsTab';
 import EventRequirementsTab from './EventRequirementsTab';
 import FinancialReportsTab from './FinancialReportsTab';
 import RequirementsTab from './RequirementsTab';
@@ -23,7 +22,6 @@ const TABS = [
   { key: 'event-reviews', label: 'Event reviews', icon: CalendarCheck, panelId: PANEL_ID, defaultTab: 'event-reviews' },
   { key: 'financial', label: 'Financial reports', icon: Wallet, panelId: PANEL_ID },
   { key: 'settings', label: 'Requirement settings', icon: ClipboardList, panelId: PANEL_ID, defaultTab: 'requirements' },
-  { key: 'documents', label: 'Documents', icon: FolderSearch, panelId: PANEL_ID },
 ];
 const ORGANIZATION_TABS = [
   { key: 'accreditation', label: 'Progress by organization', panelId: SUB_PANEL_ID },
@@ -33,7 +31,7 @@ const SETTING_TABS = [
   { key: 'requirements', label: 'Organization requirements', panelId: SUB_PANEL_ID },
   { key: 'events', label: 'Event requirements', panelId: SUB_PANEL_ID },
 ];
-const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'event-reviews': 'event-reviews', financial: 'financial', documents: 'documents' };
+const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'event-reviews': 'event-reviews', financial: 'financial' };
 
 function getCurrentRole() {
   try {
@@ -102,6 +100,8 @@ export default function SaoCompliancePage() {
     : tab));
   const activeLabel = [...ORGANIZATION_TABS, ...SETTING_TABS, ...TABS].find((tab) => tab.key === activeTab).label;
 
+  if (requestedTab === 'documents') return <Navigate to="/dashboard/super-admin/documents" replace />;
+
   return (
     <div className="space-y-5 pb-8">
       <PageHeader />
@@ -129,7 +129,6 @@ export default function SaoCompliancePage() {
           {activeTab === 'events' && <EventRequirementsTab />}
           {activeTab === 'event-reviews' && <EventRequirementsTab mode="reviews" />}
           {activeTab === 'financial' && <FinancialReportsTab />}
-          {activeTab === 'documents' && <DocumentsTab />}
         </div>
       </div>
     </div>

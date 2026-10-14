@@ -21,6 +21,9 @@ const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdm
 const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin/SaoOrganizationOverviewPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
+const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
+const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
+const SaoStoragePage = lazy(() => import('./pages/modules/sao/StorageOverview'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
 const SaoNotificationsPage = lazy(() => import('./pages/roles/super-admin/SaoNotificationsPage'));
 const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
@@ -226,6 +229,9 @@ function App() {
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
           <Route path="super-admin/organizations/:organizationId" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoOrganizationOverviewPage /></ProtectedRoute>} />
           <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />
+          <Route path="super-admin/users" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoUsersPage /></ProtectedRoute>} />
+          <Route path="super-admin/documents" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoDocumentsPage /></ProtectedRoute>} />
+          <Route path="super-admin/file-storage" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoStoragePage /></ProtectedRoute>} />
           <Route path="super-admin/compliance" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoCompliancePage /></ProtectedRoute>} />
           <Route path="super-admin/venues" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoVenuesPage /></ProtectedRoute>} />
           <Route path="super-admin/grievances" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoGrievancesPage /></ProtectedRoute>} />

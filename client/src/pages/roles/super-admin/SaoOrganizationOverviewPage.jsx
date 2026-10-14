@@ -251,7 +251,7 @@ export default function SaoOrganizationOverviewPage() {
 
       <Section id="documents" title="Latest documents">
         <LatestDocuments organizationId={organization.id} />
-        <Link to="/dashboard/super-admin/compliance?tab=documents" className={LINK_CLASS}>View all documents</Link>
+        <Link to="/dashboard/super-admin/documents" className={LINK_CLASS}>View all documents</Link>
       </Section>
 
       <ConfirmModal open={restoreOpen} title="Restore organization" message={`Restore ${name} so it can be edited and used again?`} recordName={`Restore ${name}?`} confirmText="Restore organization" variant="primary" busy={restoring} onCancel={() => setRestoreOpen(false)} onConfirm={restore} />

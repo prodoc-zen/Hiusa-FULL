@@ -1,11 +1,10 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Drawer, EmptyState, ErrorState, FlowStepper, Input, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Drawer, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriodStudents, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import notify from '../../../lib/notify';
-import { clearanceLifecycle } from '../../../lib/lifecycle';
 import SignAction from './SignAction';
 import { SAO_ROLE, clearanceStageText, clearanceStatusTone, humanizeRole } from './clearanceLabels';
 
@@ -40,8 +39,21 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
     onSignatureChanged?.();
   }
 
+  function signatureFor(student, role) {
+    return student.signatures.find((signature) => signature.required_role === role);
+  }
+
+  function signatureStatus(signature) {
+    return signature ? <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} /> : <span className="text-xs text-ink-muted">Not required</span>;
+  }
+
+  function saoAction(student) {
+    const signature = signatureFor(student, SAO_ROLE);
+    return signature ? <SignAction signatureId={signature.id} status={signature.status} remarks={signature.remarks} roleLabel={humanizeRole(SAO_ROLE)} showStatus={false} onSign={(status, remarks) => handleSign(signature.id, status, remarks)} /> : null;
+  }
+
   return (
-    <Drawer open={Boolean(period)} title={formatDisplayText(period?.title)} description={period ? `${period.academic_year} · SAO signature line` : undefined} onClose={onClose} width="max-w-lg">
+    <Drawer open={Boolean(period)} title={formatDisplayText(period?.title)} description={period ? `${period.academic_year} · SAO signature line` : undefined} onClose={onClose} width="max-w-5xl">
       {period && (
         <div className="flex flex-col gap-4">
           <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />
@@ -52,41 +64,23 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
             <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student. None are on this one yet.'} />
           )}
 
-          {!loading && !error && students.map((student) => (
-            <div key={student.student_id} className="rounded-card border border-line p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-ink">{student.student_name || `Student ${student.student_id}`}</p>
-                  <p className="text-xs font-medium text-ink-muted">{student.student_id}</p>
-                </div>
-                {student.is_complete && <StatusBadge tone="success" label="All cleared" />}
-              </div>
-              <div className="mt-2">
-                <FlowStepper variant="compact" steps={clearanceLifecycle(student, 'SUPER_ADMIN').steps} ariaLabel={`Clearance progress for ${student.student_name || student.student_id}`} />
-                <p className="mt-1 text-xs font-bold text-ink">{clearanceStageText(student)}</p>
-              </div>
-              <div className="mt-2 flex flex-col gap-2">
-                {student.signatures.map((signature) => (
-                  signature.required_role === SAO_ROLE ? (
-                    <div key={signature.id} className="flex items-center justify-between gap-2 border-t border-line-soft pt-2 first:border-t-0 first:pt-0">
-                      <span className="text-xs font-semibold text-ink-muted">{humanizeRole(signature.required_role)}</span>
-                      <SignAction
-                        signatureId={signature.id}
-                        status={signature.status}
-                        roleLabel={humanizeRole(signature.required_role)}
-                        onSign={(status, remarks) => handleSign(signature.id, status, remarks)}
-                      />
-                    </div>
-                  ) : (
-                    <div key={signature.id} className="flex items-center justify-between gap-2 border-t border-line-soft pt-2 first:border-t-0 first:pt-0">
-                      <span className="text-xs font-semibold text-ink-muted">{humanizeRole(signature.required_role)}</span>
-                      <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} />
-                    </div>
-                  )
-                ))}
-              </div>
-            </div>
-          ))}
+          {!loading && !error && students.length > 0 && <div className="overflow-x-auto rounded-lg border border-line">
+            <table className="w-full min-w-[650px] text-left text-sm">
+              <caption className="sr-only">Student clearance signatures</caption>
+              <thead className="bg-subtle text-xs font-bold text-ink-muted"><tr>
+                <th scope="col" className="px-3 py-3">Student</th>
+                <th scope="col" className="px-3 py-3">Progress</th>
+                {(period.required_roles || []).map((role) => <th scope="col" key={role} className="px-3 py-3">{humanizeRole(role)}</th>)}
+                <th scope="col" className="px-3 py-3 text-right">Actions</th>
+              </tr></thead>
+              <tbody className="divide-y divide-line">{students.map((student) => <tr key={student.student_id} className="align-middle">
+                <td className="px-3 py-3"><span className="block font-bold text-ink">{student.student_name || `Student ${student.student_id}`}</span><span className="text-xs text-ink-muted">{student.student_id}</span></td>
+                <td className="px-3 py-3"><span className="font-semibold text-ink">{student.signatures.filter((signature) => signature.status === 'cleared').length} of {student.signatures.length}</span><span className="block text-xs text-ink-muted">{clearanceStageText(student)}</span></td>
+                {(period.required_roles || []).map((role) => <td key={role} className="px-3 py-3">{signatureStatus(signatureFor(student, role))}</td>)}
+                <td className="px-3 py-3 text-right">{saoAction(student)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
 
           {!loading && !error && students.length > 0 && (
             <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="students" />

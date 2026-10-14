@@ -38,6 +38,7 @@ use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
 use App\Http\Controllers\SystemAdministrationController;
+use App\Http\Controllers\SystemUsersController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -130,6 +131,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // SAO Director: separate global administration endpoints, intentionally
     // distinct from all organization operation and AI-generation routes.
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/system/users', [SystemUsersController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/system/users/{user}', [SystemUsersController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::delete('/system/users/{user}', [SystemUsersController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/file-storage', [FileStorageController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::put('/system/file-storage', [FileStorageController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/organization-applications', [OrganizationApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);

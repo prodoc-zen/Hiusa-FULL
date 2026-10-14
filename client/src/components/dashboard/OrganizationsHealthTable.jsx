@@ -71,6 +71,7 @@ export default function OrganizationsHealthTable({ organizations = [], loading =
       error={error}
       onRetry={onRetry}
       caption="Organization governance health"
+      minTableWidth="min-w-[900px]"
       pagination={<PaginationControls currentPage={currentPage} totalItems={organizations.length} pageSize={10} onPageChange={setPage} label="organizations" />}
       emptyState={(
         <EmptyState

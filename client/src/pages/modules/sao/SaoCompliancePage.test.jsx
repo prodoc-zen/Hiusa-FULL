@@ -45,7 +45,7 @@ const submission = {
 
 function Probe() {
   const location = useLocation();
-  return <p data-testid="search">{location.search}</p>;
+  return <p data-testid="search">{location.pathname}{location.search}</p>;
 }
 
 function renderPage(entry = '/dashboard/super-admin/compliance') {
@@ -93,11 +93,15 @@ describe('SaoCompliancePage', () => {
   it.each([
     ['events', 'Event requirements', 'Event requirements content'],
     ['financial', 'Financial reports', 'Financial reports content'],
-    ['documents', 'Documents', 'Track documents content'],
   ])('opens the %s tab from the query', async (key, label, content) => {
     renderPage(`/dashboard/super-admin/compliance?tab=${key}`);
     expect(await screen.findByText(content)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: label })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('redirects old document links to the separate files page', async () => {
+    renderPage('/dashboard/super-admin/compliance?tab=documents');
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('/dashboard/super-admin/documents'));
   });
 
   it('separates review work from requirement settings and keeps the active route', async () => {
@@ -105,12 +109,9 @@ describe('SaoCompliancePage', () => {
     await screen.findAllByText('Computing Society');
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Organizations', 'Event reviews', 'Financial reports', 'Requirement settings', 'Documents', 'Progress by organization', 'Review submissions (1)',
+      'Organizations', 'Event reviews', 'Financial reports', 'Requirement settings', 'Progress by organization', 'Review submissions (1)',
     ]);
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect((await screen.findAllByText('Track documents content')).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('search')).toHaveTextContent('?tab=documents');
+    expect(screen.queryByRole('tab', { name: 'Documents' })).not.toBeInTheDocument();
   });
 
   it('shows the accreditation status tones from the shared map', async () => {

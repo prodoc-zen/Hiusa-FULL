@@ -253,8 +253,8 @@ export default function TopBar({ onMenuToggle }) {
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
   return (
-    <header ref={headerRef} className="relative z-30 mx-3 mt-3 shrink-0 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
-      <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
+    <header ref={headerRef} className="relative z-30 mx-2 mt-2 min-w-0 shrink-0 rounded-2xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6 sm:rounded-3xl">
+      <div className="flex min-h-16 min-w-0 items-center gap-1.5 px-2 py-2 sm:gap-3 sm:px-6 sm:py-3">
         {/* Hamburger toggle */}
         <button
           type="button"
@@ -264,10 +264,10 @@ export default function TopBar({ onMenuToggle }) {
         >
           <Menu size={19} />
         </button>
-        <img src={hiusaLogo} alt="" className="h-8 w-8 shrink-0 object-contain lg:hidden" />
+        <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
         <div className="min-w-0 flex-1">
-          {activeAcademicPeriod?.academic_year?.label && <span className="inline-block max-w-full truncate rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
+          {activeAcademicPeriod?.academic_year?.label && <span className="hidden max-w-full truncate rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62] min-[520px]:inline-block">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
         </div>
 
         <button
@@ -275,7 +275,7 @@ export default function TopBar({ onMenuToggle }) {
           onClick={() => setPaletteOpen(true)}
           aria-label="Go to page"
           aria-keyshortcuts="Control+K Meta+K"
-          className="flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-[#F8FBFD] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:px-3"
+          className="hidden h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-[#F8FBFD] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[360px]:flex sm:px-3"
         >
           <Search size={16} aria-hidden="true" />
           <span className="hidden md:inline">Go to page</span>
