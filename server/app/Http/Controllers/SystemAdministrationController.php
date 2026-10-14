@@ -292,6 +292,56 @@ class SystemAdministrationController extends Controller
             return response()->json(['message' => 'This college has no home organization yet.'], 422);
         }
 
+        $mode = $request->validate(['account_mode' => ['sometimes', Rule::in(['new', 'existing'])]])['account_mode'] ?? 'new';
+        if ($mode === 'existing') {
+            $data = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999']]);
+
+            $head = DB::transaction(function () use ($data, $college, $home, $request) {
+                College::whereKey($college->id)->lockForUpdate()->first();
+                if ($this->collegeHasActiveHead($home->id)) {
+                    return response()->json(['message' => self::ACTIVE_HEAD_EXISTS], 409);
+                }
+
+                $user = User::whereKey($data['school_id'])->lockForUpdate()->first();
+                $primaryOrganization = $user ? Organization::whereKey($user->getRawOriginal('organization_id'))->first() : null;
+                if (! $user || $user->getRawOriginal('account_status') !== 'active'
+                    || ! in_array($user->getRawOriginal('role'), ['STUDENT', 'SBO_OFFICER'], true)
+                    || ! $primaryOrganization || ! $primaryOrganization->is_active
+                    || $primaryOrganization->organization_type !== 'STUDENT_ORGANIZATION'
+                    || $primaryOrganization->college !== $college->name
+                    || ($primaryOrganization->college_id && (int) $primaryOrganization->college_id !== (int) $college->id)
+                    || ($user->department && $user->department !== $college->name)
+                    || ! $user->accountProfiles()->where('organization_id', $primaryOrganization->id)->where('account_status', 'active')->exists()
+                    || $user->accountProfiles()->where('organization_id', $home->id)->exists()
+                    || $user->accountProfiles()->where('role', 'DEPARTMENT_HEAD')->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'school_id' => ['Choose an active student or officer account from this college.'],
+                    ]);
+                }
+
+                $user->accountProfiles()->create([
+                    'organization_id' => $home->id,
+                    'role' => 'DEPARTMENT_HEAD',
+                    'account_status' => 'active',
+                ]);
+                // Keep the existing organization profile while making the college profile the default login.
+                DB::table('users')->where('school_id', $user->school_id)->update([
+                    'organization_id' => $home->id,
+                    'role' => 'DEPARTMENT_HEAD',
+                    'position_title' => null,
+                    'department' => $college->name,
+                    'updated_at' => now(),
+                ]);
+                $user->tokens()->delete();
+                Notification::create(['organization_id' => $home->id, 'user_id' => $user->school_id, 'notification_type' => 'general', 'title' => 'Department Head profile added', 'message' => "Your HIUSA Department Head profile for {$college->name} is ready. Sign in with your existing credentials; your organization profile remains available in the profile menu.", 'is_read' => false, 'sent_at' => now()]);
+                $this->audit($request, 'department_head_assigned', $user, ['department_head_id' => $user->school_id, 'college_id' => $college->id, 'organization_id' => $home->id], 'SAO added a college Department Head profile to an existing account.');
+
+                return $user->fresh();
+            });
+
+            return $head instanceof JsonResponse ? $head : response()->json($head->load('organization:id,name,acronym'), 201);
+        }
+
         $this->normalizeAdminInput($request);
         $data = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
 

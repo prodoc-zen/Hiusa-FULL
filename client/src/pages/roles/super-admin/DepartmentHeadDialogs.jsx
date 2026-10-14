@@ -53,6 +53,7 @@ function useFirstInvalidFocus(formRef) {
 }
 
 export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
+  const [accountMode, setAccountMode] = useState('new');
   const [values, setValues] = useState(EMPTY_ASSIGNMENT);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
@@ -68,11 +69,17 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
 
   async function submit(event) {
     event.preventDefault();
-    const found = validateIdentity(values, { requireSchoolId: true });
-    if (!values.password) found.password = 'Enter an initial password.';
-    else if (values.password.length < 8) found.password = 'Use at least 8 characters.';
-    if (!values.password_confirmation) found.password_confirmation = 'Enter the password again.';
-    else if (values.password !== values.password_confirmation) found.password_confirmation = 'The password confirmation does not match.';
+    const found = accountMode === 'new' ? validateIdentity(values, { requireSchoolId: true }) : {};
+    if (accountMode === 'existing') {
+      const schoolId = values.school_id.trim();
+      if (!schoolId) found.school_id = 'Enter the School ID.';
+      else if (!/^\d{1,8}$/.test(schoolId) || Number(schoolId) < 1) found.school_id = 'Use a School ID of up to 8 digits.';
+    } else {
+      if (!values.password) found.password = 'Enter an initial password.';
+      else if (values.password.length < 8) found.password = 'Use at least 8 characters.';
+      if (!values.password_confirmation) found.password_confirmation = 'Enter the password again.';
+      else if (values.password !== values.password_confirmation) found.password_confirmation = 'The password confirmation does not match.';
+    }
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length > 0) {
@@ -82,14 +89,16 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
 
     setBusy(true);
     try {
-      const head = await createDepartmentHead(college.id, {
-        school_id: Number(values.school_id),
-        first_name: values.first_name.trim(),
-        last_name: values.last_name.trim(),
-        email: values.email.trim().toLowerCase(),
-        password: values.password,
-        password_confirmation: values.password_confirmation,
-      });
+      const head = await createDepartmentHead(college.id, accountMode === 'existing'
+        ? { account_mode: 'existing', school_id: Number(values.school_id) }
+        : {
+          school_id: Number(values.school_id),
+          first_name: values.first_name.trim(),
+          last_name: values.last_name.trim(),
+          email: values.email.trim().toLowerCase(),
+          password: values.password,
+          password_confirmation: values.password_confirmation,
+        });
       onAssigned(head, `${head.first_name} ${head.last_name} is now the Department Head of ${collegeName}.`);
       onClose();
     } catch (cause) {
@@ -117,9 +126,25 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
       )}
     >
       <form id="assign-department-head-form" ref={formRef} onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-2 text-sm font-semibold text-[#0F172A]">Account</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { value: 'new', label: 'New account', help: 'Create a college profile for someone without a HIUSA account.' },
+              { value: 'existing', label: 'Existing member', help: 'Keep their login and organization profile.' },
+            ].map((option) => (
+              <label key={option.value} className={`flex cursor-pointer gap-2 rounded-lg border p-3 text-sm ${accountMode === option.value ? 'border-[#0878B7] bg-[#EEF6FB]' : 'border-[#DDE7EF]'}`}>
+                <input type="radio" name="department-head-account-mode" value={option.value} checked={accountMode === option.value} onChange={() => { setAccountMode(option.value); setErrors({}); setFormError(''); }} className="mt-1 accent-[#0878B7]" />
+                <span><span className="block font-semibold text-[#0F172A]">{option.label}</span><span className="mt-1 block leading-5 text-slate-600">{option.help}</span></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <Field label="School ID" required error={errors.school_id} className="sm:col-span-2">
           <Input inputMode="numeric" value={values.school_id} onChange={(event) => setField('school_id', event.target.value)} />
         </Field>
+        {accountMode === 'existing' && <p className="text-sm leading-5 text-slate-600 sm:col-span-2">Use the School ID of an active student or officer in this college. Their current password stays the same, and they can switch between college and organization profiles.</p>}
+        {accountMode === 'new' && <>
         <Field label="First name" required error={errors.first_name}>
           <Input autoComplete="off" value={values.first_name} onChange={(event) => setField('first_name', event.target.value)} />
         </Field>
@@ -135,6 +160,7 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
         <Field label="Confirm password" required error={errors.password_confirmation}>
           <Input type="password" autoComplete="new-password" value={values.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} />
         </Field>
+        </>}
         {formError && <p role="alert" className="rounded-control border border-red-200 bg-red-50 p-3 text-sm font-semibold text-danger-strong sm:col-span-2">{formError}</p>}
       </form>
     </Modal>
