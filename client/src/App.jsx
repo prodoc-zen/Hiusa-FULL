@@ -56,6 +56,7 @@ const AcademicYearsPage = lazy(() => import('./pages/roles/super-admin/AcademicY
 const SaoGrievancesPage = lazy(() => import('./pages/modules/grievances/SaoGrievancesPage'));
 const SaoClearancesPage = lazy(() => import('./pages/modules/clearances/SaoClearancesPage'));
 const OrganizationCompliancePage = lazy(() => import('./pages/modules/sao/OrganizationCompliancePage'));
+const SubmittedFilesPage = lazy(() => import('./pages/modules/sao/SubmittedFilesPage'));
 const VenueBookingPage = lazy(() => import('./pages/modules/venues/VenueBookingPage'));
 const OrganizationGrievancesPage = lazy(() => import('./pages/modules/grievances/OrganizationGrievancesPage'));
 const StudentGrievancesPage = lazy(() => import('./pages/modules/grievances/StudentGrievancesPage'));
@@ -241,6 +242,7 @@ function App() {
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegeOrganizationsPage /></ProtectedRoute>} />
+          <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesPage role={getStoredRole()} /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><ApprovalsRoute /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
           <Route path="super-admin/financial-reports" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />

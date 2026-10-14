@@ -192,7 +192,7 @@ class EventApprovalChainTest extends TestCase
         $this->assertSame('awaiting_department_head', $payload['approval_stage']);
         $this->assertTrue($payload['requirements_submitted']);
         Sanctum::actingAs($this->director);
-        $this->getJson('/api/events/'.$eventId.'/submission')->assertNotFound();
+        $this->getJson('/api/events/'.$eventId.'/submission')->assertOk()->assertJsonCount(1, 'files');
 
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
 

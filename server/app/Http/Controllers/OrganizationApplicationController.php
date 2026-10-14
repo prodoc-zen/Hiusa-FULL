@@ -15,7 +15,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
-use App\Services\DepartmentHeadProfileService;
+use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -55,7 +55,7 @@ class OrganizationApplicationController extends Controller
         return response()->json(College::where('is_active', true)->orderBy('name')->get(['id', 'name']));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, SubmissionStoragePolicy $storagePolicy)
     {
         [$semester, $types] = $this->registrationRequirements();
         if (! $semester || $types->isEmpty()) {
@@ -76,6 +76,7 @@ class OrganizationApplicationController extends Controller
             ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', ...$type->uploadRules()]])->all(),
         ]);
         unset($data['files']);
+        $storagePolicy->assertUpload(array_values($request->file('files', [])), field: 'files');
         $existing = User::whereKey($data['school_id'])->orWhere('email', $data['email'])->first();
         if ($existing && ($existing->school_id !== (int) $data['school_id'] || Str::lower($existing->email) !== $data['email'] || $existing->role === 'SUPER_ADMIN' || $existing->account_status !== 'active')) {
             throw ValidationException::withMessages(['email' => 'Use the school ID and email belonging to the same applicant account.']);
@@ -284,7 +285,7 @@ class OrganizationApplicationController extends Controller
         return Storage::disk('local')->response($document->file_path, $document->file_original_name);
     }
 
-    public function resubmit(Request $request, OrganizationApplication $application)
+    public function resubmit(Request $request, OrganizationApplication $application, SubmissionStoragePolicy $storagePolicy)
     {
         $this->authorizeEdit($request, $application);
         [$semester, $types] = $this->registrationRequirements();
@@ -303,6 +304,7 @@ class OrganizationApplicationController extends Controller
             ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['sometimes', ...$type->uploadRules()]])->all(),
         ]);
         unset($data['files']);
+        $storagePolicy->assertUpload(array_values($request->file('files', [])), field: 'files');
         $stored = [];
         $obsolete = [];
         try {
@@ -397,7 +399,7 @@ class OrganizationApplicationController extends Controller
         return Storage::disk('local')->download($document->file_path, $document->file_original_name);
     }
 
-    public function review(Request $request, OrganizationApplication $application, PasswordResetService $passwords, DepartmentHeadProfileService $headProfiles)
+    public function review(Request $request, OrganizationApplication $application, PasswordResetService $passwords)
     {
         $actor = $request->user();
         if ($actor->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $actor)->exists()) {
@@ -408,7 +410,7 @@ class OrganizationApplicationController extends Controller
         $editToken = null;
         $copied = [];
         try {
-            $admin = DB::transaction(function () use ($application, $data, $actor, $headProfiles, &$newUser, &$editToken, &$copied) {
+            $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser, &$editToken, &$copied) {
                 $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
                 if ($actor->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $actor)->exists()) {
                     abort(404);
@@ -437,7 +439,6 @@ class OrganizationApplicationController extends Controller
                         $newUser = true;
                     }
                     $organization->update(['submitted_by' => $admin->school_id]);
-                    $headProfiles->assignForOrganization($organization);
                     foreach ($documents as $document) {
                         $path = 'compliance-submissions/'.$organization->id.'/'.Str::random(40).'.pdf';
                         abort_unless(Storage::disk('local')->copy($document->file_path, $path), 500, 'Could not save the compliance document.');
@@ -450,6 +451,7 @@ class OrganizationApplicationController extends Controller
                             'file_original_name' => $document->file_original_name,
                             'mime_type' => $document->mime_type,
                             'file_size' => $document->file_size,
+                            'is_registration_document' => true,
                             'submitted_by' => $admin->school_id,
                             'submitted_at' => now(),
                         ]);

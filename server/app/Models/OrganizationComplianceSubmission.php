@@ -15,6 +15,7 @@ class OrganizationComplianceSubmission extends Model
         'file_original_name',
         'mime_type',
         'file_size',
+        'is_registration_document',
         'remarks',
         'submitted_by',
         'submitted_at',
@@ -29,6 +30,7 @@ class OrganizationComplianceSubmission extends Model
         return [
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'is_registration_document' => 'boolean',
         ];
     }
 

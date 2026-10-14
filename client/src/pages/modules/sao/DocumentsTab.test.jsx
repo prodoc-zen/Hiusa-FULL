@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DocumentsTab from './DocumentsTab';
 
-const complianceMocks = vi.hoisted(() => ({ getComplianceDocuments: vi.fn() }));
+const complianceMocks = vi.hoisted(() => ({ getComplianceDocuments: vi.fn(), getFileStorage: vi.fn(), deleteComplianceFile: vi.fn() }));
 const systemMocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn(), getAcademicPeriods: vi.fn() }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 
@@ -51,6 +51,7 @@ async function chooseFileAction(item, action) {
 describe('DocumentsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    complianceMocks.getFileStorage.mockResolvedValue({ data: { settings: { max_file_mb: 10, max_organization_mb: 200 }, disk_total_bytes: 1000000, disk_free_bytes: 500000, stored_bytes: 100000, stored_files: 2, organizations: [] } });
     systemMocks.getSystemOrganizations.mockResolvedValue({ data: [organization, { id: 8, name: 'Old Club', acronym: 'OC', lifecycle_status: 'archived' }], current_page: 1, last_page: 1 });
     systemMocks.getAcademicPeriods.mockResolvedValue([{ id: 3, number: 1, status: 'active', academic_year: { label: '2026-2027' } }]);
     serve();

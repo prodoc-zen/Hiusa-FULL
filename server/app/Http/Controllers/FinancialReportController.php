@@ -16,6 +16,7 @@ use App\Models\Transaction;
 use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
 use App\Services\GroqResponsesService;
+use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -216,6 +217,7 @@ class FinancialReportController extends Controller
         ];
         $summary = $this->summary($reportContext);
 
+        if ($request->hasFile('letterhead')) app(SubmissionStoragePolicy::class)->assertUpload([$request->file('letterhead')], $organizationId, field: 'letterhead');
         $letterheadPath = $request->hasFile('letterhead')
             ? $request->file('letterhead')->store('financial-report-letterheads/'.$organizationId, 'local')
             : null;
@@ -384,6 +386,8 @@ class FinancialReportController extends Controller
         ]);
         unset($data);
 
+        app(SubmissionStoragePolicy::class)->assertUpload(array_values($request->file('supporting_documents', [])), $financialReport->organization_id, field: 'supporting_documents');
+
         $documents = collect($financialReport->supporting_documents ?? []);
         $uploadedPaths = [];
         foreach ($request->file('supporting_documents', []) as $file) {
@@ -500,7 +504,7 @@ class FinancialReportController extends Controller
             'ADMIN', 'SBO_OFFICER' => $report->organization_id === $request->user()->organization_id,
             'DEPARTMENT_HEAD' => in_array($report->organization_id, $request->user()->scopedOrganizationIds(), true)
                 && $report->submitted_at !== null,
-            'SUPER_ADMIN' => $report->department_head_approved_at !== null,
+            'SUPER_ADMIN' => $report->submitted_at !== null,
             default => false,
         };
     }

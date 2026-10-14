@@ -143,7 +143,7 @@ class OrganizationApplicationTest extends TestCase
         $this->assertDatabaseHas('users', ['school_id' => 87651234, 'role' => 'ADMIN', 'organization_id' => $orgId, 'first_name' => 'Alex', 'email' => 'alex@example.test']);
         $this->assertDatabaseHas('account_profiles', ['user_school_id' => 87651234, 'organization_id' => $orgId, 'role' => 'ADMIN']);
         $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $head->getRawOriginal('organization_id'), 'role' => 'DEPARTMENT_HEAD']);
-        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $orgId, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $orgId, 'role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseHas('sbo_positions', ['organization_id' => $orgId, 'role' => 'ADMIN', 'title' => 'President']);
         $this->assertDatabaseHas('organization_compliance_submissions', ['organization_id' => $orgId, 'requirement_type_id' => $this->requirementId, 'status' => 'submitted']);
         $submission = OrganizationComplianceSubmission::where('organization_id', $orgId)->firstOrFail();
@@ -160,12 +160,11 @@ class OrganizationApplicationTest extends TestCase
             ->assertOk()->json('access_token');
         $this->app['auth']->forgetGuards();
         $profiles = $this->withToken($headToken)->getJson('/api/user/profiles')->assertOk()->json('profiles');
-        $this->assertCount(2, $profiles);
-        $organizationProfile = collect($profiles)->firstWhere('organization_id', $orgId);
-        $this->assertSame('DEPARTMENT_HEAD', $organizationProfile['role']);
+        $this->assertCount(1, $profiles);
+        $this->assertSame($head->getRawOriginal('organization_id'), $profiles[0]['organization_id']);
+        $this->assertSame('DEPARTMENT_HEAD', $profiles[0]['role']);
         $this->app['auth']->forgetGuards();
-        $this->withToken($headToken)->postJson('/api/user/profiles/'.$organizationProfile['id'].'/switch')
-            ->assertOk()->assertJsonPath('user.organization_id', $orgId)->assertJsonPath('user.role', 'DEPARTMENT_HEAD');
+        $this->withToken($headToken)->getJson('/api/compliance/documents?organization_id='.$orgId)->assertOk();
     }
 
     public function test_validation_duplicate_applications_expired_links_and_forbidden_roles(): void
@@ -406,7 +405,7 @@ class OrganizationApplicationTest extends TestCase
             ->assertJsonPath('application.remarks', 'Please correct the form.');
     }
 
-    public function test_existing_approved_organization_receives_head_profile_when_backfilled(): void
+    public function test_redundant_head_profile_is_removed_without_touching_college_access(): void
     {
         $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
         $home = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE']);
@@ -415,11 +414,13 @@ class OrganizationApplicationTest extends TestCase
         OrganizationApplication::create([...$this->payload($college), 'status' => 'approved', 'email_verified_at' => now(), 'organization_id' => $organization->id]);
         $other = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
 
-        $this->artisan('hiusa:sync-department-head-profiles')->assertExitCode(0);
-        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
+        $head->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD', 'account_status' => 'active']);
+        $this->artisan('hiusa:consolidate-department-head-profiles')->assertExitCode(0);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $home->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $organization->id]);
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $other->id]);
-        $this->artisan('hiusa:sync-department-head-profiles')->assertExitCode(0);
-        $this->assertSame(1, $head->accountProfiles()->where('organization_id', $organization->id)->count());
+        $this->artisan('hiusa:consolidate-department-head-profiles')->assertExitCode(0);
+        $this->assertSame(1, $head->accountProfiles()->count());
     }
 
     public function test_department_head_role_in_a_student_organization_cannot_review_applications(): void

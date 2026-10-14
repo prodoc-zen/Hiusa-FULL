@@ -3,7 +3,8 @@ import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock } from 'lucide-react';
+import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock, Eye, ExternalLink } from 'lucide-react';
+import TableRowActions from '../../../components/TableRowActions';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import notify from '../../../lib/notify';
 import PaginationControls from '../../../components/PaginationControls';
@@ -146,10 +147,10 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
           )}
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        <Button variant="secondary" aria-label={`${canAct ? 'Review' : 'Details'}: ${formatDisplayText(request.title)}`} onClick={() => onOpen(request)}>{canAct ? 'Review' : 'Details'}</Button>
-        {link && <Button variant="secondary" to={link.to} aria-label={`${link.label}: ${formatDisplayText(request.title)}`}>{link.label}</Button>}
-      </div>
+      <TableRowActions subject={formatDisplayText(request.title)} actions={[
+        { label: canAct ? 'Review' : 'Details', icon: Eye, onClick: () => onOpen(request) },
+        link && { label: link.label, icon: ExternalLink, to: link.to },
+      ]} />
     </li>
   );
 }

@@ -28,6 +28,11 @@ function renderPage(entry = '/dashboard/approvals') {
   );
 }
 
+async function actionFor(title, label) {
+  fireEvent.click((await screen.findAllByRole('button', { name: new RegExp(`^Actions for ${title}$`, 'i') }))[0]);
+  return screen.findByRole('menuitem', { name: label });
+}
+
 const reportRequest = (summary) => ({
   id: 5, entity_type: 'financial_report', entity_id: 9, title: 'October Financial Report', status: 'pending', required_role: 'DEPARTMENT_HEAD',
   requested_at: '2026-10-06T10:00:00+08:00', requester: { first_name: 'Pat', last_name: 'President', school_id: 2026001 },
@@ -132,7 +137,7 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     mocks.openProtectedFile.mockResolvedValue();
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: /Review|Details/ }));
+    fireEvent.click(await actionFor('Chess report', 'Details'));
     fireEvent.click(await screen.findByRole('button', { name: 'receipts.pdf' }));
 
     expect(mocks.openProtectedFile).toHaveBeenCalledWith('/financial-reports/9/documents/0');
@@ -143,7 +148,7 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     mocks.openProtectedFile.mockRejectedValue({ userMessage: 'Allow pop-ups to open this file.' });
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: /Review|Details/ }));
+    fireEvent.click(await actionFor('Chess report', 'Details'));
     fireEvent.click(await screen.findByRole('button', { name: 'receipts.pdf' }));
 
     expect(await screen.findByText('Allow pop-ups to open this file.')).toBeInTheDocument();
@@ -270,11 +275,12 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     renderPage('/dashboard/approvals?tab=submitted');
     await screen.findByText('Foundation Day');
 
-    expect(within(rowOf('Foundation Day')).getByRole('link', { name: /Open event/ })).toHaveAttribute('href', '/dashboard/events/manage-events?record=101');
-    expect(within(rowOf('Foundation Day Budget')).getByRole('link', { name: /Open budget/ })).toHaveAttribute('href', '/dashboard/finance/budget-allocation?record=102');
-    expect(within(rowOf('SBO Election 2026')).getByRole('link', { name: /Open election/ })).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=103');
-    expect(within(rowOf('September Financial Report')).getByRole('link', { name: /Open report/ })).toHaveAttribute('href', '/dashboard/finance/transaction-history?record=104');
-    expect(within(rowOf('Pep Rally')).queryByRole('link')).not.toBeInTheDocument();
+    expect(await actionFor('Foundation Day', 'Open event')).toHaveAttribute('href', '/dashboard/events/manage-events?record=101');
+    expect(await actionFor('Foundation Day Budget', 'Open budget')).toHaveAttribute('href', '/dashboard/finance/budget-allocation?record=102');
+    expect(await actionFor('SBO Election 2026', 'Open election')).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=103');
+    expect(await actionFor('September Financial Report', 'Open report')).toHaveAttribute('href', '/dashboard/finance/transaction-history?record=104');
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Pep Rally' }))[0]);
+    expect(screen.queryByRole('menuitem', { name: /^Open/ })).not.toBeInTheDocument();
   });
 
   it('explains how to submit when nothing has been submitted and links the New request page', async () => {
@@ -376,7 +382,7 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
 
   it('writes ?record= when a row is opened and closes the drawer when it is cleared', async () => {
     renderPage('/dashboard/department-head/approvals');
-    fireEvent.click(await screen.findByRole('button', { name: 'Review: Foundation Day' }));
+    fireEvent.click(await actionFor('Foundation Day', 'Review'));
 
     expect(await screen.findByRole('dialog', { name: 'Foundation Day' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('record=41');
@@ -485,7 +491,11 @@ describe('DepartmentHeadApprovalsPage entity links stay on routes the role may o
     renderPage(role === 'SBO_OFFICER' ? '/dashboard/approvals' : '/dashboard/approvals?tab=submitted');
     await screen.findByText('Foundation Day');
 
-    const hrefs = within(screen.getByRole('list', { name: /Requests/ })).getAllByRole('link').map((link) => link.getAttribute('href').split('?')[0]);
+    const hrefs = [];
+    for (const title of ['Foundation Day', 'Foundation Day Budget', 'SBO Election 2026', 'September Financial Report']) {
+      fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${title}` }))[0]);
+      hrefs.push((await screen.findByRole('menuitem', { name: /^Open/ })).getAttribute('href').split('?')[0]);
+    }
     expect(hrefs).toHaveLength(4);
     hrefs.forEach((href) => expect(allowedFor(role)).toContain(href));
   });
@@ -497,8 +507,8 @@ describe('DepartmentHeadApprovalsPage entity links stay on routes the role may o
     renderPage('/dashboard/department-head/approvals');
     await screen.findByText('Foundation Day');
 
-    expect(within(rowOf('Foundation Day')).getByRole('link', { name: /Open event/ })).toHaveAttribute('href', '/dashboard/events/activity-calendar?record=101');
-    expect(within(rowOf('SBO Election 2026')).getByRole('link', { name: /Open election/ })).toHaveAttribute('href', '/dashboard/elections/election-results');
+    expect(await actionFor('Foundation Day', 'Open event')).toHaveAttribute('href', '/dashboard/events/activity-calendar?record=101');
+    expect(await actionFor('SBO Election 2026', 'Open election')).toHaveAttribute('href', '/dashboard/elections/election-results');
   });
 
   it('shows no link for a role that cannot open the entity page', async () => {

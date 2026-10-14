@@ -7,7 +7,9 @@ use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\Organization;
 use App\Services\EventApprovalChain;
+use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -202,7 +204,7 @@ class EventRequirementController extends Controller
         ]);
     }
 
-    public function submit(Request $request, Event $event)
+    public function submit(Request $request, Event $event, SubmissionStoragePolicy $storagePolicy)
     {
         if ($event->organization_id !== $request->user()->organization_id) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -240,7 +242,10 @@ class EventRequirementController extends Controller
         $storedPaths = [];
         $oldPaths = [];
         try {
-            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, $existing, &$storedPaths, &$oldPaths) {
+            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, $existing, $storagePolicy, &$storedPaths, &$oldPaths) {
+                Organization::whereKey($event->organization_id)->lockForUpdate()->firstOrFail();
+                $replacedBytes = $existing->only(array_keys($documents))->sum(fn ($old) => Storage::disk('local')->exists($old->path) ? Storage::disk('local')->size($old->path) : 0);
+                $storagePolicy->assertUpload(array_values($documents), $event->organization_id, $replacedBytes, 'documents');
                 foreach ($requirements as $requirement) {
                     if (! isset($documents[$requirement->id])) {
                         continue;
@@ -301,7 +306,7 @@ class EventRequirementController extends Controller
     private function canSeeSubmission(Request $request, Event $event): bool
     {
         if ($request->user()->role === 'SUPER_ADMIN') {
-            return $this->approvalChain->saoRow($event) !== null;
+            return ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->exists();
         }
 
         if (! in_array($event->organization_id, $request->user()->scopedOrganizationIds(), true)) {

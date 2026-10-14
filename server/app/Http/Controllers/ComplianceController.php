@@ -13,6 +13,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
+use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -411,13 +412,13 @@ class ComplianceController extends Controller
         // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
         $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
             'is_registration',
-            $documents->isRegistrationFile($submission->organization, $submission->submitted_at),
+            $documents->isRegistrationFile($submission->organization, $submission->submitted_at, $submission->is_registration_document),
         ));
 
         return response()->json($page);
     }
 
-    public function storeSubmission(Request $request)
+    public function storeSubmission(Request $request, SubmissionStoragePolicy $storagePolicy)
     {
         $data = $request->validate([
             'requirement_type_id' => ['required', 'integer', Rule::exists('compliance_requirement_types', 'id')->where('is_active', true)],
@@ -438,7 +439,8 @@ class ComplianceController extends Controller
         // against the same locked read: otherwise a resubmission racing a
         // concurrent SAO approval can read "not approved yet", then
         // overwrite the row the approval just committed.
-        $result = DB::transaction(function () use ($request, $data, $organizationId) {
+        $result = DB::transaction(function () use ($request, $data, $organizationId, $storagePolicy) {
+            Organization::whereKey($organizationId)->lockForUpdate()->firstOrFail();
             $existing = OrganizationComplianceSubmission::where('organization_id', $organizationId)
                 ->where('requirement_type_id', $data['requirement_type_id'])
                 ->lockForUpdate()
@@ -448,7 +450,10 @@ class ComplianceController extends Controller
                 return ['conflict' => true];
             }
 
+            $storagePolicy->assertUpload([$request->file('document')], $organizationId, $existing?->file_size ?? 0);
+
             $isResubmission = $existing !== null;
+            $oldPath = $existing?->file_path;
 
             $file = $request->file('document');
             $path = $file->store('compliance-submissions/'.$organizationId, 'local');
@@ -480,7 +485,7 @@ class ComplianceController extends Controller
                 ]);
             }
 
-            return ['submission' => $submission, 'is_resubmission' => $isResubmission];
+            return ['submission' => $submission, 'is_resubmission' => $isResubmission, 'old_path' => $isResubmission ? $oldPath : null];
         });
 
         if (isset($result['conflict'])) {
@@ -493,6 +498,7 @@ class ComplianceController extends Controller
 
         $submission = $result['submission'];
         $isResubmission = $result['is_resubmission'];
+        if ($result['old_path']) Storage::disk('local')->delete($result['old_path']);
 
         AuditLog::create([
             'organization_id' => $organizationId,
@@ -522,6 +528,93 @@ class ComplianceController extends Controller
             ]));
 
         return response()->json($submission->load(['requirementType:id,name,academic_year']), $isResubmission ? 200 : 201);
+    }
+
+    public function replaceSubmissionDocument(Request $request, OrganizationComplianceSubmission $submission, SubmissionStoragePolicy $storagePolicy)
+    {
+        abort_unless($submission->organization_id === $request->user()->organization_id, 404);
+        abort_unless(Organization::whereKey($submission->organization_id)->where('lifecycle_status', 'active')->exists(), 409, 'Only active organizations can change submitted files.');
+        $requirement = $submission->requirementType;
+        abort_unless($requirement && $requirement->is_active && (! $requirement->academic_semester_id || $requirement->academic_semester_id === AcademicSemester::active()?->id), 409, 'This requirement is no longer open.');
+        $data = $request->validate(['document' => ['required', ...$requirement->uploadRules()], 'submitted_at' => ['required', 'date']]);
+
+        $newPath = null;
+        try {
+            $oldPath = DB::transaction(function () use ($submission, $request, $data, $storagePolicy, &$newPath) {
+                Organization::whereKey($submission->organization_id)->lockForUpdate()->firstOrFail();
+                $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
+                abort_unless($locked->organization_id === $request->user()->organization_id, 404);
+                abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
+                $file = $request->file('document');
+                $storagePolicy->assertUpload([$file], $locked->organization_id, $locked->file_size);
+                $newPath = $file->store('compliance-submissions/'.$locked->organization_id, 'local');
+                abort_unless($newPath, 500, 'Could not store the replacement file.');
+                $oldPath = $locked->file_path;
+                $locked->update([
+                    'file_path' => $newPath, 'file_original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(), 'file_size' => $file->getSize(),
+                    'status' => 'submitted', 'remarks' => null, 'submitted_at' => now(),
+                    'submitted_by' => $request->user()->school_id, 'reviewed_by' => null, 'reviewed_at' => null,
+                ]);
+
+                return $oldPath;
+            });
+        } catch (\Throwable $exception) {
+            if ($newPath) Storage::disk('local')->delete($newPath);
+            throw $exception;
+        }
+        Storage::disk('local')->delete($oldPath);
+        $this->notifySubmissionChange($request, $submission, 'replaced');
+
+        return response()->json($submission->fresh()->load('requirementType:id,name'));
+    }
+
+    public function deleteSubmission(Request $request, OrganizationComplianceSubmission $submission)
+    {
+        if ($request->user()->role !== 'SUPER_ADMIN') {
+            abort_unless($submission->organization_id === $request->user()->organization_id, 404);
+        }
+        abort_unless(Organization::whereKey($submission->organization_id)->where('lifecycle_status', 'active')->exists(), 409, 'Registration and archived files cannot be deleted here.');
+        $data = $request->validate(['submitted_at' => ['required', 'date']]);
+        $oldPath = DB::transaction(function () use ($submission, $data, $request) {
+            $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
+            abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
+            $oldPath = $locked->file_path;
+            $locked->delete();
+
+            return $oldPath;
+        });
+        Storage::disk('local')->delete($oldPath);
+        $this->notifySubmissionChange($request, $submission, 'deleted');
+
+        return response()->json(['message' => 'File deleted. Reviewers and organization admins were notified.']);
+    }
+
+    private function notifySubmissionChange(Request $request, OrganizationComplianceSubmission $submission, string $action): void
+    {
+        $organization = Organization::findOrFail($submission->organization_id);
+        $requirement = $submission->requirementType?->name ?? 'a requirement';
+        AuditLog::create([
+            'organization_id' => $organization->id, 'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role, 'module' => 'compliance', 'action' => 'submission_document_'.$action,
+            'record_type' => OrganizationComplianceSubmission::class, 'record_id' => $submission->id,
+            'description' => "Document for {$requirement} {$action}.", 'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
+        $recipients = User::where('account_status', 'active')->where(function ($query) use ($organization) {
+            $query->where('role', 'SUPER_ADMIN')
+                ->orWhere(fn ($admins) => $admins->where('role', 'ADMIN')->where('organization_id', $organization->id))
+                ->orWhere(fn ($heads) => $heads->where('role', 'DEPARTMENT_HEAD')->whereHas('organization', fn ($home) => $home->where('organization_type', 'COLLEGE')->where('college_id', $organization->college_id)));
+        })->get(['school_id', 'organization_id']);
+        foreach ($recipients as $recipient) {
+            if ($recipient->school_id === $request->user()->school_id) continue;
+            Notification::create([
+                'organization_id' => $recipient->organization_id, 'user_id' => $recipient->school_id,
+                'notification_type' => 'general', 'title' => 'Submitted file '.$action,
+                'message' => "{$organization->name}: {$requirement} was {$action} by {$request->user()->first_name} {$request->user()->last_name}.",
+                'reference_type' => 'organization_compliance_submission', 'reference_id' => $submission->id,
+                'is_read' => false, 'sent_at' => now(),
+            ]);
+        }
     }
 
     public function reviewSubmission(Request $request, OrganizationComplianceSubmission $submission)

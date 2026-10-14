@@ -7,14 +7,14 @@ use Illuminate\Console\Command;
 
 class SyncDepartmentHeadProfiles extends Command
 {
-    protected $signature = 'hiusa:sync-department-head-profiles';
+    protected $signature = 'hiusa:consolidate-department-head-profiles';
 
-    protected $description = 'Add missing Department Head profiles for previously approved organizations';
+    protected $description = 'Remove redundant organization profiles from Department Heads who have college-wide access';
 
     public function handle(DepartmentHeadProfileService $profiles): int
     {
-        $created = $profiles->backfillApprovedOrganizations();
-        $this->info("Created {$created} Department Head organization profiles.");
+        $removed = $profiles->removeOrganizationProfiles();
+        $this->info("Removed {$removed} redundant Department Head organization profiles.");
 
         return self::SUCCESS;
     }

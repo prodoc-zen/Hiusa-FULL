@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, FolderSearch } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, FolderSearch, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, ErrorState, Field, Input, Select, StatusBadge } from '../../../components/ui';
 import { SkeletonTable } from '../../../components/ui/Skeleton';
 import PaginationControls from '../../../components/PaginationControls';
@@ -11,8 +11,10 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getAcademicPeriods, getSystemOrganizations } from '../../../services/systemAdministrationService';
-import { getComplianceDocuments } from '../../../services/complianceService';
+import { deleteComplianceFile, getComplianceDocuments } from '../../../services/complianceService';
 import TableRowActions from '../../../components/TableRowActions';
+import ConfirmModal from '../../../components/ConfirmModal';
+import StorageOverview from './StorageOverview';
 
 const FAMILIES = [
   { key: 'event_requirement', label: 'Event requirements' },
@@ -63,6 +65,8 @@ export default function DocumentsTab() {
   const [files, setFiles] = useState({});
   const [openingKey, setOpeningKey] = useState(null);
   const [openError, setOpenError] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
 
   useEffect(() => {
     fetchAllPages(getSystemOrganizations).then(setOrganizations).catch(() => setOrganizations([]));
@@ -157,6 +161,22 @@ export default function DocumentsTab() {
     }
   }
 
+  async function removeDocument() {
+    if (!deleting) return;
+    setDeletingBusy(true);
+    setOpenError(null);
+    try {
+      await deleteComplianceFile(deleting.row.id, deleting.row.submitted_at);
+      load();
+      loadFiles(deleting.organizationId);
+      setDeleting(null);
+    } catch (error) {
+      setOpenError(getApiErrorMessage(error, 'Could not delete this file.'));
+    } finally {
+      setDeletingBusy(false);
+    }
+  }
+
   const filtersActive = Object.values(filters).some(Boolean) || Boolean(search);
 
   function renderFiles(organizationId) {
@@ -199,6 +219,7 @@ export default function DocumentsTab() {
                     <TableRowActions subject={formatDisplayText(row.item)} actions={[
                       { label: 'View file', icon: ExternalLink, disabled: openingKey === key, onClick: () => openDocument(row, organizationId) },
                       reviewHref && { label: 'Open organization review', icon: ExternalLink, to: reviewHref },
+                      row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Delete file', icon: Trash2, danger: true, onClick: () => { setOpenError(null); setDeleting({ row, organizationId }); } },
                     ]} />
                   </li>
                 );
@@ -219,7 +240,9 @@ export default function DocumentsTab() {
   }
 
   return (
-    <Card title="Track documents" description="Every file an organization has submitted, in one place. Open an organization to see its files.">
+    <div className="space-y-5">
+    <StorageOverview />
+    <Card title="Track documents" description="Registration, compliance, event, and financial files submitted for review. Open an organization to see its files.">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Search organizations">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or acronym" maxLength={100} />
@@ -322,5 +345,7 @@ export default function DocumentsTab() {
         />
       )}
     </Card>
+    <ConfirmModal open={Boolean(deleting)} title="Delete submitted file?" recordName={deleting?.row.file_name} message="This removes the file and notifies the organization Admin and college Head." confirmText="Delete file" busy={deletingBusy} error={openError} onCancel={() => setDeleting(null)} onConfirm={removeDocument} />
+    </div>
   );
 }

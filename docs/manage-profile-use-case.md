@@ -18,6 +18,7 @@
 
 - **Role Access:** all five roles can access `/dashboard/profile`; updates always apply to the authenticated account only.
 - **View Profile Information:** profile data is loaded from the authenticated user stored by the auth flow and displayed in `SettingsPage`.
+- **College oversight:** a Department Head has one college Head profile even when they are not an organization member. The college file page and other scoped modules show submitted records across that college.
 - **Responsive Account Overview:** the profile screen presents identity, role, organization, school ID, and account-security context in a responsive summary panel without compressing either form.
 - **Edit Profile Information:** users can update first name, last name, email, and an optional mobile number.
 - **Validate Profile Updates:** `UserController@updateProfile` validates required profile fields and organization-scoped email uniqueness.
