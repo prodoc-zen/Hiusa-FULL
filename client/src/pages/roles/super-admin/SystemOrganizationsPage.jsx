@@ -5,7 +5,7 @@ import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { deleteSystemOrganization, getSystemAgency, getSystemColleges, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
+import { deleteSystemOrganization, getSystemAgency, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -226,6 +226,8 @@ export default function SystemOrganizationsPage() {
   const [counts, setCounts] = useState(null);
   const [items, setItems] = useState([]);
   const [parentItems, setParentItems] = useState([]);
+  const [parentLoading, setParentLoading] = useState(false);
+  const [parentError, setParentError] = useState('');
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -252,7 +254,7 @@ export default function SystemOrganizationsPage() {
 
   const loadCounts = useCallback(async () => {
     try {
-      const agency = await getSystemAgency();
+      const agency = await getSystemAgency({ summary: 1 });
       const byStatus = agency?.totals?.by_lifecycle_status || {};
       setCounts(byStatus);
       return byStatus;
@@ -325,11 +327,19 @@ export default function SystemOrganizationsPage() {
       }
     }).catch((cause) => setActionError(getApiErrorMessage(cause, 'Could not open that registration for review.')));
   }, [reviewParam, status, loading, items, setSearchParams]);
-  useEffect(() => {
-    Promise.all([getSystemColleges(), fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'active' }))])
-      .then(([, organizations]) => { setParentItems(organizations); })
-      .catch((cause) => setError(getApiErrorMessage(cause, 'Unable to load organization options.')));
+  const loadParents = useCallback(async () => {
+    setParentLoading(true);
+    setParentError('');
+    try {
+      setParentItems(await fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'active' })));
+    } catch (cause) {
+      setParentError(getApiErrorMessage(cause, 'Unable to load parent organizations.'));
+    } finally {
+      setParentLoading(false);
+    }
   }, []);
+  const formOpen = Boolean(form);
+  useEffect(() => { if (formOpen) loadParents(); }, [formOpen, loadParents]);
 
   function selectStatus(key) {
     setPage(1);
@@ -361,7 +371,6 @@ export default function SystemOrganizationsPage() {
       setLogoFile(null);
       setNotice('Organization updated.');
       await load();
-      setParentItems(await fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'active' })));
     } catch (cause) {
       if (saved) setForm(saved);
       setError(getApiErrorMessage(cause, saved ? 'Organization saved, but its logo could not be uploaded. Retry saving the logo.' : 'Could not save the organization.'));
@@ -486,7 +495,9 @@ export default function SystemOrganizationsPage() {
       {form &&!membershipOrganization && !profileOrganization && <AccessibleOverlay label="Edit organization" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><h3 className="text-lg font-black text-slate-900">Edit organization</h3>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mt-5 grid gap-3">
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Organization name" />Organization name<input required value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} /></label>
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Organization code" />Organization code<input required value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} className={inputClass} /></label>
-        <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Main organization" />Main organization<HiusaSelect value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })} className={inputClass}><option value="">This is a main organization</option>{parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}</HiusaSelect></label>
+        <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Main organization" />Main organization<HiusaSelect disabled={parentLoading || Boolean(parentError)} value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })} className={inputClass}><option value="">This is a main organization</option>{parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}</HiusaSelect></label>
+        {parentLoading && <p role="status" className="text-xs text-ink-muted">Loading parent organizations...</p>}
+        {parentError && <p role="alert" className="text-sm text-danger-strong">{parentError} <button type="button" onClick={loadParents} className="min-h-11 font-bold underline">Retry parent organizations</button></p>}
         <div className="text-sm font-semibold text-slate-700">College<p className="mt-1 flex h-11 items-center rounded-lg border border-[#DDE7EF] bg-subtle px-3 font-normal text-ink">{formatDisplayText(form.college) || 'Not assigned'}</p></div>
         <label className="text-sm font-semibold text-slate-700">Organization color<input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="mt-1 h-11 w-20 rounded-lg border border-[#DDE7EF] bg-white p-1" /></label>
         <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>

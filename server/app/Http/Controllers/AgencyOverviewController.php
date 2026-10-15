@@ -11,6 +11,7 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /** SAO read-only view of every college and organization, and a look inside one organization. */
@@ -22,8 +23,20 @@ class AgencyOverviewController extends Controller
 
     public function __construct(private readonly AccreditationStatusService $accreditation) {}
 
-    public function agency()
+    public function agency(Request $request)
     {
+        $request->validate(['summary' => ['sometimes', 'boolean']]);
+        if ($request->boolean('summary')) {
+            $counts = Organization::student()->selectRaw('lifecycle_status, count(*) as total')
+                ->groupBy('lifecycle_status')->pluck('total', 'lifecycle_status');
+
+            return response()->json(['totals' => [
+                'colleges' => College::count(),
+                'organizations' => (int) $counts->sum(),
+                'by_lifecycle_status' => collect(self::LIFECYCLES)->mapWithKeys(fn ($status) => [$status => (int) $counts->get($status, 0)]),
+            ]]);
+        }
+
         $organizations = Organization::student()->orderBy('name')->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'is_active', 'submitted_at']);
         $ids = $organizations->pluck('id');
         $members = $this->profileCounts($ids);
