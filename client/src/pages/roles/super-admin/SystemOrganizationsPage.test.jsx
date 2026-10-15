@@ -6,7 +6,7 @@ import SystemOrganizationsPage from './SystemOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(), getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), getSystemOrganizationOverview: vi.fn(),
   reviewSystemOrganization: vi.fn(), archiveSystemOrganization: vi.fn(), restoreSystemOrganization: vi.fn(),
-  updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(),
+  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
@@ -39,6 +39,45 @@ describe('SystemOrganizationsPage', () => {
     profileMocks.getProfileCandidates.mockResolvedValue({ data: { data: [{ school_id: 123, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test' }], current_page: 1, last_page: 1, total: 1 } });
     profileMocks.inviteAccountProfile.mockResolvedValue({ data: { id: 9, organization_id: 3 } });
     profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
+  });
+
+  it('lists organizations in a table and deletes through a three-dot action with typed confirmation', async () => {
+    mocks.deleteSystemOrganization.mockResolvedValue(undefined);
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    await screen.findByText('Main SBO');
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Registration progress' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete organization' }));
+    const dialog = screen.getByRole('dialog', { name: 'Permanently delete organization' });
+    const confirm = within(dialog).getByRole('button', { name: 'Permanently delete organization' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText('Type the organization name to confirm'), { target: { value: 'Main SBO' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.deleteSystemOrganization).toHaveBeenCalledWith(3, 'Main SBO'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('keeps deletion conflicts inside the confirmation dialog', async () => {
+    mocks.deleteSystemOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'Move or delete the suborganizations first.' } } });
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete organization' }));
+    const dialog = screen.getByRole('dialog', { name: 'Permanently delete organization' });
+    fireEvent.change(within(dialog).getByLabelText('Type the organization name to confirm'), { target: { value: 'Main SBO' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Permanently delete organization' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Move or delete the suborganizations first.');
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('shows an archived college restriction while keeping the organization accessible for viewing', async () => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ college_is_active: false })]));
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await screen.findByText(/College archived/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    expect(screen.getByRole('menuitem', { name: 'Edit organization' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href');
+    expect(screen.getByRole('menuitem', { name: 'Delete organization' })).toBeEnabled();
   });
 
   describe('status tabs', () => {
@@ -331,7 +370,7 @@ describe('SystemOrganizationsPage', () => {
 
     it('says on the card that the SAO reviews a pending registration', async () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
-      const card = (await screen.findByRole('button', { name: 'Actions for Robotics Club' })).closest('article');
+      const card = (await screen.findByRole('button', { name: 'Actions for Robotics Club' })).closest('tr');
       expect(within(card).getByText('Review this registration')).toBeInTheDocument();
       expect(within(card).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
     });
@@ -413,21 +452,21 @@ describe('SystemOrganizationsPage', () => {
 
       const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
       expect(names).toEqual(['Chess Club', 'Art Club']);
-      const card = screen.getByText('Chess Club').closest('article');
+      const card = screen.getByText('Chess Club').closest('tr');
       expect(within(card).getByText('Provision an administrator')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
       expect(screen.getByRole('menuitem', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
-      const done = screen.getByText('Art Club').closest('article');
+      const done = screen.getByText('Art Club').closest('tr');
       expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
       fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
       expect(screen.queryByRole('menuitem', { name: 'Provision administrator' })).not.toBeInTheDocument();
     });
   });
 
-  it('shows returned remarks with only the open action', async () => {
+  it('shows returned remarks with open and delete actions', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ lifecycle_status: 'returned', is_active: false, review_remarks: 'Add the adviser signature.' })]));
     renderPage('/dashboard/super-admin/organizations?status=returned');
-    expect(await screen.findByText('Add the adviser signature.')).toBeInTheDocument();
+    expect(await screen.findByText(/Add the adviser signature\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
     expect(screen.getByRole('menuitem', { name: 'Open organization' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Review|Archive|Restore/ })).not.toBeInTheDocument();
@@ -451,7 +490,7 @@ describe('SystemOrganizationsPage', () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
       const badge = await screen.findByLabelText('Archived, read only');
       expect(badge).toHaveTextContent('Archived');
-      expect(badge.closest('article')).toHaveClass('bg-subtle');
+      expect(badge.closest('tr')).toHaveClass('bg-subtle');
     });
 
     it('restores after confirmation', async () => {

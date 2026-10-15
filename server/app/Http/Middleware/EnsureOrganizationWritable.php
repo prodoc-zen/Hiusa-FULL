@@ -30,7 +30,7 @@ class EnsureOrganizationWritable
             $request->input('organization_id'),
         ], fn ($id) => is_numeric($id));
 
-        $blocked = Organization::whereIn('id', $ids)->where('lifecycle_status', '!=', 'active')->first();
+        $blocked = Organization::whereIn('id', $ids)->get()->first(fn ($organization) => ! $organization->isWritable());
         if ($blocked) {
             return response()->json(['message' => $blocked->isArchived() ? 'Archived organizations are read only.' : 'Only active organizations can be changed.'], 409);
         }

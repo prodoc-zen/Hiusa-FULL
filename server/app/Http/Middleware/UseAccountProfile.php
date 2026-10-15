@@ -29,7 +29,7 @@ class UseAccountProfile
             )->load('organization');
         }
 
-        if (! $profile || $profile->account_status !== 'active' || ! $profile->organization?->is_active || $user->account_status !== 'active') {
+        if (! $profile || $profile->account_status !== 'active' || ! $profile->organization?->is_active || ! $profile->organization->collegeAllowsAccess() || $user->account_status !== 'active') {
             return response()->json(['message' => 'This account profile is unavailable.'], 403);
         }
 

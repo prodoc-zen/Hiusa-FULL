@@ -763,6 +763,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
     expect(await screen.findByText("1 item is out of stock")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveClass("bg-danger-tint");
     fireEvent.click(screen.getByRole("button", { name: "Add stock" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
   });

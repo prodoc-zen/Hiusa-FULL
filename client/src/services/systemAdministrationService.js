@@ -22,6 +22,10 @@ export const uploadSystemCollegeLogo = (id, file) => {
 };
 export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
 export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
+export const permanentlyDeleteCollege = (id, confirmationName) => unwrap(api.delete(`/system/colleges/${id}`, { data: { mode: 'permanent', confirmation_name: confirmationName } }));
+export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));
+export const restoreSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/restore`));
+export const deleteSystemOrganization = (id, confirmationName) => unwrap(api.delete(`/system/organizations/${id}`, { data: { confirmation_name: confirmationName } }));
 export const updateDepartmentHead = (id, payload) => unwrap(api.put(`/system/department-heads/${id}`, payload));
 export const resetDepartmentHeadPassword = (id) => unwrap(api.post(`/system/department-heads/${id}/password-reset`));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));

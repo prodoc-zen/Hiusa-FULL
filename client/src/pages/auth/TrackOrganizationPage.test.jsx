@@ -26,6 +26,11 @@ describe('Organization application tracking', () => {
     expect(screen.getByText('Department Head review')).toBeInTheDocument();
     expect(screen.getByText('SAO decision')).toBeInTheDocument();
     expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getAllByText('Completed')).toHaveLength(3);
+    expect(screen.getByText('Your Department Head endorsed the application and forwarded it to SAO.')).toBeInTheDocument();
+    expect(screen.getByText('With SAO').parentElement).toHaveClass('bg-green-50');
+    expect(screen.getByText('SAO decision').closest('li')).toHaveAttribute('aria-current', 'step');
+    expect(document.querySelectorAll('time')).toHaveLength(3);
     expect(getApplicationTracking).toHaveBeenCalledWith('8', 'expires=123&signature=private');
   });
 
@@ -37,6 +42,7 @@ describe('Organization application tracking', () => {
     renderTracking();
     expect((await screen.findAllByText('Returned for changes')).length).toBeGreaterThan(0);
     expect(screen.getByText('Fix the file format.')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Reviewer remarks' })).toHaveClass('bg-red-50');
     expect(screen.getByRole('link', { name: 'Lost the edit link? Request another' })).toHaveAttribute('href', '/register-organization/edit-link');
   });
 
@@ -55,5 +61,6 @@ describe('Organization application tracking', () => {
     renderTracking();
     expect(await screen.findByText('Approved')).toBeInTheDocument();
     expect(screen.queryByText('Waiting')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Completed')).toHaveLength(4);
   });
 });

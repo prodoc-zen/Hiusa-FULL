@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SystemCollegesPage from './SystemCollegesPage';
+import { findRowAction } from '../../../test/rowActions';
 
 const mocks = vi.hoisted(() => ({
   getSystemColleges: vi.fn(), createSystemCollege: vi.fn(), uploadSystemCollegeLogo: vi.fn(), deleteSystemCollege: vi.fn(),
   createDepartmentHead: vi.fn(), updateDepartmentHead: vi.fn(), resetDepartmentHeadPassword: vi.fn(),
+  archiveSystemCollege: vi.fn(), restoreSystemCollege: vi.fn(), permanentlyDeleteCollege: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 
@@ -23,8 +25,47 @@ describe('SystemCollegesPage', () => {
     expect(screen.getByText(/COA · 2 organizations/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add college' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete College of Arts' })).toBeInTheDocument();
+    expect((await findRowAction('Delete college and transfer users'))).toBeInTheDocument();
     expect(screen.getByText("Add colleges, assign Department Heads, and manage each college's organizations.")).toBeInTheDocument();
+  });
+
+  it('requires the exact college name for permanent deletion and keeps transfer deletion separate', async () => {
+    mocks.permanentlyDeleteCollege.mockResolvedValue(undefined);
+    renderPage();
+    fireEvent.click(await findRowAction('Delete with all data'));
+    const dialog = screen.getByRole('dialog', { name: 'Permanently delete college' });
+    const confirm = within(dialog).getByRole('button', { name: 'Permanently delete college' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText('Type the college name to confirm'), { target: { value: 'Wrong college' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText('Type the college name to confirm'), { target: { value: 'College of Arts' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.permanentlyDeleteCollege).toHaveBeenCalledWith(3, 'College of Arts'));
+    expect(mocks.deleteSystemCollege).not.toHaveBeenCalled();
+  });
+
+  it('archives with confirmation and displays an API failure inside the dialog', async () => {
+    mocks.archiveSystemCollege.mockRejectedValueOnce({ response: { status: 409, data: { message: 'This college is already archived.' } } });
+    mocks.archiveSystemCollege.mockResolvedValueOnce({ id: 3, is_active: false });
+    renderPage();
+    fireEvent.click(await findRowAction('Archive college'));
+    const dialog = screen.getByRole('dialog', { name: 'Archive college' });
+    expect(dialog).toHaveTextContent('SAO can still view their files');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive college' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('already archived');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive college' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('Sign-in is disabled');
+  });
+
+  it('restores an archived college and keeps Department Head mutation controls hidden until restored', async () => {
+    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: false, organizations_count: 2 }]);
+    mocks.restoreSystemCollege.mockResolvedValue({ id: 3, is_active: true });
+    renderPage();
+    fireEvent.click(await findRowAction('Restore college'));
+    expect(screen.queryByRole('menuitem', { name: /Assign Department Head/ })).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Restore college' }));
+    await waitFor(() => expect(mocks.restoreSystemCollege).toHaveBeenCalledWith(3));
   });
 
   it('adds a college and shows validation errors', async () => {
@@ -54,7 +95,7 @@ describe('SystemCollegesPage', () => {
 
   it('links each college to its organizations', async () => {
     renderPage();
-    const link = await screen.findByRole('link', { name: 'View organizations of College of Arts' });
+    const link = await findRowAction('View organizations of College of Arts');
     expect(link).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=active&search=College%20of%20Arts');
   });
 
@@ -118,12 +159,12 @@ describe('SystemCollegesPage', () => {
     };
     const openAssignment = async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: /Assign Department Head/ }));
+      fireEvent.click(await findRowAction(/Assign Department Head/));
       return screen.findByRole('dialog', { name: 'Assign Department Head' });
     };
     const openManagement = async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: /Manage Department Head/ }));
+      fireEvent.click(await findRowAction(/Manage Department Head/));
       return screen.findByRole('dialog', { name: 'Manage Department Head' });
     };
 
@@ -132,8 +173,8 @@ describe('SystemCollegesPage', () => {
       renderPage();
 
       expect(await screen.findByText('No Department Head yet')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Assign Department Head/ })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Manage Department Head/ })).not.toBeInTheDocument();
+      expect((await findRowAction(/Assign Department Head/))).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Manage Department Head/ })).not.toBeInTheDocument();
     });
 
     it('shows the head with a text status badge and a Manage action', async () => {
@@ -143,8 +184,8 @@ describe('SystemCollegesPage', () => {
       expect(await screen.findByText('Ramon Castillo')).toBeInTheDocument();
       expect(screen.getByText('Active')).toBeInTheDocument();
       expect(screen.getByText('dean@example.edu')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Manage Department Head/ })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Assign Department Head/ })).not.toBeInTheDocument();
+      expect((await findRowAction(/Manage Department Head/))).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Assign Department Head/ })).not.toBeInTheDocument();
     });
 
     it('offers a replacement when the only head is inactive, and keeps Manage for reactivation', async () => {
@@ -152,8 +193,8 @@ describe('SystemCollegesPage', () => {
       renderPage();
 
       expect(await screen.findByText('Inactive')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Assign Department Head/ })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Manage Department Head/ })).toBeInTheDocument();
+      expect((await findRowAction(/Assign Department Head/))).toBeInTheDocument();
+      expect((await findRowAction(/Manage Department Head/))).toBeInTheDocument();
     });
 
     it('validates the assignment per field and focuses the first invalid control', async () => {
@@ -193,7 +234,7 @@ describe('SystemCollegesPage', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Ramon Castillo is now the Department Head of College of Arts.');
       expect(screen.getByText('ramon@example.edu')).toBeInTheDocument();
       expect(screen.queryByText('No Department Head yet')).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Manage Department Head/ })).toBeInTheDocument();
+      expect((await findRowAction(/Manage Department Head/))).toBeInTheDocument();
     });
 
     it('assigns an existing member using their School ID and keeps their current credentials', async () => {
@@ -255,7 +296,7 @@ describe('SystemCollegesPage', () => {
 
       await waitFor(() => expect(mocks.updateDepartmentHead).toHaveBeenCalledWith(940001, { account_status: 'inactive' }));
       expect(await screen.findByText('Inactive')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Assign Department Head/ })).toBeInTheDocument();
+      expect((await findRowAction(/Assign Department Head/))).toBeInTheDocument();
     });
 
     it('returns to the details when the confirmation is cancelled', async () => {
@@ -305,7 +346,7 @@ describe('SystemCollegesPage', () => {
     mocks.deleteSystemCollege.mockResolvedValue({});
     renderPage();
     await screen.findByText('College of Arts');
-    fireEvent.click(screen.getByRole('button', { name: 'Delete College of Arts' }));
+    fireEvent.click((await findRowAction('Delete college and transfer users')));
     const dialog = screen.getByRole('dialog', { name: 'Delete College of Arts' });
     expect(within(dialog).getByRole('button', { name: 'Delete college' })).toBeDisabled();
     const replacement = within(dialog).getByLabelText(/Replacement college/);
@@ -318,7 +359,7 @@ describe('SystemCollegesPage', () => {
   it('explains when a replacement college must be added first', async () => {
     mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: true, organizations_count: 2, has_assignments: true }]);
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete College of Arts' }));
+    fireEvent.click((await findRowAction('Delete college and transfer users')));
     const dialog = screen.getByRole('dialog', { name: 'Delete College of Arts' });
     expect(dialog).toHaveTextContent('add a new college first');
     expect(within(dialog).getByRole('button', { name: 'Delete college' })).toBeDisabled();

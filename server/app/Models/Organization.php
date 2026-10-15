@@ -37,7 +37,24 @@ class Organization extends Model
 
     public function isWritable(): bool
     {
-        return $this->lifecycle_status === 'active';
+        return $this->lifecycle_status === 'active' && $this->collegeAllowsAccess();
+    }
+
+    public function collegeAllowsAccess(): bool
+    {
+        if ($this->organization_type === 'SYSTEM_ADMINISTRATION' || (! $this->college_id && ! $this->getRawOriginal('college'))) {
+            return true;
+        }
+        $college = $this->college_id
+            ? ($this->relationLoaded('catalogCollege') ? $this->getRelation('catalogCollege') : College::withTrashed()->find($this->college_id))
+            : College::withTrashed()->where('name', $this->getRawOriginal('college'))->first();
+
+        return $college ? ($college->is_active && ! $college->trashed()) : ! $this->college_id;
+    }
+
+    public function catalogCollege(): BelongsTo
+    {
+        return $this->belongsTo(College::class, 'college_id')->withTrashed();
     }
 
     public function college(): BelongsTo
