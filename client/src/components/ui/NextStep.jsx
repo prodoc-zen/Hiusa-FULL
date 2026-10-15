@@ -17,7 +17,7 @@ export default function NextStep({ tone = 'action', title, body, actorRole, prim
   const Icon = style.icon;
   const showButton = tone !== 'waiting' && primary?.label;
   const disabled = Boolean(primary?.disabledReason);
-  const role = tone === 'waiting' || tone === 'done' ? 'status' : undefined;
+  const role = tone === 'blocked' ? 'alert' : tone === 'waiting' || tone === 'done' ? 'status' : undefined;
 
   return (
     <div role={role} className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${style.box} ${className}`}>

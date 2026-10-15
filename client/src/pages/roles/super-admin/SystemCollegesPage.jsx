@@ -1,15 +1,18 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Building2, ImagePlus, Trash2, UserPlus } from 'lucide-react';
+import { Archive, Building2, ImagePlus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
 import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonCard, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
-import { createSystemCollege, deleteSystemCollege, getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
+import ConfirmModal from '../../../components/ConfirmModal';
+import TableRowActions from '../../../components/TableRowActions';
+import PermanentDeleteModal from '../../../components/organizations/PermanentDeleteModal';
+import { archiveSystemCollege, restoreSystemCollege, permanentlyDeleteCollege, createSystemCollege, deleteSystemCollege, getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { AssignDepartmentHeadModal, ManageDepartmentHeadModal, summarizeHead } from './DepartmentHeadDialogs';
 
-function CollegeCard({ college, uploading, onUpload, onAssign, onManage, onDelete }) {
+function CollegeCard({ college, uploading, onUpload, onAssign, onManage, onDelete, onArchive, onPurge }) {
   const fileInput = useRef(null);
   const name = formatDisplayText(college.name);
   const head = college.department_head;
@@ -18,14 +21,26 @@ function CollegeCard({ college, uploading, onUpload, onAssign, onManage, onDelet
   return (
     <article className="rounded-card border border-line bg-surface p-4">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]" style={college.color ? { borderLeft: `4px solid ${college.color}` } : undefined}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]">
           {college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="break-words text-base font-bold text-ink">{name}</h2>
-          <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {college.is_active ? 'Active' : 'Inactive'}</p>
+          <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {college.is_active ? 'Active' : 'Archived'}</p>
           {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted" />}
         </div>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
+        <TableRowActions subject={name} actions={[
+          { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
+          college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
+          college.is_active && !headIsActive && { label: `Assign Department Head to ${name}`, icon: UserPlus, onClick: () => onAssign(college) },
+          { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
+          { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
+          { label: 'Delete college and transfer users', icon: Trash2, danger: true, onClick: () => onDelete(college) },
+          { label: 'Delete with all data', icon: Trash2, danger: true, onClick: () => onPurge(college) },
+        ]} />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <div className="min-w-0">
@@ -40,16 +55,6 @@ function CollegeCard({ college, uploading, onUpload, onAssign, onManage, onDelet
             </>
           ) : <p className="mt-1 text-sm font-medium text-ink-muted">No Department Head yet</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {head && <Button variant={headIsActive ? 'primary' : 'secondary'} size="sm" className="max-md:min-h-[44px]" onClick={() => onManage(college)} aria-label={`Manage Department Head of ${name}`}>Manage</Button>}
-          {!headIsActive && <Button size="sm" className="max-md:min-h-[44px]" leftIcon={UserPlus} onClick={() => onAssign(college)} aria-label={`Assign Department Head to ${name}`}>Assign Department Head</Button>}
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <Button to={`/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}`} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`View organizations of ${name}`}>View organizations</Button>
-        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
-        <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" leftIcon={ImagePlus} loading={uploading} onClick={() => fileInput.current?.click()} aria-label={`Upload logo for ${name}`}>Upload logo</Button>
-        <Button variant="danger" size="sm" className="max-md:min-h-[42px]" leftIcon={Trash2} onClick={() => onDelete(college)} aria-label={`Delete ${name}`}>Delete</Button>
       </div>
     </article>
   );
@@ -66,6 +71,10 @@ export default function SystemCollegesPage() {
   const [assigning, setAssigning] = useState(null);
   const [managing, setManaging] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [purgeTarget, setPurgeTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -144,6 +153,27 @@ export default function SystemCollegesPage() {
     }
   }
 
+  async function changeLifecycle() {
+    setLifecycleBusy(true);
+    setLifecycleError('');
+    try {
+      if (purgeTarget) {
+        await permanentlyDeleteCollege(purgeTarget.id, purgeTarget.name);
+        setNotice('College, its organizations, memberships, and files permanently deleted.');
+      } else {
+        await (archiveTarget.is_active ? archiveSystemCollege : restoreSystemCollege)(archiveTarget.id);
+        setNotice(archiveTarget.is_active ? 'College archived. Sign-in is disabled; SAO can still view its files.' : 'College restored. Previously active organizations and accounts can sign in again.');
+      }
+      setPurgeTarget(null);
+      setArchiveTarget(null);
+      await load();
+    } catch (cause) {
+      setLifecycleError(getApiErrorMessage(cause, 'Could not update this college.'));
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
   const term = search.trim().toLowerCase();
   const visible = colleges.filter((college) => [college.name, college.code].some((value) => String(value || '').toLowerCase().includes(term)));
   const replacements = colleges.filter((college) => college.id !== deleteTarget?.id && college.can_receive_transfer);
@@ -160,12 +190,14 @@ export default function SystemCollegesPage() {
           {loading ? (
             <section aria-label="Loading colleges" className="grid gap-3 md:grid-cols-2"><SkeletonCard /><SkeletonCard /></section>
           ) : visible.length ? (
-            <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onAssign={setAssigning} onManage={setManaging} onDelete={(item) => { setDeleteTarget(item); setTransferTo(''); setDeleteError(''); }} />)}</section>
+            <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onAssign={setAssigning} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onPurge={(item) => { setLifecycleError(''); setPurgeTarget(item); }} onDelete={(item) => { setDeleteTarget(item); setTransferTo(''); setDeleteError(''); }} />)}</section>
           ) : (
             <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'Add the first college to begin assigning Department Heads.'} />
           )}
         </>
       )}
+      {purgeTarget && <PermanentDeleteModal key={purgeTarget.id} name={purgeTarget.name} kind="college" busy={lifecycleBusy} error={lifecycleError} onClose={() => setPurgeTarget(null)} onConfirm={changeLifecycle} />}
+      <ConfirmModal open={Boolean(archiveTarget)} title={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} message={archiveTarget?.is_active ? `Archive ${archiveTarget.name}? All college and organization profiles will be blocked from signing in. SAO can still view their files. Existing organization statuses are preserved.` : `Restore ${archiveTarget?.name}? Previously active organizations and accounts regain access. Individually archived organizations stay archived.`} confirmText={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} error={lifecycleError} busy={lifecycleBusy} onCancel={() => setArchiveTarget(null)} onConfirm={changeLifecycle} />
       {assigning && <AssignDepartmentHeadModal college={assigning} onClose={() => setAssigning(null)} onAssigned={(user, message) => headChanged(assigning.id, user, message)} />}
       {managing?.department_head && <ManageDepartmentHeadModal college={managing} head={managing.department_head} onClose={() => setManaging(null)} onChanged={(user, message) => headChanged(managing.id, user, message)} />}
       <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>

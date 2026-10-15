@@ -22,8 +22,11 @@ class AccountProfileController extends Controller
         return response()->json([
             'active_profile_id' => $request->user()->currentAccessToken()?->account_profile_id
                 ?? $request->user()->active_profile_id,
-            'profiles' => $request->user()->accountProfiles()->with('organization:id,name,acronym,college,organization_type,parent_organization_id,is_active')
-                ->orderBy('id')->get(),
+            'profiles' => $request->user()->accountProfiles()->with(['organization:id,name,acronym,college,college_id,organization_type,parent_organization_id,is_active', 'organization.catalogCollege'])
+                ->orderBy('id')->get()->each(function ($profile) {
+                    $profile->organization?->setAttribute('college_is_active', $profile->organization->collegeAllowsAccess());
+                    $profile->organization?->unsetRelation('catalogCollege');
+                }),
         ]);
     }
 
@@ -31,7 +34,7 @@ class AccountProfileController extends Controller
     {
         $user = $request->user();
         if ($profile->user_school_id !== $user->school_id || $profile->account_status !== 'active'
-            || ! $profile->organization()->where('is_active', true)->exists()) {
+            || ! $profile->organization?->is_active || ! $profile->organization->collegeAllowsAccess()) {
             return response()->json(['message' => 'Account profile not available.'], 404);
         }
 

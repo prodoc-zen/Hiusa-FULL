@@ -2758,6 +2758,7 @@ export default function MerchandisePage({ initialTab }) {
       {outOfStockItems.length > 0 && (
         <NextStep
           title={everyItemSoldOut ? "Every active item is out of stock" : `${outOfStockItems.length} ${outOfStockItems.length === 1 ? "item is" : "items are"} out of stock`}
+          tone="blocked"
           body="Students cannot order an item until you add stock."
           primary={{ label: "Add stock", onClick: () => openAddStockModal(outOfStockItems[0]) }}
         />

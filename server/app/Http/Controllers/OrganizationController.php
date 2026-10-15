@@ -8,7 +8,7 @@ class OrganizationController extends Controller
 {
     public function index()
     {
-        $query = Organization::query()->where('is_active', true);
+        $query = Organization::with('catalogCollege')->where('is_active', true);
 
         // The SAO is a static system department, not a student-body
         // organization. It is exposed only to the organization-picker used
@@ -22,7 +22,8 @@ class OrganizationController extends Controller
         }
 
         return response()->json($query->orderBy('name')->get([
-            'id', 'name', 'slug', 'college', 'acronym', 'organization_type',
-        ]));
+            'id', 'name', 'slug', 'college', 'college_id', 'acronym', 'organization_type',
+        ])->filter(fn ($organization) => $organization->collegeAllowsAccess())
+            ->each(fn ($organization) => $organization->makeHidden('college_id')->unsetRelation('catalogCollege'))->values());
     }
 }

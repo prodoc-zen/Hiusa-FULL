@@ -27,3 +27,4 @@
 - **Deactivate Merchandise Item:** item deactivation requires UI confirmation and sets `is_active` to false instead of deleting the record.
 - **Delete Merchandise Item:** the distinct Delete action confirms removal and soft deletes the product so it stays out of inventory after reload. Completed order history retains its product relationship. Pending or paid orders block deletion with `409`; cross-organization products return `404`.
 - **Record Audit Log:** merchandise deactivation writes an audit log entry.
+- **Out-of-stock alert:** Admin inventory guidance uses the shared red blocked callout and an accessible alert role. The Add stock action opens the existing stock adjustment dialog.

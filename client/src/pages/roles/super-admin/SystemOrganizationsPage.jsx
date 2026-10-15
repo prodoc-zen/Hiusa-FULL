@@ -2,13 +2,14 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, UserPlus, Users } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { getSystemAgency, getSystemColleges, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
+import { deleteSystemOrganization, getSystemAgency, getSystemColleges, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import ConfirmModal from '../../../components/ConfirmModal';
+import PermanentDeleteModal from '../../../components/organizations/PermanentDeleteModal';
 import Modal from '../../../components/Modal';
 import TableRowActions from '../../../components/TableRowActions';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
@@ -225,7 +226,6 @@ export default function SystemOrganizationsPage() {
   const [counts, setCounts] = useState(null);
   const [items, setItems] = useState([]);
   const [parentItems, setParentItems] = useState([]);
-  const [colleges, setColleges] = useState([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -243,6 +243,7 @@ export default function SystemOrganizationsPage() {
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState('');
@@ -326,7 +327,7 @@ export default function SystemOrganizationsPage() {
   }, [reviewParam, status, loading, items, setSearchParams]);
   useEffect(() => {
     Promise.all([getSystemColleges(), fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'active' }))])
-      .then(([collegeList, organizations]) => { setColleges(collegeList); setParentItems(organizations); })
+      .then(([, organizations]) => { setParentItems(organizations); })
       .catch((cause) => setError(getApiErrorMessage(cause, 'Unable to load organization options.')));
   }, []);
 
@@ -402,9 +403,12 @@ export default function SystemOrganizationsPage() {
       setNotice(done);
       setArchiveTarget(null);
       setRestoreTarget(null);
+      setDeleteTarget(null);
       reloadAll();
     } catch (cause) {
-      if (cause?.response?.status === 409) {
+      if (deleteTarget) {
+        setLifecycleError(getApiErrorMessage(cause, 'Could not delete the organization.'));
+      } else if (cause?.response?.status === 409) {
         setArchiveTarget(null);
         setRestoreTarget(null);
         setNotice('');
@@ -436,28 +440,46 @@ export default function SystemOrganizationsPage() {
       {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
       {loading && !error && <section aria-label="Loading organizations" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3"><SkeletonCard /><SkeletonCard /></section>}
-      {!loading && !error && <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {items.map((org, index) => {
-          const lifecycle = org.lifecycle_status || status;
-          const name = formatDisplayText(org.name);
-          return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] md:col-span-2 2xl:col-span-3"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className={`min-w-0 rounded-lg border border-[#DDE7EF] p-4 ${lifecycle === 'archived' ? 'bg-subtle' : 'bg-white'}`}><div className="flex flex-wrap justify-between gap-3"><div className="flex min-w-0 gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div className="min-w-0"><h3 className="break-words font-bold text-slate-900">{name}</h3><p className="break-words text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No college assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><LifecycleBadge status={lifecycle} /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
-            <RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" className="mt-3" />
-            {lifecycle === 'pending' && org.submitted_at && <p className="mt-3 text-xs font-semibold text-slate-500">Submitted {manilaDate(org.submitted_at)}</p>}
-            {lifecycle === 'returned' && <p className="mt-3 rounded-lg bg-subtle p-3 text-sm text-ink"><span className="block text-xs font-bold text-ink-muted">Returned with remarks</span>{org.review_remarks || 'No remarks were recorded.'}</p>}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
-              <TableRowActions subject={name} label="Organization actions" actions={[
+      {!loading && !error && items.length > 0 && <div className="max-w-full overflow-x-auto rounded-lg border border-line bg-surface">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <caption className="sr-only">Student organizations, registration progress, membership, and actions</caption>
+          <thead className="border-b border-line bg-subtle text-xs text-ink-muted"><tr>
+            <th scope="col" className="px-4 py-3">Organization / college</th><th scope="col" className="px-4 py-3">Status</th>
+            <th scope="col" className="px-4 py-3">Registration progress</th><th scope="col" className="px-4 py-3">Membership</th><th scope="col" className="px-4 py-3">Actions</th>
+          </tr></thead>
+          <tbody className="divide-y divide-line">{items.map((org) => {
+            const lifecycle = org.lifecycle_status || status;
+            const name = formatDisplayText(org.name);
+            return <tr key={org.id} className={lifecycle === 'archived' ? 'bg-subtle' : ''}>
+              <th scope="row" className="max-w-80 px-4 py-4 align-top font-normal">
+                <div className="flex items-start gap-3">
+                  {org.logo_url && <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />}
+                  <div className="min-w-0"><h3 className="break-words font-bold text-ink">{name}</h3><p className="mt-1 text-xs text-ink-muted">{org.acronym} · {org.college || 'No college assigned'}</p>
+                    {org.parent_organization && <p className="mt-1 text-xs text-ink-muted">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}
+                  </div>
+                </div>
+              </th>
+              <td className="px-4 py-4 align-top"><LifecycleBadge status={lifecycle} />{org.college_is_active === false && <p className="mt-2 text-xs text-danger-strong">College archived · sign-in disabled</p>}</td>
+              <td className="max-w-80 px-4 py-4 align-top"><RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" />
+                {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
+                {lifecycle === 'returned' && <p className="mt-2 text-xs text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
+              </td>
+              <td className="whitespace-nowrap px-4 py-4 align-top text-xs text-ink-muted">{org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</td>
+              <td className="px-4 py-3 align-top"><TableRowActions subject={name} label="Organization actions" actions={[
                 { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
-                lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
-                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Provision administrator', icon: UserPlus, to: provisionPath(org.id) },
-                lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
-                lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, onClick: () => { setLogoFile(null); setForm(org); } },
-                lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college, onClick: () => setMembershipOrganization(org) },
-                lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, onClick: () => setProfileOrganization(org) },
-                lifecycle === 'active' && { label: 'Archive organization', icon: Archive, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
-              ]} />
-              </div></article></Fragment>;
-        })}
-      </section>}
+                lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
+                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Provision administrator', icon: UserPlus, disabled: org.college_is_active === false, to: provisionPath(org.id) },
+                lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
+                lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
+                lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
+                lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
+                lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
+                { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
+              ]} /></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>}
       {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} />}
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}
       </div>
@@ -470,6 +492,7 @@ export default function SystemOrganizationsPage() {
         <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>
         <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description"><FieldIcon label="Description" />Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>      </div><div className="mt-5 border-t border-[#DDE7EF] pt-4"><h4 className="text-sm font-bold text-[#0F2F62]">Organization members</h4><p className="mt-1 text-xs text-[#64748B]">Add an existing user from this organization's college with a separate profile.</p><button type="button" disabled={busy || !editingBase?.is_active || !editingBase?.college_id} onClick={() => setMembershipOrganization(editingBase)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50"><UserPlus size={16} aria-hidden="true" /> Add existing user</button><button type="button" disabled={busy} onClick={() => setProfileOrganization(editingBase)} className="ml-2 mt-3 min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7]">Manage user profiles</button></div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}
       {reviewTarget && <ReviewDrawer key={reviewTarget.id} organization={reviewTarget} open={reviewOpen} onClose={closeReview} onReviewed={finishReview} onApproved={approvedReview} onStale={staleReview} />}
+      {deleteTarget && <PermanentDeleteModal key={deleteTarget.id} name={deleteTarget.name} kind="organization" busy={lifecycleBusy} error={lifecycleError} onClose={() => setDeleteTarget(null)} onConfirm={(name) => runLifecycle(() => deleteSystemOrganization(deleteTarget.id, name), deleteTarget, 'Organization, memberships, records, and files permanently deleted.')} />}
       {archiveTarget && <ArchiveModal organization={archiveTarget} busy={lifecycleBusy} error={lifecycleError} onCancel={() => setArchiveTarget(null)} onConfirm={(reason) => runLifecycle(() => archiveSystemOrganization(archiveTarget.id, reason ? { reason } : {}), archiveTarget, `${formatDisplayText(archiveTarget.name)} archived.`)} />}
       <ConfirmModal open={Boolean(restoreTarget)} title="Restore organization" message={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)} so it can be edited and used again?` : ''} recordName={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)}?` : ''} confirmText="Restore organization" variant="primary" busy={lifecycleBusy} onCancel={() => setRestoreTarget(null)} onConfirm={() => runLifecycle(() => restoreSystemOrganization(restoreTarget.id), restoreTarget, `${formatDisplayText(restoreTarget.name)} restored.`)} />
       {profileOrganization && <ManageAccountProfilesModal organization={profileOrganization} onClose={() => setProfileOrganization(null)} onDeleted={(result) => { setNotice(result.message); load(); }} />}

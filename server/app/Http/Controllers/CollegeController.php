@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
+use App\Services\OrganizationDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,16 +33,15 @@ class CollegeController extends Controller
 
         return response()->json(
             $colleges->each(function (College $college) use ($heads, $organizations, $assignedOrganizationIds) {
-                    $college->setAttribute('home_organization_id', $college->homeOrganization?->id);
-                    $homeIsActive = $college->homeOrganization?->is_active;
-                    $college->unsetRelation('homeOrganization');
-                    $college->setAttribute('department_head', $heads[$college->id] ?? null);
-                    $hasAssignments = $organizations->contains(fn ($organization) =>
-                        ((int) $organization->college_id === $college->id || $organization->college === $college->name)
-                        && ($organization->id !== $college->home_organization_id || $assignedOrganizationIds->contains($organization->id)));
-                    $college->setAttribute('has_assignments', $hasAssignments);
-                    $college->setAttribute('can_receive_transfer', $college->is_active && $homeIsActive && ! $hasAssignments);
-                })
+                $college->setAttribute('home_organization_id', $college->homeOrganization?->id);
+                $homeIsActive = $college->homeOrganization?->is_active;
+                $college->unsetRelation('homeOrganization');
+                $college->setAttribute('department_head', $heads[$college->id] ?? null);
+                $hasAssignments = $organizations->contains(fn ($organization) => ((int) $organization->college_id === $college->id || $organization->college === $college->name)
+                    && ($organization->id !== $college->home_organization_id || $assignedOrganizationIds->contains($organization->id)));
+                $college->setAttribute('has_assignments', $hasAssignments);
+                $college->setAttribute('can_receive_transfer', $college->is_active && $homeIsActive && ! $hasAssignments);
+            })
         );
     }
 
@@ -130,6 +130,13 @@ class CollegeController extends Controller
 
     public function destroy(Request $request, College $college)
     {
+        if ($request->input('mode') === 'permanent') {
+            $request->validate(['confirmation_name' => ['required', 'string', Rule::in([$college->name])], 'transfer_to_college_id' => ['prohibited']]);
+            app(OrganizationDeletionService::class)->deleteCollege($college, $request->user(), $request->ip());
+
+            return response()->noContent();
+        }
+        $request->validate(['mode' => ['sometimes', 'in:transfer']]);
         $data = $request->validate(['transfer_to_college_id' => ['nullable', 'integer', Rule::exists('colleges', 'id')->where('is_active', true)->whereNull('deleted_at')->whereNot('id', $college->id)]]);
         DB::transaction(function () use ($request, $college, $data) {
             $college = College::whereKey($college->id)->lockForUpdate()->firstOrFail();
@@ -174,6 +181,35 @@ class CollegeController extends Controller
     private function replacementIsEmpty(College $college, int $homeId): bool
     {
         return ! $this->hasAssignments($college, $homeId);
+    }
+
+    public function archive(Request $request, College $college)
+    {
+        return $this->setArchived($request, $college, true);
+    }
+
+    public function restore(Request $request, College $college)
+    {
+        return $this->setArchived($request, $college, false);
+    }
+
+    private function setArchived(Request $request, College $college, bool $archived)
+    {
+        DB::transaction(function () use ($request, $college, $archived) {
+            $college = College::whereKey($college->id)->lockForUpdate()->firstOrFail();
+            abort_if($college->is_active === ! $archived, 409, $archived ? 'This college is already archived.' : 'This college is already active.');
+            $organizations = Organization::where(fn ($query) => $query->where('college_id', $college->id)->orWhere('college', $college->name))->lockForUpdate()->get();
+            abort_if($organizations->contains('organization_type', 'SYSTEM_ADMINISTRATION'), 409, 'The SAO department cannot be archived.');
+            abort_if(DB::table('users')->whereIn('organization_id', $organizations->pluck('id'))->where('role', 'SUPER_ADMIN')->exists()
+                || DB::table('account_profiles')->whereIn('organization_id', $organizations->pluck('id'))->where('role', 'SUPER_ADMIN')->exists(), 409, 'A college containing an SAO account cannot be archived.');
+            $college->update(['is_active' => ! $archived]);
+            $profileIds = DB::table('account_profiles')->whereIn('organization_id', $organizations->pluck('id'))->pluck('id');
+            $users = DB::table('users')->whereIn('organization_id', $organizations->pluck('id'))->pluck('school_id');
+            DB::table('personal_access_tokens')->where(fn ($query) => $query->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $users))->delete();
+            $this->audit($request, $college, $archived ? 'archived' : 'restored');
+        });
+
+        return response()->json($college->fresh());
     }
 
     private function hasAssignments(College $college, ?int $homeId): bool

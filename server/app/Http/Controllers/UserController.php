@@ -749,7 +749,11 @@ class UserController extends Controller
 
         RateLimiter::clear($failureKey);
 
-        $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status']);
+        $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status', 'college_id', 'college', 'organization_type']);
+
+        if ($organization && ! $organization->collegeAllowsAccess()) {
+            return response()->json(['message' => 'Your college is archived. Contact the Student Affairs Office to restore access.'], 403);
+        }
 
         if (! $organization?->is_active) {
             return response()->json([

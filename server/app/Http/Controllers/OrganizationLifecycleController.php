@@ -7,12 +7,23 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use App\Services\OrganizationDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /** SAO decisions over an organization's lifecycle: registration review, archive and restore. */
 class OrganizationLifecycleController extends Controller
 {
+    public function destroy(Request $request, Organization $organization)
+    {
+        abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION', 404);
+        $request->validate(['confirmation_name' => ['required', 'string', Rule::in([$organization->name])]]);
+        app(OrganizationDeletionService::class)->deleteOrganization($organization, $request->user(), $request->ip());
+
+        return response()->noContent();
+    }
+
     public function review(Request $request, Organization $organization)
     {
         $data = $request->validate([
@@ -30,6 +41,7 @@ class OrganizationLifecycleController extends Controller
             if (! $locked || $locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'pending') {
                 return 'not_pending';
             }
+            abort_unless($locked->collegeAllowsAccess(), 409, 'Restore the college before reviewing its organizations.');
             if (! $locked->submitted_at || ! $locked->submitted_at->equalTo($data['submitted_at'])) {
                 return 'stale';
             }
@@ -74,6 +86,7 @@ class OrganizationLifecycleController extends Controller
             if (! $locked || $locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'active') {
                 return null;
             }
+            abort_unless($locked->collegeAllowsAccess(), 409, 'Restore the college before changing its organizations.');
             $locked->update(['lifecycle_status' => 'archived', 'is_active' => false, 'archived_at' => now(), 'archived_by' => $request->user()->school_id]);
             $this->audit($request, 'organization_archived', $locked, ['reason' => $data['reason'] ?? null], 'SAO archived a student organization.');
 
@@ -93,6 +106,7 @@ class OrganizationLifecycleController extends Controller
             if (! $locked || $locked->lifecycle_status !== 'archived') {
                 return null;
             }
+            abort_unless($locked->collegeAllowsAccess(), 409, 'Restore the college before changing its organizations.');
             $locked->update(['lifecycle_status' => 'active', 'is_active' => true, 'archived_at' => null, 'archived_by' => null]);
             $this->audit($request, 'organization_restored', $locked, [], 'SAO restored an archived student organization.');
 

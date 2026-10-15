@@ -81,7 +81,7 @@ class SystemAdministrationController extends Controller
     public function organizations(Request $request)
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'lifecycle_status' => ['nullable', 'in:pending,returned,active,archived,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = Organization::withCount('accountProfiles as users_count')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
+        $query = Organization::withCount('accountProfiles as users_count')->with(['catalogCollege', 'administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
             ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->where('role', 'ADMIN')])
             ->student();
         if (! empty($filters['search'])) {
@@ -95,7 +95,8 @@ class SystemAdministrationController extends Controller
             $query->where('lifecycle_status', $filters['lifecycle_status']);
         }
 
-        return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20));
+        return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20)
+            ->through(fn ($organization) => $organization->setAttribute('college_is_active', $organization->collegeAllowsAccess())->unsetRelation('catalogCollege')));
     }
 
     public function updateOrganization(Request $request, Organization $organization)

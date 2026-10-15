@@ -14,6 +14,7 @@ import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
+import { notificationAppearance } from '../../utils/notificationTone';
 import { organizationLabel } from '../../utils/collegeIdentity';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
@@ -100,7 +101,7 @@ export default function TopBar({ onMenuToggle }) {
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = organizationLabel(user);
-  const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
+  const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active && profile.organization.college_is_active !== false);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
 
   const loadNotifications = useCallback(async () => {
@@ -441,9 +442,9 @@ export default function TopBar({ onMenuToggle }) {
                       key={n.id}
                       type="button"
                       onClick={() => handleNotificationClick(n)}
-                      className={`flex w-full items-start gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${!n.is_read ? 'border-[#0B8ED0] bg-[#E6F6FD]' : 'border-transparent'}`}
+                      className={`flex w-full items-start gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${notificationAppearance(n).row}`}
                     >
-                      <Icon size={18} className={`mt-0.5 shrink-0 ${n.is_read ? 'text-slate-400' : 'text-[#0878B7]'}`} aria-hidden="true" />
+                      <Icon size={18} className={`mt-0.5 shrink-0 ${notificationAppearance(n).icon}`} aria-hidden="true" />
                       <div className="min-w-0 flex-1">
                         <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{formatDisplayText(n.title)}</p>
                         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.message}</p>
