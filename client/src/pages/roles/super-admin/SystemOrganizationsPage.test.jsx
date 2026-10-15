@@ -41,6 +41,35 @@ describe('SystemOrganizationsPage', () => {
     profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
   });
 
+  it('loads only the totals and visible page until editing needs parent options', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(mocks.getSystemAgency).toHaveBeenCalledWith({ summary: 1 });
+    expect(mocks.getSystemColleges).not.toHaveBeenCalled();
+    expect(mocks.getSystemOrganizations).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+    await waitFor(() => expect(mocks.getSystemOrganizations).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Loading parent organizations...')).not.toBeInTheDocument());
+  });
+
+  it('keeps the register usable when parent options fail and lets the edit form retry', async () => {
+    mocks.getSystemOrganizations.mockImplementation(async (params) => {
+      if (params.search === undefined) throw new Error('options unavailable');
+      return pageOf([org()]);
+    });
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Unable to load parent organizations.');
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([org()]));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry parent organizations' }));
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument());
+  });
+
   it('lists organizations in a table and deletes through a three-dot action with typed confirmation', async () => {
     mocks.deleteSystemOrganization.mockResolvedValue(undefined);
     renderPage('/dashboard/super-admin/organizations?status=active');

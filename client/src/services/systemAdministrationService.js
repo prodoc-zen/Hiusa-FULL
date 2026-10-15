@@ -59,7 +59,7 @@ function announcementUpload(payload, updating = false) {
 export const createGlobalAnnouncement = (payload) => unwrap(api.post('/system/announcements', announcementUpload(payload)));
 export const updateGlobalAnnouncement = (id, payload) => unwrap(payload.image ? api.post(`/system/announcements/${id}`, announcementUpload(payload, true)) : api.put(`/system/announcements/${id}`, payload));
 export const archiveGlobalAnnouncement = (id) => unwrap(api.patch(`/system/announcements/${id}/archive`));
-export const getSystemAgency = () => unwrap(api.get('/system/agency'));
+export const getSystemAgency = (params) => unwrap(params ? api.get('/system/agency', { params }) : api.get('/system/agency'));
 export const getSystemOrganizationOverview = (id) => unwrap(api.get(`/system/organizations/${id}/overview`));
 export const reviewSystemOrganization = (id, payload) => unwrap(api.patch(`/system/organizations/${id}/review`, payload));
 export const archiveSystemOrganization = (id, payload) => unwrap(api.post(`/system/organizations/${id}/archive`, payload));

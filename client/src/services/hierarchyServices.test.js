@@ -33,6 +33,11 @@ describe('hierarchy services', () => {
     expect(api.get).toHaveBeenCalledWith('/system/organizations/9/overview');
   });
 
+  it('requests only agency totals for the organization register', async () => {
+    await getSystemAgency({ summary: 1 });
+    expect(api.get).toHaveBeenCalledWith('/system/agency', { params: { summary: 1 } });
+  });
+
   it('reviews, archives and restores an organization through the lifecycle routes', async () => {
     await reviewSystemOrganization(4, { decision: 'return', remarks: 'Missing charter', submitted_at: '2026-10-09T01:00:00+08:00' });
     await archiveSystemOrganization(4, { reason: 'Inactive' });

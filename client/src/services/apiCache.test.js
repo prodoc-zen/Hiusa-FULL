@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiGetCache } from './apiCache';
 
+const response = (data) => ({ data, status: 200, statusText: 'OK', headers: { 'content-type': 'application/json' } });
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+};
+
 describe('API GET cache', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -67,5 +74,94 @@ describe('API GET cache', () => {
     await cache.get('/users', {}, request);
 
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let a GET from before a mutation repopulate or deduplicate the fresh cache', async () => {
+    const old = deferred();
+    const fresh = deferred();
+    const request = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
+    const cache = createApiGetCache();
+    const beforeMutation = cache.get('/users', {}, request);
+    cache.clear();
+    const afterMutation = cache.get('/users', {}, request);
+    old.resolve(response(['old user']));
+    await beforeMutation;
+    expect(cache.size()).toBe(0);
+    const joined = cache.get('/users', {}, request);
+    fresh.resolve(response(['new user']));
+    expect((await afterMutation).data).toEqual(['new user']);
+    expect((await joined).clientCache).toBe('DEDUPED');
+    expect((await cache.get('/users', {}, request)).data).toEqual(['new user']);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops old-session responses even if the user switches back to the same token', async () => {
+    const old = deferred();
+    const request = vi.fn().mockReturnValueOnce(old.promise).mockResolvedValue(response(['current']));
+    const cache = createApiGetCache();
+    const initial = cache.get('/users', {}, request);
+    localStorage.setItem('auth_token', 'session-two');
+    await cache.get('/users', {}, request);
+    localStorage.setItem('auth_token', 'session-one');
+    old.resolve(response(['previous session']));
+    await initial;
+    expect(cache.size()).toBe(0);
+    expect((await cache.get('/users', {}, request)).data).toEqual(['current']);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it('bounds total UTF-8 bytes and evicts the least recently used response', async () => {
+    const request = vi.fn().mockResolvedValue(response('文'));
+    const cache = createApiGetCache({ maxTotalBytes: 10 });
+    await cache.get('/one', {}, request);
+    await cache.get('/two', {}, request);
+    await cache.get('/one', {}, request);
+    await cache.get('/three', {}, request);
+    expect(cache.size()).toBe(2);
+    expect((await cache.get('/one', {}, request)).clientCache).toBe('HIT');
+    expect((await cache.get('/two', {}, request)).clientCache).toBe('MISS');
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps cache snapshots isolated from consumer mutation', async () => {
+    const request = vi.fn().mockResolvedValue(response([{ name: 'Original' }]));
+    const cache = createApiGetCache();
+    const first = await cache.get('/users', {}, request);
+    first.data[0].name = 'Edited';
+    expect((await cache.get('/users', {}, request)).data[0].name).toBe('Original');
+  });
+
+  it('keeps cancellation and binary downloads independent', async () => {
+    const download = response(new Blob(['file']));
+    const request = vi.fn().mockResolvedValue(download);
+    const cache = createApiGetCache();
+    const config = { signal: new AbortController().signal };
+    await Promise.all([cache.get('/users', config, request), cache.get('/users', {}, request)]);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(await cache.get('/download', { responseType: 'blob' }, request)).toBe(download);
+    expect(cache.size()).toBe(0);
+  });
+
+  it('does not store errors or server no-store responses', async () => {
+    const request = vi.fn().mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ...response([]), headers: { 'cache-control': 'private, no-store' } });
+    const cache = createApiGetCache();
+    await expect(cache.get('/users', {}, request)).rejects.toThrow('offline');
+    await cache.get('/users', {}, request);
+    await cache.get('/users', {}, request);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(cache.size()).toBe(0);
+  });
+
+  it('supports shorter lifetimes and separates origins and explicit authorization', async () => {
+    let time = 0;
+    const request = vi.fn().mockResolvedValue(response([]));
+    const cache = createApiGetCache({ now: () => time });
+    await cache.get('/users', { cacheTtlMs: 10 }, request);
+    time = 11;
+    expect((await cache.get('/users', { cacheTtlMs: 10 }, request)).clientCache).toBe('MISS');
+    await cache.get('/users', { baseURL: '/other-api' }, request);
+    await cache.get('/users', { headers: { Authorization: 'Bearer other-profile' } }, request);
+    expect(request).toHaveBeenCalledTimes(4);
   });
 });
