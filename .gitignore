@@ -43,6 +43,11 @@ graphify-out/
 
 # Agent worktrees are ephemeral build sandboxes.
 /.claude/worktrees/
+/.worktrees/
+
+# Local SSH credentials must never enter Git history.
+*.pem
+*.key
 
 # written by scripts/serve-lan.ps1
 .lan-pids

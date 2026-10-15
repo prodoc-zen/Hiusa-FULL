@@ -25,15 +25,15 @@ class OrganizationDeletionService
     ];
 
     private const FILES = [
-        'organizations' => ['public' => ['logo_url', 'gcash_qr_url']],
-        'announcements' => ['public' => ['image_url']],
-        'events' => ['public' => ['image_url']],
-        'elections' => ['public' => ['image_url'], 'local' => ['informative_letter_path']],
-        'candidates' => ['public' => ['image_url']],
-        'partylists' => ['public' => ['banner_url']],
-        'merchandise' => ['public' => ['image_url']],
-        'merchandise_variants' => ['public' => ['image_url']],
-        'orders' => ['public' => ['payment_proof_url'], 'local' => ['payment_proof_url']],
+        'organizations' => ['public' => ['logo_url', 'gcash_qr_url'], 'uploads' => ['logo_url', 'gcash_qr_url']],
+        'announcements' => ['public' => ['image_url'], 'uploads' => ['image_url']],
+        'events' => ['public' => ['image_url'], 'uploads' => ['image_url']],
+        'elections' => ['public' => ['image_url'], 'uploads' => ['image_url'], 'local' => ['informative_letter_path']],
+        'candidates' => ['public' => ['image_url'], 'uploads' => ['image_url']],
+        'partylists' => ['public' => ['banner_url'], 'uploads' => ['banner_url']],
+        'merchandise' => ['public' => ['image_url'], 'uploads' => ['image_url']],
+        'merchandise_variants' => ['public' => ['image_url'], 'uploads' => ['image_url']],
+        'orders' => ['public' => ['payment_proof_url'], 'uploads' => ['payment_proof_url'], 'local' => ['payment_proof_url']],
         'transactions' => ['public' => ['receipt_file_url']],
         'financial_reports' => ['public' => ['pdf_url', 'excel_url'], 'local' => ['letterhead_path', 'supporting_documents']],
         'organization_compliance_submissions' => ['local' => ['file_path']],
@@ -146,10 +146,12 @@ class OrganizationDeletionService
             if ($college) {
                 $college->forceDelete();
             }
+            $files = $files->unique(fn ($file) => $file['disk'].':'.$file['path']);
+            $candidatePaths = $files->mapWithKeys(fn ($file) => [$file['disk'].':'.$file['path'] => true]);
             $retainedFiles = collect();
             foreach (self::FILES as $table => $disks) {
                 $columns = array_unique(array_merge(...array_values($disks)));
-                $this->collectFiles($table, DB::table($table)->get($columns), $retainedFiles);
+                $this->collectFiles($table, DB::table($table)->select($columns)->cursor(), $retainedFiles, $candidatePaths);
             }
             $retainedPaths = $retainedFiles->mapWithKeys(fn ($file) => [$file['disk'].':'.$file['path'] => true]);
             $files = $files->reject(fn ($file) => isset($retainedPaths[$file['disk'].':'.$file['path']]));
@@ -167,7 +169,7 @@ class OrganizationDeletionService
         $this->cleanup($pendingIds);
     }
 
-    private function collectFiles(string $table, Collection $rows, Collection $files): void
+    private function collectFiles(string $table, iterable $rows, Collection $files, ?Collection $candidatePaths = null): void
     {
         foreach ($rows as $row) {
             foreach (self::FILES[$table] as $disk => $columns) {
@@ -180,14 +182,22 @@ class OrganizationDeletionService
                             continue;
                         }
                         $path = $value;
-                        if ($disk === 'public' && (str_starts_with($value, '/') || str_contains($value, '://'))) {
-                            $urlPath = parse_url($value, PHP_URL_PATH);
-                            if (! is_string($urlPath) || ! str_starts_with($urlPath, '/storage/')) {
+                        if (in_array($disk, ['public', 'uploads'], true) && (str_starts_with($value, '/') || str_contains($value, '://'))) {
+                            $host = parse_url($value, PHP_URL_HOST);
+                            if ($host && strcasecmp($host, (string) parse_url(config('app.url'), PHP_URL_HOST)) !== 0) {
                                 continue;
                             }
-                            $path = substr($urlPath, 9);
+                            $urlPath = parse_url($value, PHP_URL_PATH);
+                            $prefix = $disk === 'uploads' ? '/uploads/' : '/storage/';
+                            if (! is_string($urlPath) || ! str_starts_with($urlPath, $prefix)) {
+                                continue;
+                            }
+                            $path = substr($urlPath, strlen($prefix));
+                        } elseif ($disk === 'uploads') {
+                            continue;
                         }
-                        if (! str_starts_with($path, '/') && ! str_contains($path, '..') && ! str_contains($path, '\\') && ! str_contains($path, ':')) {
+                        if ($path !== '' && ! str_starts_with($path, '/') && ! str_contains($path, '..') && ! str_contains($path, '\\') && ! str_contains($path, ':')
+                            && ($candidatePaths === null || isset($candidatePaths[$disk.':'.$path]))) {
                             $files->push(['disk' => $disk, 'path' => $path]);
                         }
                     }

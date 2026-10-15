@@ -31,6 +31,7 @@ class CollegeOrganizationLifecycleTest extends TestCase
         parent::setUp();
         Storage::fake('local');
         Storage::fake('public');
+        Storage::fake('uploads');
         $this->sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]);
         Sanctum::actingAs($this->sao);
     }
@@ -234,6 +235,34 @@ class CollegeOrganizationLifecycleTest extends TestCase
         $this->assertDatabaseMissing('orders', ['id' => $order->id]);
         $this->assertDatabaseMissing('transactions', ['id' => $transaction->id]);
         Storage::disk('local')->assertMissing('payment-proofs/delete.png');
+    }
+
+    public function test_legacy_uploads_are_removed_but_shared_external_and_unsafe_paths_are_preserved(): void
+    {
+        $college = $this->college();
+        $organization = $this->organization($college);
+        $user = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $product = Merchandise::factory()->create(['organization_id' => $organization->id, 'image_url' => '/uploads/merchandise/delete.png']);
+        Order::factory()->create(['organization_id' => $organization->id, 'student_id' => $user->school_id,
+            'merchandise_id' => $product->id, 'processed_by' => null, 'approved_by' => null, 'payment_proof_url' => '/uploads/payments/delete.png']);
+        $other = Organization::factory()->create();
+        Merchandise::factory()->create(['organization_id' => $organization->id, 'image_url' => '/uploads/merchandise/shared.png']);
+        Merchandise::factory()->create(['organization_id' => $other->id, 'image_url' => '/uploads/merchandise/shared.png']);
+        Merchandise::factory()->create(['organization_id' => $organization->id, 'image_url' => 'https://outside.example/storage/merchandise/external.png']);
+        Merchandise::factory()->create(['organization_id' => $organization->id, 'image_url' => '/uploads/../keep.txt']);
+        foreach (['merchandise/delete.png', 'payments/delete.png', 'merchandise/shared.png', 'keep.txt'] as $path) {
+            Storage::disk('uploads')->put($path, 'image');
+        }
+        Storage::disk('public')->put('merchandise/external.png', 'keep');
+
+        $this->deleteJson('/api/system/organizations/'.$organization->id, ['confirmation_name' => $organization->name])->assertNoContent();
+
+        Storage::disk('uploads')->assertMissing('merchandise/delete.png');
+        Storage::disk('uploads')->assertMissing('payments/delete.png');
+        Storage::disk('uploads')->assertExists('merchandise/shared.png');
+        Storage::disk('uploads')->assertExists('keep.txt');
+        Storage::disk('public')->assertExists('merchandise/external.png');
+        $this->assertDatabaseCount('pending_file_deletions', 0);
     }
 
     public function test_missing_confirmation_invalid_modes_and_unauthenticated_deletes_are_rejected(): void
