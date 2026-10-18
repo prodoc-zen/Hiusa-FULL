@@ -13,6 +13,8 @@ The existing create/update routes accept one of `template` (an uploaded file) or
 
 Missing or invalid samples return Laravel `422` field errors. A failed upload rolls back the requirement and prevents its creation notification. Existing private file paths remain hidden. Replacing a sample removes the superseded file after commit. Existing standalone sample replacement endpoints remain compatible. Removing a sample from an active requirement returns `409`; deactivate it first, and provide a sample before reactivation. The save and removal paths lock the requirement before checking its current sample/status.
 
+New semester defaults and the semestral-report seed command create inactive requirements. After activating the semester, SAO attaches the official samples and activates the intended requirements in Requirement settings. Existing records retain their status. Sample replacement, removal, and requirement/semester deletion use the existing durable file-cleanup journal, so a temporary disk failure can be retried after the database commit. See [the follow-up audit](requirement-audit-2026-10-18.md) for cache and lifecycle corrections.
+
 The public registration form, Department Head registration/resubmission form, organization compliance uploads, and event uploads show sample availability beside the requirement. Available samples have an explicit view action; existing sampleless records show that SAO must supply the format. Publishing warnings identify these rows in the SAO editors. Requirement and sample saves now use one mutation instead of two sequential requests, preserving the shared API cache's existing invalidation behavior.
 
 ## Existing records

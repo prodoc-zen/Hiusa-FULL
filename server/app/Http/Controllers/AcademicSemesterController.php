@@ -10,8 +10,10 @@ use App\Models\Election;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
+use App\Services\RequirementSampleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -92,7 +94,7 @@ class AcademicSemesterController extends Controller
                     'academic_semester_id' => $semester->id,
                     'name' => $name,
                     'deadline_at' => $semester->ends_on->endOfDay(),
-                    'is_active' => true,
+                    'is_active' => false,
                     'created_by' => $request->user()->school_id,
                 ]);
             }
@@ -104,7 +106,7 @@ class AcademicSemesterController extends Controller
                         'venue_type' => $venueType,
                         'academic_semester_id' => $semester->id,
                         'allowed_extensions' => ['pdf'],
-                        'is_active' => true,
+                        'is_active' => false,
                         'is_optional' => str_contains($name, '(If Applicable)'),
                         'sort_order' => ++$sortOrder,
                     ]);
@@ -170,6 +172,8 @@ class AcademicSemesterController extends Controller
     {
         $reasons = DB::transaction(function () use ($request, $academicSemester) {
             $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            $compliance = ComplianceRequirementType::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
+            $events = EventRequirement::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
             $reasons = $this->deletionBlockers($semester);
 
             if ($reasons === []) {
@@ -177,6 +181,9 @@ class AcademicSemesterController extends Controller
                 ComplianceRequirementType::where('academic_semester_id', $semester->id)->delete();
                 EventRequirement::where('academic_semester_id', $semester->id)->delete();
                 $semester->delete();
+                foreach ($compliance->concat($events) as $requirement) {
+                    app(RequirementSampleService::class)->deleteAfterCommit($requirement->template_path);
+                }
             }
 
             return $reasons;
@@ -202,6 +209,7 @@ class AcademicSemesterController extends Controller
             'tasks' => Task::where('academic_semester_id', $semester->id)->exists(),
             'event requirement files' => EventRequirementFile::whereIn('requirement_id', $eventRequirements)->exists(),
             'compliance submissions' => OrganizationComplianceSubmission::whereIn('requirement_type_id', $requirementTypes)->exists(),
+            'application documents' => OrganizationApplicationDocument::whereIn('requirement_type_id', $requirementTypes)->exists(),
         ]));
     }
 

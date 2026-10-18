@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RequirementsTab from './RequirementsTab';
 
@@ -18,6 +18,18 @@ describe('Organization requirement samples', () => {
     mocks.createRequirementType.mockResolvedValue({ data: { id: 7 } });
     mocks.uploadRequirementSample.mockResolvedValue({ data: {} });
     mocks.setRequirementSampleLink.mockResolvedValue({ data: {} });
+  });
+
+  it('does not replace the selected category with an older response', async () => {
+    let finishOld;
+    mocks.getRequirementTypes.mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValue({ data: { data: [{ id: 8, name: 'Current semester report' }] } });
+    const { rerender } = render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} />);
+    rerender(<RequirementsTab currentAcademicYear="2026-2027" category="semestral_report" onChanged={() => {}} />);
+    await screen.findAllByText('Current Semester Report');
+    await act(async () => finishOld({ data: { data: [{ id: 7, name: 'Old registration' }] } }));
+    expect(screen.queryAllByText('Old Registration')).toHaveLength(0);
+    expect(screen.getAllByText('Current Semester Report').length).toBeGreaterThan(0);
   });
 
   async function openNewRequirement() {

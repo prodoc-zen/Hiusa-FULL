@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicSemester;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +36,7 @@ class RequirementSampleService
                 if ($requirement->exists) {
                     $locked = $requirement->newQuery()->whereKey($requirement->getKey())->lockForUpdate()->firstOrFail();
                     $requirement->setRawAttributes($locked->getAttributes(), true);
+                    abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
                 }
                 $oldPath = $requirement->template_path;
                 $sample = $this->validate($request, $requirement->exists ? $requirement : null, $extensions);
@@ -46,21 +48,15 @@ class RequirementSampleService
                 } elseif (! empty($sample['template_url'])) {
                     $requirement->update(['template_url' => $sample['template_url'], 'template_path' => null, 'template_original_name' => null]);
                 }
+                if ($oldPath && $oldPath !== $requirement->template_path) {
+                    $this->deleteAfterCommit($oldPath);
+                }
             });
         } catch (\Throwable $error) {
             if ($newPath) {
                 Storage::disk('local')->delete($newPath);
             }
             throw $error;
-        }
-        if ($oldPath && $oldPath !== $requirement->template_path) {
-            DB::afterCommit(function () use ($oldPath) {
-                try {
-                    Storage::disk('local')->delete($oldPath);
-                } catch (\Throwable $error) {
-                    report($error);
-                }
-            });
         }
 
         return $requirement->refresh();
@@ -70,14 +66,30 @@ class RequirementSampleService
     {
         DB::transaction(function () use ($requirement) {
             $locked = $requirement->newQuery()->whereKey($requirement->getKey())->lockForUpdate()->firstOrFail();
+            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
             abort_if($locked->is_active, 409, 'Active requirements must keep a sample format. Replace the sample, or deactivate the requirement first.');
             $oldPath = $locked->template_path;
             $locked->update(['template_path' => null, 'template_original_name' => null, 'template_url' => null]);
             if ($oldPath) {
-                DB::afterCommit(fn () => Storage::disk('local')->delete($oldPath));
+                $this->deleteAfterCommit($oldPath);
             }
         });
 
         return $requirement->refresh();
+    }
+
+    public function deleteAfterCommit(?string $path): void
+    {
+        if (! $path) {
+            return;
+        }
+        $id = DB::table('pending_file_deletions')->insertGetId(['disk' => 'local', 'path' => $path]);
+        DB::afterCommit(function () use ($id) {
+            try {
+                app(OrganizationDeletionService::class)->cleanup([$id]);
+            } catch (\Throwable $error) {
+                report($error);
+            }
+        });
     }
 }

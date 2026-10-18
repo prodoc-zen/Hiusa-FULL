@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import EventSubmissionPanel from './EventSubmissionPanel';
 
@@ -23,6 +23,18 @@ describe('EventSubmissionPanel', () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('clears the previous event and ignores its late response when switching events', async () => {
+    let finishOld;
+    mocks.getEventSubmission.mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValue({ data: { requirements: [{ id: 3, name: 'New event permit' }], files: [], approval_status: null } });
+    const { rerender } = render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    rerender(<EventSubmissionPanel eventId={10} role="ADMIN" />);
+    await screen.findAllByText('New Event Permit');
+    await act(async () => finishOld({ data: { requirements, files: [uploadedFile], approval_status: null } }));
+    expect(screen.queryAllByText('Event Proposal')).toHaveLength(0);
+    expect(screen.getAllByText('New Event Permit').length).toBeGreaterThan(0);
+  });
 
   it('lists uploaded files with the review status for the SAO', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'pending_sao' } });
@@ -67,6 +79,8 @@ describe('EventSubmissionPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The file must be a PDF.');
     expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(mocks.getEventSubmission).toHaveBeenLastCalledWith(9, { cache: false }));
   });
 
   it('opens an uploaded file in a new tab through the shared helper instead of downloading it', async () => {

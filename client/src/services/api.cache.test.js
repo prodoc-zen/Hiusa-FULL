@@ -40,4 +40,11 @@ describe('API cache mutation integration', () => {
     expect((await api.get('/users')).data).toEqual(['fresh']);
     expect(reads).toBe(2);
   });
+
+  it('asks the server to refresh too when cache is disabled', async () => {
+    const network = vi.fn(async (config) => response(config, []));
+    api.defaults.adapter = network;
+    await api.get('/event-requirements', { cache: false });
+    expect(network.mock.calls[0][0].headers.get('Cache-Control')).toBe('no-cache');
+  });
 });

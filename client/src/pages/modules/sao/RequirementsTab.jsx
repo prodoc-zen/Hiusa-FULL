@@ -44,15 +44,27 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
   const [sampleMode, setSampleMode] = useState('file');
   const [sampleFile, setSampleFile] = useState(null);
   const [sampleUrl, setSampleUrl] = useState('');
+  const loadVersion = useRef(0);
 
-  const loadTypes = useCallback(() => {
+  const loadTypes = useCallback((refresh = false) => {
+    const version = ++loadVersion.current;
     setTypes((current) => ({ ...current, loading: true, error: null }));
-    getRequirementTypes({ per_page: 10, page, category })
-      .then((response) => setTypes({ loading: false, error: null, items: unwrapList(response.data), total: listMeta(response.data).total }))
-      .catch((err) => setTypes((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load requirement types.') })));
+    const params = { per_page: 10, page, category };
+    const request = refresh ? getRequirementTypes(params, { cache: false }) : getRequirementTypes(params);
+    request
+      .then((response) => {
+        if (version === loadVersion.current) setTypes({ loading: false, error: null, items: unwrapList(response.data), total: listMeta(response.data).total });
+      })
+      .catch((err) => {
+        if (version === loadVersion.current) setTypes((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load requirement types.') }));
+      });
   }, [category, page]);
 
-  useEffect(() => { loadTypes(); }, [loadTypes]);
+  useEffect(() => {
+    const requests = loadVersion;
+    loadTypes();
+    return () => { requests.current++; };
+  }, [loadTypes]);
   useEffect(() => { getAcademicYears().then(setAcademicYears).catch(() => setAcademicYears([])); }, []);
 
   function openTypeModal(type = null) {
@@ -200,7 +212,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
           rows={types.items}
           loading={types.loading}
           error={types.error}
-          onRetry={loadTypes}
+          onRetry={() => loadTypes(true)}
           pagination={<PaginationControls currentPage={page} totalItems={types.total} pageSize={10} onPageChange={setPage} label="requirements" />}
           actions={(type) => <TableRowActions subject={formatDisplayText(type.name)} actions={[
             (type.template_url || type.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewSample(type) },

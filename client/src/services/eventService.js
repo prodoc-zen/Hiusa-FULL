@@ -7,7 +7,7 @@ export const getEvents = (params) =>
 export const getEvent = (id) =>
   api.get(`/events/${id}`);
 
-export const getEventRequirements = () => api.get('/event-requirements');
+export const getEventRequirements = (config) => api.get('/event-requirements', config);
 export const createEventRequirement = (data) => api.post('/event-requirements', requirementPayload(data));
 export const updateEventRequirement = (id, data) => data.template
   ? api.post(`/event-requirements/${id}`, requirementPayload(data, true))
@@ -21,7 +21,7 @@ export const uploadEventRequirementTemplate = (id, file) => {
 };
 export const removeEventRequirementTemplate = (id) => api.delete(`/event-requirements/${id}/template`);
 export const setEventRequirementTemplateLink = (id, templateUrl) => api.put(`/event-requirements/${id}/template-link`, { template_url: templateUrl });
-export const getEventSubmission = (id) => api.get(`/events/${id}/submission`);
+export const getEventSubmission = (id, config) => api.get(`/events/${id}/submission`, config);
 export const submitEventRequirements = (id, files) => {
   const data = new FormData();
   Object.entries(files).forEach(([requirementId, file]) => {

@@ -36,12 +36,12 @@ class SeedSemestralReportRequirement extends Command
             [
                 'academic_year' => $semester->academicYear->label,
                 'deadline_at' => $semester->ends_on->endOfDay(),
-                'is_active' => true,
+                'is_active' => false,
                 'created_by' => $director,
             ],
         );
 
-        $this->info($type->wasRecentlyCreated ? 'Added the Semestral Accomplishment Report requirement.' : 'The Semestral Accomplishment Report requirement already exists.');
+        $this->info($type->wasRecentlyCreated ? 'Added an inactive Semestral Accomplishment Report requirement. SAO must attach a sample format before activating it.' : 'The Semestral Accomplishment Report requirement already exists.');
 
         return Command::SUCCESS;
     }

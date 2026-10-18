@@ -44,25 +44,31 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
+  const loadVersion = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refresh = false) => {
+    const version = ++loadVersion.current;
     setLoading(true);
     try {
       if (mode === 'reviews') {
         const rows = await fetchAllPages((params) => getApprovalRequests({ ...params, entity_type: 'event', status: 'pending', organization_id: organizationId || undefined }).then((response) => response.data));
-        setApprovals(rows);
+        if (version === loadVersion.current) setApprovals(rows);
       } else {
-        const response = await getEventRequirements();
-        setRequirements(response.data || []);
+        const response = await (refresh ? getEventRequirements({ cache: false }) : getEventRequirements());
+        if (version === loadVersion.current) setRequirements(response.data || []);
       }
-      setLoadError('');
+      if (version === loadVersion.current) setLoadError('');
     } catch (cause) {
-      setLoadError(getApiErrorMessage(cause, mode === 'reviews' ? 'Could not load events waiting for SAO.' : 'Could not load event requirements.'));
+      if (version === loadVersion.current) setLoadError(getApiErrorMessage(cause, mode === 'reviews' ? 'Could not load events waiting for SAO.' : 'Could not load event requirements.'));
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }, [mode, organizationId]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const requests = loadVersion;
+    load();
+    return () => { requests.current++; };
+  }, [load]);
 
   function resetForm() {
     setEditingId(null);
@@ -249,7 +255,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
       {loadError && (
         <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">
           {loadError}
-          <Button variant="secondary" size="sm" className={ROW_ACTION} onClick={load}>Retry</Button>
+          <Button variant="secondary" size="sm" className={ROW_ACTION} onClick={() => load(true)}>Retry</Button>
         </p>
       )}
       {actionError && (
