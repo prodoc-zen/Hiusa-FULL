@@ -33,7 +33,7 @@ const status = {
     { organization_id: 8, organization_name: 'Arts Guild', accreditation_status: 'accredited', requirements: [{ status: 'approved', deadline_at: null }] },
   ],
 };
-const requirementType = { id: 4, name: 'Officer Roster', academic_year: '2026-2027', deadline_at: '2026-10-01', description: '', is_active: true };
+const requirementType = { id: 4, name: 'Officer Roster', academic_year: '2026-2027', deadline_at: '2026-10-01', description: '', is_active: true, template_url: 'https://example.edu/roster-format' };
 const submission = {
   id: 12,
   status: 'submitted',
@@ -253,6 +253,8 @@ describe('SaoCompliancePage', () => {
       fireEvent.change(screen.getByPlaceholderText('e.g. Accomplishment report'), { target: { value: 'Officer list' } });
       fireEvent.change(screen.getByLabelText(/Deadline/), { target: { value: '2026-11-01' } });
       fireEvent.click(screen.getByRole('checkbox', { name: 'PNG' }));
+      fireEvent.change(screen.getByLabelText(/^Sample format/), { target: { value: 'link' } });
+      fireEvent.change(screen.getByLabelText(/^Sample link/), { target: { value: 'https://example.edu/officer-list-format' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
 
       await waitFor(() => expect(mocks.createRequirementType).toHaveBeenCalledWith(expect.objectContaining({
@@ -276,6 +278,15 @@ describe('SaoCompliancePage', () => {
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
       await chooseAction('Officer Roster', 'Mark active');
       await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(4, { is_active: true }));
+    });
+
+    it('requires a sample before reactivating a legacy requirement without one', async () => {
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ ...requirementType, is_active: false, template_url: null }] } });
+      renderPage('/dashboard/super-admin/compliance?tab=requirements');
+      await chooseAction('Officer Roster', 'Mark active');
+      expect(await screen.findByRole('dialog', { name: 'Edit organization requirement' })).toBeInTheDocument();
+      expect(mocks.updateRequirementType).not.toHaveBeenCalled();
+      expect(screen.getAllByText('Sample format required').length).toBeGreaterThan(0);
     });
 
     it('flags each missing field and focuses the first one', async () => {

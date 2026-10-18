@@ -17,6 +17,7 @@ import useRecordParam from '../../../lib/useRecordParam';
 import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
+import RequirementSample from '../../../components/requirements/RequirementSample';
 import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../../utils/requirementFiles';
 
 async function viewRegistrationFile(submissionId) {
@@ -265,7 +266,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
                   {requirement.deadline_at && <span className="block">Due {manilaDate(requirement.deadline_at, 'long')}</span>}
                   {requirement.current && <span className="block">Current file: {requirement.current.file_name || 'None'} ({(REQUIREMENT_STATUS[requirement.current.status] || REQUIREMENT_STATUS.not_submitted).label})</span>}
                   {requirement.current?.submission_id && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRegistrationFile(requirement.current.submission_id)}><Eye size={14} aria-hidden="true" />View current file</button>}
-                  {(requirement.template_url || requirement.template_original_name) && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRequirementSample(requirement)}><Eye size={14} aria-hidden="true" />View sample format</button>}
+                  <RequirementSample requirement={requirement} onOpen={viewRequirementSample} />
                   {chosen && <span className="block font-semibold text-ink">Selected: {chosen.name} ({formatSize(chosen.size)})</span>}
                 </>
               );

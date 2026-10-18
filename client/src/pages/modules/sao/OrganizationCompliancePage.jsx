@@ -14,6 +14,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import PaginationControls from '../../../components/PaginationControls';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
+import RequirementSample from '../../../components/requirements/RequirementSample';
 
 function getCurrentRole() {
   try {
@@ -192,6 +193,7 @@ export default function OrganizationCompliancePage() {
             pagination={<PaginationControls currentPage={page} totalItems={state.requirements.length} pageSize={10} onPageChange={setPage} label="requirements" />}
             columns={[
               { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>}</div> },
+              { key: 'sample', header: 'Sample format', render: (requirement) => <RequirementSample requirement={requirement} onOpen={viewSample} /> },
               { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
               { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
               { key: 'status', header: 'Status', render: (requirement) => <div className="flex flex-col items-start gap-1"><StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /><span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(requirement)}</span></div> },
@@ -220,7 +222,7 @@ export default function OrganizationCompliancePage() {
       >
         <div className="space-y-4">
           {uploadTarget?.description && <p className="text-sm font-medium text-ink-muted">{uploadTarget.description}</p>}
-          {(uploadTarget?.template_url || uploadTarget?.template_original_name) && <Button variant="secondary" size="sm" onClick={() => viewSample(uploadTarget)}>View sample format</Button>}
+          {uploadTarget && <RequirementSample requirement={uploadTarget} onOpen={viewSample} />}
           {uploadTarget?.status === 'returned' && (uploadTarget.remarks || uploadTarget.submission?.remarks) && (
             <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
               <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">Why this was returned</p>

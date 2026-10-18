@@ -39,6 +39,7 @@ class OrganizationComplianceTest extends TestCase
         Sanctum::actingAs($superAdmin);
 
         $response = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => now()->addMonth()->toISOString(),
@@ -71,6 +72,7 @@ class OrganizationComplianceTest extends TestCase
         Sanctum::actingAs($sao);
         $id = $this->postJson('/api/compliance/requirement-types', [
             'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth()->toISOString(),
+            'template_url' => 'https://example.edu/statement-format',
         ])->assertCreated()->json('id');
 
         $this->putJson("/api/compliance/requirement-types/{$id}/template-link", ['template_url' => 'javascript:alert(1)'])
@@ -95,6 +97,8 @@ class OrganizationComplianceTest extends TestCase
         $this->get("/api/compliance/requirement-types/{$id}/template")->assertOk()->assertHeader('Content-Type', 'application/pdf');
 
         Sanctum::actingAs($sao);
+        $this->deleteJson("/api/compliance/requirement-types/{$id}/template")->assertConflict();
+        $this->putJson("/api/compliance/requirement-types/{$id}", ['is_active' => false])->assertOk();
         $this->deleteJson("/api/compliance/requirement-types/{$id}/template")->assertOk()
             ->assertJsonPath('template_original_name', null);
         Storage::disk('local')->assertMissing($path);
@@ -110,6 +114,7 @@ class OrganizationComplianceTest extends TestCase
 
         $id = $this->postJson('/api/compliance/requirement-types', [
             'academic_year' => '2026-2027',
+            'template_url' => 'https://example.edu/portrait-format',
             'name' => 'Officer portraits',
             'deadline_at' => now()->addMonth()->toISOString(),
             'allowed_extensions' => ['png'],
@@ -139,6 +144,7 @@ class OrganizationComplianceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => now()->addMonth()->toISOString(),
@@ -179,6 +185,7 @@ class OrganizationComplianceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => now()->addMonth()->toISOString(),
@@ -319,6 +326,7 @@ class OrganizationComplianceTest extends TestCase
         Sanctum::actingAs($superAdmin);
 
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => now()->addMonth()->toISOString(),
@@ -347,6 +355,7 @@ class OrganizationComplianceTest extends TestCase
 
         $deadline = now()->addMonth();
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => $deadline->toISOString(),
@@ -425,6 +434,7 @@ class OrganizationComplianceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
             'deadline_at' => now()->addMonth()->toISOString(),

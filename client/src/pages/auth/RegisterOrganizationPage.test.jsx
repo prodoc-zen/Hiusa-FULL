@@ -81,7 +81,23 @@ describe('Public organization onboarding', () => {
     sampleMocks.openProtectedFile.mockResolvedValue();
     render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'View sample format' }));
+    expect(screen.getByText('Sample format: sample.pdf')).toBeInTheDocument();
     await waitFor(() => expect(sampleMocks.openProtectedFile).toHaveBeenCalledWith('/organization-applications/requirements/7/template'));
+  });
+
+  it('makes a missing publisher sample visible beside the registration upload', async () => {
+    render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
+    expect(await screen.findByText('Sample format not provided. SAO must attach a file or link to this requirement.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Constitution/)).toHaveAttribute('type', 'file');
+  });
+
+  it('shows and opens a publisher-provided sample link during organization creation', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    getApplicationRequirements.mockResolvedValue({ data: { academic_semester: { academic_year: '2026-2027', number: 1 }, requirements: [{ id: 7, name: 'Constitution', template_url: 'https://example.edu/constitution-format' }] } });
+    render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'View sample format' }));
+    expect(open).toHaveBeenCalledWith('https://example.edu/constitution-format', '_blank', 'noopener,noreferrer');
+    open.mockRestore();
   });
 
   it('does not offer submission until the SAO opens requirements', async () => {

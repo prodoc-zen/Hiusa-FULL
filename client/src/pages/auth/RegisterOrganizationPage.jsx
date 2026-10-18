@@ -6,6 +6,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../utils/requirementFiles';
 import { openRequirementSample } from '../../utils/requirementSample';
 import { openProtectedFile } from '../../utils/openProtectedFile';
+import RequirementSample from '../../components/requirements/RequirementSample';
 
 const INITIAL = { name: '', acronym: '', college_id: '', description: '', first_name: '', last_name: '', school_id: '', email: '', position_title: '' };
 const FIELDS = [['name', 'Organization name', 'text', 255], ['acronym', 'Organization code', 'text', 50], ['first_name', 'First name', 'text', 60], ['last_name', 'Last name', 'text', 60], ['school_id', 'School ID', 'number', 8], ['email', 'Email', 'email', 255], ['position_title', 'Position', 'text', 100]];
@@ -117,7 +118,7 @@ export default function RegisterOrganizationPage() {
               <label htmlFor={`requirement-${requirement.id}`} className="mb-1 block text-sm font-semibold text-[#0F172A]">{requirement.name} <span aria-hidden="true">*</span></label>
               {requirement.description && <p className="mb-2 text-xs text-[#475569]">{requirement.description}</p>}
               <p className="mb-2 text-xs text-[#475569]">Accepted: {fileTypesLabel(requirement.allowed_extensions)}</p>
-              {(requirement.template_url || requirement.template_original_name) && <button type="button" onClick={() => viewSample(requirement)} className="mb-2 block min-h-11 text-sm font-semibold text-[#0878B7] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">View sample format</button>}
+              <RequirementSample requirement={requirement} onOpen={viewSample} />
               {requirement.current_file && <p className="mb-2 text-sm text-[#475569]">Current file: <button type="button" onClick={() => viewSubmittedFile(requirement)} className="min-h-11 font-semibold text-[#0878B7] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">View {requirement.current_file.name}</button></p>}
               <input id={`requirement-${requirement.id}`} type="file" accept={fileAccept(requirement.allowed_extensions)} required={!editing || !requirement.current_file} aria-invalid={Boolean(errors[`files.${requirement.id}`])} aria-describedby={errors[`files.${requirement.id}`] ? `requirement-error-${requirement.id}` : undefined} onChange={(event) => chooseFile(requirement.id, event.target.files?.[0])} className="block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm text-[#0F172A] file:mr-3 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-3 file:py-1 file:font-semibold file:text-[#0878B7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]" />
               {errors[`files.${requirement.id}`]?.[0] && <p id={`requirement-error-${requirement.id}`} className="mt-1 text-xs text-red-700">{errors[`files.${requirement.id}`][0]}</p>}
