@@ -48,8 +48,8 @@ class PartSixWorkflowTest extends TestCase
         $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
         AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
         Sanctum::actingAs($sao);
-        $registration = $this->postJson('/api/compliance/requirement-types', ['academic_year' => $year->label, 'name' => 'Constitution', 'deadline_at' => '2026-12-31'])->assertCreated()->json('id');
-        $report = $this->postJson('/api/compliance/requirement-types', ['academic_year' => $year->label, 'category' => 'semestral_report', 'name' => 'Semester activity narrative', 'allowed_extensions' => ['pdf'], 'deadline_at' => '2026-12-31'])->assertCreated()->json('id');
+        $registration = $this->postJson('/api/compliance/requirement-types', ['academic_year' => $year->label, 'name' => 'Constitution', 'deadline_at' => '2026-12-31', 'template_url' => 'https://example.edu/constitution-format'])->assertCreated()->json('id');
+        $report = $this->postJson('/api/compliance/requirement-types', ['academic_year' => $year->label, 'category' => 'semestral_report', 'name' => 'Semester activity narrative', 'allowed_extensions' => ['pdf'], 'deadline_at' => '2026-12-31', 'template_url' => 'https://example.edu/report-format'])->assertCreated()->json('id');
         $this->getJson('/api/compliance/requirement-types?category=semestral_report')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $report);
         $this->putJson('/api/compliance/requirement-types/'.$report.'/template-link', ['template_url' => 'https://example.edu/format'])->assertOk()->assertJsonPath('template_url', 'https://example.edu/format');
         $this->post('/api/compliance/requirement-types/'.$report.'/template', ['template' => UploadedFile::fake()->create('format.pdf', 10, 'application/pdf')], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('template_url', null);

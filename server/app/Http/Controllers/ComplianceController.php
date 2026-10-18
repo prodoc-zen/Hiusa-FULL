@@ -13,6 +13,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
+use App\Services\RequirementSampleService;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
@@ -74,14 +75,15 @@ class ComplianceController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
+        $samples = app(RequirementSampleService::class);
         $activeSemester = AcademicSemester::active();
-        $requirementType = ComplianceRequirementType::create([
+        $requirementType = $samples->save(new ComplianceRequirementType, [
             ...$data,
             'allowed_extensions' => $data['allowed_extensions'] ?? ['pdf'],
             'academic_semester_id' => $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester?->id : null,
             'is_active' => $data['is_active'] ?? true,
             'created_by' => $request->user()->school_id,
-        ]);
+        ], $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates');
 
         AuditLog::create([
             'organization_id' => null,
@@ -134,8 +136,8 @@ class ComplianceController extends Controller
 
         $old = $requirementType->toArray();
         $previousDeadline = $requirementType->deadline_at;
-        $requirementType->update($data);
-        $requirementType->refresh();
+        $samples = app(RequirementSampleService::class);
+        $samples->save($requirementType, $data, $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates');
 
         AuditLog::create([
             'organization_id' => null,
@@ -245,13 +247,8 @@ class ComplianceController extends Controller
         if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
-        $path = $requirementType->template_path;
-        $requirementType->update(['template_path' => null, 'template_original_name' => null, 'template_url' => null]);
-        if ($path) {
-            Storage::disk('local')->delete($path);
-        }
 
-        return response()->json($requirementType->fresh());
+        return response()->json(app(RequirementSampleService::class)->remove($requirementType));
     }
 
     public function publicRequirementTemplate(ComplianceRequirementType $requirementType)

@@ -129,7 +129,7 @@ class AcademicSemesterTest extends TestCase
         $this->assertSame(11, ComplianceRequirementType::where('academic_semester_id', $second)->count());
         $this->patchJson("/api/system/academic-semesters/{$first}/active")->assertOk();
         $requirement = ComplianceRequirementType::where('academic_semester_id', $first)->where('name', 'List of Members')->firstOrFail();
-        $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['deadline_at' => '2026-12-20'])->assertOk();
+        $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['deadline_at' => '2026-12-20', 'template_url' => 'https://example.edu/member-list-format'])->assertOk();
 
         Sanctum::actingAs($admin);
         $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 11);

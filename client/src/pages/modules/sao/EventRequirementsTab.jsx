@@ -5,7 +5,7 @@ import { Check, Eye, FileText, Pencil, Trash2, X } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, Input, Select, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, setEventRequirementTemplateLink, updateEventRequirement, uploadEventRequirementTemplate } from '../../../services/eventService';
+import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -31,7 +31,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removeTemplateTarget, setRemoveTemplateTarget] = useState(null);
   const [templateFile, setTemplateFile] = useState(null);
-  const [sampleMode, setSampleMode] = useState('none');
+  const [sampleMode, setSampleMode] = useState('file');
   const [sampleUrl, setSampleUrl] = useState('');
   const [templateError, setTemplateError] = useState(null);
   const templateInputRef = useRef(null);
@@ -69,7 +69,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setForm(empty);
     setNameError(null);
     setTemplateFile(null);
-    setSampleMode('none');
+    setSampleMode('file');
     setSampleUrl('');
     setTemplateError(null);
     if (templateInputRef.current) templateInputRef.current.value = '';
@@ -112,8 +112,10 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     }
     if (sampleMode === 'file' && !templateFile && !editingRequirement?.template_original_name) {
       setTemplateError('Choose a PDF sample file.');
+      templateInputRef.current?.focus();
       return;
     }
+    if (!['file', 'link'].includes(sampleMode)) { setTemplateError('Provide a sample format as a file or link.'); return; }
     if (sampleMode === 'link') {
       try {
         const url = new URL(sampleUrl.trim());
@@ -128,25 +130,15 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setSaving(true);
     setActionError('');
     try {
-      const response = editingId ? await updateEventRequirement(editingId, form) : await createEventRequirement(form);
-      const sampleChanged = (sampleMode === 'file' && templateFile) || sampleMode === 'link' || (sampleMode === 'none' && (editingRequirement?.template_original_name || editingRequirement?.template_url));
-      if (sampleChanged) {
-        try {
-          if (sampleMode === 'file') await uploadEventRequirementTemplate(response.data.id, templateFile);
-          else if (sampleMode === 'link') await setEventRequirementTemplateLink(response.data.id, sampleUrl.trim());
-          else await removeEventRequirementTemplate(response.data.id);
-        } catch (cause) {
-          setEditingId(response.data.id);
-          setActionError(`Requirement saved, but the sample was not updated. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
-          await load();
-          return;
-        }
-      }
+      const payload = { ...form, ...(sampleMode === 'file' && templateFile ? { template: templateFile } : {}), ...(sampleMode === 'link' ? { template_url: sampleUrl.trim() } : {}) };
+      if (editingId) await updateEventRequirement(editingId, payload);
+      else await createEventRequirement(payload);
       notify.success(editingId ? 'Requirement updated.' : 'Requirement added.');
       resetForm();
       await load();
     } catch (cause) {
       setActionError(getApiErrorMessage(cause, 'Could not save the requirement.'));
+      setTemplateError(cause.response?.data?.errors?.template?.[0] || cause.response?.data?.errors?.template_url?.[0] || null);
     } finally {
       setBusy(false);
       setSaving(false);
@@ -177,7 +169,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setActionError('');
     try {
       await removeEventRequirementTemplate(requirement.id);
-      setSampleMode('none');
+      setSampleMode('file');
       setSampleUrl('');
       setTemplateFile(null);
       setRemoveTemplateTarget(null);
@@ -248,7 +240,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     },
     { key: 'template', header: 'Sample', render: (requirement) => requirement.template_url
       ? <span className="text-ink-muted">Link</span>
-      : requirement.template_original_name ? <span className="text-ink-muted">PDF file</span> : <span className="text-ink-muted">None</span> },
+      : requirement.template_original_name ? <span className="text-ink-muted">PDF file</span> : <span className="font-semibold text-danger-strong">Sample format required</span> },
   ];
   const editingRequirement = requirements.find((item) => item.id === editingId);
 
@@ -281,7 +273,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                     setNameError(null);
                     setEditingId(requirement.id);
                     setForm({ name: requirement.name, description: requirement.description || '', allowed_extensions: ['pdf'], venue_type: requirement.venue_type || 'all', is_optional: requirement.is_optional, is_active: requirement.is_active });
-                    setSampleMode(requirement.template_url ? 'link' : requirement.template_original_name ? 'file' : 'none');
+                    setSampleMode(requirement.template_url ? 'link' : 'file');
                     setSampleUrl(requirement.template_url || '');
                     setTemplateFile(null);
                     setTemplateError(null);
@@ -326,9 +318,8 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 <RichTextEditor maxLength={500} rows={3} value={form.description} onChange={(description) => setForm({ ...form, description })} />
               </Field>
               <p className="text-xs font-semibold text-ink-muted">Accepted file type: PDF</p>
-              <Field label="Sample format" hint="Optional. Organizations can open the sample before submitting or when correcting a returned file.">
+              <Field label="Sample format" required hint="The requirement publisher must provide a file or link. Organizations can open it before submitting or correcting a returned file.">
                 <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setTemplateError(null); }}>
-                  <option value="none">No sample</option>
                   <option value="file">Attach a PDF</option>
                   <option value="link">Use a link</option>
                 </Select>
@@ -343,7 +334,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                   <span className="break-all">Current: {editingRequirement.template_original_name || editingRequirement.template_url}</span>
                   <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(editingRequirement)}>View sample</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setRemoveTemplateTarget(editingRequirement)}>Remove sample</Button>
+                  {!editingRequirement.is_active && <Button type="button" size="sm" variant="secondary" onClick={() => setRemoveTemplateTarget(editingRequirement)}>Remove sample</Button>}
                 </div>
               )}
               <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">

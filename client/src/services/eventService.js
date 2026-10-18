@@ -1,4 +1,5 @@
 import api from './api';
+import { requirementPayload } from './requirementPayload';
 
 export const getEvents = (params) =>
   api.get('/events', { params });
@@ -7,8 +8,10 @@ export const getEvent = (id) =>
   api.get(`/events/${id}`);
 
 export const getEventRequirements = () => api.get('/event-requirements');
-export const createEventRequirement = (data) => api.post('/event-requirements', data);
-export const updateEventRequirement = (id, data) => api.put(`/event-requirements/${id}`, data);
+export const createEventRequirement = (data) => api.post('/event-requirements', requirementPayload(data));
+export const updateEventRequirement = (id, data) => data.template
+  ? api.post(`/event-requirements/${id}`, requirementPayload(data, true))
+  : api.put(`/event-requirements/${id}`, data);
 export const reorderEventRequirements = (ids) => api.put('/event-requirements/order', { ids });
 export const deleteEventRequirement = (id) => api.delete(`/event-requirements/${id}`);
 export const uploadEventRequirementTemplate = (id, file) => {

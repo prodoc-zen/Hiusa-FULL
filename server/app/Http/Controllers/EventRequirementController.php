@@ -9,6 +9,7 @@ use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\Organization;
 use App\Services\EventApprovalChain;
+use App\Services\RequirementSampleService;
 use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +38,9 @@ class EventRequirementController extends Controller
         $data['sort_order'] = (int) EventRequirement::max('sort_order') + 1;
         $data['academic_semester_id'] = AcademicSemester::active()?->id;
 
-        return response()->json(EventRequirement::create($data), 201);
+        $samples = app(RequirementSampleService::class);
+
+        return response()->json($samples->save(new EventRequirement, $data, $request, self::SUPPORTED_EXTENSIONS, 'event-requirement-templates'), 201);
     }
 
     public function update(Request $request, EventRequirement $requirement)
@@ -46,7 +49,8 @@ class EventRequirementController extends Controller
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $data = $this->validateRequirement($request);
-        $requirement->update($data);
+        $samples = app(RequirementSampleService::class);
+        $samples->save($requirement, $data, $request, self::SUPPORTED_EXTENSIONS, 'event-requirement-templates');
 
         return response()->json($requirement->fresh());
     }
@@ -106,13 +110,8 @@ class EventRequirementController extends Controller
         if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
-        $path = $requirement->template_path;
-        $requirement->update(['template_path' => null, 'template_original_name' => null, 'template_url' => null]);
-        if ($path) {
-            Storage::disk('local')->delete($path);
-        }
 
-        return response()->json($requirement->fresh());
+        return response()->json(app(RequirementSampleService::class)->remove($requirement));
     }
 
     public function template(Request $request, EventRequirement $requirement)
@@ -242,7 +241,7 @@ class EventRequirementController extends Controller
         $storedPaths = [];
         $oldPaths = [];
         try {
-            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, $existing, $storagePolicy, &$storedPaths, &$oldPaths) {
+            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $existing, $storagePolicy, &$storedPaths, &$oldPaths) {
                 Organization::whereKey($event->organization_id)->lockForUpdate()->firstOrFail();
                 $replacedBytes = $existing->only(array_keys($documents))->sum(fn ($old) => Storage::disk('local')->exists($old->path) ? Storage::disk('local')->size($old->path) : 0);
                 $storagePolicy->assertUpload(array_values($documents), $event->organization_id, $replacedBytes, 'documents');

@@ -82,7 +82,7 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
         columns={[
           { key: 'name', header: 'Requirement', render: (item) => <div><strong>{formatDisplayText(item.name)}</strong>{item.description && <RichTextBody value={item.description} className="mt-1 text-xs text-slate-600" />}</div> },
           { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{byRequirement.get(item.id)?.original_name || 'No file'}</span> },
-          { key: 'sample', header: 'SAO sample', render: (item) => item.template_url ? 'Link' : item.template_original_name ? 'PDF file' : 'No sample' },
+          { key: 'sample', header: 'SAO sample', render: (item) => item.template_url ? 'Link' : item.template_original_name ? 'PDF file' : 'Sample format not provided by SAO' },
           { key: 'status', header: 'Status', render: (item) => <StatusBadge label={byRequirement.has(item.id) ? 'Submitted' : 'Not submitted'} tone={byRequirement.has(item.id) ? 'info' : 'neutral'} /> },
         ]}
         actions={(item) => (byRequirement.has(item.id) || item.template_url || item.template_original_name) && <TableRowActions subject={formatDisplayText(item.name)} actions={[
@@ -102,6 +102,7 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
             <span className="break-all">SAO sample: {requirement.template_original_name || requirement.template_url}</span>
             <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(requirement)}>View sample</Button>
           </div>}
+          {!requirement.template_original_name && !requirement.template_url && <p className="mt-2 text-xs font-medium text-danger-strong">Sample format not provided. SAO must attach a file or link to this requirement.</p>}
         </div>)}
         <button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{busy ? 'Submitting…' : 'Submit event files to SAO'}</button>
       </form>}

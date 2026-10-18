@@ -19,10 +19,7 @@ import {
   createRequirementType,
   deleteRequirementType,
   getRequirementTypes,
-  removeRequirementSample,
-  setRequirementSampleLink,
   updateRequirementType,
-  uploadRequirementSample,
 } from '../../../services/complianceService';
 
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
@@ -44,7 +41,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-  const [sampleMode, setSampleMode] = useState('none');
+  const [sampleMode, setSampleMode] = useState('file');
   const [sampleFile, setSampleFile] = useState(null);
   const [sampleUrl, setSampleUrl] = useState('');
 
@@ -62,7 +59,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
     setTypeFormError(null);
     setFieldErrors({});
     setTypeModal({ mode: type ? 'edit' : 'create', type });
-    setSampleMode(type?.template_url ? 'link' : type?.template_original_name ? 'file' : 'none');
+    setSampleMode(type?.template_url ? 'link' : 'file');
     setSampleFile(null);
     setSampleUrl(type?.template_url || '');
     setTypeForm(type ? {
@@ -83,6 +80,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
     if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
     if (sampleMode === 'file' && !sampleFile && !typeModal?.type?.template_original_name) errors.sample = 'Choose a sample file.';
+    if (!['file', 'link'].includes(sampleMode)) errors.sample = 'Provide a sample format as a file or link.';
+    if (sampleMode === 'file' && fieldErrors.sample && !sampleFile) errors.sample = fieldErrors.sample;
     if (sampleMode === 'link') {
       try {
         const url = new URL(sampleUrl.trim());
@@ -94,7 +93,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
     setFieldErrors(errors);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
     if (firstInvalid || errors.sample) {
-      fieldRefs.current[firstInvalid]?.focus();
+      fieldRefs.current[firstInvalid || 'sample']?.focus();
       return;
     }
 
@@ -108,35 +107,21 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
       deadline_at: typeForm.deadline_at,
       allowed_extensions: typeForm.allowed_extensions,
       is_active: typeForm.is_active,
+      ...(sampleMode === 'file' && sampleFile ? { template: sampleFile } : {}),
+      ...(sampleMode === 'link' ? { template_url: sampleUrl.trim() } : {}),
     };
 
     try {
-      const response = typeModal.mode === 'edit'
-        ? await updateRequirementType(typeModal.type.id, payload)
-        : await createRequirementType(payload);
-      const savedType = response.data;
-      const previous = typeModal.type;
-      const sampleChanged = (sampleMode === 'file' && sampleFile)
-        || (sampleMode === 'link' && sampleUrl.trim() !== (previous?.template_url || ''))
-        || (sampleMode === 'none' && (previous?.template_original_name || previous?.template_url));
-      if (sampleChanged) {
-        try {
-          if (sampleMode === 'file') await uploadRequirementSample(savedType.id, sampleFile);
-          else if (sampleMode === 'link') await setRequirementSampleLink(savedType.id, sampleUrl.trim());
-          else await removeRequirementSample(savedType.id);
-        } catch (cause) {
-          setTypeModal({ mode: 'edit', type: savedType });
-          setTypeFormError(`Requirement saved, but the sample was not updated. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
-          loadTypes();
-          return;
-        }
-      }
+      if (typeModal.mode === 'edit') await updateRequirementType(typeModal.type.id, payload);
+      else await createRequirementType(payload);
       notify.success(typeModal.mode === 'edit' ? 'Requirement updated.' : 'Requirement added. Every active organization has been notified.');
       setTypeModal(null);
       loadTypes();
       onChanged();
     } catch (err) {
       setTypeFormError(getApiErrorMessage(err, 'Could not save this requirement.'));
+      const apiErrors = err.response?.data?.errors || {};
+      setFieldErrors((current) => ({ ...current, ...Object.fromEntries(Object.entries(apiErrors).map(([key, messages]) => [key, messages[0]])), sample: apiErrors.template?.[0] || apiErrors.template_url?.[0] }));
     } finally {
       setTypeSaving(false);
     }
@@ -160,6 +145,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
 
   function requestToggle(type) {
     if (type.is_active) setDeactivateTarget(type);
+    else if (!type.template_url && !type.template_original_name) openTypeModal({ ...type, is_active: true });
     else toggleTypeActive(type);
   }
 
@@ -193,7 +179,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'allowed_extensions', header: 'Accepted files', render: (type) => fileTypesLabel(type.allowed_extensions) },
-    { key: 'sample', header: 'Sample format', render: (type) => type.template_original_name || (type.template_url ? 'Link' : 'None') },
+    { key: 'sample', header: 'Sample format', render: (type) => type.template_original_name || (type.template_url ? 'Link' : <span className="font-semibold text-danger-strong">Sample format required</span>) },
     { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
   ];
 
@@ -204,6 +190,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
         description={semestral ? 'Files organization admins submit to SAO for their semestral report, with deadlines, accepted formats and samples.' : 'Files for organization registration and accreditation, with deadlines and accepted formats.'}
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
+        {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">You must provide a sample format for every requirement you publish. Edit the requirements marked “Sample format required” to attach a file or link.</p>}
         {deleteError && (
           <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>
         )}
@@ -280,23 +267,22 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
             </div>
             {fieldErrors.allowed_extensions && <p id="organization-file-types-error" role="alert" className="text-xs text-danger-strong">{fieldErrors.allowed_extensions}</p>}
           </fieldset>
-          <Field label="Sample format" hint="Optional. Applicants and organization admins can view it before submitting." className="sm:col-span-2">
+          <Field label="Sample format" required hint="The requirement publisher must provide a file or link. Applicants and organization admins can view it before submitting." className="sm:col-span-2">
             <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }}>
-              <option value="none">No sample</option>
               <option value="file">Attach a file</option>
               <option value="link">Use a link</option>
             </Select>
           </Field>
-          {sampleMode === 'file' && <Field label="Sample file" hint={typeModal?.type?.template_original_name ? 'Leave empty to keep the current file.' : 'Up to 10 MB.'} error={fieldErrors.sample} className="sm:col-span-2">
-            <input type="file" accept={fileAccept(SUPPORTED_REQUIREMENT_EXTENSIONS)} onChange={(event) => {
+          {sampleMode === 'file' && <Field label="Sample file" required={!typeModal?.type?.template_original_name} hint={typeModal?.type?.template_original_name ? 'Leave empty to keep the current file.' : 'Up to 10 MB.'} error={fieldErrors.sample} className="sm:col-span-2">
+            <input ref={(node) => { fieldRefs.current.sample = node; }} type="file" accept={fileAccept(SUPPORTED_REQUIREMENT_EXTENSIONS)} onChange={(event) => {
               const file = event.target.files?.[0];
               const problem = file ? validateRequirementFile(file, SUPPORTED_REQUIREMENT_EXTENSIONS) : null;
               setSampleFile(problem ? null : file);
               setFieldErrors((current) => ({ ...current, sample: problem }));
             }} className="block min-h-11 w-full rounded-control border border-line bg-surface p-2 text-sm text-ink" />
           </Field>}
-          {sampleMode === 'link' && <Field label="Sample link" error={fieldErrors.sample} className="sm:col-span-2">
-            <Input type="url" maxLength={2048} value={sampleUrl} onChange={(event) => { setSampleUrl(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }} placeholder="https://example.edu/sample-format" />
+          {sampleMode === 'link' && <Field label="Sample link" required error={fieldErrors.sample} className="sm:col-span-2">
+            <Input ref={(node) => { fieldRefs.current.sample = node; }} type="url" maxLength={2048} value={sampleUrl} onChange={(event) => { setSampleUrl(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }} placeholder="https://example.edu/sample-format" />
           </Field>}
           {(typeModal?.type?.template_original_name || typeModal?.type?.template_url) && <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
             <span className="break-all">Current: {typeModal.type.template_original_name || typeModal.type.template_url}</span>

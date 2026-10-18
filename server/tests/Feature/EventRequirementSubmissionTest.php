@@ -50,6 +50,7 @@ class EventRequirementSubmissionTest extends TestCase
             'name' => 'Non-PDF requirement', 'allowed_extensions' => ['png'],
         ])->assertUnprocessable();
         $requirement = $this->withToken($token)->postJson('/api/event-requirements', [
+            'template_url' => 'https://example.edu/proposal-format',
             'name' => 'Event proposal', 'allowed_extensions' => ['pdf'],
         ])->assertCreated();
         $this->withToken($token)->putJson('/api/event-requirements/'.$requirement->json('id'), [
@@ -69,6 +70,7 @@ class EventRequirementSubmissionTest extends TestCase
 
         Sanctum::actingAs($director);
         $requirement = $this->postJson('/api/event-requirements', [
+            'template_url' => 'https://example.edu/proposal-format',
             'name' => 'Event proposal', 'allowed_extensions' => ['pdf'],
         ])->assertCreated();
 
@@ -113,7 +115,7 @@ class EventRequirementSubmissionTest extends TestCase
 
         $this->get('/api/event-requirements/1/template')->assertUnauthorized();
         Sanctum::actingAs($director);
-        $id = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $id = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/proposal-format'])->assertCreated()->json('id');
         $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
             'template' => UploadedFile::fake()->image('sample.png'),
         ])->assertUnprocessable()->assertJsonValidationErrors('template');
@@ -156,6 +158,8 @@ class EventRequirementSubmissionTest extends TestCase
         $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
             'template' => UploadedFile::fake()->create('replacement.pdf', 20, 'application/pdf'),
         ])->assertOk()->assertJsonPath('template_url', null);
+        $this->deleteJson("/api/event-requirements/{$id}/template")->assertConflict();
+        $this->putJson("/api/event-requirements/{$id}", ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => false])->assertOk();
         $this->deleteJson("/api/event-requirements/{$id}/template")->assertOk()->assertJsonPath('template_original_name', null);
         $this->assertSame([], Storage::disk('local')->files("event-requirement-templates/{$id}"));
         $this->get("/api/event-requirements/{$id}/template")->assertNotFound();
@@ -170,7 +174,7 @@ class EventRequirementSubmissionTest extends TestCase
         $head = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
 
         Sanctum::actingAs($director);
-        $requirementId = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $requirementId = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/proposal-format'])->assertCreated()->json('id');
         $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$requirementId}/template", [
             'template' => UploadedFile::fake()->create('sample-proposal.pdf', 20, 'application/pdf'),
         ])->assertOk();
@@ -212,6 +216,7 @@ class EventRequirementSubmissionTest extends TestCase
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => $sao->id]));
         $requirement = $this->postJson('/api/event-requirements', [
             'name' => 'Permit', 'allowed_extensions' => ['pdf'],
+            'template_url' => 'https://example.edu/permit-format',
         ])->assertCreated();
         $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
         Sanctum::actingAs($admin);
@@ -240,8 +245,8 @@ class EventRequirementSubmissionTest extends TestCase
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
         Sanctum::actingAs($director);
-        $first = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'description' => 'Signed proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
-        $second = $this->postJson('/api/event-requirements', ['name' => 'Budget', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $first = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'description' => 'Signed proposal', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/proposal-format'])->assertCreated()->json('id');
+        $second = $this->postJson('/api/event-requirements', ['name' => 'Budget', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/budget-format'])->assertCreated()->json('id');
 
         $this->putJson('/api/event-requirements/order', ['ids' => [$second]])->assertUnprocessable();
         $this->putJson('/api/event-requirements/order', ['ids' => [$second, $first]])->assertOk()->assertJsonPath('0.id', $second);
@@ -262,7 +267,7 @@ class EventRequirementSubmissionTest extends TestCase
         $this->assertSame(1, EventRequirementFile::where('requirement_id', $first)->count());
         $this->putJson('/api/event-requirements/'.$first, ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => false])->assertOk();
         $this->deleteJson('/api/event-requirements/'.$second)->assertStatus(409);
-        $unused = $this->postJson('/api/event-requirements', ['name' => 'Unused', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $unused = $this->postJson('/api/event-requirements', ['name' => 'Unused', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/format'])->assertCreated()->json('id');
         $this->deleteJson('/api/event-requirements/'.$unused)->assertNoContent();
         $this->assertDatabaseMissing('event_requirements', ['id' => $unused]);
     }
