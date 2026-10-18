@@ -17,6 +17,8 @@ function cloneData(data) {
 }
 
 function sortValue(value) {
+  if (value instanceof URLSearchParams) return { searchParams: value.toString() };
+  if (value instanceof Date) return value.toJSON();
   if (Array.isArray(value)) return value.map(sortValue);
   if (!value || typeof value !== 'object') return value;
 
@@ -47,7 +49,7 @@ function responseSnapshot(response) {
     data: cloneData(response.data),
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers,
+    headers: { ...response.headers },
   };
 }
 
@@ -55,6 +57,7 @@ function responseFromSnapshot(snapshot, config, cacheStatus) {
   return {
     ...snapshot,
     data: cloneData(snapshot.data),
+    headers: { ...snapshot.headers },
     config,
     request: null,
     clientCache: cacheStatus,
@@ -125,10 +128,15 @@ export function createApiGetCache({
   async function get(url, config, request) {
     currentSession();
     const entryTtlMs = config?.cacheTtlMs ?? ttlMs;
-    if (config?.cache === false || entryTtlMs <= 0 || config?.signal || config?.cancelToken
+    const key = keyFor(url, config);
+    if (config?.cache === false) {
+      removeEntry(key);
+      pending.delete(key);
+      return request();
+    }
+    if (entryTtlMs <= 0 || config?.signal || config?.cancelToken || config?.paramsSerializer
       || (config?.responseType && config.responseType !== 'json') || maxEntries <= 0 || maxTotalBytes <= 0) return request();
 
-    const key = keyFor(url, config);
     const cached = entries.get(key);
     if (cached && cached.expiresAt > now()) {
       entries.delete(key);
@@ -148,7 +156,8 @@ export function createApiGetCache({
       const bytes = jsonResponseBytes(response, maxBytes);
       currentSession();
       // A mutation or profile switch can finish while this GET is still in flight.
-      if (requestGeneration === generation && response.status === 200 && bytes > 0 && bytes <= maxTotalBytes) {
+      if (requestGeneration === generation && pending.get(key) === networkRequest
+        && response.status === 200 && bytes > 0 && bytes <= maxTotalBytes) {
         prune(bytes);
         entries.set(key, { response: snapshot, expiresAt: now() + entryTtlMs, bytes });
         totalBytes += bytes;

@@ -10,7 +10,7 @@ import RequirementSample from '../../components/requirements/RequirementSample';
 
 const INITIAL = { name: '', acronym: '', college_id: '', description: '', first_name: '', last_name: '', school_id: '', email: '', position_title: '' };
 const FIELDS = [['name', 'Organization name', 'text', 255], ['acronym', 'Organization code', 'text', 50], ['first_name', 'First name', 'text', 60], ['last_name', 'Last name', 'text', 60], ['school_id', 'School ID', 'number', 8], ['email', 'Email', 'email', 255], ['position_title', 'Position', 'text', 100]];
-const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
+const NO_REQUIREMENTS = 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.';
 
 export default function RegisterOrganizationPage() {
   const [params] = useSearchParams();

@@ -96,7 +96,7 @@ class ComplianceLifecycleTest extends TestCase
         $type = ComplianceRequirementType::where('academic_semester_id', $id)->where('name', 'Semestral Accomplishment Report')->sole();
         $this->assertSame('2026-2027', $type->academic_year);
         $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
-        $this->assertTrue($type->is_active);
+        $this->assertFalse($type->is_active);
         $this->assertSame(11, ComplianceRequirementType::where('academic_semester_id', $id)->count());
     }
 
@@ -112,6 +112,7 @@ class ComplianceLifecycleTest extends TestCase
         $type = ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('name', 'Semestral Accomplishment Report')->sole();
         $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
         $this->assertSame($director->school_id, $type->created_by);
+        $this->assertFalse($type->is_active);
     }
 
     public function test_seed_command_fails_without_an_active_semester(): void

@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\CacheApiResponse;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -15,6 +19,105 @@ class CacheApiResponseTest extends TestCase
 {
     use CreatesCollegeFixtures;
     use RefreshDatabase;
+
+    public function test_write_invalidation_generates_new_namespace_tokens_without_reading_old_versions(): void
+    {
+        config(['performance.api_cache.enabled' => true]);
+        $user = User::factory()->superAdmin()->create();
+        $request = Request::create('/api/cache-audit', 'POST');
+        $request->setUserResolver(fn () => $user);
+        $tokens = [];
+        Cache::shouldReceive('get')->never();
+        Cache::shouldReceive('put')->times(3)->withArgs(function ($key, $token, $expires) use (&$tokens) {
+            $tokens[] = $token;
+
+            return str_starts_with($key, 'api-response-version:') && Str::isUuid($token) && $expires->isFuture();
+        })->andReturn(true);
+        $this->assertSame(200, (new CacheApiResponse)->handle($request, fn () => response()->json([]))->getStatusCode());
+        $this->assertCount(3, array_unique($tokens));
+    }
+
+    public function test_a_refresh_recomputes_and_replaces_the_server_cache(): void
+    {
+        config(['performance.api_cache.enabled' => true]);
+        $user = User::factory()->admin()->create();
+        $request = Request::create('/api/cache-audit');
+        $request->setUserResolver(fn () => $user);
+        $middleware = new CacheApiResponse;
+        $calls = 0;
+        $next = function () use (&$calls) {
+            return response()->json(['revision' => ++$calls]);
+        };
+        $this->assertSame('MISS', $middleware->handle($request, $next)->headers->get('X-Cache'));
+        $this->assertSame('HIT', $middleware->handle($request, $next)->headers->get('X-Cache'));
+        $request->headers->set('Cache-Control', 'no-cache');
+        $fresh = $middleware->handle($request, $next);
+        $this->assertSame(2, json_decode($fresh->getContent(), true)['revision']);
+        $request->headers->remove('Cache-Control');
+        $this->assertSame(2, json_decode($middleware->handle($request, $next)->getContent(), true)['revision']);
+        $this->assertSame(2, $calls);
+    }
+
+    public function test_server_cache_respects_no_store_and_preserves_vary_headers(): void
+    {
+        config(['performance.api_cache.enabled' => true]);
+        $user = User::factory()->admin()->create();
+        $request = Request::create('/api/cache-audit');
+        $request->setUserResolver(fn () => $user);
+        $middleware = new CacheApiResponse;
+        $calls = 0;
+        $next = function () use (&$calls) {
+            return response()->json(['revision' => ++$calls])->header('Cache-Control', 'private, no-store');
+        };
+        $middleware->handle($request, $next);
+        $this->assertTrue($middleware->handle($request, $next)->headers->hasCacheControlDirective('no-store'));
+        $this->assertSame(2, $calls);
+
+        $request = Request::create('/api/cache-vary');
+        $request->setUserResolver(fn () => $user);
+        $next = fn () => response()->json([])->header('Vary', 'Origin');
+        foreach (['MISS', 'HIT'] as $status) {
+            $response = $middleware->handle($request, $next);
+            $this->assertSame($status, $response->headers->get('X-Cache'));
+            $this->assertContains('Origin', $response->getVary());
+        }
+        foreach (['W/'.$response->headers->get('ETag'), '*'] as $etag) {
+            $request->headers->set('If-None-Match', $etag);
+            $notModified = $middleware->handle($request, $next);
+            $this->assertSame(304, $notModified->getStatusCode());
+            $this->assertContains('Origin', $notModified->getVary());
+        }
+    }
+
+    public function test_version_lookup_failure_bypasses_cached_data_instead_of_using_an_old_namespace(): void
+    {
+        config(['performance.api_cache.enabled' => true]);
+        $user = User::factory()->admin()->create();
+        $request = Request::create('/api/cache-audit');
+        $request->setUserResolver(fn () => $user);
+        Cache::shouldReceive('get')->with('api-response-version:organization:'.$user->organization_id, 1)->once()->andThrow(new \RuntimeException('Cache unavailable'));
+        $response = (new CacheApiResponse)->handle($request, fn () => response()->json(['fresh' => true]));
+        $this->assertTrue(json_decode($response->getContent(), true)['fresh']);
+        $this->assertNull($response->headers->get('X-Cache'));
+    }
+
+    public function test_a_no_store_request_never_reuses_or_replaces_cached_content(): void
+    {
+        config(['performance.api_cache.enabled' => true]);
+        $user = User::factory()->admin()->create();
+        $request = Request::create('/api/cache-audit');
+        $request->setUserResolver(fn () => $user);
+        $middleware = new CacheApiResponse;
+        $calls = 0;
+        $next = function () use (&$calls) {
+            return response()->json(['revision' => ++$calls]);
+        };
+        $middleware->handle($request, $next);
+        $request->headers->set('Cache-Control', 'no-store');
+        $this->assertSame(2, json_decode($middleware->handle($request, $next)->getContent(), true)['revision']);
+        $request->headers->remove('Cache-Control');
+        $this->assertSame(1, json_decode($middleware->handle($request, $next)->getContent(), true)['revision']);
+    }
 
     public function test_admin_briefing_is_fresh_after_super_admin_approves_a_different_orgs_request(): void
     {

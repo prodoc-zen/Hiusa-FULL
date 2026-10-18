@@ -38,6 +38,7 @@ function markPasswordChangeRequired() {
 }
 
 api.interceptors.request.use((config) => {
+  if (config.cache === false) config.headers.set('Cache-Control', 'no-cache');
   const token = localStorage.getItem('auth_token');
 
   if (token) {

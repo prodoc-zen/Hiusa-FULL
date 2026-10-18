@@ -11,8 +11,10 @@ use App\Models\Organization;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -45,6 +47,20 @@ class OrganizationApplicationTest extends TestCase
         return [...$this->payload($college), 'files' => [$this->requirementId => UploadedFile::fake()->create('constitution.pdf', 10, 'application/pdf')]];
     }
 
+    public function test_failed_registration_upload_rolls_back_documents_and_does_not_send_verification_mail(): void
+    {
+        Mail::fake();
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $disk = \Mockery::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+        $disk->shouldReceive('delete')->andReturn(true);
+        Storage::shouldReceive('disk')->with('local')->andReturn($disk);
+        $this->post('/api/organization-applications', $this->upload($college), ['Accept' => 'application/json'])->assertStatus(500);
+        $this->assertDatabaseCount('organization_applications', 0);
+        $this->assertDatabaseCount('organization_application_documents', 0);
+        Mail::assertNothingSent();
+    }
+
     private function attachDocument(OrganizationApplication $application): void
     {
         Storage::disk('local')->put('organization-applications/test/constitution.pdf', '%PDF-1.4');
@@ -72,6 +88,29 @@ class OrganizationApplicationTest extends TestCase
         $this->assertNotEmpty($matches[1] ?? null);
 
         return [$application, '/api/organization-applications/'.$application->id.'/edit?'.$matches[1]];
+    }
+
+    public function test_resubmission_loads_existing_documents_once_for_the_entire_checklist(): void
+    {
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        [$application, $url] = $this->rejectWithEditLink($college);
+        $first = ComplianceRequirementType::findOrFail($this->requirementId);
+        for ($index = 1; $index < 10; $index++) {
+            $type = $first->replicate();
+            $type->name = 'Additional requirement '.$index;
+            $type->save();
+            $path = 'organization-applications/checklist-'.$index.'.pdf';
+            Storage::disk('local')->put($path, '%PDF-1.4');
+            $application->documents()->create(['requirement_type_id' => $type->id, 'file_path' => $path, 'file_original_name' => 'document.pdf', 'mime_type' => 'application/pdf', 'file_size' => 8]);
+        }
+        DB::enableQueryLog();
+        try {
+            $this->postJson($url, $this->payload($college))->assertOk();
+            $reads = collect(DB::getQueryLog())->filter(fn ($query) => str_starts_with($query['query'], 'select') && str_contains($query['query'], 'from "organization_application_documents"'));
+            $this->assertCount(1, $reads, 'Checklist document reads must not grow with the number of requirements.');
+        } finally {
+            DB::disableQueryLog();
+        }
     }
 
     public function test_public_registration_uses_sao_file_types(): void
@@ -198,7 +237,7 @@ class OrganizationApplicationTest extends TestCase
         AcademicSemester::query()->update(['status' => 'completed']);
         $this->getJson('/api/organization-applications/requirements')->assertOk()->assertJsonCount(0, 'requirements');
         $this->post('/api/organization-applications', $this->upload($college), ['Accept' => 'application/json'])
-            ->assertUnprocessable()->assertJsonPath('message', 'No registration requirements are open. The SAO must activate a semester first.');
+            ->assertUnprocessable()->assertJsonPath('message', 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.');
     }
 
     public function test_documents_are_private_and_department_heads_only_see_their_college(): void

@@ -103,7 +103,7 @@ describe('Public organization onboarding', () => {
   it('does not offer submission until the SAO opens requirements', async () => {
     getApplicationRequirements.mockResolvedValue({ data: { academic_semester: null, requirements: [] } });
     render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
-    expect(await screen.findByText('No registration requirements are open. The SAO must activate a semester first.')).toBeInTheDocument();
+    expect(await screen.findByText('Registration is closed. SAO must activate a semester and publish its requirements with sample formats.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit application' })).not.toBeInTheDocument();
   });
 

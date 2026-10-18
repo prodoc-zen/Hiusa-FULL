@@ -2,7 +2,7 @@ import api from './api';
 import { requirementPayload } from './requirementPayload';
 
 // SAO compliance requirement catalog (SUPER_ADMIN defines, ADMIN reads its own org's active set).
-export const getRequirementTypes = (params) => api.get('/compliance/requirement-types', { params });
+export const getRequirementTypes = (params, config = {}) => api.get('/compliance/requirement-types', { ...config, params });
 export const createRequirementType = (data) => api.post('/compliance/requirement-types', requirementPayload(data));
 export const updateRequirementType = (id, data) => data.template
   ? api.post(`/compliance/requirement-types/${id}`, requirementPayload(data, true))

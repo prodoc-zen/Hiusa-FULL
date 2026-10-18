@@ -135,7 +135,7 @@ export default function AcademicYearsPage() {
     setSemesterErrors({});
     try {
       await createAcademicSemester(semesterYear.id, { ...semesterForm, number: Number(semesterForm.number) });
-      notify.success('Semester added');
+      notify.success('Semester added', { description: 'Default requirements are inactive. After activating the semester, attach sample formats in Requirement settings before publishing each item.' });
       setSemesterYear(null);
       setSemesterForm(EMPTY_SEMESTER);
       await load();
@@ -230,6 +230,7 @@ export default function AcademicYearsPage() {
       </Card>
 
       <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
+        <p className="mb-4 text-sm text-ink-muted">New semester requirements start inactive. After activating the semester, add sample formats and publish each item in Requirement settings.</p>
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>

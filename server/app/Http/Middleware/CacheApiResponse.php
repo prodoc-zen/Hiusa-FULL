@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -49,10 +50,13 @@ class CacheApiResponse
             return $next($request);
         }
 
-        $cacheKey = $this->cacheKey($request);
+        if ($request->headers->hasCacheControlDirective('no-store')) {
+            return $next($request);
+        }
 
         try {
-            $cached = Cache::get($cacheKey);
+            $cacheKey = $this->cacheKey($request);
+            $cached = $request->isNoCache() ? null : Cache::get($cacheKey);
         } catch (Throwable) {
             return $next($request);
         }
@@ -72,6 +76,7 @@ class CacheApiResponse
             'content' => $content,
             'content_type' => (string) $response->headers->get('Content-Type', 'application/json'),
             'etag' => '"'.hash('sha256', $content).'"',
+            'vary' => $response->getVary(),
         ];
 
         try {
@@ -85,7 +90,7 @@ class CacheApiResponse
         }
 
         if ($this->etagMatches($request, $cached['etag'])) {
-            return $this->notModifiedResponse($cached['etag'], 'MISS');
+            return $this->notModifiedResponse($cached['etag'], 'MISS', $cached['vary']);
         }
 
         return $this->withPrivateHeaders($response, $cached['etag'], 'MISS');
@@ -97,13 +102,8 @@ class CacheApiResponse
         $query = $request->query();
         $this->sortRecursively($query);
 
-        try {
-            $orgVersion = (int) Cache::get($this->versionKey($user->organization_id), 1);
-            $globalVersion = (int) Cache::get($this->globalVersionKey(), 1);
-        } catch (Throwable) {
-            $orgVersion = 1;
-            $globalVersion = 1;
-        }
+        $orgVersion = Cache::get($this->versionKey($user->organization_id), 1);
+        $globalVersion = Cache::get($this->globalVersionKey(), 1);
 
         $identity = implode(':', [
             $user->organization_id,
@@ -114,11 +114,7 @@ class CacheApiResponse
         ]);
 
         if (in_array($user->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
-            try {
-                $saoVersion = (int) Cache::get($this->saoVersionKey(), 1);
-            } catch (Throwable) {
-                $saoVersion = 1;
-            }
+            $saoVersion = Cache::get($this->saoVersionKey(), 1);
 
             $identity .= ':'.$saoVersion;
         }
@@ -134,31 +130,36 @@ class CacheApiResponse
         return $response->getStatusCode() === 200
             && str_contains($contentType, 'application/json')
             && ! $response->headers->has('Set-Cookie')
+            && ! $response->headers->hasCacheControlDirective('no-store')
             && $length <= max(1, (int) config('performance.api_cache.max_bytes', 1048576));
     }
 
     private function cachedResponse(Request $request, array $cached): Response
     {
         if ($this->etagMatches($request, $cached['etag'])) {
-            return $this->notModifiedResponse($cached['etag'], 'HIT');
+            return $this->notModifiedResponse($cached['etag'], 'HIT', $cached['vary'] ?? []);
         }
 
         $response = response($cached['content'], 200)
             ->header('Content-Type', $cached['content_type']);
+        $response->setVary($cached['vary'] ?? []);
 
         return $this->withPrivateHeaders($response, $cached['etag'], 'HIT');
     }
 
-    private function notModifiedResponse(string $etag, string $cacheStatus): Response
+    private function notModifiedResponse(string $etag, string $cacheStatus, array $vary = []): Response
     {
-        return $this->withPrivateHeaders(response('', 304), $etag, $cacheStatus);
+        $response = response('', 304);
+        $response->setVary($vary);
+
+        return $this->withPrivateHeaders($response, $etag, $cacheStatus);
     }
 
     private function withPrivateHeaders(Response $response, string $etag, string $cacheStatus): Response
     {
         $response->headers->set('Cache-Control', 'private, no-cache, max-age=0, must-revalidate');
         $response->headers->set('ETag', $etag);
-        $response->headers->set('Vary', 'Authorization, Accept-Encoding');
+        $response->setVary(['Authorization', 'Accept-Encoding'], false);
         $response->headers->set('X-Cache', $cacheStatus);
 
         return $response;
@@ -166,14 +167,20 @@ class CacheApiResponse
 
     private function etagMatches(Request $request, string $etag): bool
     {
-        return in_array($etag, $request->getETags(), true);
+        foreach ($request->getETags() as $candidate) {
+            if ($candidate === '*' || preg_replace('/^W\//', '', $candidate) === $etag) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function invalidateOrganization(int|string $organizationId): void
     {
         try {
             $key = $this->versionKey($organizationId);
-            Cache::put($key, (int) Cache::get($key, 1) + 1, now()->addDays(30));
+            Cache::put($key, (string) Str::uuid(), now()->addDays(30));
         } catch (Throwable) {
             // Cache failure must not turn a successful business write into an error.
         }
@@ -183,7 +190,7 @@ class CacheApiResponse
     {
         try {
             $key = $this->globalVersionKey();
-            Cache::put($key, (int) Cache::get($key, 1) + 1, now()->addDays(30));
+            Cache::put($key, (string) Str::uuid(), now()->addDays(30));
         } catch (Throwable) {
             // Cache failure must not turn a successful business write into an error.
         }
@@ -193,7 +200,7 @@ class CacheApiResponse
     {
         try {
             $key = $this->saoVersionKey();
-            Cache::put($key, (int) Cache::get($key, 1) + 1, now()->addDays(30));
+            Cache::put($key, (string) Str::uuid(), now()->addDays(30));
         } catch (Throwable) {
             // Cache failure must not turn a successful business write into an error.
         }

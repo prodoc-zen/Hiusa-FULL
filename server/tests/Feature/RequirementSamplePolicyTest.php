@@ -2,9 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
+use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\EventRequirement;
 use App\Models\Organization;
+use App\Models\OrganizationApplication;
 use App\Models\User;
+use App\Services\OrganizationDeletionService;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
@@ -94,5 +100,69 @@ class RequirementSamplePolicyTest extends TestCase
         Sanctum::actingAs(User::factory()->admin()->create());
         $this->postJson('/api/event-requirements', [...$payload, 'template_url' => 'https://example.edu/format'])->assertForbidden();
         $this->postJson('/api/compliance/requirement-types', [...self::catalogs()['organization'][2], 'template_url' => 'https://example.edu/format'])->assertForbidden();
+    }
+
+    #[DataProvider('catalogs')]
+    public function test_standalone_sample_upload_cannot_silently_accept_a_second_link(string $url, string $table, array $payload): void
+    {
+        $id = $this->postJson($url, [...$payload, 'template_url' => 'https://example.edu/original'])->assertCreated()->json('id');
+        $this->post($url.'/'.$id.'/template', [
+            'template' => UploadedFile::fake()->create('sample.pdf', 10, 'application/pdf'),
+            'template_url' => 'https://example.edu/ambiguous',
+        ], ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseHas($table, ['id' => $id, 'template_url' => 'https://example.edu/original']);
+    }
+
+    public function test_completed_semester_requirement_cannot_be_deleted_even_without_submissions(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31']);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'completed']);
+        $type = ComplianceRequirementType::create(['academic_year' => $year->label, 'academic_semester_id' => $semester->id, 'name' => 'Archived report', 'deadline_at' => '2026-12-31', 'created_by' => auth()->user()->school_id]);
+        $this->deleteJson('/api/compliance/requirement-types/'.$type->id)->assertConflict();
+        $this->assertDatabaseHas('compliance_requirement_types', ['id' => $type->id]);
+    }
+
+    public function test_sample_removal_is_committed_and_cleanup_is_retried_after_a_storage_failure(): void
+    {
+        $path = 'event-requirement-templates/retry.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.4');
+        $event = EventRequirement::create(['name' => 'Inactive proposal', 'allowed_extensions' => ['pdf'], 'is_active' => false, 'template_path' => $path, 'template_original_name' => 'retry.pdf']);
+        $manager = Storage::getFacadeRoot();
+        $disk = \Mockery::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('exists')->with($path)->andReturn(true);
+        $disk->shouldReceive('delete')->with($path)->once()->andThrow(new \RuntimeException('Disk unavailable'));
+        Storage::shouldReceive('disk')->with('local')->andReturn($disk);
+        $this->deleteJson('/api/event-requirements/'.$event->id.'/template')->assertOk()->assertJsonPath('template_original_name', null);
+        $this->assertNull($event->fresh()->template_path);
+        $this->assertDatabaseHas('pending_file_deletions', ['disk' => 'local', 'path' => $path]);
+        Storage::swap($manager);
+        app(OrganizationDeletionService::class)->cleanup();
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseCount('pending_file_deletions', 0);
+    }
+
+    public function test_deleting_an_unused_semester_removes_its_sample_files_after_commit(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31']);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'upcoming']);
+        $path = 'event-requirement-templates/unused.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.4');
+        EventRequirement::create(['name' => 'Unused proposal', 'academic_semester_id' => $semester->id, 'allowed_extensions' => ['pdf'], 'is_active' => false, 'template_path' => $path, 'template_original_name' => 'unused.pdf']);
+        $this->deleteJson('/api/system/academic-semesters/'.$semester->id)->assertNoContent();
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseCount('pending_file_deletions', 0);
+    }
+
+    public function test_semester_deletion_reports_application_documents_as_a_blocker(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31']);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'upcoming']);
+        $type = ComplianceRequirementType::create(['academic_year' => $year->label, 'academic_semester_id' => $semester->id, 'name' => 'Application requirement', 'deadline_at' => '2026-12-31', 'created_by' => auth()->user()->school_id]);
+        $college = College::create(['name' => 'College of Computing']);
+        $application = OrganizationApplication::create(['college_id' => $college->id, 'name' => 'Applicants Club', 'acronym' => 'AC', 'school_id' => 987001, 'first_name' => 'Test', 'last_name' => 'Applicant', 'email' => 'applicant@example.test', 'position_title' => 'President']);
+        $application->documents()->create(['requirement_type_id' => $type->id, 'file_path' => 'application.pdf', 'file_original_name' => 'application.pdf', 'mime_type' => 'application/pdf', 'file_size' => 4]);
+        $this->deleteJson('/api/system/academic-semesters/'.$semester->id)->assertConflict()->assertJsonPath('reasons.0', 'application documents');
+        $this->assertDatabaseHas('academic_semesters', ['id' => $semester->id]);
+        $this->assertDatabaseHas('organization_application_documents', ['organization_application_id' => $application->id]);
     }
 }

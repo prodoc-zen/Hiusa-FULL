@@ -28,7 +28,7 @@ use Illuminate\Validation\ValidationException;
 
 class OrganizationApplicationController extends Controller
 {
-    private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
+    private const NO_REQUIREMENTS = 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.';
 
     private function registrationRequirements(): array
     {
@@ -99,6 +99,7 @@ class OrganizationApplicationController extends Controller
                 foreach ($types as $type) {
                     $file = $request->file("files.{$type->id}");
                     $stored[] = $path = $file->store('organization-applications/'.$application->id, 'local');
+                    abort_unless($path, 500, 'Could not save the required document. Try again.');
                     $application->documents()->create([
                         'requirement_type_id' => $type->id,
                         'file_path' => $path,
@@ -322,7 +323,8 @@ class OrganizationApplicationController extends Controller
                 }
 
                 $currentIds = $types->pluck('id')->all();
-                foreach ($application->documents()->get() as $document) {
+                $documents = $application->documents()->lockForUpdate()->get()->keyBy('requirement_type_id');
+                foreach ($documents as $document) {
                     if (! in_array((int) $document->requirement_type_id, $currentIds, true)) {
                         $obsolete[] = $document->file_path;
                         $document->delete();
@@ -330,7 +332,7 @@ class OrganizationApplicationController extends Controller
                 }
                 foreach ($types as $type) {
                     $file = $request->file("files.{$type->id}");
-                    $document = $application->documents()->where('requirement_type_id', $type->id)->first();
+                    $document = $documents->get($type->id);
                     if (! $file) {
                         if (! $document || ! Storage::disk('local')->exists($document->file_path)) {
                             throw ValidationException::withMessages(["files.{$type->id}" => ['Upload this required document.']]);

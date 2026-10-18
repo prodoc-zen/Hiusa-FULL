@@ -164,4 +164,44 @@ describe('API GET cache', () => {
     await cache.get('/users', { headers: { Authorization: 'Bearer other-profile' } }, request);
     expect(request).toHaveBeenCalledTimes(4);
   });
+
+  it('separates URLSearchParams and Date query values', async () => {
+    const request = vi.fn().mockResolvedValue(response([]));
+    const cache = createApiGetCache();
+    await cache.get('/requirements', { params: new URLSearchParams('page=1') }, request);
+    await cache.get('/requirements', { params: new URLSearchParams('page=2') }, request);
+    await cache.get('/requirements', { params: { since: new Date('2026-10-01') } }, request);
+    await cache.get('/requirements', { params: { since: new Date('2026-10-02') } }, request);
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it('evicts a stale entry when explicitly refreshing without discarding unrelated entries', async () => {
+    const request = vi.fn().mockResolvedValueOnce(response(['old']))
+      .mockResolvedValueOnce(response(['other'])).mockResolvedValue(response(['fresh']));
+    const cache = createApiGetCache();
+    await cache.get('/requirements', {}, request);
+    await cache.get('/other', {}, request);
+    await cache.get('/requirements', { cache: false }, request);
+    expect((await cache.get('/requirements', {}, request)).data).toEqual(['fresh']);
+    expect((await cache.get('/other', {}, request)).clientCache).toBe('HIT');
+  });
+
+  it('does not let an older in-flight request undo an explicit refresh', async () => {
+    const old = deferred();
+    const request = vi.fn().mockReturnValueOnce(old.promise).mockResolvedValue(response(['fresh']));
+    const cache = createApiGetCache();
+    const beforeRefresh = cache.get('/requirements', {}, request);
+    await cache.get('/requirements', { cache: false }, request);
+    old.resolve(response(['old']));
+    await beforeRefresh;
+    expect((await cache.get('/requirements', {}, request)).data).toEqual(['fresh']);
+  });
+
+  it('keeps response headers isolated from consumer mutation', async () => {
+    const request = vi.fn().mockResolvedValue(response([]));
+    const cache = createApiGetCache();
+    const first = await cache.get('/requirements', {}, request);
+    first.headers['content-type'] = 'text/html';
+    expect((await cache.get('/requirements', {}, request)).headers['content-type']).toBe('application/json');
+  });
 });

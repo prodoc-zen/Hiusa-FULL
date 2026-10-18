@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\Event;
+use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\SubmissionStoragePolicy;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +19,24 @@ use Tests\TestCase;
 class EventRequirementSubmissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_failed_event_upload_preserves_existing_documents_and_does_not_open_review(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'status' => 'planning']);
+        $requirement = EventRequirement::create(['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => true]);
+        $file = EventRequirementFile::create(['event_id' => $event->id, 'organization_id' => $admin->organization_id, 'requirement_id' => $requirement->id, 'path' => 'old.pdf', 'original_name' => 'old.pdf', 'uploaded_by' => $admin->school_id]);
+        $this->mock(SubmissionStoragePolicy::class)->shouldReceive('assertUpload')->once();
+        $disk = \Mockery::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('exists')->with('old.pdf')->andReturn(false);
+        $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+        $disk->shouldReceive('delete')->andReturn(true);
+        Storage::shouldReceive('disk')->with('local')->andReturn($disk);
+        Sanctum::actingAs($admin);
+        $this->post('/api/events/'.$event->id.'/submission', ['documents' => [$requirement->id => UploadedFile::fake()->create('replacement.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])->assertStatus(500);
+        $this->assertDatabaseHas('event_requirement_files', ['id' => $file->id, 'path' => 'old.pdf']);
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $event->id]);
+    }
 
     public function test_existing_login_can_switch_to_sao_profile_and_manage_requirements(): void
     {

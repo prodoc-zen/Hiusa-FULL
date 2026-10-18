@@ -161,14 +161,15 @@ class ComplianceController extends Controller
 
     public function destroyRequirementType(Request $request, ComplianceRequirementType $requirementType)
     {
-        $templatePath = $requirementType->template_path;
         $deleted = DB::transaction(function () use ($request, $requirementType) {
             $locked = ComplianceRequirementType::whereKey($requirementType->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
             if ($locked->submissions()->exists() || OrganizationApplicationDocument::where('requirement_type_id', $locked->id)->exists()) {
                 return false;
             }
 
             $locked->delete();
+            app(RequirementSampleService::class)->deleteAfterCommit($locked->template_path);
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
@@ -189,10 +190,6 @@ class ComplianceController extends Controller
             return response()->json(['message' => 'This requirement has submitted or application documents. Deactivate it to preserve those records.'], 409);
         }
 
-        if ($templatePath) {
-            Storage::disk('local')->delete($templatePath);
-        }
-
         return response()->noContent();
     }
 
@@ -204,27 +201,7 @@ class ComplianceController extends Controller
         $extensions = implode(',', ComplianceRequirementType::SUPPORTED_EXTENSIONS);
         $request->validate(['template' => ['required', 'file', 'mimes:'.$extensions, 'extensions:'.$extensions, 'max:10240']]);
 
-        $file = $request->file('template');
-        $path = $file->store('compliance-requirement-templates/'.$requirementType->id, 'local');
-        if (! $path) {
-            return response()->json(['message' => 'Could not save the sample file.'], 500);
-        }
-        $previousPath = $requirementType->template_path;
-        try {
-            $requirementType->update([
-                'template_path' => $path,
-                'template_original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
-                'template_url' => null,
-            ]);
-        } catch (\Throwable $error) {
-            Storage::disk('local')->delete($path);
-            throw $error;
-        }
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
-        }
-
-        return response()->json($requirementType->fresh());
+        return response()->json(app(RequirementSampleService::class)->save($requirementType, [], $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates'));
     }
 
     public function setRequirementTemplateLink(Request $request, ComplianceRequirementType $requirementType)
@@ -232,14 +209,9 @@ class ComplianceController extends Controller
         if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
-        $data = $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
-        $previousPath = $requirementType->template_path;
-        $requirementType->update(['template_url' => $data['template_url'], 'template_path' => null, 'template_original_name' => null]);
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
-        }
+        $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
 
-        return response()->json($requirementType->fresh());
+        return response()->json(app(RequirementSampleService::class)->save($requirementType, [], $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates'));
     }
 
     public function removeRequirementTemplate(ComplianceRequirementType $requirementType)

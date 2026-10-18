@@ -38,7 +38,7 @@ class CollegeOrganizationController extends Controller
 
     private const ORGANIZATION_COLUMNS = ['organization_id', 'parent_organization_id', 'source_organization_id'];
 
-    private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
+    private const NO_REQUIREMENTS = 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.';
 
     public function index(Request $request)
     {
@@ -136,6 +136,7 @@ class CollegeOrganizationController extends Controller
                 foreach ($types as $type) {
                     $file = $request->file("files.{$type->id}");
                     $stored[] = $path = $file->store('compliance-submissions/'.$organization->id, 'local');
+                    abort_unless($path, 500, 'Could not save the required document. Try again.');
                     OrganizationComplianceSubmission::create([
                         'organization_id' => $organization->id,
                         'requirement_type_id' => $type->id,
@@ -195,6 +196,7 @@ class CollegeOrganizationController extends Controller
                     $submission = OrganizationComplianceSubmission::where('organization_id', $organization->id)->where('requirement_type_id', $typeId)->firstOrFail();
                     $replaced[] = $submission->file_path;
                     $stored[] = $path = $file->store('compliance-submissions/'.$organization->id, 'local');
+                    abort_unless($path, 500, 'Could not save the replacement document. Try again.');
                     $submission->update($this->fileAttributes($path, $file, $user));
                 }
                 $locked->update([

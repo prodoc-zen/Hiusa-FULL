@@ -62,27 +62,7 @@ class EventRequirementController extends Controller
         }
         $request->validate(['template' => ['required', 'file', 'mimes:pdf', 'extensions:pdf', 'max:10240']]);
 
-        $file = $request->file('template');
-        $path = $file->store('event-requirement-templates/'.$requirement->id, 'local');
-        if (! $path) {
-            return response()->json(['message' => 'Could not save the sample template.'], 500);
-        }
-        $previousPath = $requirement->template_path;
-        try {
-            $requirement->update([
-                'template_path' => $path,
-                'template_original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
-                'template_url' => null,
-            ]);
-        } catch (\Throwable $error) {
-            Storage::disk('local')->delete($path);
-            throw $error;
-        }
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
-        }
-
-        return response()->json($requirement->fresh());
+        return response()->json(app(RequirementSampleService::class)->save($requirement, [], $request, self::SUPPORTED_EXTENSIONS, 'event-requirement-templates'));
     }
 
     public function setTemplateLink(Request $request, EventRequirement $requirement)
@@ -90,19 +70,9 @@ class EventRequirementController extends Controller
         if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
-        $data = $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
+        $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
 
-        $previousPath = $requirement->template_path;
-        $requirement->update([
-            'template_url' => $data['template_url'],
-            'template_path' => null,
-            'template_original_name' => null,
-        ]);
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
-        }
-
-        return response()->json($requirement->fresh());
+        return response()->json(app(RequirementSampleService::class)->save($requirement, [], $request, self::SUPPORTED_EXTENSIONS, 'event-requirement-templates'));
     }
 
     public function removeTemplate(EventRequirement $requirement)
@@ -158,15 +128,13 @@ class EventRequirementController extends Controller
         if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
-        if (EventRequirementFile::where('requirement_id', $requirement->id)->exists()) {
-            return response()->json(['message' => 'This requirement has submitted files. Deactivate it to preserve those records.'], 409);
-        }
-
-        $templatePath = $requirement->template_path;
-        $requirement->delete();
-        if ($templatePath) {
-            Storage::disk('local')->delete($templatePath);
-        }
+        DB::transaction(function () use ($requirement) {
+            $locked = EventRequirement::whereKey($requirement->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
+            abort_if(EventRequirementFile::where('requirement_id', $locked->id)->exists(), 409, 'This requirement has submitted files. Deactivate it to preserve those records.');
+            $locked->delete();
+            app(RequirementSampleService::class)->deleteAfterCommit($locked->template_path);
+        });
 
         return response()->noContent();
     }
@@ -251,6 +219,7 @@ class EventRequirementController extends Controller
                     }
                     $file = $documents[$requirement->id];
                     $path = $file->store('event-requirements/'.$event->organization_id.'/'.$event->id, 'local');
+                    abort_unless($path, 500, 'Could not save the event document. Try again.');
                     $storedPaths[] = $path;
                     if ($old = $existing->get($requirement->id)) {
                         $oldPaths[] = $old->path;

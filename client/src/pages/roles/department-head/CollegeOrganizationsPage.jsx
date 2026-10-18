@@ -56,7 +56,7 @@ const REQUIREMENT_STATUS = {
 const LEADER_ROLE = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
 
 const STATUS_PANEL_ID = 'organization-status-panel';
-const NO_SEMESTER_NOTICE = 'No registration requirements are open. The SAO must activate a semester first.';
+const NO_SEMESTER_NOTICE = 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.';
 
 function roleCount(organization, key) {
   const count = organization.role_counts?.[key];

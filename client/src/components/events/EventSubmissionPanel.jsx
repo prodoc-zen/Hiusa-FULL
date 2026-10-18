@@ -8,15 +8,19 @@ import { RichTextBody } from '../RichText';
 import { Button, DataTable, StatusBadge } from '../ui';
 import TableRowActions from '../TableRowActions';
 
-export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
+export default function EventSubmissionPanel(props) {
+  return <EventSubmission key={props.eventId} {...props} />;
+}
+
+function EventSubmission({ eventId, role, onSubmitted }) {
   const [submission, setSubmission] = useState(null);
   const [files, setFiles] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refresh = false) => {
     try {
-      const response = await getEventSubmission(eventId);
+      const response = await (refresh ? getEventSubmission(eventId, { cache: false }) : getEventSubmission(eventId));
       setSubmission(response.data);
       setError('');
     } catch (cause) {
@@ -72,7 +76,7 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
   return (
     <section className="rounded-lg border border-[#DDE7EF] bg-white p-4">
       <div className="flex items-center gap-2 text-[#0F2F62]"><FileText size={17} aria-hidden="true" /><h3 className="text-sm font-bold">SAO event requirements</h3></div>
-      {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
+      {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error} <button type="button" onClick={() => load(true)} className="font-bold underline">Retry</button></p>}
       {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-slate-500">SAO has not listed any file requirements.</p>}
       {requirements.length > 0 && <div className="mt-3"><DataTable
         caption="Event requirement submissions"

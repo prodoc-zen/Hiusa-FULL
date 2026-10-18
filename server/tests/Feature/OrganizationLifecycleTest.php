@@ -55,13 +55,18 @@ class OrganizationLifecycleTest extends TestCase
         ]);
     }
 
-    /** Opens the registration set exactly as the SAO does: a semester with its ten renewal requirements, activated. */
+    /** Opens the registration set with publisher-provided samples. */
     private function openSemester(): array
     {
         $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
         Sanctum::actingAs($this->director);
         $semesterId = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $this->patchJson("/api/system/academic-semesters/{$semesterId}/active")->assertOk();
+        foreach (ComplianceRequirementType::where('academic_semester_id', $semesterId)->get() as $requirement) {
+            $this->putJson('/api/compliance/requirement-types/'.$requirement->id, [
+                'is_active' => true, 'template_url' => 'https://example.edu/requirement-format',
+            ])->assertOk();
+        }
 
         return ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->pluck('id')->all();
     }
