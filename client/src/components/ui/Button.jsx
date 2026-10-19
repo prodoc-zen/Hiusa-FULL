@@ -41,7 +41,7 @@ const Button = forwardRef(function Button(
 ) {
   const isDisabled = disabled || loading;
   const iconSize = ICON_SIZE[size];
-  const classes = `relative inline-flex items-center justify-center rounded-control font-bold transition-[transform,background-color,color,border-color] duration-[120ms] ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
+  const classes = `relative inline-flex items-center justify-center rounded-control font-bold transition-[translate,background-color,color,border-color,opacity] duration-[150ms] ease-out disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
 
   const content = (
     <>

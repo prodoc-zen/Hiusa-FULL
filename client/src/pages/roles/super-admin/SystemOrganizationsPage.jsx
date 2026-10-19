@@ -13,6 +13,7 @@ import PermanentDeleteModal from '../../../components/organizations/PermanentDel
 import Modal from '../../../components/Modal';
 import TableRowActions from '../../../components/TableRowActions';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
+import CreateAdministratorModal from '../../../components/users/CreateAdministratorModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 import { Button, Drawer, EmptyState, ErrorState, Field, Input, SkeletonCard, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import { manilaDate } from '../../../lib/format';
@@ -241,6 +242,8 @@ export default function SystemOrganizationsPage() {
   const [form, setForm] = useState(null);
   const [logoFile, setLogoFile] = useState(null);
   const [membershipOrganization, setMembershipOrganization] = useState(null);
+  const [adminOrganization, setAdminOrganization] = useState(null);
+  const [existingAdminOrganization, setExistingAdminOrganization] = useState(null);
   const [profileOrganization, setProfileOrganization] = useState(null);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -481,6 +484,7 @@ export default function SystemOrganizationsPage() {
                 lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
                 lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
                 lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
+                lifecycle === 'active' && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setAdminOrganization(org) },
                 lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
                 lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
                 { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
@@ -508,6 +512,8 @@ export default function SystemOrganizationsPage() {
       <ConfirmModal open={Boolean(restoreTarget)} title="Restore organization" message={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)} so it can be edited and used again?` : ''} recordName={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)}?` : ''} confirmText="Restore organization" variant="primary" busy={lifecycleBusy} onCancel={() => setRestoreTarget(null)} onConfirm={() => runLifecycle(() => restoreSystemOrganization(restoreTarget.id), restoreTarget, `${formatDisplayText(restoreTarget.name)} restored.`)} />
       {profileOrganization && <ManageAccountProfilesModal organization={profileOrganization} onClose={() => setProfileOrganization(null)} onDeleted={(result) => { setNotice(result.message); load(); }} />}
       {membershipOrganization && <AddExistingUserModal actorRole="SUPER_ADMIN" organization={membershipOrganization} onClose={() => setMembershipOrganization(null)} onAdded={() => { setNotice('User added to the organization.'); load(); }} />}
+      {adminOrganization && <CreateAdministratorModal organization={adminOrganization} onClose={() => setAdminOrganization(null)} onCreated={() => { setNotice('Administrator account created.'); load(); }} onUseExisting={() => { setExistingAdminOrganization(adminOrganization); setAdminOrganization(null); }} />}
+      {existingAdminOrganization && <AddExistingUserModal actorRole="SUPER_ADMIN" organization={existingAdminOrganization} initialRole="ADMIN" onClose={() => setExistingAdminOrganization(null)} onAdded={() => { setNotice('Admin profile added to the organization.'); load(); }} />}
     </div>
   );
 }

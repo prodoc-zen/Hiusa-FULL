@@ -179,7 +179,7 @@ export default function AcademicYearsPage() {
   const columns = [
     { key: 'label', header: 'Academic year', render: (year) => <span className="font-bold text-ink">{year.label}</span> },
     { key: 'dates', header: 'Dates', render: (year) => `${manilaDate(year.starts_on, 'long')} to ${manilaDate(year.ends_on, 'long')}` },
-    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="info" label="Current" /> : <span className="text-xs font-medium text-ink-muted">{year.closed_at ? 'Completed' : 'Not current'}</span>) },
+    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="success" label="Current" /> : <span className="text-xs font-medium text-ink-muted">{year.closed_at ? 'Completed' : 'Not current'}</span>) },
   ];
 
   return (
@@ -237,7 +237,7 @@ export default function AcademicYearsPage() {
             {(year.semesters || []).length < 2 && <TableRowActions subject={`Semesters of ${year.label}`} actions={[{ label: 'Add semester', onClick: () => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); } }]} />}
           </div>
           <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
-            <div><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="ml-2 text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><span className="ml-2 text-xs font-semibold capitalize text-ink-muted">{semester.status}</span></div>
+            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><StatusBadge status={semester.status} /></div>
             <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[
               semester.status === 'upcoming' && { label: 'Set as active', disabled: busy, onClick: () => changeSemester(semester, 'activate') },
               semester.status === 'active' && { label: 'Close semester', disabled: busy, onClick: () => changeSemester(semester, 'close') },

@@ -212,7 +212,7 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertSame(1, $requirements->json('academic_semester.number'));
     }
 
-    public function test_a_pending_organizations_admin_cannot_sign_in_until_approval_and_sao_cannot_create_another(): void
+    public function test_pending_organization_blocks_sign_in_and_admin_creation_until_approval(): void
     {
         $typeIds = $this->openSemester();
         $id = $this->register($typeIds);
@@ -234,7 +234,8 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'organization_approved', 'organization_id' => $id]);
         $this->assertDatabaseHas('notifications', ['user_id' => $this->head->school_id, 'reference_type' => 'organization', 'reference_id' => $id]);
 
-        $this->postJson('/api/system/admins', ['organization_id' => $id, 'school_id' => 20260001, 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test', 'password' => 'Secret@12345', 'password_confirmation' => 'Secret@12345'])->assertForbidden();
+        $this->postJson('/api/system/admins', ['organization_id' => $id, 'school_id' => 20260001, 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test', 'password' => 'Secret@12345', 'password_confirmation' => 'Secret@12345'])
+            ->assertCreated()->assertJsonPath('must_change_password', true);
         $this->postJson('/api/login', ['school_id' => $waiting->school_id, 'password' => 'password'])->assertOk();
     }
 

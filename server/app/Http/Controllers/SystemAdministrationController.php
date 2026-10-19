@@ -167,7 +167,38 @@ class SystemAdministrationController extends Controller
 
     public function storeAdmin(Request $request)
     {
-        abort(403, 'Organization administrators are appointed by their own organization. The first administrator is created through an endorsed registration application.');
+        $this->normalizeAdminInput($request);
+        $data = $request->validate([
+            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999', Rule::unique('users', 'school_id')],
+            'first_name' => ['required', 'string', 'max:60'],
+            'last_name' => ['required', 'string', 'max:60'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
+            'position_title' => ['nullable', 'string', 'max:100'],
+            'password' => ['required', 'string', 'min:8', 'max:72', 'confirmed'],
+            'password_hash' => ['prohibited'],
+            'role' => ['prohibited'],
+            'account_status' => ['prohibited'],
+        ]);
+        $user = DB::transaction(function () use ($request, $data) {
+            $organization = Organization::student()->whereKey($data['organization_id'])->lockForUpdate()->firstOrFail();
+            abort_unless($organization->is_active && $organization->isWritable(), 409, 'Choose an active organization in an active college.');
+            $user = User::create([
+                ...collect($data)->except('password')->all(),
+                'password_hash' => $data['password'],
+                'role' => 'ADMIN',
+                'account_status' => 'active',
+                'must_change_password' => true,
+                'department' => $organization->getRawOriginal('college'),
+            ]);
+            $this->ensureAdminPosition($organization->id, $data['position_title'] ?? null);
+            $this->audit($request, 'administrator_created', $user, $user->only(['school_id', 'organization_id', 'first_name', 'last_name', 'email', 'role']), 'SAO created an organization administrator account.');
+
+            return $user;
+        });
+
+        return response()->json($user->load('organization:id,name,acronym,college'), 201);
     }
 
     public function updateAdmin(Request $request, User $user)

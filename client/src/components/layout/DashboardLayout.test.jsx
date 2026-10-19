@@ -130,7 +130,7 @@ describe('DashboardLayout page header', () => {
   beforeEach(() => localStorage.clear());
 
   it.each([
-    ['SUPER_ADMIN', '/dashboard/organization-applications', 'Organization applications', /Review verified applications/, ['Home', 'Organizations', 'Organization applications']],
+    ['SUPER_ADMIN', '/dashboard/organization-applications', 'Organization applications', /Review verified applications/, ['Home', 'Governance', 'Organization applications']],
     ['ADMIN', '/dashboard/finance/budget-allocation', 'Budgets', /Plan and review organization budgets/, ['Home', 'Finance', 'Budgets']],
     ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/, ['Home', 'Organizations']],
     ['STUDENT', '/dashboard/events/activity-calendar', 'Events', /Browse approved activities/, ['Home', 'Events']],

@@ -19,7 +19,7 @@ class SuperAdminFingerprintTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_organization_admin_creates_admin_accounts_and_sao_can_only_manage_existing_accounts(): void
+    public function test_admin_creation_and_sao_management_preserve_role_and_organization_boundaries(): void
     {
         $organization = Organization::factory()->create();
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -31,7 +31,8 @@ class SuperAdminFingerprintTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $payload = $this->adminPayload(880002);
-        $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])->assertForbidden();
+        $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('role');
         Sanctum::actingAs($admin);
         $created = $this->postJson('/api/users', $payload)
             ->assertCreated()

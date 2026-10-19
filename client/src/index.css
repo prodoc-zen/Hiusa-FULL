@@ -108,11 +108,23 @@ input.hiusa-date-time::-webkit-calendar-picker-indicator {
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-  --duration-press: 120ms;
+  --duration-press: 150ms;
   --duration-popover: 180ms;
   --duration-route: 180ms;
-  --duration-modal: 240ms;
+  --duration-modal: 180ms;
   --duration-drawer: 300ms;
+}
+
+@layer base {
+  :where(button, [role='button'], a[href]) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, translate;
+    transition-duration: var(--duration-press);
+    transition-timing-function: ease-out;
+  }
+
+  :where(button:enabled:not([aria-disabled='true']), [role='button']:not(:disabled):not([aria-disabled='true'])):active {
+    translate: 0 1px;
+  }
 }
 
 .status-icon {
@@ -261,8 +273,8 @@ a {
 }
 
 @keyframes modal-pop-in {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes drawer-slide-in {
@@ -284,6 +296,10 @@ a {
 }
 
 .modal-pop-in {
+  animation: modal-pop-in var(--duration-modal) var(--ease-out) both;
+}
+
+.hiusa-overlay > :where(form, section, div) {
   animation: modal-pop-in var(--duration-modal) var(--ease-out) both;
 }
 
@@ -313,11 +329,13 @@ a {
 
   *:active {
     transform: none !important;
+    translate: none !important;
   }
 
   .route-fade-in,
   .overlay-fade-in,
   .modal-pop-in,
+  .hiusa-overlay > :where(form, section, div),
   .drawer-slide-in,
   .drawer-slide-out {
     animation: none;
