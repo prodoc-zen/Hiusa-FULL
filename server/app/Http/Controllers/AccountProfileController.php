@@ -61,6 +61,7 @@ class AccountProfileController extends Controller
             $query->lockForUpdate();
         }
         $organization = $query->findOrFail($organizationId);
+        abort_unless($organization->isWritable(), 404);
         if (! trim($organization->college ?? '')) {
             throw ValidationException::withMessages(['organization_id' => ['Assign a college to this organization before adding existing users.']]);
         }
@@ -171,7 +172,7 @@ class AccountProfileController extends Controller
     {
         $actor = $request->user();
         $roles = ['STUDENT', 'SBO_OFFICER'];
-        if ($actor->role === 'ADMIN') {
+        if (in_array($actor->role, ['ADMIN', 'SUPER_ADMIN'], true)) {
             $roles[] = 'ADMIN';
         }
         $data = $request->validate([

@@ -79,7 +79,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
     },
     {
       key: 'overdue',
-      header: 'Overdue',
+      header: 'Past deadline',
       align: 'right',
       render: (org) => {
         const overdue = orgOverdueCount(org);
@@ -93,6 +93,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
   return (
     <>
     <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
+      <p className="mb-4 text-sm text-ink-muted">Past deadline counts requirements whose deadline has passed and which are not yet approved. This includes files awaiting SAO review. Open an organization’s requirements to see the deadlines and review statuses.</p>
       <DataTable
         stickyHeader={false}
         columns={columns}

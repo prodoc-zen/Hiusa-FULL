@@ -146,7 +146,7 @@ const NAV_BY_ROLE = {
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
     { id: 'sao-users', label: 'University users', icon: UsersRound, path: '/dashboard/super-admin/users' },
-    group('sao-organizations-group', 'Organizations', Building2, [
+    group('sao-organizations-group', 'Governance', Building2, [
       leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),
       leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
       leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2),

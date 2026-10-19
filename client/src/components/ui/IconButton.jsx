@@ -21,7 +21,7 @@ const IconButton = forwardRef(function IconButton(
         ref={ref}
         type={type || 'button'}
         aria-label={label}
-        className={`inline-flex shrink-0 items-center justify-center rounded-control transition-[transform,background-color,color] duration-[120ms] ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-control transition-[translate,background-color,color,opacity] duration-[150ms] ease-out disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
         {...rest}
       >
         <Icon size={ICON_SIZE[size]} aria-hidden="true" />

@@ -115,7 +115,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_updated']);
     }
 
-    public function test_sao_cannot_create_admins_but_can_initiate_secure_recovery(): void
+    public function test_sao_can_create_admins_and_initiate_secure_recovery_without_overwriting_passwords(): void
     {
         Mail::fake();
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -132,10 +132,9 @@ class SaoDirectorAdministrationTest extends TestCase
             'position_title' => 'Adviser',
             'password' => 'Initial-Admin-Password-123!',
             'password_confirmation' => 'Initial-Admin-Password-123!',
-        ])->assertForbidden();
+        ])->assertCreated();
 
-        $this->assertDatabaseMissing('users', ['school_id' => 78001122]);
-        $admin = User::factory()->admin()->create(['organization_id' => $organization->id, 'password_hash' => 'Initial-Admin-Password-123!']);
+        $admin = User::findOrFail(78001122);
         $initialHash = $admin->password_hash;
         $this->assertTrue(Hash::check('Initial-Admin-Password-123!', $initialHash));
         Mail::assertNothingOutgoing();
@@ -158,7 +157,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertFalse(Hash::check('SAO-must-not-set-this', $admin->fresh()->password_hash));
     }
 
-    public function test_sao_admin_creation_is_forbidden_regardless_of_password(): void
+    public function test_sao_admin_creation_requires_a_confirmed_initial_password(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $organization = Organization::factory()->create();
@@ -175,13 +174,13 @@ class SaoDirectorAdministrationTest extends TestCase
         ];
 
         $this->postJson('/api/system/admins', $payload)
-            ->assertForbidden();
+            ->assertUnprocessable()->assertJsonValidationErrors('password');
 
         $this->postJson('/api/system/admins', [
             ...$payload,
             'password' => 'Initial-Admin-Password-123!',
             'password_confirmation' => 'different-password',
-        ])->assertForbidden();
+        ])->assertUnprocessable()->assertJsonValidationErrors('password');
 
         $this->assertDatabaseMissing('users', ['school_id' => 78001123]);
     }

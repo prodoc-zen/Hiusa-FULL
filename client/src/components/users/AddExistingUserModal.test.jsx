@@ -38,8 +38,8 @@ describe('AddExistingUserModal', () => {
     expect(await screen.findByRole('radio', { name: /Maria Reyes/ })).not.toBeChecked();
   });
 
-  it('lets organization administrators assign an Admin profile to an existing user', async () => {
-    render(<AddExistingUserModal actorRole="ADMIN" initialUser={user} onClose={vi.fn()} />);
+  it.each(['ADMIN', 'SUPER_ADMIN'])('lets %s assign an Admin profile to an existing user', async (actorRole) => {
+    render(<AddExistingUserModal actorRole={actorRole} initialUser={user} onClose={vi.fn()} />);
     await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
     fireEvent.change(screen.getByLabelText('Destination organization'), { target: { value: '9' } });
     fireEvent.click(await screen.findByRole('radio', { name: /Maria Reyes/ }));
@@ -48,7 +48,7 @@ describe('AddExistingUserModal', () => {
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: user.school_id, organization_id: 9, role: 'ADMIN' }));
   });
 
-  it.each(['SUPER_ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', null])('does not offer Admin assignment for actor %s', async (actorRole) => {
+  it.each(['SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', null])('does not offer Admin assignment for actor %s', async (actorRole) => {
     render(<AddExistingUserModal actorRole={actorRole} organization={organization} onClose={vi.fn()} />);
     await screen.findByRole('radio', { name: /Maria Reyes/ });
     expect(screen.queryByRole('option', { name: 'Admin', exact: true })).not.toBeInTheDocument();

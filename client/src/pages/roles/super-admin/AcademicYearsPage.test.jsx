@@ -77,6 +77,8 @@ describe('AcademicYearsPage', () => {
     it('offers delete only for semesters that are not active', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       renderPage();
+      expect((await screen.findAllByText('Current'))[0]).toHaveClass('bg-success-tint', 'text-success-strong');
+      expect(screen.getByText('Active', { exact: true })).toHaveClass('bg-success-tint', 'text-success-strong');
       expect(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 1st semester of AY 2026-2027' }));
       expect(screen.queryByRole('menuitem', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();

@@ -6,7 +6,7 @@ import SystemOrganizationsPage from './SystemOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(), getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), getSystemOrganizationOverview: vi.fn(),
   reviewSystemOrganization: vi.fn(), archiveSystemOrganization: vi.fn(), restoreSystemOrganization: vi.fn(),
-  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(),
+  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(), createSystemAdmin: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
@@ -39,6 +39,33 @@ describe('SystemOrganizationsPage', () => {
     profileMocks.getProfileCandidates.mockResolvedValue({ data: { data: [{ school_id: 123, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test' }], current_page: 1, last_page: 1, total: 1 } });
     profileMocks.inviteAccountProfile.mockResolvedValue({ data: { id: 9, organization_id: 3 } });
     profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
+    mocks.createSystemAdmin.mockResolvedValue({ school_id: 78123456, role: 'ADMIN' });
+  });
+
+  it('creates an additional administrator from an active organization action', async () => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ administrators_count: 1 })]));
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+    expect(within(dialog).getByText('Main SBO')).toBeInTheDocument();
+    for (const [label, value] of [['School ID', '78123456'], ['First name', 'New'], ['Last name', 'Admin'], ['Email', 'new@example.test'], ['Initial password', 'Initial-Password-123!'], ['Confirm initial password', 'Initial-Password-123!']]) {
+      fireEvent.change(within(dialog).getByLabelText(new RegExp(`^${label}`)), { target: { value } });
+    }
+    fireEvent.submit(within(dialog).getByRole('button', { name: 'Create administrator' }).form);
+    await waitFor(() => expect(mocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 3, school_id: 78123456 })));
+    expect(await screen.findByText('Administrator account created.')).toBeInTheDocument();
+  });
+
+  it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use existing user' }));
+    fireEvent.click(await screen.findByRole('radio', { name: /Ana Reyes/ }));
+    expect(screen.getByLabelText('Role in destination organization')).toHaveValue('ADMIN');
+    fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'ADMIN' }));
   });
 
   it('loads only the totals and visible page until editing needs parent options', async () => {

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Eye, Trash2, UsersRound } from 'lucide-react';
+import { Eye, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { Button, Card, Drawer, EmptyState, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
+import CreateAdministratorModal from '../../../components/users/CreateAdministratorModal';
+import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
 import { getSystemUser, getSystemUsers, deleteSystemUser } from '../../../services/systemAdministrationService';
@@ -30,6 +32,8 @@ export default function SaoUsersPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [existingAdmin, setExistingAdmin] = useState(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { setFilters((current) => ({ ...current, search: query.trim() })); setPage(1); }, 250);
@@ -76,7 +80,7 @@ export default function SaoUsersPage() {
   }
 
   return <div className="space-y-5 pb-8">
-    <PageHeader title="University users" description="Search accounts across every organization and college." />
+    <PageHeader title="University users" description="Search accounts across every organization and college." primary={<Button leftIcon={UserPlus} onClick={() => setCreatingAdmin(true)}>Add administrator</Button>} />
     <Card bodyClassName="p-0">
       <div className="grid gap-3 border-b border-line p-4 sm:grid-cols-3">
         <label className="text-xs font-semibold text-ink">Search users<Input className="mt-1 w-full" type="search" placeholder="Name, email, or school ID" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -92,10 +96,11 @@ export default function SaoUsersPage() {
             <td className="px-4 py-3"><span className="block font-semibold text-ink">{fullName(user)}</span><span className="break-all text-xs text-ink-muted">{user.email}</span></td>
             <td className="px-4 py-3 tabular-nums text-ink-muted-strong">{user.school_id}</td>
             <td className="px-4 py-3 text-ink-muted-strong">{user.organization?.name || '—'}</td>
-            <td className="px-4 py-3 text-ink-muted-strong">{ROLE_NAMES[user.role] || user.role}</td>
+            <td className="px-4 py-3 text-ink-muted-strong">{[...new Set([user.role, ...(user.profile_roles || [])])].map((role) => ROLE_NAMES[role] || role).join(', ')}</td>
             <td className="px-4 py-3"><StatusBadge status={user.account_status} /></td>
             <td className="px-4 py-2"><TableRowActions subject={fullName(user)} actions={[
               { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
+              user.role !== 'SUPER_ADMIN' && user.account_status === 'active' && { label: 'Add Admin profile', icon: UserPlus, onClick: () => setExistingAdmin({ user }) },
               { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
             ]} /></td>
           </tr>)}</tbody>
@@ -111,6 +116,8 @@ export default function SaoUsersPage() {
         <section><h3 className="text-sm font-bold text-ink">Linked records</h3><dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.entries(detail.linked_records || {}).map(([key, count]) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{key.replaceAll('_', ' ')}</dt><dd className="text-sm font-bold tabular-nums text-ink">{count}</dd></div>)}</dl></section>
       </div>}
     </Drawer>
+    {creatingAdmin && <CreateAdministratorModal onClose={() => setCreatingAdmin(false)} onCreated={() => { setNotice('Administrator account created.'); load(); }} onUseExisting={() => { setCreatingAdmin(false); setExistingAdmin({}); }} />}
+    {existingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={existingAdmin.user} onClose={() => setExistingAdmin(null)} onAdded={() => { setNotice('Admin profile added to the existing university login.'); load(); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user and linked records?" recordName={fullName(deleting)} message="This permanently removes the account, profiles, clearances, and linked submissions, financial, event, and order records. It cannot be undone." confirmationText={String(deleting?.school_id || '')} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
 }

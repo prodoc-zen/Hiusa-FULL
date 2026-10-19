@@ -102,7 +102,7 @@ const SPEC = {
     { label: 'Dashboard', path: '/dashboard/super-admin' },
     { label: 'University users', path: '/dashboard/super-admin/users' },
     {
-      label: 'Organizations',
+      label: 'Governance',
       children: [
         ['Organization applications', '/dashboard/organization-applications'],
         ['Registrations and organizations', '/dashboard/super-admin/organizations?status=pending'],

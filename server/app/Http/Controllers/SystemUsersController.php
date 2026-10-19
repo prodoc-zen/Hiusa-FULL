@@ -25,8 +25,10 @@ class SystemUsersController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = User::query()->with('organization:id,name,acronym')
-            ->when($filters['role'] ?? null, fn ($query, $role) => $query->whereIn('role', FilterValues::values($role)))
+        $query = User::query()->with(['organization:id,name,acronym', 'accountProfiles:id,user_school_id,role'])
+            ->when($filters['role'] ?? null, fn ($query, $role) => $query->where(fn ($matches) => $matches
+                ->whereIn('role', FilterValues::values($role))
+                ->orWhereHas('accountProfiles', fn ($profiles) => $profiles->whereIn('role', FilterValues::values($role)))))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->whereIn('account_status', FilterValues::values($status)))
             ->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->whereIn('organization_id', FilterValues::values($id)))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($matches) => $matches
@@ -127,6 +129,7 @@ class SystemUsersController extends Controller
             'last_name' => $user->last_name,
             'email' => $user->email,
             'role' => $user->getRawOriginal('role'),
+            'profile_roles' => $user->accountProfiles->pluck('role')->unique()->values(),
             'account_status' => $user->getRawOriginal('account_status'),
             'organization' => $user->organization?->only(['id', 'name', 'acronym']),
         ];

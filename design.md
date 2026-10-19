@@ -418,6 +418,16 @@ Desktop requirements:
 - Keep primary actions aligned with page headers.
 - Sidebar and top bar should remain stable while content changes.
 
+## Interaction and motion
+
+Use short, simple transitions throughout HIUSA, including native buttons, shared buttons, icon actions, menus, and modal dialogs. Preserve this behavior in future UI changes.
+
+- Buttons and links transition their colors, borders, opacity, and shadows over about 150 ms with ease-out timing. Enabled buttons may move down 1 px while pressed; disabled controls stay still.
+- Modals use a brief opacity fade and small panel movement over 180 ms. Apply the same entry behavior to both shared modals and legacy accessible overlays. Drawers retain their short directional slide.
+- Animate opacity and transforms rather than width, height, or page layout. Do not add bouncing, looping decorations, or delays before an action can run.
+- Respect `prefers-reduced-motion`: remove movement and entrance animations while retaining immediate focus and state feedback. Keep controls and dialog focus available as soon as they open.
+- Active semesters and the current academic year use a green success badge with a readable text label.
+
 ## Accessibility
 
 - Maintain strong contrast between text and background.

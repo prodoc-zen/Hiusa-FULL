@@ -77,7 +77,7 @@ describe('desktop sidebar rail', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Organizations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Governance' }));
     expect(screen.queryByRole('link', { name: 'Administrators' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Organization applications' }));
