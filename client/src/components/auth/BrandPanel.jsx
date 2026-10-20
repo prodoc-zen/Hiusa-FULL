@@ -25,7 +25,7 @@ export default function BrandPanel() {
         <div className="flex items-center gap-3">
           <img src={hiusaLogo} alt="HIUSA" className="h-10 w-10 object-contain sm:h-11 sm:w-11" />
           <span className="text-lg font-black tracking-wide">HIUSA</span>
-          <span className="ml-auto text-xs font-semibold text-uc-gold">University of Cebu</span>
+          <span className="ml-auto text-xs font-semibold text-accent">University of Cebu</span>
         </div>
 
         <p className="mt-3 text-sm font-medium leading-6 text-slate-300 sm:hidden">
@@ -48,7 +48,7 @@ export default function BrandPanel() {
               const Icon = pillar.icon;
               return (
                 <li key={pillar.key} className="flex items-center gap-2 text-[13px] font-semibold text-slate-300">
-                  <Icon size={16} className="text-uc-gold" aria-hidden="true" />
+                  <Icon size={16} className="text-accent" aria-hidden="true" />
                   {pillar.shortLabel}
                 </li>
               );

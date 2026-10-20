@@ -76,12 +76,12 @@ describe('SetupChecklist', () => {
 
   it('makes only the first actionable step the filled button, unless the page already has one', () => {
     const { unmount } = renderChecklist();
-    expect(screen.getByRole('link', { name: 'Add members' })).toHaveClass('bg-uc-gold');
-    expect(screen.getByRole('button', { name: 'Where to go' })).not.toHaveClass('bg-uc-gold');
+    expect(screen.getByRole('link', { name: 'Add members' })).toHaveClass('bg-brand-700');
+    expect(screen.getByRole('button', { name: 'Where to go' })).not.toHaveClass('bg-brand-700');
     unmount();
 
     renderChecklist({ primaryFirst: false });
-    expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-uc-gold');
+    expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-brand-700');
   });
 
   it('uses the given title and description and reports a hide request', () => {
