@@ -1,4 +1,6 @@
-# Part 10 registration corrections and UC theme
+# Part 10 registration corrections and campus branding
+
+Current appearance: the blue palette has been restored at the user's request. Yellow primary actions and navigation have been removed; the supplied campus photo and all Part 10 workflow corrections remain. `design.md` is the current visual source of truth. The notes below record the original Part 10 release.
 
 The product requirements come from `D:/Downloads/PART 10.docx` and its seven screenshots. The user's additional direction supplies the campus photo and a blue/yellow University of Cebu theme. Document content is treated as product requirements; repository safeguards remain in force. The user clarified that existing approved files should be reconciled, without generated demo documents.
 
