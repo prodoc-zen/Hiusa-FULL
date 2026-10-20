@@ -2,8 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import AccreditationTab from './AccreditationTab';
 
-describe('Accreditation past-deadline explanation', () => {
-  it('explains that both missing and submitted files count until approved and lets SAO inspect their deadlines', () => {
+describe('Accreditation requirements', () => {
+  it('omits the past-deadline column while retaining requirement details', () => {
     render(<AccreditationTab overview={{ loading: false, error: '', academicYear: '2026-2027', organizations: [{
       organization_id: 7, organization_name: 'Computing Club', accreditation_status: 'incomplete', requirements: [
         { requirement_type_id: 1, requirement_name: 'Constitution', status: 'not_submitted', deadline_at: '2020-01-01' },
@@ -11,11 +11,9 @@ describe('Accreditation past-deadline explanation', () => {
         { requirement_type_id: 3, requirement_name: 'Annual report', status: 'approved', deadline_at: '2020-01-01' },
       ],
     }] }} />);
-    expect(screen.getByText(/This includes files awaiting SAO review/)).toBeInTheDocument();
     const table = screen.getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: 'Past deadline' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Past deadline' })).not.toBeInTheDocument();
     const row = within(table).getByText('Computing Club').closest('tr');
-    expect(within(row).getByText('2', { exact: true })).toHaveClass('text-danger-strong');
     fireEvent.click(within(row).getByRole('button', { name: 'Actions for Computing Club' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'View requirements' }));
     const dialog = screen.getByRole('dialog', { name: 'Computing Club' });

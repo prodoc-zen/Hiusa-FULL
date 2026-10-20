@@ -8,6 +8,16 @@ SAO can assign a Department Head with a new account or by School ID of an active
 
 The catalog is seeded from distinct organization college names when the migration runs. The Organizations form offers active colleges and preserves a legacy assignment when its value has not yet been added to the catalog. Existing organization API payloads remain compatible with the `college` string field.
 
+## Registration and renewal corrections in Part 10
+
+SAO application approval marks its copied registration documents approved in the same transaction, with the SAO reviewer and approval time. These documents count toward accreditation immediately. Replacement uploads still return to review. Active organizations' submitted documents have Approve and Reject actions; rejection requires remarks and allows correction/resubmission. Pending registrations continue through the organization review.
+
+Registration and renewal use the ten names in `RegistrationRequirementCatalog::NAMES`. Accreditation defaults to organization requirements; semestral accomplishment reports retain their separate status and submission workflow. Active duplicate names, including known legacy aliases, cannot be created or reactivated in the same period. Publishing still requires an SAO-supplied sample format.
+
+Organization lists use alphabetical order, and Active appears before Pending review. The accreditation table omits the Past deadline column while keeping deadlines in each organization's requirement details.
+
+The audited `hiusa:reconcile-registration-requirements` command is read-only unless `--apply` is supplied. It retires redundant current requirement definitions, links existing alias submissions to their canonical requirement when no submission already exists, and preserves file paths, submission IDs, reviews, samples, and historical definitions. Original application approvals are restored only for unchanged files whose bytes and submission time match the recorded approved application. Missing files and subsequent replacements require review; the command never creates uploads or manufactures approvals. Back up production before applying it.
+
 ## Unified organizations and college oversight
 
 SAO may create a student organization open to all colleges through `POST /system/unified-organizations` using `name`, `acronym`, and an optional description. The server fixes `is_university_wide=true`, an active lifecycle, and null college/parent fields, and audits creation. A new forward migration adds the flag with `false` as the default for every existing organization. Rolling it back removes only the flag and preserves organization records. Ordinary organization parent assignments must retain the same college and university-wide scope.

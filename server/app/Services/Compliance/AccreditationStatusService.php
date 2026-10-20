@@ -41,7 +41,7 @@ class AccreditationStatusService
             return $organizationIds->mapWithKeys(fn ($id) => [$id => 'not_applicable'])->all();
         }
 
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
+        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)->where('category', 'organization')
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         if ($requirementTypes->isEmpty()) {

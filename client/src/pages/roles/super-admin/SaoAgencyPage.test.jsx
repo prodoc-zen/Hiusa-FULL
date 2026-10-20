@@ -157,13 +157,13 @@ describe('SaoAgencyPage', () => {
     const returned = row({ id: 6, name: 'Drama Guild', acronym: 'DG', lifecycle_status: 'returned', is_active: false, administrators_count: 0, pending_approvals_count: 0, pending_documents_count: 0 });
     const college = (organizations, counts = {}) => ({ id: 1, name: 'College of Computing', code: 'CCS', organizations_count: organizations.length, by_lifecycle_status: { pending: 0, returned: 0, active: 0, archived: 0, ...counts }, organizations });
 
-    it('lists the organizations that need the SAO first within a college', async () => {
+    it('lists organizations alphabetically within a college', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([quiet, busy, waiting, pending], { pending: 1, active: 3 })] }));
       renderPage();
       const table = (await screen.findAllByRole('table'))[0];
 
       const names = within(table).getAllByRole('row').slice(1).map((tableRow) => within(tableRow).getAllByText(/Club|Society/)[0].textContent);
-      expect(names).toEqual(['Robotics Club', 'Chess Club', 'Zebra Society', 'Art Club']);
+      expect(names).toEqual(['Art Club', 'Chess Club', 'Robotics Club', 'Zebra Society']);
     });
 
     it('puts a college with an organization awaiting an administrator ahead of quieter ones', async () => {

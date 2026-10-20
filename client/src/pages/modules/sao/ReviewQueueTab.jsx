@@ -25,9 +25,8 @@ function documentKind(submission) {
   return submission.requirement_type?.category === 'semestral_report' || /semestral/i.test(submission.requirement_type?.name || '') ? 'Semestral report' : 'Renewal document';
 }
 
-// A registration file is decided with the rest of the registration, so the queue points there instead of offering a decision.
 function registrationReview(submission) {
-  if (!submission.is_registration) return null;
+  if (!submission.is_registration || submission.organization?.lifecycle_status === 'active') return null;
   const lifecycle = submission.organization?.lifecycle_status;
   return {
     href: lifecycle === 'pending' ? organizationRegistrationLifecycle({ id: submission.organization.id, lifecycle_status: 'pending' }, 'SUPER_ADMIN').href : null,
@@ -202,7 +201,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   }
 
   return (
-    <Card title="Review queue" description="Open a submission's document, then approve it or return it with remarks. Registration documents of a new organization are decided in its organization review.">
+    <Card title="Review queue" description="Open a submission's document, then approve it or reject it with remarks so the organization can correct it. Registration documents of a new organization are decided in its organization review.">
       {reviewError && (
         <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{reviewError}</p>
       )}
@@ -239,8 +238,8 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
         actions={(submission) => <TableRowActions subject={`${submission.requirement_type?.name || 'Document'} for ${submission.organization?.name || 'organization'}`} actions={[
           { label: 'View document', icon: ExternalLink, disabled: openingDocumentId === submission.id, onClick: () => openDocument(submission) },
           registrationReview(submission)?.href && { label: 'Open organization review', icon: ExternalLink, to: registrationReview(submission).href },
-          submission.status === 'submitted' && !submission.is_registration && { label: 'Approve', icon: Check, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); } },
-          submission.status === 'submitted' && !submission.is_registration && { label: 'Return', icon: RotateCcw, danger: true, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); } },
+          submission.status === 'submitted' && !registrationReview(submission) && { label: 'Approve', icon: Check, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); } },
+          submission.status === 'submitted' && !registrationReview(submission) && { label: 'Reject', icon: RotateCcw, danger: true, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); } },
         ]} />}
         pagination={(
           <PaginationControls
@@ -276,7 +275,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       >
         {openSubmission && (
           <div className="flex flex-col gap-4">
-            {!openSubmission.is_registration && <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />}
+            {!registrationReview(openSubmission) && <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />}
             {registrationReview(openSubmission)
               ? <p className="text-sm font-medium text-ink">{registrationReview(openSubmission).text}.</p>
               : <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />}
@@ -290,9 +289,9 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
               {registrationReview(openSubmission)?.href && (
                 <Button to={registrationReview(openSubmission).href} variant="secondary">Open organization review</Button>
               )}
-              {openSubmission.status === 'submitted' && !openSubmission.is_registration && (
+              {openSubmission.status === 'submitted' && !registrationReview(openSubmission) && (
                 <>
-                  <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Return</Button>
+                  <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Reject</Button>
                   <Button onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'approve' }); }}>Approve</Button>
                 </>
               )}
@@ -315,14 +314,14 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
 
       <Modal
         open={reviewTarget?.action === 'return'}
-        title="Return this submission"
+        title="Reject this submission"
         description="A remark is required so the organization knows what to fix."
         onClose={reviewBusy ? undefined : closeReview}
         closeOnEscape={!reviewBusy}
         footer={(
           <>
             <Button variant="secondary" onClick={closeReview} disabled={reviewBusy}>Cancel</Button>
-            <Button variant="secondary" onClick={confirmReturn} loading={reviewBusy}>Return to organization</Button>
+            <Button variant="secondary" onClick={confirmReturn} loading={reviewBusy}>Reject submission</Button>
           </>
         )}
       >

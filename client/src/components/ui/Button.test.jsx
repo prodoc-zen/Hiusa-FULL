@@ -18,10 +18,10 @@ describe('Button', () => {
     expect(button).not.toBeDisabled();
   });
 
-  it('defaults the primary variant to brand-700 so white text passes 4.5:1 contrast', () => {
+  it('uses UC yellow with readable navy text for primary actions', () => {
     render(<Button variant="primary">Record transaction</Button>);
     const button = screen.getByRole('button', { name: 'Record transaction' });
-    expect(button).toHaveClass('bg-brand-700');
+    expect(button).toHaveClass('bg-uc-gold', 'text-navy-950', 'border-uc-gold-strong');
     expect(button).not.toHaveClass('bg-brand-600');
   });
 

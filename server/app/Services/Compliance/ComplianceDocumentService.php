@@ -156,7 +156,7 @@ class ComplianceDocumentService
                     'latest_submitted_at' => $parts->max(fn (array $part) => $part['latest']?->getTimestamp()),
                 ];
             })
-            ->sort(fn (array $left, array $right) => [$right['latest_submitted_at'] ?? 0, $left['organization']['name']] <=> [$left['latest_submitted_at'] ?? 0, $right['organization']['name']])
+            ->sort(fn (array $left, array $right) => strcasecmp($left['organization']['name'], $right['organization']['name']) ?: $left['organization']['id'] <=> $right['organization']['id'])
             ->values()
             ->map(fn (array $summary) => [...$summary, 'latest_submitted_at' => $summary['latest_submitted_at'] ? now()->setTimestamp($summary['latest_submitted_at']) : null]);
     }

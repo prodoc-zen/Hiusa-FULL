@@ -32,20 +32,28 @@ Recommended sizes:
 
 ## Color System
 
-The palette is based on the logo: electric blue, cyan highlights, deep slate, and clean white surfaces.
+The University of Cebu direction pairs HIUSA blue and deep navy with UC yellow. Keep white form and table surfaces, compact spacing, and Poppins. Yellow marks primary actions and selected navigation; blue remains the link and focus color. ENERGY 1 / RHYTHM 1 / MOTION 1.
 
 ### Primary Colors
 
 - Primary Blue: `#0B8ED0`
-  Main buttons, active navigation, important links, selected states.
+  Important links, focus indicators, charts, and secondary brand accents.
 - Primary Blue Hover: `#0878B7`
-  Hover state for primary buttons and links.
+  Hover state for blue links.
 - Electric Cyan: `#16C7F3`
   Focus rings, small highlights, chart accents, notification indicators.
 - Deep Navy: `#0B1831`
   Sidebar background, auth brand panel, strong headings on dark sections.
 - Dashboard Navy: `#0F2F62`
   Secondary dark panels and header accents.
+
+### UC Yellow
+
+- Yellow: `#F6C445` (`uc-gold`), primary actions and selected navigation.
+- Hover: `#E9B526` (`uc-gold-hover`).
+- Pale surface: `#FFF8DE` (`uc-gold-tint`).
+- Control border: `#765400` (`uc-gold-strong`).
+- Yellow controls use navy `#0B1831` text and a dark border. Never use white text on yellow or yellow text on white. Preserve blue focus indicators on light surfaces.
 
 ### Neutral Colors
 
@@ -73,7 +81,7 @@ The palette is based on the logo: electric blue, cyan highlights, deep slate, an
 - Info: `#0B8ED0`
   Neutral system notices and tips.
 
-Use status colors sparingly. Primary Blue should still be the main brand action color.
+Use status colors sparingly. Brand yellow does not imply a warning: pair status labels and icons with the existing semantic colors.
 
 ## Typography
 
@@ -132,9 +140,10 @@ Grid guidance:
 
 Primary button:
 
-- Background: `#0B8ED0`
-- Hover: `#0878B7`
-- Text: white
+- Background: `#F6C445`
+- Hover: `#E9B526`
+- Text: navy `#0B1831`
+- Border: `#765400`
 - Height: 44px desktop, 42px mobile
 - Border radius: 6px to 8px
 - Font weight: 700
@@ -204,8 +213,8 @@ Desktop sidebar:
 - Background: `#0B1831`.
 - Logo area height: 72px.
 - Nav item height: 42px to 46px.
-- Active nav background: `rgba(22, 199, 243, 0.14)`.
-- Active nav text: white.
+- Active nav background: UC yellow `#F6C445`.
+- Active nav text: deep navy `#0B1831`.
 - Inactive nav text: `#CBD5E1`.
 - Icons: 18px to 20px.
 
@@ -285,15 +294,15 @@ Examples:
 
 The login screen should stay simple:
 
-- Left brand panel with dark blue gradient and real HIUSA logo.
+- Left brand panel with solid deep navy and real HIUSA logo.
 - Right form panel with white background.
-- Use the existing `landing-campus.jpg` school photo as the backdrop behind the auth card, with a restrained navy overlay. Keep both card panels opaque so form text never sits over the photograph. Reuse this asset on recovery screens through `AuthLayout`.
+- Use the supplied `client/src/assets/uc-campus.jpeg` University of Cebu campus photo as the backdrop behind the auth card, with a restrained navy overlay. Keep both card panels opaque so form text never sits over the photograph. Reuse this asset on recovery screens through `AuthLayout`.
 - No stripe decoration.
 - No overlapping text.
 - Form width around 370px.
 - Mobile layout stacks brand panel above form.
 
-Current login component comments are intentionally placed around areas that can become:
+The login uses these shared components:
 
 - `LogoMark`
 - `BrandingPanel`

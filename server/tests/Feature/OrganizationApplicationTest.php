@@ -188,7 +188,7 @@ class OrganizationApplicationTest extends TestCase
         $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $head->getRawOriginal('organization_id'), 'role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $orgId, 'role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseHas('sbo_positions', ['organization_id' => $orgId, 'role' => 'ADMIN', 'title' => 'President']);
-        $this->assertDatabaseHas('organization_compliance_submissions', ['organization_id' => $orgId, 'requirement_type_id' => $this->requirementId, 'status' => 'submitted']);
+        $this->assertDatabaseHas('organization_compliance_submissions', ['organization_id' => $orgId, 'requirement_type_id' => $this->requirementId, 'status' => 'approved', 'reviewed_by' => $sao->school_id]);
         $submission = OrganizationComplianceSubmission::where('organization_id', $orgId)->firstOrFail();
         $this->assertStringStartsWith("compliance-submissions/{$orgId}/", $submission->file_path);
         $this->get("/api/compliance/submissions/{$submission->id}/document")->assertOk();
