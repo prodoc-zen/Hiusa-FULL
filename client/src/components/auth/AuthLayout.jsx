@@ -1,5 +1,5 @@
 import BrandPanel from './BrandPanel';
-import campusImage from '../../assets/landing-campus.jpg';
+import campusImage from '../../assets/uc-campus.jpeg';
 
 export default function AuthLayout({ children, panelClassName = '' }) {
   return (

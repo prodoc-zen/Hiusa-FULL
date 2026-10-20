@@ -24,6 +24,8 @@
 
 - **Account creation after application approval:** submitting or email-verifying an application and receiving Department Head endorsement do not create a user or an Admin profile. Only final SAO approval creates the first Admin account or adds a profile to an existing verified login. Regression checks cover the pre-approval states. New-account password setup and existing credentials retain their established behavior.
 
+- **First Admin action:** an active organization without an Admin opens the same fixed-organization Add administrator form as the ordinary action. SAO can create a new login or use an existing university login. The selected organization stays fixed, and existing users retain their password and other profiles.
+
 - **View User List:** `AdminUsersPage` loads organization-scoped accounts for Admins. The SAO's separate University users page searches and filters accounts across every college and organization, including users without an organization.
 - **Search User:** the search input filters by name, school ID, or email.
 - **Filter User by Role:** the role selector filters the visible user list.

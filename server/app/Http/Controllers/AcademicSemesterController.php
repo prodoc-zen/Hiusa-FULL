@@ -13,6 +13,7 @@ use App\Models\EventRequirementFile;
 use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
+use App\Services\Compliance\RegistrationRequirementCatalog;
 use App\Services\RequirementSampleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,19 +21,6 @@ use Illuminate\Validation\ValidationException;
 
 class AcademicSemesterController extends Controller
 {
-    private const RENEWAL_REQUIREMENTS = [
-        'Letter of Intent',
-        'Calendar of Activities (1st & 2nd Sem)',
-        'Organizational Profile',
-        'Constitutional By-Laws',
-        'VMGO',
-        'Official List of Officers',
-        'Officers Data Sheets',
-        "Faculty Adviser's Data Sheet / Certificate of Appointment",
-        'Endorsement Letter',
-        'List of Members',
-    ];
-
     private const EVENT_REQUIREMENTS = [
         'on_campus' => [
             'Venue Reservation Letter',
@@ -88,7 +76,7 @@ class AcademicSemesterController extends Controller
                 'status' => 'upcoming',
                 'created_by' => $request->user()->school_id,
             ]);
-            foreach ([...self::RENEWAL_REQUIREMENTS, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT] as $name) {
+            foreach ([...RegistrationRequirementCatalog::NAMES, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT] as $name) {
                 ComplianceRequirementType::create([
                     'academic_year' => $academicYear->label,
                     'academic_semester_id' => $semester->id,

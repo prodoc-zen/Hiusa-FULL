@@ -13,6 +13,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
+use App\Services\Compliance\RegistrationRequirementCatalog;
 use App\Services\RequirementSampleService;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
@@ -77,6 +78,7 @@ class ComplianceController extends Controller
 
         $samples = app(RequirementSampleService::class);
         $activeSemester = AcademicSemester::active();
+        $this->assertUniqueRequirementName($data['name'], $data['academic_year'], $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester->id : null, $data['category'] ?? ($data['name'] === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization'));
         $requirementType = $samples->save(new ComplianceRequirementType, [
             ...$data,
             'allowed_extensions' => $data['allowed_extensions'] ?? ['pdf'],
@@ -135,6 +137,9 @@ class ComplianceController extends Controller
         ]);
 
         $old = $requirementType->toArray();
+        if ((($data['is_active'] ?? $requirementType->is_active) && isset($data['name'])) || ($data['is_active'] ?? false)) {
+            $this->assertUniqueRequirementName($data['name'] ?? $requirementType->name, $requirementType->academic_year, $requirementType->academic_semester_id, $requirementType->category, $requirementType->id);
+        }
         $previousDeadline = $requirementType->deadline_at;
         $samples = app(RequirementSampleService::class);
         $samples->save($requirementType, $data, $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates');
@@ -157,6 +162,20 @@ class ComplianceController extends Controller
         }
 
         return response()->json($requirementType);
+    }
+
+    private function assertUniqueRequirementName(string $name, string $year, ?int $semesterId, string $category, ?int $except = null): void
+    {
+        $active = AcademicSemester::active();
+        $semesterId ??= $active?->academicYear->label === $year ? $active->id : null;
+        $canonical = RegistrationRequirementCatalog::canonicalName($name) ?? trim($name);
+        $duplicate = ComplianceRequirementType::where('academic_year', $year)->where('category', $category)->where('is_active', true)
+            ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
+            ->when($except, fn ($query) => $query->where('id', '!=', $except))->get(['name'])
+            ->contains(fn ($type) => strcasecmp(RegistrationRequirementCatalog::canonicalName($type->name) ?? trim($type->name), $canonical) === 0);
+        if ($duplicate) {
+            throw ValidationException::withMessages(['name' => ['This requirement already exists for this period. Edit its existing sample format or deadline instead.']]);
+        }
     }
 
     public function destroyRequirementType(Request $request, ComplianceRequirementType $requirementType)
@@ -314,7 +333,7 @@ class ComplianceController extends Controller
 
         $academicYear = $filters['academic_year'] ?? $this->accreditation->currentAcademicYear();
         $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
-            ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
+            ->where('category', $filters['category'] ?? 'organization')
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         $organizationIds = $organizations->pluck('id');

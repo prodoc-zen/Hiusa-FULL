@@ -28,13 +28,13 @@ import { organizationOverviewPath } from './agencyStatus';
 const PANEL_ID = 'sao-organizations-panel';
 const SEARCH_DEBOUNCE_MS = 250;
 const STATUS_TABS = [
-  { key: 'pending', label: 'Pending review', panelId: PANEL_ID },
   { key: 'active', label: 'Active', panelId: PANEL_ID },
+  { key: 'pending', label: 'Pending review', panelId: PANEL_ID },
   { key: 'returned', label: 'Returned', panelId: PANEL_ID },
   { key: 'archived', label: 'Archived', panelId: PANEL_ID },
 ];
 const STATUS_KEYS = STATUS_TABS.map((tab) => tab.key);
-const DEFAULT_ORDER = ['pending', 'returned', 'active', 'archived'];
+const DEFAULT_ORDER = ['active', 'pending', 'returned', 'archived'];
 const FALLBACK_STATUS = 'active';
 const EMPTY_COPY = {
   pending: 'No organizations are waiting for review.',
@@ -48,7 +48,6 @@ const EMPTY_HINT = {
   returned: 'A returned registration waits for its Department Head to edit and resubmit it.',
   archived: 'Archive an active organization to keep it here as read only.',
 };
-const provisionPath = (organizationId) => `/dashboard/super-admin/admins?organization=${organizationId}&create=1`;
 const needsAdministrator = (organization) => organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? organization.administrators?.length ?? 0) === 0;
 const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 font-normal outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20';
 
@@ -286,10 +285,7 @@ export default function SystemOrganizationsPage() {
       const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 12, page: requestedPage });
       if (token !== requestToken.current) return;
       setItems([...(data.data || [])].sort((left, right) =>
-        (left.college || '').localeCompare(right.college || '')
-        || Number(needsAdministrator(right)) - Number(needsAdministrator(left))
-        || Number(Boolean(left.parent_organization_id)) - Number(Boolean(right.parent_organization_id))
-        || left.name.localeCompare(right.name)));
+        left.name.localeCompare(right.name) || left.id - right.id));
       setPage(data.current_page || requestedPage);
       setLastPage(data.last_page || 1);
       setError('');
@@ -482,11 +478,11 @@ export default function SystemOrganizationsPage() {
               <td className="px-4 py-3 align-top"><TableRowActions subject={name} label="Organization actions" actions={[
                 { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
                 lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
-                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, to: provisionPath(org.id) },
+                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setAdminOrganization(org) },
                 lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
                 lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
                 lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
-                lifecycle === 'active' && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setAdminOrganization(org) },
+                lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setAdminOrganization(org) },
                 lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
                 lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
                 { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },

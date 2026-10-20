@@ -75,7 +75,7 @@ describe('SystemOrganizationsPage', () => {
   it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add first Admin account' }));
     fireEvent.click(screen.getByRole('button', { name: 'Use existing user' }));
     fireEvent.click(await screen.findByRole('radio', { name: /Ana Reyes/ }));
     expect(screen.getByLabelText('Role in destination organization')).toHaveValue('ADMIN');
@@ -163,13 +163,13 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-controls', screen.getByRole('tabpanel').id);
     });
 
-    it('opens on the first non-empty tab in the order pending, returned, active, archived', async () => {
+    it('opens on the first non-empty tab in the order active, pending, returned, archived', async () => {
       const cases = [
-        [agency(2), 'pending'],
-        [agency(0), 'returned'],
+        [agency(2), 'active'],
+        [agency(0), 'active'],
         [agency(0, { returned: 0 }), 'active'],
         [agency(0, { returned: 0, active: 0 }), 'archived'],
-        [agency(0, { returned: 0, active: 0, archived: 0 }), 'pending'],
+        [agency(0, { returned: 0, active: 0, archived: 0 }), 'active'],
       ];
       for (const [counts, expected] of cases) {
         vi.clearAllMocks();
@@ -198,9 +198,9 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.queryByRole('tab')).not.toBeInTheDocument();
       expect(screen.getByTestId('search')).toHaveTextContent('');
       releaseCounts();
-      await waitFor(() => expect(screen.getByRole('tab', { name: 'Pending review (2)' })).toHaveAttribute('aria-selected', 'true'));
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-selected', 'true'));
       const loaded = mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined).map(([params]) => params.lifecycle_status);
-      expect(new Set(loaded)).toEqual(new Set(['pending']));
+      expect(new Set(loaded)).toEqual(new Set(['active']));
     });
 
     it('does not consult the counts for the default when ?status is given', async () => {
@@ -243,12 +243,12 @@ describe('SystemOrganizationsPage', () => {
       expect(searchCalls()).toEqual(['', 'slow', 'fast']);
     });
 
-    it('defaults to Pending review when organizations are waiting', async () => {
+    it('defaults to Active while preserving the pending review tab', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency(2));
       renderPage();
-      expect(await screen.findByText('No organizations are waiting for review.')).toBeInTheDocument();
-      expect(lastStatusParam()).toBe('pending');
-      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=pending'));
+      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(lastStatusParam()).toBe('active');
+      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
     });
 
     it('honours ?status and switches tabs', async () => {
@@ -522,11 +522,13 @@ describe('SystemOrganizationsPage', () => {
       await screen.findByText('Chess Club');
 
       const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
-      expect(names).toEqual(['Chess Club', 'Art Club']);
+      expect(names).toEqual(['Art Club', 'Chess Club']);
       const card = screen.getByText('Chess Club').closest('tr');
       expect(within(card).getByText('Add the first Admin account')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
-      expect(screen.getByRole('menuitem', { name: 'Add first Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add first Admin account' }));
+      expect(await screen.findByRole('dialog', { name: 'Add administrator' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       const done = screen.getByText('Art Club').closest('tr');
       expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
       fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));

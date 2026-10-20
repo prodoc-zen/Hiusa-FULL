@@ -451,12 +451,14 @@ class OrganizationApplicationController extends Controller
                         OrganizationComplianceSubmission::create([
                             'organization_id' => $organization->id,
                             'requirement_type_id' => $document->requirement_type_id,
-                            'status' => 'submitted',
+                            'status' => 'approved',
                             'file_path' => $path,
                             'file_original_name' => $document->file_original_name,
                             'mime_type' => $document->mime_type,
                             'file_size' => $document->file_size,
                             'is_registration_document' => true,
+                            'reviewed_by' => $actor->school_id,
+                            'reviewed_at' => $organization->reviewed_at,
                             'submitted_by' => $admin->school_id,
                             'submitted_at' => now(),
                         ]);

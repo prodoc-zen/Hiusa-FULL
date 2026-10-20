@@ -15,31 +15,13 @@ function orgApprovedCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'approved').length;
 }
 
-function orgOverdueCount(org) {
-  const now = Date.now();
-  return org.requirements.filter((requirement) => requirement.status !== 'approved'
-    && requirement.deadline_at && new Date(requirement.deadline_at).getTime() < now).length;
-}
-
 function orgPendingCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'submitted').length;
 }
 
-const ACCREDITATION_RANK = { pending_review: 1, returned: 2, incomplete: 3, accredited: 4 };
-
-function attentionRank(org) {
-  if (orgOverdueCount(org) > 0) return 0;
-  return ACCREDITATION_RANK[org.accreditation_status] ?? 5;
-}
-
-function sortByAttention(organizations) {
-  return [...organizations].sort((a, b) => attentionRank(a) - attentionRank(b)
-    || String(a.organization_name).localeCompare(String(b.organization_name)));
-}
-
 export default function AccreditationTab({ overview, onRetry, onReviewOrganization, role = 'SUPER_ADMIN' }) {
   const [search, setSearch] = useState('');
-  const rows = useMemo(() => sortByAttention(overview.organizations).filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search]);
+  const rows = useMemo(() => [...overview.organizations].sort((a, b) => String(a.organization_name).localeCompare(String(b.organization_name)) || a.organization_id - b.organization_id).filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search]);
   const [selectedId, setSelectedId] = useState(null);
   const [reminder, setReminder] = useState(null);
   const selected = rows.find((org) => org.organization_id === selectedId);
@@ -77,23 +59,11 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         </div>
       ),
     },
-    {
-      key: 'overdue',
-      header: 'Past deadline',
-      align: 'right',
-      render: (org) => {
-        const overdue = orgOverdueCount(org);
-        return overdue > 0
-          ? <span className="font-bold text-danger-strong">{overdue}</span>
-          : <span className="text-ink-muted">0</span>;
-      },
-    },
   ];
 
   return (
     <>
     <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
-      <p className="mb-4 text-sm text-ink-muted">Past deadline counts requirements whose deadline has passed and which are not yet approved. This includes files awaiting SAO review. Open an organization’s requirements to see the deadlines and review statuses.</p>
       <DataTable
         stickyHeader={false}
         columns={columns}

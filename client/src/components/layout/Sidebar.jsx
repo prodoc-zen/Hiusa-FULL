@@ -17,9 +17,9 @@ function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = 
       aria-current={active ? 'page' : undefined}
       aria-label={desktopCollapsed ? label : undefined}
       title={desktopCollapsed ? label : undefined}
-      className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${active ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+      className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${active ? 'bg-uc-gold text-navy-950' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
     >
-      {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
+      {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-navy-950" />}
       <Icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
       <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{label}</span>
     </Link>
@@ -32,7 +32,7 @@ function SubNavItem({ label, path, icon: Icon, active, onClick }) {
       to={path}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${active ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${active ? 'bg-uc-gold text-navy-950' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
     >
       <Icon size={14} className="shrink-0" aria-hidden="true" />
       {label}
@@ -267,9 +267,9 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                   aria-label={desktopCollapsed ? item.label : undefined}
                   aria-expanded={desktopCollapsed && window.innerWidth >= 1024 ? flyout?.id === item.id : isExpanded}
                   title={desktopCollapsed ? item.label : undefined}
-                  className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+                  className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-uc-gold text-navy-950' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
                 >
-                  {onParentRoute && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
+                  {onParentRoute && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-navy-950" />}
                   <item.icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
                   <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{item.label}</span>
                   <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-slate-500 transition-transform duration-200 ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />

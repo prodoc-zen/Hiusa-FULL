@@ -135,8 +135,8 @@ describe('RoleBriefing', () => {
       vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
       renderBriefing();
       const first = await screen.findByRole('link', { name: 'Add positions' });
-      expect(first).toHaveClass('bg-brand-700');
-      expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-brand-700');
+      expect(first).toHaveClass('bg-uc-gold');
+      expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-uc-gold');
       expect(screen.queryByRole('link', { name: /New announcement/ })).not.toBeInTheDocument();
     });
 
@@ -264,7 +264,7 @@ describe('RoleBriefing', () => {
 
       const primary = screen.getByRole('link', { name: 'Review registrations' });
       expect(primary).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending');
-      expect(primary).toHaveClass('bg-brand-700');
+      expect(primary).toHaveClass('bg-uc-gold');
 
       const setupTitle = screen.getByRole('heading', { name: 'Getting started' });
       expect(inbox.compareDocumentPosition(setupTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -272,7 +272,7 @@ describe('RoleBriefing', () => {
       expect(within(card).getAllByRole('listitem').map((row) => row.querySelector('p').textContent)).toEqual([
         'Set the current academic year', 'Every college has a Department Head', 'Publish the accreditation requirements',
       ]);
-      expect(within(card).getByRole('link', { name: 'Set the academic year' })).not.toHaveClass('bg-brand-700');
+      expect(within(card).getByRole('link', { name: 'Set the academic year' })).not.toHaveClass('bg-uc-gold');
       expect(screen.getByText(/· SAO ·/)).toBeInTheDocument();
     });
 
@@ -289,7 +289,7 @@ describe('RoleBriefing', () => {
       const inboxTitle = screen.getByRole('heading', { name: 'Review inbox' });
       expect(setupTitle.compareDocumentPosition(inboxTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.getByText('No reviews are waiting')).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Set the academic year' })).toHaveClass('bg-brand-700');
+      expect(screen.getByRole('link', { name: 'Set the academic year' })).toHaveClass('bg-uc-gold');
     });
 
     it('SAO: the financial reports action leads when only a financial report waits', async () => {

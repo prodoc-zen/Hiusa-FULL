@@ -151,7 +151,7 @@ describe('SaoCompliancePage', () => {
     expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-success-tint');
   });
 
-  it('puts overdue and pending-review organizations ahead of accredited ones', async () => {
+  it('keeps organizations in alphabetical order regardless of review status', async () => {
     mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [
       { organization_id: 1, organization_name: 'Alpha Club', accreditation_status: 'accredited', requirements: [{ status: 'approved', deadline_at: null }] },
       { organization_id: 2, organization_name: 'Beta Club', accreditation_status: 'incomplete', requirements: [{ status: 'draft', deadline_at: null }] },
@@ -162,7 +162,7 @@ describe('SaoCompliancePage', () => {
     renderPage();
     await screen.findAllByText('Alpha Club');
     const order = Array.from(document.querySelectorAll('[data-view="table"] tbody tr')).map((row) => row.querySelector('td').textContent);
-    expect(order).toEqual(['Epsilon Club', 'Delta Club', 'Gamma Club', 'Beta Club', 'Alpha Club']);
+    expect(order).toEqual(['Alpha Club', 'Beta Club', 'Delta Club', 'Epsilon Club', 'Gamma Club']);
   });
 
   it('leaves the review queue count off when nothing is waiting', async () => {
@@ -369,7 +369,16 @@ describe('SaoCompliancePage', () => {
       fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Letter of Intent for Robotics Guild' }))[0]);
       expect(screen.getByRole('menuitem', { name: 'Open organization review' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=21');
       expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    });
+
+    it('offers approve and reject for an unreviewed registration file of an active organization', async () => {
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, is_registration: true, organization: { id: 21, name: 'Robotics Guild', lifecycle_status: 'active' }, requirement_type: { id: 5, name: 'Letter of Intent' } }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Letter of Intent for Robotics Guild' }))[0]);
+      expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Open organization review' })).not.toBeInTheDocument();
     });
 
     it('says a returned registration waits for the Department Head and offers no link', async () => {
@@ -408,9 +417,9 @@ describe('SaoCompliancePage', () => {
 
     it('requires remarks to return a submission, with a field error instead of a disabled button', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Reject');
 
-      const confirm = await screen.findByRole('button', { name: 'Return to organization' });
+      const confirm = await screen.findByRole('button', { name: 'Reject submission' });
       expect(confirm).toBeEnabled();
       expect(confirm).not.toHaveClass('bg-danger');
       fireEvent.click(confirm);
@@ -435,9 +444,9 @@ describe('SaoCompliancePage', () => {
     it('shows the registration message inline when returning', async () => {
       mocks.reviewSubmission.mockRejectedValue({ response: { status: 409, data: { message: 'Registration documents are reviewed through the organization review.' } } });
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Reject');
       fireEvent.change(await screen.findByLabelText(/Remarks/), { target: { value: 'Unsigned' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Return to organization' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject submission' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Registration documents are reviewed through the organization review.');
     });

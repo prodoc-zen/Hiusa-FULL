@@ -14,12 +14,7 @@ const provisionPath = (organizationId) => `/dashboard/super-admin/admins?organiz
 const NO_ORGANIZATIONS = 'No student organizations yet. The Department Head registers them.';
 
 const needsAdministrator = (row) => row.lifecycle_status === 'active' && Number(row.administrators_count ?? 0) === 0;
-const actionRank = (row) => {
-  if (row.lifecycle_status === 'pending') return 0;
-  if (needsAdministrator(row)) return 1;
-  return (row.pending_approvals_count ?? 0) + (row.pending_documents_count ?? 0) > 0 ? 2 : 3;
-};
-const byAction = (left, right) => actionRank(left) - actionRank(right) || String(left.name || '').localeCompare(String(right.name || ''));
+const byAction = (left, right) => String(left.name || '').localeCompare(String(right.name || '')) || left.id - right.id;
 
 function plural(count, singular, pluralForm) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
