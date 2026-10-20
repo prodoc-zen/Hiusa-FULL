@@ -60,3 +60,14 @@ describe('entityLink', () => {
     expect(entityLink(request({ entity_type: 'event' }), 'STUDENT')).toBeNull();
   });
 });
+
+describe('unified organization approvals', () => {
+  it('routes a university-wide election to SAO and gives the admin the correct waiting message', () => {
+    const election = request({ entity_type: 'election', required_role: 'SUPER_ADMIN' });
+    const sao = describeApproval(election, 'SUPER_ADMIN');
+    expect(sao.stageText).toBe('Review this election');
+    expect(sao.lifecycle.actorRole).toBe('SUPER_ADMIN');
+    expect(sao.lifecycle.nextAction.to).toBe('/dashboard/super-admin/organization-approvals');
+    expect(describeApproval(election, 'ADMIN').stageText).toBe('Awaiting SAO review');
+  });
+});

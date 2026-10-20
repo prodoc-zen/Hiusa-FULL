@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronRight, ExternalLink, Folder, LayoutGrid, List, Trash2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, FilePenLine, Folder, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
+import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
-import { deleteComplianceFile, getComplianceDocuments } from '../../../services/complianceService';
+import { deleteComplianceFile, getComplianceDocuments, replaceComplianceFile } from '../../../services/complianceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
@@ -29,6 +30,7 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const [fileSearch, setFileSearch] = useState('');
   const [folderPage, setFolderPage] = useState(1);
   const [filePage, setFilePage] = useState(1);
+  const [filePageSize, setFilePageSize] = useState(10);
   const [family, setFamily] = useState('');
   const [semester, setSemester] = useState('');
   const [periods, setPeriods] = useState([]);
@@ -36,6 +38,8 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const [folders, setFolders] = useState({ loading: true, error: '', rows: [], meta: EMPTY_META });
   const [files, setFiles] = useState({ loading: false, error: '', rows: [], meta: EMPTY_META });
   const [deleting, setDeleting] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [replacement, setReplacement] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
@@ -63,11 +67,13 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const loadFiles = useCallback(() => {
     if (!organization) return;
     setFiles((current) => ({ ...current, loading: true, error: '' }));
-    getComplianceDocuments({ organization_id: organization.id, page: filePage, per_page: 20, family: family || undefined, academic_semester_id: semester || undefined, search: fileSearch || undefined })
-      .then((response) => setFiles({ loading: false, error: '', rows: unwrapList(response.data), meta: listMeta(response.data) }))
-      .catch((error) => setFiles((current) => ({ ...current, loading: false, error: getApiErrorMessage(error, 'Could not load files.') })));
-  }, [organization, filePage, family, semester, fileSearch]);
-  useEffect(() => { loadFiles(); }, [loadFiles]);
+    let current = true;
+    getComplianceDocuments({ organization_id: organization.id, page: filePage, per_page: filePageSize, family: family || undefined, academic_semester_id: semester || undefined, search: fileSearch || undefined })
+      .then((response) => { if (current) setFiles({ loading: false, error: '', rows: unwrapList(response.data), meta: listMeta(response.data) }); })
+      .catch((error) => { if (current) setFiles((state) => ({ ...state, loading: false, error: getApiErrorMessage(error, 'Could not load files.') })); });
+    return () => { current = false; };
+  }, [organization, filePage, filePageSize, family, semester, fileSearch]);
+  useEffect(loadFiles, [loadFiles]);
 
   function openFolder(folder) {
     setOrganization(folder.organization);
@@ -89,7 +95,7 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   }
 
   async function remove() {
-    if (!deleting) return;
+    if (!deleting || busy) return;
     setBusy(true);
     setActionError('');
     try {
@@ -106,6 +112,22 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
     }
   }
 
+  async function replace() {
+    if (!editing || !replacement || busy) return;
+    setBusy(true);
+    setActionError('');
+    try {
+      await replaceComplianceFile(editing.id, replacement, editing.submitted_at);
+      setEditing(null);
+      setReplacement(null);
+      setNotice('File replaced. SAO must review the new file; reviewers and organization admins were notified.');
+      loadFiles();
+      loadFolders();
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, 'Could not replace this file.'));
+    } finally { setBusy(false); }
+  }
+
   return <div className="space-y-4 pb-8">
     <PageHeader title={role === 'DEPARTMENT_HEAD' ? 'College files' : 'Submitted files'} description={role === 'DEPARTMENT_HEAD' ? 'Browse documents from organizations in your college.' : 'Browse organization folders and open submitted documents.'} />
     <nav aria-label="File location" className="flex flex-wrap items-center gap-1 text-sm font-semibold">
@@ -113,7 +135,7 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
       {organization && <><ChevronRight size={15} className="text-ink-muted" aria-hidden="true" /><span className="break-words px-2 text-ink">{organization.name}</span></>}
     </nav>
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800">{notice}</p>}
-    {actionError && !deleting && <p role="alert" className="rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{actionError}</p>}
+    {actionError && !deleting && !editing && <p role="alert" className="rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{actionError}</p>}
     {!organization ? <Card bodyClassName="p-0">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line p-4">
         <label className="block w-full max-w-md text-xs font-semibold text-ink">Find an organization<Input type="search" className="mt-1 w-full" placeholder="Name or acronym" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -134,10 +156,16 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
       {files.loading ? <p role="status" className="p-6 text-sm text-ink-muted">Loading files…</p> : files.error ? <div className="p-6"><p role="alert" className="text-sm text-danger-strong">{files.error}</p><Button variant="secondary" onClick={loadFiles}>Try again</Button></div> : files.rows.length === 0 ? <div className="p-6"><EmptyState title="No files in this view" description="Try another document type or semester." /></div> : <div className="overflow-x-auto"><table className="w-full min-w-[740px] text-left text-[13px]"><caption className="sr-only">Files submitted by {organization.name}</caption><thead className="bg-subtle text-xs font-bold uppercase text-ink-muted"><tr><th scope="col" className="px-4 py-3">Name</th><th scope="col" className="px-4 py-3">Type</th><th scope="col" className="px-4 py-3">Submitted</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-line">{files.rows.map((row) => <tr key={`${row.source}-${row.open_url}`}><td className="max-w-xs px-4 py-3"><span className="block break-words font-semibold text-ink">{row.file_name || row.item}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></td><td className="px-4 py-3 text-ink-muted-strong">{FAMILY_NAMES[row.family] || row.family}</td><td className="px-4 py-3 text-ink-muted-strong">{row.submitted_at ? manilaDate(row.submitted_at, 'long') : '—'}</td><td className="px-4 py-3"><StatusBadge status={row.status} /></td><td className="px-4 py-2"><TableRowActions subject={row.file_name || row.item} actions={[
         { label: 'View file', icon: ExternalLink, onClick: () => openFile(row) },
         role === 'SUPER_ADMIN' && row.family === 'registration' && row.organization_lifecycle_status === 'pending' && { label: 'Open registration review', icon: ExternalLink, to: `/dashboard/super-admin/organizations?status=pending&review=${organization.id}` },
-        role === 'SUPER_ADMIN' && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Delete file', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(row); } },
+        role === 'DEPARTMENT_HEAD' && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Replace file', icon: FilePenLine, onClick: () => { setActionError(''); setReplacement(null); setEditing(row); } },
+        ['SUPER_ADMIN', 'DEPARTMENT_HEAD'].includes(role) && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Delete file', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(row); } },
       ]} /></td></tr>)}</tbody></table></div>}
-      {!files.loading && !files.error && <div className="border-t border-line p-4"><PaginationControls currentPage={files.meta.currentPage} totalItems={files.meta.total} pageSize={files.meta.perPage} onPageChange={setFilePage} label="files" /></div>}
+      {!files.loading && !files.error && <div className="border-t border-line p-4"><PaginationControls currentPage={files.meta.currentPage} totalItems={files.meta.total} pageSize={filePageSize} onPageChange={setFilePage} pageSizeOptions={[10, 20, 50]} onPageSizeChange={(size) => { setFilePageSize(size); setFilePage(1); }} label="files" /></div>}
     </Card>}
     <ConfirmModal open={Boolean(deleting)} title="Delete submitted file?" recordName={deleting?.file_name} message="The file and submission will be removed. Reviewers and organization admins will be notified." confirmText="Delete file" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
+    <Modal open={Boolean(editing)} title="Replace submitted file" description={editing?.file_name} onClose={busy ? undefined : () => setEditing(null)} closeOnEscape={!busy} footer={<><Button variant="secondary" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button><Button loading={busy} disabled={!replacement} onClick={replace}>Submit replacement</Button></>}>
+      <p className="text-sm text-ink-muted-strong">The new file replaces the previous upload and returns to SAO for review. Approved financial reports and event documents retain their separate workflows.</p>
+      <label className="mt-4 block text-sm font-semibold text-ink">New file<input type="file" disabled={busy} accept={editing?.allowed_extensions?.map((extension) => `.${extension}`).join(',')} className="mt-2 block w-full rounded-lg border border-line p-2 text-sm" onChange={(event) => setReplacement(event.target.files?.[0] || null)} /></label>
+      {actionError && <p role="alert" className="mt-3 text-sm text-danger-strong">{actionError}</p>}
+    </Modal>
   </div>;
 }

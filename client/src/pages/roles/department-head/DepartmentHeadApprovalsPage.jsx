@@ -13,6 +13,7 @@ import { fetchAllPages, listMeta, unwrapList } from '../../../services/paginatio
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { Button, EmptyState, FlowStepper, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
+import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import useRecordParam from '../../../lib/useRecordParam';
 import ApprovalDetailDrawer from '../../../components/approvals/ApprovalDetailDrawer';
 import ApprovalReceipt from '../../../components/approvals/ApprovalReceipt';
@@ -52,6 +53,7 @@ const SUBMITTED_STATUS_TABS = [
 const NEW_REQUEST_PATH = '/dashboard/approval-requests/new';
 
 const REVIEW_EMPTY = {
+  SUPER_ADMIN: 'Review university-wide organization requests and the financial reports and events routed to SAO.',
   DEPARTMENT_HEAD: 'Events, budgets, elections and financial reports from the organizations in your college appear here for your decision. The organization Admin sends them.',
   ADMIN: 'Announcements your officers submit and student payments that need a check appear here for your decision. Officers send them from their own pages.',
 };
@@ -160,6 +162,7 @@ export default function DepartmentHeadApprovalsPage() {
   const user = useMemo(() => getCurrentUser(), []);
   const role = user.role || '';
   const isDepartmentHead = role === 'DEPARTMENT_HEAD';
+  const isSao = role === 'SUPER_ADMIN';
   const isAdmin = role === 'ADMIN';
   const isOfficer = role === 'SBO_OFFICER';
   const [searchParams, setSearchParams] = useSearchParams();
@@ -192,11 +195,11 @@ export default function DepartmentHeadApprovalsPage() {
   const filtersActive = Boolean(search || entityFilter !== 'all' || from || to || organizationFilter !== 'all');
 
   useEffect(() => {
-    if (!isDepartmentHead) return;
-    fetchAllPages((params) => getCollegeOrganizations(params).then((res) => res.data))
+    if (!isDepartmentHead && !isSao) return;
+    fetchAllPages((params) => isSao ? getSystemOrganizations(params) : getCollegeOrganizations(params).then((res) => res.data))
       .then(setOrganizations)
-      .catch(() => notify.error('Could not load the organizations of your college.'));
-  }, [isDepartmentHead]);
+      .catch(() => notify.error('Could not load organizations.'));
+  }, [isDepartmentHead, isSao]);
 
   // Hoisted so the CSV export can reuse the exact same filter set as the
   // loaded page, without page/per_page, via fetchAllPages.
@@ -413,7 +416,7 @@ export default function DepartmentHeadApprovalsPage() {
             <HiusaSelect filter aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
               <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </HiusaSelect>
-            {isDepartmentHead && (
+            {(isDepartmentHead || isSao) && (
               <HiusaSelect filter aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
                 <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
               </HiusaSelect>

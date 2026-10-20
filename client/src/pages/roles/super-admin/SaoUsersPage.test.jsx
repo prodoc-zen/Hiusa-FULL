@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoUsersPage from './SaoUsersPage';
 
@@ -20,6 +20,17 @@ describe('SAO university users', () => {
     profile.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Robotics Club', college: 'College of Computing' }] });
     profile.getProfileCandidates.mockResolvedValue({ data: page([user]) });
     profile.inviteAccountProfile.mockResolvedValue({ data: { role: 'ADMIN' } });
+  });
+
+  it('keeps the user action menu open when the initial search debounce completes', async () => {
+    vi.useFakeTimers();
+    try {
+      await act(async () => { render(<SaoUsersPage />); });
+      fireEvent.click(screen.getByRole('button', { name: 'Actions for Ana Cruz' }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(service.getSystemUsers).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('menuitem', { name: 'Add Admin profile' })).toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
   });
 
   it('creates an administrator directly from University users and refreshes the list', async () => {

@@ -19,7 +19,7 @@ class UserPayloadOrganizationTest extends TestCase
     use RefreshDatabase;
 
     private const VISIBLE = [
-        'acronym', 'college', 'college_id', 'color', 'id', 'is_active', 'lifecycle_status', 'logo_url',
+        'acronym', 'college', 'college_id', 'color', 'id', 'is_active', 'is_university_wide', 'lifecycle_status', 'logo_url',
         'name', 'organization_type', 'parent_organization_id', 'slug',
     ];
 

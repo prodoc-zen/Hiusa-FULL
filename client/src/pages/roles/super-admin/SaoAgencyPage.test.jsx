@@ -185,20 +185,20 @@ describe('SaoAgencyPage', () => {
       const rowOf = (name) => within(table).getByText(name).closest('tr');
 
       expect(within(rowOf('Robotics Club')).getByText('Review this registration')).toBeInTheDocument();
-      expect(within(rowOf('Robotics Club')).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
-      expect(within(rowOf('Chess Club')).getByText('Provision an administrator')).toBeInTheDocument();
-      expect(within(rowOf('Chess Club')).getByText('Step 3 of 4: Administrator')).toBeInTheDocument();
+      expect(within(rowOf('Robotics Club')).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Add the first Admin account')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Step 3 of 4: Admin account')).toBeInTheDocument();
       expect(within(rowOf('Art Club')).getByText('Active: administrator can sign in')).toBeInTheDocument();
       expect(within(rowOf('Drama Guild')).getByText('Waiting for the Department Head to resubmit')).toBeInTheDocument();
     });
 
-    it('links Provision administrator to the prefilled administrator form', async () => {
+    it('links Add Admin account to the prefilled administrator form', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([waiting, quiet], { active: 2 })] }));
       renderPage();
 
-      const link = await findRowAction('Provision administrator for Chess Club');
+      const link = await findRowAction('Add Admin account for Chess Club');
       expect(link).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=3&create=1');
-      expect(screen.queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Add Admin account for Art Club' })).not.toBeInTheDocument();
     });
   });
 });

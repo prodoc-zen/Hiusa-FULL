@@ -8,10 +8,12 @@ use App\Models\AnnouncementView;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\GroqResponsesService;
 use App\Support\FilterValues;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -146,6 +148,7 @@ class AnnouncementController extends Controller
             'sort' => ['nullable', 'in:newest,oldest,title,most_viewed'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'managed' => ['nullable', 'boolean'],
         ]);
 
         $query = Announcement::with([
@@ -200,7 +203,11 @@ class AnnouncementController extends Controller
 
         $publishedOnly = $request->boolean('published_only');
 
-        $canManageAnnouncements = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true);
+        $canManageAnnouncements = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)
+            || ($user->role === 'DEPARTMENT_HEAD' && $request->boolean('managed'));
+        if ($user->role === 'DEPARTMENT_HEAD' && $request->boolean('managed')) {
+            $query->where('created_by', $user->school_id)->where('announcement_source', 'ORGANIZATION');
+        }
 
         if ($publishedOnly || ! $canManageAnnouncements) {
             $query->where('is_published', true)
@@ -340,7 +347,9 @@ class AnnouncementController extends Controller
         if ($request->user()->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'SAO Directors publish only through Global Announcements.'], 403);
         }
+        $user = $request->user();
         $data = $request->validate([
+            'organization_id' => $user->role === 'DEPARTMENT_HEAD' ? ['required', 'integer'] : ['prohibited'],
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
@@ -352,8 +361,15 @@ class AnnouncementController extends Controller
             'ai_output_id' => ['nullable', 'integer'],
         ]);
 
-        $user = $request->user();
-        $canPublishWithoutApproval = $user->role === 'ADMIN';
+        $organizationId = $user->organization_id;
+        if ($user->role === 'DEPARTMENT_HEAD') {
+            $organization = Organization::student()->whereIn('id', $user->scopedOrganizationIds())
+                ->whereKey($data['organization_id'])->where('is_active', true)->firstOrFail();
+            abort_unless($organization->isWritable(), 409, 'Choose an active organization in your college.');
+            abort_if(! empty($data['ai_output_id']), 422, 'AI drafts are available to organization Admins and Officers.');
+            $organizationId = $organization->id;
+        }
+        $canPublishWithoutApproval = in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true);
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
         $draftOutput = null;
         if (! empty($data['ai_output_id'])) {
@@ -380,7 +396,7 @@ class AnnouncementController extends Controller
             'reviewed_by' => $isDirectPublish ? $user->id : null,
             'published_at' => $isDirectPublish ? now() : null,
             'created_by' => $user->id,
-            'organization_id' => $user->organization_id,
+            'organization_id' => $organizationId,
         ]);
 
         if ($user->role === 'SBO_OFFICER') {
@@ -414,7 +430,7 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
+        $announcement = $this->managedAnnouncementQuery($request)->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -512,7 +528,7 @@ class AnnouncementController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
+        $announcement = $this->managedAnnouncementQuery($request)->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -550,7 +566,7 @@ class AnnouncementController extends Controller
 
     public function togglePublish(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
+        $announcement = $this->managedAnnouncementQuery($request)->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -558,7 +574,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($user->role !== 'ADMIN') {
+        if (! in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true)) {
             return response()->json(['message' => 'Announcements from SBO officers require admin approval before publishing.'], 403);
         }
 
@@ -658,16 +674,25 @@ class AnnouncementController extends Controller
         ]));
     }
 
+    private function managedAnnouncementQuery(Request $request): Builder
+    {
+        $user = $request->user();
+        $query = Announcement::where('announcement_source', 'ORGANIZATION');
+        if ($user->role === 'DEPARTMENT_HEAD') {
+            return $query->whereIn('organization_id', $user->scopedOrganizationIds())
+                ->where('created_by', $user->school_id)
+                ->whereHas('organization', fn ($organizations) => $organizations->where('is_active', true)->where('lifecycle_status', 'active'));
+        }
+
+        return $query->where('organization_id', $user->organization_id);
+    }
+
     private function dispatchAnnouncementNotifications(Announcement $announcement): void
     {
-        $query = User::query()
-            ->where('organization_id', $announcement->organization_id)
-            ->where('account_status', 'active')
-            ->where('school_id', '!=', $announcement->created_by);
-
-        if ($announcement->target_role !== 'all') {
-            $query->where('role', $announcement->target_role);
-        }
+        $query = User::where('account_status', 'active')->where('school_id', '!=', $announcement->created_by)
+            ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $announcement->organization_id)
+                ->where('account_status', 'active')
+                ->when($announcement->target_role !== 'all', fn ($roles) => $roles->where('role', $announcement->target_role)));
 
         $userIds = $query->pluck('school_id');
 
@@ -743,7 +768,7 @@ class AnnouncementController extends Controller
     private function recordAnnouncementAudit(Request $request, string $action, ?Announcement $announcement, ?array $oldValues, ?array $newValues): void
     {
         AuditLog::create([
-            'organization_id' => $request->user()?->organization_id,
+            'organization_id' => $announcement?->organization_id ?? $request->user()?->organization_id,
             'user_id' => $request->user()?->school_id,
             'module' => 'announcements',
             'action' => $action,

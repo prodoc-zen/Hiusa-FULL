@@ -155,6 +155,8 @@ class OrganizationApplicationTest extends TestCase
         $this->post('/api/organization-applications', $this->upload($college), ['Accept' => 'application/json'])->assertCreated()->assertJsonMissing(['email', 'school_id']);
         $application = OrganizationApplication::firstOrFail();
         $this->assertSame('pending_verification', $application->status);
+        $this->assertDatabaseMissing('users', ['school_id' => 87651234]);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 87651234]);
         $this->assertTrue($application->requires_documents);
         $this->assertSame(1, $application->required_documents_count);
         $this->assertCount(1, $application->documents);
@@ -175,6 +177,8 @@ class OrganizationApplicationTest extends TestCase
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'approve'])->assertUnprocessable()->assertJsonValidationErrors('action');
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'reject'])->assertUnprocessable()->assertJsonValidationErrors('remarks');
         $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'endorse'])->assertOk()->assertJsonPath('status', 'endorsed');
+        $this->assertDatabaseMissing('users', ['school_id' => 87651234]);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 87651234]);
         $this->assertDatabaseHas('notifications', ['user_id' => $sao->school_id, 'reference_type' => 'organization_application', 'reference_id' => $application->id]);
         Sanctum::actingAs($sao);
         $response = $this->patchJson('/api/organization-applications/'.$application->id.'/review', ['action' => 'approve'])->assertOk()->assertJsonPath('status', 'approved')->assertJsonPath('email_sent', true);

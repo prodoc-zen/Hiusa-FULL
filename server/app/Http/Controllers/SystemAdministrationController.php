@@ -99,6 +99,36 @@ class SystemAdministrationController extends Controller
             ->through(fn ($organization) => $organization->setAttribute('college_is_active', $organization->collegeAllowsAccess())->unsetRelation('catalogCollege')));
     }
 
+    public function storeUnifiedOrganization(Request $request)
+    {
+        foreach (['name', 'acronym'] as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => trim($request->input($field))]);
+            }
+        }
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('organizations', 'name')],
+            'acronym' => ['required', 'string', 'max:50', Rule::unique('organizations', 'acronym')],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'college_id' => ['prohibited'], 'college' => ['prohibited'], 'parent_organization_id' => ['prohibited'],
+            'organization_type' => ['prohibited'], 'is_active' => ['prohibited'], 'lifecycle_status' => ['prohibited'],
+        ]);
+        $organization = DB::transaction(function () use ($request, $data) {
+            $organization = Organization::create([
+                ...$data, 'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(6)),
+                'college' => null, 'college_id' => null, 'parent_organization_id' => null,
+                'is_university_wide' => true, 'organization_type' => 'STUDENT_ORGANIZATION',
+                'lifecycle_status' => 'active', 'is_active' => true,
+                'reviewed_by' => $request->user()->school_id, 'reviewed_at' => now(),
+            ]);
+            $this->audit($request, 'unified_organization_created', $organization, $organization->only(['id', 'name', 'acronym', 'is_university_wide']), 'SAO created an organization open to students from every college.');
+
+            return $organization;
+        });
+
+        return response()->json($organization, 201);
+    }
+
     public function updateOrganization(Request $request, Organization $organization)
     {
         if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
@@ -113,6 +143,12 @@ class SystemAdministrationController extends Controller
         $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/']]);
         if ($organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
             return response()->json(['message' => 'An organization with suborganizations cannot become a suborganization.'], 422);
+        }
+        if (! empty($data['parent_organization_id'])) {
+            $parent = Organization::findOrFail($data['parent_organization_id']);
+            if ((bool) $parent->is_university_wide !== (bool) $organization->is_university_wide || $parent->college_id !== $organization->college_id || $parent->college !== $organization->college) {
+                throw ValidationException::withMessages(['parent_organization_id' => ['Choose a parent with the same college and university-wide scope.']]);
+            }
         }
         $old = $organization->toArray();
         if (isset($data['name'])) {

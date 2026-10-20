@@ -84,7 +84,7 @@ class User extends Authenticatable
         'photo_path',
     ];
 
-    protected $with = ['organization:id,name,slug,college,college_id,organization_type,acronym,parent_organization_id'];
+    protected $with = ['organization:id,name,slug,college,college_id,organization_type,acronym,parent_organization_id,is_university_wide'];
 
     protected $appends = ['id', 'photo_url'];
 
@@ -143,7 +143,7 @@ class User extends Authenticatable
     /** The organization columns a member's own account payload carries; reviewer and submitter ids and remarks are not among them. */
     public const SERIALIZED_ORGANIZATION_COLUMNS = [
         'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
-        'is_active', 'logo_url', 'color', 'lifecycle_status',
+        'is_active', 'logo_url', 'color', 'lifecycle_status', 'is_university_wide',
     ];
 
     public function activateProfile(AccountProfile $profile): void

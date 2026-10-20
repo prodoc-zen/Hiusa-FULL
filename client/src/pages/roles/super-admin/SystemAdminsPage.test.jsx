@@ -102,21 +102,21 @@ describe('SystemAdminsPage', () => {
       const select = within(dialog).getByLabelText(/Assigned organization/i);
       expect(select).toHaveValue('9');
       expect(select).toBeDisabled();
-      expect(within(dialog).getByText('Locked to the organization you are provisioning.')).toBeInTheDocument();
+      expect(within(dialog).getByText('This Admin account belongs to the selected organization.')).toBeInTheDocument();
       await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('create=1'));
       expect(screen.getByTestId('location')).not.toHaveTextContent('organization=');
     });
 
-    it('shows the registration stepper and a Provision administrator step when the form is cancelled', async () => {
+    it('shows the registration stepper and a Add Admin account step when the form is cancelled', async () => {
       renderPage(provisionLink);
       const dialog = await screen.findByRole('dialog', { name: 'Create administrator' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
       const stepper = await screen.findByRole('list', { name: 'Registration progress for Chess Club' });
-      expect(within(stepper).getByText('Administrator').closest('li')).toHaveAttribute('aria-current', 'step');
-      expect(screen.getByText('Provision an administrator')).toBeInTheDocument();
+      expect(within(stepper).getByText('Admin account').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(screen.getByText('Add the first Admin account')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Provision administrator' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Admin account' }));
       const reopened = await screen.findByRole('dialog', { name: 'Create administrator' });
       expect(within(reopened).getByLabelText(/Assigned organization/i)).toHaveValue('9');
       expect(within(reopened).getByLabelText(/Assigned organization/i)).toBeDisabled();

@@ -310,6 +310,7 @@ class EventController extends Controller
                     'title' => $event->title.' Proposed Budget',
                     'allocated_amount' => $proposedBudget,
                     'remaining_amount' => $proposedBudget,
+                    'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
                     'warning_threshold' => $warningThreshold,
                 ]);
                 ApprovalRequest::create([
@@ -317,7 +318,7 @@ class EventController extends Controller
                     'entity_type' => 'budget',
                     'entity_id' => $budget->id,
                     'requested_by' => $request->user()->id,
-                    'required_role' => config('approvals.routes.budget'),
+                    'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.budget')),
                 ]);
                 $event->update(['planning_details' => [
                     ...($event->planning_details ?? []),

@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
 import DepartmentHeadApprovalsPage from './DepartmentHeadApprovalsPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), openProtectedFile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), openProtectedFile: vi.fn() }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
@@ -518,5 +519,23 @@ describe('DepartmentHeadApprovalsPage entity links stay on routes the role may o
     await screen.findByText('Foundation Day');
 
     expect(within(screen.getByRole('list', { name: /Requests/ })).queryAllByRole('link')).toHaveLength(0);
+  });
+});
+
+
+describe('SAO organization approvals', () => {
+  it('loads the SAO organization choices and shows the SAO election action', async () => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', school_id: 990001 }));
+    mocks.getSystemOrganizations.mockResolvedValue({ data: [{ id: 7, name: 'University Council' }], current_page: 1, last_page: 1, total: 1 });
+    respondWith({ id: 77, organization_id: 7, entity_type: 'election', entity_id: 3, title: 'Council election', status: 'pending', required_role: 'SUPER_ADMIN', requested_by: 123, summary: {} });
+    try {
+      renderPage('/dashboard/super-admin/organization-approvals');
+      expect(await screen.findByText('Council Election')).toBeInTheDocument();
+      expect(mocks.getSystemOrganizations).toHaveBeenCalled();
+      expect(mocks.getCollegeOrganizations).not.toHaveBeenCalled();
+      expect(screen.getByText('Review this election')).toBeInTheDocument();
+      expect(screen.queryByText('Awaiting Department Head review')).not.toBeInTheDocument();
+    } finally { localStorage.clear(); }
   });
 });

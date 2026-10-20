@@ -366,7 +366,7 @@ describe('CollegeOrganizationsPage', () => {
 
       expect(within(rowOf('Chess Club')).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
       expect(within(rowOf('Drama Guild')).getByText('Returned: edit and resubmit')).toBeInTheDocument();
-      expect(within(rowOf('Waiting Club')).getByText('Approved: waiting for an administrator')).toBeInTheDocument();
+      expect(within(rowOf('Waiting Club')).getByText('Approved: waiting for SAO to add the first Admin account')).toBeInTheDocument();
       expect(within(rowOf('Robotics Society')).getByText('Active: administrator can sign in')).toBeInTheDocument();
       expect(within(rowOf('Old Band')).getByText('Archived: read only')).toBeInTheDocument();
     });
@@ -375,7 +375,7 @@ describe('CollegeOrganizationsPage', () => {
       renderPage();
       await screen.findAllByText('Chess Club');
 
-      expect(within(rowOf('Chess Club')).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
       expect(within(rowOf('Robotics Society')).getByText('Complete: 4 of 4 steps done')).toBeInTheDocument();
     });
 
@@ -384,7 +384,7 @@ describe('CollegeOrganizationsPage', () => {
       const drawer = await screen.findByRole('dialog');
 
       const stepper = within(drawer).getByRole('list', { name: 'Registration progress for Chess Club' });
-      expect(within(stepper).getByText('SAO review').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(stepper).getByText('SAO approval').closest('li')).toHaveAttribute('aria-current', 'step');
       expect(within(drawer).getByRole('status')).toHaveTextContent('Pending review: waiting for SAO review');
       expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
       expect(within(drawer).queryByRole('button', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
@@ -407,7 +407,7 @@ describe('CollegeOrganizationsPage', () => {
       renderPage('/dashboard/department-head/organizations?record=5');
       const drawer = await screen.findByRole('dialog');
 
-      expect(within(drawer).getByRole('status')).toHaveTextContent('Approved: waiting for an administrator');
+      expect(within(drawer).getByRole('status')).toHaveTextContent('Approved: waiting for SAO to add the first Admin account');
       expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
     });
   });

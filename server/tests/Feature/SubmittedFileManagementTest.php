@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
@@ -53,6 +54,70 @@ class SubmittedFileManagementTest extends TestCase
         $this->getJson('/api/compliance/documents?family=registration')->assertOk()->assertJsonPath('data.0.file_name', 'corrected.pdf');
     }
 
+    public function test_head_can_replace_and_delete_own_college_files_and_old_links_are_not_served(): void
+    {
+        extract($this->context());
+        Sanctum::actingAs($head);
+        $version = $submission->submitted_at->toIso8601String();
+        $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $version, 'document' => UploadedFile::fake()->create('replacement.pdf', 12, 'application/pdf')], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('status', 'submitted')->assertJsonPath('reviewed_by', null);
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'title' => 'Submitted file replaced']);
+        $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $version])->assertConflict();
+        $replacement = $submission->fresh();
+        $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $replacement->submitted_at->toIso8601String()])->assertOk();
+        Storage::disk('local')->assertMissing($replacement->file_path);
+        $this->getJson('/api/compliance/submissions/'.$submission->id.'/document')->assertNotFound();
+        $this->assertDatabaseHas('audit_logs', ['user_id' => $head->school_id, 'action' => 'submission_document_deleted']);
+    }
+
+    public function test_head_cannot_change_pending_or_archived_organization_files_or_upload_invalid_formats(): void
+    {
+        extract($this->context());
+        Sanctum::actingAs($head);
+        $version = $submission->submitted_at->toIso8601String();
+        $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $version, 'document' => UploadedFile::fake()->create('invalid.txt', 1, 'text/plain')], ['Accept' => 'application/json'])
+            ->assertUnprocessable()->assertJsonValidationErrors('document');
+        foreach (['pending', 'archived'] as $status) {
+            $organization->update(['lifecycle_status' => $status]);
+            $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $version])->assertConflict();
+            $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $version, 'document' => UploadedFile::fake()->create('replacement.pdf', 1, 'application/pdf')], ['Accept' => 'application/json'])->assertConflict();
+        }
+        Storage::disk('local')->assertExists($path);
+    }
+
+    public function test_replacements_in_the_same_second_do_not_accept_an_old_version_twice(): void
+    {
+        $this->freezeTime();
+        extract($this->context());
+        $submission->update(['submitted_at' => now()]);
+        $version = $submission->fresh()->submitted_at->toIso8601String();
+        Sanctum::actingAs($head);
+        foreach ([200, 409] as $expected) {
+            $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $version, 'document' => UploadedFile::fake()->create('replacement.pdf', 1, 'application/pdf')], ['Accept' => 'application/json'])->assertStatus($expected);
+        }
+    }
+
+    public function test_failed_audit_rolls_back_the_replacement_and_preserves_the_original_file(): void
+    {
+        extract($this->context());
+        Sanctum::actingAs($head);
+        AuditLog::creating(function ($audit) {
+            if ($audit->action === 'submission_document_replaced') {
+                throw new \RuntimeException('Audit unavailable');
+            }
+        });
+        try {
+            $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $submission->submitted_at->toIso8601String(), 'document' => UploadedFile::fake()->create('replacement.pdf', 1, 'application/pdf')], ['Accept' => 'application/json'])->assertStatus(500);
+        } finally {
+            AuditLog::flushEventListeners();
+        }
+        $this->assertSame($path, $submission->fresh()->file_path);
+        Storage::disk('local')->assertExists($path);
+        $this->assertCount(1, Storage::disk('local')->allFiles('compliance-submissions/'.$organization->id));
+        $this->assertDatabaseMissing('notifications', ['title' => 'Submitted file replaced']);
+    }
+
     public function test_file_mutations_are_scoped_and_stale_versions_are_rejected(): void
     {
         extract($this->context());
@@ -62,8 +127,8 @@ class SubmittedFileManagementTest extends TestCase
         $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $submission->submitted_at->toIso8601String(), 'document' => UploadedFile::fake()->create('x.pdf', 1, 'application/pdf')], ['Accept' => 'application/json'])->assertNotFound();
         Sanctum::actingAs($admin);
         $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => now()->subDay()->toIso8601String()])->assertConflict();
-        Sanctum::actingAs($head);
-        $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $submission->submitted_at->toIso8601String()])->assertForbidden();
+        Sanctum::actingAs(User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['organization_type' => 'COLLEGE'])->id]));
+        $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $submission->submitted_at->toIso8601String()])->assertNotFound();
         Storage::disk('local')->assertExists($path);
     }
 

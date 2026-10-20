@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DocumentsTab from './DocumentsTab';
 
-const compliance = vi.hoisted(() => ({ getComplianceDocuments: vi.fn(), deleteComplianceFile: vi.fn() }));
+const compliance = vi.hoisted(() => ({ getComplianceDocuments: vi.fn(), deleteComplianceFile: vi.fn(), replaceComplianceFile: vi.fn() }));
 const system = vi.hoisted(() => ({ getAcademicPeriods: vi.fn() }));
 const file = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../services/complianceService', () => compliance);
@@ -84,13 +84,41 @@ describe('SAO submitted files', () => {
     expect(await screen.findByRole('button', { name: /Computing Society/ })).toBeInTheDocument();
   });
 
-  it('searches files inside a folder and keeps Department Head files read only', async () => {
+  it('pages files and changes the page size without losing organization filters', async () => {
+    compliance.getComplianceDocuments.mockImplementation((params) => Promise.resolve(params.group === 'organization' ? page(folders) : page(documents, { current_page: params.page, per_page: params.per_page, total: 25, last_page: 3 })));
+    render(<MemoryRouter><DocumentsTab role="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await openFolder();
+    expect(compliance.getComplianceDocuments).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, per_page: 10, page: 1 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next page of files' }));
+    await waitFor(() => expect(compliance.getComplianceDocuments).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, page: 2 })));
+    fireEvent.change(screen.getByRole('combobox', { name: 'files per page' }), { target: { value: '20' } });
+    await waitFor(() => expect(compliance.getComplianceDocuments).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, page: 1, per_page: 20 })));
+  });
+
+  it('replaces a college compliance file and preserves errors for retry', async () => {
+    compliance.replaceComplianceFile.mockRejectedValueOnce({ response: { data: { message: 'File changed. Refresh the list.' } } }).mockResolvedValue({});
+    render(<MemoryRouter><DocumentsTab role="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await openFolder();
+    await chooseAction('bylaws.pdf', 'Replace file');
+    const replacement = new File(['%PDF-1.4'], 'updated.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('New file'), { target: { files: [replacement] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit replacement' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('File changed.');
+    expect(screen.getByRole('dialog', { name: 'Replace submitted file' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit replacement' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(compliance.replaceComplianceFile).toHaveBeenCalledWith(1, replacement, '2026-09-10T08:00:00Z');
+    expect(await screen.findByText(/File replaced. SAO must review/)).toBeInTheDocument();
+  });
+
+  it('searches college files and offers scoped compliance file actions', async () => {
     render(<MemoryRouter><DocumentsTab role="DEPARTMENT_HEAD" /></MemoryRouter>);
     await openFolder();
     fireEvent.change(screen.getByLabelText('Find a file'), { target: { value: 'bylaws' } });
     await waitFor(() => expect(compliance.getComplianceDocuments).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, search: 'bylaws', page: 1 })));
     fireEvent.click(screen.getByRole('button', { name: 'Actions for bylaws.pdf' }));
-    expect(screen.queryByRole('menuitem', { name: 'Delete file' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete file' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Replace file' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'View file' })).toBeInTheDocument();
   });
 });

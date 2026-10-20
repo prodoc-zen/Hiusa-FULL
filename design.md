@@ -287,6 +287,7 @@ The login screen should stay simple:
 
 - Left brand panel with dark blue gradient and real HIUSA logo.
 - Right form panel with white background.
+- Use the existing `landing-campus.jpg` school photo as the backdrop behind the auth card, with a restrained navy overlay. Keep both card panels opaque so form text never sits over the photograph. Reuse this asset on recovery screens through `AuthLayout`.
 - No stripe decoration.
 - No overlapping text.
 - Form width around 370px.
