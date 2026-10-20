@@ -61,6 +61,7 @@ function electionRecord(request) {
     id: request.entity_id,
     status: decided ? summary.target_status ?? 'upcoming' : 'pending_approval',
     approval_status: request.status,
+    approval_required_role: request.required_role,
     approval_remarks: request.remarks,
     finalized_at: summary.finalized_at,
     start_time: summary.start_time,
@@ -84,7 +85,7 @@ function financialReportRecord(request) {
 const LIFECYCLES = {
   event: { record: eventRecord, lifecycle: eventLifecycle, pendingOwner: (record) => (record.approval_status === 'pending' ? record.approval_required_role : null) },
   budget: { record: budgetRecord, lifecycle: budgetLifecycle, pendingOwner: (record) => ({ pending_department_head: 'DEPARTMENT_HEAD', pending_sao: 'SUPER_ADMIN' })[record.submission_status] ?? null },
-  election: { record: electionRecord, lifecycle: electionLifecycle, pendingOwner: (record) => (record.status === 'pending_approval' && record.approval_status === 'pending' ? 'DEPARTMENT_HEAD' : null) },
+  election: { record: electionRecord, lifecycle: electionLifecycle, pendingOwner: (record) => (record.status === 'pending_approval' && record.approval_status === 'pending' ? record.approval_required_role || 'DEPARTMENT_HEAD' : null) },
   financial_report: { record: financialReportRecord, lifecycle: financialReportLifecycle, pendingOwner: (record) => ({ pending_department_head: 'DEPARTMENT_HEAD', pending_sao: 'SUPER_ADMIN' })[record.submission_status] ?? null },
 };
 

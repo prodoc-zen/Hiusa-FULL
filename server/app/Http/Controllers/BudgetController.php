@@ -64,6 +64,7 @@ class BudgetController extends Controller
             $budget = Budget::create([
                 ...$data,
                 'remaining_amount' => $data['allocated_amount'],
+                'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
                 'organization_id' => $request->user()->organization_id,
             ]);
 
@@ -72,7 +73,7 @@ class BudgetController extends Controller
                 'entity_type' => 'budget',
                 'entity_id' => $budget->id,
                 'requested_by' => $request->user()->id,
-                'required_role' => config('approvals.routes.budget'),
+                'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.budget')),
             ]);
 
             $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));
@@ -367,11 +368,11 @@ class BudgetController extends Controller
             ->first()
             ?->reopen(
                 $request->user()->id,
-                config('approvals.routes.budget')
+                $request->user()->organization->approvalRole(config('approvals.routes.budget'))
             );
 
         $budget->update([
-            'submission_status' => 'pending_department_head',
+            'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
             'department_head_approved_by' => null,
             'department_head_approved_at' => null,
         ]);

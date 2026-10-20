@@ -22,6 +22,8 @@
 
 ## Implementation Coverage
 
+- **Account creation after application approval:** submitting or email-verifying an application and receiving Department Head endorsement do not create a user or an Admin profile. Only final SAO approval creates the first Admin account or adds a profile to an existing verified login. Regression checks cover the pre-approval states. New-account password setup and existing credentials retain their established behavior.
+
 - **View User List:** `AdminUsersPage` loads organization-scoped accounts for Admins. The SAO's separate University users page searches and filters accounts across every college and organization, including users without an organization.
 - **Search User:** the search input filters by name, school ID, or email.
 - **Filter User by Role:** the role selector filters the visible user list.
@@ -45,6 +47,8 @@
 - **Profile Removal:** Admin user actions and SAO administrator actions offer **Manage profiles**. SAO organization actions and the organization editor offer **Manage user profiles**, with name, school ID, and email search and 20 profiles per page. Inactive organization profiles are included. Removing a secondary profile preserves the shared login; removing the primary profile promotes a surviving active profile when available. Removing the final profile deletes the shared user and all sessions. Linked financial or operational history blocks final deletion with `409`; the final profile and user remain intact. Users cannot delete themselves or SAO identities. Only SAO can delete Admin profiles, and each organization must retain an active Admin, including secondary Admin profiles.
 
 ### Existing membership API
+
+Unified organizations carry `is_university_wide=true` and have no college or parent assignment. SAO creates them through `POST /system/unified-organizations`, then may add the first Admin through the existing administrator form. This direct SAO action records approval and does not create an account automatically. Their Admins and SAO may invite eligible active identities from any active college; passwords, academic departments, and existing profiles are preserved. Archived/deleted colleges, including legacy assignments by name, are excluded. An ordinary college organization keeps its existing same-college restrictions. Cross-college membership eligibility does not expose organization records to nonmembers or Department Heads. Public organization choices, destination choices, and a member's organization payload include the scope flag.
 
 - `GET /account-profiles/organizations` returns authorized active destination organizations for Admin or SAO.
 - `GET /account-profiles/candidates` requires `organization_id`, supports `search`, `page`, and `per_page` (up to 50), and returns a Laravel paginator containing minimal identity fields. Existing target memberships are omitted.

@@ -129,7 +129,7 @@ describe('SaoOrganizationOverviewPage', () => {
       renderPage();
       const view = await progress();
 
-      expect(within(stage(view)).getByText('SAO review').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(stage(view)).getByText('SAO approval').closest('li')).toHaveAttribute('aria-current', 'step');
       expect(view.getByText('Review this registration')).toBeInTheDocument();
       expect(view.getByRole('link', { name: 'Review registration' })).toBeInTheDocument();
     });
@@ -149,10 +149,10 @@ describe('SaoOrganizationOverviewPage', () => {
       renderPage();
       const view = await progress();
 
-      expect(within(stage(view)).getByText('Administrator').closest('li')).toHaveAttribute('aria-current', 'step');
-      expect(view.getByText('Provision an administrator')).toBeInTheDocument();
-      expect(view.getByRole('link', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=5&create=1');
-      expect(screen.getByText(/Provision an administrator so the organization can sign in/)).toBeInTheDocument();
+      expect(within(stage(view)).getByText('Admin account').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(view.getByText('Add the first Admin account')).toBeInTheDocument();
+      expect(view.getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=5&create=1');
+      expect(screen.getByText(/Add the first Admin account so the organization can sign in/)).toBeInTheDocument();
     });
 
     it('shows a complete stepper and the administrator state once an administrator exists', async () => {

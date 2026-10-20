@@ -31,6 +31,11 @@ class Event extends Model
         return $this->belongsTo(User::class, 'created_by', 'school_id');
     }
 
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class);

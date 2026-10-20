@@ -417,7 +417,7 @@ class FinancialReportController extends Controller
 
             $financialReport->update([
                 'supporting_documents' => $documents->values()->all(),
-                'submission_status' => 'pending_department_head',
+                'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
                 'submitted_at' => now(),
                 'department_head_approved_by' => null,
                 'department_head_approved_at' => null,
@@ -430,7 +430,7 @@ class FinancialReportController extends Controller
                 'entity_type' => 'financial_report',
                 'entity_id' => $financialReport->id,
                 'requested_by' => $request->user()->school_id,
-                'required_role' => 'DEPARTMENT_HEAD',
+                'required_role' => $request->user()->organization->approvalRole('DEPARTMENT_HEAD'),
                 'status' => 'pending',
                 'active_key' => 'financial_report:'.$financialReport->organization_id.':'.$financialReport->id,
                 'requested_at' => now(),

@@ -69,7 +69,7 @@ function rowActions(row) {
   return (
     <TableRowActions subject={name} actions={[
       row.lifecycle_status === 'pending' && { label: `Review ${name}`, to: reviewPath(row.id) },
-      needsAdministrator(row) && { label: `Provision administrator for ${name}`, to: provisionPath(row.id) },
+      needsAdministrator(row) && { label: `Add Admin account for ${name}`, to: provisionPath(row.id) },
       { label: `Open ${name}`, to: organizationOverviewPath(row.id) },
     ]} />
   );

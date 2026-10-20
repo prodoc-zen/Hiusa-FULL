@@ -1045,7 +1045,9 @@ class UserController extends Controller
     private function normalizeAcademicPayload(array $data, User $actor, ?User $existingUser = null): array
     {
         $organization = $actor->organization;
-        $department = $organization?->college ?: 'College of Computer Studies';
+        $department = $organization?->is_university_wide
+            ? ($existingUser?->department ?? ($data['department'] ?? null))
+            : ($organization?->college ?: 'College of Computer Studies');
         $program = $data['program'] ?? $existingUser?->program;
         $yearLevel = $data['year_level'] ?? $existingUser?->year_level;
         $section = $data['section'] ?? $existingUser?->section;

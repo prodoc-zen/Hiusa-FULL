@@ -6,7 +6,7 @@ import SystemOrganizationsPage from './SystemOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(), getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), getSystemOrganizationOverview: vi.fn(),
   reviewSystemOrganization: vi.fn(), archiveSystemOrganization: vi.fn(), restoreSystemOrganization: vi.fn(),
-  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(), createSystemAdmin: vi.fn(),
+  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(), createSystemAdmin: vi.fn(), createUnifiedOrganization: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
@@ -55,6 +55,21 @@ describe('SystemOrganizationsPage', () => {
     fireEvent.submit(within(dialog).getByRole('button', { name: 'Create administrator' }).form);
     await waitFor(() => expect(mocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 3, school_id: 78123456 })));
     expect(await screen.findByText('Administrator account created.')).toBeInTheDocument();
+  });
+
+  it('creates a unified organization and opens its first administrator form', async () => {
+    const unified = org({ id: 77, name: 'University Council', acronym: 'UC', is_university_wide: true, college: null, college_id: null });
+    mocks.createUnifiedOrganization.mockResolvedValue(unified);
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    fireEvent.click(screen.getByRole('button', { name: 'Add unified organization' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add unified organization' });
+    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: 'University Council' } });
+    fireEvent.change(within(dialog).getByLabelText(/Acronym/), { target: { value: 'UC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create organization' }));
+    const admin = await screen.findByRole('dialog', { name: 'Add administrator' });
+    expect(within(admin).getByText('University Council')).toBeInTheDocument();
+    expect(mocks.createUnifiedOrganization).toHaveBeenCalledWith({ name: 'University Council', acronym: 'UC', description: null });
+    expect(mocks.createSystemAdmin).not.toHaveBeenCalled();
   });
 
   it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {
@@ -395,23 +410,23 @@ describe('SystemOrganizationsPage', () => {
       await waitFor(() => expect(mocks.getSystemOrganizations.mock.calls.length).toBeGreaterThan(before));
     });
 
-    it('keeps the drawer open after approval and hands over to Provision administrator', async () => {
+    it('keeps the drawer open after approval and hands over to Add first Admin account', async () => {
       mocks.reviewSystemOrganization.mockResolvedValue({});
       const drawer = await openReview();
       await within(drawer).findByText('Dean Reyes');
       expect(within(drawer).getByRole('list', { name: 'Registration progress for Robotics Club' })).toBeInTheDocument();
-      expect(within(drawer).queryByRole('link', { name: 'Provision administrator' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole('link', { name: 'Add Admin account' })).not.toBeInTheDocument();
 
       fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
 
-      await waitFor(() => expect(within(drawer).getByText('Provision an administrator')).toBeInTheDocument());
+      await waitFor(() => expect(within(drawer).getByText('Add the first Admin account')).toBeInTheDocument());
       expect(screen.getByRole('dialog', { name: 'Review registration' })).toBe(drawer);
-      expect(within(drawer).getByRole('link', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=8&create=1');
+      expect(within(drawer).getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=8&create=1');
       expect(within(drawer).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
       expect(within(drawer).queryByLabelText(/Remarks/)).not.toBeInTheDocument();
       const stepper = within(drawer).getByRole('list', { name: 'Registration progress for Robotics Club' });
-      expect(within(stepper).getByText('Administrator').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(stepper).getByText('Admin account').closest('li')).toHaveAttribute('aria-current', 'step');
       expect(within(drawer).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     });
 
@@ -428,7 +443,7 @@ describe('SystemOrganizationsPage', () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
       const card = (await screen.findByRole('button', { name: 'Actions for Robotics Club' })).closest('tr');
       expect(within(card).getByText('Review this registration')).toBeInTheDocument();
-      expect(within(card).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
+      expect(within(card).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
     });
 
     it('shows the server message and reloads on a 409', async () => {
@@ -509,13 +524,13 @@ describe('SystemOrganizationsPage', () => {
       const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
       expect(names).toEqual(['Chess Club', 'Art Club']);
       const card = screen.getByText('Chess Club').closest('tr');
-      expect(within(card).getByText('Provision an administrator')).toBeInTheDocument();
+      expect(within(card).getByText('Add the first Admin account')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
-      expect(screen.getByRole('menuitem', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
+      expect(screen.getByRole('menuitem', { name: 'Add first Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
       const done = screen.getByText('Art Club').closest('tr');
       expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
       fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
-      expect(screen.queryByRole('menuitem', { name: 'Provision administrator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Add first Admin account' })).not.toBeInTheDocument();
     });
   });
 

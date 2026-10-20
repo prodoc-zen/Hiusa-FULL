@@ -6,16 +6,22 @@ import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from
 const record = (overrides) => ({ id: 7, name: 'Chess Club', lifecycle_status: 'pending', administrators_count: 0, review_remarks: null, ...overrides });
 const renderIn = (node) => render(<MemoryRouter>{node}</MemoryRouter>);
 
+it('explains the direct SAO approval path for a unified organization', () => {
+  renderIn(<RegistrationStepper organization={record({ lifecycle_status: 'active', is_university_wide: true })} viewerRole="SUPER_ADMIN" />);
+  expect(screen.getByText('Not required for a unified organization')).toBeInTheDocument();
+  expect(screen.getByText(/SAO approves unified organizations directly/)).toBeInTheDocument();
+});
+
 const CASES = [
   ['DEPARTMENT_HEAD', { lifecycle_status: 'pending' }, 'Pending review: waiting for SAO review', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'returned', review_remarks: 'Sign the constitution.' }, 'Returned: edit and resubmit', 'action', 'Edit and resubmit'],
-  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Approved: waiting for an administrator', 'waiting', null],
+  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Approved: waiting for SAO to add the first Admin account', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 1 }, 'Active: administrator can sign in', 'done', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: undefined }, 'Active', 'done', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
   ['SUPER_ADMIN', { lifecycle_status: 'pending' }, 'Review this registration', 'action', 'Review registration'],
   ['SUPER_ADMIN', { lifecycle_status: 'returned' }, 'Waiting for the Department Head to resubmit', 'waiting', null],
-  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Provision an administrator', 'action', 'Provision administrator'],
+  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Add the first Admin account', 'action', 'Add Admin account'],
   ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 2 }, 'Active: administrator can sign in', 'done', null],
   ['SUPER_ADMIN', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
 ];
@@ -41,7 +47,7 @@ describe('RegistrationNextStep', () => {
   it('points the SAO at the prefilled administrator form', () => {
     renderIn(<RegistrationNextStep organization={record({ lifecycle_status: 'active' })} viewerRole="SUPER_ADMIN" />);
 
-    expect(screen.getByRole('link', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=7&create=1');
+    expect(screen.getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=7&create=1');
   });
 
   it('runs a handler instead of navigating when the page owns the action', () => {
@@ -67,16 +73,16 @@ describe('RegistrationStepper', () => {
     render(<RegistrationStepper organization={record()} viewerRole="DEPARTMENT_HEAD" />);
     const list = screen.getByRole('list', { name: 'Registration progress for Chess Club' });
 
-    expect(stateOf(list, 'Registered')).not.toHaveAttribute('aria-current');
-    expect(stateOf(list, 'SAO review')).toHaveAttribute('aria-current', 'step');
+    expect(stateOf(list, 'Registration submitted')).not.toHaveAttribute('aria-current');
+    expect(stateOf(list, 'SAO approval')).toHaveAttribute('aria-current', 'step');
   });
 
   it('blocks the SAO review step when the registration is returned', () => {
     render(<RegistrationStepper organization={record({ lifecycle_status: 'returned' })} viewerRole="DEPARTMENT_HEAD" />);
     const list = screen.getByRole('list', { name: 'Registration progress for Chess Club' });
 
-    expect(within(stateOf(list, 'SAO review')).getByText(/Blocked/)).toBeInTheDocument();
-    expect(within(stateOf(list, 'SAO review')).getByText('Returned')).toBeInTheDocument();
+    expect(within(stateOf(list, 'SAO approval')).getByText(/Blocked/)).toBeInTheDocument();
+    expect(within(stateOf(list, 'SAO approval')).getByText('Returned')).toBeInTheDocument();
   });
 
   it('is complete when an active organization has an administrator', () => {
@@ -90,7 +96,7 @@ describe('RegistrationStepper', () => {
     render(<RegistrationStepper organization={record({ lifecycle_status: 'active' })} viewerRole="SUPER_ADMIN" variant="compact" />);
 
     expect(screen.getByRole('progressbar', { name: 'Registration progress for Chess Club' })).toHaveAttribute('aria-valuenow', '2');
-    expect(screen.getByText('Step 3 of 4: Administrator')).toBeInTheDocument();
+    expect(screen.getByText('Step 3 of 4: Admin account')).toBeInTheDocument();
   });
 });
 

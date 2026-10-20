@@ -1299,7 +1299,7 @@ class UseCaseComplianceTest extends TestCase
         ]);
     }
 
-    public function test_department_head_can_only_view_published_targeted_announcements(): void
+    public function test_department_head_feed_is_published_and_targeted_and_creation_requires_an_organization(): void
     {
         $departmentHead = $this->user('DEPARTMENT_HEAD');
         $admin = $this->user('ADMIN', $departmentHead->organization_id);
@@ -1329,11 +1329,11 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($departmentHead);
         $this->postJson('/api/announcements', [
             'title' => 'Department Notice',
-            'body' => 'Department heads do not manage announcement records.',
+            'body' => 'Choose the target organization before posting.',
             'target_role' => 'all',
             'category' => 'general',
             'is_published' => true,
-        ])->assertForbidden();
+        ])->assertUnprocessable()->assertJsonValidationErrors('organization_id');
 
         $this->getJson('/api/announcements')
             ->assertOk()

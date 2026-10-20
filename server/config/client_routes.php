@@ -33,6 +33,7 @@ return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
         '/dashboard/super-admin/organizations',
+        '/dashboard/super-admin/organization-approvals',
         '/dashboard/super-admin/organizations/:organizationId',
         '/dashboard/super-admin/colleges',
         '/dashboard/super-admin/users',
@@ -138,6 +139,7 @@ return [
         '/dashboard/organization-applications',
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
+        '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',
         '/dashboard/department-head/documents',
         '/dashboard/department-head/compliance',

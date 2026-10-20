@@ -126,10 +126,10 @@ const NAV_BY_ROLE = {
     { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
     { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },
     { id: 'college-clearances', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances' },
+    { id: 'college-announcements', label: 'Announcements', icon: Megaphone, path: '/dashboard/department-head/announcements', aliases: ['College announcements', 'New announcement'], also: ['/dashboard/announcements/view-announcements'] },
     group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
     { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
     { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },
-    { id: 'view-announcements', label: 'Announcements', icon: Newspaper, path: '/dashboard/announcements/view-announcements', aliases: ['Announcements Feed'], band: 'College view (read only)' },
   ],
   STUDENT: [
     dashboard('STUDENT'),
@@ -153,6 +153,7 @@ const NAV_BY_ROLE = {
     ]),
     group('sao-reviews', 'Reviews', ClipboardCheck, [
       leaf('sao-compliance', 'Compliance', '/dashboard/super-admin/compliance', ClipboardCheck),
+      leaf('sao-organization-approvals', 'Organization approvals', '/dashboard/super-admin/organization-approvals', ClipboardCheck),
       leaf('sao-venues', 'Venues', '/dashboard/super-admin/venues', MapPin),
       leaf('sao-grievances', 'Grievances', '/dashboard/super-admin/grievances', MessageSquare),
       leaf('sao-clearances', 'Clearances', '/dashboard/super-admin/clearances', ShieldCheck),

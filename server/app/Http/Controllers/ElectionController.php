@@ -210,7 +210,7 @@ class ElectionController extends Controller
                     'entity_type' => 'election',
                     'entity_id' => $election->id,
                     'requested_by' => $request->user()->id,
-                    'required_role' => config('approvals.routes.election'),
+                    'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.election')),
                 ]);
 
                 return $election;
@@ -467,11 +467,12 @@ class ElectionController extends Controller
             ->pluck('id');
 
         return ApprovalRequest::whereIn('id', $latestIds)
-            ->get(['id', 'entity_id', 'status', 'remarks'])
+            ->get(['id', 'entity_id', 'status', 'remarks', 'required_role'])
             ->mapWithKeys(fn (ApprovalRequest $approval) => [$approval->entity_id => [
                 'approval_status' => $approval->status,
                 'approval_remarks' => $approval->remarks,
                 'approval_id' => $approval->id,
+                'approval_required_role' => $approval->required_role,
             ]])
             ->all();
     }
@@ -483,7 +484,7 @@ class ElectionController extends Controller
         }
 
         $fields = $this->approvalFields(array_column($payloads, 'id'));
-        $none = ['approval_status' => null, 'approval_remarks' => null, 'approval_id' => null];
+        $none = ['approval_status' => null, 'approval_remarks' => null, 'approval_id' => null, 'approval_required_role' => null];
 
         return array_map(fn (array $payload) => $payload + ($fields[$payload['id']] ?? $none), $payloads);
     }

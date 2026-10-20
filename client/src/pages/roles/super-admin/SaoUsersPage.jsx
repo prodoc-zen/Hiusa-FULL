@@ -36,7 +36,7 @@ export default function SaoUsersPage() {
   const [existingAdmin, setExistingAdmin] = useState(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { setFilters((current) => ({ ...current, search: query.trim() })); setPage(1); }, 250);
+    const timer = window.setTimeout(() => { setFilters((current) => current.search === query.trim() ? current : { ...current, search: query.trim() }); setPage(1); }, 250);
     return () => window.clearTimeout(timer);
   }, [query]);
 

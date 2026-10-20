@@ -7,6 +7,7 @@ export const getSystemUsers = (params) => unwrap(api.get('/system/users', { para
 export const getSystemUser = (schoolId) => unwrap(api.get(`/system/users/${schoolId}`));
 export const deleteSystemUser = (schoolId) => unwrap(api.delete(`/system/users/${schoolId}`, { data: { school_id: schoolId } }));
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params }));
+export const createUnifiedOrganization = (data) => unwrap(api.post('/system/unified-organizations', data));
 export const updateSystemOrganization = (id, payload) => unwrap(api.put(`/system/organizations/${id}`, payload));
 export const uploadSystemOrganizationLogo = (id, file) => {
   const data = new FormData();

@@ -553,7 +553,7 @@ export default function SystemAdminsPage() {
                       </option>
                     ))}
                 </HiusaSelect>
-                {form.organization_locked && <span className="block text-xs font-medium text-slate-500">Locked to the organization you are provisioning.</span>}
+                {form.organization_locked && <span className="block text-xs font-medium text-slate-500">This Admin account belongs to the selected organization.</span>}
               </label>
               {!isEditing && (
                 <>

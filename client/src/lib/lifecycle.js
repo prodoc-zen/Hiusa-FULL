@@ -15,7 +15,7 @@ export const ROLE_LABELS = {
 };
 
 const NO_ACTION = 'No action needed from you.';
-const APPROVAL_ROUTES = { DEPARTMENT_HEAD: '/dashboard/department-head/approvals', ADMIN: '/dashboard/approvals' };
+const APPROVAL_ROUTES = { DEPARTMENT_HEAD: '/dashboard/department-head/approvals', ADMIN: '/dashboard/approvals', SUPER_ADMIN: '/dashboard/super-admin/organization-approvals' };
 
 export function roleLabel(role) {
   return ROLE_LABELS[role] ?? null;
@@ -116,12 +116,12 @@ export function financialReportLifecycle(report, viewerRole) {
     case 'pending_sao':
       return finish(buildSteps(REPORT_STAGES, 2), turn(viewerRole, ['SUPER_ADMIN'], {
         title: 'Review this report',
-        body: 'The Department Head approved it. It is waiting for your decision.',
+        body: 'It is waiting for SAO approval.',
         label: 'Review report',
         to: '/dashboard/super-admin/compliance?tab=financial',
       }, { title: 'Waiting for SAO approval' }), 'SUPER_ADMIN', href);
     case 'approved':
-      return finish(buildSteps(REPORT_STAGES, REPORT_STAGES.length), terminal('done', 'Approved', 'Both reviewers approved this report.'), null, href);
+      return finish(buildSteps(REPORT_STAGES, REPORT_STAGES.length), terminal('done', 'Approved', 'The required financial report approvals are complete.'), null, href);
     case 'rejected': {
       const atSao = Boolean(r.department_head_approved_at);
       return finish(buildSteps(REPORT_STAGES, atSao ? 2 : 1, returned(atSao ? 2 : 1)), turn(viewerRole, ['ADMIN'], {
@@ -163,9 +163,9 @@ export function budgetLifecycle(budget, viewerRole) {
     case 'pending_sao':
       return finish(buildSteps(BUDGET_STAGES, 1), turn(viewerRole, ['SUPER_ADMIN'], {
         title: 'Review this budget',
-        body: 'The Department Head approved it. It is waiting for your decision.',
+        body: 'It is waiting for SAO approval.',
         label: 'Review budget',
-        to: '/dashboard/super-admin/compliance?tab=financial',
+        to: '/dashboard/super-admin/organization-approvals',
       }, { title: 'Waiting for SAO approval' }), 'SUPER_ADMIN', href);
     case 'approved': {
       const spent = Number(b.spent_amount ?? 0);
@@ -414,33 +414,35 @@ const ELECTION_STAGES = [
 export function electionLifecycle(election, viewerRole) {
   const el = election ?? {};
   const href = recordHref('/dashboard/elections/manage-elections', el.id);
+  const reviewer = el.approval_required_role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD';
+  const stages = ELECTION_STAGES.map((stage) => stage.key === 'submitted' ? { ...stage, actor: roleLabel(reviewer) } : stage);
 
   switch (el.status) {
     case 'pending_approval':
       if (el.approval_status === 'rejected') {
-        return finish(buildSteps(ELECTION_STAGES, 0, { blocked: true, notes: { submitted: 'Returned' } }), turn(viewerRole, ['ADMIN'], {
+        return finish(buildSteps(stages, 0, { blocked: true, notes: { submitted: 'Returned' } }), turn(viewerRole, ['ADMIN'], {
           title: 'Returned: edit and resubmit',
           body: el.approval_remarks || 'Read the reviewer remarks, change the election, and send it again.',
           label: 'Edit election',
           to: href,
         }, { title: 'Returned to the Admin for changes' }), 'ADMIN', href);
       }
-      return finish(buildSteps(ELECTION_STAGES, 0), turn(viewerRole, ['DEPARTMENT_HEAD'], {
+      return finish(buildSteps(stages, 0), turn(viewerRole, [reviewer], {
         title: 'Review this election',
         body: 'It is waiting for your decision.',
         label: 'Open approvals',
-        to: approvalsHref('DEPARTMENT_HEAD'),
-      }, { title: 'Awaiting Department Head review' }), 'DEPARTMENT_HEAD', href);
+        to: approvalsHref(reviewer),
+      }, { title: `Awaiting ${roleLabel(reviewer)} review` }), reviewer, href);
     case 'upcoming':
       if (!el.finalized_at) {
-        return finish(buildSteps(ELECTION_STAGES, 1), turn(viewerRole, ['ADMIN', 'SBO_OFFICER'], {
+        return finish(buildSteps(stages, 1), turn(viewerRole, ['ADMIN', 'SBO_OFFICER'], {
           title: 'Build the ballot',
           body: 'Add party lists, then candidates for every position, then finalize.',
           label: 'Open ballot setup',
           to: viewerRole === 'SBO_OFFICER' ? '/dashboard/elections/manage-candidates' : href,
         }, { title: 'Waiting for the ballot to be built' }), 'ADMIN', href);
       }
-      return finish(buildSteps(ELECTION_STAGES, 2), turn(viewerRole, ['ADMIN'], {
+      return finish(buildSteps(stages, 2), turn(viewerRole, ['ADMIN'], {
         title: 'Ballot locked: open voting when it starts',
         body: el.start_time ? `Voting is scheduled for ${manilaDate(el.start_time)}. Open it from the election page.` : 'Open voting from the election page when it starts.',
         label: 'Open election',
@@ -448,7 +450,7 @@ export function electionLifecycle(election, viewerRole) {
       }, { title: el.start_time ? `Ballot locked: voting opens on ${manilaDate(el.start_time)}` : 'Ballot locked: voting opens soon' }), 'ADMIN', href);
     case 'active': {
       const until = el.end_time ? ` until ${manilaDate(el.end_time)}` : '';
-      const steps = buildSteps(ELECTION_STAGES, 3);
+      const steps = buildSteps(stages, 3);
       if (viewerRole === 'STUDENT') {
         if (el.has_voted === true) {
           return finish(steps, terminal('done', 'You have voted', 'Results appear when voting closes.'), null, href);
@@ -459,14 +461,14 @@ export function electionLifecycle(election, viewerRole) {
     }
     case 'closed':
       if (el.results_visible === false) {
-        return finish(buildSteps(ELECTION_STAGES, 4), turn(viewerRole, ['ADMIN'], {
+        return finish(buildSteps(stages, 4), turn(viewerRole, ['ADMIN'], {
           title: 'Closed: release the results',
           body: 'Voting has ended. Results stay hidden until you release them.',
           label: 'Open election',
           to: href,
         }, { title: 'Closed: results not released yet' }), 'ADMIN', href);
       }
-      return finish(buildSteps(ELECTION_STAGES, ELECTION_STAGES.length), terminal('done', 'Results released', 'Voting is closed and the results are public.', { label: 'View results', to: '/dashboard/elections/election-results' }), null, href);
+      return finish(buildSteps(stages, stages.length), terminal('done', 'Results released', 'Voting is closed and the results are public.', { label: 'View results', to: '/dashboard/elections/election-results' }), null, href);
     default:
       return unknown(ELECTION_STAGES, el.status, href);
   }
@@ -533,10 +535,10 @@ export function orderLifecycle(order, viewerRole) {
 // setup_steps_total are optional and describe the Admin first-use checklist.
 
 const REGISTRATION_STAGES = [
-  { key: 'registered', label: 'Registered', actor: 'Department Head' },
-  { key: 'review', label: 'SAO review', actor: 'SAO' },
-  { key: 'administrator', label: 'Administrator', actor: 'SAO' },
-  { key: 'first_use', label: 'First use', actor: 'Admin' },
+  { key: 'registered', label: 'Registration submitted', actor: 'Department Head' },
+  { key: 'review', label: 'SAO approval', actor: 'SAO' },
+  { key: 'administrator', label: 'Admin account', actor: 'SAO' },
+  { key: 'first_use', label: 'Initial setup', actor: 'Admin' },
 ];
 
 export function organizationRegistrationLifecycle(organization, viewerRole) {
@@ -567,8 +569,8 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
       }
       if (Number(o.administrators_count) === 0) {
         return finish(buildSteps(REGISTRATION_STAGES, 2), turn(viewerRole, ['SUPER_ADMIN'], {
-          title: 'Provision an administrator',
-          body: 'Approved. The organization cannot sign in until it has an administrator.',
+          title: 'Add the first Admin account',
+          body: 'SAO approved this organization. Add its first Admin account so an administrator can sign in and manage it.',
           label: 'Create administrator',
           to: o.id === undefined ? '/dashboard/super-admin/admins' : `/dashboard/super-admin/admins?organization=${o.id}&create=1`,
         }, { title: 'Approved: waiting for the SAO to assign an administrator' }), 'SUPER_ADMIN', href);

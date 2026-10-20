@@ -14,7 +14,7 @@ function titleFor(organization, viewerRole, fallback) {
   if (organization.lifecycle_status !== 'active') return fallback;
   if (!hasAdministrators(organization)) return 'Active';
   if (Number(organization.administrators_count) === 0) {
-    return viewerRole === 'SUPER_ADMIN' ? 'Provision an administrator' : 'Approved: waiting for an administrator';
+    return viewerRole === 'SUPER_ADMIN' ? 'Add the first Admin account' : 'Approved: waiting for SAO to add the first Admin account';
   }
   return 'Active: administrator can sign in';
 }
@@ -30,14 +30,15 @@ export function registrationView(organization, viewerRole) {
       ...nextStep,
       title: titleFor(organization, viewerRole, nextStep.title),
       body: remarksForSao ? `Your remarks: ${organization.review_remarks}` : nextStep.body,
-      primary: provisioning && nextStep.primary ? { ...nextStep.primary, label: 'Provision administrator' } : nextStep.primary,
+      primary: provisioning && nextStep.primary ? { ...nextStep.primary, label: 'Add Admin account' } : nextStep.primary,
     },
   };
 }
 
 export function RegistrationStepper({ organization, viewerRole, variant = 'full', className = '' }) {
   const { lifecycle } = registrationView(organization, viewerRole);
-  return <FlowStepper steps={lifecycle.steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} className={className} />;
+  const steps = organization.is_university_wide ? lifecycle.steps.map((step) => step.key === 'registered' ? { ...step, label: 'College endorsement', actor: null, state: 'skipped', note: 'Not required for a unified organization' } : step) : lifecycle.steps;
+  return <div className={className}><FlowStepper steps={steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} />{variant === 'full' && <p className="mt-3 text-xs text-ink-muted-strong">{organization.is_university_wide ? 'SAO approves unified organizations directly and adds the first Admin account.' : 'After Department Head endorsement and SAO approval, the first Admin account can access the organization.'} Initial setup means adding positions, members, and the first event.</p>}</div>;
 }
 
 const LINE_TONE = {

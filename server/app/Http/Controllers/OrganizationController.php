@@ -22,7 +22,7 @@ class OrganizationController extends Controller
         }
 
         return response()->json($query->orderBy('name')->get([
-            'id', 'name', 'slug', 'college', 'college_id', 'acronym', 'organization_type',
+            'id', 'name', 'slug', 'college', 'college_id', 'acronym', 'organization_type', 'is_university_wide',
         ])->filter(fn ($organization) => $organization->collegeAllowsAccess())
             ->each(fn ($organization) => $organization->makeHidden('college_id')->unsetRelation('catalogCollege'))->values());
     }

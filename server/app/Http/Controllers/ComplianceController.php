@@ -517,32 +517,37 @@ class ComplianceController extends Controller
 
     public function replaceSubmissionDocument(Request $request, OrganizationComplianceSubmission $submission, SubmissionStoragePolicy $storagePolicy)
     {
-        abort_unless($submission->organization_id === $request->user()->organization_id, 404);
-        abort_unless(Organization::whereKey($submission->organization_id)->where('lifecycle_status', 'active')->exists(), 409, 'Only active organizations can change submitted files.');
+        $this->writableSubmissionOrganization($request, $submission);
         $requirement = $submission->requirementType;
         abort_unless($requirement && $requirement->is_active && (! $requirement->academic_semester_id || $requirement->academic_semester_id === AcademicSemester::active()?->id), 409, 'This requirement is no longer open.');
         $data = $request->validate(['document' => ['required', ...$requirement->uploadRules()], 'submitted_at' => ['required', 'date']]);
 
         $newPath = null;
         try {
-            $oldPath = DB::transaction(function () use ($submission, $request, $data, $storagePolicy, &$newPath) {
-                Organization::whereKey($submission->organization_id)->lockForUpdate()->firstOrFail();
+            DB::transaction(function () use ($submission, $request, $data, $storagePolicy, &$newPath) {
+                $this->writableSubmissionOrganization($request, $submission, true);
                 $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
-                abort_unless($locked->organization_id === $request->user()->organization_id, 404);
                 abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
+                $requirement = $locked->requirementType;
+                abort_unless($requirement && $requirement->is_active && (! $requirement->academic_semester_id || $requirement->academic_semester_id === AcademicSemester::active()?->id), 409, 'This requirement is no longer open.');
                 $file = $request->file('document');
                 $storagePolicy->assertUpload([$file], $locked->organization_id, $locked->file_size);
                 $newPath = $file->store('compliance-submissions/'.$locked->organization_id, 'local');
                 abort_unless($newPath, 500, 'Could not store the replacement file.');
                 $oldPath = $locked->file_path;
+                $submittedAt = now()->startOfSecond();
+                if ($locked->submitted_at && $submittedAt->lessThanOrEqualTo($locked->submitted_at)) {
+                    $submittedAt = $locked->submitted_at->copy()->addSecond();
+                }
                 $locked->update([
                     'file_path' => $newPath, 'file_original_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getClientMimeType(), 'file_size' => $file->getSize(),
-                    'status' => 'submitted', 'remarks' => null, 'submitted_at' => now(),
+                    'status' => 'submitted', 'remarks' => null, 'submitted_at' => $submittedAt,
                     'submitted_by' => $request->user()->school_id, 'reviewed_by' => null, 'reviewed_at' => null,
                 ]);
 
-                return $oldPath;
+                $this->notifySubmissionChange($request, $locked, 'replaced');
+                app(RequirementSampleService::class)->deleteAfterCommit($oldPath);
             });
         } catch (\Throwable $exception) {
             if ($newPath) {
@@ -550,31 +555,36 @@ class ComplianceController extends Controller
             }
             throw $exception;
         }
-        Storage::disk('local')->delete($oldPath);
-        $this->notifySubmissionChange($request, $submission, 'replaced');
 
         return response()->json($submission->fresh()->load('requirementType:id,name'));
     }
 
     public function deleteSubmission(Request $request, OrganizationComplianceSubmission $submission)
     {
-        if ($request->user()->role !== 'SUPER_ADMIN') {
-            abort_unless($submission->organization_id === $request->user()->organization_id, 404);
-        }
-        abort_unless(Organization::whereKey($submission->organization_id)->where('lifecycle_status', 'active')->exists(), 409, 'Registration and archived files cannot be deleted here.');
+        $this->writableSubmissionOrganization($request, $submission);
         $data = $request->validate(['submitted_at' => ['required', 'date']]);
-        $oldPath = DB::transaction(function () use ($submission, $data) {
+        DB::transaction(function () use ($submission, $data, $request) {
+            $this->writableSubmissionOrganization($request, $submission, true);
             $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
             $oldPath = $locked->file_path;
+            $this->notifySubmissionChange($request, $locked, 'deleted');
             $locked->delete();
-
-            return $oldPath;
+            app(RequirementSampleService::class)->deleteAfterCommit($oldPath);
         });
-        Storage::disk('local')->delete($oldPath);
-        $this->notifySubmissionChange($request, $submission, 'deleted');
 
         return response()->json(['message' => 'File deleted. Reviewers and organization admins were notified.']);
+    }
+
+    private function writableSubmissionOrganization(Request $request, OrganizationComplianceSubmission $submission, bool $lock = false): Organization
+    {
+        $actor = $request->user();
+        abort_unless($actor->role === 'SUPER_ADMIN' || in_array($submission->organization_id, $actor->scopedOrganizationIds(), true), 404);
+        $query = Organization::student()->whereKey($submission->organization_id);
+        $organization = ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
+        abort_unless($organization->is_active && $organization->isWritable(), 409, 'Only active organizations in active colleges can change submitted files.');
+
+        return $organization;
     }
 
     private function notifySubmissionChange(Request $request, OrganizationComplianceSubmission $submission, string $action): void

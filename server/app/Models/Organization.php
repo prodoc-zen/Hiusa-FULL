@@ -19,6 +19,7 @@ class Organization extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_university_wide' => 'boolean',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'archived_at' => 'datetime',
@@ -42,6 +43,9 @@ class Organization extends Model
 
     public function collegeAllowsAccess(): bool
     {
+        if ($this->is_university_wide) {
+            return true;
+        }
         if ($this->organization_type === 'SYSTEM_ADMINISTRATION' || (! $this->college_id && ! $this->getRawOriginal('college'))) {
             return true;
         }
@@ -55,6 +59,11 @@ class Organization extends Model
     public function catalogCollege(): BelongsTo
     {
         return $this->belongsTo(College::class, 'college_id')->withTrashed();
+    }
+
+    public function approvalRole(string $default): string
+    {
+        return $this->is_university_wide && $default === 'DEPARTMENT_HEAD' ? 'SUPER_ADMIN' : $default;
     }
 
     public function college(): BelongsTo

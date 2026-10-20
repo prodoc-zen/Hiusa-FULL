@@ -26,6 +26,7 @@ const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
 const CollegeCompliancePage = lazy(() => import('./pages/roles/department-head/CollegeCompliancePage'));
 const SaoStoragePage = lazy(() => import('./pages/modules/sao/StorageOverview'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
+const DepartmentHeadAnnouncementsPage = lazy(() => import('./pages/roles/department-head/DepartmentHeadAnnouncementsPage'));
 const SaoNotificationsPage = lazy(() => import('./pages/roles/super-admin/SaoNotificationsPage'));
 const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
 const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-head/DepartmentHeadApprovalsPage'));
@@ -187,6 +188,8 @@ function ActivityCalendarRoute() {
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
+  if (role === 'DEPARTMENT_HEAD') return <Navigate to="/dashboard/department-head/announcements" replace />;
+
   if (role === 'ADMIN' || role === 'SBO_OFFICER') {
     return <Navigate to="manage-announcements" replace />;
   }
@@ -254,6 +257,7 @@ function App() {
           <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesPage role={getStoredRole()} /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><ApprovalsRoute /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
+          <Route path="super-admin/organization-approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="super-admin/financial-reports" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
           <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
           <Route path="approval-requests/new/announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
@@ -268,6 +272,7 @@ function App() {
           <Route path="audit-logs" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
 
           {/* Shared Modules */}
+          <Route path="department-head/announcements" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadAnnouncementsPage /></ProtectedRoute>} />
           <Route path="announcements">
             <Route index element={<AnnouncementsIndexRedirect />} />
             <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageAnnouncementsPage /></ProtectedRoute>} />

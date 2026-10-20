@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\Organization;
 use Illuminate\Support\Collection;
 
 /**
@@ -43,6 +44,13 @@ class EventApprovalChain
 
     public function submitToHead(Event $event, int $requestedBy): void
     {
+        if ($event->organization?->is_university_wide) {
+            if (! $this->requiresRequirements($event) || $this->requirementsSubmitted($event)) {
+                $this->openSaoReview($event, $requestedBy);
+            }
+
+            return;
+        }
         $head = $this->headRow($event);
 
         if (! $head) {
@@ -92,8 +100,9 @@ class EventApprovalChain
         $rows = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->orderByDesc('id')->get()->groupBy('entity_id');
         $uploaded = EventRequirementFile::whereIn('event_id', $ids)->get(['event_id', 'requirement_id'])->groupBy('event_id');
         $requirementsByShape = [];
+        $unifiedIds = Organization::whereIn('id', $events->pluck('organization_id'))->where('is_university_wide', true)->pluck('id');
 
-        return $events->mapWithKeys(function (Event $event) use ($rows, $uploaded, &$requirementsByShape) {
+        return $events->mapWithKeys(function (Event $event) use ($rows, $uploaded, $unifiedIds, &$requirementsByShape) {
             $shape = ($event->academic_semester_id ?? 'none').'|'.data_get($event->planning_details, 'venue_type');
             $requirements = $requirementsByShape[$shape] ??= EventRequirement::activeForEvent($event)->get();
             $eventRows = $rows->get($event->id, collect());
@@ -104,6 +113,7 @@ class EventApprovalChain
                 $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role !== self::SAO_ROLE),
                 $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role === self::SAO_ROLE),
                 $required,
+                $unifiedIds->contains($event->organization_id),
             );
 
             return [$event->id => [
@@ -131,7 +141,7 @@ class EventApprovalChain
         }
     }
 
-    private function resolve(Event $event, ?ApprovalRequest $head, ?ApprovalRequest $sao, bool $required): array
+    private function resolve(Event $event, ?ApprovalRequest $head, ?ApprovalRequest $sao, bool $required, bool $unified): array
     {
         return match (true) {
             $event->approved_at !== null => ['approved', collect([$head, $sao])->filter()->sortBy('id')->last()],
@@ -139,7 +149,7 @@ class EventApprovalChain
             $head?->status === 'rejected' => ['rejected', $head],
             $sao?->status === 'pending' => ['awaiting_sao', $sao],
             $sao?->status === 'rejected' => ['requirements_returned', $sao],
-            $head !== null && $required => ['awaiting_requirements', $head],
+            ($head !== null || $unified) && $required => ['awaiting_requirements', $head],
             default => ['not_submitted', null],
         };
     }

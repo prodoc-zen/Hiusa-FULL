@@ -207,7 +207,7 @@ export default function SaoOrganizationOverviewPage() {
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm font-medium text-ink-muted">{lifecycle.status === 'active' ? 'No administrators or officers yet. Provision an administrator so the organization can sign in.' : 'No administrators or officers yet. The first administrator is provisioned after the SAO approves the registration.'}</p>}
+          ) : <p className="text-sm font-medium text-ink-muted">{lifecycle.status === 'active' ? 'No administrators or officers yet. Add the first Admin account so the organization can sign in.' : 'No administrators or officers yet. The first Admin account is added after SAO approves the registration.'}</p>}
         </Section>
 
         <Section id="members" title="Members by role">

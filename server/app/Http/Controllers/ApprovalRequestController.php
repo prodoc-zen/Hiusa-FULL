@@ -158,7 +158,11 @@ class ApprovalRequestController extends Controller
         if ($user->role !== 'SUPER_ADMIN') {
             $query->whereIn('organization_id', $organizationIds);
         } else {
-            $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
+            $query->where(function ($allowed) {
+                $allowed->whereIn('entity_type', $this->superAdminReviewableEntityTypes())
+                    ->orWhere(fn ($unified) => $unified->whereIn('entity_type', ['budget', 'election'])
+                        ->whereIn('organization_id', Organization::student()->where('is_university_wide', true)->select('id')));
+            });
         }
     }
 
@@ -174,7 +178,9 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'Approval request not found.'], 404);
         }
 
-        if ($request->user()->role === 'SUPER_ADMIN' && ! in_array($approval->entity_type, $this->superAdminReviewableEntityTypes(), true)) {
+        $unifiedApproval = in_array($approval->entity_type, ['budget', 'election'], true)
+            && Organization::student()->whereKey($approval->organization_id)->where('is_university_wide', true)->exists();
+        if ($request->user()->role === 'SUPER_ADMIN' && ! $unifiedApproval && ! in_array($approval->entity_type, $this->superAdminReviewableEntityTypes(), true)) {
             return response()->json(['message' => 'Super Admin can only review financial reports and events.'], 403);
         }
 
@@ -402,6 +408,9 @@ class ApprovalRequestController extends Controller
         }
 
         if ($approval->required_role === 'SUPER_ADMIN') {
+            if ($event->organization?->is_university_wide && $this->eventChain->requiresRequirements($event) && ! $this->eventChain->requirementsSubmitted($event)) {
+                throw new DomainException('Upload all required event files before SAO approval.');
+            }
             if ($this->eventChain->headRow($event)?->status === 'pending') {
                 throw new DomainException(self::HEAD_FIRST_MESSAGE);
             }

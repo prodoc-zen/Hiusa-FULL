@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
+use App\Models\College;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
@@ -62,7 +63,7 @@ class AccountProfileController extends Controller
         }
         $organization = $query->findOrFail($organizationId);
         abort_unless($organization->isWritable(), 404);
-        if (! trim($organization->college ?? '')) {
+        if (! $organization->is_university_wide && ! trim($organization->college ?? '')) {
             throw ValidationException::withMessages(['organization_id' => ['Assign a college to this organization before adding existing users.']]);
         }
 
@@ -71,6 +72,16 @@ class AccountProfileController extends Controller
 
     private function eligibleUsers(Organization $organization): Builder
     {
+        if ($organization->is_university_wide) {
+            return User::where('role', '!=', 'SUPER_ADMIN')->where('account_status', 'active')
+                ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('account_status', 'active')
+                    ->whereHas('organization', fn ($organizations) => $organizations->where('is_active', true)->where('lifecycle_status', 'active')
+                        ->whereIn('organization_type', ['STUDENT_ORGANIZATION', 'COLLEGE'])
+                        ->where(fn ($colleges) => $colleges->whereHas('catalogCollege', fn ($college) => $college->where('is_active', true)->whereNull('deleted_at'))
+                            ->orWhere(fn ($legacy) => $legacy->whereNull('college_id')->where(fn ($available) => $available->where('is_university_wide', true)
+                                ->orWhereNotIn('college', College::withTrashed()->where(fn ($closed) => $closed->where('is_active', false)->orWhereNotNull('deleted_at'))->select('name')))))));
+        }
+
         // The primary organization identifies the college even for legacy users without a department.
         return User::where('role', '!=', 'SUPER_ADMIN')->where('account_status', 'active')
             ->where(function ($query) use ($organization) {
@@ -95,7 +106,7 @@ class AccountProfileController extends Controller
         $request->validate(['include_inactive' => ['nullable', 'boolean']]);
 
         return response()->json($this->managedOrganizations($request->user(), ! $request->boolean('include_inactive'))->orderBy('name')
-            ->get(['id', 'name', 'acronym', 'college', 'parent_organization_id', 'is_active']));
+            ->get(['id', 'name', 'acronym', 'college', 'parent_organization_id', 'is_active', 'is_university_wide']));
     }
 
     public function members(Request $request)

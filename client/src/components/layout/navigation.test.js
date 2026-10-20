@@ -84,10 +84,10 @@ const SPEC = {
     { label: 'College files', path: '/dashboard/department-head/documents' },
     { label: 'College compliance', path: '/dashboard/department-head/compliance' },
     { label: 'Clearance signing', path: '/dashboard/clearances' },
+    { label: 'Announcements', path: '/dashboard/department-head/announcements' },
     { band: 'College view (read only)', label: 'Finance', children: FINANCE_MANAGER_LEAVES },
     { band: 'College view (read only)', label: 'Calendar', path: '/dashboard/events/activity-calendar' },
     { band: 'College view (read only)', label: 'Election results', path: '/dashboard/elections/election-results' },
-    { band: 'College view (read only)', label: 'Announcements', path: '/dashboard/announcements/view-announcements' },
   ],
   STUDENT: [
     { label: 'Dashboard', path: '/dashboard/student' },
@@ -113,6 +113,7 @@ const SPEC = {
       label: 'Reviews',
       children: [
         ['Compliance', '/dashboard/super-admin/compliance'],
+        ['Organization approvals', '/dashboard/super-admin/organization-approvals'],
         ['Venues', '/dashboard/super-admin/venues'],
         ['Grievances', '/dashboard/super-admin/grievances'],
         ['Clearances', '/dashboard/super-admin/clearances'],
@@ -144,7 +145,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     ['SBO_OFFICER', 9, 24],
     ['DEPARTMENT_HEAD', 11, 14],
     ['STUDENT', 7, 11],
-    ['SUPER_ADMIN', 7, 15],
+    ['SUPER_ADMIN', 7, 16],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);

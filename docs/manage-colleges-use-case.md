@@ -8,6 +8,14 @@ SAO can assign a Department Head with a new account or by School ID of an active
 
 The catalog is seeded from distinct organization college names when the migration runs. The Organizations form offers active colleges and preserves a legacy assignment when its value has not yet been added to the catalog. Existing organization API payloads remain compatible with the `college` string field.
 
+## Unified organizations and college oversight
+
+SAO may create a student organization open to all colleges through `POST /system/unified-organizations` using `name`, `acronym`, and an optional description. The server fixes `is_university_wide=true`, an active lifecycle, and null college/parent fields, and audits creation. A new forward migration adds the flag with `false` as the default for every existing organization. Rolling it back removes only the flag and preserves organization records. Ordinary organization parent assignments must retain the same college and university-wide scope.
+
+University-wide organizations remain outside Department Head college scopes. SAO receives their budget, event, election, and financial-report approvals; college organizations retain their current approval chain. Event requirements must be complete before a university-wide event enters SAO review. Organization approvals are available under SAO Reviews, with the same ownership, required-role, state, self-review, and historical-semester protections as existing requests.
+
+Department Heads can replace or delete compliance/registration uploads belonging to active organizations in their own active college from College files. Replacements honor the requirement's file types, active semester, and storage quota, clear prior review decisions, and return the upload to SAO review. Pending registrations and archived organizations remain protected. Stale versions are rejected, including repeated requests within one second. Database changes, notifications, audit entries, and cleanup journal entries share a transaction; superseded files are removed after commit, with failed cleanup retried by the existing journal. Event proposal files and financial records retain their own approval workflows. College files defaults to ten rows and always exposes page-size controls, including on a single page.
+
 All college endpoints require Sanctum authentication and the `SUPER_ADMIN` role. `POST /api/system/colleges` validates unique names and codes and returns `201`. `DELETE /api/system/colleges/{college}` accepts `transfer_to_college_id`, requiring it for a populated college and rejecting the source, inactive/deleted destinations, and destinations that are not empty. Successful deletion returns `204`.
 
 ## Archive and permanent removal (Part 7)
