@@ -23,6 +23,22 @@ Upload limits must match what the forms promise: each PDF may be up to 10 MB and
 
 Restart `hiusa-ai` when Python application files change. Handle dependency or schema changes separately; back up the database before applying migrations. Preserve production environment files and generated uploads.
 
+## Browser caching after deployment
+
+The HTTPS server block in `/etc/nginx/sites-available/hiusa` must revalidate the SPA entry document. Keep the existing one-year expiry for fingerprinted `/assets/` files, and add this exact-match location alongside the SPA fallback:
+
+```nginx
+location = /index.html {
+    expires -1;
+}
+
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+`expires -1` emits `Cache-Control: no-cache` for the entry document, including internal fallbacks from dashboard routes. It preserves the server block's inherited security headers. Back up the configuration, run `sudo nginx -t`, and reload Nginx. Verify `/`, `/index.html`, and a dashboard URL return 200 with `Cache-Control: no-cache`, while hashed assets retain their year-long expiry. Compare served asset hashes with `client/dist` after the client build.
+
 For this release, deterministic AI verification ran locally against an isolated SQLite database and a disposable FastAPI service. It covered forecasting, financial risk and allocation advice, task delegation, grievance classification, authentication, and PHP fallbacks. Production verification uses service health, runtime configuration equality, and endpoint availability; it does not delete real profiles or create financial records. The paid narrative provider was not called during verification.
 
 ## Resetting the demo site
