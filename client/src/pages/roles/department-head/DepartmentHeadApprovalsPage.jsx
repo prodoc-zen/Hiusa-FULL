@@ -151,10 +151,20 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
           )}
         </div>
       </div>
-      <TableRowActions subject={formatDisplayText(request.title)} actions={[
-        { label: canAct ? 'Review' : 'Details', icon: Eye, onClick: () => onOpen(request) },
-        link && { label: link.label, icon: ExternalLink, to: link.to },
-      ]} />
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <Button variant="secondary" aria-label={`${canAct ? 'Review' : 'Details'}: ${formatDisplayText(request.title)}`} onClick={() => onOpen(request)}>
+          {canAct ? 'Review' : 'Details'}
+        </Button>
+        {link && (
+          <Button variant="secondary" to={link.to} aria-label={`${link.label}: ${formatDisplayText(request.title)}`}>
+            {link.label}
+          </Button>
+        )}
+        <TableRowActions subject={formatDisplayText(request.title)} actions={[
+          { label: canAct ? 'Review' : 'Details', icon: Eye, onClick: () => onOpen(request) },
+          link && { label: link.label, icon: ExternalLink, to: link.to },
+        ]} />
+      </div>
     </li>
   );
 }
