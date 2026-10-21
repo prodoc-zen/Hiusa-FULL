@@ -278,7 +278,7 @@ jobs:
             # Production limits reads to 120 a minute per user. visual-live walks the SAO
             # compliance tabs faster than that and its console check fails on the 429s, so the
             # test stack raises the limit. This is test-stack config, not a product change.
-            sed -i 's/^RATE_LIMIT_READ_PER_MINUTE=.*/RATE_LIMIT_READ_PER_MINUTE=600/' .env
+            printf '\nRATE_LIMIT_READ_PER_MINUTE=600\nRATE_LIMIT_WRITE_PER_MINUTE=600\nRATE_LIMIT_LOGIN_PER_MINUTE=600\n' >> .env
             # The DB service is usually healthy by now, but wait to be certain.
             for i in $(seq 1 30); do php artisan migrate:status >/dev/null 2>&1 && break; sleep 2; done
             php artisan migrate:fresh --seed --force )
@@ -292,13 +292,14 @@ jobs:
           HIUSA_LIVE_E2E: '1'
           HIUSA_AI_E2E: '1'
           HIUSA_E2E_API_URL: http://127.0.0.1:8000/api
+          PHP_CLI_SERVER_WORKERS: '4'
         run: |
           set -e
           # Start Laravel and the AI service in the background, then run Playwright
           # (which starts Vite itself via its webServer config). Everything is in
           # one step so the background servers stay alive for the whole run.
-          ( cd ../server && php artisan serve --host=127.0.0.1 --port=8000 > /tmp/laravel.log 2>&1 & )
-          ( cd ../ai-service && python run.py > /tmp/ai.log 2>&1 & )
+          ( cd ../server && while true; do PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=127.0.0.1 --port=8000 >> /tmp/laravel.log 2>&1 || true; sleep 1; done & )
+          ( cd ../ai-service && while true; do python run.py >> /tmp/ai.log 2>&1 || true; sleep 1; done & )
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/api/organizations >/dev/null && break; sleep 2; done
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health >/dev/null && break; sleep 2; done
           curl -sf http://127.0.0.1:8000/api/organizations >/dev/null || { echo '::error::Laravel API did not come up'; cat /tmp/laravel.log; exit 1; }
