@@ -57,7 +57,7 @@ const REQUIREMENT_STATUS = {
 const LEADER_ROLE = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
 
 const STATUS_PANEL_ID = 'organization-status-panel';
-const NO_SEMESTER_NOTICE = 'Registration is closed. The SAO must activate a semester first and publish its requirements with sample formats.';
+const NO_SEMESTER_NOTICE = 'Registration is closed. The SAO must activate a semester first.';
 
 function roleCount(organization, key) {
   const count = organization.role_counts?.[key];
@@ -502,11 +502,21 @@ export default function CollegeOrganizationsPage() {
             emptyState={tab === 'all'
               ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." action={<Button variant="secondary" leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
-            actions={(organization) => <TableRowActions subject={organization.name} actions={[
-              { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
-              organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },
-              ['pending', 'returned'].includes(organization.lifecycle_status) && { label: 'Withdraw', icon: Trash2, danger: true, onClick: () => { setWithdrawError(null); setWithdrawTarget(organization); } },
-            ]} />}
+            actions={(organization) => (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
+                {organization.lifecycle_status === 'returned' && (
+                  <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>
+                )}
+                {organization.lifecycle_status !== 'archived' && (
+                  <TableRowActions subject={organization.name} actions={[
+                    { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
+                    organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },
+                    ['pending', 'returned'].includes(organization.lifecycle_status) && { label: 'Withdraw', icon: Trash2, danger: true, onClick: () => { setWithdrawError(null); setWithdrawTarget(organization); } },
+                  ]} />
+                )}
+              </div>
+            )}
           />
         </div>
       </Card>
