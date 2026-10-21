@@ -658,12 +658,28 @@ export default function TasksPage({ initialTab = 'board' }) {
                       </td>
                       <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${formatDisplayText(t.creator.first_name)} ${formatDisplayText(t.creator.last_name)}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
                       <td className="px-5 py-4"><div className="flex items-center gap-2">
+                        {canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && (
+                          <button
+                            type="button"
+                            onClick={() => startTask(t)}
+                            className="min-h-9 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62] hover:bg-[#d6eefb]"
+                          >
+                            Start
+                          </button>
+                        )}
+                        {canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && (
+                          <button
+                            type="button"
+                            onClick={() => setCompletionTask(t)}
+                            className="min-h-9 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Complete
+                          </button>
+                        )}
                         <TableRowActions subject={t.title} label="Task actions" actions={[
                           { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
-                          canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start', onClick: () => startTask(t) },
-                          canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete', onClick: () => setCompletionTask(t) },
-                          canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
-                          canEditTasks && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete task', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
+                          canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start', icon: CheckCircle2, onClick: () => startTask(t) },
+                          canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
                           canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
                           canManageTasks && !viewingHistory && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
                           canManageTasks && !viewingHistory && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
