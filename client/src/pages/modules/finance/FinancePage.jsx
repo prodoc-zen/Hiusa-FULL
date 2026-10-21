@@ -1052,7 +1052,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   );
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 sm:space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
       <PageHeader primary={headerPrimary} />
 
@@ -1817,7 +1817,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'invoices' && (
         <section className="rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="border-b border-[#DDE7EF] p-5">
+          <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
             <h2 className="text-lg font-bold text-[#0F172A]">Statement of Account & Financial Clearance</h2>
             <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
           </div>
