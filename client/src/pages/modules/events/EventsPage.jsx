@@ -350,8 +350,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [recordId, setRecordId] = useRecordParam();
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
+  let currentUser = {};
+  try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
+  const currentUserRole = currentUser?.role ?? '';
   const viewParam = searchParams.get('view');
-  const eventsView = ['calendar', 'list'].includes(viewParam) ? viewParam : (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list');
+  const eventsView = ['calendar', 'list'].includes(viewParam)
+    ? viewParam
+    : (currentUserRole === 'STUDENT' ? 'list' : (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
   const [events, setEvents] = useState([]);
   const [eventRows, setEventRows] = useState([]);
   const [eventTotal, setEventTotal] = useState(0);
@@ -420,9 +425,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState(null);
 
-  let currentUser = {};
-  try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
-  const currentUserRole = currentUser?.role ?? '';
+
   const canCreateEvents = currentUserRole === 'ADMIN';
   const canManageAttendance = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
