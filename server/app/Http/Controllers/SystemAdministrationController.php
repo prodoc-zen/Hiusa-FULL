@@ -254,6 +254,9 @@ class SystemAdministrationController extends Controller
 
     public function updateAdmin(Request $request, User $user)
     {
+        if ($request->filled('organization_id') && $request->integer('organization_id') !== (int) $user->organization_id) {
+            abort(403, 'Administrator appointments in another organization must be handled by that organization.');
+        }
         if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
             return response()->json(['message' => 'Only the primary administrator account is edited here. '.self::PROFILE_ONLY_ADMIN], 422);
         }
