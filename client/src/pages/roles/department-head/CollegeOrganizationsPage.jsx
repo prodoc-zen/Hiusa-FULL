@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Building2, CalendarClock, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -8,7 +8,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -57,7 +57,7 @@ const REQUIREMENT_STATUS = {
 const LEADER_ROLE = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
 
 const STATUS_PANEL_ID = 'organization-status-panel';
-const NO_SEMESTER_NOTICE = 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.';
+const NO_SEMESTER_NOTICE = 'Registration is closed. The SAO must activate a semester first and publish its requirements with sample formats.';
 
 function roleCount(organization, key) {
   const count = organization.role_counts?.[key];
@@ -174,7 +174,11 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     setSubmitting(true);
     const payload = { name: fields.name.trim(), acronym: fields.acronym.trim(), description: fields.description, color: fields.color };
     try {
-      await resubmitOrganization(organization.id, payload, files);
+      if (isResubmit) {
+        await resubmitOrganization(organization.id, payload, files);
+      } else {
+        await registerOrganization(payload, files);
+      }
       notify.success(isResubmit ? 'Registration resubmitted to the SAO.' : 'Organization submitted to the SAO for review.');
       onSaved();
     } catch (err) {
@@ -477,7 +481,8 @@ export default function CollegeOrganizationsPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        description="Review applications from your college and follow their SAO review. Organizations apply from the public HIUSA home page."
+        description="Review applications from your college and follow their SAO review. Organizations apply from the public HIUSA home page or can be registered here."
+        primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
       />
       <CollegeHeader overview={overview} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
@@ -495,7 +500,7 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." />
+              ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." action={<Button variant="secondary" leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => <TableRowActions subject={organization.name} actions={[
               { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },

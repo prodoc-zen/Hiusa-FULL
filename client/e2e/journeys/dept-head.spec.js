@@ -108,15 +108,23 @@ async function ensureOpenSemester() {
   const years = await sao.get('/system/academic-years');
   expect(years.ok, 'the SAO can list academic years').toBe(true);
   const year = years.body.find((candidate) => candidate.is_current) ?? years.body[0];
-  if (year.semesters.some((semester) => semester.status === 'active')) return;
-  let semester = year.semesters[0];
+  let semester = year.semesters.find((candidate) => candidate.status === 'active');
   if (!semester) {
-    const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
-    expect(created.status, JSON.stringify(created.body)).toBe(201);
-    semester = created.body;
+    semester = year.semesters[0];
+    if (!semester) {
+      const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+      semester = created.body;
+    }
+    const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
+    expect(activated.ok, JSON.stringify(activated.body)).toBe(true);
   }
-  const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
-  expect(activated.ok, JSON.stringify(activated.body)).toBe(true);
+  const requirements = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
+  for (const type of (requirements.body?.data ?? [])) {
+    if (!type.is_active) {
+      await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, template_url: 'https://example.edu/format.pdf' });
+    }
+  }
 }
 
 function eventDate(offsetDays) {
