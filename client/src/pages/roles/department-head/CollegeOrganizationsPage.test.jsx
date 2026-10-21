@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
   getCollegeOverview: vi.fn(),
   getRegistrationRequirements: vi.fn(),
+  registerOrganization: vi.fn(),
   resubmitOrganization: vi.fn(),
   withdrawOrganization: vi.fn(),
 }));
@@ -232,11 +233,10 @@ describe('CollegeOrganizationsPage', () => {
     expect(await screen.findByRole('menuitem', { name: 'Edit and resubmit' })).toBeInTheDocument();
   });
 
-  it('does not let a Department Head register a new organization', async () => {
+  it('lets a Department Head open the registration form', async () => {
     renderPage();
     await screen.findAllByText('Chess Club');
-    expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Organizations apply from the public HIUSA home page/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Register an organization' })).toBeInTheDocument();
   });
 
   it('prefills a returned registration and sends only the replaced files', async () => {
@@ -445,13 +445,13 @@ describe('CollegeOrganizationsPage', () => {
   });
 
   describe('first use', () => {
-    it('directs new organizations to apply from the public home page', async () => {
+    it('shows empty state and offers to register when the college has no organizations', async () => {
       mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
       renderPage();
 
       expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
       expect(screen.getByText(/Organization representatives apply from the public HIUSA home page/)).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Register an organization' })).toHaveLength(2);
     });
 
     it('has one h1 from the shared header', async () => {

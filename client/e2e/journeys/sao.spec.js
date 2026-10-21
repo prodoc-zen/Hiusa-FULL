@@ -91,14 +91,28 @@ function finish(info, width, journeyId, ceiling, clicks) {
 
 async function ensureActiveSemester() {
   const sao = await apiAs(SAO);
-  const active = await sao.get('/academic-periods/active');
-  if (active.body?.id) return;
   const years = await sao.get('/system/academic-years');
   const year = years.body.find((candidate) => candidate.is_current) || years.body[0];
-  const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
-  expect(created.status, `semester created: ${JSON.stringify(created.body).slice(0, 200)}`).toBe(201);
-  const activated = await sao.patch(`/system/academic-semesters/${created.body.id}/active`);
-  expect(activated.status, `semester activated: ${JSON.stringify(activated.body).slice(0, 200)}`).toBe(200);
+  const active = await sao.get('/academic-periods/active');
+  if (!active.body?.id) {
+    let semester = year.semesters.find((candidate) => candidate.status === 'active');
+    if (!semester) {
+      semester = year.semesters[0];
+      if (!semester) {
+        const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
+        expect(created.status, `semester created: ${JSON.stringify(created.body).slice(0, 200)}`).toBe(201);
+        semester = created.body;
+      }
+      const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
+      expect(activated.status, `semester activated: ${JSON.stringify(activated.body).slice(0, 200)}`).toBe(200);
+    }
+  }
+  const requirements = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
+  for (const type of (requirements.body?.data ?? [])) {
+    if (!type.is_active) {
+      await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, template_url: 'https://example.edu/format.pdf' });
+    }
+  }
 }
 
 // A Department Head registers a new student organization with every file the open semester requires.
