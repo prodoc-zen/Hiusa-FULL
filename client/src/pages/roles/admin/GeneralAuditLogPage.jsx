@@ -276,7 +276,7 @@ export default function GeneralAuditLogPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-xs">
               <thead className="bg-[#F8FBFD] text-[#64748B]"><tr>
-                {['Time', 'Actor', 'Role', ...(isSao ? ['Organization'] : []), 'Module', 'Action', 'Affected record', 'Record ID', 'Details'].map((heading) => <th key={heading} scope="col" className="px-3 py-3 font-bold">{heading}</th>)}
+                {['Time', 'Actor', 'Role', ...(isSao ? ['Organization'] : []), 'Module', 'Action', 'Affected record', 'Record ID', 'Actions'].map((heading) => <th key={heading} scope="col" className={`px-3 py-3 font-bold ${heading === 'Actions' ? 'text-right' : ''}`}>{heading}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-[#DDE7EF]">
                 {logs.map((log) => <tr key={log.id} className="align-top hover:bg-[#F8FBFD]">
@@ -288,7 +288,7 @@ export default function GeneralAuditLogPage() {
                   <td className="px-3 py-3">{log.action_category_label || humanizeIdentifier(log.action_category)}</td>
                   <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || formatDisplayText(log.affected_user?.name) || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>
                   <td className="px-3 py-3 font-mono text-[#64748B]">{log.record_id ?? '-'}</td>
-                  <td className="px-3 py-3"><TableRowActions subject={`Audit record ${log.id}`} label="Audit actions" actions={[{ label: 'View details', icon: Eye, onClick: () => { setSelectedLog(log); setChangesPage(1); } }]} /></td>
+                  <td className="px-3 py-3 text-right"><div className="flex justify-end"><TableRowActions subject={`Audit record ${log.id}`} label="Audit actions" actions={[{ label: 'View details', icon: Eye, onClick: () => { setSelectedLog(log); setChangesPage(1); } }]} /></div></td>
                 </tr>)}
               </tbody>
             </table>

@@ -305,7 +305,7 @@ class CollegeOrganizationController extends Controller
     {
         return Organization::student()->where('college_id', $college->id)->withCount([
             'accountProfiles as members_count' => fn ($query) => $query->where('account_status', 'active'),
-            'accountProfiles as administrators_count' => fn ($query) => $query->where('account_status', 'active')->where('role', 'ADMIN'),
+            'accountProfiles as administrators_count' => fn ($query) => $query->activeAdministrators(),
         ]);
     }
 
@@ -322,11 +322,14 @@ class CollegeOrganizationController extends Controller
             return collect();
         }
 
-        return AccountProfile::whereIn('organization_id', $organizationIds)
-            ->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
-            ->selectRaw('organization_id, role, count(*) as total')
-            ->groupBy('organization_id', 'role')
+        return AccountProfile::query()
+            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->whereIn('account_profiles.organization_id', $organizationIds)
+            ->where('account_profiles.account_status', 'active')
+            ->where('users.account_status', 'active')
+            ->whereIn('account_profiles.role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
+            ->selectRaw('account_profiles.organization_id, account_profiles.role, count(*) as total')
+            ->groupBy('account_profiles.organization_id', 'account_profiles.role')
             ->get()
             ->groupBy('organization_id')
             ->map(fn (Collection $rows) => $rows->pluck('total', 'role'));

@@ -660,6 +660,23 @@ describe("MerchandisePage order stages for staff", () => {
     expect(screen.getAllByRole("link", { name: /Claim desk/ })[0]).toHaveAttribute("href", "/dashboard/merchandise/claim-tokens");
   });
 
+  it("shows the stage and the next action inside each order row of the table", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([
+      staffOrder({ id: 2 }),
+      staffOrder({ id: 4, status: "paid", claim_token: "CLAIMTOKEN123456", officer_review_status: "approved", admin_review_status: "approved" }),
+      staffOrder({ id: 6, status: "cancelled" }),
+    ]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    const rowOf = (id) => within(table).getByRole("button", { name: `Actions for Order ${id}` }).closest("tr");
+    expect(within(rowOf(2)).getByRole("progressbar", { name: "ORD-2 progress" })).toHaveAttribute("aria-valuetext", "Step 1 of 4: Reserved");
+    expect(within(rowOf(2)).getByText("Collect the cash and verify the payment")).toBeInTheDocument();
+    expect(within(rowOf(4)).getByRole("progressbar", { name: "ORD-4 progress" })).toHaveAttribute("aria-valuetext", "Step 3 of 4: Paid");
+    expect(within(rowOf(4)).getByText("Release at the claim desk")).toBeInTheDocument();
+    expect(within(rowOf(6)).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
   it("asks the Admin to approve a payment the officer already verified", async () => {
     localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
     orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 3, officer_review_status: "approved" })]));
@@ -693,6 +710,38 @@ describe("MerchandisePage order stages for staff", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Close order details" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByTestId("location")).not.toHaveTextContent("record=");
+  });
+
+  it("fits the order table to seven columns and keeps the folded details in the order drawer", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([
+      staffOrder({
+        id: 8,
+        status: "claimed",
+        claim_token: "CLAIMTOKEN778899",
+        claimed_at: "2026-09-20T10:00:00Z",
+        claim_verifier: { first_name: "Lia", last_name: "Mercado" },
+        student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino", role: "SBO_OFFICER", position_title: "Treasurer", program: "BSIT", year_level: "3", section: "A" },
+      }),
+    ]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
+    expect(headers).toEqual(["Order", "Student / User", "Item", "Total", "Mode of payment", "Fulfillment", "Actions"]);
+    expect(table.className).not.toMatch(/min-w-\[/);
+    expect(table.parentElement.className).not.toMatch(/overflow-x-auto/);
+    expect(within(table).queryByText("Officer: Pending")).not.toBeInTheDocument();
+    expect(within(table).queryByText(/Released by/)).not.toBeInTheDocument();
+    expect(within(table).queryByText("CLAIMTOKEN778899")).not.toBeInTheDocument();
+
+    fireEvent.click(within(table).getByRole("button", { name: "Actions for Order 8" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Review order" }));
+    const dialog = await screen.findByRole("dialog", { name: "Merchandise order details" });
+    const folded = within(dialog).getByRole("region", { name: "Order fulfillment details" });
+    expect(within(folded).getByText("SBO OFFICER · Treasurer")).toBeInTheDocument();
+    expect(within(folded).getByText("Apparel")).toBeInTheDocument();
+    expect(within(folded).getByText("CLAIMTOKEN778899")).toBeInTheDocument();
+    expect(within(folded).getByText("Lia Mercado")).toBeInTheDocument();
   });
 
   it("shows a first-run orders state and a filtered one that clears", async () => {
@@ -799,5 +848,16 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Claim desk" })).toBeInTheDocument();
     expect(await screen.findByText("No claim tokens yet.")).toBeInTheDocument();
     expect(screen.queryByText(/Validate/)).not.toBeInTheDocument();
+  });
+
+  it("names the claim desk table's last column Actions because it holds the row menu", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 12, status: "paid", claim_token: "CLAIMTOKEN000012", student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino" } })]) });
+    renderAt("/dashboard/merchandise/claim-tokens", "tokens");
+
+    const table = await screen.findByRole("table");
+    const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
+    expect(headers[headers.length - 1]).toBe("Actions");
+    expect(within(table).queryByRole("columnheader", { name: "Details" })).not.toBeInTheDocument();
+    expect(within(table).getByRole("button", { name: "Actions for Order 12" })).toBeInTheDocument();
   });
 });

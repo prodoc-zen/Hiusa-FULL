@@ -1209,18 +1209,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </li>;
                 })}
               </ul>
-              <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[760px] lg:min-w-[1120px] text-left">
+              <div className="hidden md:block">
+              <table className="w-full text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Description</th>
-                    <th className="hidden lg:table-cell px-5 py-3">Source</th>
-                    <th className="hidden lg:table-cell px-5 py-3">Payer / Recorder</th>
-                    <th className="hidden md:table-cell px-5 py-3">Category</th>
-                    <th className="px-5 py-3">Type</th>
-                    <th className="px-5 py-3">Amount</th>
-                  {canManageLedger && <th className="px-5 py-3"><span className="sr-only">Actions</span></th>}
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Description</th>
+                    <th className="hidden 2xl:table-cell px-4 py-3">Source</th>
+                    <th className="hidden 2xl:table-cell px-4 py-3">Payer / Recorder</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3 text-right">Amount</th>
+                    {canManageLedger && <th className="px-4 py-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDE7EF] text-sm">
@@ -1230,40 +1230,42 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     const lockNote = ledgerLockNote(tx);
                     return (
                     <tr key={tx.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
-                      <td className="px-5 py-4">
+                      <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
+                      <td className="px-4 py-3">
                         <p className="font-semibold text-[#0F172A]">{tx.description}</p>
-                        {receipt && <p className="mt-1 text-xs font-medium text-[#0878B7]">{receipt}</p>}
-                        <div className="mt-1 space-y-0.5 text-[11px] text-slate-500 lg:hidden">
-                          <p>{sources.length ? sources.join(' · ') : 'General ledger'}</p>
-                          <p>Payer: {personName(tx.payer, 'No payer linked')} · Recorded by: {personName(tx.recorder, 'Unknown recorder')}</p>
-                        </div>
+                        {receipt && <p className="mt-0.5 text-xs font-medium text-[#0878B7]">{receipt}</p>}
+                        <p className="mt-0.5 text-[11px] text-slate-500 2xl:hidden">
+                          {sources.length ? sources.join(' · ') : 'General ledger'} · Payer: {personName(tx.payer, 'No payer linked')} · Recorded by: {personName(tx.recorder, 'Unknown recorder')}
+                        </p>
+                        {canManageLedger && lockNote && <p className="mt-0.5 text-[11px] font-medium text-slate-500">{lockNote}</p>}
                       </td>
-                      <td className="hidden px-5 py-4 lg:table-cell">
+                      <td className="hidden px-4 py-3 2xl:table-cell">
                         {sources.length ? sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate font-semibold text-slate-700">{source}</p>) : <span className="text-xs text-slate-500">General ledger</span>}
                       </td>
-                      <td className="hidden px-5 py-4 text-xs lg:table-cell">
+                      <td className="hidden px-4 py-3 text-xs 2xl:table-cell">
                         <p className="font-semibold text-slate-700">{personName(tx.payer, 'No payer linked')}</p>
                         <p className="mt-1 text-slate-500">Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                       </td>
-                      <td className="hidden md:table-cell px-5 py-4">
-                        <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
+                      <td className="px-4 py-3">
+                        <span className="inline-block whitespace-nowrap rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${tx.type === 'income' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                           {tx.type === 'income' ? 'Income' : 'Expense'}
                         </span>
                       </td>
-                      <td className={`px-5 py-4 font-black tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : 'text-[#0F172A]'}`}>
+                      <td className={`whitespace-nowrap px-4 py-3 text-right font-black tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : 'text-[#0F172A]'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                       </td>
                       {canManageLedger && (
-                        <td className="px-5 py-4">
-                          {lockNote ? <p className="max-w-56 text-xs font-medium text-slate-500">{lockNote}</p> : (
-                            <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
-                              { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                              { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                            ]} />
+                        <td className="px-4 py-3 text-right">
+                          {lockNote ? <span className="text-xs font-medium text-slate-500">Locked</span> : (
+                            <div className="flex justify-end">
+                              <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
+                                { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+                                { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
+                              ]} />
+                            </div>
                           )}
                         </td>
                       )}

@@ -229,7 +229,7 @@ function App() {
           {/* Role Home Pages */}
           <Route index element={<DashboardIndexRedirect />} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
-          <Route path="super-admin/agency" element={<Navigate to="/dashboard/super-admin/organizations" replace />} />
+          <Route path="super-admin/agency" element={<Navigate to="/dashboard/super-admin/colleges" replace />} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
           <Route path="super-admin/organizations/:organizationId" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoOrganizationOverviewPage /></ProtectedRoute>} />
           <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />

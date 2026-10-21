@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Vote, BarChart3, AlertTriangle, Archive, Building2, CalendarDays, CheckCircle2, ClipboardCheck, Clock, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
@@ -11,6 +11,7 @@ import { fetchAllPages, listMeta, unwrapList } from '../../../services/paginatio
 import { RoleBriefing } from '../../../components/dashboard';
 import { Button, EmptyState } from '../../../components/ui';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -34,47 +35,55 @@ export default function DepartmentHeadHomePage() {
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
+  // Bumped by every full load, a reload and an unmount, so a response that belongs to an
+  // older request (silent or not) is dropped instead of overwriting newer data.
+  const loadEpoch = useRef(0);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      loadEpoch.current += 1;
       setLoading(true);
       setLoadError('');
-      try {
-        // /events has no status filter, so the full org event list is walked via
-        // fetchAllPages - the endpoint also orders oldest-first, so a single
-        // page-1 fetch would surface stale events instead of upcoming ones. The
-        // pending-approval queue has no per-type filter either, but it is a
-        // working queue (bounded in practice), so a single generous per_page
-        // captures it in one call while `total` still backs the headline count.
-        const [electionsRes, events, announcementsRes, approvalsRes, organizations] = await Promise.all([
-          getElections(),
-          fetchAllPages((p) => getEvents(p).then((r) => r.data)),
-          getAnnouncements({ published_only: 1 }),
-          getApprovalRequests({ status: 'pending', per_page: 100 }),
-          fetchAllPages((p) => getCollegeOrganizations(p).then((r) => r.data)),
-        ]);
-
-        if (cancelled) return;
-
-        setData({
-          elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
-          events,
-          announcements: unwrapList(announcementsRes?.data),
-          pendingApprovals: unwrapList(approvalsRes?.data),
-          organizations,
-        });
-        setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
-      } catch {
-        if (!cancelled) setLoadError('Unable to load department oversight data. Your current records have not been replaced with empty results.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
     }
+    const epoch = loadEpoch.current;
+    try {
+      // /events has no status filter, so the full org event list is walked via
+      // fetchAllPages - the endpoint also orders oldest-first, so a single
+      // page-1 fetch would surface stale events instead of upcoming ones. The
+      // pending-approval queue has no per-type filter either, but it is a
+      // working queue (bounded in practice), so a single generous per_page
+      // captures it in one call while `total` still backs the headline count.
+      const [electionsRes, events, announcementsRes, approvalsRes, organizations] = await Promise.all([
+        getElections(),
+        fetchAllPages((p) => getEvents(p).then((r) => r.data)),
+        getAnnouncements({ published_only: 1 }),
+        getApprovalRequests({ status: 'pending', per_page: 100 }),
+        fetchAllPages((p) => getCollegeOrganizations(p).then((r) => r.data)),
+      ]);
 
+      if (epoch !== loadEpoch.current) return;
+
+      const next = {
+        elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
+        events,
+        announcements: unwrapList(announcementsRes?.data),
+        pendingApprovals: unwrapList(approvalsRes?.data),
+        organizations,
+      };
+      setData((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
+      setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
+      setLoadError('');
+    } catch {
+      if (!silent && epoch === loadEpoch.current) setLoadError('Unable to load department oversight data. Your current records have not been replaced with empty results.');
+    } finally {
+      if (!silent && epoch === loadEpoch.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
     load();
-    return () => { cancelled = true; };
-  }, [reloadKey]);
+    return () => { loadEpoch.current += 1; };
+  }, [load, reloadKey]);
+  useRefetchOnReturn(() => load({ silent: true }));
 
   const activeElection = data.elections.find((e) => e.status === 'active') || null;
   const upcomingEvents = data.events
@@ -183,8 +192,8 @@ export default function DepartmentHeadHomePage() {
         </dl>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
           {/* Active Election Card */}
           {activeElection ? (
             <section className="rounded-lg border border-[#0B8ED0]/25 bg-[#E6F6FD] p-5">

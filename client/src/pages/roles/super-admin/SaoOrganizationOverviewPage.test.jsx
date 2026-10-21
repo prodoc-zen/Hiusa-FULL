@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoOrganizationOverviewPage from './SaoOrganizationOverviewPage';
@@ -9,6 +9,8 @@ const complianceMocks = vi.hoisted(() => ({ getComplianceDocuments: vi.fn() }));
 vi.mock('../../../services/complianceService', () => complianceMocks);
 const fileMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../utils/openProtectedFile', () => fileMocks);
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 const overview = (status = 'active', extra = {}) => ({
   organization: { id: 5, name: 'Computing Society', acronym: 'CS', slug: 'computing-society', description: 'Builds software.', color: '#0B8ED0', logo_url: null, college: 'College of Computing', college_id: 1, is_active: status === 'active', lifecycle_status: status },
@@ -50,7 +52,7 @@ describe('SaoOrganizationOverviewPage', () => {
     const compliance = screen.getByRole('region', { name: 'Compliance' });
     expect(within(compliance).getByText('Pending review')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Pending approvals' })).getByText('3')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to agency overview/ })).toHaveAttribute('href', '/dashboard/super-admin/agency');
+    expect(screen.getByRole('link', { name: /Back to colleges/ })).toHaveAttribute('href', '/dashboard/super-admin/colleges');
   });
 
   it('has no edit or restore controls for an active organization', async () => {
@@ -195,8 +197,88 @@ describe('SaoOrganizationOverviewPage', () => {
     mocks.getSystemOrganizationOverview.mockRejectedValueOnce({ response: { status: 404, data: { message: 'Not found.' } } });
     renderPage();
     expect(await screen.findByText('Not found.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to agency overview/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Back to colleges/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Computing Society' })).toBeInTheDocument();
+  });
+
+  describe('silent refresh while the tab stays open', () => {
+    it('shows the new figures and documents without a loading state, and keeps the open restore dialog', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('archived'));
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Restore organization' }));
+      expect(screen.getByRole('dialog', { name: 'Restore organization' })).toBeInTheDocument();
+      await screen.findByText(/constitution.pdf/);
+
+      let release;
+      mocks.getSystemOrganizationOverview.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+      complianceMocks.getComplianceDocuments.mockResolvedValueOnce({ data: { data: [{ source: 'compliance', item: 'Budget plan', status: 'approved', file_name: 'budget-plan.pdf', submitted_at: '2026-10-02T08:00:00Z', open_url: '/compliance/submissions/10/document' }] } });
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+      expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+      expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('region', { name: 'Members by role' })).getByText('Total').nextSibling).toHaveTextContent('12');
+
+      await act(async () => {
+        release({ ...overview('archived'), member_counts: { STUDENT: 16, SBO_OFFICER: 3, ADMIN: 1, total: 20 } });
+        await refresh;
+      });
+
+      expect(within(screen.getByRole('region', { name: 'Members by role' })).getByText('Total').nextSibling).toHaveTextContent('20');
+      expect(await screen.findByText(/budget-plan.pdf/)).toBeInTheDocument();
+      expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Restore organization' })).toBeInTheDocument();
+    });
+
+    it('keeps the page and the documents and shows no error when the silent refresh fails', async () => {
+      renderPage();
+      await screen.findByText(/constitution.pdf/);
+
+      mocks.getSystemOrganizationOverview.mockRejectedValueOnce(new Error('offline'));
+      complianceMocks.getComplianceDocuments.mockRejectedValueOnce(new Error('offline'));
+      await act(async () => { await refetchHook.current(); });
+      await act(async () => { await Promise.resolve(); });
+
+      expect(screen.getByRole('heading', { level: 1, name: 'Computing Society' })).toBeInTheDocument();
+      expect(screen.getByText(/constitution.pdf/)).toBeInTheDocument();
+      expect(screen.queryByText('Organization unavailable')).not.toBeInTheDocument();
+      expect(screen.queryByText('Unable to load documents.')).not.toBeInTheDocument();
+    });
+
+    it('does not clear the restore notice when a silent refresh succeeds', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('archived'));
+      mocks.restoreSystemOrganization.mockResolvedValue({});
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Restore organization' }));
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
+      expect(await screen.findByText('Organization restored.')).toBeInTheDocument();
+
+      await act(async () => { await refetchHook.current(); });
+
+      expect(screen.getByText('Organization restored.')).toBeInTheDocument();
+    });
+
+    it('drops a silent response that arrives after a newer full load', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('archived'));
+      mocks.restoreSystemOrganization.mockResolvedValue({});
+      renderPage();
+      await screen.findByRole('button', { name: 'Restore organization' });
+
+      let releaseSilent;
+      mocks.getSystemOrganizationOverview.mockReturnValueOnce(new Promise((resolve) => { releaseSilent = resolve; }));
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('active'));
+      fireEvent.click(screen.getByRole('button', { name: 'Restore organization' }));
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Restore organization' })).not.toBeInTheDocument());
+
+      await act(async () => {
+        releaseSilent(overview('archived'));
+        await refresh;
+      });
+
+      expect(screen.queryByRole('button', { name: 'Restore organization' })).not.toBeInTheDocument();
+    });
   });
 });

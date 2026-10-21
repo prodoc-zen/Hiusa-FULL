@@ -14,6 +14,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import useRecordParam from '../../../lib/useRecordParam';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
@@ -368,14 +369,26 @@ export default function CollegeOrganizationsPage() {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
   }
 
-  const load = useCallback(() => {
-    setState((current) => ({ ...current, loading: true, error: null }));
-    fetchAllPages((params) => getCollegeOrganizations(params).then((res) => res.data))
-      .then((organizations) => setState({ loading: false, error: null, organizations }))
-      .catch((err) => setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load the organizations of your college.') })));
+  const loadEpoch = useRef(0);
+  const load = useCallback(({ silent = false } = {}) => {
+    if (!silent) {
+      loadEpoch.current += 1;
+      setState((current) => ({ ...current, loading: true, error: null }));
+    }
+    const epoch = loadEpoch.current;
+    return fetchAllPages((params) => getCollegeOrganizations(params).then((res) => res.data))
+      .then((organizations) => {
+        if (silent && epoch !== loadEpoch.current) return;
+        setState((current) => (silent && !current.error && JSON.stringify(current.organizations) === JSON.stringify(organizations) ? current : { loading: false, error: null, organizations }));
+      })
+      .catch((err) => {
+        if (silent) return;
+        setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load the organizations of your college.') }));
+      });
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useRefetchOnReturn(() => load({ silent: true }));
   useEffect(() => {
     let cancelled = false;
     getCollegeOverview().then((res) => { if (!cancelled) setOverview(res.data); }).catch(() => {});

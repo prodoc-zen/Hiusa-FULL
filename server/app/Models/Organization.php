@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Organization extends Model
@@ -96,8 +97,10 @@ class Organization extends Model
         return $this->hasMany(Organization::class, 'parent_organization_id');
     }
 
-    public function administrators(): HasMany
+    /** Users holding an ADMIN profile here, whatever their primary organization; select profile columns for the role-bearing fields. */
+    public function administrators(): HasManyThrough
     {
-        return $this->hasMany(User::class)->where('role', 'ADMIN');
+        return $this->hasManyThrough(User::class, AccountProfile::class, 'organization_id', 'school_id', 'id', 'user_school_id')
+            ->where('account_profiles.role', 'ADMIN');
     }
 }

@@ -2,7 +2,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { matchesFilter } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -29,6 +29,7 @@ import {
   updateSystemAdmin,
 } from "../../../services/systemAdministrationService";
 import { getApiErrorMessage } from "../../../utils/apiError";
+import { fetchAllPages } from "../../../services/pagination";
 import ConfirmModal from "../../../components/ConfirmModal";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import TableRowActions from "../../../components/TableRowActions";
@@ -36,14 +37,15 @@ import AdminHandoverDrawer from "./AdminHandoverDrawer";
 import { organizationOverviewPath } from "./agencyStatus";
 import { Button, NextStep, PageHeader } from "../../../components/ui";
 import { RegistrationNextStep, RegistrationStepper } from "../../../components/organizations/RegistrationFlow";
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 
 const LEADERSHIP_TITLES = [
   "Adviser",
   "President",
-  "Vice President – Internal",
-  "Vice President – External",
+  "Vice President - Internal",
+  "Vice President - External",
   "Secretary",
 ];
 
@@ -68,6 +70,31 @@ function statusStyle(status) {
   return "bg-slate-100 text-slate-600";
 }
 
+const profileKey = (admin) => admin.profile_id ?? `${admin.school_id}-${admin.organization_id}`;
+const isPrimaryProfile = (admin) => admin.is_primary_profile !== false;
+
+function AdminIdentity({ admin }) {
+  return (
+    <div className="min-w-0">
+      <p className="break-words font-bold text-ink">
+        {formatDisplayText(admin.first_name)} {formatDisplayText(admin.last_name)}
+      </p>
+      <p className="break-words text-xs text-ink-muted">
+        {admin.email} · {admin.school_id}
+      </p>
+      {!isPrimaryProfile(admin) && <p className="text-xs font-medium text-ink-muted">Added through a profile</p>}
+    </div>
+  );
+}
+
+function StatusPill({ status }) {
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusStyle(status)}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function SystemAdminsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const handledLink = useRef(null);
@@ -89,17 +116,26 @@ export default function SystemAdminsPage() {
   const [profileUser, setProfileUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const loadEpoch = useRef(0);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    // A silent refresh never touches the loading flag or the shared error, which the
+    // open form and the action modals also use, and yields to any newer full load.
+    if (!silent) {
+      loadEpoch.current += 1;
+      setLoading(true);
+      setError("");
+    }
+    const epoch = loadEpoch.current;
     try {
       const [adminData, organizationData] = await Promise.all([
-        getSystemAdmins({ per_page: 100 }),
-        getSystemOrganizations({ per_page: 100, status: "all" }),
+        fetchAllPages(getSystemAdmins),
+        fetchAllPages((params) => getSystemOrganizations({ ...params, status: "all" })),
       ]);
-      setAdmins(adminData.data || []);
-      setOrganizations(organizationData.data || []);
+      if (silent && epoch !== loadEpoch.current) return;
+      setAdmins((current) => (silent && JSON.stringify(current) === JSON.stringify(adminData) ? current : adminData));
+      setOrganizations((current) => (silent && JSON.stringify(current) === JSON.stringify(organizationData) ? current : organizationData));
     } catch (requestError) {
+      if (silent) return;
       setError(
         getApiErrorMessage(
           requestError,
@@ -107,13 +143,14 @@ export default function SystemAdminsPage() {
         ),
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+  useRefetchOnReturn(() => load({ silent: true }));
 
   const linkedOrganizationId = searchParams.get("organization");
   const createRequested = searchParams.get("create") === "1";
@@ -189,6 +226,25 @@ export default function SystemAdminsPage() {
       return matchesSearch && matchesOrganization && matchesStatus;
     }).sort((left, right) => Number(Boolean(left.organization?.parent_organization_id)) - Number(Boolean(right.organization?.parent_organization_id)));
   }, [admins, organizationFilter, search, statusFilter]);
+
+  const groups = [
+    ["Main organizations", visibleAdmins.filter((admin) => !admin.organization?.parent_organization_id)],
+    ["Sub organizations", visibleAdmins.filter((admin) => admin.organization?.parent_organization_id)],
+  ].filter(([, members]) => members.length > 0);
+
+  function rowActions(admin) {
+    const manageProfiles = { label: 'Manage profiles', icon: UserPlus, onClick: () => setProfileUser(admin) };
+    return (
+      <TableRowActions subject={`${admin.first_name} ${admin.last_name}`} label="Administrator actions" actions={isPrimaryProfile(admin) ? [
+        { label: 'Add to organization', icon: UserPlus, onClick: () => setMembershipUser(admin) },
+        manageProfiles,
+        { label: 'Hand over role', icon: ArrowRightLeft, disabled: admin.account_status !== 'active', onClick: () => setHandoverTarget(admin) },
+        { label: 'Reset access', icon: KeyRound, disabled: admin.account_status !== 'active', onClick: () => setResetTarget(admin) },
+        { label: 'Edit administrator', icon: PencilLine, onClick: () => openEdit(admin) },
+        { label: 'Delete administrator', icon: Trash2, danger: true, onClick: () => setDeleteTarget(admin) },
+      ] : [manageProfiles]} />
+    );
+  }
 
   const activeCount = admins.filter(
     (admin) => admin.account_status === "active",
@@ -364,8 +420,8 @@ export default function SystemAdminsPage() {
       )}
 
       <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
-          <label className="flex h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+          <label className="flex h-11 items-center sm:col-span-2 lg:col-span-1 gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
             <Search size={16} className="shrink-0 text-slate-500" />
             <span className="sr-only">Search administrators</span>
             <input
@@ -380,7 +436,7 @@ export default function SystemAdminsPage() {
             aria-label="Filter by organization"
             value={organizationFilter}
             onChange={(event) => setOrganizationFilter(event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
+            className="h-11 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
           >
             <option value="">All organizations</option>
             {organizations.map((organization) => (
@@ -393,7 +449,7 @@ export default function SystemAdminsPage() {
             aria-label="Filter by account status"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
+            className="h-11 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
@@ -421,57 +477,76 @@ export default function SystemAdminsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="bg-[#F8FBFD] text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="p-4">Administrator</th>
-                  <th className="p-4">Organization</th>
-                  <th className="p-4">Position</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleAdmins.map((admin, index) => (
-                  <Fragment key={admin.school_id}>
-                    {(index === 0 || Boolean(admin.organization?.parent_organization_id) !== Boolean(visibleAdmins[index - 1].organization?.parent_organization_id)) && <tr className="bg-[#EEF6FB]"><th colSpan={5} scope="rowgroup" className="px-4 py-2 text-left text-xs font-bold text-[#0F2F62]">{admin.organization?.parent_organization_id ? 'Sub organizations' : 'Main organizations'}</th></tr>}
-                  <tr className="border-t border-[#DDE7EF] hover:bg-[#F8FBFD]">
-                    <td className="p-4">
-                      <p className="font-bold text-[#0F172A]">
-                        {formatDisplayText(admin.first_name)} {formatDisplayText(admin.last_name)}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {admin.email} · {admin.school_id}
-                      </p>
-                    </td>
-                    <td className="p-4 font-semibold text-slate-600">
-                      {admin.organization?.acronym || formatDisplayText(admin.organization?.name) || "Not assigned"}
-                    </td>
-                    <td className="p-4 text-slate-600">
-                      {formatDisplayText(admin.position_title) || "Organization Admin"}
-                    </td>
-                    <td className="p-4">
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusStyle(admin.account_status)}`}>
-                        {admin.account_status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <TableRowActions subject={`${admin.first_name} ${admin.last_name}`} label="Administrator actions" actions={[
-                        { label: 'Add to organization', icon: UserPlus, onClick: () => setMembershipUser(admin) },
-                        { label: 'Manage profiles', icon: UserPlus, onClick: () => setProfileUser(admin) },
-                        { label: 'Hand over role', icon: ArrowRightLeft, disabled: admin.account_status !== 'active', onClick: () => setHandoverTarget(admin) },
-                        { label: 'Reset access', icon: KeyRound, disabled: admin.account_status !== 'active', onClick: () => setResetTarget(admin) },
-                        { label: 'Edit administrator', icon: PencilLine, onClick: () => openEdit(admin) },
-                        { label: 'Delete administrator', icon: Trash2, danger: true, onClick: () => setDeleteTarget(admin) },
-                      ]} />
-                    </td>
+          <>
+            <div className="hidden md:block" data-view="table">
+              <table className="w-full table-fixed border-collapse text-left text-sm">
+                <colgroup>
+                  <col className="w-[38%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[10%]" />
+                </colgroup>
+                <thead className="bg-subtle text-xs uppercase tracking-wide text-ink-muted">
+                  <tr>
+                    <th scope="col" className="border-b border-line px-4 py-3 font-bold">Administrator</th>
+                    <th scope="col" className="border-b border-line px-4 py-3 font-bold">Organization</th>
+                    <th scope="col" className="border-b border-line px-4 py-3 font-bold">Position</th>
+                    <th scope="col" className="border-b border-line px-4 py-3 font-bold">Status</th>
+                    <th scope="col" className="border-b border-line px-4 py-3 text-right font-bold">Actions</th>
                   </tr>
-                  </Fragment>
+                </thead>
+                {groups.map(([label, members]) => (
+                  <tbody key={label}>
+                    <tr className="bg-[#EEF6FB]"><th colSpan={5} scope="rowgroup" className="px-4 py-2 text-left text-xs font-bold text-[#0F2F62]">{label}</th></tr>
+                    {members.map((admin) => (
+                      <tr key={profileKey(admin)} className="border-b border-line-soft transition-colors duration-150 hover:bg-subtle">
+                        <td className="px-4 py-3 align-middle"><AdminIdentity admin={admin} /></td>
+                        <td className="break-words px-4 py-3 align-middle font-semibold text-ink-muted-strong">
+                          {admin.organization?.acronym || formatDisplayText(admin.organization?.name) || "Not assigned"}
+                        </td>
+                        <td className="break-words px-4 py-3 align-middle text-ink-muted-strong">
+                          {formatDisplayText(admin.position_title) || "Organization Admin"}
+                        </td>
+                        <td className="px-4 py-3 align-middle"><StatusPill status={admin.account_status} /></td>
+                        <td className="px-4 py-3 text-right align-middle">{rowActions(admin)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+
+            <div className="md:hidden" data-view="cards">
+              {groups.map(([label, members]) => (
+                <div key={label}>
+                  <p className="bg-[#EEF6FB] px-4 py-2 text-xs font-bold text-[#0F2F62]">{label}</p>
+                  <ul className="flex flex-col divide-y divide-line-soft">
+                    {members.map((admin) => (
+                      <li key={profileKey(admin)} className="px-4 py-4">
+                        <AdminIdentity admin={admin} />
+                        <dl className="mt-3 flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Organization</dt>
+                            <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">{admin.organization?.acronym || formatDisplayText(admin.organization?.name) || "Not assigned"}</dd>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Position</dt>
+                            <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">{formatDisplayText(admin.position_title) || "Organization Admin"}</dd>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Status</dt>
+                            <dd><StatusPill status={admin.account_status} /></dd>
+                          </div>
+                        </dl>
+                        <div className="mt-3 flex items-center justify-end gap-2 border-t border-line-soft pt-3">{rowActions(admin)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -637,7 +712,7 @@ export default function SystemAdminsPage() {
         onConfirm={initiatePasswordReset}
       />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete administrator" message="This removes the administrator profile. Accounts with linked records cannot be deleted." recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''} confirmText="Delete administrator" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={removeAdmin} />
-      <AdminHandoverDrawer admin={handoverTarget} onClose={() => setHandoverTarget(null)} onDone={load} />
+      <AdminHandoverDrawer admin={handoverTarget} onClose={() => setHandoverTarget(null)} onDone={() => load()} />
     </div>
   );
 }

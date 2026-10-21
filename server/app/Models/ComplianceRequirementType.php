@@ -12,6 +12,24 @@ class ComplianceRequirementType extends Model
 
     public const SEMESTRAL_ACCOMPLISHMENT_REPORT = 'Semestral Accomplishment Report';
 
+    public const SEMESTRAL_REPORT_NAMES = [
+        'Sem Report Cover',
+        'Accomplishment Report',
+        'Planning Stage',
+        'Implementation Stage',
+        'Action Plan',
+        'Evaluation (Summarization and Eval Result from URO)',
+        'Photocopy of the Bankbook Reflecting Remaining Balance',
+        'Financial Report (Financial Statement, Inflows and Outflows)',
+        'Supporting Documents on the said Financial Report (OR, AR, Voucher Slips w/ complete signatures [receiver and witness], SBO Copy of Receipts for Collections)',
+        'Semestral Projects',
+    ];
+
+    public static function isSemestralName(string $name): bool
+    {
+        return in_array($name, self::SEMESTRAL_REPORT_NAMES, true) || $name === self::SEMESTRAL_ACCOMPLISHMENT_REPORT;
+    }
+
     public const SUPPORTED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
 
     protected $fillable = [
@@ -32,7 +50,7 @@ class ComplianceRequirementType extends Model
     protected static function booted(): void
     {
         static::creating(function (self $type) {
-            $type->category ??= $type->name === self::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization';
+            $type->category ??= self::isSemestralName($type->name) ? 'semestral_report' : 'organization';
         });
     }
 
@@ -51,7 +69,7 @@ class ComplianceRequirementType extends Model
             return $this->allowed_extensions;
         }
 
-        return $this->academic_semester_id && $this->category !== 'semestral_report'
+        return $this->academic_semester_id
             ? ['pdf']
             : self::SUPPORTED_EXTENSIONS;
     }

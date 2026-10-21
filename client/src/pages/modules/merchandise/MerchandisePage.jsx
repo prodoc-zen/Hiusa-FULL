@@ -1738,9 +1738,7 @@ export default function MerchandisePage({ initialTab }) {
   const gcashReady = Boolean(gcashSettings?.gcash_qr_url);
   const gcashUnavailable = gcashSettings !== null && !gcashReady;
 
-  function renderStaffStage(order, className) {
-    return <OrderStage flow={staffOrderFlow(order, role)} order={order} className={className} />;
-  }
+
 
   function browseShop() {
     setActiveTab("order");
@@ -3287,89 +3285,55 @@ export default function MerchandisePage({ initialTab }) {
                   />
                 ))}
               </div>
-              <div className={orderQueueView === 'cards' ? 'hidden' : 'hidden overflow-x-auto xl:block'}>
-                <table className="w-full min-w-[1100px] text-left">
+              <div className={orderQueueView === 'cards' ? 'hidden' : 'hidden xl:block'}>
+                <table className="w-full text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="px-4 py-3">Order / Reference</th>
-                      <th className="px-4 py-3">Student / User</th>
-                      <th className="px-4 py-3">Role</th>
-                      <th className="hidden px-4 py-3">Academic Profile</th>
-                      <th className="px-5 py-3">Item</th>
-                      <th className="px-4 py-3">Amount</th>
-                      <th className="px-4 py-3">Quantity</th>
-                      <th className="px-4 py-3">Total</th>
-                      <th className="px-4 py-3">Mode of payment</th>
-                      <th className="hidden px-4 py-3">Review Trail</th>
-                      <th className="px-4 py-3">Fulfillment</th>
-                      <th className="hidden px-4 py-3">Dates</th>
-                      <th className="px-4 py-3">Actions</th>
+                      <th className="px-3 py-3">Order</th>
+                      <th className="px-3 py-3">Student / User</th>
+                      <th className="px-3 py-3">Item</th>
+                      <th className="px-3 py-3 text-right">Total</th>
+                      <th className="px-3 py-3">Mode of payment</th>
+                      <th className="px-3 py-3">Fulfillment</th>
+                      <th className="px-3 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#DDE7EF] text-sm">
                     {filteredOfficerOrders.map((o) => (
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <p className="font-mono text-xs font-black text-[#0878B7]">
                             ORD-{o.id}
                           </p>
-                          <p className="mt-1 text-[10px] text-slate-500">
+                          <p className="mt-0.5 max-w-32 break-words text-[11px] text-slate-500">
                             {o.transaction?.receipt_reference || (o.payment_method === 'cash' ? 'Cash payment' : o.payment_reference || 'Reference pending')}
                           </p>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <p className="text-left font-semibold text-[#0F172A]">
                             {o.student
                               ? `${formatDisplayText(o.student.first_name)} ${formatDisplayText(o.student.last_name)}`
                               : "-"}
                           </p>
-                          <p className="mt-0.5 font-mono text-[10px] text-slate-500">{o.student?.school_id}</p>
-                          {o.student?.position_title && (
-                            <p className="text-[10px] font-semibold text-[#0878B7]">
-                              {formatDisplayText(o.student.position_title)}
-                            </p>
-                          )}
-                          <p className="mt-1 max-w-52 truncate text-[10px] text-slate-500">
-                            {[o.student?.program, o.student?.year_level, o.student?.section]
-                              .filter(Boolean)
-                              .join(" · ") || "No academic profile"}
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            <span className="font-mono">{o.student?.school_id}</span>
+                            {o.student?.role && <> · {o.student.role.replaceAll('_', ' ')}</>}
                           </p>
                         </td>
-                        <td className="px-4 py-4 text-xs font-semibold text-[#0F2F62]">{(o.student?.role || '-').replaceAll('_', ' ')}{o.student?.position_title && <p className="mt-1 text-[10px] text-[#64748B]">{formatDisplayText(o.student.position_title)}</p>}</td>
-                        <td className="hidden px-4 py-4 text-xs">
-                          <p className="font-semibold text-slate-700">
-                            {o.student?.program || "Program not recorded"}
-                          </p>
-                          <p className="mt-0.5 text-slate-500">
-                            {[
-                              o.student?.major,
-                              o.student?.year_level,
-                              o.student?.section,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ") || "No year/section"}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {o.student?.department || "Department not recorded"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <p className="font-semibold text-slate-700">
                             {formatDisplayText(o.merchandise?.name) ?? "-"}
                           </p>
-                          <p className="text-[10px] text-slate-500">
-                            {o.merchandise?.category || "Uncategorized"} ·{" "}
-                            {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))} each
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {o.quantity} x {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))}
                           </p>
                         </td>
-                        <td className="px-4 py-4 font-semibold tabular-nums">{fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))}</td>
-                        <td className="px-4 py-4 font-semibold tabular-nums">{o.quantity}</td>
-                        <td className="px-4 py-4 font-black tabular-nums text-[#0878B7]">{fmt(o.total_price)}</td>
-                        <td className="px-4 py-4 text-xs">
+                        <td className="whitespace-nowrap px-3 py-3 text-right align-top font-black tabular-nums text-[#0878B7]">{fmt(o.total_price)}</td>
+                        <td className="px-3 py-3 align-top text-xs">
                           <p className="font-bold uppercase text-slate-600">
                             {o.payment_method || "Not selected"}
                           </p>
-                          {o.payment_method !== 'cash' && <p className="mt-1 text-slate-500">{o.payment_reference || 'Reference pending'}</p>}
+                          {o.payment_method !== 'cash' && <p className="mt-0.5 max-w-32 break-words text-slate-500">{o.payment_reference || 'Reference pending'}</p>}
                           <span
                             className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${["paid", "claimed"].includes(o.status) ? "bg-emerald-50 text-emerald-700" : o.status === "cancelled" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}
                           >
@@ -3379,80 +3343,24 @@ export default function MerchandisePage({ initialTab }) {
                                 ? "Cancelled"
                                 : "Pending"}
                           </span>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${reviewTone(o.officer_review_status)}`}>
-                              Officer: {capitalize(o.officer_review_status)}
-                            </span>
-                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${reviewTone(o.admin_review_status)}`}>
-                              Admin: {capitalize(o.admin_review_status)}
-                            </span>
-                          </div>
                         </td>
-                        <td className="hidden px-4 py-4 text-[10px] text-slate-500">
-                          <p>
-                            <strong>Officer:</strong>{" "}
-                            {capitalize(o.officer_review_status)}
-                          </p>
-                          <p>
-                            <strong>Admin:</strong>{" "}
-                            {capitalize(o.admin_review_status)}
-                          </p>
-                          <p className="mt-1">
-                            <strong>Processed:</strong>{" "}
-                            {o.processor
-                              ? `${formatDisplayText(o.processor.first_name)} ${formatDisplayText(o.processor.last_name)}`
-                              : "-"}
-                          </p>
-                          <p>
-                            <strong>Approved:</strong>{" "}
-                            {o.approver
-                              ? `${formatDisplayText(o.approver.first_name)} ${formatDisplayText(o.approver.last_name)}`
-                              : "-"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3 py-3 align-top">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || "bg-slate-100 text-slate-500"}`}
                           >
                             {capitalize(o.status)}
                           </span>
-                          {renderStaffStage(o, "mt-2")}
-                          <p className="mt-2 text-[10px] text-slate-500">
-                            Released by{" "}
-                            {o.claim_verifier
-                              ? `${formatDisplayText(o.claim_verifier.first_name)} ${formatDisplayText(o.claim_verifier.last_name)}`
-                              : "-"}
-                          </p>
-                          {o.status === "paid" && o.claim_token && (
-                            <div className="mt-2 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-2">
-                              <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#0878B7]">
-                                <Ticket size={11} /> Claim token
-                              </p>
-                              <p className="mt-1 font-mono text-xs font-black tracking-wide text-[#0B1831]">
-                                {o.claim_token}
-                              </p>
-                            </div>
-                          )}
+                          <OrderStage flow={staffOrderFlow(o, role)} order={o} className="mt-1.5" />
                         </td>
-                        <td className="hidden px-4 py-4 text-[10px] text-slate-500">
-                          <p>
-                            <strong>Ordered:</strong> {fmtDate(o.created_at)}
-                          </p>
-                          <p>
-                            <strong>Paid:</strong>{" "}
-                            {fmtDate(o.transaction?.transaction_date)}
-                          </p>
-                          <p>
-                            <strong>Claimed:</strong> {fmtDate(o.claimed_at)}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
-                            { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
-                            o.status === 'paid' && { label: 'Release at claim desk', icon: Ticket, onClick: () => navigate('/dashboard/merchandise/claim-tokens') },
-                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => openPaymentVerification(o) },
-                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => openOrderRejection(o) },
-                          ]} />
+                        <td className="px-3 py-3 text-right align-top">
+                          <div className="flex justify-end">
+                            <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
+                              { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
+                              o.status === 'paid' && { label: 'Release at claim desk', icon: Ticket, onClick: () => navigate('/dashboard/merchandise/claim-tokens') },
+                              o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => openPaymentVerification(o) },
+                              o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => openOrderRejection(o) },
+                            ]} />
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -3748,6 +3656,21 @@ export default function MerchandisePage({ initialTab }) {
               <NextStep {...staffNextStepProps(orderDetails, role, staffOrderFlow(orderDetails, role), () => openPaymentVerification(orderDetails))} />
             </div>
             <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
+            <section className="mt-5 border-t border-[#DDE7EF] pt-5" aria-label="Order fulfillment details">
+              <dl className="grid gap-3 text-xs sm:grid-cols-2">
+                {[
+                  ["Buyer role", [(orderDetails.student?.role || "").replaceAll("_", " "), formatDisplayText(orderDetails.student?.position_title)].filter(Boolean).join(" · ") || "Not recorded"],
+                  ["Item category", orderDetails.merchandise?.category || "Uncategorized"],
+                  ["Claim token", orderDetails.claim_token || "Not issued"],
+                  ["Released by", orderDetails.claim_verifier ? `${formatDisplayText(orderDetails.claim_verifier.first_name)} ${formatDisplayText(orderDetails.claim_verifier.last_name)}` : "Not released"],
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="font-bold uppercase tracking-wide text-slate-500">{label}</dt>
+                    <dd className="mt-0.5 break-words font-semibold text-[#0F172A]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
             {isFulfillmentRole && orderDetails.status === 'pending' && <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-4">
               <button type="button" onClick={() => openOrderRejection(orderDetails)} className="min-h-11 rounded-lg border border-red-200 px-4 text-sm font-bold text-red-700">Reject order</button>
             </div>}
@@ -3918,7 +3841,7 @@ export default function MerchandisePage({ initialTab }) {
                       <th className="px-4 py-3">Payment mode</th>
                       <th className="px-4 py-3">Number of items</th>
                       <th className="px-4 py-3">Status / token</th>
-                      <th className="px-4 py-3">Details</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#DDE7EF] text-sm">
@@ -3936,7 +3859,7 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4 uppercase">{o.payment_method || "-"}</td>
                         <td className="px-4 py-4 font-bold">{o.quantity}</td>
                         <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${o.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{o.status === 'claimed' ? 'Claimed' : 'Waiting to be claimed'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
-                        <td className="px-4 py-4"><TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[{ label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) }]} /></td>
+                        <td className="px-4 py-4 text-right"><div className="flex justify-end"><TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[{ label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) }]} /></div></td>
                       </tr>
                     ))}
                   </tbody>

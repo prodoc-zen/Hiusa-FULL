@@ -77,6 +77,14 @@ describe('SaoCompliancePage', () => {
     mocks.deleteRequirementType.mockResolvedValue({ status: 204 });
   });
 
+  it('labels the accreditation control column Actions, not Next action', async () => {
+    renderPage();
+    await screen.findAllByText('Computing Society');
+    const headers = within(screen.getByRole('table')).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers.at(-1)).toBe('Actions');
+    expect(headers).not.toContain('Next action');
+  });
+
   it('blocks everyone but the SAO', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     renderPage();

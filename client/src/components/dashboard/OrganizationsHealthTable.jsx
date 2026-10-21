@@ -24,7 +24,7 @@ const COLUMNS = [
     render: (row) => (
       <div className="flex min-w-0 items-center gap-2.5">
         <OrgMark name={row.name} acronym={row.abbreviation} size="sm" />
-        <span className="break-words font-semibold text-ink">{formatDisplayText(row.name)}</span>
+        <span className="min-w-0 break-words font-semibold text-ink">{formatDisplayText(row.name)}</span>
       </div>
     ),
   },
@@ -40,7 +40,7 @@ const COLUMNS = [
     key: 'budget',
     header: 'Budget utilization',
     render: (row) => (
-      <div className="min-w-32">
+      <div className="min-w-24">
         <Meter value={row.budget_utilization_percent} limit={100} label="Utilization" format={(value) => `${Math.round(value)}%`} />
       </div>
     ),

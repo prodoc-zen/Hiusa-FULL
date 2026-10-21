@@ -615,6 +615,21 @@ class ComplianceDocumentsTest extends TestCase
         $this->getJson('/api/compliance/documents?family=bogus')->assertUnprocessable();
     }
 
+    public function test_all_ten_semestral_checklist_items_are_classified_under_semestral_report_family(): void
+    {
+        $this->periods();
+        $active = $this->studentOrganization('Coding Club');
+        foreach (ComplianceRequirementType::SEMESTRAL_REPORT_NAMES as $name) {
+            $this->complianceFile($active, $name, 'submitted');
+        }
+        Sanctum::actingAs($this->director());
+
+        $res = $this->getJson('/api/compliance/documents?family=semestral_report')->assertOk();
+        $this->assertSame(10, $res->json('total'));
+        $items = collect($res->json('data'))->pluck('item')->all();
+        $this->assertEqualsCanonicalizing(ComplianceRequirementType::SEMESTRAL_REPORT_NAMES, $items);
+    }
+
     public function test_review_queue_marks_registration_files_so_they_are_decided_in_the_organization_review(): void
     {
         $this->periods();

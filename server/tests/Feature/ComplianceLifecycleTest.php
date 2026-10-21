@@ -85,7 +85,7 @@ class ComplianceLifecycleTest extends TestCase
         return AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
     }
 
-    public function test_creating_a_semester_seeds_the_semestral_accomplishment_report_requirement(): void
+    public function test_creating_a_semester_seeds_the_semestral_report_requirements(): void
     {
         $year = $this->academicYear();
         Sanctum::actingAs($this->director());
@@ -93,11 +93,17 @@ class ComplianceLifecycleTest extends TestCase
         $id = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])
             ->assertCreated()->json('id');
 
-        $type = ComplianceRequirementType::where('academic_semester_id', $id)->where('name', 'Semestral Accomplishment Report')->sole();
-        $this->assertSame('2026-2027', $type->academic_year);
-        $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
-        $this->assertFalse($type->is_active);
-        $this->assertSame(11, ComplianceRequirementType::where('academic_semester_id', $id)->count());
+        $this->assertSame(20, ComplianceRequirementType::where('academic_semester_id', $id)->count());
+        $semestralTypes = ComplianceRequirementType::where('academic_semester_id', $id)->where('category', 'semestral_report')->get();
+        $this->assertCount(10, $semestralTypes);
+        $this->assertEqualsCanonicalizing(ComplianceRequirementType::SEMESTRAL_REPORT_NAMES, $semestralTypes->pluck('name')->all());
+
+        foreach ($semestralTypes as $type) {
+            $this->assertSame('2026-2027', $type->academic_year);
+            $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
+            $this->assertFalse($type->is_active);
+            $this->assertSame(['pdf'], $type->allowed_extensions);
+        }
     }
 
     public function test_seed_command_adds_the_semestral_report_to_the_active_semester_once(): void
@@ -109,10 +115,16 @@ class ComplianceLifecycleTest extends TestCase
         $this->artisan('compliance:seed-semestral-report')->assertSuccessful();
         $this->artisan('compliance:seed-semestral-report')->assertSuccessful();
 
-        $type = ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('name', 'Semestral Accomplishment Report')->sole();
-        $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
-        $this->assertSame($director->school_id, $type->created_by);
-        $this->assertFalse($type->is_active);
+        $semestralTypes = ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('category', 'semestral_report')->get();
+        $this->assertCount(10, $semestralTypes);
+        $this->assertEqualsCanonicalizing(ComplianceRequirementType::SEMESTRAL_REPORT_NAMES, $semestralTypes->pluck('name')->all());
+
+        foreach ($semestralTypes as $type) {
+            $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
+            $this->assertSame($director->school_id, $type->created_by);
+            $this->assertFalse($type->is_active);
+            $this->assertSame(['pdf'], $type->allowed_extensions);
+        }
     }
 
     public function test_seed_command_fails_without_an_active_semester(): void

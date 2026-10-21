@@ -15,6 +15,7 @@ import { Button, EmptyState, FlowStepper, PageHeader, StatusBadge, Tabs } from '
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import useRecordParam from '../../../lib/useRecordParam';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import ApprovalDetailDrawer from '../../../components/approvals/ApprovalDetailDrawer';
 import ApprovalReceipt from '../../../components/approvals/ApprovalReceipt';
 import { ENTITY_LABEL, describeApproval, entityLink } from '../../../components/approvals/approvalStage';
@@ -214,38 +215,51 @@ export default function DepartmentHeadApprovalsPage() {
     organization_id: organizationFilter === 'all' ? undefined : organizationFilter,
   }), [statusFilter, tab, entityFilter, search, from, to, sort, organizationFilter]);
 
-  const load = useCallback(() => {
-    const ticket = loadCounter.current + 1;
-    loadCounter.current = ticket;
-    setLoading(true);
-    setError(null);
-    setForbidden(false);
+  // A silent refresh re-reads the page the user is looking at without touching the loading flag,
+  // the shared error or anything typed. It yields to any newer full load and to a changed view.
+  const viewSignature = JSON.stringify([queryParams, page, tab, isAdmin]);
+  const currentView = useRef(viewSignature);
+  useEffect(() => { currentView.current = viewSignature; });
+
+  const load = useCallback(({ silent = false } = {}) => {
+    const signature = JSON.stringify([queryParams, page, tab, isAdmin]);
+    let ticket = loadCounter.current;
+    if (!silent) {
+      ticket += 1;
+      loadCounter.current = ticket;
+      setLoading(true);
+      setError(null);
+      setForbidden(false);
+    }
+    const isStale = () => ticket !== loadCounter.current || (silent && signature !== currentView.current);
     // The "Pending (n)" button always names the pending queue, even while
     // viewing "All History", so it is read from its own totals-only request
     // rather than from whichever status is currently loaded into `requests`.
     // An Admin on "Submitted by me" also needs the To review count for its tab.
     const reviewCountRequest = isAdmin && tab === 'submitted' ? getApprovalRequests({ status: 'pending', per_page: 1 }) : null;
-    Promise.all([
+    return Promise.all([
       getApprovalRequests({ ...queryParams, page }),
       getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id, scope: queryParams.scope }),
       reviewCountRequest,
     ])
       .then(([listRes, pendingRes, reviewRes]) => {
-        if (ticket !== loadCounter.current) return;
+        if (isStale()) return;
         const pending = listMeta(pendingRes.data).total;
-        setRequests(unwrapList(listRes.data));
-        setMeta(listMeta(listRes.data));
+        const nextRequests = unwrapList(listRes.data);
+        const nextMeta = listMeta(listRes.data);
+        setRequests((current) => (silent && JSON.stringify(current) === JSON.stringify(nextRequests) ? current : nextRequests));
+        setMeta((current) => (silent && JSON.stringify(current) === JSON.stringify(nextMeta) ? current : nextMeta));
         setPendingTotal(pending);
         if (tab === 'review') setReviewCount(pending);
         else if (reviewRes) setReviewCount(listMeta(reviewRes.data).total);
       })
       .catch((err) => {
-        if (ticket !== loadCounter.current) return;
+        if (silent || isStale()) return;
         if (err?.response?.status === 403) setForbidden(true);
         else setError('Failed to load approval requests.');
       })
       .finally(() => {
-        if (ticket === loadCounter.current) setLoading(false);
+        if (!silent && ticket === loadCounter.current) setLoading(false);
       });
   }, [queryParams, page, tab, isAdmin]);
 
@@ -266,9 +280,10 @@ export default function DepartmentHeadApprovalsPage() {
   }, [statusFilter, tab, entityFilter, search, from, to, sort, organizationFilter]);
 
   useEffect(() => {
-    const timer = setTimeout(load, 250);
+    const timer = setTimeout(() => load(), 250);
     return () => clearTimeout(timer);
   }, [load]);
+  useRefetchOnReturn(() => load({ silent: true }));
 
   // ?record= opens the drawer. The row is taken from the loaded list when it is there; otherwise
   // (a notification link, a filter hiding it, another page of results) it is read by id from the server.
@@ -408,8 +423,8 @@ export default function DepartmentHeadApprovalsPage() {
         </div>
 
         <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-          <div className={`grid gap-3 md:grid-cols-2 ${isDepartmentHead ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
-            <label className="relative xl:col-span-2">
+          <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${isDepartmentHead ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
+            <label className="relative min-w-0 xl:col-span-2">
               <Search size={15} className="absolute left-3 top-3.5 text-slate-500" aria-hidden="true" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." aria-label="Search requests" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
             </label>

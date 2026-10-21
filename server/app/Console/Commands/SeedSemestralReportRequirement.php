@@ -11,7 +11,7 @@ class SeedSemestralReportRequirement extends Command
 {
     protected $signature = 'compliance:seed-semestral-report';
 
-    protected $description = 'Add the Semestral Accomplishment Report requirement to the active semester when it is missing';
+    protected $description = 'Add the Semestral and Financial Report requirements to the active semester when missing';
 
     public function handle(): int
     {
@@ -31,17 +31,24 @@ class SeedSemestralReportRequirement extends Command
             return Command::FAILURE;
         }
 
-        $type = ComplianceRequirementType::firstOrCreate(
-            ['academic_semester_id' => $semester->id, 'name' => ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT],
-            [
-                'academic_year' => $semester->academicYear->label,
-                'deadline_at' => $semester->ends_on->endOfDay(),
-                'is_active' => false,
-                'created_by' => $director,
-            ],
-        );
+        $created = 0;
+        foreach (ComplianceRequirementType::SEMESTRAL_REPORT_NAMES as $name) {
+            $type = ComplianceRequirementType::firstOrCreate(
+                ['academic_semester_id' => $semester->id, 'name' => $name],
+                [
+                    'academic_year' => $semester->academicYear->label,
+                    'allowed_extensions' => ['pdf'],
+                    'deadline_at' => $semester->ends_on->endOfDay(),
+                    'is_active' => false,
+                    'created_by' => $director,
+                ],
+            );
+            if ($type->wasRecentlyCreated) {
+                $created++;
+            }
+        }
 
-        $this->info($type->wasRecentlyCreated ? 'Added an inactive Semestral Accomplishment Report requirement. SAO must attach a sample format before activating it.' : 'The Semestral Accomplishment Report requirement already exists.');
+        $this->info($created > 0 ? "Added {$created} inactive Semestral and Financial Report requirement(s). SAO must attach sample formats before activating them." : 'The Semestral and Financial Report requirements already exist.');
 
         return Command::SUCCESS;
     }

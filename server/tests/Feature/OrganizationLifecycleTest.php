@@ -16,6 +16,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -68,7 +69,7 @@ class OrganizationLifecycleTest extends TestCase
             ])->assertOk();
         }
 
-        return ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->pluck('id')->all();
+        return ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('category', 'organization')->pluck('id')->all();
     }
 
     private function pdfs(array $typeIds): array
@@ -141,6 +142,7 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertCount(10, $typeIds);
         $this->assertCount(10, $names);
         $this->assertNotContains(ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $names->pluck('name')->all());
+        $this->assertNotContains('Sem Report Cover', $names->pluck('name')->all());
     }
 
     public function test_registration_responses_never_expose_a_file_path_or_url(): void
@@ -560,5 +562,236 @@ class OrganizationLifecycleTest extends TestCase
 
         $this->assertSame(0, Notification::where('user_id', $dormant->school_id)->count());
         $this->assertSame(0, Notification::where('user_id', $this->director->school_id)->where('title', 'New organization registration')->count());
+    }
+
+    public function test_an_administrator_granted_through_a_profile_is_listed_and_counted_everywhere(): void
+    {
+        $organization = Organization::factory()->create(['name' => 'Chess Club', 'college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $original = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+
+        $profileId = $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])
+            ->assertCreated()->json('id');
+
+        $filtered = collect($this->getJson("/api/system/admins?organization_id={$organization->id}")->assertOk()->json('data'));
+        $this->assertEqualsCanonicalizing([$original->school_id, $student->school_id], $filtered->pluck('school_id')->all());
+        $granted = $filtered->firstWhere('school_id', $student->school_id);
+        $this->assertSame($organization->id, $granted['organization_id']);
+        $this->assertSame($organization->id, $granted['organization']['id']);
+        $this->assertSame('ADMIN', $granted['role']);
+        $this->assertSame('active', $granted['account_status']);
+        $this->assertSame($profileId, $granted['profile_id']);
+        $this->assertSame([], $this->getJson("/api/system/admins?organization_id={$sibling->id}")->assertOk()->json('data'));
+        $this->assertContains($student->school_id, collect($this->getJson('/api/system/admins')->assertOk()->json('data'))->pluck('school_id')->all());
+
+        $card = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id);
+        $this->assertSame(2, $card['administrators_count']);
+        $this->assertEqualsCanonicalizing([$original->school_id, $student->school_id], collect($card['administrators'])->pluck('school_id')->all());
+        $agency = collect($this->getJson('/api/system/agency')->assertOk()->json('colleges'))->firstWhere('id', $this->ccs->id);
+        $this->assertSame(2, collect($agency['organizations'])->firstWhere('id', $organization->id)['administrators_count']);
+    }
+
+    public function test_a_disabled_administrator_is_not_counted_by_the_card_the_agency_or_the_department_head_table(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $soleDisabled = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $keep = User::factory()->admin()->count(2)->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $disabled = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        User::factory()->admin()->create(['organization_id' => $soleDisabled->id, 'account_status' => 'disabled']);
+        Sanctum::actingAs($this->director);
+
+        $this->putJson("/api/system/admins/{$disabled->school_id}", ['account_status' => 'disabled'])->assertOk();
+
+        $cards = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame(2, $cards[$organization->id]['administrators_count']);
+        $this->assertCount(3, $cards[$organization->id]['administrators']);
+        $this->assertSame(0, $cards[$soleDisabled->id]['administrators_count']);
+        $this->assertSame('disabled', $cards[$soleDisabled->id]['administrators'][0]['account_status']);
+        $agency = collect($this->getJson('/api/system/agency')->assertOk()->json('colleges'))->firstWhere('id', $this->ccs->id);
+        $rows = collect($agency['organizations'])->keyBy('id');
+        $this->assertSame(2, $rows[$organization->id]['administrators_count']);
+        $this->assertSame(0, $rows[$soleDisabled->id]['administrators_count']);
+        $listed = collect($this->getJson("/api/system/admins?organization_id={$organization->id}&status=active")->assertOk()->json('data'));
+        $this->assertEqualsCanonicalizing($keep->pluck('school_id')->all(), $listed->pluck('school_id')->all());
+
+        Sanctum::actingAs($this->head);
+        $table = collect($this->getJson('/api/college/organizations')->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame(2, $table[$organization->id]['administrators_count']);
+        $this->assertSame(2, $table[$organization->id]['role_counts']['admin']);
+        $this->assertSame(0, $table[$soleDisabled->id]['administrators_count']);
+    }
+
+    public function test_an_administrator_whose_user_account_is_disabled_is_not_counted_anywhere_and_leaves_the_organization_needing_one(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        config(['performance.api_cache.enabled' => false]);
+        Sanctum::actingAs($this->director);
+        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        $counts = function () use ($organization): array {
+            $card = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id)['administrators_count'];
+            $agency = collect(collect($this->getJson('/api/system/agency')->assertOk()->json('colleges'))->firstWhere('id', $this->ccs->id)['organizations'])->firstWhere('id', $organization->id)['administrators_count'];
+            $overview = $this->getJson("/api/system/overview?organization_id={$organization->id}")->assertOk()->json('people.admins');
+            Sanctum::actingAs($this->head);
+            $row = collect($this->getJson('/api/college/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id);
+            Sanctum::actingAs($this->director);
+
+            return [$card, $agency, $overview, $row['administrators_count'], $row['role_counts']['admin']];
+        };
+        $this->assertSame([1, 1, 1, 1, 1], $counts());
+
+        $student->update(['account_status' => 'disabled']);
+
+        $this->assertSame([0, 0, 0, 0, 0], $counts());
+    }
+
+    public function test_the_last_active_administrator_can_be_disabled_when_another_administrator_holds_the_role_through_a_profile(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $primary = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+
+        $this->putJson("/api/system/admins/{$primary->school_id}", ['account_status' => 'disabled'])->assertOk();
+
+        $this->assertSame('disabled', $primary->fresh()->account_status);
+    }
+
+    public function test_the_only_administrator_cannot_be_disabled_or_moved_out_of_the_organization(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $elsewhere = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $primary = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+
+        $this->putJson("/api/system/admins/{$primary->school_id}", ['account_status' => 'disabled'])->assertUnprocessable();
+        $this->putJson("/api/system/admins/{$primary->school_id}", ['organization_id' => $elsewhere->id])->assertUnprocessable();
+
+        $this->assertSame('active', $primary->fresh()->account_status);
+        $this->assertSame($organization->id, $primary->fresh()->organization_id);
+    }
+
+    public function test_a_profile_administrator_whose_user_account_is_disabled_does_not_let_the_primary_administrator_go(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $primary = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        $student->update(['account_status' => 'disabled']);
+
+        $this->putJson("/api/system/admins/{$primary->school_id}", ['account_status' => 'disabled'])->assertUnprocessable();
+
+        $this->assertSame('active', $primary->fresh()->account_status);
+    }
+
+    public function test_profile_only_administrators_are_flagged_and_cannot_be_edited_handed_over_or_deleted_as_accounts(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $primary = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $multi = User::factory()->admin()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        $profileOnly = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+        foreach ([$multi, $profileOnly] as $user) {
+            $this->postJson('/api/account-profiles/invite', ['school_id' => $user->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        }
+
+        $rows = collect($this->getJson("/api/system/admins?organization_id={$organization->id}")->assertOk()->json('data'))->keyBy('school_id');
+        $this->assertTrue($rows[$primary->school_id]['is_primary_profile']);
+        $this->assertFalse($rows[$multi->school_id]['is_primary_profile']);
+        $this->assertFalse($rows[$profileOnly->school_id]['is_primary_profile']);
+        $own = collect($this->getJson("/api/system/admins?organization_id={$sibling->id}")->assertOk()->json('data'))->keyBy('school_id');
+        $this->assertTrue($own[$multi->school_id]['is_primary_profile']);
+
+        $this->putJson("/api/system/admins/{$profileOnly->school_id}", ['first_name' => 'Renamed'])
+            ->assertUnprocessable()->assertJsonPath('message', fn ($message) => str_contains($message, 'Manage profiles'));
+        $this->postJson("/api/system/admins/{$profileOnly->school_id}/handover", ['mode' => 'existing', 'successor_school_id' => $primary->school_id])
+            ->assertUnprocessable()->assertJsonPath('message', fn ($message) => str_contains($message, 'Manage profiles'));
+        $this->deleteJson("/api/system/admins/{$profileOnly->school_id}")
+            ->assertForbidden()->assertJsonPath('message', fn ($message) => str_contains($message, 'Manage profiles'));
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $profileOnly->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN']);
+    }
+
+    public function test_the_overview_counts_the_same_active_administrator_profiles_as_the_cards(): void
+    {
+        $organization = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $sibling = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $first = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $second = User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
+        Sanctum::actingAs($this->director);
+        $this->assertSame(2, $this->getJson('/api/system/overview')->assertOk()->json('people.admins'));
+
+        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+
+        $this->assertSame(3, $this->getJson('/api/system/overview')->assertOk()->json('people.admins'));
+        $this->assertSame(3, $this->getJson("/api/system/overview?organization_id={$organization->id}")->assertOk()->json('people.admins'));
+        $this->assertSame(0, $this->getJson("/api/system/overview?organization_id={$sibling->id}")->assertOk()->json('people.admins'));
+
+        $this->putJson("/api/system/admins/{$second->school_id}", ['account_status' => 'disabled'])->assertOk();
+
+        $this->assertSame(2, $this->getJson('/api/system/overview')->assertOk()->json('people.admins'));
+        $card = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id);
+        $this->assertSame(2, $card['administrators_count']);
+    }
+
+    public function test_agency_colleges_carry_their_administrator_total(): void
+    {
+        $cas = College::create(['name' => 'College of Arts and Sciences', 'code' => 'CAS']);
+        $chs = College::create(['name' => 'College of Health Sciences', 'code' => 'CHS']);
+        $this->homeOrganization($cas);
+        User::factory()->departmentHead()->create(['organization_id' => $this->homeOrganization($chs)->id, 'account_status' => 'inactive']);
+        $first = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $second = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        User::factory()->admin()->count(2)->create(['organization_id' => $first->id, 'account_status' => 'active']);
+        User::factory()->admin()->create(['organization_id' => $second->id, 'account_status' => 'active']);
+        User::factory()->admin()->create(['organization_id' => $second->id, 'account_status' => 'disabled']);
+        Sanctum::actingAs($this->director);
+
+        $colleges = collect($this->getJson('/api/system/agency')->assertOk()->json('colleges'))->keyBy('id');
+
+        $this->assertSame(3, $colleges[$this->ccs->id]['administrators_count']);
+        $this->assertSame(0, $colleges[$this->cbe->id]['administrators_count']);
+        $this->assertArrayNotHasKey('department_head', $colleges[$this->ccs->id]);
+        $this->assertSame(0, $colleges[$cas->id]['administrators_count']);
+        $this->assertSame(0, $colleges[$chs->id]['administrators_count']);
+        $this->assertSame(2, collect($colleges[$this->ccs->id]['organizations'])->firstWhere('id', $first->id)['administrators_count']);
+        $this->assertSame(1, collect($colleges[$this->ccs->id]['organizations'])->firstWhere('id', $second->id)['administrators_count']);
+    }
+
+    public function test_agency_query_count_does_not_grow_with_the_number_of_colleges(): void
+    {
+        config(['performance.api_cache.enabled' => false]);
+        Sanctum::actingAs($this->director);
+        $queries = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson('/api/system/agency')->assertOk();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $count;
+        };
+        $addCollege = function (string $code): void {
+            $college = College::create(['name' => "College {$code}", 'code' => $code]);
+            User::factory()->departmentHead()->create(['organization_id' => $this->homeOrganization($college)->id]);
+            $organization = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id]);
+            User::factory()->admin()->create(['organization_id' => $organization->id]);
+        };
+        $addCollege('AAA');
+        $few = $queries();
+
+        foreach (['BBB', 'CCC', 'DDD', 'EEE', 'FFF'] as $code) {
+            $addCollege($code);
+        }
+
+        $this->assertSame($few, $queries());
     }
 }

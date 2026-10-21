@@ -5,6 +5,7 @@ import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { deleteSystemOrganization, getSystemAgency, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -237,6 +238,8 @@ export default function SystemOrganizationsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const requestToken = useRef(0);
+  // Bumped by every full load, so a silent counts poll that started before it cannot land on top of newer data.
+  const countsEpoch = useRef(0);
   const handledReview = useRef(null);
   const reviewParam = searchParams.get('review');
   const [form, setForm] = useState(null);
@@ -256,14 +259,16 @@ export default function SystemOrganizationsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const loadCounts = useCallback(async () => {
+  const loadCounts = useCallback(async ({ silent = false } = {}) => {
+    const epoch = countsEpoch.current;
     try {
       const agency = await getSystemAgency({ summary: 1 });
       const byStatus = agency?.totals?.by_lifecycle_status || {};
-      setCounts(byStatus);
+      if (silent && epoch !== countsEpoch.current) return byStatus;
+      setCounts((current) => (JSON.stringify(current) === JSON.stringify(byStatus) ? current : byStatus));
       return byStatus;
     } catch {
-      setCounts(null);
+      if (!silent) setCounts(null);
       return null;
     }
   }, []);
@@ -277,26 +282,38 @@ export default function SystemOrganizationsPage() {
     }
   }, [status, statusParam, setSearchParams]);
 
-  const load = useCallback(async (requestedPage = page) => {
+  const load = useCallback(async (requestedPage = page, { silent = false } = {}) => {
     if (!status) return;
-    const token = ++requestToken.current;
-    setLoading(true);
+    const token = silent ? requestToken.current : ++requestToken.current;
+    if (!silent) {
+      countsEpoch.current += 1;
+      setLoading(true);
+    }
     try {
       const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 12, page: requestedPage });
       if (token !== requestToken.current) return;
-      setItems([...(data.data || [])].sort((left, right) =>
-        left.name.localeCompare(right.name) || left.id - right.id));
+      const sorted = [...(data.data || [])].sort((left, right) =>
+        (left.college || '').localeCompare(right.college || '')
+        || Number(needsAdministrator(right)) - Number(needsAdministrator(left))
+        || Number(Boolean(left.parent_organization_id)) - Number(Boolean(right.parent_organization_id))
+        || left.name.localeCompare(right.name));
+      setItems((current) => (silent && JSON.stringify(current) === JSON.stringify(sorted) ? current : sorted));
+      if (silent) {
+        setLastPage(data.last_page || 1);
+        return;
+      }
       setPage(data.current_page || requestedPage);
       setLastPage(data.last_page || 1);
       setError('');
     } catch (cause) {
-      if (token !== requestToken.current) return;
+      if (silent || token !== requestToken.current) return;
       setError(getApiErrorMessage(cause, 'Unable to load organizations.'));
     } finally {
-      if (token === requestToken.current) setLoading(false);
+      if (!silent && token === requestToken.current) setLoading(false);
     }
   }, [page, debouncedSearch, status]);
   useEffect(() => { load(); }, [load]);
+  useRefetchOnReturn(() => Promise.all([load(page, { silent: true }), loadCounts({ silent: true })]));
 
   useEffect(() => {
     if (search === debouncedSearch) return undefined;

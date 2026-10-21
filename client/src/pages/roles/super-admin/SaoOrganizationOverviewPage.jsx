@@ -1,6 +1,6 @@
 import { ROLE_LABELS, formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Building2, ExternalLink, FileText } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -13,9 +13,10 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { formatDateTime } from '../../../utils/dateTime';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { accreditationBadge } from './agencyStatus';
 
-const AGENCY_PATH = '/dashboard/super-admin/agency';
+const COLLEGES_PATH = '/dashboard/super-admin/colleges';
 const LINK_CLASS = 'mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-700 hover:underline';
 
 function Section({ id, title, children }) {
@@ -49,26 +50,41 @@ function EventList({ title, events }) {
   );
 }
 
-function LatestDocuments({ organizationId }) {
+function LatestDocuments({ organizationId, refreshTick }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openingUrl, setOpeningUrl] = useState(null);
   const [fileError, setFileError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadEpoch = useRef(0);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      loadEpoch.current += 1;
+      setLoading(true);
+    }
+    const epoch = loadEpoch.current;
     try {
       const response = await getComplianceDocuments({ organization_id: organizationId, source: 'compliance', per_page: 10 });
-      setDocuments(response.data?.data || []);
+      if (silent && epoch !== loadEpoch.current) return;
+      const next = response.data?.data || [];
+      setDocuments((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
       setError('');
     } catch (cause) {
+      if (silent) return;
       setError(getApiErrorMessage(cause, 'Unable to load documents.'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [organizationId]);
   useEffect(() => { load(); }, [load]);
+
+  const handledTick = useRef(refreshTick);
+  useEffect(() => {
+    if (handledTick.current === refreshTick) return;
+    handledTick.current = refreshTick;
+    load({ silent: true });
+  }, [refreshTick, load]);
 
   async function openFile(document) {
     setOpeningUrl(document.open_url);
@@ -83,7 +99,7 @@ function LatestDocuments({ organizationId }) {
   }
 
   if (loading) return <p role="status" className="text-sm text-ink-muted">Loading documents...</p>;
-  if (error) return <ErrorState className="py-6" description={error} onRetry={load} />;
+  if (error) return <ErrorState className="py-6" description={error} onRetry={() => load()} />;
   if (!documents.length) return <p className="text-sm font-medium text-ink-muted">No documents have been submitted.</p>;
 
   return (
@@ -116,19 +132,32 @@ export default function SaoOrganizationOverviewPage() {
   const [restoring, setRestoring] = useState(false);
   const [notice, setNotice] = useState('');
   const [actionError, setActionError] = useState('');
+  const [documentsTick, setDocumentsTick] = useState(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadEpoch = useRef(0);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      loadEpoch.current += 1;
+      setLoading(true);
+    }
+    const epoch = loadEpoch.current;
     try {
-      setOverview(await getSystemOrganizationOverview(organizationId));
+      const next = await getSystemOrganizationOverview(organizationId);
+      if (silent && epoch !== loadEpoch.current) return;
+      setOverview((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
       setError('');
     } catch (cause) {
+      if (silent) return;
       setError(getApiErrorMessage(cause, 'Unable to load this organization.'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [organizationId]);
   useEffect(() => { load(); }, [load]);
+  useRefetchOnReturn(() => {
+    setDocumentsTick((tick) => tick + 1);
+    return load({ silent: true });
+  });
 
   async function restore() {
     setRestoring(true);
@@ -148,14 +177,14 @@ export default function SaoOrganizationOverviewPage() {
     }
   }
 
-  const back = <Link to={AGENCY_PATH} className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-700 hover:underline"><ArrowLeft size={16} aria-hidden="true" />Back to agency overview</Link>;
+  const back = <Link to={COLLEGES_PATH} className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-700 hover:underline"><ArrowLeft size={16} aria-hidden="true" />Back to colleges</Link>;
 
   if (loading && !overview) {
     return <div className="space-y-5" aria-busy="true">{back}<SkeletonCard /><div className="grid gap-4 sm:grid-cols-2"><SkeletonStat /><SkeletonStat /></div></div>;
   }
 
   if (error || !overview) {
-    return <div className="space-y-3">{back}<ErrorState title="Organization unavailable" description={error} onRetry={load} /></div>;
+    return <div className="space-y-3">{back}<ErrorState title="Organization unavailable" description={error} onRetry={() => load()} /></div>;
   }
 
   const { organization, lifecycle, leadership = [], member_counts: members = {}, events = {}, budget = {}, compliance = {}, pending_approvals_count: pendingApprovals = 0 } = overview;
@@ -250,7 +279,7 @@ export default function SaoOrganizationOverviewPage() {
       </div>
 
       <Section id="documents" title="Latest documents">
-        <LatestDocuments organizationId={organization.id} />
+        <LatestDocuments organizationId={organization.id} refreshTick={documentsTick} />
         <Link to="/dashboard/super-admin/documents" className={LINK_CLASS}>View all documents</Link>
       </Section>
 

@@ -9,27 +9,27 @@ describe('approvalService', () => {
 
   it('reads one request by id', () => {
     getApprovalRequest(31);
-    expect(api.get).toHaveBeenCalledWith('/approval-requests/31');
+    expect(api.get).toHaveBeenCalledWith('/approval-requests/31', { cache: false });
   });
 
   it('lists the requests awaiting the caller without a scope', () => {
     getApprovalRequests({ status: 'pending' });
-    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { status: 'pending' } });
+    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { status: 'pending' }, cache: false });
   });
 
   it('lists what the caller submitted with scope=submitted and keeps the other filters', () => {
     getSubmittedApprovals({ status: 'all', entity_type: 'event' });
-    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { status: 'all', entity_type: 'event', scope: 'submitted' } });
+    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { status: 'all', entity_type: 'event', scope: 'submitted' }, cache: false });
   });
 
   it('does not let a caller override the submitted scope', () => {
     getSubmittedApprovals({ scope: 'awaiting' });
-    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { scope: 'submitted' } });
+    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { scope: 'submitted' }, cache: false });
   });
 
   it('works with no params', () => {
     getSubmittedApprovals();
-    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { scope: 'submitted' } });
+    expect(api.get).toHaveBeenCalledWith('/approval-requests', { params: { scope: 'submitted' }, cache: false });
   });
 
   it('keeps reviewing a request through PATCH', () => {

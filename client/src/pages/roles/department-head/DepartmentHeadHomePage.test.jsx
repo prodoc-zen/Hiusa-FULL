@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepartmentHeadHomePage from './DepartmentHeadHomePage';
@@ -16,6 +16,8 @@ vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mock
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../components/dashboard', () => ({ RoleBriefing: () => null }));
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 const paginator = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 100, total: data.length } });
 const org = (id, lifecycle_status) => ({ id, name: `Org ${id}`, college: 'College of Engineering', lifecycle_status });
@@ -51,6 +53,14 @@ describe('DepartmentHeadHomePage', () => {
     expect(tiles[0]).toHaveClass('bg-danger-tint');
     expect(tiles[1]).not.toHaveClass('bg-danger-tint');
     expect(within(section).getByRole('link', { name: 'Manage organizations' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
+  });
+
+  it('lets the dashboard columns shrink to a phone width, with the empty election card inside them', async () => {
+    renderPage();
+
+    const empty = (await screen.findByText('No Active Election')).closest('section');
+    expect(empty.parentElement).toHaveClass('min-w-0');
+    expect(empty.parentElement.parentElement).toHaveClass('grid-cols-1');
   });
 
   it('does not highlight Returned when nothing is returned', async () => {
@@ -120,5 +130,76 @@ describe('DepartmentHeadHomePage', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'College organizations' })).toBeInTheDocument();
+  });
+
+  describe('silent refresh while the tab stays open', () => {
+    const returnedTile = () => within(screen.getByRole('heading', { name: 'College of Engineering organizations' }).closest('section')).getByRole('link', { name: /^Returned/ });
+
+    it('updates the status tiles without a loading state', async () => {
+      renderPage();
+      await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+      expect(returnedTile()).toHaveTextContent('1');
+
+      let release;
+      mocks.getCollegeOrganizations.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+      expect(document.querySelector('.animate-pulse')).toBeNull();
+      expect(returnedTile()).toHaveTextContent('1');
+
+      await act(async () => {
+        release(paginator([org(1, 'returned'), org(2, 'returned'), org(3, 'returned'), org(4, 'returned')]));
+        await refresh;
+      });
+
+      expect(returnedTile()).toHaveTextContent('4');
+      expect(document.querySelector('.animate-pulse')).toBeNull();
+      expect(returnedTile()).not.toHaveTextContent('-');
+    });
+
+    it('keeps the figures and shows no error when the silent refresh fails', async () => {
+      renderPage();
+      await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+
+      mocks.getCollegeOrganizations.mockRejectedValueOnce(new Error('offline'));
+      await act(async () => { await refetchHook.current(); });
+
+      expect(returnedTile()).toHaveTextContent('1');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(document.querySelector('.animate-pulse')).toBeNull();
+    });
+
+    it('clears a load error once a silent refresh succeeds', async () => {
+      mocks.getCollegeOrganizations.mockRejectedValueOnce(new Error('network'));
+      renderPage();
+      await screen.findByRole('button', { name: 'Try again' });
+
+      await act(async () => { await refetchHook.current(); });
+
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+      expect(returnedTile()).toHaveTextContent('1');
+    });
+
+    it('drops a silent response that arrives after a newer full load', async () => {
+      mocks.getCollegeOrganizations.mockRejectedValueOnce(new Error('network'));
+      renderPage();
+      const retry = await screen.findByRole('button', { name: 'Try again' });
+
+      let releaseSilent;
+      mocks.getCollegeOrganizations.mockReturnValueOnce(new Promise((resolve) => { releaseSilent = resolve; }));
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+      mocks.getCollegeOrganizations.mockResolvedValueOnce(paginator([org(1, 'returned'), org(2, 'returned')]));
+      await act(async () => { retry.click(); });
+      expect(await screen.findByRole('heading', { name: 'College of Engineering organizations' })).toBeInTheDocument();
+      expect(returnedTile()).toHaveTextContent('2');
+
+      await act(async () => {
+        releaseSilent(paginator([org(1, 'returned'), org(2, 'returned'), org(3, 'returned'), org(4, 'returned'), org(5, 'returned')]));
+        await refresh;
+      });
+
+      expect(returnedTile()).toHaveTextContent('2');
+    });
   });
 });
