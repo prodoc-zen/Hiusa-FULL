@@ -14,8 +14,8 @@ return new class extends Migration
         });
         Schema::create('organization_application_documents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('organization_application_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('requirement_type_id')->constrained('compliance_requirement_types')->restrictOnDelete();
+            $table->foreignId('organization_application_id')->constrained('organization_applications', indexName: 'org_app_docs_app_id_fk')->cascadeOnDelete();
+            $table->foreignId('requirement_type_id')->constrained('compliance_requirement_types', indexName: 'org_app_docs_req_type_fk')->restrictOnDelete();
             $table->string('file_path', 500);
             $table->string('file_original_name', 255);
             $table->string('mime_type', 100);
