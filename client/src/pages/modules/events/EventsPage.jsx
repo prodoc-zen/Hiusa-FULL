@@ -1178,7 +1178,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     return (
                       <article key={evt.id} className="p-4 sm:p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{formatDisplayText(evt.title)}</h3><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" /></div>
+                          <div className="min-w-0">
+                            <h3 className="leading-6">
+                              <button
+                                type="button"
+                                onClick={() => openEventDetails(evt)}
+                                className="text-left font-black text-[#0F172A] transition hover:text-[#0878B7] focus:outline-none focus:underline"
+                              >
+                                {formatDisplayText(evt.title)}
+                              </button>
+                            </h3>
+                            <RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" />
+                          </div>
                           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{eventStatusText(evt)}</span>
                         </div>
                         {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-3" />}
@@ -1217,7 +1228,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <tbody className="divide-y divide-[#DDE7EF] text-sm">
                       {pagedEvents.map((evt) => (
                         <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
-                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{formatDisplayText(evt.title)}</p><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
+                          <td className="max-w-[260px] px-5 py-4">
+                            <button
+                              type="button"
+                              onClick={() => openEventDetails(evt)}
+                              className="text-left font-bold text-[#0F172A] transition hover:text-[#0878B7] focus:outline-none focus:underline"
+                            >
+                              {formatDisplayText(evt.title)}
+                            </button>
+                            <RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" />
+                          </td>
                           <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : '-'}<p className="text-[10px] text-[#0878B7]">{formatDisplayText(evt.creator?.position_title) || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
