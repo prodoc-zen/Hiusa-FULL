@@ -74,6 +74,7 @@ class AgencyOverviewController extends Controller
                     'name' => $college->name,
                     'code' => $college->code,
                     'home_organization_id' => $college->homeOrganization?->id,
+                    'administrators_count' => (int) $organizations->sum('administrators_count'),
                     'organizations_count' => $organizations->count(),
                     'by_lifecycle_status' => $this->lifecycleCounts($organizations),
                     'organizations' => $organizations->values(),
@@ -152,8 +153,13 @@ class AgencyOverviewController extends Controller
     /** @return Collection<int, Collection> active profile counts per organization id, each a role => total map */
     private function profileCounts(Collection $organizationIds): Collection
     {
-        return AccountProfile::whereIn('organization_id', $organizationIds)->where('account_status', 'active')
-            ->selectRaw('organization_id, role, count(*) as total')->groupBy('organization_id', 'role')->get()
+        return AccountProfile::query()
+            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->whereIn('account_profiles.organization_id', $organizationIds)
+            ->where('account_profiles.account_status', 'active')
+            ->where('users.account_status', 'active')
+            ->selectRaw('account_profiles.organization_id, account_profiles.role, count(*) as total')
+            ->groupBy('account_profiles.organization_id', 'account_profiles.role')->get()
             ->groupBy('organization_id')->map(fn (Collection $rows) => $rows->pluck('total', 'role'));
     }
 

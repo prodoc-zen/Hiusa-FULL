@@ -64,7 +64,7 @@ class CollegeOrganizationWithdrawTest extends TestCase
         Sanctum::actingAs($this->director);
         $semesterId = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $this->patchJson("/api/system/academic-semesters/{$semesterId}/active")->assertOk();
-        $typeIds = ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->pluck('id');
+        $typeIds = ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('category', 'organization')->pluck('id');
 
         Sanctum::actingAs($this->head);
         $organization = Organization::create([

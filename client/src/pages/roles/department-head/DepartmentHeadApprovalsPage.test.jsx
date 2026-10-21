@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
@@ -13,6 +13,8 @@ vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrgan
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
 vi.mock('../../../services/financeService', () => ({ downloadFinancialReportPdf: mocks.downloadFinancialReportPdf }));
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 function LocationProbe() {
   const { pathname, search } = useLocation();
@@ -163,6 +165,15 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     await screen.findByText('October Financial Report');
     expect(mocks.getCollegeOrganizations).not.toHaveBeenCalled();
     expect(screen.queryByLabelText('Organization')).not.toBeInTheDocument();
+  });
+
+  it('keeps the filter bar to one shrinkable column on a phone so the page never scrolls sideways', async () => {
+    respondWith(reportRequest({}));
+    renderPage();
+
+    const search = await screen.findByLabelText('Search requests');
+    expect(search.closest('label')).toHaveClass('min-w-0');
+    expect(search.closest('label').parentElement).toHaveClass('grid-cols-1');
   });
 
   it('keeps one list for the Department Head: no tabs and no New request button', async () => {
@@ -537,5 +548,108 @@ describe('SAO organization approvals', () => {
       expect(screen.getByText('Review this election')).toBeInTheDocument();
       expect(screen.queryByText('Awaiting Department Head review')).not.toBeInTheDocument();
     } finally { localStorage.clear(); }
+  });
+});
+
+describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', () => {
+  const row = (id, title) => ({ ...reportRequest({}), id, organization_id: 7, title, requested_by: 'ADM-1' });
+  const listCalls = () => mocks.getApprovalRequests.mock.calls.map(([params]) => params).filter((params) => params.per_page !== 1);
+  const loaded = () => document.querySelector('.animate-pulse') === null;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', school_id: 'DH-1' }));
+    mocks.getCollegeOrganizations.mockResolvedValue({ data: { data: [{ id: 7, name: 'Chess Club' }], current_page: 1, last_page: 1, per_page: 100, total: 1 } });
+  });
+
+  afterEach(() => localStorage.clear());
+
+  it('shows new requests through the current filters without a loading state, and keeps the search text and the open drawer', async () => {
+    mocks.getApprovalRequests.mockImplementation(async (params) => (params.per_page === 1 ? page([], { per_page: 1, total: 1 }) : page([row(1, 'Chess report')])));
+    renderPage();
+    await screen.findByText(/chess report/i);
+    fireEvent.change(screen.getByLabelText('Search requests'), { target: { value: 'report' } });
+    await waitFor(() => expect(listCalls().some((params) => params.search === 'report')).toBe(true));
+    await waitFor(() => expect(loaded()).toBe(true));
+    fireEvent.click(await actionFor('Chess report', /Review|Details/));
+    await screen.findByRole('dialog');
+
+    let release;
+    mocks.getApprovalRequests.mockImplementation((params) => (params.per_page === 1
+      ? Promise.resolve(page([], { per_page: 1, total: 2 }))
+      : new Promise((resolve) => { release = resolve; })));
+    mocks.getApprovalRequests.mockClear();
+    let refresh;
+    act(() => { refresh = refetchHook.current(); });
+    expect(loaded()).toBe(true);
+    expect(screen.getAllByText(/chess report/i).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      release(page([row(1, 'Chess report'), row(2, 'Drama report')]));
+      await refresh;
+    });
+
+    expect(listCalls()).toEqual([expect.objectContaining({ search: 'report', status: 'pending', page: 1 })]);
+    expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('2 matching requests · 2 awaiting action')).toBeInTheDocument();
+    expect(loaded()).toBe(true);
+    expect(screen.getByLabelText('Search requests')).toHaveValue('report');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('record=1');
+  });
+
+  it('keeps the list and shows no error when the silent refresh fails', async () => {
+    mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report')]));
+    renderPage();
+    await screen.findByText(/chess report/i);
+
+    mocks.getApprovalRequests.mockRejectedValue(new Error('offline'));
+    await act(async () => { await refetchHook.current(); });
+
+    expect(screen.getAllByText(/chess report/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Failed to load approval requests.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(loaded()).toBe(true);
+  });
+
+  it('does not clear a review error the user is looking at when a silent refresh succeeds', async () => {
+    mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report')]));
+    mocks.reviewApprovalRequest.mockRejectedValue(new Error('conflict'));
+    renderPage();
+    fireEvent.click(await actionFor('Chess report', /Review|Details/));
+    const drawer = await screen.findByRole('dialog');
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+    const banner = () => document.querySelector('p.text-red-700');
+    await waitFor(() => expect(banner()).toHaveTextContent('Failed to submit review. Please try again.'));
+    mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report'), row(2, 'Drama report')]));
+
+    await act(async () => { await refetchHook.current(); });
+
+    expect(banner()).toHaveTextContent('Failed to submit review. Please try again.');
+    expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
+  });
+
+  it('drops a silent response that arrives after a newer full load', async () => {
+    mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report')]));
+    renderPage();
+    await screen.findByText(/chess report/i);
+
+    let releaseSilent;
+    mocks.getApprovalRequests.mockImplementationOnce(() => new Promise((resolve) => { releaseSilent = resolve; }));
+    let refresh;
+    act(() => { refresh = refetchHook.current(); });
+    mocks.getApprovalRequests.mockResolvedValue(page([row(3, 'Fresh report')]));
+    fireEvent.change(screen.getByLabelText('Request type'), { target: { value: 'financial_report' } });
+    expect(await screen.findByText(/fresh report/i)).toBeInTheDocument();
+
+    await act(async () => {
+      releaseSilent(page([row(9, 'Stale report')]));
+      await refresh;
+    });
+
+    expect(screen.queryByText(/stale report/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/fresh report/i)).toBeInTheDocument();
   });
 });

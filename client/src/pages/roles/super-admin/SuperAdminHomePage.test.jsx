@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SuperAdminHomePage from './SuperAdminHomePage';
@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn(), getSystemOver
 
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 vi.mock('../../../components/dashboard', () => ({ RoleBriefing: ({ introduction }) => <div>{introduction}</div> }));
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 describe('SuperAdminHomePage', () => {
   beforeEach(() => {
@@ -47,5 +49,42 @@ describe('SuperAdminHomePage', () => {
     expect(await screen.findByText('No student organizations registered yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
     expect(screen.getByText('Registered organizations')).toBeInTheDocument();
+  });
+
+  describe('silent refresh while the tab stays open', () => {
+    it('updates the counts without a loading state', async () => {
+      render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
+      await screen.findByText('Registered organizations');
+      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('2');
+
+      let release;
+      mocks.getSystemOverview.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+      expect(screen.queryByText('Loading university operations...')).not.toBeInTheDocument();
+
+      await act(async () => {
+        release({
+          organizations: { total: 5, active: 4, inactive: 1 },
+          operations: { pending_approvals: 4 },
+          notifications: { unread: 0, recent: [] },
+        });
+        await refresh;
+      });
+
+      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('4');
+      expect(screen.queryByText('Loading university operations...')).not.toBeInTheDocument();
+    });
+
+    it('keeps the figures and shows no error when the silent refresh fails', async () => {
+      render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
+      await screen.findByText('Registered organizations');
+
+      mocks.getSystemOverview.mockRejectedValueOnce(new Error('offline'));
+      await act(async () => { await refetchHook.current(); });
+
+      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('2');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
   });
 });

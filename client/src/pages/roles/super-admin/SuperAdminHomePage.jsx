@@ -1,19 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Bell, Building2, ClipboardCheck, FileText, Megaphone, ShieldCheck } from 'lucide-react';
 import { getSystemOverview } from '../../../services/systemAdministrationService';
 import { RoleBriefing } from '../../../components/dashboard';
+import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 
 const ACTIONS = [['Organization applications', '/dashboard/organization-applications', ClipboardCheck], ['Registrations and organizations', '/dashboard/super-admin/organizations', Building2], ['Colleges and Department Heads', '/dashboard/super-admin/colleges', Building2], ['Review received reports', '/dashboard/super-admin/compliance?tab=financial', FileText], ['Official announcements', '/dashboard/super-admin/announcements', Megaphone], ['View notifications', '/dashboard/super-admin/notifications', Bell]];
 
 export default function SuperAdminHomePage() {
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState('');
-  function load() {
-    setError('');
-    getSystemOverview().then(setOverview).catch(() => setError('Unable to load system oversight data.'));
-  }
-  useEffect(() => { load(); }, []);
+
+  const overviewEpoch = useRef(0);
+  const load = useCallback(({ silent = false } = {}) => {
+    if (!silent) {
+      overviewEpoch.current += 1;
+      setError('');
+    }
+    const epoch = overviewEpoch.current;
+    return getSystemOverview()
+      .then((next) => {
+        if (epoch !== overviewEpoch.current) return;
+        setOverview((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
+      })
+      .catch(() => {
+        if (!silent && epoch === overviewEpoch.current) setError('Unable to load system oversight data.');
+      });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useRefetchOnReturn(() => load({ silent: true }));
   const metrics = overview ? [
     ['Registered organizations', overview.organizations.total, Building2],
     ['Active organizations', overview.organizations.active, ShieldCheck],

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import CollegeOrganizationsPage from './CollegeOrganizationsPage';
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   withdrawOrganization: vi.fn(),
 }));
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 
@@ -504,5 +506,52 @@ describe('CollegeOrganizationsPage withdraw', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw registration' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('This organization already has members, users or other records, so it cannot be withdrawn.');
+  });
+});
+
+describe('CollegeOrganizationsPage silent refresh while the tab stays open', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
+    mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', code: 'COE', logo_url: null, color: '#0B8ED0' }, head: { name: 'Eduardo Ramos' } } });
+  });
+
+  it('shows an Admin the SAO just created without a loading state, and keeps the tab and the open checklist', async () => {
+    renderPage('/dashboard/department-head/organizations?status=pending');
+    await screen.findAllByText('Chess Club');
+    await chooseOrganizationAction('Chess Club', 'View checklist');
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('No Admin or SBO Officer is assigned yet.')).toBeInTheDocument();
+
+    let release;
+    mocks.getCollegeOrganizations.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    let refresh;
+    act(() => { refresh = refetchHook.current(); });
+    expect(screen.queryByRole('status', { name: 'Loading table' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Chess Club').length).toBeGreaterThan(0);
+
+    await act(async () => {
+      release(paginator([
+        ...organizations.slice(0, 1),
+        organization({ id: 2, name: 'Chess Club', acronym: 'CHESS', lifecycle_status: 'pending', registration_requirements: checklist(), leadership: [{ role: 'admin', name: 'Ana Reyes' }], role_counts: { admin: 1, sbo_officer: 0, student: 0 } }),
+        ...organizations.slice(2),
+      ]));
+      await refresh;
+    });
+
+    expect(within(screen.getByRole('dialog')).getByText('Ana Reyes')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading table' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('status=pending');
+  });
+
+  it('keeps the rows and shows no error when the silent refresh fails', async () => {
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    mocks.getCollegeOrganizations.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await refetchHook.current(); });
+
+    expect(screen.getAllByText('Robotics Society').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Could not load the organizations of your college.')).not.toBeInTheDocument();
   });
 });

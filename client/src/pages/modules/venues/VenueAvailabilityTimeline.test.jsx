@@ -15,4 +15,14 @@ describe('VenueAvailabilityTimeline', () => {
     expect(screen.getByText(/Reserved by Another organization/)).toBeInTheDocument();
     expect(screen.queryByText(/Reserved by Your organization/)).not.toBeInTheDocument();
   });
+
+  it('holds the day strip in its own scroller, positioned so its screen reader text cannot widen the page', () => {
+    render(<VenueAvailabilityTimeline from="2026-10-12" to="2026-10-20" slots={[
+      { id: 1, start_time: '2026-10-19T01:00:00Z', end_time: '2026-10-19T03:00:00Z', reserved_by: 'Your organization' },
+    ]} />);
+
+    const strip = screen.getByLabelText('Choose a booking date');
+    expect(strip).toHaveClass('overflow-x-auto', 'relative');
+    expect(strip.querySelector('.sr-only')).not.toBeNull();
+  });
 });

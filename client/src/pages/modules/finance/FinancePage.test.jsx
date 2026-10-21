@@ -642,6 +642,27 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
   });
+
+  it('names the last ledger column Actions, right aligned, and lets the table fit its card', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const table = await screen.findByRole('table');
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers[headers.length - 1]).toBe('Actions');
+    expect(within(table).getByRole('columnheader', { name: 'Actions' })).toHaveClass('text-right');
+    expect(table.className).not.toMatch(/min-w-\[/);
+    expect(table.parentElement).not.toHaveClass('overflow-x-auto');
+    const [, , system] = within(table).getAllByRole('row');
+    expect(within(system).getByText('Locked')).toBeInTheDocument();
+  });
+
+  it('shows no Actions column to a role that cannot change the ledger', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    render(<FinancePage initialTab="transactions" />);
+
+    const table = await screen.findByRole('table');
+    expect(within(table).queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
+  });
 });
 
 describe('FinancePage forecast delete and approved budgets', () => {

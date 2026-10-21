@@ -76,11 +76,12 @@ class AcademicSemesterController extends Controller
                 'status' => 'upcoming',
                 'created_by' => $request->user()->school_id,
             ]);
-            foreach ([...RegistrationRequirementCatalog::NAMES, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT] as $name) {
+            foreach ([...RegistrationRequirementCatalog::NAMES, ...ComplianceRequirementType::SEMESTRAL_REPORT_NAMES] as $name) {
                 ComplianceRequirementType::create([
                     'academic_year' => $academicYear->label,
                     'academic_semester_id' => $semester->id,
                     'name' => $name,
+                    'allowed_extensions' => ['pdf'],
                     'deadline_at' => $semester->ends_on->endOfDay(),
                     'is_active' => false,
                     'created_by' => $request->user()->school_id,

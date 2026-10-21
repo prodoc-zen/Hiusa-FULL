@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\College;
@@ -28,6 +29,8 @@ class SystemAdministrationController extends Controller
     // Department heads keep their oversight role; they never take over an organization.
     private const SUCCESSOR_ROLES = ['STUDENT', 'SBO_OFFICER', 'ADMIN'];
 
+    private const PROFILE_ONLY_ADMIN = 'An administrator who holds the role only through an extra organization profile is changed with Manage profiles.';
+
     private const ACTIVE_HEAD_EXISTS = 'This college already has an active Department Head. Deactivate the current one first.';
 
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
@@ -50,7 +53,7 @@ class SystemAdministrationController extends Controller
                 'inactive' => Organization::whereIn('id', $organizationIds)->where('is_active', false)->count(),
             ],
             'people' => [
-                'admins' => (clone $userBase)->where('role', 'ADMIN')->count(),
+                'admins' => AccountProfile::whereIn('organization_id', $selectedIds)->activeAdministrators()->count(),
                 'officers' => (clone $userBase)->where('role', 'SBO_OFFICER')->count(),
                 'students' => (clone $userBase)->where('role', 'STUDENT')->count(),
             ],
@@ -81,8 +84,8 @@ class SystemAdministrationController extends Controller
     public function organizations(Request $request)
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'lifecycle_status' => ['nullable', 'in:pending,returned,active,archived,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = Organization::withCount('accountProfiles as users_count')->with(['catalogCollege', 'administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
-            ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->where('role', 'ADMIN')])
+        $query = Organization::withCount('accountProfiles as users_count')->with(['catalogCollege', 'administrators:users.school_id,account_profiles.organization_id,users.first_name,users.last_name,users.email,account_profiles.account_status', 'parentOrganization:id,name,acronym'])
+            ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->activeAdministrators()])
             ->student();
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')->orWhere('acronym', 'like', '%'.$filters['search'].'%')->orWhere('college', 'like', '%'.$filters['search'].'%'));
@@ -185,20 +188,32 @@ class SystemAdministrationController extends Controller
     public function admins(Request $request)
     {
         $filters = $request->validate(['organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:organizations,id'])], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', FilterValues::rule(['nullable', 'in:active,inactive,disabled,all'])], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = User::with('organization:id,name,acronym,college,parent_organization_id')
-            ->where('role', 'ADMIN')
+        $query = AccountProfile::query()
+            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->select('account_profiles.*')
+            ->with(['organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS), 'user' => fn ($user) => $user->without('organization')])
+            ->where('account_profiles.role', 'ADMIN')
             ->whereHas('organization', fn ($organization) => $organization->student());
         if (! empty($filters['organization_id'])) {
-            $query->whereIn('organization_id', FilterValues::values($filters['organization_id']));
+            $query->whereIn('account_profiles.organization_id', FilterValues::values($filters['organization_id']));
         }
         if (($filters['status'] ?? 'all') !== 'all') {
-            $query->whereIn('account_status', FilterValues::values($filters['status']));
+            $query->whereIn('account_profiles.account_status', FilterValues::values($filters['status']));
         }
         if (! empty($filters['search'])) {
-            $query->where(fn ($q) => $q->where('first_name', 'like', '%'.$filters['search'].'%')->orWhere('last_name', 'like', '%'.$filters['search'].'%')->orWhere('email', 'like', '%'.$filters['search'].'%')->orWhere('school_id', 'like', '%'.$filters['search'].'%'));
+            $query->where(fn ($q) => $q->where('users.first_name', 'like', '%'.$filters['search'].'%')->orWhere('users.last_name', 'like', '%'.$filters['search'].'%')->orWhere('users.email', 'like', '%'.$filters['search'].'%')->orWhere('users.school_id', 'like', '%'.$filters['search'].'%'));
         }
 
-        return response()->json($query->orderBy('last_name')->paginate($filters['per_page'] ?? 20));
+        $admins = $query->orderBy('users.last_name')->orderBy('account_profiles.id')->paginate($filters['per_page'] ?? 20);
+        $admins->getCollection()->transform(function (AccountProfile $profile) {
+            $isPrimary = $profile->user->getRawOriginal('role') === 'ADMIN'
+                && (int) $profile->user->getRawOriginal('organization_id') === (int) $profile->organization_id;
+            $profile->user->activateProfile($profile);
+
+            return [...$profile->user->toArray(), 'profile_id' => $profile->id, 'is_primary_profile' => $isPrimary];
+        });
+
+        return response()->json($admins);
     }
 
     public function storeAdmin(Request $request)
@@ -239,11 +254,8 @@ class SystemAdministrationController extends Controller
 
     public function updateAdmin(Request $request, User $user)
     {
-        if ($request->filled('organization_id') && $request->integer('organization_id') !== (int) $user->organization_id) {
-            abort(403, 'Administrator appointments in another organization must be handled by that organization.');
-        }
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->exists()) {
-            return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
+        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
+            return response()->json(['message' => 'Only the primary administrator account is edited here. '.self::PROFILE_ONLY_ADMIN], 422);
         }
         if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
             return response()->json(['message' => 'SAO cannot set administrator passwords. Initiate a secure password reset instead.'], 422);
@@ -263,10 +275,9 @@ class SystemAdministrationController extends Controller
         $deactivatesAccount = isset($data['account_status']) && $data['account_status'] !== 'active';
         $currentOrganizationIsActive = Organization::whereKey($user->organization_id)->where('is_active', true)->exists();
         if ($user->account_status === 'active' && $currentOrganizationIsActive && ($leavesCurrentOrganization || $deactivatesAccount)) {
-            $hasAnotherActiveAdmin = User::where('organization_id', $user->organization_id)
-                ->where('role', 'ADMIN')
-                ->where('account_status', 'active')
-                ->whereKeyNot($user->school_id)
+            $hasAnotherActiveAdmin = AccountProfile::where('organization_id', $user->organization_id)
+                ->activeAdministrators()
+                ->where('user_school_id', '!=', $user->school_id)
                 ->exists();
             if (! $hasAnotherActiveAdmin) {
                 return response()->json(['message' => 'Add another active administrator before transferring or deactivating this organization\'s last active administrator.'], 422);
@@ -296,7 +307,7 @@ class SystemAdministrationController extends Controller
     public function destroyAdmin(Request $request, User $user)
     {
         if ($user->role !== 'ADMIN' || $user->school_id === $request->user()->school_id) {
-            return response()->json(['message' => 'Only another organization Admin can be removed here.'], 403);
+            return response()->json(['message' => 'Only another organization Admin can be removed here. '.self::PROFILE_ONLY_ADMIN], 403);
         }
 
         $organizationId = $user->getRawOriginal('organization_id');
@@ -337,6 +348,10 @@ class SystemAdministrationController extends Controller
 
     public function handoverAdmin(Request $request, User $user)
     {
+        $organization = Organization::whereKey($user->organization_id)->student()->first();
+        if ($user->role !== 'ADMIN' || ! $organization) {
+            return response()->json(['message' => 'Only organization administrator accounts can be handed over. '.self::PROFILE_ONLY_ADMIN], 422);
+        }
         abort(403, 'Administrator appointments must be handled by the organization.');
     }
 

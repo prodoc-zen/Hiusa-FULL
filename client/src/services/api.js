@@ -10,11 +10,14 @@ const api = axios.create({
   },
 });
 
+// Short on purpose: another role's session can change what this tab shows, and a
+// tab only learns of its own changes. Reads that decide the next click pass
+// `cache: false` in their service instead.
 const configuredCacheTtl = Number(import.meta.env.VITE_API_CACHE_TTL_MS);
 const apiGetCache = createApiGetCache({
   ttlMs: Number.isFinite(configuredCacheTtl) && configuredCacheTtl >= 0
     ? configuredCacheTtl
-    : 60_000,
+    : 5_000,
 });
 const networkGet = api.get.bind(api);
 

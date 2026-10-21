@@ -149,7 +149,7 @@ const NAV_BY_ROLE = {
     group('sao-organizations-group', 'Governance', Building2, [
       leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),
       leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
-      leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2),
+      leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'] }),
     ]),
     group('sao-reviews', 'Reviews', ClipboardCheck, [
       leaf('sao-compliance', 'Compliance', '/dashboard/super-admin/compliance', ClipboardCheck),

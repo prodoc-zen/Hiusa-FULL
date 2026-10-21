@@ -9,9 +9,9 @@ const registrationForm = (fields, files) => {
   return data;
 };
 
-export const getCollegeOrganizations = (params) => api.get('/college/organizations', { params });
+export const getCollegeOrganizations = (params) => api.get('/college/organizations', { params, cache: false });
 
-export const getRegistrationRequirements = () => api.get('/college/organizations/requirements');
+export const getRegistrationRequirements = () => api.get('/college/organizations/requirements', { cache: false });
 
 
 export const resubmitOrganization = (id, fields, files = {}) => {
@@ -21,4 +21,4 @@ export const resubmitOrganization = (id, fields, files = {}) => {
 };
 
 export const withdrawOrganization = (id) => api.delete(`/college/organizations/${id}`);
-export const getCollegeOverview = () => api.get('/college/overview');
+export const getCollegeOverview = () => api.get('/college/overview', { cache: false });

@@ -29,13 +29,13 @@ describe('hierarchy services', () => {
   it('reads the agency overview and one organization snapshot', async () => {
     await getSystemAgency();
     await getSystemOrganizationOverview(9);
-    expect(api.get).toHaveBeenCalledWith('/system/agency');
-    expect(api.get).toHaveBeenCalledWith('/system/organizations/9/overview');
+    expect(api.get).toHaveBeenCalledWith('/system/agency', { cache: false });
+    expect(api.get).toHaveBeenCalledWith('/system/organizations/9/overview', { cache: false });
   });
 
   it('requests only agency totals for the organization register', async () => {
     await getSystemAgency({ summary: 1 });
-    expect(api.get).toHaveBeenCalledWith('/system/agency', { params: { summary: 1 } });
+    expect(api.get).toHaveBeenCalledWith('/system/agency', { params: { summary: 1 }, cache: false });
   });
 
   it('reviews, archives and restores an organization through the lifecycle routes', async () => {
@@ -72,10 +72,10 @@ describe('hierarchy services', () => {
   it('lists a college and its registration requirements', () => {
     getCollegeOrganizations({ lifecycle_status: 'pending' });
     getRegistrationRequirements();
-    expect(api.get).toHaveBeenCalledWith('/college/organizations', { params: { lifecycle_status: 'pending' } });
-    expect(api.get).toHaveBeenCalledWith('/college/organizations/requirements');
+    expect(api.get).toHaveBeenCalledWith('/college/organizations', { params: { lifecycle_status: 'pending' }, cache: false });
+    expect(api.get).toHaveBeenCalledWith('/college/organizations/requirements', { cache: false });
     getCollegeOverview();
-    expect(api.get).toHaveBeenCalledWith('/college/overview');
+    expect(api.get).toHaveBeenCalledWith('/college/overview', { cache: false });
   });
 
   it('submits the public organization application as multipart data with one file per requirement', () => {

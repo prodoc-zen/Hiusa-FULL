@@ -41,6 +41,17 @@ describe('GeneralAuditLogPage', () => {
     expect(within(table).queryByRole('columnheader', { name: 'Organization' })).not.toBeInTheDocument();
   });
 
+  it('names the last column Actions because it holds the row menu', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<GeneralAuditLogPage />);
+
+    const table = await screen.findByRole('table');
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers[headers.length - 1]).toBe('Actions');
+    expect(within(table).queryByRole('columnheader', { name: 'Details' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: 'Actions for Audit record 9' })).toBeInTheDocument();
+  });
+
   it('exports every entry matching the current filters', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     vi.mocked(exportAuditLogs).mockResolvedValue({ data: new Blob(['csv']), headers: {} });

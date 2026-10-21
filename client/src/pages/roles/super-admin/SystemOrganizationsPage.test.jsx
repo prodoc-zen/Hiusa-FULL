@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SystemOrganizationsPage from './SystemOrganizationsPage';
@@ -15,6 +15,8 @@ const complianceMocks = vi.hoisted(() => ({ getComplianceDocuments: vi.fn() }));
 vi.mock('../../../services/complianceService', () => complianceMocks);
 const fileMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../utils/openProtectedFile', () => fileMocks);
+const refetchHook = vi.hoisted(() => ({ current: null }));
+vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 const SUBMITTED_AT = '2026-10-01T08:30:00.000000Z';
 const org = (overrides = {}) => ({ id: 3, name: 'Main SBO', acronym: 'SBO', college: 'College of Arts', college_id: 1, lifecycle_status: 'active', is_active: true, users_count: 0, administrators: [], ...overrides });
@@ -522,7 +524,7 @@ describe('SystemOrganizationsPage', () => {
       await screen.findByText('Chess Club');
 
       const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
-      expect(names).toEqual(['Art Club', 'Chess Club']);
+      expect(names).toEqual(['Chess Club', 'Art Club']);
       const card = screen.getByText('Chess Club').closest('tr');
       expect(within(card).getByText('Add the first Admin account')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
@@ -604,5 +606,63 @@ describe('SystemOrganizationsPage', () => {
     renderPage('/dashboard/super-admin/organizations?status=pending');
     expect(await screen.findByText('No organizations are waiting for review.')).toBeInTheDocument();
     expect(screen.getByText(/Department Heads register the organizations of their college/)).toBeInTheDocument();
+  });
+
+  describe('silent refresh while the tab stays open', () => {
+    it('shows the administrator the SAO just created without a skeleton and keeps the typed search', async () => {
+      mocks.getSystemOrganizations.mockImplementation(async () => pageOf([org({ administrators: [] })]));
+      renderPage('/dashboard/super-admin/organizations?status=active');
+      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Search organizations'), { target: { value: 'Mai' } });
+
+      let release;
+      const gate = new Promise((resolve) => { release = resolve; });
+      mocks.getSystemOrganizations.mockImplementation(async () => { await gate; return pageOf([org(), org({ id: 4, name: 'Chess SBO' })]); });
+      mocks.getSystemAgency.mockResolvedValue(agency(0, { active: 4 }));
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+
+      expect(screen.queryByRole('region', { name: 'Loading organizations' })).not.toBeInTheDocument();
+      expect(screen.getByText('Main SBO')).toBeInTheDocument();
+      await act(async () => { release(); await refresh; });
+
+      expect(await screen.findByText('Chess SBO')).toBeInTheDocument();
+      expect(await screen.findByRole('tab', { name: 'Active (4)' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Search organizations')).toHaveValue('Mai');
+      expect(screen.queryByRole('region', { name: 'Loading organizations' })).not.toBeInTheDocument();
+    });
+
+    it('discards a silent counts response that lands after the user moved to another tab', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=active');
+      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
+
+      let release;
+      const gate = new Promise((resolve) => { release = resolve; });
+      mocks.getSystemAgency.mockImplementation(async () => { await gate; return agency(0, { active: 99 }); });
+      let refresh;
+      act(() => { refresh = refetchHook.current(); });
+
+      fireEvent.click(screen.getByRole('tab', { name: /^Returned/ }));
+      await waitFor(() => expect(lastStatusParam()).toBe('returned'));
+      await act(async () => { release(); await refresh; });
+
+      expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'Active (99)' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the list and shows no error when the silent refresh fails', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=active');
+      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+
+      mocks.getSystemOrganizations.mockRejectedValue(new Error('offline'));
+      mocks.getSystemAgency.mockRejectedValue(new Error('offline'));
+      await act(async () => { await refetchHook.current(); });
+
+      expect(screen.getByText('Main SBO')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
+      expect(screen.queryByText('Unable to load organizations.')).not.toBeInTheDocument();
+    });
   });
 });
