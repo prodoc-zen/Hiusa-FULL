@@ -1737,13 +1737,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>
                     </div>
                     <FlowStepper variant="compact" ariaLabel={`Report progress for ${formatDisplayText(report.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-3 max-w-sm" />
-                    <p className="mt-1 hidden text-xs font-semibold text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
-                    <TableRowActions subject={formatDisplayText(report.title)} actions={[
-                      { label: `View details for ${formatDisplayText(report.title)}`, icon: Eye, onClick: () => setRecordId(report.id) },
-                      { label: 'Export Excel', icon: FileSpreadsheet, disabled: reportExcelDownloading === report.id, onClick: () => handleExportSavedReport(report) },
-                      { label: 'Download PDF', icon: Download, disabled: reportPdfDownloading === report.id, onClick: () => handleDownloadReportPdf(report) },
-                      { label: 'Preview / print', icon: Eye, disabled: reportPdfDownloading === report.id, onClick: () => handlePreviewReportPdf(report) },
-                    ]} />
+                    <p className="mt-1 text-xs font-semibold text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="secondary" aria-label={`View details for ${formatDisplayText(report.title)}`} onClick={() => setRecordId(report.id)}>
+                        View details
+                      </Button>
+                      <TableRowActions subject={formatDisplayText(report.title)} actions={[
+                        { label: `View details for ${formatDisplayText(report.title)}`, icon: Eye, onClick: () => setRecordId(report.id) },
+                        { label: 'Export Excel', icon: FileSpreadsheet, disabled: reportExcelDownloading === report.id, onClick: () => handleExportSavedReport(report) },
+                        { label: 'Download PDF', icon: Download, disabled: reportPdfDownloading === report.id, onClick: () => handleDownloadReportPdf(report) },
+                        { label: 'Preview / print', icon: Eye, disabled: reportPdfDownloading === report.id, onClick: () => handlePreviewReportPdf(report) },
+                      ]} />
+                    </div>
                   </div>
                   );
                 })}
