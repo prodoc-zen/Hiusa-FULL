@@ -491,19 +491,25 @@ export default function SystemOrganizationsPage() {
                 {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
                 {lifecycle === 'returned' && <p className="mt-2 text-xs text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
               </td>
-              <td className="whitespace-nowrap px-4 py-4 align-top text-xs text-ink-muted">{org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</td>
-              <td className="px-4 py-3 align-top"><TableRowActions subject={name} label="Organization actions" actions={[
-                { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
-                lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
-                needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setAdminOrganization(org) },
-                lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
-                lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
-                lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
-                lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setAdminOrganization(org) },
-                lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
-                lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
-                { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
-              ]} /></td>
+              <td className="px-4 py-3 align-top">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {lifecycle === 'pending' && (
+                    <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
+                  )}
+                  <TableRowActions subject={name} label="Organization actions" actions={[
+                    { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
+                    lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
+                    needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setAdminOrganization(org) },
+                    lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
+                    lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
+                    lifecycle === 'active' && { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
+                    lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setAdminOrganization(org) },
+                    lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
+                    lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
+                    { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
+                  ]} />
+                </div>
+              </td>
             </tr>;
           })}</tbody>
         </table>

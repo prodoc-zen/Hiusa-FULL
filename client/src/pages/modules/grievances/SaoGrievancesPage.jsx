@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
@@ -8,7 +8,6 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import TableRowActions from '../../../components/TableRowActions';
 import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
@@ -166,7 +165,7 @@ export default function SaoGrievancesPage() {
         <DataTable
           columns={columns}
           rows={sortedRows}
-          actions={(row) => <TableRowActions subject={formatDisplayText(row.title)} actions={[{ label: 'View details', onClick: () => open(row) }]} />}
+          actions={(row) => <Button size="sm" variant="secondary" onClick={() => open(row)}>View details</Button>}
           loading={loading}
           error={error}
           onRetry={load}

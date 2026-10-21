@@ -218,7 +218,7 @@ for (const { width, height } of WIDTHS) {
         await signInAsSao(page);
 
         await tap(page.getByRole('link', { name: /registrations awaiting review/i }));
-        const card = page.locator('article').filter({ hasText: namePattern });
+        const card = page.locator('tr, article, li').filter({ hasText: namePattern });
         await expect(card).toBeVisible({ timeout: 20000 });
 
         await tap(card.getByRole('button', { name: /^Review / }));
@@ -249,7 +249,7 @@ for (const { width, height } of WIDTHS) {
 
         // The organization is now Active with one administrator, and its Department Head sees it say so.
         await page.goto('/dashboard/super-admin/organizations?status=active');
-        const activeCard = page.locator('article').filter({ hasText: namePattern });
+        const activeCard = page.locator('tr, article, li').filter({ hasText: namePattern });
         await expect(activeCard).toBeVisible({ timeout: 20000 });
         await expect(activeCard).toContainText(/1 admins/);
         await expect(activeCard.getByText(/Active/).first()).toBeVisible();
@@ -260,6 +260,10 @@ for (const { width, height } of WIDTHS) {
         await expect(headRow).toContainText(/Administrator can sign in/i, { timeout: 20000 });
         await head.context.close();
       } finally {
+        try {
+          const sao = await apiAs(SAO);
+          await sao.patch(`/system/organizations/${organization.id}/review`, { decision: 'approve', submitted_at: organization.submittedAt }).catch(() => {});
+        } catch {}
         finish(info, width, 'sao-j1', ceiling, clicks || counter.clicks);
       }
     });
@@ -322,7 +326,7 @@ for (const { width, height } of WIDTHS) {
         await tap(page.getByRole('link', { name: /financial reports to approve/i }));
         const panel = page.getByRole('tabpanel', { name: 'Financial reports' });
         await expect(panel).toBeVisible({ timeout: 20000 });
-        const reportRow = onScreen(panel.locator('article').filter({ hasText: report.title }));
+        const reportRow = onScreen(panel.locator('tr, article, li').filter({ hasText: report.title }));
         await expect(reportRow).toBeVisible({ timeout: 20000 });
 
         await tap(reportRow.getByRole('button', { name: /View/ }));

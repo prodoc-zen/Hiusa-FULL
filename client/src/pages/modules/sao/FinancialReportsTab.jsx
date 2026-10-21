@@ -209,12 +209,15 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
                     <p className="mt-1 text-xs text-slate-500">{report.organization?.acronym || formatDisplayText(report.organization?.name)} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
                   </div>
                   <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
-                  <TableRowActions subject={formatDisplayText(report.title)} actions={[
-                    { label: 'View report', icon: Eye, onClick: () => openReport(report) },
-                    { label: 'Download PDF', icon: Download, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
-                    approval && { label: 'Approve', icon: Check, onClick: () => setReviewAction({ approval, status: 'approved', report }) },
-                    approval && { label: 'Reject', icon: X, danger: true, onClick: () => setReviewAction({ approval, status: 'rejected', report }) },
-                  ]} />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"><Eye size={14} />View</button>
+                    <TableRowActions subject={formatDisplayText(report.title)} actions={[
+                      { label: 'View report', icon: Eye, onClick: () => openReport(report) },
+                      { label: 'Download PDF', icon: Download, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
+                      approval && { label: 'Approve', icon: Check, onClick: () => setReviewAction({ approval, status: 'approved', report }) },
+                      approval && { label: 'Reject', icon: X, danger: true, onClick: () => setReviewAction({ approval, status: 'rejected', report }) },
+                    ]} />
+                  </div>
                 </article>
               );
             })}
