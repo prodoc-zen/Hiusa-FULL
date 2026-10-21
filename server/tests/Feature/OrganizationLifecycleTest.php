@@ -670,7 +670,7 @@ class OrganizationLifecycleTest extends TestCase
         Sanctum::actingAs($this->director);
 
         $this->putJson("/api/system/admins/{$primary->school_id}", ['account_status' => 'disabled'])->assertUnprocessable();
-        $this->putJson("/api/system/admins/{$primary->school_id}", ['organization_id' => $elsewhere->id])->assertUnprocessable();
+        $this->putJson("/api/system/admins/{$primary->school_id}", ['organization_id' => $elsewhere->id])->assertForbidden();
 
         $this->assertSame('active', $primary->fresh()->account_status);
         $this->assertSame($organization->id, $primary->fresh()->organization_id);
