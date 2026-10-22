@@ -266,8 +266,8 @@ test('Step 6: SAO approves and provisions an Administrator', async ({ browser, r
   await drawer.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText(/approved and activated/)).toBeVisible({ timeout: 15000 });
   // Approval leaves the drawer open on the next step: the SAO provisions the organization's administrator.
-  await expect(drawer).toContainText('Provision an administrator');
-  await drawer.getByRole('link', { name: 'Provision administrator' }).click();
+  await expect(drawer).toContainText('Add the first Admin account');
+  await drawer.getByRole('link', { name: 'Add Admin account' }).click();
   await expect(page).toHaveURL(/\/dashboard\/super-admin\/admins\?organization=\d+&create=1$/);
   const form = page.getByRole('dialog', { name: /Create administrator/ });
   await form.getByLabel(/School ID/).fill(String(ADMIN_ID));
