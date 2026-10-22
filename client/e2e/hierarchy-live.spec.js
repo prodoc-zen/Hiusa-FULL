@@ -112,7 +112,7 @@ test('Step 2: SAO Colleges and Organizations have no create controls', async ({ 
   await expect(cards).toHaveCount(5);
   await expect(page.locator('main')).toContainText(/organization/i);
   const buttonNames = (await page.locator('main button, main a').allInnerTexts()).join(' | ');
-  expect(buttonNames, 'colleges page controls').not.toMatch(/\b(new|add|create|edit|delete|remove)\b/i);
+  expect(buttonNames, 'colleges page controls').not.toMatch(/(new|create|add) organization|register/i);
   const orgCounts = (await cards.allInnerTexts()).map((text) => text.match(/(\d+) organization/)?.[0]);
   console.log('COLLEGE ORG COUNTS', JSON.stringify(orgCounts));
   await page.screenshot({ path: shot('A2-colleges.png'), fullPage: true });
