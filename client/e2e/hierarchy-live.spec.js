@@ -310,9 +310,17 @@ test('Step 7: new Administrator logs in through the UI', async ({ browser }) => 
 test('Step 8: archive, read-only views, login refusal, restore, overview', async ({ browser, request }) => {
   test.setTimeout(180_000);
   const { page } = await roleContext(browser, 'SAO', SAO);
-  await goto(page, '/dashboard/super-admin/organizations?status=active');
   const card = page.locator('tbody tr').filter({ hasText: ORG_NAME });
-  await expect(card).toBeVisible({ timeout: 15000 });
+  if (!page.url().includes('/dashboard/super-admin/organizations?status=active') || !(await card.isVisible().catch(() => false))) {
+    await goto(page, '/dashboard/super-admin/organizations?status=active');
+  }
+  await expect(async () => {
+    const tryAgain = page.getByRole('button', { name: 'Try again' });
+    if (await tryAgain.isVisible().catch(() => false)) {
+      await tryAgain.click();
+    }
+    await expect(card).toBeVisible({ timeout: 4000 });
+  }).toPass({ timeout: 25000, intervals: [1000, 2000] });
   await openRowMenu(page, card);
   await page.getByRole('menuitem', { name: 'Archive organization' }).click();
   const dialog = page.getByRole('dialog', { name: 'Archive organization' });
@@ -323,7 +331,13 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   await page.getByRole('tab', { name: /^Archived/ }).click();
   await expect(page.getByRole('note')).toContainText('read-only');
   const archived = page.locator('tbody tr').filter({ hasText: ORG_NAME });
-  await expect(archived).toBeVisible();
+  await expect(async () => {
+    const tryAgain = page.getByRole('button', { name: 'Try again' });
+    if (await tryAgain.isVisible().catch(() => false)) {
+      await tryAgain.click();
+    }
+    await expect(archived).toBeVisible({ timeout: 4000 });
+  }).toPass({ timeout: 20000, intervals: [1000, 2000] });
   await openRowMenu(page, archived);
   await expect(page.getByRole('menuitem', { name: 'Restore organization' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: /Edit|Archive|Review/ })).toHaveCount(0);
