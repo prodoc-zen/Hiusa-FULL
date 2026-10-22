@@ -22,6 +22,7 @@ const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
+const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
 const CollegeCompliancePage = lazy(() => import('./pages/roles/department-head/CollegeCompliancePage'));
 const SaoStoragePage = lazy(() => import('./pages/modules/sao/StorageOverview'));
@@ -245,7 +246,7 @@ function App() {
           <Route path="super-admin/audit-logs" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
           <Route path="super-admin/academic-years" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><AcademicYearsPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<Navigate to="/dashboard/super-admin/compliance?tab=events" replace />} />
-          <Route path="super-admin/admins" element={<Navigate to="/dashboard/super-admin/organizations" replace />} />
+          <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="organization-applications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD"]}><OrganizationApplicationsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
           <Route path="super-admin/notifications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoNotificationsPage /></ProtectedRoute>} />

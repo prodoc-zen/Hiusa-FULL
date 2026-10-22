@@ -63,18 +63,23 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
   const headIsActive = head?.account_status === 'active';
   const counts = college.by_lifecycle_status || {};
   const awaitingAdministrator = (college.organizations || []).filter(needsAdministrator).length;
-  const [expanded, setExpanded] = useState((counts.pending || 0) + (counts.returned || 0) + awaitingAdministrator > 0);
+  const needsReview = (counts.pending || 0) + (counts.returned || 0) + awaitingAdministrator > 0;
+  const [expanded, setExpanded] = useState(needsReview);
   const panelId = `college-${college.id}-organizations`;
 
+  useEffect(() => {
+    if (needsReview) setExpanded(true);
+  }, [needsReview]);
+
   return (
-    <article className="overflow-hidden rounded-card border border-line bg-surface">
+    <article aria-labelledby={`college-${college.id}`} className="overflow-hidden rounded-card border border-line bg-surface">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]" style={college.color ? { borderLeft: `4px solid ${college.color}` } : undefined}>
             {college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="break-words text-base font-bold text-ink">{name}</h2>
+            <h2 id={`college-${college.id}`} className="break-words text-base font-bold text-ink">{name}</h2>
             <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {college.is_active ? 'Active' : 'Archived'}</p>
             {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted" />}
           </div>
@@ -106,7 +111,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line px-4 py-1">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line px-4 py-1">
         {agencyUnavailable ? (
           <p className="py-3 text-sm font-medium text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
         ) : college.organizations_count ? (
@@ -125,7 +130,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             <OrganizationsSummary college={college} awaitingAdministrator={awaitingAdministrator} />
           </>
         ) : <p className="py-3 text-sm font-medium text-ink-muted">{NO_ORGANIZATIONS}</p>}
-      </div>
+      </header>
       {!agencyUnavailable && college.organizations_count > 0 && expanded && (
         <div id={panelId} className="border-t border-line">
           <OrganizationsTable rows={college.organizations} caption={`Organizations of ${college.name}`} showAdmins={showAdmins} />
