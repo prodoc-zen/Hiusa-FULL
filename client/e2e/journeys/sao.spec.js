@@ -44,10 +44,11 @@ async function signInAsSao(page) {
 // Opening it is chrome, not a step, so that tap is not counted (docs/UX_FLOW.md section 9, Counting rules).
 async function chooseFromMenu(page, tap, width, groupLabel, leafLabel) {
   if (width < 768) await page.getByRole('button', { name: 'Open menu' }).click();
+  const nav = page.locator('aside, nav, [role="navigation"]').first();
   const group = groupLabel instanceof RegExp ? { name: groupLabel } : { name: groupLabel, exact: true };
   const leaf = leafLabel instanceof RegExp ? { name: leafLabel } : { name: leafLabel, exact: true };
-  await tap(page.getByRole('button', group));
-  await tap(page.getByRole('link', leaf));
+  await tap(nav.getByRole('button', group));
+  await tap(nav.getByRole('link', leaf));
 }
 
 // Reports sideways scroll and anything that pokes out of the viewport, so a narrow-screen problem is
@@ -229,9 +230,9 @@ for (const { width, height } of WIDTHS) {
         await expect(drawer.getByRole('button', { name: 'Approve' })).toBeEnabled({ timeout: 20000 });
 
         await tap(drawer.getByRole('button', { name: 'Approve' }));
-        await expect(drawer.getByText(/Add (the first )?Admin account|Provision an administrator/i)).toBeVisible({ timeout: 20000 });
+        await expect(drawer.getByText('Add the first Admin account')).toBeVisible({ timeout: 20000 });
 
-        await tap(drawer.getByRole('link', { name: /Add Admin account|Create administrator|Provision administrator/i }));
+        await tap(drawer.getByRole('link', { name: 'Add Admin account' }));
         const form = page.getByRole('dialog', { name: 'Create administrator' });
         await expect(form).toBeVisible({ timeout: 20000 });
         await form.getByLabel(/School ID/).fill(String(adminId));
@@ -289,10 +290,8 @@ for (const { width, height } of WIDTHS) {
         const panel = page.getByRole('tabpanel', { name: /Review (submissions|queue)/i });
         await expect(panel).toBeVisible({ timeout: 20000 });
         const orgFolder = panel.locator('tr, article, li').filter({ hasText: organizationName }).getByRole('button').first();
-        if (await orgFolder.isVisible() && !await panel.locator('tr, article, li').filter({ hasText: requirementName }).first().isVisible()) {
-          await orgFolder.click();
-        }
-        const queueRow = onScreen(panel.locator('tr, article, li').filter({ hasText: requirementName }).filter({ hasText: organizationName }));
+        await orgFolder.waitFor({ state: 'visible', timeout: 10000 }).then(() => orgFolder.click()).catch(() => {});
+        const queueRow = onScreen(panel.locator('tr, article, li').filter({ hasText: requirementName }));
         await expect(queueRow).toBeVisible({ timeout: 20000 });
 
         await tap(queueRow.getByRole('button', { name: organizationName, exact: true }));
@@ -333,9 +332,7 @@ for (const { width, height } of WIDTHS) {
         const panel = page.getByRole('tabpanel', { name: 'Financial reports' });
         await expect(panel).toBeVisible({ timeout: 20000 });
         const orgFolder = panel.locator('tr, article, li').filter({ hasText: /PSITS/i }).getByRole('button').first();
-        if (await orgFolder.isVisible() && !await panel.locator('tr, article, li').filter({ hasText: report.title }).first().isVisible()) {
-          await orgFolder.click();
-        }
+        await orgFolder.waitFor({ state: 'visible', timeout: 10000 }).then(() => orgFolder.click()).catch(() => {});
         const reportRow = onScreen(panel.locator('tr, article, li').filter({ hasText: report.title }));
         await expect(reportRow).toBeVisible({ timeout: 20000 });
 
@@ -374,7 +371,7 @@ for (const { width, height } of WIDTHS) {
       try {
         await signInAsSao(page);
 
-        await chooseFromMenu(page, tap, width, /Governance|Organizations/i, /Colleges|Agency overview/i);
+        await chooseFromMenu(page, tap, width, 'Governance', 'Colleges');
         clicks = counter.clicks;
 
         const sections = page.locator('section[aria-labelledby^="college-"]');
