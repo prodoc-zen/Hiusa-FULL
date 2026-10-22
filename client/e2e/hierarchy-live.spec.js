@@ -454,7 +454,7 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   expect(opened.reachedBlob).toBe(true);
   await page.screenshot({ path: shot('A9-track-documents.png'), fullPage: true });
 
-  await goto(page, '/dashboard/super-admin/compliance?tab=requirements');
+  await goto(page, '/dashboard/super-admin/compliance?tab=semestral-requirements');
   await expect(page.getByRole('tabpanel').last()).toContainText(/Semestral Accomplishment Report/i, { timeout: 15000 });
 });
 
