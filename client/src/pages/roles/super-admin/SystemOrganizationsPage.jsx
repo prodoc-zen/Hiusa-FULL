@@ -491,6 +491,9 @@ export default function SystemOrganizationsPage() {
                 {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
                 {lifecycle === 'returned' && <p className="mt-2 text-xs text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
               </td>
+              <td className="px-4 py-4 align-top text-xs font-semibold text-slate-500">
+                <span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count || 0} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
+              </td>
               <td className="px-4 py-3 align-top">
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {lifecycle === 'pending' && (
