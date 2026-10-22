@@ -390,7 +390,7 @@ for (const { width, height } of WIDTHS) {
         const rows = sections.first().locator('[data-view="table"] tbody tr, [data-view="cards"] > li').filter({ visible: true });
         await expect(rows.first()).toBeVisible();
         const rowTexts = await rows.allInnerTexts();
-        const rowNeedsAction = rowTexts.map((text) => !/Nothing waiting/.test(text) || /Provision an administrator|Review this registration/.test(text));
+        const rowNeedsAction = rowTexts.map((text) => !/Nothing waiting/.test(text) || /Provision (an )?administrator|Review this registration|Add the first Admin account/.test(text));
         const mine = rowTexts.findIndex((text) => pendingPattern.test(text));
         expect(mine, `the new registration is listed in ${summaries[0]}`).toBeGreaterThanOrEqual(0);
         expect(rowNeedsAction[mine], 'the new registration is marked as waiting').toBe(true);
