@@ -85,7 +85,7 @@ export default function GlobalAnnouncementsPage() {
       {form && <form id="official-notice-form" onSubmit={save} className="space-y-4">
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <Field label="Title" required><Input required maxLength={255} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
-        <Field label="Announcement" required><RichTextEditor value={form.body} onChange={(body) => setForm({ ...form, body })} rows={5} /></Field>
+        <Field label="Announcement" required><RichTextEditor id="official-announcement" ariaLabel="Announcement" value={form.body} onChange={(body) => setForm({ ...form, body })} rows={5} /></Field>
         <Field label="Photo (optional)" hint="JPEG, PNG, or WebP, up to 5 MB."><Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file && file.size > 5 * 1024 * 1024) { setError('Choose a photo no larger than 5 MB.'); e.target.value = ''; return; } setError(''); setImage(file || null); }} /></Field>
         {(preview || form.image_url) && <img src={preview || resolveAssetUrl(form.image_url)} alt="Announcement photo preview" className="max-h-56 w-full rounded-lg object-contain" />}
         <Field label="Audience scope"><Select value={form.target_scope} onChange={(e) => setForm({ ...form, target_scope: e.target.value })}><option value="all_users">All HIUSA users</option><option value="all_organizations">All organizations</option><option value="selected_organizations">Selected organizations</option><option value="all_departments">All departments</option><option value="selected_departments">Selected departments</option></Select></Field>
