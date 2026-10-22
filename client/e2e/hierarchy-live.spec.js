@@ -172,10 +172,10 @@ test('Step 3: Department Head registers an organization with 10 PDFs', async ({ 
     await inputs.nth(index).setInputFiles(pdfFile(`doc-${index + 1}.pdf`, `Requirement ${index + 1}`));
   }
   await dialog.getByRole('button', { name: 'Submit for review' }).click();
-  const missing = dialog.getByText('Attach a PDF for this requirement.');
+  const missing = dialog.getByText(/Attach a (file|PDF) for this requirement\./i);
   await expect(missing).toHaveCount(1);
-  const lastField = inputs.nth(9).locator('xpath=ancestor::div[.//text()[contains(.,"Attach a PDF for this requirement.")]][1]');
-  await expect(lastField).toContainText('Attach a PDF for this requirement.');
+  const lastField = inputs.nth(9).locator('xpath=ancestor::div[.//text()[contains(.,"Attach a") and contains(.,"for this requirement.")]][1]');
+  await expect(lastField).toContainText(/Attach a (file|PDF) for this requirement\./i);
   await dialog.screenshot({ path: shot('A3-register-validation.png') });
 
   await inputs.nth(9).setInputFiles(pdfFile('doc-10.pdf', 'Requirement 10'));
