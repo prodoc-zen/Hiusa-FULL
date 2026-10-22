@@ -401,18 +401,18 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   const { page, context } = await roleContext(browser, 'SAO', SAO);
   await goto(page, '/dashboard/super-admin/compliance');
   const expected = [
-    ['Accreditation', 'accreditation'],
-    ['Requirements', 'requirements'],
-    ['Review queue', 'review'],
-    ['Event requirements', 'events'],
+    ['Organization accreditation', 'accreditation'],
+    ['Review submissions', 'review'],
+    ['Event reviews', 'event-reviews'],
     ['Financial reports', 'financial'],
-    ['Track documents', 'documents'],
+    ['Requirement settings', 'requirements'],
+    ['Event requirements', 'events'],
   ];
   const errorsBefore = sink.console.length + sink.pageErrors.length;
   for (const [label, key] of expected) {
     await page.getByRole('tab', { name: new RegExp('^' + label + '( [(][0-9]+[)])?$') }).click();
     await expect(page).toHaveURL(new RegExp(`tab=${key}`));
-    const panel = page.getByRole('tabpanel');
+    const panel = page.getByRole('tabpanel').last();
     await expect(panel).toBeVisible();
     await page.waitForLoadState('networkidle');
     await expect.poll(async () => (await panel.innerText()).trim().length, { timeout: 15000 }).toBeGreaterThan(20);
@@ -428,26 +428,34 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   await expect(page).toHaveURL(/\/compliance\?tab=events/);
 
   await goto(page, '/dashboard/super-admin/compliance?tab=documents');
-  const orgSelect = page.getByLabel('Organization', { exact: true });
-  await expect(orgSelect.locator('option', { hasText: ORG_ACRONYM })).toHaveCount(1, { timeout: 40000 });
-  await orgSelect.selectOption({ value: await orgSelect.locator('option', { hasText: ORG_ACRONYM }).getAttribute('value') });
-  const organizationRow = page.getByRole('tabpanel').getByRole('button', { name: new RegExp(ORG_ACRONYM) });
-  await expect(organizationRow).toContainText('10 files', { timeout: 15000 });
-  await organizationRow.click();
-  const openButtons = page.getByRole('tabpanel').getByRole('button', { name: /^View / });
-  await expect(openButtons.first()).toBeVisible({ timeout: 15000 });
-  await expect.poll(() => openButtons.count(), { timeout: 20000, message: 'Track documents rows for the selected organization' }).toBe(10);
-  const count = await openButtons.count();
+  await expect(page).toHaveURL(/\/dashboard\/super-admin\/documents/);
+  const searchInput = page.getByPlaceholder(/Name or acronym/i);
+  if (await searchInput.isVisible().catch(() => false)) {
+    await searchInput.fill(ORG_NAME);
+  }
+  const folder = page.getByRole('button', { name: new RegExp(ORG_NAME) });
+  await expect(folder).toBeVisible({ timeout: 20000 });
+  await expect(folder).toContainText('10 files', { timeout: 15000 });
+  await folder.click();
+
+  const fileRows = page.locator('tbody tr');
+  await expect(fileRows.first()).toBeVisible({ timeout: 15000 });
+  await expect.poll(() => fileRows.count(), { timeout: 20000, message: 'Track documents rows for the selected organization' }).toBe(10);
+  const count = await fileRows.count();
   console.log('TRACK DOCUMENTS rows for the new organization:', count);
   expect(count).toBe(10);
-  const opened = await clickAndCaptureOpenedPdf(page, context, () => openButtons.first().click());
+
+  const opened = await clickAndCaptureOpenedPdf(page, context, async () => {
+    await openRowMenu(page, fileRows.first());
+    await page.getByRole('menuitem', { name: 'View file' }).click();
+  });
   console.log('TRACK OPEN', JSON.stringify(opened));
   expect(opened.apiStatus).toBe(200);
   expect(opened.reachedBlob).toBe(true);
   await page.screenshot({ path: shot('A9-track-documents.png'), fullPage: true });
 
   await goto(page, '/dashboard/super-admin/compliance?tab=requirements');
-  await expect(page.getByRole('tabpanel')).toContainText(/Semestral Accomplishment Report/i, { timeout: 15000 });
+  await expect(page.getByRole('tabpanel').last()).toContainText(/Semestral Accomplishment Report/i, { timeout: 15000 });
 });
 
 test('Step 10: SAO venues booking calendar', async ({ browser }) => {
