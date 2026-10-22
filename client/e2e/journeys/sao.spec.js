@@ -331,7 +331,7 @@ for (const { width, height } of WIDTHS) {
         await tap(page.getByRole('link', { name: /financial reports to approve/i }));
         const panel = page.getByRole('tabpanel', { name: 'Financial reports' });
         await expect(panel).toBeVisible({ timeout: 20000 });
-        const orgFolder = panel.locator('tr, article, li').filter({ hasText: /PSITS/i }).getByRole('button').first();
+        const orgFolder = panel.locator('tr, article, li').filter({ hasText: /PSITS|Information Technology Students/i }).getByRole('button').first();
         await orgFolder.waitFor({ state: 'visible', timeout: 10000 }).then(() => orgFolder.click()).catch(() => {});
         const reportRow = onScreen(panel.locator('tr, article, li').filter({ hasText: report.title }));
         await expect(reportRow).toBeVisible({ timeout: 20000 });
@@ -374,7 +374,7 @@ for (const { width, height } of WIDTHS) {
         await chooseFromMenu(page, tap, width, 'Governance', 'Colleges');
         clicks = counter.clicks;
 
-        const sections = page.locator('section[aria-labelledby^="college-"]');
+        const sections = page.locator('article[aria-labelledby^="college-"], section[aria-labelledby^="college-"]');
         await expect(sections.first()).toBeVisible({ timeout: 20000 });
         await expect(onScreen(page.getByText(pending.name, { exact: false }))).toBeVisible({ timeout: 20000 });
 
