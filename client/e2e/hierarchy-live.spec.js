@@ -103,17 +103,32 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
   void semesters;
   // Ensure the 10 organization requirements are active and have sample formats so registration is open for Department Head.
   const { token } = await apiLogin(page.request, SAO);
+  const legacyReqs = await page.request.get(`${apiUrl}/compliance/requirement-types`, {
+    headers: bearer(token),
+    params: { per_page: 100, academic_year: '2026-2027' },
+  });
+  const legacyList = (await legacyReqs.json()).data || [];
+  for (const type of legacyList) {
+    if (!type.academic_semester_id && type.is_active) {
+      await page.request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
+        headers: bearer(token),
+        data: { is_active: false },
+      });
+    }
+  }
+
   const reqListRes = await page.request.get(`${apiUrl}/compliance/requirement-types`, {
     headers: bearer(token),
     params: { per_page: 100, category: 'organization', academic_year: '2026-2027' },
   });
   const reqList = (await reqListRes.json()).data || [];
   for (const type of reqList) {
-    if (!type.is_active || !type.template_url) {
-      await page.request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
+    if (type.academic_semester_id) {
+      const res = await page.request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
         headers: bearer(token),
         data: { is_active: true, template_url: 'https://example.edu/format.pdf' },
       });
+      expect(res.ok(), `activate requirement ${type.name}: ${await res.text()}`).toBe(true);
     }
   }
   await page.screenshot({ path: shot('A1-academic-years.png'), fullPage: true });

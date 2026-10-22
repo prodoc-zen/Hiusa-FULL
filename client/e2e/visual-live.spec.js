@@ -46,13 +46,26 @@ async function ensureFixtures(request) {
     if (currentYear && currentYear.semesters && currentYear.semesters.length > 0) {
       const semToActivate = currentYear.semesters.find((s) => s.status === 'active') || currentYear.semesters[0];
       await request.patch(`${apiUrl}/system/academic-semesters/${semToActivate.id}/active`, { headers: bearer(sao.token) });
+      const legacyReqs = await request.get(`${apiUrl}/compliance/requirement-types`, {
+        headers: bearer(sao.token),
+        params: { per_page: 100, academic_year: currentYear.label },
+      });
+      const legacyList = (await legacyReqs.json()).data || [];
+      for (const type of legacyList) {
+        if (!type.academic_semester_id && type.is_active) {
+          await request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
+            headers: bearer(sao.token),
+            data: { is_active: false },
+          });
+        }
+      }
       const reqListRes = await request.get(`${apiUrl}/compliance/requirement-types`, {
         headers: bearer(sao.token),
         params: { per_page: 100, category: 'organization', academic_year: currentYear.label },
       });
       const reqList = (await reqListRes.json()).data || [];
       for (const type of reqList) {
-        if (!type.is_active || !type.template_url) {
+        if (type.academic_semester_id) {
           await request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
             headers: bearer(sao.token),
             data: { is_active: true, template_url: 'https://example.edu/format.pdf' },
