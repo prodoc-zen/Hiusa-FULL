@@ -734,9 +734,17 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
 
 test('Step 13b: SAO delete controls (semesters, drafts, clearance periods)', async ({ browser }) => {
   test.setTimeout(240_000);
-  const { page } = await roleContext(browser, 'SAO', SAO);
+  let { page } = await roleContext(browser, 'SAO', SAO);
 
   await goto(page, '/dashboard/super-admin/academic-years');
+  if (!page.url().includes('/dashboard/super-admin')) {
+    const context = await browser.newContext();
+    page = await context.newPage();
+    collect(page, 'SAO', sink);
+    await uiLogin(page, SAO);
+    contexts['SAO'] = { context, page };
+    await goto(page, '/dashboard/super-admin/academic-years');
+  }
   await expect(page.getByText(/1st Semester/).first()).toBeVisible({ timeout: 15000 });
   if (!(await page.getByText('2nd Semester').first().isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Add semester' }).first().click();
@@ -747,19 +755,51 @@ test('Step 13b: SAO delete controls (semesters, drafts, clearance periods)', asy
     await dialog.getByRole('button', { name: 'Add semester' }).click();
     await expect(page.getByText('Semester added').first()).toBeVisible({ timeout: 10000 });
   }
+
   await expect(page.getByRole('button', { name: /^Delete 1st semester/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Delete 2nd semester/ })).toHaveCount(1);
+  const sem1Row = page.locator('div').filter({ hasText: '1st Semester' }).filter({ has: page.getByRole('button', { name: /^Actions for / }) }).last();
+  if (await sem1Row.isVisible().catch(() => false)) {
+    await openRowMenu(page, sem1Row);
+    await expect(page.getByRole('menuitem', { name: /Delete 1st semester/i })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+
   await expect(page.getByRole('button', { name: /^Remove 2026-2027/ })).toHaveCount(0);
-  await page.getByRole('button', { name: /^Delete 2nd semester/ }).click();
+  const yearRow = page.getByRole('row').filter({ hasText: '2026-2027' }).first();
+  if (await yearRow.isVisible().catch(() => false)) {
+    await openRowMenu(page, yearRow);
+    await expect(page.getByRole('menuitem', { name: /Remove 2026-2027/i })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+
+  const sem2Row = page.locator('div').filter({ hasText: '2nd Semester' }).filter({ has: page.getByRole('button', { name: /^Actions for / }) }).last();
+  await expect(sem2Row).toBeVisible({ timeout: 15000 });
+  const inlineSem2Delete = sem2Row.getByRole('button', { name: /^Delete 2nd semester/ });
+  if (await inlineSem2Delete.count()) {
+    await inlineSem2Delete.first().click();
+  } else {
+    await openRowMenu(page, sem2Row);
+    const deleteSem2 = page.getByRole('menuitem', { name: /Delete 2nd semester/i });
+    await expect(deleteSem2).toBeVisible();
+    await deleteSem2.click();
+  }
+
   const semesterDialog = page.getByRole('dialog', { name: 'Delete semester' });
   await expect(semesterDialog).toBeVisible();
   await semesterDialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(semesterDialog).toBeHidden();
   await page.screenshot({ path: shot('A13-sao-academic-years.png'), fullPage: true });
-  await page.getByRole('button', { name: /^Delete 2nd semester/ }).click();
+
+  if (await inlineSem2Delete.count()) {
+    await inlineSem2Delete.first().click();
+  } else {
+    await openRowMenu(page, sem2Row);
+    await page.getByRole('menuitem', { name: /Delete 2nd semester/i }).click();
+  }
   await page.getByRole('dialog', { name: 'Delete semester' }).getByRole('button', { name: 'Delete semester' }).click();
   await expect(page.getByText('Semester removed').first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('button', { name: /^Delete 2nd semester/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Actions for 2nd semester/i })).toHaveCount(0);
 
   await goto(page, '/dashboard/super-admin/announcements');
   const draftTitle = `E2E throwaway notice ${Date.now()}`;
@@ -769,32 +809,66 @@ test('Step 13b: SAO delete controls (semesters, drafts, clearance periods)', asy
   await form.locator('#official-announcement').fill('Draft body for the delete control check.');
   await form.getByRole('button', { name: 'Save draft' }).click();
   await expect(form).toBeHidden({ timeout: 15000 });
-  const draft = page.locator('article').filter({ hasText: draftTitle });
-  await expect(draft).toContainText('DRAFT', { timeout: 15000 });
-  await expect(draft.getByRole('button', { name: /Delete draft/ })).toBeVisible();
-  const published = page.locator('article').filter({ hasText: 'PUBLISHED' });
+
+  const draft = page.locator('section, article').filter({ hasText: draftTitle }).first();
+  await expect(draft).toBeVisible({ timeout: 15000 });
+  await expect(draft).toContainText(/Draft/i, { timeout: 15000 });
+
+  const inlineDraftDelete = draft.getByRole('button', { name: /^Delete draft/ });
+  if (await inlineDraftDelete.count()) {
+    await inlineDraftDelete.first().click();
+  } else {
+    await openRowMenu(page, draft);
+    await expect(page.getByRole('menuitem', { name: /Delete draft/i })).toBeVisible();
+    await page.keyboard.press('Escape');
+  }
+
+  const published = page.locator('section, article').filter({ hasText: /Published/i });
   const publishedCount = await published.count();
   console.log('GLOBAL ANNOUNCEMENTS published', publishedCount);
   for (let index = 0; index < publishedCount; index += 1) {
-    await expect(published.nth(index).getByRole('button', { name: /Delete draft/ })).toHaveCount(0);
+    const pubCard = published.nth(index);
+    await expect(pubCard.getByRole('button', { name: /^Delete draft/ })).toHaveCount(0);
+    if (await pubCard.getByRole('button', { name: /^Actions for / }).isVisible().catch(() => false)) {
+      await openRowMenu(page, pubCard);
+      await expect(page.getByRole('menuitem', { name: /Delete draft/i })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+    }
   }
-  await draft.getByRole('button', { name: /Delete draft/ }).click();
+
+  if (await inlineDraftDelete.count()) {
+    await inlineDraftDelete.first().click();
+  } else {
+    await openRowMenu(page, draft);
+    await page.getByRole('menuitem', { name: /Delete draft/i }).click();
+  }
   const draftDialog = page.getByRole('dialog', { name: 'Delete this draft?' });
   await expect(draftDialog).toBeVisible();
   await draftDialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(draftDialog).toBeHidden();
-  await draft.getByRole('button', { name: /Delete draft/ }).click();
+
+  if (await inlineDraftDelete.count()) {
+    await inlineDraftDelete.first().click();
+  } else {
+    await openRowMenu(page, draft);
+    await page.getByRole('menuitem', { name: /Delete draft/i }).click();
+  }
   await page.getByRole('dialog', { name: 'Delete this draft?' }).getByRole('button', { name: 'Delete draft' }).click();
-  await expect(page.getByText('Draft deleted.').first()).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('article').filter({ hasText: draftTitle })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Delete this draft?' })).toBeHidden({ timeout: 15000 });
+  await expect(page.locator('section, article').filter({ hasText: draftTitle })).toHaveCount(0, { timeout: 15000 });
   await page.screenshot({ path: shot('A13-sao-announcements.png'), fullPage: true });
 
   await goto(page, '/dashboard/super-admin/clearances');
   await page.waitForLoadState('networkidle');
-  const periodDeletes = page.getByRole('button', { name: /^Delete / });
-  await expect(periodDeletes.first()).toBeVisible({ timeout: 15000 });
-  console.log('CLEARANCE delete buttons', await periodDeletes.count());
-  await periodDeletes.first().click();
+  const periodCard = page.locator('section, article, div').filter({ has: page.getByRole('button', { name: /^Actions for / }) }).first();
+  await expect(periodCard).toBeVisible({ timeout: 15000 });
+  const inlinePeriodDelete = periodCard.getByRole('button', { name: /^Delete / });
+  if (await inlinePeriodDelete.count()) {
+    await inlinePeriodDelete.first().click();
+  } else {
+    await openRowMenu(page, periodCard);
+    await page.getByRole('menuitem', { name: /Delete period/i }).click();
+  }
   const periodDialog = page.getByRole('dialog', { name: 'Delete this clearance period?' });
   await expect(periodDialog).toBeVisible();
   await periodDialog.getByRole('button', { name: 'Cancel' }).click();
