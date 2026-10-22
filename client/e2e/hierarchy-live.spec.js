@@ -101,6 +101,21 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
   await expect(page.getByText(/1st Semester/).first()).toBeVisible();
   await expect(page.locator('main')).toContainText(/active/i);
   void semesters;
+  // Ensure the 10 organization requirements are active and have sample formats so registration is open for Department Head.
+  const { token } = await apiLogin(page.request, SAO);
+  const reqListRes = await page.request.get(`${apiUrl}/compliance/requirement-types`, {
+    headers: bearer(token),
+    params: { per_page: 100, category: 'organization', academic_year: '2026-2027' },
+  });
+  const reqList = (await reqListRes.json()).data || [];
+  for (const type of reqList) {
+    if (!type.is_active || !type.template_url) {
+      await page.request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
+        headers: bearer(token),
+        data: { is_active: true, template_url: 'https://example.edu/format.pdf' },
+      });
+    }
+  }
   await page.screenshot({ path: shot('A1-academic-years.png'), fullPage: true });
 });
 
@@ -163,9 +178,13 @@ test('Step 4: SAO agency overview, review drawer, open document, return with rem
   state.orgId = await lookupOrgId(request, session.token);
   expect(state.orgId, 'organization id for the new registration').toBeTruthy();
 
-  await goto(page, '/dashboard/super-admin/agency');
-  const ccs = page.getByRole('region', { name: /College of Computer Studies/ });
+  await goto(page, '/dashboard/super-admin/colleges');
+  const ccs = page.locator('main article').filter({ hasText: 'College of Computer Studies' });
   await expect(ccs).toBeVisible({ timeout: 15000 });
+  const expandBtn = ccs.getByRole('button', { name: /Organizations of /i });
+  if (await expandBtn.getAttribute('aria-expanded') !== 'true') {
+    await expandBtn.click();
+  }
   const agencyRow = ccs.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
   await expect(agencyRow).toContainText(/Pending/i);
   await page.screenshot({ path: shot('A4-agency.png'), fullPage: true });
