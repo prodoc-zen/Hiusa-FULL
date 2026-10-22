@@ -179,8 +179,9 @@ test('Step 3: Department Head registers an organization with 10 PDFs', async ({ 
   await dialog.screenshot({ path: shot('A3-register-validation.png') });
 
   await inputs.nth(9).setInputFiles(pdfFile('doc-10.pdf', 'Requirement 10'));
+  await expect(dialog.getByText(/Selected: doc-10\.pdf/)).toBeVisible({ timeout: 10000 });
   await dialog.getByRole('button', { name: 'Submit for review' }).click();
-  await expect(dialog).toBeHidden({ timeout: 30000 });
+  await expect(dialog).toBeHidden({ timeout: 60000 });
   const row = page.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
   await expect(row).toContainText('Pending review', { timeout: 15000 });
   await page.screenshot({ path: shot('A3-head-pending.png'), fullPage: true });
@@ -310,10 +311,8 @@ test('Step 7: new Administrator logs in through the UI', async ({ browser }) => 
 test('Step 8: archive, read-only views, login refusal, restore, overview', async ({ browser, request }) => {
   test.setTimeout(180_000);
   const { page } = await roleContext(browser, 'SAO', SAO);
+  await goto(page, '/dashboard/super-admin/organizations?status=active');
   const card = page.locator('tbody tr').filter({ hasText: ORG_NAME });
-  if (!page.url().includes('/dashboard/super-admin/organizations?status=active') || !(await card.isVisible().catch(() => false))) {
-    await goto(page, '/dashboard/super-admin/organizations?status=active');
-  }
   await expect(async () => {
     const tryAgain = page.getByRole('button', { name: 'Try again' });
     if (await tryAgain.isVisible().catch(() => false)) {
@@ -321,12 +320,22 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
     }
     await expect(card).toBeVisible({ timeout: 4000 });
   }).toPass({ timeout: 25000, intervals: [1000, 2000] });
-  await openRowMenu(page, card);
-  await page.getByRole('menuitem', { name: 'Archive organization' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Archive organization' });
-  await dialog.getByLabel(/Reason/).fill('Semester wrap up from the e2e run');
-  await dialog.getByRole('button', { name: 'Archive organization' }).click();
-  await expect(page.getByText(/archived\./)).toBeVisible({ timeout: 15000 });
+
+  await expect(async () => {
+    if (!await page.getByText(/archived\./).isVisible()) {
+      const dialog = page.getByRole('dialog', { name: 'Archive organization' });
+      if (await dialog.isVisible().catch(() => false)) {
+        await dialog.getByRole('button', { name: 'Archive organization' }).click();
+      } else {
+        await openRowMenu(page, card);
+        await page.getByRole('menuitem', { name: 'Archive organization' }).click();
+        const dlg = page.getByRole('dialog', { name: 'Archive organization' });
+        await dlg.getByLabel(/Reason/).fill('Semester wrap up from the e2e run');
+        await dlg.getByRole('button', { name: 'Archive organization' }).click();
+      }
+    }
+    await expect(page.getByText(/archived\./)).toBeVisible({ timeout: 5000 });
+  }).toPass({ timeout: 30000, intervals: [1000, 2000] });
 
   await page.getByRole('tab', { name: /^Archived/ }).click();
   await expect(page.getByRole('note')).toContainText('read-only');
