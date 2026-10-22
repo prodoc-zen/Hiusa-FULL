@@ -806,7 +806,7 @@ test('Step 13b: SAO delete controls (semesters, drafts, clearance periods)', asy
   await page.getByRole('button', { name: /Create official notice/ }).click();
   const form = page.getByRole('dialog', { name: /Create official announcement/ });
   await form.getByLabel('Title').fill(draftTitle);
-  await form.locator('#official-announcement').fill('Draft body for the delete control check.');
+  await form.locator('textarea, #official-announcement').fill('Draft body for the delete control check.');
   await form.getByRole('button', { name: 'Save draft' }).click();
   await expect(form).toBeHidden({ timeout: 15000 });
 
