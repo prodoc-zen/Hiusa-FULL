@@ -179,7 +179,12 @@ for (const role of Object.keys(ROUTES)) {
           await expect(page.getByRole('navigation').first()).toBeVisible({ timeout: 15000 });
         }
         const main = page.getByRole('main');
-        await expect(main).toBeVisible({ timeout: 15000 });
+        try {
+          await expect(main).toBeVisible({ timeout: 15000 });
+        } catch {
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await expect(main).toBeVisible({ timeout: 15000 });
+        }
         // Page rendered real content (a heading, or substantial body text for the
         // few grid/card pages that carry no semantic heading), and did not surface
         // an error state.

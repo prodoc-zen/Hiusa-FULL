@@ -681,20 +681,17 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
 
   await goto(page, '/dashboard/finance/budget-allocation');
   await page.waitForLoadState('networkidle');
-  const deleteBudgetButtons = page.getByRole('button', { name: 'Delete budget' });
-  await expect(deleteBudgetButtons.first()).toBeVisible({ timeout: 15000 });
-  console.log('BUDGET DELETE BUTTONS', await deleteBudgetButtons.count());
-  await deleteBudgetButtons.first().click();
+  const budgetCard = page.locator('div').filter({ hasText: budgetTitle }).filter({ has: page.getByRole('button', { name: /^Actions for / }) }).last();
+  await expect(budgetCard).toBeVisible({ timeout: 15000 });
+  await openRowMenu(page, budgetCard);
+  await page.getByRole('menuitem', { name: 'Delete budget' }).click();
   const budgetCancel = page.getByRole('dialog', { name: 'Delete this budget?' });
   await expect(budgetCancel).toBeVisible();
   await budgetCancel.getByRole('button', { name: 'Cancel' }).click();
   await expect(budgetCancel).toBeHidden();
   if (budgetResponse.status() === 201 || budgetResponse.status() === 200) {
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-    const card = page.locator('div').filter({ hasText: budgetTitle }).filter({ has: page.getByRole('button', { name: 'Delete budget' }) }).last();
-    await expect(card).toBeVisible({ timeout: 30000 });
-    await card.getByRole('button', { name: 'Delete budget' }).click();
+    await openRowMenu(page, budgetCard);
+    await page.getByRole('menuitem', { name: 'Delete budget' }).click();
     const dialog = page.getByRole('dialog', { name: 'Delete this budget?' });
     await expect(dialog).toContainText(budgetTitle);
     await dialog.getByRole('button', { name: /^Delete budget$/ }).click();
