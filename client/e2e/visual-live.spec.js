@@ -184,7 +184,6 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
   const session = await apiLogin(request, SAO);
   const orgPath = (id) => `/dashboard/super-admin/organizations/${id}`;
   const screens = [
-    { name: 'agency', path: '/dashboard/super-admin/agency' },
     { name: 'organizations-pending', path: '/dashboard/super-admin/organizations?status=pending' },
     { name: 'organizations-active', path: '/dashboard/super-admin/organizations?status=active' },
     { name: 'organizations-returned', path: '/dashboard/super-admin/organizations?status=returned' },
@@ -198,7 +197,7 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
     { name: 'compliance-review', path: '/dashboard/super-admin/compliance?tab=review' },
     { name: 'compliance-events', path: '/dashboard/super-admin/compliance?tab=events' },
     { name: 'compliance-financial', path: '/dashboard/super-admin/compliance?tab=financial' },
-    { name: 'compliance-documents', path: '/dashboard/super-admin/compliance?tab=documents' },
+    { name: 'documents', path: '/dashboard/super-admin/documents' },
     {
       name: 'venues-calendar',
       path: '/dashboard/super-admin/venues',
