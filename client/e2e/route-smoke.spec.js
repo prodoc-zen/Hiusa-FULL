@@ -36,7 +36,6 @@ const ROUTES = {
     '/dashboard/super-admin/clearances',
     '/dashboard/super-admin/audit-logs',
     '/dashboard/super-admin/academic-years',
-    '/dashboard/objectives',
     '/dashboard/profile',
   ],
   ADMIN: [
@@ -76,7 +75,6 @@ const ROUTES = {
     '/dashboard/venues',
     '/dashboard/grievances',
     '/dashboard/clearances',
-    '/dashboard/objectives',
     '/dashboard/profile',
     '/dashboard/elections/manage-elections',
     '/dashboard/elections/manage-candidates',
@@ -108,7 +106,6 @@ const ROUTES = {
     '/dashboard/tasks/ai-delegation',
     '/dashboard/venues',
     '/dashboard/clearances',
-    '/dashboard/objectives',
     '/dashboard/profile',
     '/dashboard/elections/manage-candidates',
     '/dashboard/elections/manage-voters',
@@ -125,7 +122,6 @@ const ROUTES = {
     '/dashboard/finance/budget-allocation',
     '/dashboard/finance/financial-insights',
     '/dashboard/finance/transaction-history',
-    '/dashboard/objectives',
     '/dashboard/profile',
     '/dashboard/elections/election-results',
   ],
@@ -139,7 +135,6 @@ const ROUTES = {
     '/dashboard/merchandise/my-orders',
     '/dashboard/my-grievances',
     '/dashboard/my-clearance',
-    '/dashboard/objectives',
     '/dashboard/profile',
     '/dashboard/elections/cast-vote',
     '/dashboard/elections/election-results',
@@ -153,6 +148,8 @@ async function signIn(page, role) {
     window.localStorage.setItem('user', JSON.stringify(user));
     // The elections hub shows a picker until an election is chosen; pre-select the
     // seeded one so the election sub-pages render their real content.
+    const selectionKey = `hiusa-election-${user?.organization_id ?? 'organization'}-${user?.school_id ?? 'user'}`;
+    window.sessionStorage.setItem(selectionKey, '1');
     window.sessionStorage.setItem('activeElectionId', '1');
   }, session);
   return session;

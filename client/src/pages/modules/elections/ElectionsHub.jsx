@@ -22,7 +22,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   // Links made before the election moved into the URL carry no record, so the last selection in this
   // browser tab stands in for it once, and is then written to the URL.
-  const [fallbackId, setFallbackId] = useState(() => sessionStorage.getItem(selectionKey));
+  const [fallbackId, setFallbackId] = useState(() => sessionStorage.getItem(selectionKey) || sessionStorage.getItem('activeElectionId'));
   const [failedId, setFailedId] = useState(null);
   const editElectionId = searchParams.get('edit');
   const showingPicker = Boolean(editElectionId) || startCreateElection;
@@ -37,6 +37,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   const forgetSelection = useCallback(() => {
     sessionStorage.removeItem(selectionKey);
+    sessionStorage.removeItem('activeElectionId');
     setFallbackId(null);
   }, [selectionKey]);
 
@@ -96,6 +97,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   const handleSelect = (id) => {
     sessionStorage.setItem(selectionKey, String(id));
+    sessionStorage.setItem('activeElectionId', String(id));
     setFallbackId(String(id));
     setRecordId(id);
   };

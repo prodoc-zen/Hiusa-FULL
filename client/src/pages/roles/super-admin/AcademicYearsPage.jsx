@@ -234,15 +234,38 @@ export default function AcademicYearsPage() {
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
-            {(year.semesters || []).length < 2 && <TableRowActions subject={`Semesters of ${year.label}`} actions={[{ label: 'Add semester', onClick: () => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); } }]} />}
+            {(year.semesters || []).length < 2 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={Plus}
+                onClick={() => {
+                  setSemesterYear(year);
+                  setSemesterErrors({});
+                  setSemesterForm({
+                    ...EMPTY_SEMESTER,
+                    number: year.semesters?.some((item) => item.number === 1) ? '2' : '1',
+                  });
+                }}
+              >
+                Add semester
+              </Button>
+            )}
           </div>
           <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
             <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><StatusBadge status={semester.status} /></div>
-            <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[
-              semester.status === 'upcoming' && { label: 'Set as active', disabled: busy, onClick: () => changeSemester(semester, 'activate') },
-              semester.status === 'active' && { label: 'Close semester', disabled: busy, onClick: () => changeSemester(semester, 'close') },
-              semester.status !== 'active' && { label: `Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`, icon: Trash2, danger: true, disabled: busy, onClick: () => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); } },
-            ]} />
+            <div className="flex items-center gap-2">
+              {semester.status === 'upcoming' && (
+                <Button size="xs" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>
+                  Set as active
+                </Button>
+              )}
+              <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[
+                semester.status === 'upcoming' && { label: 'Set as active', disabled: busy, onClick: () => changeSemester(semester, 'activate') },
+                semester.status === 'active' && { label: 'Close semester', disabled: busy, onClick: () => changeSemester(semester, 'close') },
+                semester.status !== 'active' && { label: `Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`, icon: Trash2, danger: true, disabled: busy, onClick: () => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); } },
+              ]} />
+            </div>
           </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
         </div>)}
       </Card>

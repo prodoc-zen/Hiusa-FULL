@@ -75,7 +75,13 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
   const alreadyActive = await page.getByText(/1st Semester.*active/i).first().isVisible().catch(() => false);
   if (!alreadyActive) {
     if (!(await page.getByText('1st Semester').first().isVisible().catch(() => false))) {
-      await page.getByRole('button', { name: 'Add semester' }).first().click();
+      const addBtn = page.getByRole('button', { name: 'Add semester' });
+      if (await addBtn.first().isVisible().catch(() => false)) {
+        await addBtn.first().click();
+      } else {
+        await page.getByRole('button', { name: /Actions for Semesters of/i }).first().click();
+        await page.getByRole('menuitem', { name: 'Add semester' }).click();
+      }
       const dialog = page.getByRole('dialog');
       await dialog.getByLabel(/^Semester/).selectOption('1');
       await dialog.getByLabel(/Starts on/).fill('2026-08-03');
@@ -83,7 +89,13 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
       await dialog.getByRole('button', { name: 'Add semester' }).click();
       await expect(page.getByText('Semester added').first()).toBeVisible({ timeout: 10000 });
     }
-    await page.getByRole('button', { name: 'Set as active' }).first().click();
+    const activateBtn = page.getByRole('button', { name: 'Set as active' });
+    if (await activateBtn.first().isVisible().catch(() => false)) {
+      await activateBtn.first().click();
+    } else {
+      await page.getByRole('button', { name: /Actions for 1st semester/i }).first().click();
+      await page.getByRole('menuitem', { name: 'Set as active' }).click();
+    }
     await expect(page.getByText('Academic semester activated').first()).toBeVisible({ timeout: 10000 });
   }
   await expect(page.getByText(/1st Semester/).first()).toBeVisible();
