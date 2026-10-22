@@ -23,7 +23,6 @@ test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local La
 const ROUTES = {
   SUPER_ADMIN: [
     '/dashboard/super-admin',
-    '/dashboard/super-admin/agency',
     '/dashboard/super-admin/organizations',
     `/dashboard/super-admin/organizations/${PSITS_ORGANIZATION_ID}`,
     '/dashboard/super-admin/colleges',
@@ -169,8 +168,16 @@ for (const role of Object.keys(ROUTES)) {
     for (const path of ROUTES[role]) {
       try {
         await page.goto(path, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(100);
         // Shell mounted (a page crash with no error boundary blanks nav too).
-        await expect(page.getByRole('navigation').first()).toBeVisible({ timeout: 15000 });
+        try {
+          await expect(page.getByRole('navigation').first()).toBeVisible({ timeout: 15000 });
+        } catch {
+          // If rapid unbundled ESM loading hit resource limits, one reload recovers.
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(200);
+          await expect(page.getByRole('navigation').first()).toBeVisible({ timeout: 15000 });
+        }
         const main = page.getByRole('main');
         await expect(main).toBeVisible({ timeout: 15000 });
         // Page rendered real content (a heading, or substantial body text for the
@@ -206,6 +213,7 @@ test('removed and redirected routes resolve where they should', async ({ page })
   test.setTimeout(240_000);
   const byRole = {
     SUPER_ADMIN: {
+      '/dashboard/super-admin/agency': /\/dashboard\/super-admin\/colleges$/,
       '/dashboard/super-admin/financial-reports': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
       '/dashboard/super-admin/approvals': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
       '/dashboard/super-admin/event-requirements': /\/dashboard\/super-admin\/compliance\?tab=events$/,

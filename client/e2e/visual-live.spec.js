@@ -38,7 +38,31 @@ async function findOrganization(request, token, acronym) {
 async function ensureFixtures(request) {
   const sao = await apiLogin(request, SAO);
   const head = await apiLogin(request, HEAD_CCS);
-  const requirements = (await (await request.get(`${apiUrl}/college/organizations/requirements`, { headers: bearer(head.token) })).json()).requirements;
+  let requirements = (await (await request.get(`${apiUrl}/college/organizations/requirements`, { headers: bearer(head.token) })).json()).requirements;
+  if (!requirements || requirements.length === 0) {
+    const ayRes = await request.get(`${apiUrl}/system/academic-years`, { headers: bearer(sao.token) });
+    const years = await ayRes.json();
+    const currentYear = years.find((y) => y.is_current) || years[0];
+    if (currentYear && currentYear.semesters && currentYear.semesters.length > 0) {
+      const semToActivate = currentYear.semesters.find((s) => s.status === 'active') || currentYear.semesters[0];
+      await request.patch(`${apiUrl}/system/academic-semesters/${semToActivate.id}/active`, { headers: bearer(sao.token) });
+      const reqListRes = await request.get(`${apiUrl}/compliance/requirement-types`, {
+        headers: bearer(sao.token),
+        params: { per_page: 100, category: 'organization', academic_year: currentYear.label },
+      });
+      const reqList = (await reqListRes.json()).data || [];
+      for (const type of reqList) {
+        if (!type.is_active || !type.template_url) {
+          await request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
+            headers: bearer(sao.token),
+            data: { is_active: true, template_url: 'https://example.edu/format.pdf' },
+          });
+        }
+      }
+      const refreshed = await (await request.get(`${apiUrl}/college/organizations/requirements`, { headers: bearer(head.token) })).json();
+      requirements = refreshed.requirements;
+    }
+  }
   const ids = {};
   for (const fixture of FIXTURES) {
     let organization = await findOrganization(request, sao.token, fixture.acronym);
