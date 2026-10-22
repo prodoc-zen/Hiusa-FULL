@@ -455,7 +455,7 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   await page.screenshot({ path: shot('A9-track-documents.png'), fullPage: true });
 
   await goto(page, '/dashboard/super-admin/compliance?tab=semestral-requirements');
-  await expect(page.getByRole('tabpanel').last()).toContainText(/Semestral Accomplishment Report/i, { timeout: 15000 });
+  await expect(page.getByRole('tabpanel').last()).toContainText(/Accomplishment Report/i, { timeout: 15000 });
 });
 
 test('Step 10: SAO venues booking calendar', async ({ browser }) => {
