@@ -22,12 +22,14 @@ describe('ManageSboPositionsPage', () => {
     fireEvent.change(within(createDialog).getByLabelText(/position title/i), { target: { value: 'Secretary' } });
     fireEvent.click(within(createDialog).getByRole('button', { name: 'Save Position' }));
     await waitFor(() => expect(service.createSboPosition).toHaveBeenCalledWith(expect.objectContaining({ title: 'Secretary' })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Treasurer' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit position' }));
     const editDialog = screen.getByRole('dialog', { name: 'Edit Position' });
     fireEvent.change(within(editDialog).getByLabelText(/position title/i), { target: { value: 'Finance Officer' } });
     fireEvent.click(within(editDialog).getByRole('button', { name: 'Save Position' }));
     await waitFor(() => expect(service.updateSboPosition).toHaveBeenCalledWith(8, expect.objectContaining({ title: 'Finance Officer' })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('requires the position title before deletion', async () => {
@@ -40,5 +42,6 @@ describe('ManageSboPositionsPage', () => {
     fireEvent.change(within(dialog).getByLabelText(/type treasurer to confirm/i), { target: { value: 'Treasurer' } });
     fireEvent.click(deleteButton);
     await waitFor(() => expect(service.deleteSboPosition).toHaveBeenCalledWith(8));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });

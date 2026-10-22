@@ -229,7 +229,7 @@ test('Step 4: SAO agency overview, review drawer, open document, return with rem
   await drawer.getByRole('button', { name: 'Return', exact: true }).click();
   await expect(page.getByText(/returned to its Department Head/)).toBeVisible({ timeout: 15000 });
   await page.getByRole('tab', { name: /^Returned/ }).click();
-  const card = page.locator('article').filter({ hasText: ORG_NAME });
+  const card = page.locator('tbody tr').filter({ hasText: ORG_NAME });
   await expect(card).toContainText('Returned');
   await expect(card).toContainText('Missing charter signature');
   await page.screenshot({ path: shot('A4-returned-tab.png'), fullPage: true });
@@ -286,7 +286,7 @@ test('Step 6: SAO approves and provisions an Administrator', async ({ browser, r
   await page.screenshot({ path: shot('A6-admins.png'), fullPage: true });
 
   await goto(page, '/dashboard/super-admin/organizations?status=active');
-  await expect(page.locator('article').filter({ hasText: ORG_NAME })).toContainText('Active', { timeout: 15000 });
+  await expect(page.locator('tbody tr').filter({ hasText: ORG_NAME })).toContainText('Active', { timeout: 15000 });
   void request;
 });
 
@@ -311,7 +311,7 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   test.setTimeout(180_000);
   const { page } = await roleContext(browser, 'SAO', SAO);
   await goto(page, '/dashboard/super-admin/organizations?status=active');
-  const card = page.locator('article').filter({ hasText: ORG_NAME });
+  const card = page.locator('tbody tr').filter({ hasText: ORG_NAME });
   await expect(card).toBeVisible({ timeout: 15000 });
   await openRowMenu(page, card);
   await page.getByRole('menuitem', { name: 'Archive organization' }).click();
@@ -322,10 +322,13 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
 
   await page.getByRole('tab', { name: /^Archived/ }).click();
   await expect(page.getByRole('note')).toContainText('read-only');
-  const archived = page.locator('article').filter({ hasText: ORG_NAME });
+  const archived = page.locator('tbody tr').filter({ hasText: ORG_NAME });
   await expect(archived).toBeVisible();
-  await expect(archived.getByRole('button', { name: `Restore ${ORG_NAME}` })).toBeVisible();
-  await expect(archived.getByRole('button', { name: /^Actions for|Edit|Review|Archive/ })).toHaveCount(0);
+  await openRowMenu(page, archived);
+  await expect(page.getByRole('menuitem', { name: 'Restore organization' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: /Edit|Archive|Review/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
   await page.screenshot({ path: shot('A8-archived-tab.png'), fullPage: true });
 
   // New Admin login now fails with a clear message
@@ -355,7 +358,8 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   await head.page.screenshot({ path: shot('A8-head-archived.png'), fullPage: true });
 
   // Restore
-  await archived.getByRole('button', { name: `Restore ${ORG_NAME}` }).click();
+  await openRowMenu(page, archived);
+  await page.getByRole('menuitem', { name: 'Restore organization' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Restore organization' }).click();
   await expect(page.getByText(/restored\./)).toBeVisible({ timeout: 15000 });
 
