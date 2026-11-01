@@ -14,6 +14,7 @@ const ELECTIONS_STEP = { ADMIN: { parents: [{ label: 'Elections', to: '/dashboar
 
 const PAGE_META = {
   '/dashboard': { title: 'Dashboard', purpose: 'Start with what needs your attention today.', isHome: true },
+  '/dashboard/ask-ai': { title: 'Ask AI', purpose: 'Ask questions about what needs action today, missing submissions, and live records.' },
 
   '/dashboard/super-admin': { title: 'Dashboard', purpose: 'Review reports, administer organizations, and publish university notices.', isHome: true },
   '/dashboard/organization-applications': { title: 'Organization applications', purpose: 'Review verified applications from your college or decide endorsed applications.', group: 'Governance', byRole: { DEPARTMENT_HEAD: { group: null } } },

@@ -23,6 +23,7 @@ const MY_ACTIVITY_LEAVES = [
 const SPEC = {
   ADMIN: [
     { label: 'Dashboard', path: '/dashboard/admin' },
+    { label: 'Ask AI', path: '/dashboard/ask-ai' },
     { label: 'Approvals', path: '/dashboard/approvals' },
     { band: 'Manage', label: 'Members', children: [['People', '/dashboard/admin/users'], ['Officer positions', '/dashboard/admin/positions'], ['Programs and sections', '/dashboard/admin/programs-sections']] },
     {
@@ -57,6 +58,7 @@ const SPEC = {
   ],
   SBO_OFFICER: [
     { label: 'Dashboard', path: '/dashboard/officer' },
+    { label: 'Ask AI', path: '/dashboard/ask-ai' },
     {
       band: 'Manage',
       label: 'Events and tasks',
@@ -78,6 +80,7 @@ const SPEC = {
   ],
   DEPARTMENT_HEAD: [
     { label: 'Dashboard', path: '/dashboard/department-head' },
+    { label: 'Ask AI', path: '/dashboard/ask-ai' },
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
@@ -91,6 +94,7 @@ const SPEC = {
   ],
   STUDENT: [
     { label: 'Dashboard', path: '/dashboard/student' },
+    { label: 'Ask AI', path: '/dashboard/ask-ai' },
     { label: 'My payments', children: [['Statement of account', '/dashboard/finance/statement-of-account'], ['Receipts', '/dashboard/finance/personal-receipts']] },
     { label: 'Events', children: [['Events', '/dashboard/events/activity-calendar']] },
     { label: 'Voting', children: [['Vote', '/dashboard/elections/cast-vote'], ['Results', '/dashboard/elections/election-results']] },
@@ -100,6 +104,7 @@ const SPEC = {
   ],
   SUPER_ADMIN: [
     { label: 'Dashboard', path: '/dashboard/super-admin' },
+    { label: 'Ask AI', path: '/dashboard/ask-ai' },
     { label: 'University users', path: '/dashboard/super-admin/users' },
     {
       label: 'Governance',
@@ -141,11 +146,11 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it.each([
-    ['ADMIN', 10, 34],
-    ['SBO_OFFICER', 9, 24],
-    ['DEPARTMENT_HEAD', 11, 14],
-    ['STUDENT', 7, 11],
-    ['SUPER_ADMIN', 7, 16],
+    ['ADMIN', 11, 35],
+    ['SBO_OFFICER', 10, 25],
+    ['DEPARTMENT_HEAD', 12, 15],
+    ['STUDENT', 8, 12],
+    ['SUPER_ADMIN', 8, 17],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -166,7 +171,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it('opens a group on its first page', () => {
-    const group = getNavForRole('SUPER_ADMIN')[2];
+    const group = getNavForRole('SUPER_ADMIN').find((item) => item.label === 'Governance');
     expect(resolveItemPath(group)).toBe('/dashboard/organization-applications');
     expect(getVisibleChildren(group)).toHaveLength(3);
   });
@@ -233,7 +238,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {

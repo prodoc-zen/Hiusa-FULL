@@ -14,6 +14,7 @@ import { getEvents } from '../../../services/eventService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
+import AskAiSpotlight from '../../../components/dashboard/AskAiSpotlight';
 import { Button, EmptyState } from '../../../components/ui';
 
 const STATUS_BADGE = {
@@ -156,6 +157,7 @@ export default function DashboardPage() {
     return (
       <div className="mx-auto w-full max-w-[1280px] space-y-6">
         <RoleBriefing />
+      <AskAiSpotlight role="SBO_OFFICER" />
         <section className="rounded-lg border border-[#DDE7EF] bg-white" aria-label="Work queue">
           <EmptyState
             kind="first-run"
@@ -173,6 +175,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6">
       <RoleBriefing />
+      <AskAiSpotlight role="SBO_OFFICER" />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         <div className="border-b border-[#DDE7EF] px-5 py-4"><h3 className="text-base font-bold text-[#0F172A]">Operations snapshot</h3></div>
         <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">

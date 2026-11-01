@@ -7,6 +7,7 @@ import { ArrowRight, Briefcase, CalendarPlus, ClipboardCheck, ClipboardList, Fil
 import { getAdminDashboard } from '../../../services/adminDashboardService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { RoleBriefing } from '../../../components/dashboard';
+import AskAiSpotlight from '../../../components/dashboard/AskAiSpotlight';
 import { Button, EmptyState } from '../../../components/ui';
 
 const tools = [
@@ -49,6 +50,7 @@ export default function AdminHomePage() {
 
   return <div className="mx-auto w-full max-w-[1280px] space-y-6">
     <RoleBriefing />
+    <AskAiSpotlight role="ADMIN" />
     {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-200 bg-white px-4 font-bold"><RefreshCw size={15} /> Try again</button></div>}
     {firstRun ? <section className="rounded-lg border border-[#DDE7EF] bg-white" aria-label="Administration summary"><EmptyState kind="first-run" icon={CalendarPlus} title="Nothing has happened here yet" description="Orders, approvals, tasks and announcements are counted here once your organization starts using HIUSA. Planning your first event is the quickest way to begin." action={<Button to="/dashboard/events/manage-events">Plan your first event</Button>} /></section> : <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF]" aria-label="Administration summary">
       <div className="grid gap-px sm:grid-cols-2 xl:grid-cols-4">

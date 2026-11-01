@@ -32,6 +32,7 @@ $pendingClient = [];
 return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
+        '/dashboard/ask-ai',
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/organization-approvals',
         '/dashboard/super-admin/organizations/:organizationId',
@@ -54,6 +55,7 @@ return [
 
     'ADMIN' => [
         '/dashboard/admin',
+        '/dashboard/ask-ai',
         '/dashboard/approvals',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
@@ -106,6 +108,7 @@ return [
 
     'SBO_OFFICER' => [
         '/dashboard/officer',
+        '/dashboard/ask-ai',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
         '/dashboard/admin/users',
@@ -139,6 +142,7 @@ return [
     'DEPARTMENT_HEAD' => [
         '/dashboard/organization-applications',
         '/dashboard/department-head',
+        '/dashboard/ask-ai',
         '/dashboard/department-head/approvals',
         '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',
@@ -160,6 +164,7 @@ return [
 
     'STUDENT' => [
         '/dashboard/student',
+        '/dashboard/ask-ai',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',
         '/dashboard/finance/personal-receipts',
