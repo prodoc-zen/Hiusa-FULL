@@ -68,6 +68,7 @@ const OrganizationGrievancesPage = lazy(() => import('./pages/modules/grievances
 const StudentGrievancesPage = lazy(() => import('./pages/modules/grievances/StudentGrievancesPage'));
 const SignatoryClearancesPage = lazy(() => import('./pages/modules/clearances/SignatoryClearancesPage'));
 const StudentClearancePage = lazy(() => import('./pages/modules/clearances/StudentClearancePage'));
+const AskAiPage = lazy(() => import('./pages/modules/ai/AskAiPage'));
 const UiKitPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/UiKitPage')) : null;
 
 function getStoredRole() {
@@ -229,6 +230,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardLayout />}>
           {/* Role Home Pages */}
           <Route index element={<DashboardIndexRedirect />} />
+          <Route path="ask-ai" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><AskAiPage /></ProtectedRoute>} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
           <Route path="super-admin/agency" element={<Navigate to="/dashboard/super-admin/colleges" replace />} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />

@@ -93,10 +93,12 @@ const L = {
 const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.shop, L.myOrders, L.myReceipts, L.statement], { band: 'Me' });
 
 const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
+const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'AI Copilot', 'What to do today'] });
 
 const NAV_BY_ROLE = {
   ADMIN: [
     dashboard('ADMIN'),
+    askAi(),
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/approvals', also: ['/dashboard/approval-requests/new'] },
     group('members', 'Members', Users, [L.people, L.positions, L.programs], { band: 'Manage' }),
     group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.collections, L.studentAccounts, L.reports, L.forecast], { band: 'Manage' }),
@@ -109,6 +111,7 @@ const NAV_BY_ROLE = {
   ],
   SBO_OFFICER: [
     dashboard('SBO_OFFICER'),
+    askAi(),
     group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.checkIn, L.calendar, L.venues, L.myTasks, L.aiDelegation], { band: 'Manage' }),
     group('finance', 'Finance (view only)', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'Manage' }),
     { id: 'members-fingerprints', label: 'Members and fingerprints', icon: Fingerprint, path: '/dashboard/admin/users', aliases: ['Participant Biometrics', 'Manage Users'], band: 'Manage' },
@@ -120,6 +123,7 @@ const NAV_BY_ROLE = {
   ],
   DEPARTMENT_HEAD: [
     dashboard('DEPARTMENT_HEAD'),
+    askAi(),
     { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
@@ -133,6 +137,7 @@ const NAV_BY_ROLE = {
   ],
   STUDENT: [
     dashboard('STUDENT'),
+    askAi(),
     group('my-payments', 'My payments', financePillar.icon, [L.statement, { ...L.myReceipts, label: 'Receipts', aliases: ['My Receipts'] }]),
     group('events', 'Events', eventsPillar.icon, [leaf('activity-calendar', 'Events', '/dashboard/events/activity-calendar', CalendarDays, { aliases: ['Activity Calendar', 'Calendar'] })]),
     group('voting', 'Voting', electionsPillar.icon, [L.vote, L.results]),
@@ -145,6 +150,7 @@ const NAV_BY_ROLE = {
   ],
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
+    askAi(),
     { id: 'sao-users', label: 'University users', icon: UsersRound, path: '/dashboard/super-admin/users' },
     group('sao-organizations-group', 'Governance', Building2, [
       leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),

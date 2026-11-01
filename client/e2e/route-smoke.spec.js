@@ -23,6 +23,7 @@ test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local La
 const ROUTES = {
   SUPER_ADMIN: [
     '/dashboard/super-admin',
+    '/dashboard/ask-ai',
     '/dashboard/super-admin/organizations',
     `/dashboard/super-admin/organizations/${PSITS_ORGANIZATION_ID}`,
     '/dashboard/super-admin/colleges',
@@ -39,6 +40,7 @@ const ROUTES = {
   ],
   ADMIN: [
     '/dashboard/admin',
+    '/dashboard/ask-ai',
     '/dashboard/admin/users',
     '/dashboard/admin/positions',
     '/dashboard/admin/programs-sections',
@@ -83,6 +85,7 @@ const ROUTES = {
   ],
   SBO_OFFICER: [
     '/dashboard/officer',
+    '/dashboard/ask-ai',
     '/dashboard/approval-requests/new',
     '/dashboard/approval-requests/new/announcement',
     '/dashboard/admin/users',
@@ -113,6 +116,7 @@ const ROUTES = {
   ],
   DEPARTMENT_HEAD: [
     '/dashboard/department-head',
+    '/dashboard/ask-ai',
     '/dashboard/department-head/approvals',
     '/dashboard/department-head/organizations',
     '/dashboard/announcements/view-announcements',
@@ -126,6 +130,7 @@ const ROUTES = {
   ],
   STUDENT: [
     '/dashboard/student',
+    '/dashboard/ask-ai',
     '/dashboard/announcements/view-announcements',
     '/dashboard/events/activity-calendar',
     '/dashboard/finance/personal-receipts',
