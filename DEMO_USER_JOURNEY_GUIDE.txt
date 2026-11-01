@@ -1,0 +1,381 @@
+================================================================================
+HIUSA (HINIGARAN INSTITUTE OF UNIFIED STUDENT ACTIVITIES)
+COMPLETE LIVE DEMO USER JOURNEY, CLICK-BY-CLICK FLOW & PRESENTER SCRIPT
+================================================================================
+
+LOCAL SERVER URLS:
+- Frontend Web App (React 19 + Vite):  http://localhost:5173
+- Backend API Server (Laravel 12):     http://localhost:8000
+- AI Decision Service (FastAPI):       http://localhost:8001
+- Database (XAMPP MariaDB):            127.0.0.1:3307 (Database: hiusa_db)
+
+================================================================================
+QUICK DEMO ACCOUNTS CHEAT SHEET (COPY-PASTE READY)
+================================================================================
+
+1. SAO / SUPER ADMIN (University-Wide Oversight)
+   - School ID:     990001          (or 930027 — Elena Soriano)
+   - Password:      Admin@123456    (for 930027 use: Demo@12345)
+   - Persona:       SAO Director
+   - Scope:         All Colleges & All Student Organizations
+
+2. DEPARTMENT HEAD / COLLEGE DEAN (College-Level Oversight)
+   - School ID:     940001
+   - Password:      Demo@12345
+   - Persona:       Dean Ramon Castillo
+   - Scope:         College of Computer Studies (CCS)
+
+3. ORGANIZATION ADMIN / PRESIDENT (Organization Governance)
+   - School ID:     900001
+   - Password:      Demo@12345
+   - Persona:       Marco Dela Cruz (President, PSITS-CCS)
+   - Scope:         Philippine Society of Information Technology Students (PSITS-CCS)
+
+4. SBO OFFICER (Day-to-Day Officer Execution)
+   - School ID:     900004
+   - Password:      Demo@12345
+   - Persona:       Diego Villanueva (Treasurer, PSITS-CCS)
+   - Scope:         PSITS-CCS Operational Queues
+
+5. STUDENT (Campus Member Experience)
+   - School ID:     2100142
+   - Password:      Demo@12345
+   - Persona:       Juan Dela Vega (BSIT Student)
+   - Scope:         Personal Account, PSITS-CCS Member Portal
+
+================================================================================
+OPENING PITCH (WHAT TO SAY AT THE START OF THE PRESENTATION)
+================================================================================
+"Good morning panel. Today we are presenting HIUSA — an integrated institutional
+governance, financial transparency, event lifecycle, and AI decision-support
+platform built for university student organizations.
+
+HIUSA enforces a strict 3-tier institutional governance model:
+  1. Student Organization Level (Organization Admins, SBO Officers, and Students)
+  2. College Level (Department Heads / College Deans who endorse their college's
+     organizations, budgets, events, and financial reports)
+  3. University Level (The Student Affairs Office / SAO, which governs academic
+     terms, accreditation compliance, campus venues, final approvals, clearances,
+     and student grievances).
+
+Every query in the system is isolated by organization_id and role boundaries, and
+every role features a Hybrid Semantic Search & Retrieval-Augmented Generation (RAG)
+Ask AI Copilot that synthesizes live database records into formatted HTML tables,
+progress meters, and visual CSS graphs."
+
+
+================================================================================
+JOURNEY 1: SAO / SUPER ADMIN (UNIVERSITY-WIDE GOVERNANCE)
+Login: School ID 990001 | Password: Admin@123456
+================================================================================
+
+STEP 1.1 — SAO INSTITUTIONAL DASHBOARD & INLINE ASK AI SPOTLIGHT
+- WHAT TO CLICK:
+  1. Sign in at http://localhost:5173/login with 990001 / Admin@123456.
+  2. Land on `/dashboard/super-admin` (SAO Institutional Dashboard).
+  3. On the top "SAO Operations Copilot" spotlight card, click the prompt chip:
+     "Who hasn't submitted requirements?"
+- WHAT HAPPENS ON SCREEN:
+  An inline formatted AI briefing expands right inside the dashboard with a
+  "Key Metrics Comparison" horizontal bar graph and a "Top Matching Records"
+  HTML table with completion progress bars and "Open" links.
+- WHAT TO SAY:
+  "As the SAO Director, my dashboard immediately surfaces university-wide action
+  queues. Right at the top, I can click a prompt or type any question into the
+  Ask AI Spotlight to see formatted metrics, visual bar charts, and a table of
+  organizations missing compliance or financial reports without leaving the page."
+- WHAT IT IS USED FOR:
+  Immediate executive triage across all student organizations on campus.
+
+STEP 1.2 — DEDICATED ASK AI WORKSPACE (SEMANTIC SEARCH & RAG)
+- WHAT TO CLICK:
+  1. Click "Ask AI" in the left sidebar (or click "Open Full View" in the spotlight).
+  2. Point out the "Semantic RAG Retrieval Telemetry" bar showing how many live
+     records and domains were indexed.
+  3. Type a custom open-ended question in the input box, for example:
+     "Who are the officers and president of PSITS-CCS, and how is their budget?"
+     Click "Ask AI".
+- WHAT HAPPENS ON SCREEN:
+  The Hybrid Semantic RAG engine (BM25 + 12D Concept Vector + Entity Matching)
+  retrieves records across Leadership, Organizations, and Finance, rendering:
+  - Highlighted numeric/currency pills in the executive summary
+  - Recommended Next Step action banner
+  - Key Metrics Comparison bar chart + Record Status Breakdown stacked bar chart
+  - Multi-domain HTML tables with inline progress bars.
+- WHAT TO SAY:
+  "Unlike static chatbots that only answer canned prompts, our Ask AI workspace
+  uses Hybrid Semantic Search and Retrieval-Augmented Generation (RAG) over 10
+  live operational domains. Whether I ask 'What should I do today?', 'Who hasn't
+  submitted compliance?', or ask dynamically about a specific organization's
+  officers and budget, it retrieves the exact authorized records and formats them
+  into visual charts and actionable tables."
+
+STEP 1.3 — ACADEMIC YEARS & SEMESTERS LIFECYCLE
+- WHAT TO CLICK:
+  Click "Academic Terms" (`/dashboard/super-admin/academic-terms`) in the sidebar.
+- WHAT TO SAY:
+  "Here the SAO controls the active Academic Year and Semester. Opening or closing
+  a term governs when compliance deadlines, financial semesters, and clearance
+  periods are active across the entire university."
+- WHAT IT IS USED FOR:
+  Institutional calendar and term boundary management.
+
+STEP 1.4 — UNIVERSITY ORGANIZATIONS REGISTRY & ADMIN PROVISIONING
+- WHAT TO CLICK:
+  Click "Organizations" (`/dashboard/super-admin/organizations`) in the sidebar.
+  Filter by "Pending", "Active", or "Awaiting Admin".
+- WHAT TO SAY:
+  "Department Heads register student organizations for their colleges, and they
+  land here for SAO review. Once the SAO approves a registration, the SAO
+  assigns or provisions the organization's initial Administrator account so
+  governance is properly handed over."
+- WHAT IT IS USED FOR:
+  Approving/returning organization applications and provisioning organization admins.
+
+STEP 1.5 — INSTITUTIONAL COMPLIANCE & ACCREDITATION REVIEW
+- WHAT TO CLICK:
+  Click "Compliance" (`/dashboard/super-admin/compliance`) in the sidebar.
+  Switch between the "Requirements Setup", "Submissions Review", and "Approval Queue" tabs.
+- WHAT TO SAY:
+  "SAO defines required accreditation documents—such as Constitution & By-Laws
+  and List of Officers—with allowed file extensions and sample templates. When
+  organizations upload their PDFs, SAO reviews, approves, or returns them with
+  remarks, and processes final stage approvals for events and financial reports."
+- WHAT IT IS USED FOR:
+  University-wide accreditation tracking and final multi-stage approval sign-off.
+
+STEP 1.6 — CAMPUS VENUES, GRIEVANCES, CLEARANCES & AUDIT LOGS
+- WHAT TO CLICK:
+  1. Click "Venues" (`/dashboard/super-admin/venues`) -> show campus facilities
+     and booking requests.
+  2. Click "Grievances" (`/dashboard/super-admin/grievances`) -> show AI-classified
+     urgency levels (Critical/High/Medium/Low) and confidential case handling.
+  3. Click "Clearances" (`/dashboard/super-admin/clearances`) -> show final SAO
+     stage clearance signing.
+  4. Click "Audit Logs" (`/dashboard/super-admin/audit-logs`) -> show tamper-evident
+     security trail of every login, approval, and administrative action.
+- WHAT TO SAY:
+  "Finally, SAO manages campus venue bookings, resolves student grievances
+  prioritized by our deterministic AI urgency classifier, signs final student
+  clearances, and audits every sensitive action in the system."
+
+
+================================================================================
+JOURNEY 2: DEPARTMENT HEAD / COLLEGE DEAN (COLLEGE-LEVEL OVERSIGHT)
+Login: School ID 940001 | Password: Demo@12345 (Dean Ramon Castillo — CCS)
+================================================================================
+
+STEP 2.1 — DEAN DASHBOARD & ASK AI COLLEGE COPILOT
+- WHAT TO CLICK:
+  1. Log out of SAO, then sign in with `940001` / `Demo@12345`.
+  2. Land on `/dashboard/department-head` (College of Computer Studies).
+  3. In the Ask AI Spotlight or `/dashboard/ask-ai`, click:
+     "Which college orgs haven't submitted?" or "Who submitted files or reports?"
+- WHAT TO SAY:
+  "Now I am signed in as Dean Ramon Castillo of the College of Computer Studies.
+  Notice that multi-tenant isolation automatically scopes my dashboard and my
+  Ask AI Copilot exclusively to student organizations under my college, such as
+  PSITS-CCS."
+- WHAT IT IS USED FOR:
+  College-scoped monitoring of student organizations, endorsements, and compliance.
+
+STEP 2.2 — COLLEGE ORGANIZATIONS & REGISTRATION
+- WHAT TO CLICK:
+  Click "Organizations" (`/dashboard/department-head/organizations`) in the sidebar.
+- WHAT TO SAY:
+  "Deans can register new student organizations under their college, upload
+  application documents, and revise any registration returned by the SAO."
+- WHAT IT IS USED FOR:
+  Originating and overseeing student organizations within the academic college.
+
+STEP 2.3 — COLLEGE APPROVALS & COMPLIANCE ENDORSEMENT
+- WHAT TO CLICK:
+  1. Click "Approvals" (`/dashboard/approvals`) in the sidebar.
+  2. Click "Compliance & Reports" (`/dashboard/department-head/compliance`).
+  3. Click "Clearances" (`/dashboard/department-head/clearances`).
+- WHAT TO SAY:
+  "Before a student organization's budget, event proposal, or semester financial
+  report reaches the SAO, it must pass through the Department Head's Approvals
+  Inbox for college-level endorsement. The Dean also signs the second stage of
+  student clearances after the student organization clears the member."
+- WHAT IT IS USED FOR:
+  First-level institutional endorsement of budgets, events, reports, and clearances.
+
+
+================================================================================
+JOURNEY 3: ORGANIZATION ADMIN / PRESIDENT (STUDENT ORG LEADERSHIP)
+Login: School ID 900001 | Password: Demo@12345 (Marco Dela Cruz — PSITS-CCS)
+================================================================================
+
+STEP 3.1 — ORGANIZATION LEADERSHIP DASHBOARD & DYNAMIC RAG AI
+- WHAT TO CLICK:
+  1. Log out, then sign in with `900001` / `Demo@12345`.
+  2. Land on `/dashboard/admin` (PSITS-CCS Leadership Dashboard).
+  3. Click "Ask AI" in the sidebar (`/dashboard/ask-ai`) and ask:
+     "Who are the officers and treasurer, and how much stock of the Official PSITS Lanyard do we have?"
+- WHAT TO SAY:
+  "As the President of PSITS-CCS, I manage our organization's members, officers,
+  events, finances, tasks, elections, and store. Watch how I can ask the AI a
+  combined question about our officer roster and merchandise stock—it searches
+  our organization's live records and builds visual charts and tables on the fly."
+- WHAT IT IS USED FOR:
+  360-degree command center for a single student organization.
+
+STEP 3.2 — MEMBER & OFFICER DIRECTORY + BIOMETRIC FINGERPRINT ENROLLMENT
+- WHAT TO CLICK:
+  Click "Users & Members" (`/dashboard/users`) in the sidebar.
+- WHAT TO SAY:
+  "Here we manage our student members and SBO officer positions, import rosters,
+  and enroll DigitalPersona biometric fingerprint templates used for tamper-proof
+  event attendance check-in."
+- WHAT IT IS USED FOR:
+  Member lifecycle, officer role assignment, and biometric enrollment.
+
+STEP 3.3 — AI-ASSISTED TASK DELEGATION BOARD
+- WHAT TO CLICK:
+  Click "Task Board" (`/dashboard/tasks`) in the sidebar.
+  Click "Create Task" or "AI Recommend Assignee".
+- WHAT TO SAY:
+  "When delegating tasks for upcoming events or accreditation, our AI Task
+  Delegation Engine scores every officer based on 4 weighted factors:
+  Position Relevance (35%), Current Active Workload (30%), Historical Completion
+  Performance (20%), and Assignment Recency (15%)—recommending the best officer
+  with transparent mathematical explanations."
+- WHAT IT IS USED FOR:
+  Fair, data-driven task delegation and officer workload tracking.
+
+STEP 3.4 — EVENT LIFECYCLE, VENUE BOOKING & REQUIREMENT FILES
+- WHAT TO CLICK:
+  Click "Events" (`/dashboard/events`) in the sidebar.
+- WHAT TO SAY:
+  "Admins propose organization events, request campus venue bookings, upload
+  mandatory event requirement files (such as Program Flow, Budget Breakdown, and
+  Parent Permits), and open post-event student evaluation windows."
+- WHAT IT IS USED FOR:
+  End-to-end event planning, document compliance, and attendance/evaluation tracking.
+
+STEP 3.5 — COMPREHENSIVE FINANCIAL SUITE & AI BUDGET FORECASTING
+- WHAT TO CLICK:
+  Click "Finance" (`/dashboard/finance`) in the sidebar.
+  Explore the tabs: Budgets, Ledger Transactions, Cash Advances, Collections,
+  Student Invoices, Financial Reports, and AI Financial Forecasting.
+- WHAT TO SAY:
+  "Every peso in HIUSA is auditable. We propose semester budgets, log income and
+  expense transactions with receipt numbers, track officer cash advances and
+  liquidations, issue student membership fee invoices, and run AI Budget Advisory
+  and Financial Forecasting before submitting semester financial reports to the
+  Dean and SAO."
+- WHAT IT IS USED FOR:
+  Full-cycle student organization accounting, fee collection, and AI budget risk analysis.
+
+STEP 3.6 — MERCHANDISE INVENTORY, ELECTIONS & COMPLIANCE UPLOADS
+- WHAT TO CLICK:
+  1. Click "Merchandise" (`/dashboard/merchandise/manage-orders`) -> show catalog
+     stock, variants, promotions, and order verification.
+  2. Click "Elections" (`/dashboard/elections/manage-elections`) -> show ballot
+     positions, partylists, candidates, and real-time voter turnout.
+  3. Click "Compliance" (`/dashboard/compliance`) -> show where PSITS-CCS uploads
+     accreditation requirements for SAO review.
+- WHAT TO SAY:
+  "We also manage our official organization merchandise store, run tamper-proof
+  student council elections with one-student-one-vote integrity, and upload our
+  annual accreditation requirements."
+
+
+================================================================================
+JOURNEY 4: SBO OFFICER (OPERATIONAL EXECUTION)
+Login: School ID 900004 | Password: Demo@12345 (Diego Villanueva — Treasurer)
+================================================================================
+
+STEP 4.1 — OFFICER WORKSPACE & ASK AI COPILOT
+- WHAT TO CLICK:
+  1. Log out, then sign in with `900004` / `Demo@12345`.
+  2. Land on `/dashboard/officer`.
+  3. Click the Ask AI chip: "Orders needing verification" or "My overdue & active tasks".
+- WHAT TO SAY:
+  "SBO Officers have a focused operational workspace tailored to execution.
+  Diego, our Treasurer, immediately sees his assigned tasks, merchandise orders
+  awaiting payment verification, and event check-in queues."
+- WHAT IT IS USED FOR:
+  Role-focused execution without exposing full administrative settings.
+
+STEP 4.2 — TASK PROGRESS UPDATES, EVENT CHECK-IN & ORDER VERIFICATION
+- WHAT TO CLICK:
+  1. Click "Tasks" (`/dashboard/tasks`) -> show updating task progress percentage
+     and logging progress notes.
+  2. Click "Event Check-In" (`/dashboard/events/check-in`) -> show biometric
+     fingerprint and school-ID attendance scanning.
+  3. Click "Manage Orders" (`/dashboard/merchandise/manage-orders`) -> show
+     verifying student GCash/payment proofs and marking paid orders as claimed.
+  4. Click "Clearances" (`/dashboard/clearances`) -> show clearing or holding
+     student clearances at the organization stage.
+- WHAT TO SAY:
+  "Officers update their task milestones, scan student attendance at events,
+  verify merchandise payment proofs, and process first-stage student clearances."
+
+
+================================================================================
+JOURNEY 5: STUDENT PORTAL (MEMBER EXPERIENCE)
+Login: School ID 2100142 | Password: Demo@12345 (Juan Dela Vega — BSIT Student)
+================================================================================
+
+STEP 5.1 — STUDENT DASHBOARD & PERSONAL ASK AI ASSISTANT
+- WHAT TO CLICK:
+  1. Log out, then sign in with `2100142` / `Demo@12345`.
+  2. Land on `/dashboard/student`.
+  3. In the Ask AI Spotlight or `/dashboard/ask-ai`, click:
+     "Who hasn't signed my clearance?" and "What fees or invoices do I owe?"
+- WHAT TO SAY:
+  "Finally, let's look at the Student experience for Juan Dela Vega. Notice how
+  the Ask AI Assistant is strictly scoped to Juan's own personal records—he can
+  ask 'Who hasn't signed my clearance yet and why?' or 'What fees do I owe?' and
+  instantly see his exact signatories, hold remarks, and invoice balances in a
+  formatted table and progress chart, with zero exposure of any other student's data."
+- WHAT IT IS USED FOR:
+  Self-service student transparency across clearances, fees, events, elections, and orders.
+
+STEP 5.2 — STUDENT CLEARANCE, STATEMENT OF ACCOUNT, MERCHANDISE & VOTING
+- WHAT TO CLICK:
+  1. Click "My Clearance" (`/dashboard/my-clearance`) -> show 3-stage clearance
+     tracker (Organization -> Department Head -> SAO) with exact hold reasons.
+  2. Click "Statement of Account" (`/dashboard/finance/statement-of-account`) ->
+     show open invoices, payment history, and official receipts.
+  3. Click "Merchandise Store" (`/dashboard/merchandise`) -> show browsing org
+     merchandise, placing an order, and viewing `/dashboard/merchandise/my-orders`.
+  4. Click "Elections" (`/dashboard/elections/cast-vote`) -> show viewing candidate
+     platforms and casting an encrypted ballot.
+  5. Click "Events" (`/dashboard/events`) -> show registering for events and
+     submitting post-event evaluations.
+  6. Click "Grievances" (`/dashboard/grievances`) -> show submitting a student
+     concern that gets automatically classified by urgency for the SAO.
+- WHAT TO SAY:
+  "From one unified portal, a student tracks their 3-tier clearance signatures,
+  views their financial statement of account, orders official org merchandise,
+  votes in student council elections, evaluates events, and submits grievances."
+
+
+================================================================================
+BONUS: LIVE "ASK AI" SEMANTIC SEARCH & RAG DEMO PROMPTS FOR THE PANEL
+================================================================================
+During Q&A, invite the panelists to ask any question in `/dashboard/ask-ai`!
+Here are great example queries to type live:
+
+1. (As SAO `990001`):
+   - "What should I do today across student organizations?"
+   - "Which organizations haven't submitted compliance or financial reports?"
+   - "Who are the Deans and Presidents across campus?"
+   - "Show me campus venues and their capacity"
+   - "What student grievances are high or critical urgency?"
+
+2. (As Admin `900001` — PSITS-CCS):
+   - "Who are the officers in our organization and what are their positions?"
+   - "Which merchandise items have low stock in our store?"
+   - "Show our recent ledger transactions and budget utilization"
+   - "Who are the candidates running in our election and what are their partylists?"
+   - "What tasks are overdue and who are they assigned to?"
+
+3. (As Student `2100142` — Juan Dela Vega):
+   - "Who hasn't signed my clearance yet and why?"
+   - "What fees or invoices do I still need to pay?"
+   - "What announcements were posted recently?"
+================================================================================

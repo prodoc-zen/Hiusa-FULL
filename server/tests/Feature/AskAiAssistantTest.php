@@ -204,4 +204,68 @@ class AskAiAssistantTest extends TestCase
         $this->assertStringContainsString('Unsettled membership fee receipt', $rows->first()['secondary']);
         $this->assertStringNotContainsString('Other student secret remark', json_encode($res->json()));
     }
+
+    public function test_dynamic_semantic_rag_answers_open_ended_questions_about_officers_merchandise_and_entities(): void
+    {
+        $org = Organization::factory()->create([
+            'name' => 'Philippine Society of IT Students',
+            'acronym' => 'PSITS-CCS',
+            'organization_type' => 'STUDENT_ORGANIZATION',
+            'lifecycle_status' => 'active',
+        ]);
+        $otherOrg = Organization::factory()->create([
+            'name' => 'Secret Rival Organization',
+            'acronym' => 'SRO',
+            'organization_type' => 'STUDENT_ORGANIZATION',
+            'lifecycle_status' => 'active',
+        ]);
+
+        $admin = User::factory()->admin()->create([
+            'organization_id' => $org->id,
+            'first_name' => 'Marco',
+            'last_name' => 'Dela Cruz',
+            'position_title' => 'President',
+            'account_status' => 'active',
+        ]);
+        User::factory()->officer()->create([
+            'organization_id' => $org->id,
+            'first_name' => 'Diego',
+            'last_name' => 'Villanueva',
+            'position_title' => 'Treasurer',
+            'account_status' => 'active',
+        ]);
+        User::factory()->admin()->create([
+            'organization_id' => $otherOrg->id,
+            'first_name' => 'Rival',
+            'last_name' => 'Leader',
+            'position_title' => 'President',
+            'account_status' => 'active',
+        ]);
+
+        \App\Models\Merchandise::factory()->create([
+            'organization_id' => $org->id,
+            'name' => 'Official PSITS Lanyard',
+            'category' => 'Accessories',
+            'price' => 150.00,
+            'stock_quantity' => 4,
+            'low_stock_threshold' => 10,
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'Who are the officers and treasurer, and how much stock of the Official PSITS Lanyard do we have?',
+        ])->assertOk();
+
+        $res->assertJsonPath('intent', 'semantic_rag');
+        $this->assertGreaterThan(0, $res->json('rag_metadata.corpus_size'));
+        $this->assertGreaterThan(0, $res->json('rag_metadata.retrieved_count'));
+        $this->assertNotEmpty($res->json('charts'));
+
+        $payloadString = json_encode($res->json());
+        $this->assertStringContainsString('Diego Villanueva', $payloadString);
+        $this->assertStringContainsString('Official PSITS Lanyard', $payloadString);
+        $this->assertStringNotContainsString('Rival Leader', $payloadString);
+    }
 }
