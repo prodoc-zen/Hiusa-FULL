@@ -46,6 +46,8 @@ class AskAiService
                 'title' => $daily['title'],
                 'summary' => $daily['answer'],
                 'highlights' => $daily['highlights'],
+                'formatted_blocks' => $daily['formatted_blocks'],
+                'charts' => $daily['charts'],
                 'priorities' => $this->extractPriorityCards($daily['sections']),
                 'sections' => $daily['sections'],
             ],
@@ -95,6 +97,8 @@ class AskAiService
             'title' => $response['title'],
             'answer' => $response['answer'],
             'highlights' => $response['highlights'],
+            'formatted_blocks' => $response['formatted_blocks'],
+            'charts' => $response['charts'],
             'sections' => $response['sections'],
             'follow_ups' => $response['follow_ups'],
             'generated_at' => now()->toIso8601String(),
@@ -240,7 +244,7 @@ class AskAiService
 
         $payload['model_name'] = $modelName;
 
-        return $payload;
+        return $this->enrichWithFormattedBlocksAndCharts($payload, $intent);
     }
 
     // -------------------------------------------------------------------------
@@ -1975,6 +1979,149 @@ class AskAiService
         }
 
         return $cards;
+    }
+
+    private function enrichWithFormattedBlocksAndCharts(array $payload, string $intent): array
+    {
+        $sections = array_map(function (array $section): array {
+            $rows = array_map(function (array $row): array {
+                $row['progress_percent'] = $this->inferRowProgressPercent($row);
+
+                return $row;
+            }, $section['rows'] ?? []);
+            $section['rows'] = $rows;
+
+            return $section;
+        }, $payload['sections'] ?? []);
+
+        $payload['sections'] = $sections;
+        $payload['charts'] = $this->buildChartsForPayload($payload, $intent);
+        $payload['formatted_blocks'] = $this->buildFormattedBlocks($payload);
+
+        return $payload;
+    }
+
+    private function inferRowProgressPercent(array $row): ?int
+    {
+        if (isset($row['progress_percent']) && is_numeric($row['progress_percent'])) {
+            return max(0, min(100, (int) round((float) $row['progress_percent'])));
+        }
+
+        $meta = (string) ($row['meta'] ?? '');
+        if (preg_match('/^(\d+)\s*\/\s*(\d+)/', $meta, $matches)) {
+            $num = (int) $matches[1];
+            $den = (int) $matches[2];
+
+            return $den > 0 ? max(0, min(100, (int) round(($num / $den) * 100))) : 0;
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)%\s*complete/i', $meta, $matches)) {
+            return max(0, min(100, (int) round((float) $matches[1])));
+        }
+
+        $secondary = (string) ($row['secondary'] ?? '');
+        if (preg_match('/Allocated:\s*₱([\d,]+(?:\.\d+)?)\s*·\s*Remaining:\s*₱([\d,]+(?:\.\d+)?)/u', $secondary, $matches)) {
+            $allocated = (float) str_replace(',', '', $matches[1]);
+            $remaining = (float) str_replace(',', '', $matches[2]);
+            if ($allocated > 0) {
+                $usedPercent = (($allocated - $remaining) / $allocated) * 100;
+
+                return max(0, min(100, (int) round($usedPercent)));
+            }
+        }
+
+        return null;
+    }
+
+    private function buildChartsForPayload(array $payload, string $intent): array
+    {
+        $charts = [];
+
+        // 1. Primary Metrics Bar Chart from highlights
+        $highlightItems = [];
+        foreach ($payload['highlights'] ?? [] as $hl) {
+            $rawVal = (string) ($hl['value'] ?? '0');
+            $numeric = (float) preg_replace('/[^0-9.]/', '', str_replace(',', '', $rawVal));
+            $highlightItems[] = [
+                'label' => (string) ($hl['label'] ?? 'Metric'),
+                'value' => $numeric,
+                'display_value' => $rawVal,
+                'tone' => (string) ($hl['tone'] ?? 'primary'),
+            ];
+        }
+
+        if ($highlightItems !== []) {
+            $maxVal = max(1.0, ...array_map(fn (array $i) => $i['value'], $highlightItems));
+            $charts[] = [
+                'id' => $intent.'-highlights-chart',
+                'type' => 'bar',
+                'title' => 'Key Metrics Comparison',
+                'subtitle' => 'Live indicator breakdown for this query',
+                'items' => array_map(fn (array $item) => [
+                    ...$item,
+                    'percent' => $item['value'] > 0 ? max(8, min(100, (int) round(($item['value'] / $maxVal) * 100))) : 0,
+                ], $highlightItems),
+            ];
+        }
+
+        // 2. Queue / Record Status Distribution Chart from sections
+        $allRows = collect($payload['sections'] ?? [])->flatMap(fn (array $sec) => $sec['rows'] ?? []);
+        if ($allRows->isNotEmpty()) {
+            $grouped = $allRows->groupBy(fn (array $row) => $row['status'] ?? 'Listed');
+            $totalRows = max(1, $allRows->count());
+            $statusItems = [];
+
+            foreach ($grouped as $statusLabel => $groupRows) {
+                $first = $groupRows->first();
+                $count = $groupRows->count();
+                $statusItems[] = [
+                    'label' => (string) $statusLabel,
+                    'value' => $count,
+                    'display_value' => $count.' '.($count === 1 ? 'item' : 'items'),
+                    'percent' => max(8, min(100, (int) round(($count / $totalRows) * 100))),
+                    'share_percent' => (int) round(($count / $totalRows) * 100),
+                    'tone' => (string) ($first['status_tone'] ?? 'primary'),
+                ];
+            }
+
+            $charts[] = [
+                'id' => $intent.'-status-distribution',
+                'type' => 'distribution',
+                'title' => 'Record Status Breakdown',
+                'subtitle' => sprintf('Distribution across %d matching record(s)', $allRows->count()),
+                'items' => array_values($statusItems),
+            ];
+        }
+
+        return $charts;
+    }
+
+    private function buildFormattedBlocks(array $payload): array
+    {
+        $allRows = collect($payload['sections'] ?? [])->flatMap(fn (array $sec) => $sec['rows'] ?? []);
+        $topRows = $allRows->take(4)->map(fn (array $row) => [
+            'label' => $row['primary'] ?? '',
+            'detail' => $row['secondary'] ?? '',
+            'status' => $row['status'] ?? null,
+            'status_tone' => $row['status_tone'] ?? 'neutral',
+            'meta' => $row['meta'] ?? null,
+            'href' => $row['href'] ?? null,
+            'action_label' => $row['action_label'] ?? 'Open',
+        ])->values()->all();
+
+        $firstActionRow = $allRows->first(fn (array $row) => ! empty($row['href']));
+
+        return [
+            'headline' => $payload['title'] ?? 'AI Operational Briefing',
+            'summary' => $payload['answer'] ?? '',
+            'key_findings' => $topRows,
+            'recommended_action' => $firstActionRow ? [
+                'title' => $firstActionRow['primary'],
+                'detail' => $firstActionRow['secondary'] ?? 'Highest priority item requiring attention.',
+                'href' => $firstActionRow['href'],
+                'action_label' => $firstActionRow['action_label'] ?? 'Open record',
+            ] : null,
+        ];
     }
 
     private function enhanceWithGroq(User $user, string $question, array $payload): ?array

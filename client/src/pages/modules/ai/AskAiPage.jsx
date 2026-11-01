@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
+  BarChart3,
   Bot,
   CheckCircle2,
   Clock,
@@ -16,7 +17,17 @@ const STATUS_BADGE_STYLES = {
   warning: 'bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]',
   success: 'bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]',
   info: 'bg-[#E0F2FE] text-[#0284C7] border-[#BAE6FD]',
+  primary: 'bg-[#EEF6FB] text-[#0F2F62] border-[#BAE6FD]',
   neutral: 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]',
+};
+
+const BAR_FILL_STYLES = {
+  danger: 'bg-[#DC2626]',
+  warning: 'bg-[#D97706]',
+  success: 'bg-[#16A34A]',
+  info: 'bg-[#0B8ED0]',
+  primary: 'bg-[#0F2F62]',
+  neutral: 'bg-[#64748B]',
 };
 
 const HIGHLIGHT_TONE_STYLES = {
@@ -24,8 +35,143 @@ const HIGHLIGHT_TONE_STYLES = {
   warning: 'text-[#D97706]',
   success: 'text-[#16A34A]',
   primary: 'text-[#0F2F62]',
+  info: 'text-[#0B8ED0]',
   neutral: 'text-[#0F172A]',
 };
+
+function formatRichText(text) {
+  if (!text) return null;
+  const parts = String(text).split(/(₱[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d+\b)/g);
+  return parts.map((part, index) => {
+    if (/^(₱[\d,]+(?:\.\d+)?|\d+(?:\.\d+)?%|\d+)$/.test(part)) {
+      return (
+        <strong
+          key={index}
+          className="rounded bg-white/80 px-1 py-0.5 font-semibold text-[#0F2F62] tabular-nums"
+        >
+          {part}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+function AiVisualCharts({ charts }) {
+  if (!Array.isArray(charts) || charts.length === 0) return null;
+
+  return (
+    <div
+      aria-label="Visual data graphs"
+      className="mt-4 grid gap-4 border-t border-[#DDE7EF] pt-4 lg:grid-cols-2"
+    >
+      {charts.map((chart) => {
+        const items = Array.isArray(chart.items) ? chart.items : [];
+        if (items.length === 0) return null;
+        const isDistribution = chart.type === 'distribution';
+
+        return (
+          <div key={chart.id || chart.title} className="rounded-lg bg-[#F8FAFC] p-3.5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-[#0B8ED0]" aria-hidden="true" />
+                <h3 className="text-xs font-semibold text-[#0F172A]">{chart.title}</h3>
+              </div>
+              {chart.subtitle && (
+                <span className="text-[11px] text-[#475569]">{chart.subtitle}</span>
+              )}
+            </div>
+
+            {isDistribution && (
+              <div
+                aria-label={`${chart.title} stacked bar`}
+                className="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-[#E2E8F0]"
+              >
+                {items.map((item) => {
+                  const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
+                  const widthPct = Math.max(6, Number(item.share_percent ?? item.percent ?? 10));
+                  return (
+                    <div
+                      key={item.label}
+                      title={`${item.label}: ${item.display_value} (${widthPct}%)`}
+                      className={`h-full transition-all duration-300 ${fill}`}
+                      style={{ width: `${widthPct}%` }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {items.map((item) => {
+                const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
+                const widthPct = Math.max(0, Math.min(100, Number(item.percent ?? 0)));
+                return (
+                  <div key={item.label} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex items-center gap-1.5 font-medium text-[#0F172A]">
+                        <span
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${fill}`}
+                          aria-hidden="true"
+                        />
+                        {item.label}
+                      </span>
+                      <span className="font-semibold text-[#0F2F62] tabular-nums">
+                        {item.display_value ?? item.value}
+                        {item.share_percent != null ? ` (${item.share_percent}%)` : ''}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${fill}`}
+                        style={{ width: `${widthPct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FormattedBriefingBlock({ answer, formattedBlocks }) {
+  const recommended = formattedBlocks?.recommended_action;
+
+  return (
+    <div className="mt-3.5 space-y-3">
+      <div className="rounded-lg bg-[#EEF6FB] px-4 py-3 text-sm leading-relaxed text-[#0F172A]">
+        {formatRichText(answer)}
+      </div>
+
+      {recommended && (
+        <div className="flex flex-col justify-between gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold text-[#0F2F62]">
+              Recommended next step:{' '}
+            </span>
+            <span className="text-xs font-medium text-[#0F172A]">{recommended.title}</span>
+            {recommended.detail && (
+              <span className="ml-1.5 text-xs text-[#475569]">— {recommended.detail}</span>
+            )}
+          </div>
+          {recommended.href && (
+            <Link
+              to={recommended.href}
+              className="inline-flex shrink-0 items-center gap-1 self-start rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] sm:self-center"
+            >
+              <span>{recommended.action_label || 'Take action'}</span>
+              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EvidenceSection({ section }) {
   const rows = Array.isArray(section.rows) ? section.rows : [];
@@ -40,54 +186,98 @@ function EvidenceSection({ section }) {
       </div>
 
       {rows.length === 0 ? (
-        <div className=" flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 text-xs text-[#475569]">
+        <div className="flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 text-xs text-[#475569]">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-[#16A34A]" aria-hidden="true" />
           <span>{section.empty_message || 'No matching records require attention.'}</span>
         </div>
       ) : (
-        <div className="divide-y divide-[#DDE7EF] overflow-hidden rounded-lg border border-[#DDE7EF]">
-          {rows.map((row) => {
-            const badgeStyle = STATUS_BADGE_STYLES[row.status_tone] || STATUS_BADGE_STYLES.neutral;
-            return (
-              <div
-                key={row.id}
-                className="flex flex-col justify-between gap-2 bg-white px-3.5 py-2.5 transition-colors hover:bg-[#F8FAFC] sm:flex-row sm:items-center"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-[#0F172A]">{row.primary}</span>
-                    {row.status && (
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeStyle}`}
-                      >
-                        {row.status}
-                      </span>
-                    )}
-                  </div>
-                  {row.secondary && (
-                    <p className="mt-0.5 text-xs text-[#475569]">{row.secondary}</p>
-                  )}
-                </div>
+        <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
+          <table className="w-full min-w-[540px] border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#DDE7EF] bg-[#F8FAFC] text-[#475569]">
+                <th scope="col" className="px-3.5 py-2 font-semibold">
+                  Record / Organization
+                </th>
+                <th scope="col" className="px-3.5 py-2 font-semibold">
+                  Details &amp; Breakdown
+                </th>
+                <th scope="col" className="px-3.5 py-2 font-semibold">
+                  Status
+                </th>
+                <th scope="col" className="px-3.5 py-2 font-semibold">
+                  Metric / Progress
+                </th>
+                <th scope="col" className="px-3.5 py-2 text-right font-semibold">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#DDE7EF] bg-white">
+              {rows.map((row) => {
+                const badgeStyle =
+                  STATUS_BADGE_STYLES[row.status_tone] || STATUS_BADGE_STYLES.neutral;
+                const barFill = BAR_FILL_STYLES[row.status_tone] || BAR_FILL_STYLES.info;
+                const hasProgress =
+                  row.progress_percent !== null &&
+                  row.progress_percent !== undefined &&
+                  !Number.isNaN(Number(row.progress_percent));
 
-                <div className="flex shrink-0 items-center gap-3">
-                  {row.meta && (
-                    <span className="text-xs font-medium text-[#475569] tabular-nums">
-                      {row.meta}
-                    </span>
-                  )}
-                  {row.href && (
-                    <Link
-                      to={row.href}
-                      className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9] active:scale-[0.98]"
-                    >
-                      <span>{row.action_label || 'Open'}</span>
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Link>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                return (
+                  <tr key={row.id} className="transition-colors hover:bg-[#F8FAFC]">
+                    <td className="px-3.5 py-2.5 align-middle font-medium text-[#0F172A]">
+                      {row.primary}
+                    </td>
+                    <td className="px-3.5 py-2.5 align-middle text-[#475569]">
+                      {row.secondary || '—'}
+                    </td>
+                    <td className="px-3.5 py-2.5 align-middle">
+                      {row.status ? (
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeStyle}`}
+                        >
+                          {row.status}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-3.5 py-2.5 align-middle">
+                      <div className="min-w-[110px] space-y-1">
+                        {row.meta && (
+                          <span className="block font-medium text-[#0F172A] tabular-nums">
+                            {row.meta}
+                          </span>
+                        )}
+                        {hasProgress && (
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+                            <div
+                              className={`h-full rounded-full ${barFill}`}
+                              style={{
+                                width: `${Math.max(4, Math.min(100, Number(row.progress_percent)))}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right align-middle">
+                      {row.href ? (
+                        <Link
+                          to={row.href}
+                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9] active:scale-[0.98]"
+                        >
+                          <span>{row.action_label || 'Open'}</span>
+                          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Link>
+                      ) : (
+                        <span className="text-[#94A3B8]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -96,6 +286,7 @@ function EvidenceSection({ section }) {
 
 function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
   const highlights = Array.isArray(turn.highlights) ? turn.highlights : [];
+  const charts = Array.isArray(turn.charts) ? turn.charts : [];
   const sections = Array.isArray(turn.sections) ? turn.sections : [];
   const followUps = Array.isArray(turn.follow_ups) ? turn.follow_ups : [];
 
@@ -123,18 +314,20 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
         )}
       </div>
 
-      <div className="mt-3.5 rounded-lg bg-[#EEF6FB] px-4 py-3 text-sm leading-relaxed text-[#0F172A]">
-        {turn.answer}
-      </div>
+      <FormattedBriefingBlock
+        answer={turn.answer}
+        formattedBlocks={turn.formatted_blocks}
+      />
 
       {highlights.length > 0 && (
-        <dl className="mt-3.5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-[#DDE7EF] pb-3.5">
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-[#DDE7EF] pt-3.5 sm:grid-cols-4">
           {highlights.map((item) => {
-            const valueColor = HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
+            const valueColor =
+              HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
             return (
-              <div key={item.label} className="flex items-baseline gap-2">
-                <dt className="text-xs text-[#475569]">{item.label}:</dt>
-                <dd className={`text-sm font-semibold tabular-nums ${valueColor}`}>
+              <div key={item.label} className="rounded-lg bg-[#F8FAFC] px-3 py-2">
+                <dt className="text-[11px] font-medium text-[#475569]">{item.label}</dt>
+                <dd className={`mt-0.5 text-base font-bold tabular-nums ${valueColor}`}>
                   {item.value}
                 </dd>
               </div>
@@ -142,6 +335,8 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
           })}
         </dl>
       )}
+
+      <AiVisualCharts charts={charts} />
 
       {sections.length > 0 && (
         <div className="mt-4 space-y-4">
@@ -283,6 +478,8 @@ export default function AskAiPage() {
         title: dailyBriefing.title || "Today's Action Plan",
         answer: dailyBriefing.summary,
         highlights: dailyBriefing.highlights || [],
+        formatted_blocks: dailyBriefing.formatted_blocks || null,
+        charts: dailyBriefing.charts || [],
         sections: dailyBriefing.sections || [],
         follow_ups: suggestedQuestions.slice(1, 4).map((q) => ({
           topic: q.topic,
@@ -308,7 +505,7 @@ export default function AskAiPage() {
                 {overview?.role_label || 'Ask AI Assistant'}
               </h1>
               <p className="text-xs text-[#475569]">
-                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Answers grounded in live records
+                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Formatted tables, visual graphs &amp; live records
               </p>
             </div>
           </div>
@@ -428,4 +625,3 @@ export default function AskAiPage() {
     </div>
   );
 }
-

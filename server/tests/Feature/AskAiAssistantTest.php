@@ -100,8 +100,11 @@ class AskAiAssistantTest extends TestCase
         ])->assertOk();
 
         $missingRes->assertJsonPath('intent', 'missing_submissions');
+        $this->assertNotEmpty($missingRes->json('charts'));
+        $this->assertNotEmpty($missingRes->json('formatted_blocks.headline'));
         $missingRows = collect($missingRes->json('sections.0.rows'));
         $this->assertTrue($missingRows->contains(fn (array $row) => str_contains($row['primary'], 'Beta Robotics Club')));
+        $this->assertSame(0, $missingRows->first()['progress_percent']);
         $this->assertFalse($missingRows->contains(fn (array $row) => str_contains($row['primary'], 'Alpha Computing Society')));
 
         $submittedRes = $this->postJson('/api/ai/assistant/ask', [

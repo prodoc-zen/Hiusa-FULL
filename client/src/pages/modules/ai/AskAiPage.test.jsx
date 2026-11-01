@@ -74,6 +74,35 @@ describe('AskAiPage', () => {
         answer:
           'Out of 4 student organization(s) in scope, 1 organization(s) still have missing or returned compliance requirements.',
         highlights: [{ label: 'Orgs missing compliance', value: '1', tone: 'warning' }],
+        formatted_blocks: {
+          headline: 'Organizations With Missing or Returned Submissions',
+          summary:
+            'Out of 4 student organization(s) in scope, 1 organization(s) still have missing or returned compliance requirements.',
+          key_findings: [],
+          recommended_action: {
+            title: 'Supreme Student Council (SSC)',
+            detail: 'Not submitted: Constitution & By-Laws',
+            href: '/dashboard/super-admin/compliance',
+            action_label: 'Inspect',
+          },
+        },
+        charts: [
+          {
+            id: 'missing_submissions-highlights-chart',
+            type: 'bar',
+            title: 'Key Metrics Comparison',
+            subtitle: 'Live indicator breakdown for this query',
+            items: [
+              {
+                label: 'Orgs missing compliance',
+                value: 1,
+                display_value: '1',
+                percent: 100,
+                tone: 'warning',
+              },
+            ],
+          },
+        ],
         sections: [
           {
             id: 'orgs-missing-compliance',
@@ -86,6 +115,7 @@ describe('AskAiPage', () => {
                 status: 'Missing files',
                 status_tone: 'warning',
                 meta: '1/2 submitted',
+                progress_percent: 50,
                 href: '/dashboard/super-admin/compliance',
                 action_label: 'Inspect',
               },
@@ -127,8 +157,10 @@ describe('AskAiPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Organizations With Missing or Returned Submissions' })
     ).toBeInTheDocument();
-    expect(screen.getByText('Supreme Student Council (SSC)')).toBeInTheDocument();
-    expect(screen.getByText('Not submitted: Constitution & By-Laws')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Key Metrics Comparison' })).toBeInTheDocument();
+    expect(screen.getByText(/Recommended next step:/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Supreme Student Council (SSC)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Not submitted: Constitution & By-Laws/i).length).toBeGreaterThan(0);
   });
 
   it('automatically executes a question passed via the URL query string from the dashboard', async () => {
@@ -149,6 +181,6 @@ describe('AskAiPage', () => {
       });
     });
 
-    expect(await screen.findByText('Supreme Student Council (SSC)')).toBeInTheDocument();
+    expect((await screen.findAllByText('Supreme Student Council (SSC)')).length).toBeGreaterThan(0);
   });
 });
