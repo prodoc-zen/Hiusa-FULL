@@ -284,6 +284,64 @@ function EvidenceSection({ section }) {
   );
 }
 
+function RagTelemetryStrip({ ragMetadata }) {
+  if (!ragMetadata) {
+    return null;
+  }
+
+  const concepts = Array.isArray(ragMetadata.matched_concepts)
+    ? ragMetadata.matched_concepts
+    : [];
+  const entities = Array.isArray(ragMetadata.matched_entities)
+    ? ragMetadata.matched_entities
+    : [];
+
+  return (
+    <div
+      aria-label="Semantic RAG retrieval telemetry"
+      className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-2 text-[11px] text-[#475569]"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded bg-[#0F2F62] px-2 py-0.5 font-semibold text-white">
+          <Sparkles className="h-3 w-3 text-[#38BDF8]" aria-hidden="true" />
+          <span>{ragMetadata.engine || 'Hybrid Semantic RAG'}</span>
+        </span>
+        <span className="tabular-nums">
+          Indexed <strong className="text-[#0F172A]">{ragMetadata.corpus_size ?? 0}</strong> records across{' '}
+          <strong className="text-[#0F172A]">{ragMetadata.domains_searched ?? 0}</strong> domains · Retrieved{' '}
+          <strong className="text-[#0F172A]">{ragMetadata.retrieved_count ?? 0}</strong> matches
+        </span>
+        {ragMetadata.top_confidence != null && (
+          <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 font-semibold text-[#166534] tabular-nums">
+            {ragMetadata.top_confidence}% semantic match
+          </span>
+        )}
+      </div>
+
+      {(concepts.length > 0 || entities.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {entities.slice(0, 3).map((entity) => (
+            <span
+              key={entity}
+              className="rounded-full bg-[#EEF6FB] px-2 py-0.5 font-medium text-[#0F2F62]"
+            >
+              Entity: {entity}
+            </span>
+          ))}
+          {concepts.slice(0, 2).map((concept) => (
+            <span
+              key={concept}
+              className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-medium text-[#334155]"
+            >
+              {concept}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
   const highlights = Array.isArray(turn.highlights) ? turn.highlights : [];
   const charts = Array.isArray(turn.charts) ? turn.charts : [];
@@ -309,10 +367,12 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
         {isLatest && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-xs font-medium text-[#0F2F62]">
             <Sparkles className="h-3.5 w-3.5 text-[#0B8ED0]" aria-hidden="true" />
-            Live records
+            Semantic RAG Live
           </span>
         )}
       </div>
+
+      <RagTelemetryStrip ragMetadata={turn.rag_metadata} />
 
       <FormattedBriefingBlock
         answer={turn.answer}
@@ -480,6 +540,7 @@ export default function AskAiPage() {
         highlights: dailyBriefing.highlights || [],
         formatted_blocks: dailyBriefing.formatted_blocks || null,
         charts: dailyBriefing.charts || [],
+        rag_metadata: dailyBriefing.rag_metadata || null,
         sections: dailyBriefing.sections || [],
         follow_ups: suggestedQuestions.slice(1, 4).map((q) => ({
           topic: q.topic,
@@ -505,7 +566,7 @@ export default function AskAiPage() {
                 {overview?.role_label || 'Ask AI Assistant'}
               </h1>
               <p className="text-xs text-[#475569]">
-                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Formatted tables, visual graphs &amp; live records
+                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Hybrid Semantic Search &amp; RAG over live records
               </p>
             </div>
           </div>
@@ -529,7 +590,7 @@ export default function AskAiPage() {
             type="text"
             value={questionInput}
             onChange={(e) => setQuestionInput(e.target.value)}
-            placeholder="Ask what to do today, who hasn't submitted requirements, or check pending queues..."
+            placeholder="Ask anything: officers, specific organizations, merchandise stock, ledger expenses, venues, compliance..."
             disabled={asking}
             className="min-h-[42px] flex-1 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3.5 py-2 text-base text-[#0F172A] placeholder:text-[#64748B] focus:border-[#0B8ED0] focus:bg-white focus:outline-none sm:text-sm"
           />

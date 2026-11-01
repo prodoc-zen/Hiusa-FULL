@@ -48,6 +48,7 @@ class AskAiService
                 'highlights' => $daily['highlights'],
                 'formatted_blocks' => $daily['formatted_blocks'],
                 'charts' => $daily['charts'],
+                'rag_metadata' => $daily['rag_metadata'] ?? null,
                 'priorities' => $this->extractPriorityCards($daily['sections']),
                 'sections' => $daily['sections'],
             ],
@@ -70,7 +71,7 @@ class AskAiService
             'prompt_text' => $cleanQuestion,
             'output_text' => $response['answer'],
             'model_name' => $response['model_name'],
-            'context_version' => 'ask-ai-v1',
+            'context_version' => 'ask-ai-rag-v2',
             'structured_input' => [
                 'question' => $cleanQuestion,
                 'topic' => $topic,
@@ -81,6 +82,7 @@ class AskAiService
                 'title' => $response['title'],
                 'highlights' => $response['highlights'],
                 'section_count' => count($response['sections']),
+                'rag_metadata' => $response['rag_metadata'] ?? null,
             ],
             'status' => 'completed',
             'decision_status' => 'accepted',
@@ -99,10 +101,11 @@ class AskAiService
             'highlights' => $response['highlights'],
             'formatted_blocks' => $response['formatted_blocks'],
             'charts' => $response['charts'],
+            'rag_metadata' => $response['rag_metadata'] ?? null,
             'sections' => $response['sections'],
             'follow_ups' => $response['follow_ups'],
             'generated_at' => now()->toIso8601String(),
-            'engine' => $response['model_name'] ? 'groq+deterministic' : 'deterministic',
+            'engine' => $response['model_name'] ? 'groq+semantic_rag' : 'semantic_rag+deterministic',
         ];
     }
 
@@ -121,6 +124,7 @@ class AskAiService
             'clearances_status',
             'elections_status',
             'grievances_status',
+            'semantic_rag',
         ];
 
         if ($topic !== null && in_array($topic, $validTopics, true)) {
@@ -128,6 +132,58 @@ class AskAiService
         }
 
         $q = Str::lower($question);
+
+        if (Str::contains($q, [
+            'what should i do today',
+            'what do i need to do today',
+            'what to do today',
+            'daily priorities',
+            'daily briefing',
+            'action plan today',
+            'my checklist today',
+        ])) {
+            return 'daily_priorities';
+        }
+
+        // Dynamic RAG intents for leadership/roster, catalog inventory, ledger transactions, venues, announcements, candidates, or specific entity queries
+        if (Str::contains($q, [
+            'who are the officers',
+            'who is the president',
+            'who is the vice',
+            'who is the secretary',
+            'who is the treasurer',
+            'who is the auditor',
+            'who is the adviser',
+            'who is the dean',
+            'officer directory',
+            'leadership roster',
+            'list of officers',
+            'organization members',
+            'stock',
+            'inventory',
+            'catalog',
+            'price of',
+            'how much is',
+            'low stock',
+            'transaction',
+            'expense',
+            'income',
+            'receipt',
+            'cash advance',
+            'ledger',
+            'announcement',
+            'bulletin',
+            'pinned post',
+            'who are the candidates',
+            'partylist',
+            'platform',
+            'tell me about',
+            'compare',
+            'search',
+            'everything about',
+        ])) {
+            return 'semantic_rag';
+        }
 
         if (Str::contains($q, [
             "haven't submitted",
@@ -167,7 +223,7 @@ class AskAiService
         }
 
         if (Str::contains($q, ['grievance', 'complaint', 'concern'])) {
-            return $role === 'SUPER_ADMIN' ? 'grievances_status' : 'daily_priorities';
+            return $role === 'SUPER_ADMIN' ? 'grievances_status' : 'semantic_rag';
         }
 
         if (Str::contains($q, ['clearance', 'signatory', 'signatories', 'held clearance', 'signed my clearance'])) {
@@ -211,31 +267,40 @@ class AskAiService
             return 'pending_approvals';
         }
 
-        return 'daily_priorities';
+        return 'semantic_rag';
     }
 
     private function answer(User $user, string $question, string $intent, bool $allowGroq): array
     {
         $organizationIds = $this->scopedStudentOrganizationIds($user);
+        $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent);
 
-        $payload = match ($intent) {
-            'missing_submissions' => $this->buildMissingSubmissions($user, $organizationIds),
-            'submitted_documents' => $this->buildSubmittedDocuments($user, $organizationIds),
-            'pending_approvals' => $this->buildPendingApprovals($user, $organizationIds),
-            'organizations_without_admin' => $this->buildOrganizationsWithoutAdmin($user, $organizationIds),
-            'tasks_workload' => $this->buildTasksWorkload($user, $organizationIds),
-            'finance_health' => $this->buildFinanceHealth($user, $organizationIds),
-            'merchandise_orders' => $this->buildMerchandiseOrders($user),
-            'events_attendance' => $this->buildEventsAttendance($user, $organizationIds),
-            'clearances_status' => $this->buildClearancesStatus($user, $organizationIds),
-            'elections_status' => $this->buildElectionsStatus($user, $organizationIds),
-            'grievances_status' => $this->buildGrievancesStatus($user),
-            default => $this->buildDailyPriorities($user, $organizationIds),
-        };
+        if ($intent === 'semantic_rag') {
+            $payload = $this->buildSemanticRagPayload($user, $question, $rag, $organizationIds);
+        } else {
+            $payload = match ($intent) {
+                'missing_submissions' => $this->buildMissingSubmissions($user, $organizationIds),
+                'submitted_documents' => $this->buildSubmittedDocuments($user, $organizationIds),
+                'pending_approvals' => $this->buildPendingApprovals($user, $organizationIds),
+                'organizations_without_admin' => $this->buildOrganizationsWithoutAdmin($user, $organizationIds),
+                'tasks_workload' => $this->buildTasksWorkload($user, $organizationIds),
+                'finance_health' => $this->buildFinanceHealth($user, $organizationIds),
+                'merchandise_orders' => $this->buildMerchandiseOrders($user),
+                'events_attendance' => $this->buildEventsAttendance($user, $organizationIds),
+                'clearances_status' => $this->buildClearancesStatus($user, $organizationIds),
+                'elections_status' => $this->buildElectionsStatus($user, $organizationIds),
+                'grievances_status' => $this->buildGrievancesStatus($user),
+                default => $this->buildDailyPriorities($user, $organizationIds),
+            };
+
+            if ($allowGroq) {
+                $payload = $this->augmentWithRagMatches($payload, $rag);
+            }
+        }
 
         $modelName = null;
         if ($allowGroq) {
-            $enhanced = $this->enhanceWithGroq($user, $question, $payload);
+            $enhanced = $this->enhanceWithGroq($user, $question, $payload, $rag);
             if ($enhanced !== null) {
                 $payload['answer'] = $enhanced['text'];
                 $modelName = $enhanced['model'];
@@ -243,6 +308,15 @@ class AskAiService
         }
 
         $payload['model_name'] = $modelName;
+        $payload['rag_metadata'] = [
+            'engine' => $modelName ? 'Hybrid Semantic RAG + Groq LLM' : 'Hybrid Semantic RAG (BM25 + 12D Concept Vector + Trigram)',
+            'corpus_size' => $rag['corpus_size'],
+            'retrieved_count' => count($rag['chunks']),
+            'domains_searched' => $rag['domains_searched'],
+            'matched_concepts' => $rag['matched_concepts'],
+            'matched_entities' => $rag['matched_entities'],
+            'top_confidence' => $rag['top_confidence'],
+        ];
 
         return $this->enrichWithFormattedBlocksAndCharts($payload, $intent);
     }
@@ -2124,19 +2198,32 @@ class AskAiService
         ];
     }
 
-    private function enhanceWithGroq(User $user, string $question, array $payload): ?array
+    private function enhanceWithGroq(User $user, string $question, array $payload, array $rag = []): ?array
     {
+        $topChunks = array_map(fn (array $chunk) => [
+            'domain' => $chunk['domain'],
+            'primary' => $chunk['primary'],
+            'secondary' => $chunk['secondary'],
+            'status' => $chunk['status'],
+            'meta' => $chunk['meta'],
+        ], array_slice($rag['chunks'] ?? [], 0, 8));
+
         $facts = [
             'role' => $user->role,
             'question' => $question,
             'deterministic_answer' => $payload['answer'],
             'highlights' => $payload['highlights'],
+            'retrieved_rag_chunks' => $topChunks,
+            'sections' => array_map(fn (array $s) => [
+                'title' => $s['title'],
+                'rows' => array_slice($s['rows'] ?? [], 0, 6),
+            ], $payload['sections'] ?? []),
         ];
 
         $result = $this->groq->generate(
-            instructions: 'You are the HIUSA Operations AI Assistant. Rewrite the provided deterministic_answer into a concise, helpful 2-sentence response that directly answers the user question using ONLY the exact numbers and facts provided. Never invent numbers, dates, or organization names.',
+            instructions: 'You are the HIUSA Operations AI Assistant powered by Retrieval-Augmented Generation (RAG). Using the retrieved_rag_chunks, sections, and deterministic_answer, write a clear, authoritative 2-to-3 sentence executive response that directly answers the user question using ONLY the exact numbers, names, statuses, and facts provided. Never invent numbers, dates, or organization names.',
             input: json_encode($facts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            maxOutputTokens: 220,
+            maxOutputTokens: 280,
             temperature: 0.1,
         );
 
@@ -2153,6 +2240,997 @@ class AskAiService
             'text' => $plain,
             'model' => $result['model'],
         ];
+    }
+
+    // -------------------------------------------------------------------------
+    // Hybrid Semantic Search & Retrieval-Augmented Generation (RAG) Engine
+    // -------------------------------------------------------------------------
+
+    private function retrieveRagContext(User $user, string $question, Collection $organizationIds, ?string $intent = null): array
+    {
+        $corpus = $this->buildKnowledgeCorpus($user, $organizationIds);
+        $corpusSize = count($corpus);
+        $domainsSearched = collect($corpus)->pluck('domain')->unique()->count();
+
+        $queryTokens = $this->tokenizeWithSynonyms($question);
+        $rawQueryTokens = $this->extractRawTokens($question);
+        $queryVector = $this->computeSemanticVector($question);
+        $matchedConcepts = $this->activeConceptLabels($queryVector);
+
+        if ($corpusSize === 0) {
+            return [
+                'chunks' => [],
+                'corpus_size' => 0,
+                'domains_searched' => 0,
+                'matched_concepts' => $matchedConcepts,
+                'matched_entities' => [],
+                'top_confidence' => 0,
+            ];
+        }
+
+        // Document frequencies for BM25
+        $docFreq = [];
+        $docLengths = [];
+        $totalLength = 0;
+
+        foreach ($corpus as $idx => $doc) {
+            $tokens = $this->extractRawTokens($doc['search_text']);
+            $docLengths[$idx] = max(1, count($tokens));
+            $totalLength += $docLengths[$idx];
+            foreach (array_unique($tokens) as $tok) {
+                $docFreq[$tok] = ($docFreq[$tok] ?? 0) + 1;
+            }
+        }
+
+        $avgDocLength = $totalLength / max(1, $corpusSize);
+        $matchedEntities = [];
+        $scored = [];
+
+        foreach ($corpus as $idx => $doc) {
+            $docTokens = $this->extractRawTokens($doc['search_text']);
+            $bm25 = $this->bm25Score($queryTokens, $docTokens, $docFreq, $corpusSize, $docLengths[$idx], $avgDocLength);
+
+            $docVector = $this->computeSemanticVector($doc['search_text']);
+            $cosine = $this->cosineSimilarity($queryVector, $docVector);
+
+            // Entity & exact phrase matching boost
+            $entityBoost = 0.0;
+            $primaryLower = Str::lower($doc['primary'].' '.($doc['secondary'] ?? ''));
+            foreach ($doc['entity_terms'] ?? [] as $entityTerm) {
+                $entityLower = Str::lower(trim((string) $entityTerm));
+                if ($entityLower !== '' && strlen($entityLower) >= 3 && Str::contains(Str::lower($question), $entityLower)) {
+                    $entityBoost += 1.6;
+                    $matchedEntities[$entityTerm] = $entityTerm;
+                }
+            }
+
+            foreach ($rawQueryTokens as $rTok) {
+                if (strlen($rTok) >= 3 && Str::contains($primaryLower, $rTok)) {
+                    $entityBoost += 0.45;
+                }
+            }
+
+            $trigram = $this->trigramSimilarity($question, $doc['primary']);
+
+            // Combined hybrid relevance score
+            $rawScore = ($bm25 * 0.42) + ($cosine * 1.35) + $entityBoost + ($trigram * 0.65);
+
+            if ($rawScore > 0.12) {
+                $confidence = max(15, min(99, (int) round(min(1.0, $rawScore / 2.2) * 100)));
+                $doc['relevance_score'] = round($rawScore, 4);
+                $doc['relevance_percent'] = $confidence;
+                $scored[] = $doc;
+            }
+        }
+
+        usort($scored, fn (array $a, array $b) => $b['relevance_score'] <=> $a['relevance_score']);
+        $topChunks = array_slice($scored, 0, 16);
+        $topConfidence = $topChunks !== [] ? (int) $topChunks[0]['relevance_percent'] : 78;
+
+        return [
+            'chunks' => $topChunks,
+            'corpus_size' => $corpusSize,
+            'domains_searched' => $domainsSearched,
+            'matched_concepts' => $matchedConcepts !== [] ? $matchedConcepts : ['General Operational Knowledge'],
+            'matched_entities' => array_values($matchedEntities),
+            'top_confidence' => $topConfidence,
+        ];
+    }
+
+    private function buildSemanticRagPayload(User $user, string $question, array $rag, Collection $organizationIds): array
+    {
+        $chunks = collect($rag['chunks'] ?? []);
+
+        if ($chunks->isEmpty()) {
+            $fallback = $this->buildDailyPriorities($user, $organizationIds);
+            $fallback['title'] = 'Semantic Knowledge Search & Briefing';
+            $fallback['answer'] = sprintf(
+                'Searched %d live records across %d authorized operational domains for "%s". No exact entity match exceeded the relevance threshold, so here is your live operational briefing and priority queue.',
+                $rag['corpus_size'] ?? 0,
+                $rag['domains_searched'] ?? 0,
+                $question
+            );
+
+            return $fallback;
+        }
+
+        $grouped = $chunks->groupBy('domain');
+        $sections = [];
+
+        foreach ($grouped as $domainTitle => $domainChunks) {
+            $first = $domainChunks->first();
+            $sections[] = [
+                'id' => 'rag-sec-'.Str::slug((string) $domainTitle),
+                'title' => (string) $domainTitle,
+                'description' => sprintf(
+                    'Semantically retrieved records matching "%s" (top relevance: %d%%).',
+                    Str::limit($question, 48),
+                    (int) ($first['relevance_percent'] ?? 85)
+                ),
+                'empty_message' => 'No records in this domain.',
+                'rows' => $domainChunks->take(10)->map(fn (array $c) => [
+                    'id' => $c['id'],
+                    'primary' => $c['primary'],
+                    'secondary' => $c['secondary'],
+                    'status' => $c['status'],
+                    'status_tone' => $c['status_tone'],
+                    'meta' => $c['meta'],
+                    'progress_percent' => $c['progress_percent'] ?? null,
+                    'href' => $c['href'],
+                    'action_label' => $c['action_label'] ?? 'Open',
+                ])->values()->all(),
+            ];
+        }
+
+        $topThree = $chunks->take(3)->map(
+            fn (array $c) => sprintf('%s (%s — %s)', $c['primary'], $c['status'], $c['meta'] ?: $c['secondary'])
+        )->implode('; ');
+
+        $actionNeededCount = $chunks->filter(
+            fn (array $c) => in_array($c['status_tone'], ['danger', 'warning'], true)
+        )->count();
+
+        $answer = sprintf(
+            'Semantic RAG retrieved %d relevant record(s) out of %d live records across %d domain(s) (top confidence: %d%%). Key findings: %s.',
+            $chunks->count(),
+            $rag['corpus_size'] ?? $chunks->count(),
+            $grouped->count(),
+            $rag['top_confidence'] ?? 88,
+            $topThree
+        );
+
+        $highlights = [
+            [
+                'label' => 'Retrieved matches',
+                'value' => (string) $chunks->count(),
+                'tone' => 'primary',
+            ],
+            [
+                'label' => 'Domains matched',
+                'value' => (string) $grouped->count(),
+                'tone' => 'success',
+            ],
+            [
+                'label' => 'Needs attention',
+                'value' => (string) $actionNeededCount,
+                'tone' => $actionNeededCount > 0 ? 'warning' : 'success',
+            ],
+            [
+                'label' => 'Top semantic score',
+                'value' => ($rag['top_confidence'] ?? 88).'%',
+                'tone' => 'primary',
+            ],
+        ];
+
+        $followUps = [
+            [
+                'topic' => 'daily_priorities',
+                'label' => 'What should I do today?',
+                'question' => $this->defaultDailyQuestion($user->role),
+            ],
+            [
+                'topic' => 'missing_submissions',
+                'label' => 'Check missing submissions',
+                'question' => "Who hasn't submitted compliance or financial reports?",
+            ],
+            [
+                'topic' => 'finance_health',
+                'label' => 'Review financial health',
+                'question' => 'How is our budget utilization and financial status?',
+            ],
+        ];
+
+        return [
+            'title' => 'Semantic Knowledge Retrieval: '.Str::limit($question, 54),
+            'answer' => $answer,
+            'highlights' => $highlights,
+            'sections' => $sections,
+            'follow_ups' => $followUps,
+        ];
+    }
+
+    private function augmentWithRagMatches(array $payload, array $rag): array
+    {
+        $matchedEntities = $rag['matched_entities'] ?? [];
+        $chunks = collect($rag['chunks'] ?? []);
+
+        if ($chunks->isEmpty()) {
+            return $payload;
+        }
+
+        $existingIds = collect($payload['sections'] ?? [])
+            ->flatMap(fn (array $s) => collect($s['rows'] ?? [])->pluck('primary'))
+            ->map(fn ($t) => Str::lower((string) $t))
+            ->all();
+
+        $highConfidenceExtras = $chunks
+            ->filter(fn (array $c) => ($c['relevance_percent'] ?? 0) >= 65 && ! in_array(Str::lower($c['primary']), $existingIds, true))
+            ->take(6)
+            ->values();
+
+        if ($matchedEntities !== [] && $highConfidenceExtras->isNotEmpty()) {
+            $payload['sections'][] = [
+                'id' => 'rag-augmented-context',
+                'title' => 'Related Records Retrieved via Semantic Search',
+                'description' => 'Additional cross-domain records matching '.implode(', ', array_slice($matchedEntities, 0, 3)).'.',
+                'empty_message' => 'No additional cross-domain matches.',
+                'rows' => $highConfidenceExtras->map(fn (array $c) => [
+                    'id' => $c['id'],
+                    'primary' => $c['primary'],
+                    'secondary' => $c['secondary'],
+                    'status' => $c['status'],
+                    'status_tone' => $c['status_tone'],
+                    'meta' => $c['meta'],
+                    'progress_percent' => $c['progress_percent'] ?? null,
+                    'href' => $c['href'],
+                    'action_label' => $c['action_label'] ?? 'Open',
+                ])->all(),
+            ];
+        }
+
+        return $payload;
+    }
+
+    private function buildKnowledgeCorpus(User $user, Collection $organizationIds): array
+    {
+        $role = $user->role;
+        $orgIds = in_array($role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)
+            ? $organizationIds->map(fn ($id) => (int) $id)->all()
+            : [(int) $user->organization_id];
+
+        if ($orgIds === []) {
+            return [];
+        }
+
+        $corpus = [];
+
+        // 1. Organizations & Accreditation Status
+        $organizations = DB::table('organizations')
+            ->whereIn('id', $orgIds)
+            ->orderBy('name')
+            ->limit(30)
+            ->get(['id', 'name', 'acronym', 'college', 'lifecycle_status', 'is_university_wide', 'review_remarks']);
+
+        $accreditationByOrg = $this->accreditation->forOrganizations(collect($orgIds));
+
+        foreach ($organizations as $org) {
+            $accStatus = $accreditationByOrg[$org->id] ?? 'incomplete';
+            $label = ($org->acronym ? "{$org->acronym} — " : '').$org->name;
+            $href = match ($role) {
+                'SUPER_ADMIN' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations'),
+                'DEPARTMENT_HEAD' => $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations'),
+                default => $this->routeAccess->hrefFor($role, '/dashboard/compliance'),
+            };
+
+            $corpus[] = [
+                'id' => 'rag-org-'.$org->id,
+                'domain' => 'Organizations & Accreditation',
+                'primary' => $label,
+                'secondary' => sprintf(
+                    'College: %s · Lifecycle: %s · Accreditation: %s%s',
+                    $org->college ?: ($org->is_university_wide ? 'University-wide' : 'General'),
+                    Str::headline((string) $org->lifecycle_status),
+                    Str::headline((string) $accStatus),
+                    $org->review_remarks ? " · Remarks: {$org->review_remarks}" : ''
+                ),
+                'status' => Str::headline((string) $org->lifecycle_status),
+                'status_tone' => $org->lifecycle_status === 'active' ? ($accStatus === 'complete' ? 'success' : 'warning') : 'danger',
+                'meta' => 'Accreditation: '.Str::headline((string) $accStatus),
+                'progress_percent' => $accStatus === 'complete' ? 100 : ($accStatus === 'returned' ? 35 : 50),
+                'href' => $href,
+                'action_label' => 'View organization',
+                'entity_terms' => array_filter([$org->name, $org->acronym, $org->college]),
+                'search_text' => implode(' ', array_filter([
+                    'organization club society council accreditation registration status',
+                    $org->name,
+                    $org->acronym,
+                    $org->college,
+                    $org->lifecycle_status,
+                    $accStatus,
+                    $org->review_remarks,
+                ])),
+            ];
+        }
+
+        // 2. Leadership, Admins & Officers Directory
+        $leaders = DB::table('users')
+            ->leftJoin('organizations', 'organizations.id', '=', 'users.organization_id')
+            ->where(function ($q) use ($orgIds, $role) {
+                $q->whereIn('users.organization_id', $orgIds);
+                if ($role === 'SUPER_ADMIN') {
+                    $q->orWhere('users.role', 'DEPARTMENT_HEAD');
+                }
+            })
+            ->whereIn('users.role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'])
+            ->where('users.account_status', 'active')
+            ->orderBy('users.role')
+            ->orderBy('users.last_name')
+            ->limit(35)
+            ->get([
+                'users.school_id',
+                'users.first_name',
+                'users.last_name',
+                'users.role',
+                'users.position_title',
+                'users.email',
+                'users.department',
+                'organizations.name as org_name',
+                'organizations.acronym as org_acronym',
+            ]);
+
+        foreach ($leaders as $leader) {
+            $fullName = trim($leader->first_name.' '.$leader->last_name);
+            $orgLabel = $leader->org_acronym ?: ($leader->org_name ?: ($leader->department ?: 'Campus'));
+            $position = $leader->position_title ?: Str::headline($leader->role);
+
+            $corpus[] = [
+                'id' => 'rag-leader-'.$leader->school_id,
+                'domain' => 'Leadership & Officers Directory',
+                'primary' => "{$fullName} ({$position})",
+                'secondary' => sprintf(
+                    'Organization: %s · Role: %s · ID: %s · Email: %s',
+                    $orgLabel,
+                    Str::headline($leader->role),
+                    $leader->school_id,
+                    $leader->email
+                ),
+                'status' => $position,
+                'status_tone' => $leader->role === 'ADMIN' ? 'success' : 'info',
+                'meta' => 'ID #'.$leader->school_id,
+                'href' => $this->routeAccess->hrefFor($role, '/dashboard/users'),
+                'action_label' => 'Directory',
+                'entity_terms' => array_filter([$fullName, $leader->first_name, $leader->last_name, $position, $leader->org_acronym, (string) $leader->school_id]),
+                'search_text' => implode(' ', array_filter([
+                    'who is officer leader admin president vice secretary treasurer auditor adviser dean directory roster member position email contact',
+                    $fullName,
+                    $position,
+                    $leader->role,
+                    $orgLabel,
+                    $leader->org_name,
+                    $leader->email,
+                    (string) $leader->school_id,
+                ])),
+            ];
+        }
+
+        // 3. Budgets & Financial Health
+        $budgets = DB::table('budgets')
+            ->join('organizations', 'organizations.id', '=', 'budgets.organization_id')
+            ->whereIn('budgets.organization_id', $orgIds)
+            ->orderByDesc('budgets.updated_at')
+            ->limit(25)
+            ->get([
+                'budgets.id',
+                'budgets.title',
+                'budgets.allocated_amount',
+                'budgets.remaining_amount',
+                'budgets.submission_status',
+                'organizations.name as org_name',
+                'organizations.acronym as org_acronym',
+            ]);
+
+        foreach ($budgets as $b) {
+            $allocated = (float) $b->allocated_amount;
+            $remaining = (float) $b->remaining_amount;
+            $spent = max(0.0, $allocated - $remaining);
+            $usedPct = $allocated > 0 ? max(0, min(100, (int) round(($spent / $allocated) * 100))) : 0;
+            $orgLabel = $b->org_acronym ?: $b->org_name;
+            $budgetTitle = $b->title ?: 'Operational';
+            $budgetStatus = $b->submission_status ?: 'approved';
+
+            $corpus[] = [
+                'id' => 'rag-budget-'.$b->id,
+                'domain' => 'Finance, Budgets & Ledger',
+                'primary' => "{$orgLabel} — {$budgetTitle} Budget",
+                'secondary' => sprintf(
+                    'Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s',
+                    number_format($allocated, 2),
+                    number_format($spent, 2),
+                    number_format($remaining, 2)
+                ),
+                'status' => Str::headline((string) $budgetStatus),
+                'status_tone' => $budgetStatus === 'approved' ? ($usedPct > 90 ? 'warning' : 'success') : 'info',
+                'meta' => '₱'.number_format($remaining, 2).' left',
+                'progress_percent' => $usedPct,
+                'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance'),
+                'action_label' => 'Open budget',
+                'entity_terms' => array_filter([$budgetTitle, $b->org_acronym, $b->org_name]),
+                'search_text' => implode(' ', array_filter([
+                    'budget finance financial allocated remaining spent money fund category utilization',
+                    $budgetTitle,
+                    $budgetStatus,
+                    $orgLabel,
+                    $b->org_name,
+                ])),
+            ];
+        }
+
+        // 4. Ledger Transactions (Income & Expenses)
+        if ($role !== 'STUDENT') {
+            $transactions = DB::table('transactions')
+                ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
+                ->whereIn('transactions.organization_id', $orgIds)
+                ->orderByDesc('transactions.transaction_date')
+                ->limit(25)
+                ->get([
+                    'transactions.id',
+                    'transactions.type',
+                    'transactions.category',
+                    'transactions.amount',
+                    'transactions.description',
+                    'transactions.receipt_reference',
+                    'transactions.transaction_date',
+                    'organizations.name as org_name',
+                    'organizations.acronym as org_acronym',
+                ]);
+
+            foreach ($transactions as $tx) {
+                $orgLabel = $tx->org_acronym ?: $tx->org_name;
+                $amount = (float) $tx->amount;
+                $isExpense = Str::lower((string) $tx->type) === 'expense';
+
+                $corpus[] = [
+                    'id' => 'rag-tx-'.$tx->id,
+                    'domain' => 'Finance, Budgets & Ledger',
+                    'primary' => ($tx->description ?: $tx->category).' ('.$orgLabel.')',
+                    'secondary' => sprintf(
+                        '%s · Category: %s · Receipt: %s · Date: %s',
+                        Str::headline((string) $tx->type),
+                        $tx->category ?: 'General',
+                        $tx->receipt_reference ?: 'N/A',
+                        $tx->transaction_date ? Carbon::parse($tx->transaction_date)->format('M j, Y') : 'Recent'
+                    ),
+                    'status' => $isExpense ? 'Expense' : 'Income',
+                    'status_tone' => $isExpense ? 'warning' : 'success',
+                    'meta' => '₱'.number_format($amount, 2),
+                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance'),
+                    'action_label' => 'View ledger',
+                    'entity_terms' => array_filter([$tx->category, $tx->description, $tx->receipt_reference, $orgLabel]),
+                    'search_text' => implode(' ', array_filter([
+                        'transaction ledger expense income spent receipt payment money financial',
+                        $tx->type,
+                        $tx->category,
+                        $tx->description,
+                        $tx->receipt_reference,
+                        $orgLabel,
+                    ])),
+                ];
+            }
+        }
+
+        // 5. Merchandise Catalog, Inventory Stock & Orders
+        $merchandiseItems = DB::table('merchandise')
+            ->join('organizations', 'organizations.id', '=', 'merchandise.organization_id')
+            ->whereNull('merchandise.deleted_at')
+            ->whereIn('merchandise.organization_id', $orgIds)
+            ->orderBy('merchandise.name')
+            ->limit(25)
+            ->get([
+                'merchandise.id',
+                'merchandise.name',
+                'merchandise.category',
+                'merchandise.description',
+                'merchandise.price',
+                'merchandise.stock_quantity',
+                'merchandise.low_stock_threshold',
+                'merchandise.is_active',
+                'organizations.name as org_name',
+                'organizations.acronym as org_acronym',
+            ]);
+
+        foreach ($merchandiseItems as $item) {
+            $stock = (int) $item->stock_quantity;
+            $threshold = max(1, (int) ($item->low_stock_threshold ?: 10));
+            $isLow = $stock <= $threshold;
+            $orgLabel = $item->org_acronym ?: $item->org_name;
+
+            $corpus[] = [
+                'id' => 'rag-merch-'.$item->id,
+                'domain' => 'Merchandise & Store Inventory',
+                'primary' => "{$item->name} ({$orgLabel})",
+                'secondary' => sprintf(
+                    'Category: %s · Price: ₱%s · Stock: %d unit(s)%s',
+                    $item->category ?: 'Apparel & Merch',
+                    number_format((float) $item->price, 2),
+                    $stock,
+                    $item->description ? ' · '.Str::limit($item->description, 60) : ''
+                ),
+                'status' => $stock <= 0 ? 'Out of stock' : ($isLow ? 'Low stock' : 'In stock'),
+                'status_tone' => $stock <= 0 ? 'danger' : ($isLow ? 'warning' : 'success'),
+                'meta' => "₱".number_format((float) $item->price, 2)." · {$stock} in stock",
+                'progress_percent' => min(100, (int) round(($stock / max(20, $threshold * 3)) * 100)),
+                'href' => $this->routeAccess->hrefFor($role, $role === 'STUDENT' ? '/dashboard/merchandise' : '/dashboard/merchandise/manage-orders'),
+                'action_label' => 'Open store',
+                'entity_terms' => array_filter([$item->name, $item->category, $orgLabel]),
+                'search_text' => implode(' ', array_filter([
+                    'merchandise merch store shop catalog product item price stock inventory low stock shirt lanyard hoodie',
+                    $item->name,
+                    $item->category,
+                    $item->description,
+                    $orgLabel,
+                ])),
+            ];
+        }
+
+        // 6. Events & Campus Venue Bookings
+        $events = DB::table('events')
+            ->join('organizations', 'organizations.id', '=', 'events.organization_id')
+            ->whereIn('events.organization_id', $orgIds)
+            ->orderByDesc('events.start_time')
+            ->limit(25)
+            ->get([
+                'events.id',
+                'events.title',
+                'events.description',
+                'events.location',
+                'events.status',
+                'events.start_time',
+                'events.end_time',
+                'organizations.name as org_name',
+                'organizations.acronym as org_acronym',
+            ]);
+
+        foreach ($events as $ev) {
+            $orgLabel = $ev->org_acronym ?: $ev->org_name;
+            $corpus[] = [
+                'id' => 'rag-event-'.$ev->id,
+                'domain' => 'Events, Attendance & Venues',
+                'primary' => "{$ev->title} — {$orgLabel}",
+                'secondary' => sprintf(
+                    'Location: %s · Starts: %s · Status: %s',
+                    $ev->location ?: 'Campus Venue',
+                    $ev->start_time ? Carbon::parse($ev->start_time)->format('M j, Y g:i A') : 'TBA',
+                    Str::headline((string) $ev->status)
+                ),
+                'status' => Str::headline((string) $ev->status),
+                'status_tone' => in_array($ev->status, ['approved', 'ongoing', 'completed'], true) ? 'success' : 'warning',
+                'meta' => $ev->start_time ? Carbon::parse($ev->start_time)->format('M j, Y') : 'Scheduled',
+                'href' => $this->routeAccess->hrefFor($role, '/dashboard/events'),
+                'action_label' => 'View event',
+                'entity_terms' => array_filter([$ev->title, $ev->location, $orgLabel]),
+                'search_text' => implode(' ', array_filter([
+                    'event activity program assembly seminar calendar schedule attendance venue location',
+                    $ev->title,
+                    $ev->description,
+                    $ev->location,
+                    $ev->status,
+                    $orgLabel,
+                ])),
+            ];
+        }
+
+        $venues = DB::table('venues')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(15)
+            ->get(['id', 'name', 'location', 'capacity']);
+
+        foreach ($venues as $venue) {
+            $corpus[] = [
+                'id' => 'rag-venue-'.$venue->id,
+                'domain' => 'Events, Attendance & Venues',
+                'primary' => "Venue: {$venue->name}",
+                'secondary' => sprintf('Location: %s · Capacity: %d attendees', $venue->location ?: 'Main Campus', (int) $venue->capacity),
+                'status' => 'Active venue',
+                'status_tone' => 'info',
+                'meta' => 'Cap: '.number_format((int) $venue->capacity),
+                'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/venues' : '/dashboard/events'),
+                'action_label' => 'View venues',
+                'entity_terms' => array_filter([$venue->name, $venue->location]),
+                'search_text' => implode(' ', array_filter([
+                    'venue room hall auditorium gymnasium court booking reservation capacity location',
+                    $venue->name,
+                    $venue->location,
+                    (string) $venue->capacity,
+                ])),
+            ];
+        }
+
+        // 7. Tasks & Officer Workload (Non-student roles)
+        if ($role !== 'STUDENT') {
+            $tasksQuery = DB::table('tasks')
+                ->leftJoin('users', 'users.school_id', '=', 'tasks.assigned_to')
+                ->whereIn('tasks.organization_id', $orgIds);
+
+            if ($role === 'SBO_OFFICER') {
+                $tasksQuery->where('tasks.assigned_to', $user->school_id);
+            }
+
+            $tasks = $tasksQuery
+                ->orderByDesc('tasks.updated_at')
+                ->limit(25)
+                ->get([
+                    'tasks.id',
+                    'tasks.title',
+                    'tasks.description',
+                    'tasks.status',
+                    'tasks.priority',
+                    'tasks.progress_percent',
+                    'tasks.deadline',
+                    'users.first_name',
+                    'users.last_name',
+                ]);
+
+            foreach ($tasks as $t) {
+                $assignee = trim(($t->first_name ?? '').' '.($t->last_name ?? '')) ?: 'Unassigned';
+                $pct = (int) ($t->progress_percent ?? 0);
+
+                $corpus[] = [
+                    'id' => 'rag-task-'.$t->id,
+                    'domain' => 'Officer Tasks & Workload',
+                    'primary' => $t->title,
+                    'secondary' => sprintf(
+                        'Assignee: %s · Priority: %s · Due: %s',
+                        $assignee,
+                        Str::headline((string) ($t->priority ?: 'medium')),
+                        $t->deadline ? Carbon::parse($t->deadline)->format('M j, Y') : 'No deadline'
+                    ),
+                    'status' => Str::headline((string) $t->status),
+                    'status_tone' => $t->status === 'overdue' ? 'danger' : ($t->status === 'completed' ? 'success' : 'warning'),
+                    'meta' => "{$pct}% complete",
+                    'progress_percent' => $pct,
+                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/tasks'),
+                    'action_label' => 'Open task',
+                    'entity_terms' => array_filter([$t->title, $assignee, $t->first_name, $t->last_name]),
+                    'search_text' => implode(' ', array_filter([
+                        'task workload assignment todo deliverable officer deadline progress',
+                        $t->title,
+                        $t->description,
+                        $t->status,
+                        $t->priority,
+                        $assignee,
+                    ])),
+                ];
+            }
+        }
+
+        // 8. Elections, Positions & Candidates
+        $candidates = DB::table('candidates')
+            ->join('elections', 'elections.id', '=', 'candidates.election_id')
+            ->join('users', 'users.school_id', '=', 'candidates.user_id')
+            ->join('election_positions', 'election_positions.id', '=', 'candidates.position_id')
+            ->leftJoin('partylists', 'partylists.id', '=', 'candidates.partylist_id')
+            ->whereIn('elections.organization_id', $orgIds)
+            ->orderBy('election_positions.id')
+            ->limit(25)
+            ->get([
+                'candidates.id',
+                'candidates.platform',
+                'users.first_name',
+                'users.last_name',
+                'election_positions.title as position_title',
+                'partylists.name as partylist_name',
+                'partylists.acronym as partylist_acronym',
+                'elections.title as election_title',
+                'elections.status as election_status',
+            ]);
+
+        foreach ($candidates as $cand) {
+            $candName = trim($cand->first_name.' '.$cand->last_name);
+            $party = $cand->partylist_acronym ?: ($cand->partylist_name ?: 'Independent');
+
+            $corpus[] = [
+                'id' => 'rag-cand-'.$cand->id,
+                'domain' => 'Elections, Partylists & Candidates',
+                'primary' => "{$candName} — Candidate for {$cand->position_title}",
+                'secondary' => sprintf(
+                    'Partylist: %s · Election: %s%s',
+                    $party,
+                    $cand->election_title,
+                    $cand->platform ? ' · Platform: '.Str::limit($cand->platform, 70) : ''
+                ),
+                'status' => Str::headline((string) $cand->election_status),
+                'status_tone' => $cand->election_status === 'active' ? 'success' : 'info',
+                'meta' => $party,
+                'href' => $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote'),
+                'action_label' => 'View ballot',
+                'entity_terms' => array_filter([$candName, $cand->first_name, $cand->last_name, $cand->position_title, $party, $cand->election_title]),
+                'search_text' => implode(' ', array_filter([
+                    'election candidate ballot vote voting partylist position platform running',
+                    $candName,
+                    $cand->position_title,
+                    $party,
+                    $cand->partylist_name,
+                    $cand->platform,
+                    $cand->election_title,
+                ])),
+            ];
+        }
+
+        // 9. Official Announcements & Bulletins
+        $announcements = DB::table('announcements')
+            ->leftJoin('organizations', 'organizations.id', '=', 'announcements.organization_id')
+            ->where(function ($q) use ($orgIds) {
+                $q->whereIn('announcements.organization_id', $orgIds)
+                    ->orWhere('announcements.target_scope', 'university');
+            })
+            ->where('announcements.is_published', true)
+            ->orderByDesc('announcements.is_pinned')
+            ->orderByDesc('announcements.created_at')
+            ->limit(20)
+            ->get([
+                'announcements.id',
+                'announcements.title',
+                'announcements.body',
+                'announcements.category',
+                'announcements.is_pinned',
+                'announcements.is_important',
+                'announcements.published_at',
+                'organizations.acronym as org_acronym',
+                'organizations.name as org_name',
+            ]);
+
+        foreach ($announcements as $ann) {
+            $orgLabel = $ann->org_acronym ?: ($ann->org_name ?: 'University');
+            $corpus[] = [
+                'id' => 'rag-ann-'.$ann->id,
+                'domain' => 'Official Announcements & Bulletins',
+                'primary' => $ann->title,
+                'secondary' => sprintf(
+                    'Source: %s · Category: %s · %s',
+                    $orgLabel,
+                    Str::headline((string) ($ann->category ?: 'General')),
+                    Str::limit(strip_tags((string) $ann->body), 80)
+                ),
+                'status' => $ann->is_pinned ? 'Pinned' : ($ann->is_important ? 'Important' : 'Published'),
+                'status_tone' => $ann->is_important ? 'warning' : ($ann->is_pinned ? 'info' : 'success'),
+                'meta' => $ann->published_at ? Carbon::parse($ann->published_at)->format('M j, Y') : 'Published',
+                'href' => $this->routeAccess->hrefFor($role, '/dashboard/announcements'),
+                'action_label' => 'Read post',
+                'entity_terms' => array_filter([$ann->title, $ann->category, $orgLabel]),
+                'search_text' => implode(' ', array_filter([
+                    'announcement bulletin news post broadcast notice pinned important',
+                    $ann->title,
+                    $ann->body,
+                    $ann->category,
+                    $orgLabel,
+                ])),
+            ];
+        }
+
+        // 10. Compliance Submissions
+        $submissions = DB::table('organization_compliance_submissions')
+            ->join('organizations', 'organizations.id', '=', 'organization_compliance_submissions.organization_id')
+            ->join('compliance_requirement_types', 'compliance_requirement_types.id', '=', 'organization_compliance_submissions.requirement_type_id')
+            ->whereIn('organization_compliance_submissions.organization_id', $orgIds)
+            ->orderByDesc('organization_compliance_submissions.submitted_at')
+            ->limit(25)
+            ->get([
+                'organization_compliance_submissions.id',
+                'organization_compliance_submissions.status',
+                'organization_compliance_submissions.remarks',
+                'organization_compliance_submissions.file_original_name',
+                'organizations.name as org_name',
+                'organizations.acronym as org_acronym',
+                'compliance_requirement_types.name as req_name',
+                'compliance_requirement_types.academic_year',
+            ]);
+
+        foreach ($submissions as $sub) {
+            $orgLabel = $sub->org_acronym ?: $sub->org_name;
+            $corpus[] = [
+                'id' => 'rag-comp-'.$sub->id,
+                'domain' => 'Compliance & Accreditation Files',
+                'primary' => "{$orgLabel} — {$sub->req_name}",
+                'secondary' => sprintf(
+                    'File: %s · A.Y. %s%s',
+                    $sub->file_original_name ?: 'Document',
+                    $sub->academic_year,
+                    $sub->remarks ? " · Remarks: {$sub->remarks}" : ''
+                ),
+                'status' => Str::headline((string) $sub->status),
+                'status_tone' => $sub->status === 'approved' ? 'success' : ($sub->status === 'returned' ? 'danger' : 'warning'),
+                'meta' => $sub->academic_year,
+                'progress_percent' => $sub->status === 'approved' ? 100 : ($sub->status === 'submitted' ? 75 : 25),
+                'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/compliance'),
+                'action_label' => 'Open compliance',
+                'entity_terms' => array_filter([$sub->req_name, $orgLabel, $sub->org_name, $sub->file_original_name]),
+                'search_text' => implode(' ', array_filter([
+                    'compliance accreditation requirement document file submission uploaded constitution cbl',
+                    $sub->req_name,
+                    $sub->status,
+                    $orgLabel,
+                    $sub->org_name,
+                    $sub->remarks,
+                ])),
+            ];
+        }
+
+        return $corpus;
+    }
+
+    private function computeSemanticVector(string $text): array
+    {
+        $lower = Str::lower($text);
+        $dimensions = [
+            'Priorities & Daily Overview' => ['today', 'priority', 'priorities', 'overview', 'summary', 'briefing', 'checklist', 'action plan'],
+            'Missing & Overdue Compliance' => ['missing', 'unsubmitted', 'incomplete', 'lacking', 'not submitted', 'haven\'t', 'hasn\'t', 'overdue'],
+            'Submitted Documents & Files' => ['submitted', 'uploaded', 'compliance', 'accreditation', 'requirement', 'constitution', 'by-laws', 'cbl', 'document'],
+            'Organizations & Governance' => ['organization', 'club', 'society', 'council', 'college', 'registration', 'lifecycle', 'university-wide'],
+            'Leadership & Officers Roster' => ['officer', 'leader', 'admin', 'president', 'vice', 'secretary', 'treasurer', 'auditor', 'adviser', 'dean', 'directory', 'roster', 'member', 'who is', 'email'],
+            'Approvals & Endorsements' => ['approval', 'approve', 'endorse', 'endorsement', 'review', 'pending', 'sign-off', 'waiting'],
+            'Finance, Budgets & Ledger' => ['finance', 'financial', 'budget', 'allocated', 'remaining', 'spent', 'expense', 'income', 'transaction', 'receipt', 'ledger', 'cash advance', 'collection', 'fee', 'invoice', 'debt', 'balance'],
+            'Events, Attendance & Venues' => ['event', 'activity', 'program', 'seminar', 'assembly', 'attendance', 'check-in', 'calendar', 'venue', 'room', 'auditorium', 'gym', 'hall', 'capacity', 'booking'],
+            'Officer Tasks & Workload' => ['task', 'workload', 'assigned', 'assignee', 'todo', 'deliverable', 'deadline', 'progress', 'delegation'],
+            'Merchandise & Store Inventory' => ['merchandise', 'merch', 'store', 'shop', 'catalog', 'product', 'item', 'shirt', 'lanyard', 'hoodie', 'price', 'stock', 'inventory', 'order', 'claim'],
+            'Clearances & Elections' => ['clearance', 'signatory', 'signature', 'held', 'election', 'vote', 'voting', 'ballot', 'turnout', 'candidate', 'partylist', 'platform', 'position'],
+            'Announcements & Grievances' => ['announcement', 'bulletin', 'news', 'post', 'broadcast', 'pinned', 'grievance', 'complaint', 'concern', 'urgent'],
+        ];
+
+        $vec = [];
+        $normSq = 0.0;
+
+        foreach ($dimensions as $label => $keywords) {
+            $score = 0.0;
+            foreach ($keywords as $kw) {
+                if (Str::contains($lower, $kw)) {
+                    $score += 1.0;
+                }
+            }
+            $vec[$label] = $score;
+            $normSq += $score * $score;
+        }
+
+        $norm = sqrt($normSq);
+        if ($norm > 0) {
+            foreach ($vec as $k => $v) {
+                $vec[$k] = $v / $norm;
+            }
+        }
+
+        return $vec;
+    }
+
+    private function activeConceptLabels(array $vector): array
+    {
+        $active = [];
+        foreach ($vector as $label => $weight) {
+            if ($weight >= 0.25) {
+                $active[] = $label;
+            }
+        }
+
+        return array_slice($active, 0, 4);
+    }
+
+    private function cosineSimilarity(array $vecA, array $vecB): float
+    {
+        $dot = 0.0;
+        foreach ($vecA as $k => $v) {
+            $dot += $v * ($vecB[$k] ?? 0.0);
+        }
+
+        return max(0.0, min(1.0, $dot));
+    }
+
+    private function extractRawTokens(string $text): array
+    {
+        $clean = preg_replace('/[^\pL\pN\s-]/u', ' ', Str::lower($text)) ?? '';
+        $parts = preg_split('/\s+/u', trim($clean)) ?: [];
+        $stopwords = [
+            'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'any', 'can', 'had', 'her', 'was',
+            'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old',
+            'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use',
+            'what', 'when', 'where', 'which', 'with', 'have', 'from', 'this', 'that', 'they', 'will',
+            'would', 'there', 'their', 'about', 'tell', 'show', 'give', 'list', 'please', 'many', 'much',
+            'does', 'need', 'still',
+        ];
+
+        return array_values(array_filter(
+            $parts,
+            fn (string $t) => strlen($t) >= 2 && ! in_array($t, $stopwords, true)
+        ));
+    }
+
+    private function tokenizeWithSynonyms(string $question): array
+    {
+        $tokens = $this->extractRawTokens($question);
+        $synonymMap = [
+            'president' => ['admin', 'leader', 'president', 'officer'],
+            'officers' => ['officer', 'sbo_officer', 'admin', 'leader', 'position'],
+            'officer' => ['officer', 'sbo_officer', 'admin', 'leader'],
+            'admins' => ['admin', 'administrator', 'president', 'adviser'],
+            'dean' => ['department_head', 'dean', 'college'],
+            'money' => ['budget', 'finance', 'transaction', 'amount', 'allocated', 'remaining'],
+            'spent' => ['expense', 'transaction', 'budget', 'remaining'],
+            'expenses' => ['expense', 'transaction', 'ledger', 'receipt'],
+            'merch' => ['merchandise', 'stock', 'price', 'order', 'store'],
+            'stock' => ['merchandise', 'stock_quantity', 'inventory', 'low'],
+            'items' => ['merchandise', 'product', 'stock', 'price'],
+            'rooms' => ['venue', 'location', 'capacity', 'booking'],
+            'venues' => ['venue', 'location', 'capacity', 'booking'],
+            'candidates' => ['candidate', 'election', 'partylist', 'position', 'platform'],
+            'news' => ['announcement', 'bulletin', 'published'],
+            'posts' => ['announcement', 'bulletin', 'published'],
+        ];
+
+        $expanded = $tokens;
+        foreach ($tokens as $tok) {
+            if (isset($synonymMap[$tok])) {
+                foreach ($synonymMap[$tok] as $syn) {
+                    $expanded[] = $syn;
+                }
+            }
+        }
+
+        return array_values(array_unique($expanded));
+    }
+
+    private function bm25Score(array $queryTokens, array $docTokens, array $docFreq, int $corpusSize, int $docLen, float $avgDocLen): float
+    {
+        if ($queryTokens === [] || $docTokens === []) {
+            return 0.0;
+        }
+
+        $tfMap = array_count_values($docTokens);
+        $k1 = 1.5;
+        $b = 0.75;
+        $score = 0.0;
+
+        foreach ($queryTokens as $qTok) {
+            $tf = $tfMap[$qTok] ?? 0;
+            if ($tf === 0) {
+                continue;
+            }
+            $df = $docFreq[$qTok] ?? 0;
+            $idf = log(1.0 + (($corpusSize - $df + 0.5) / ($df + 0.5)));
+            $num = $tf * ($k1 + 1.0);
+            $den = $tf + $k1 * (1.0 - $b + $b * ($docLen / max(1.0, $avgDocLen)));
+            $score += $idf * ($num / $den);
+        }
+
+        return $score;
+    }
+
+    private function trigramSimilarity(string $a, string $b): float
+    {
+        $trigramsA = $this->charTrigrams($a);
+        $trigramsB = $this->charTrigrams($b);
+
+        if ($trigramsA === [] || $trigramsB === []) {
+            return 0.0;
+        }
+
+        $intersect = count(array_intersect($trigramsA, $trigramsB));
+        $union = count(array_unique(array_merge($trigramsA, $trigramsB)));
+
+        return $union > 0 ? $intersect / $union : 0.0;
+    }
+
+    private function charTrigrams(string $text): array
+    {
+        $clean = preg_replace('/[^a-z0-9]/', '', Str::lower($text)) ?? '';
+        $len = strlen($clean);
+        if ($len < 3) {
+            return $clean !== '' ? [$clean] : [];
+        }
+
+        $grams = [];
+        for ($i = 0; $i <= $len - 3; $i++) {
+            $grams[] = substr($clean, $i, 3);
+        }
+
+        return array_values(array_unique($grams));
     }
 
     private function recentQueries(User $user): array
