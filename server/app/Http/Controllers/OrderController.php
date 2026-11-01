@@ -181,6 +181,10 @@ class OrderController extends Controller
 
     private function validateOrderFilters(Request $request): array
     {
+        if ($request->filled('payment_method')) {
+            $request->merge(['payment_method' => strtolower((string) $request->input('payment_method'))]);
+        }
+
         return $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:120'])],

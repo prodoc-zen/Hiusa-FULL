@@ -457,7 +457,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     // fetched in full (across every page) rather than left truncated at page one.
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
-      canViewTransactions ? getTransactionSummary(activeFilters) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
+      canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
       canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
@@ -1124,10 +1124,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
           >
-            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, academic_semester_id: id, from: '', to: '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
+            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); const next = { ...txFilters, academic_semester_id: id, from: '', to: '' }; setTxFilters(next); load(1, next); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
             <HiusaSelect filter
               value={txFilters.type}
-              onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
+              onChange={(e) => { const next = { ...txFilters, type: e.target.value }; setTxFilters(next); load(1, next); }}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
               aria-label="Filter by transaction type"
             >
@@ -1137,7 +1137,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </HiusaSelect>
             <HiusaSelect filter
               value={txFilters.event_id}
-              onChange={(e) => setTxFilters({ ...txFilters, event_id: e.target.value })}
+              onChange={(e) => { const next = { ...txFilters, event_id: e.target.value }; setTxFilters(next); load(1, next); }}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
               aria-label="Filter by event"
             >
@@ -1147,14 +1147,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <DateTimeInput
               type="date"
               value={txFilters.from}
-              onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })}
+              onChange={(e) => { const next = { ...txFilters, from: e.target.value }; setTxFilters(next); load(1, next); }}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
               aria-label="Filter from date"
             />
             <DateTimeInput
               type="date"
               value={txFilters.to}
-              onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })}
+              onChange={(e) => { const next = { ...txFilters, to: e.target.value }; setTxFilters(next); load(1, next); }}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
               aria-label="Filter to date"
             />
@@ -1343,6 +1343,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <div className="divide-y divide-[#DDE7EF]">
               {budgets.map((b) => {
                 const lifecycle = b.submission_status ? budgetLifecycle(b, currentUserRole) : null;
+                const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
                 return (
                 <div key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
@@ -1377,37 +1378,37 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <button type="button" onClick={() => handleGenerateBudgetAdvice(b.id)} className="shrink-0 font-bold underline">Retry</button>
                       </div>
                     )}
-                    {budgetAdviceDetails[b.id]?.advice && (
+                    {adviceDetail?.advice && (
                       <div className="mt-3 max-w-3xl rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <EngineBadge engine={budgetAdviceDetails[b.id].engine} />
-                          {budgetAdviceDetails[b.id].advice.allocation_status && (
-                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${allocationStatusTone[budgetAdviceDetails[b.id].advice.allocation_status] || 'bg-slate-100 text-slate-600'}`}>
-                              {allocationStatusLabel[budgetAdviceDetails[b.id].advice.allocation_status] || budgetAdviceDetails[b.id].advice.allocation_status}
+                          <EngineBadge engine={adviceDetail.engine} />
+                          {adviceDetail.advice.allocation_status && (
+                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${allocationStatusTone[adviceDetail.advice.allocation_status] || 'bg-slate-100 text-slate-600'}`}>
+                              {allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status}
                             </span>
                           )}
-                          {budgetAdviceDetails[b.id].advice.xai_model && (
-                            <span className="text-[11px] font-semibold text-slate-500">Explained by {budgetAdviceDetails[b.id].advice.xai_model}</span>
+                          {adviceDetail.advice.xai_model && (
+                            <span className="text-[11px] font-semibold text-slate-500">Explained by {adviceDetail.advice.xai_model}</span>
                           )}
-                          {budgetAdviceDetails[b.id].advice.xai_status === 'unavailable' && (
+                          {adviceDetail.advice.xai_status === 'unavailable' && (
                             <span className="text-[11px] font-semibold text-amber-700">AI explanation unavailable. The displayed figures and advice are deterministic; use AI Advice to retry.</span>
                           )}
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                          {budgetAdviceDetails[b.id].advice.reserve_amount != null && (
-                            <span className="text-slate-500">Reserve <strong className="block text-[#0F172A]">{fmt(budgetAdviceDetails[b.id].advice.reserve_amount)}</strong></span>
+                          {adviceDetail.advice.reserve_amount != null && (
+                            <span className="text-slate-500">Reserve <strong className="block text-[#0F172A]">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
                           )}
-                          {budgetAdviceDetails[b.id].advice.expense_to_income_ratio != null && (
-                            <span className="text-slate-500">Expense/income ratio <strong className="block text-[#0F172A]">{(Number(budgetAdviceDetails[b.id].advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
+                          {adviceDetail.advice.expense_to_income_ratio != null && (
+                            <span className="text-slate-500">Expense/income ratio <strong className="block text-[#0F172A]">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
                           )}
                         </div>
                         <RulesDisclosure
                           label="How this was calculated"
                           items={[
-                            ...(budgetAdviceDetails[b.id].advice.deterministic_advice
-                              ? [`Deterministic advice before AI rewrite: "${budgetAdviceDetails[b.id].advice.deterministic_advice}"`]
+                            ...(adviceDetail.advice.deterministic_advice
+                              ? [`Deterministic advice before AI rewrite: "${adviceDetail.advice.deterministic_advice}"`]
                               : []),
-                            ...(Array.isArray(budgetAdviceDetails[b.id].advice.rules_applied) ? budgetAdviceDetails[b.id].advice.rules_applied : []),
+                            ...(Array.isArray(adviceDetail.advice.rules_applied) ? adviceDetail.advice.rules_applied : []),
                           ]}
                         />
                       </div>

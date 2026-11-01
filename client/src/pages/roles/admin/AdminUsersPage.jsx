@@ -705,7 +705,9 @@ export default function AdminUsersPage() {
           onChange={(event) => mode === 'create' && setForm({ ...form, school_id: event.target.value })}
           required
           readOnly={mode === 'edit'}
-          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 read-only:bg-slate-100 read-only:text-slate-500 read-only:focus:border-[#DDE7EF] read-only:focus:ring-0"
+          disabled={mode === 'edit'}
+          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 read-only:bg-slate-100 read-only:text-slate-500 read-only:focus:border-[#DDE7EF] read-only:focus:ring-0 disabled:bg-slate-100 disabled:text-slate-500"
+
         />
       </Field>
       <Field label="Email" required error={modalFieldErrors.email?.[0]}>
@@ -861,7 +863,7 @@ export default function AdminUsersPage() {
                 <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
                 <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span>{user.fingerprint_enrolled && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[#0878B7]">Fingerprint enrolled</span>}</div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span><span className={`rounded-full px-2.5 py-1 ${user.fingerprint_enrolled ? 'bg-sky-50 text-[#0878B7]' : 'bg-slate-100 text-slate-600'}`}>{user.fingerprint_enrolled ? 'Fingerprint enrolled' : 'Not enrolled'}</span></div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
             </article>
           ))}
@@ -904,7 +906,11 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
-                      {user.fingerprint_enrolled && <Fingerprint aria-label="Fingerprint enrolled" size={16} className="text-[#0878B7]" />}
+                      {user.fingerprint_enrolled ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-[#0878B7]"><Fingerprint aria-label="Fingerprint enrolled" size={14} /> Enrolled</span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">Not enrolled</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
@@ -956,7 +962,7 @@ export default function AdminUsersPage() {
             {[
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
-              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'],
+              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'], ['Fingerprint enrollment', profileUser.fingerprint_enrolled ? 'Enrolled' : 'Not enrolled'],
             ].map(([label, value]) => <div key={label} className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold leading-6 text-[#0F172A]">{value}</p></div>)}
           </div>
           {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section>

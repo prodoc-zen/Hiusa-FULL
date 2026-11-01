@@ -46,6 +46,7 @@ function getDelegationDetail(source) {
       ? source.delegation_snapshot
       : source;
   const rankings = Array.isArray(container.rankings) ? container.rankings : null;
+  const evaluations = Array.isArray(container.evaluations) ? container.evaluations : null;
   const weights = container.weights && typeof container.weights === 'object' ? container.weights : null;
   const eligibilityRules = Array.isArray(container.eligibility_rules) ? container.eligibility_rules : null;
   const taskArea = container.task_area ?? container.inferred_task_area ?? null;
@@ -54,7 +55,7 @@ function getDelegationDetail(source) {
 
   if (!rankings && !weights && !eligibilityRules && !taskArea && !engine) return null;
 
-  return { rankings, weights, eligibilityRules, taskArea, engine, recommendedOfficerId };
+  return { rankings, evaluations, weights, eligibilityRules, taskArea, engine, recommendedOfficerId };
 }
 
 function formatWeightLabel(key) {
@@ -103,7 +104,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [progressSaving, setProgressSaving] = useState(false);
   const [completionTask, setCompletionTask] = useState(null);
   const [lastDelegation, setLastDelegation] = useState(null);
-  const [rankingOpen, setRankingOpen] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(true);
   const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
@@ -395,8 +396,12 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   // Stat cards read the exact per-status totals fetched by loadTotals(), never
   // the loaded board page or a truncated walk of the whole table.
-  const counts = statusTotals;
-  const totalTasksCount = Object.values(statusTotals).reduce((sum, n) => sum + n, 0);
+  const matchesTaskQuery = (t) => { const q = search.trim().toLowerCase(); return !q || [t.title, t.description, t.assignee?.first_name, t.assignee?.last_name, t.assignee?.position_title, t.event?.title].filter(Boolean).join(' ').toLowerCase().includes(q); };
+  const matchingAllTasks = (allTasks.length ? allTasks : tasks).filter(matchesTaskQuery);
+  const counts = search.trim() ? matchingAllTasks.reduce((acc, t) => ({ ...acc, [t.status]: (acc[t.status] || 0) + 1 }), { pending: 0, in_progress: 0, completed: 0, overdue: 0 }) : statusTotals;
+  const displayedKindTotals = search.trim() ? matchingAllTasks.reduce((acc, t) => ({ ...acc, [t.event_id ? 'event_related' : 'standalone']: (acc[t.event_id ? 'event_related' : 'standalone'] || 0) + 1 }), { event_related: 0, standalone: 0 }) : kindTotals;
+  const activeDelegation = lastDelegation ?? (() => { const latest = [...allTasks, ...tasks].sort((a, b) => Number(b.id) - Number(a.id)).find((t) => getDelegationDetail(t)); return latest ? { taskId: latest.id, ...getDelegationDetail(latest) } : null; })();
+  const totalTasksCount = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
   // /tasks has no text-search filter, so search narrows only the page on screen;
   // status/assignee/event/type are applied server-side in load().
@@ -503,8 +508,8 @@ export default function TasksPage({ initialTab = 'board' }) {
       {activeTab !== 'create' && <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Tasks', value: totalTasksCount, helper: academicPeriods.length ? 'Selected period' : 'All time', icon: ListChecks },
-          { label: 'Event-Related', value: kindTotals.event_related, helper: 'Linked to an event', icon: ListChecks },
-          { label: 'Standalone', value: kindTotals.standalone, helper: 'Organization work', icon: ListChecks },
+          { label: 'Event-Related', value: displayedKindTotals.event_related, helper: 'Linked to an event', icon: ListChecks },
+          { label: 'Standalone', value: displayedKindTotals.standalone, helper: 'Organization work', icon: ListChecks },
           { label: 'Pending', value: counts.pending || 0, helper: 'Awaiting work', icon: Clock },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
@@ -580,7 +585,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             searchPlaceholder="Search tasks, assignees, or events"
             activeFilters={activeTaskFilters}
             onClear={clearTaskFilters}
-            resultCount={tasksMeta.total}
+            resultCount={search.trim() ? matchingAllTasks.length : tasksMeta.total}
             resultLabel={tasksMeta.total === 1 ? 'task' : 'tasks'}
             secondaryClassName="grid gap-3 sm:grid-cols-3"
           >
@@ -764,7 +769,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               </div>
             </div>
 
-            {lastDelegation?.rankings?.length > 0 && (
+            {activeDelegation?.rankings?.length > 0 && (
               <div className="mb-5">
                 <button
                   type="button"
@@ -776,17 +781,29 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <ChevronDown size={14} className={`transition-transform ${rankingOpen ? 'rotate-180' : ''}`} />
                     Full officer ranking
                   </span>
-                  <EngineBadge engine={lastDelegation.engine} />
+                  <EngineBadge engine={activeDelegation.engine} />
                 </button>
                 {rankingOpen && (
                   <div className="mt-3">
-                    {lastDelegation.taskArea && (
-                      <p className="text-xs font-semibold text-slate-600">Inferred task area: <span className="text-[#0F172A]">{lastDelegation.taskArea}</span></p>
+                    {activeDelegation.taskArea && (
+                      <>
+                        {activeDelegation.taskArea && <p className="text-xs font-semibold text-slate-600">Inferred task area: <span className="text-[#0F172A]">{activeDelegation.taskArea}</span></p>}
+                        {(activeDelegation.evaluations || []).some((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible') && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                            {(activeDelegation.evaluations || []).filter((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible').map((ev) => (
+                              <span key={`ineligible-${ev.officer_id}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                                <span>{formatDisplayText(ev.name)}</span>
+                                <span className="font-bold uppercase text-amber-700">({String(ev.eligibility_result).replaceAll('_', ' ')})</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                     <div className="mt-3 divide-y divide-[#DDE7EF]">
-                      {lastDelegation.rankings.map((ranking) => {
-                        const isRecommended = lastDelegation.recommendedOfficerId != null
-                          && String(ranking.officer_id) === String(lastDelegation.recommendedOfficerId);
+                      {activeDelegation.rankings.map((ranking) => {
+                        const isRecommended = activeDelegation.recommendedOfficerId != null
+                          && String(ranking.officer_id) === String(activeDelegation.recommendedOfficerId);
                         const positionScore = ranking.position_score ?? ranking.role_score;
                         const positionTier = ranking.position_tier ?? ranking.position_relevance_tier ?? ranking.relevance_tier ?? null;
                         return (
@@ -800,16 +817,16 @@ export default function TasksPage({ initialTab = 'board' }) {
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
                               {positionScore != null && (
-                                <span>Position <strong className="block text-slate-700">{Number(positionScore).toFixed(2)}{lastDelegation.weights?.role != null && ` (×${(lastDelegation.weights.role * 100).toFixed(0)}%)`}{lastDelegation.weights?.position != null && ` (×${(lastDelegation.weights.position * 100).toFixed(0)}%)`}</strong></span>
+                                <span>Position <strong className="block text-slate-700">{Number(positionScore).toFixed(2)}{activeDelegation.weights?.role != null && ` (×${(activeDelegation.weights.role * 100).toFixed(0)}%)`}{activeDelegation.weights?.position != null && ` (×${(activeDelegation.weights.position * 100).toFixed(0)}%)`}</strong></span>
                               )}
                               {ranking.workload_score != null && (
-                                <span>Workload <strong className="block text-slate-700">{Number(ranking.workload_score).toFixed(2)}{lastDelegation.weights?.workload != null && ` (×${(lastDelegation.weights.workload * 100).toFixed(0)}%)`}</strong></span>
+                                <span>Workload <strong className="block text-slate-700">{Number(ranking.workload_score).toFixed(2)}{activeDelegation.weights?.workload != null && ` (×${(activeDelegation.weights.workload * 100).toFixed(0)}%)`}</strong></span>
                               )}
                               {ranking.performance_score != null && (
-                                <span>Performance <strong className="block text-slate-700">{Number(ranking.performance_score).toFixed(2)}{lastDelegation.weights?.performance != null && ` (×${(lastDelegation.weights.performance * 100).toFixed(0)}%)`}</strong></span>
+                                <span>Performance <strong className="block text-slate-700">{Number(ranking.performance_score).toFixed(2)}{activeDelegation.weights?.performance != null && ` (×${(activeDelegation.weights.performance * 100).toFixed(0)}%)`}</strong></span>
                               )}
                               {ranking.recency_score != null && (
-                                <span>Recency <strong className="block text-slate-700">{Number(ranking.recency_score).toFixed(2)}{lastDelegation.weights?.recency != null && ` (×${(lastDelegation.weights.recency * 100).toFixed(0)}%)`}</strong></span>
+                                <span>Recency <strong className="block text-slate-700">{Number(ranking.recency_score).toFixed(2)}{activeDelegation.weights?.recency != null && ` (×${(activeDelegation.weights.recency * 100).toFixed(0)}%)`}</strong></span>
                               )}
                             </div>
                             {ranking.explanation && <p className="mt-2 text-xs leading-5 text-slate-500">{ranking.explanation}</p>}
@@ -837,7 +854,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <EngineBadge engine={task.id === lastDelegation?.taskId ? lastDelegation.engine : null} />
+                        <EngineBadge engine={(task.id === activeDelegation?.taskId ? activeDelegation.engine : null) || getDelegationDetail(task)?.engine || null} />
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
                         <span>Role <strong className="block text-slate-700">{Number(task.role_score).toFixed(2)}</strong></span>
@@ -855,10 +872,10 @@ export default function TasksPage({ initialTab = 'board' }) {
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-[#0F172A]">How AI Delegation Works</h3>
             <div className="mt-4 space-y-3">
-              {(lastDelegation?.weights
+              {(activeDelegation?.weights
                 ? [
                   'Filters candidates to active, policy-eligible SBO Officers',
-                  ...Object.entries(lastDelegation.weights).map(([key, value]) => `Weighs ${formatWeightLabel(key)} at ${(Number(value) * 100).toFixed(0)}%`),
+                  ...Object.entries(activeDelegation.weights).map(([key, value]) => `Weighs ${formatWeightLabel(key)} at ${(Number(value) * 100).toFixed(0)}%`),
                 ]
                 : [
                   'Filters candidates to active, policy-eligible SBO Officers',
@@ -872,11 +889,11 @@ export default function TasksPage({ initialTab = 'board' }) {
                 </div>
               ))}
             </div>
-            {lastDelegation?.eligibilityRules?.length > 0 && (
+            {activeDelegation?.eligibilityRules?.length > 0 && (
               <div className="mt-5 border-t border-[#DDE7EF] pt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Eligibility rules for the latest request</p>
                 <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">
-                  {lastDelegation.eligibilityRules.map((rule, i) => <li key={i}>{rule}</li>)}
+                  {activeDelegation.eligibilityRules.map((rule, i) => <li key={i}>{rule}</li>)}
                 </ul>
               </div>
             )}
@@ -930,7 +947,15 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <input value={progressForm.progress_note} onChange={(e) => setProgressForm((current) => ({ ...current, progress_note: e.target.value }))} placeholder="Describe what changed..." className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
                   </div>
                 </div>
-                <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="mt-3 h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
+                  {canManageTasks && selectedTask.status === 'pending' && selectedTask.workflow_status !== 'blocked' && (
+                    <button type="button" onClick={() => startTask(selectedTask)} className="h-10 rounded-lg border border-[#0B8ED0] bg-[#E6F6FD] px-4 text-xs font-bold text-[#0F2F62] hover:bg-[#d6eefb]">Mark In Progress</button>
+                  )}
+                  {canManageTasks && ['pending', 'in_progress', 'overdue'].includes(selectedTask.status) && selectedTask.workflow_status !== 'blocked' && (
+                    <button type="button" onClick={() => setCompletionTask(selectedTask)} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700">Mark Completed</button>
+                  )}
+                </div>
               </div>
             )}
             {canManageTasks && !viewingHistory && selectedTask.status === 'completed' && (

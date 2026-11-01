@@ -80,7 +80,7 @@ function AdminIdentity({ admin }) {
         {formatDisplayText(admin.first_name)} {formatDisplayText(admin.last_name)}
       </p>
       <p className="break-words text-xs text-ink-muted">
-        {admin.email} · {admin.school_id}
+        {admin.email} · {admin.school_id}{admin.contact_number ? ` · ${admin.contact_number}` : ''}
       </p>
       {!isPrimaryProfile(admin) && <p className="text-xs font-medium text-ink-muted">Added through a profile</p>}
     </div>

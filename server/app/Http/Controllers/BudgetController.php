@@ -40,6 +40,7 @@ class BudgetController extends Controller
 
         $this->attachApprovalInfo($budgets);
         $this->attachSpentAmount($budgets->items());
+        $this->attachAdviceDetails($budgets->items());
 
         return response()->json($budgets);
     }
@@ -240,12 +241,12 @@ class BudgetController extends Controller
             'computed_advice' => $advice,
         ];
         $xai = $this->groq->generate(
-            'Explain this computed budget-advisory result in two concise sentences for a student-organization officer. Preserve all supplied figures and risk labels. Do not recalculate or invent values.',
+            'Explain this computed budget-advisory result in two concise sentences for a student-organization officer in Philippine Pesos (PHP). Format all currency values with PHP (never use $ or USD). Preserve all supplied figures and risk labels. Do not recalculate or invent values.',
             json_encode($xaiFacts, JSON_THROW_ON_ERROR),
             220,
             0.2,
         );
-        if ($xai && ! $this->groq->preservesNumericFacts($xai['text'], $xaiFacts)) {
+        if ($xai && (! $this->groq->preservesNumericFacts($xai['text'], $xaiFacts) || str_contains($xai['text'], '$') || stripos($xai['text'], 'USD') !== false || stripos($xai['text'], 'dollar') !== false)) {
             $xai = null;
         }
 
@@ -292,8 +293,13 @@ class BudgetController extends Controller
             'allocation_status' => $advice['allocation_status'],
         ]);
 
+        $freshBudget = $budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']);
+        $this->attachApprovalInfo(collect([$freshBudget]));
+        $this->attachSpentAmount([$freshBudget]);
+        $this->attachAdviceDetails([$freshBudget]);
+
         return response()->json([
-            'budget' => $budget->fresh()->load('event:id,title'),
+            'budget' => $freshBudget,
             'forecast_id' => $forecast?->id,
             'engine' => $engine,
             'advice' => $advice,
@@ -333,6 +339,32 @@ class BudgetController extends Controller
 
         foreach ($budgets as $budget) {
             $budget->spent_amount = $spent[$budget->id];
+        }
+    }
+
+    /** @param  iterable<Budget>  $budgets */
+    private function attachAdviceDetails(iterable $budgets): void
+    {
+        $ids = collect($budgets)->pluck('id')->all();
+        if (empty($ids)) {
+            return;
+        }
+        $outputs = AiOutput::where('feature_type', 'BUDGET_EXPLANATION')
+            ->where('reference_type', Budget::class)
+            ->whereIn('reference_id', $ids)
+            ->orderBy('id')
+            ->get()
+            ->keyBy('reference_id');
+
+        foreach ($budgets as $budget) {
+            $output = $outputs->get($budget->id);
+            $structured = is_array($output?->structured_output) ? $output->structured_output : null;
+            $budget->advice_details = $structured && isset($structured['computed_advice'])
+                ? [
+                    'engine' => $structured['engine'] ?? 'php-fallback',
+                    'advice' => $structured['computed_advice'],
+                ]
+                : null;
         }
     }
 

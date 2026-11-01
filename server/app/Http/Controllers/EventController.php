@@ -1145,7 +1145,7 @@ class EventController extends Controller
 
         $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
         if (! $canManageAttendance) {
-            $recordsQuery->where('user_id', $request->user()->id);
+            $recordsQuery->where('user_id', $request->user()->school_id);
         }
 
         $recordCount = (clone $recordsQuery)->count();

@@ -617,7 +617,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setCheckInSuccess('Check-in recorded.');
       setAttendanceReload((value) => value + 1);
     } catch (err) {
-      setCheckInError(getApiErrorMessage(err, 'We could not record this check-in. Please try again.'));
+      const msg = getApiErrorMessage(err, 'We could not record this check-in. Please try again.');
+      setCheckInError(msg);
+      notify.error(msg);
     } finally {
       setCheckInSubmitting(false);
     }
@@ -972,7 +974,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const filteredCheckInUsers = allUsers
     .filter(
       (u) =>
-        !checkedInUserIds.has(u.school_id ?? u.id) &&
+        Boolean(u) &&
         (checkInSearch.trim() === '' ||
           `${u.first_name} ${u.last_name}`.toLowerCase().includes(checkInSearch.toLowerCase()) ||
           String(u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
@@ -1637,7 +1639,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <input
                                 id="attendance-member-search"
                                 value={checkInSearch}
-                                onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); }}
+                                onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); setCheckInError(null); }}
                                 type="text"
                                 autoComplete="off"
                                 placeholder="Search name or School ID"
@@ -1651,12 +1653,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                     type="button"
                                     onClick={() => {
                                       setCheckInUserId(u.school_id ?? u.id);
+                                      if (checkedInUserIds.has(u.school_id ?? u.id)) { setCheckInError('This member is already checked in for this event.'); notify.error('This member is already checked in for this event.'); } else { setCheckInError(null); }
                                       setCheckInSearch(`${u.first_name} ${u.last_name} (${u.school_id})`);
                                     }}
                                     className="flex w-full items-center gap-3 border-b border-[#DDE7EF] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#F8FBFD]"
                                   >
                                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0878B7] text-[10px] font-black text-white">{u.first_name?.[0]}{u.last_name?.[0]}</span>
-                                    <span className="min-w-0"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(u.first_name)} {formatDisplayText(u.last_name)}</span><span className="block text-[11px] font-medium text-slate-500">{u.school_id} · {capitalize(u.role)}</span></span>
+                                    <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(u.first_name)} {formatDisplayText(u.last_name)}</span><span className="block text-[11px] font-medium text-slate-500">{u.school_id} · {capitalize(u.role)}</span></span>
+                                    {checkedInUserIds.has(u.school_id ?? u.id) && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">Already checked in</span>}
                                   </button>
                                 ))}
                               </div>
