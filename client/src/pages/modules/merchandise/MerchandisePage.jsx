@@ -3196,7 +3196,7 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <option value="">All payment methods</option>
                     {orderFilterOptions.payment_methods?.map((value) => (
-                      <option key={value}>{value.toUpperCase()}</option>
+                      <option key={value} value={value}>{value.toUpperCase()}</option>
                     ))}
                   </HiusaSelect>
                   <div className="flex h-11 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-xs font-bold text-slate-500">
@@ -3317,7 +3317,7 @@ export default function MerchandisePage({ initialTab }) {
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-500">
                             <span className="font-mono">{o.student?.school_id}</span>
-                            {o.student?.role && <> · {o.student.role.replaceAll('_', ' ')}</>}
+                            {[o.student?.program, o.student?.year_level && `Y${o.student.year_level}`, o.student?.section].filter(Boolean).join(" · ") || o.student?.role?.replaceAll("_", " ") || "-"}
                           </p>
                         </td>
                         <td className="px-3 py-3 align-top">

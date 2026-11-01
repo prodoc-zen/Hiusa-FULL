@@ -108,7 +108,14 @@ class FinancialAccountabilityController extends Controller
         }
 
         return DB::transaction(function () use ($request, $data) {
-            $row = Collection::create([...$data, 'organization_id' => $request->user()->organization_id, 'reference' => 'COL-'.strtoupper(Str::random(10)), 'collected_by' => $request->user()->school_id, 'collected_at' => $data['collected_at'] ?? now()]);
+            $row = Collection::create([
+                ...$data,
+                'expected_amount' => $data['expected_amount'] ?? 0,
+                'organization_id' => $request->user()->organization_id,
+                'reference' => 'COL-'.strtoupper(Str::random(10)),
+                'collected_by' => $request->user()->school_id,
+                'collected_at' => $data['collected_at'] ?? now(),
+            ]);
             $this->audit($request, 'collections', 'recorded', $row);
 
             return response()->json($this->collectionData($row), 201);

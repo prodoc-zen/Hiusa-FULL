@@ -47,7 +47,7 @@ export default function FinancialCollectionsPage() {
     setBusy(true);
     setError('');
     try {
-      await createCollection({ ...createForm, expected_amount: createForm.expected_amount || null });
+      await createCollection({ ...createForm, expected_amount: createForm.expected_amount === '' ? null : createForm.expected_amount });
       setCreateOpen(false);
       setCreateForm({ source: '', amount_collected: '', expected_amount: '', notes: '' });
       setNotice('Collection recorded. Another admin must verify it before it appears in the ledger.');

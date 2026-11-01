@@ -119,7 +119,7 @@ class ElectionSeeder extends Seeder
             ]);
         });
 
-        $election->update(['approved_at' => now()->subDays(2)]);
+        $election->update(['approved_at' => now()->subDays(2), 'finalized_at' => now()->subDays(2)]);
 
         // Cast votes for every eligible student except the last one (Alyssa
         // Domingo, school_id 2400093), who is left deliberately unvoted so the

@@ -9,6 +9,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 
 function size(bytes) {
   if (bytes === null || bytes === undefined) return 'Unavailable';
+  if (bytes > 0 && bytes < 1024 ** 2 / 10) return `${Math.max(0.01, Number((bytes / 1024 ** 2).toFixed(2)))} MB`;
   return bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 

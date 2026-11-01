@@ -1230,7 +1230,7 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if (! in_array($election->status, ['active', 'closed'], true) || ! $election->finalized_at) {
+        if (! in_array($election->status, ['active', 'closed'], true) || ($election->status === 'active' && ! $election->finalized_at)) {
             return response()->json(['message' => 'Results are available after the ballot is finalized and voting opens.'], 403);
         }
 

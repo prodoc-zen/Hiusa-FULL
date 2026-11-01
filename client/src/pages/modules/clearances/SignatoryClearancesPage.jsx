@@ -154,7 +154,7 @@ export default function SignatoryClearancesPage() {
       ),
     },
     { key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) },
-    { key: 'period', header: 'Period', render: (row) => row.clearancePeriod?.title || '-' },
+    { key: 'period', header: 'Period', render: (row) => row.clearance_period?.title || row.clearancePeriod?.title || '-' },
     { key: 'remarks', header: 'Remarks', render: (row) => row.remarks || (row.status === 'pending' ? `Waiting for ${humanizeRole(row.required_role)} signature` : '-') },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} /> },
   ];
@@ -232,7 +232,7 @@ export default function SignatoryClearancesPage() {
         />
       </Card>
 
-      <Drawer open={Boolean(selected)} title={selected ? studentName(selected) : undefined} description={selected ? `${selected.clearancePeriod?.title || 'Clearance'} · ${humanizeRole(selected.required_role)}` : undefined} onClose={() => setRecordId(null)}>
+      <Drawer open={Boolean(selected)} title={selected ? studentName(selected) : undefined} description={selected ? `${selected.clearance_period?.title || selected.clearancePeriod?.title || 'Clearance'} · ${humanizeRole(selected.required_role)}` : undefined} onClose={() => setRecordId(null)}>
         {selected && <SignatureDetail row={selected} role={role} onSign={(nextStatus, remarks) => sign(selected, nextStatus, remarks)} />}
       </Drawer>
 

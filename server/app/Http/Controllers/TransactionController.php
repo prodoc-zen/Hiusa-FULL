@@ -107,35 +107,68 @@ class TransactionController extends Controller
 
     public function summary(Request $request)
     {
-        $request->validate([
+        $filters = $request->validate([
+            'budget_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
+            'event_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
+            'type' => ['nullable', FilterValues::rule(['nullable', 'in:income,expense'])],
+            'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
-            'event_id' => ['nullable', 'integer'],
+            'search' => ['nullable', 'string', 'max:150'],
             'event_search' => ['nullable', 'string', 'max:150'],
-            'type' => ['nullable', 'in:income,expense'],
         ]);
 
         $query = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request));
 
-        if ($request->filled('event_id')) {
-            $query->where('event_id', $request->event_id);
+        if (! empty($filters['academic_semester_id'])) {
+            $periods = AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get();
+            $query->where(function ($matches) use ($periods) {
+                foreach ($periods as $period) {
+                    $matches->orWhereBetween('transaction_date', [$period->starts_on->startOfDay(), $period->ends_on->endOfDay()]);
+                }
+            });
         }
 
-        if ($request->filled('event_search')) {
-            $eventSearch = trim($request->string('event_search')->toString());
+        if (! empty($filters['budget_id'])) {
+            $query->whereIn('budget_id', FilterValues::values($filters['budget_id']));
+        }
+
+        if (! empty($filters['event_id'])) {
+            $query->whereIn('event_id', FilterValues::values($filters['event_id']));
+        }
+
+        if (! empty($filters['event_search'])) {
+            $eventSearch = trim($filters['event_search']);
             $query->whereHas('event', fn ($event) => $event->where('title', 'like', "%{$eventSearch}%"));
         }
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+        if (! empty($filters['type'])) {
+            $query->whereIn('type', FilterValues::values($filters['type']));
         }
 
-        if ($request->filled('from')) {
-            $query->whereDate('transaction_date', '>=', $request->from);
+        if (! empty($filters['from'])) {
+            $query->whereDate('transaction_date', '>=', $filters['from']);
         }
 
-        if ($request->filled('to')) {
-            $query->whereDate('transaction_date', '<=', $request->to);
+        if (! empty($filters['to'])) {
+            $query->whereDate('transaction_date', '<=', $filters['to']);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($nested) use ($search) {
+                $nested->where('description', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%")
+                    ->orWhere('receipt_reference', 'like', "%{$search}%")
+                    ->orWhereHas('event', fn ($event) => $event->where('title', 'like', "%{$search}%"))
+                    ->orWhereHas('budget', fn ($budget) => $budget->where('title', 'like', "%{$search}%"));
+
+                $nested->orWhereHas('payer', fn ($payer) => $payer->where('school_id', 'like', "%{$search}%")->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%")->orWhere('department', 'like', "%{$search}%")->orWhere('program', 'like', "%{$search}%")->orWhere('year_level', 'like', "%{$search}%"));
+
+                if (ctype_digit($search)) {
+                    $nested->orWhere('receipt_number', (int) $search);
+                }
+            });
         }
 
         $totalIncome = (clone $query)->where('type', 'income')->sum('amount');

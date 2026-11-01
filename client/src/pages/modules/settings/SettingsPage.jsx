@@ -251,6 +251,12 @@ export default function SettingsPage() {
                   </span>
                 </label>
 
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">School ID (read-only)</span><input type="text" readOnly disabled value={schoolId} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
+                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">Role (read-only)</span><input type="text" readOnly disabled value={roleLabel(currentUser.role)} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
+                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'} (read-only)</span><input type="text" readOnly disabled value={organizationName} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
+                </div>
+                {!profileDirty && <p className="text-[11px] font-medium text-[#64748B]">Edit a field above to enable Save profile.</p>}
                 {profileError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">{profileError}</p>}
               </div>
 

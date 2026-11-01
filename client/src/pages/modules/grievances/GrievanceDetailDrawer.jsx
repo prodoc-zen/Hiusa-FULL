@@ -110,6 +110,13 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [activeGrievanceId, setActiveGrievanceId] = useState(grievance?.id ?? null);
+  if ((grievance?.id ?? null) !== activeGrievanceId) {
+    setActiveGrievanceId(grievance?.id ?? null);
+    setPendingTransition(null);
+    setError('');
+    setDeleteOpen(false);
+  }
 
   async function confirmDelete() {
     setSubmitting(true); setError('');
@@ -211,6 +218,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
       </Drawer>
 
       <TransitionModal
+        key={`${grievance?.id ?? 'none'}-${pendingTransition ?? 'closed'}`}
         transition={pendingTransition}
         onCancel={closeTransition}
         onConfirm={confirmTransition}

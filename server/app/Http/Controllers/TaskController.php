@@ -602,7 +602,7 @@ class TaskController extends Controller
         return [
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $this->delegation->weights(),
-            'task_area' => $rankings[0]['task_area'] ?? TaskDelegationService::DEFAULT_TASK_AREA,
+            'task_area' => $rankings[0]['task_area'] ?? $this->delegation->inferArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type')),
             'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
             'rankings' => $rankings,
@@ -612,17 +612,22 @@ class TaskController extends Controller
 
     private function recommendOfficer(Request $request): ?User
     {
-        $officers = $this->eligibleOfficerQuery($request)->get();
-
-        if ($officers->isEmpty()) {
-            return null;
-        }
-
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $candidates = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('account_status', 'active'))
             ->when($request->filled('preferred_role'), fn ($query) => $query->where('users.position_title', $request->preferred_role))
             ->orderBy('school_id')
             ->get();
+        $officers = $this->eligibleOfficerQuery($request)->get();
+
+        if ($officers->isEmpty()) {
+            $this->lastDelegation = $this->buildLocalDelegation([], $request, $maxActiveTasks);
+            $this->lastDelegation['evaluations'] = $candidates
+                ->map(fn (User $candidate) => $this->ineligibleEvaluation($candidate, $request, $maxActiveTasks))
+                ->values()
+                ->all();
+
+            return null;
+        }
         $result = $this->aiService->taskDelegation(
             (string) $request->input('title', 'Untitled task'),
             $candidates->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all(),
@@ -646,6 +651,12 @@ class TaskController extends Controller
             ->values();
 
         if ($eligible->isEmpty()) {
+            $this->lastDelegation = $this->buildLocalDelegation([], $request, $maxActiveTasks);
+            $this->lastDelegation['evaluations'] = $candidates
+                ->map(fn (User $candidate) => $this->ineligibleEvaluation($candidate, $request, $maxActiveTasks))
+                ->values()
+                ->all();
+
             return null;
         }
 

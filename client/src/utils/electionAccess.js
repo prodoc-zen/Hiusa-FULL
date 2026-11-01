@@ -6,5 +6,5 @@ export function isVotingOpen(election) {
 }
 
 export function canViewElectionResults(election, role) {
-  return ['active', 'closed'].includes(election?.status) && Boolean(election?.finalized_at) && (role === 'ADMIN' || Boolean(election?.results_visible));
+  return ['active', 'closed'].includes(election?.status) && (election?.status === 'closed' || Boolean(election?.finalized_at)) && (role === 'ADMIN' || Boolean(election?.results_visible));
 }

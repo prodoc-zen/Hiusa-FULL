@@ -146,7 +146,7 @@ class FinancialForecastController extends Controller
         $advice['engine'] = $adviceEngine;
         $safeSpendingLimit = round((float) $advice['safe_spending_limit'], 2);
         $risk = (string) $advice['forecast_risk'];
-        $summary = $this->financialSummary($nextPeriod->format('F Y'), $predictedIncome, $predictedExpense, $predictedBalance, $safeSpendingLimit, $risk);
+        $summary = $this->financialSummary($nextPeriod->format('F Y'), $predictedIncome, $predictedExpense, $predictedBalance, $safeSpendingLimit, $risk, $analysis['confidence_note'] ?? null, (bool) ($analysis['is_reliable'] ?? true));
 
         $aiOutput = AiOutput::create([
             'organization_id' => $request->user()->organization_id,
@@ -467,21 +467,27 @@ class FinancialForecastController extends Controller
             && in_array($advice['forecast_risk'] ?? null, ['stable', 'overspending', 'deficit'], true);
     }
 
-    private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk): array
+    private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk, ?string $reliabilityNote = null, bool $isReliable = true): array
     {
         $facts = compact('period', 'income', 'expense', 'balance', 'safeLimit', 'risk');
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
             : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
+        if (! $isReliable && $reliabilityNote) {
+            $fallback .= " {$reliabilityNote}";
+        }
 
         $generated = $this->groq->generate(
-            'Provide a concise, practical budget summary for a student organization. Do not alter any supplied figures.',
-            "Period: {$period}; income: {$income}; expense: {$expense}; balance: {$balance}; safe limit: {$safeLimit}; risk: {$risk}.",
+            'Provide a concise, practical budget summary for a student organization in Philippine Pesos (PHP). Always format currency amounts with PHP (never use $ or USD). Do not alter any supplied figures.',
+            "Period: {$period}; income: PHP {$income}; expense: PHP {$expense}; balance: PHP {$balance}; safe limit: PHP {$safeLimit}; risk: {$risk}.".(! $isReliable && $reliabilityNote ? " Reliability warning: {$reliabilityNote}" : ''),
             220,
             0.2,
         );
-        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $facts)) {
+        if ($generated && (! $this->groq->preservesNumericFacts($generated['text'], $facts) || str_contains($generated['text'], '$') || stripos($generated['text'], 'USD') !== false || stripos($generated['text'], 'dollar') !== false)) {
             $generated = null;
+        }
+        if ($generated && ! $isReliable && $reliabilityNote && stripos($generated['text'], 'weak') === false && stripos($generated['text'], 'caution') === false && stripos($generated['text'], 'unreliable') === false) {
+            $generated['text'] = rtrim($generated['text'])." {$reliabilityNote}";
         }
 
         return $generated
