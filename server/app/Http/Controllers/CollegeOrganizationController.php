@@ -105,15 +105,28 @@ class CollegeOrganizationController extends Controller
             'acronym' => ['required', 'string', 'max:50', Rule::unique('organizations', 'acronym')],
             'description' => ['nullable', 'string', 'max:3000'],
             'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'admin_school_id' => ['nullable', 'integer', 'min:1'],
+            'admin_first_name' => ['nullable', 'string', 'max:100'],
+            'admin_last_name' => ['nullable', 'string', 'max:100'],
+            'admin_email' => ['nullable', 'email', 'max:255'],
+            'admin_position_title' => ['nullable', 'string', 'max:100'],
             'files' => ['required', 'array'],
             ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', ...$type->uploadRules()]])->all(),
         ]);
         $slug = $this->slugFor($data['name']);
         $storagePolicy->assertUpload(array_values($request->file('files', [])), field: 'files');
 
+        $adminPayload = ! empty($data['admin_school_id']) && ! empty($data['admin_first_name']) && ! empty($data['admin_last_name']) && ! empty($data['admin_email']) ? [
+            'school_id' => (int) $data['admin_school_id'],
+            'first_name' => trim($data['admin_first_name']),
+            'last_name' => trim($data['admin_last_name']),
+            'email' => strtolower(trim($data['admin_email'])),
+            'position_title' => trim($data['admin_position_title'] ?? 'President') ?: 'President',
+        ] : null;
+
         $stored = [];
         try {
-            $organization = DB::transaction(function () use ($request, $user, $college, $types, $data, $slug, &$stored) {
+            $organization = DB::transaction(function () use ($request, $user, $college, $types, $data, $slug, $adminPayload, &$stored) {
                 College::whereKey($college->id)->lockForUpdate()->first();
                 if (Organization::student()->where('college_id', $college->id)->where('lifecycle_status', 'pending')->count() >= self::PENDING_LIMIT) {
                     throw ValidationException::withMessages(['name' => ['Too many registrations are waiting for SAO review. Wait for a decision before registering more.']]);
@@ -125,6 +138,7 @@ class CollegeOrganizationController extends Controller
                     'acronym' => $data['acronym'],
                     'description' => $data['description'] ?? null,
                     'color' => $data['color'] ?? null,
+                    'admin_payload' => $adminPayload,
                     'organization_type' => 'STUDENT_ORGANIZATION',
                     'college_id' => $college->id,
                     'college' => $college->name,
@@ -362,6 +376,7 @@ class CollegeOrganizationController extends Controller
     {
         return [
             ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'lifecycle_status', 'is_active', 'review_remarks', 'submitted_at', 'reviewed_at', 'archived_at']),
+            'admin_payload' => $organization->admin_payload,
             'members_count' => $organization->members_count,
             'administrators_count' => $organization->administrators_count,
             'registration_requirements' => $checklists->get($organization->id),
@@ -382,16 +397,24 @@ class CollegeOrganizationController extends Controller
         return $organizationIds->mapWithKeys(function ($organizationId) use ($submissions, $types) {
             $byType = ($submissions->get($organizationId) ?? collect())->keyBy('requirement_type_id');
 
-            return [$organizationId => $types->map(fn (ComplianceRequirementType $type) => [
-                'requirement_type_id' => $type->id,
-                'requirement_name' => $type->name,
-                'allowed_extensions' => $type->acceptedExtensions(),
-                'template_original_name' => $type->template_original_name,
-                'template_url' => $type->template_url,
-                'file_name' => $byType->get($type->id)?->file_original_name,
-                'status' => $byType->get($type->id)?->status ?? 'not_submitted',
-                'submission_id' => $byType->get($type->id)?->id,
-            ])->values()];
+            return [$organizationId => $types->map(function (ComplianceRequirementType $type) use ($byType) {
+                $sub = $byType->get($type->id);
+                $row = [
+                    'requirement_type_id' => $type->id,
+                    'requirement_name' => $type->name,
+                    'allowed_extensions' => $type->acceptedExtensions(),
+                    'template_original_name' => $type->template_original_name,
+                    'template_url' => $type->template_url,
+                    'file_name' => $sub?->file_original_name,
+                    'status' => $sub?->status ?? 'not_submitted',
+                    'submission_id' => $sub?->id,
+                ];
+                if ($sub?->remarks) {
+                    $row['remarks'] = $sub->remarks;
+                }
+
+                return $row;
+            })->values()];
         });
     }
 

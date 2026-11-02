@@ -32,6 +32,7 @@ class AskAiService
         private readonly ClientRouteAccess $routeAccess,
         private readonly StudentAccountBalances $balances,
         private readonly GroqResponsesService $groq,
+        private readonly HowToGuideLibrary $guides,
     ) {}
 
     public function overview(User $user): array
@@ -125,6 +126,7 @@ class AskAiService
             'elections_status',
             'grievances_status',
             'semantic_rag',
+            'how_to_guide',
         ];
 
         if ($topic !== null && in_array($topic, $validTopics, true)) {
@@ -132,6 +134,13 @@ class AskAiService
         }
 
         $q = Str::lower($question);
+
+        // Procedural "how do I ..." questions get step-by-step guidance. Data
+        // questions such as "how many" / "how much" / "how is our budget"
+        // deliberately do not match and keep flowing to the data intents.
+        if ($this->isHowToQuestion($q)) {
+            return 'how_to_guide';
+        }
 
         if (Str::contains($q, [
             'what should i do today',
@@ -272,6 +281,10 @@ class AskAiService
 
     private function answer(User $user, string $question, string $intent, bool $allowGroq): array
     {
+        if ($intent === 'how_to_guide') {
+            return $this->answerHowTo($user, $question);
+        }
+
         $organizationIds = $this->scopedStudentOrganizationIds($user);
         $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent);
 
@@ -319,6 +332,282 @@ class AskAiService
         ];
 
         return $this->enrichWithFormattedBlocksAndCharts($payload, $intent);
+    }
+
+    // -------------------------------------------------------------------------
+    // Intent 0: Procedural How-To Guidance ("How do I create an event?")
+    // -------------------------------------------------------------------------
+
+    private function isHowToQuestion(string $q): bool
+    {
+        if (preg_match('/\bhow\s+(many|much|is|are|was|were|far|long|often)\b/', $q) === 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/\b(how\s+(do|can|should|would|could|does|will)\s+(i|we|you|a|an|the|students?|officers?|admins?|sao|deans?)\b'
+            .'|how\s+to\b|steps?\s+(to|for|in|on)\b|step[\s-]by[\s-]step|walk\s+me\s+through|guide\s+me|show\s+me\s+how'
+            .'|teach\s+me|where\s+(do|can|should)\s+(i|we)\b|what\s+(is|are)\s+the\s+(steps|process|procedure)'
+            .'|process\s+(of|for|to)\b|procedure\s+(for|to)\b|tutorial|instructions?\s+(for|to|on)\b)/',
+            $q
+        ) === 1;
+    }
+
+    private function answerHowTo(User $user, string $question): array
+    {
+        $role = $user->role;
+        $result = $this->guides->search($question, $role);
+        $guide = $result['best'];
+
+        if ($guide === null) {
+            $payload = $this->buildHowToCatalog($user, $question);
+        } else {
+            $payload = $this->buildHowToGuide($user, $guide, (bool) $result['accessible'], $result['related']);
+        }
+
+        $payload['model_name'] = null;
+        $payload['rag_metadata'] = [
+            'engine' => 'Procedural Knowledge RAG (BM25 + Trigram over role guides)',
+            'corpus_size' => $result['total'],
+            'retrieved_count' => $guide === null ? 0 : 1 + count($result['related']),
+            'domains_searched' => $result['categories'],
+            'matched_concepts' => $guide !== null ? [$guide['category']] : ['How-to guidance'],
+            'matched_entities' => $guide !== null ? [$guide['title']] : [],
+            'top_confidence' => $result['top_confidence'],
+        ];
+
+        $payload = $this->enrichWithFormattedBlocksAndCharts($payload, 'how_to_guide');
+        // Step lists read better without generic metric charts.
+        $payload['charts'] = [];
+
+        return $payload;
+    }
+
+    private function buildHowToGuide(User $user, array $guide, bool $accessible, array $related): array
+    {
+        $role = $user->role;
+        $steps = array_values($guide['steps']);
+        $stepCount = count($steps);
+        $allowedRoles = array_map(
+            fn (string $r) => HowToGuideLibrary::ROLE_NAMES[$r] ?? $r,
+            $guide['roles']
+        );
+
+        $stepRows = [];
+        $paths = [];
+        foreach ($steps as $index => $step) {
+            $href = $accessible ? $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role)) : null;
+            if ($href !== null) {
+                $paths[strtok($href, '?')] = true;
+            }
+            $stepRows[] = [
+                'id' => $guide['id'].'-step-'.($index + 1),
+                'step' => $index + 1,
+                'primary' => $step['title'],
+                'secondary' => $step['detail'],
+                'status' => 'Step '.($index + 1),
+                'status_tone' => 'primary',
+                'meta' => $step['where'] ?? null,
+                'href' => $href,
+                'action_label' => 'Go to page',
+            ];
+        }
+
+        $sections = [];
+
+        $readinessRows = $accessible ? $this->howToReadinessRows($user, $guide) : [];
+        if ($readinessRows !== []) {
+            $sections[] = [
+                'id' => 'how-to-readiness',
+                'title' => 'Before you start: live check',
+                'description' => 'Checked against current HIUSA records.',
+                'empty_message' => 'Everything needed is ready.',
+                'rows' => $readinessRows,
+            ];
+        }
+
+        $sections[] = [
+            'id' => 'how-to-steps',
+            'layout' => 'steps',
+            'title' => 'Step-by-step: '.$guide['title'],
+            'description' => $accessible
+                ? sprintf('%d steps · about %d min', $stepCount, $guide['minutes'])
+                : 'Shown for reference. Your role cannot open these pages.',
+            'empty_message' => 'No steps recorded.',
+            'rows' => $stepRows,
+        ];
+
+        if (! empty($guide['tips'])) {
+            $sections[] = [
+                'id' => 'how-to-tips',
+                'title' => 'Good to know',
+                'description' => null,
+                'empty_message' => '',
+                'rows' => array_map(fn (string $tip, int $i) => [
+                    'id' => $guide['id'].'-tip-'.$i,
+                    'primary' => $tip,
+                    'secondary' => null,
+                    'status' => 'Tip',
+                    'status_tone' => 'info',
+                    'meta' => null,
+                    'href' => null,
+                ], array_values($guide['tips']), array_keys(array_values($guide['tips']))),
+            ];
+        }
+
+        if ($accessible) {
+            $firstStep = $steps[0] ?? null;
+            $answer = sprintf(
+                '%s Follow these %d steps%s.',
+                $guide['summary'],
+                $stepCount,
+                $paths !== [] ? '. Each "Go to page" button opens the page for that step' : ''
+            );
+            if ($firstStep !== null) {
+                $answer .= ' Start here: '.rtrim($firstStep['detail'], '.').'.';
+            }
+        } else {
+            $answer = sprintf(
+                'Your role (%s) cannot do "%s". It is done by: %s. Here are the steps so you know what they do. %s',
+                HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
+                Str::lower($guide['title']),
+                implode(', ', $allowedRoles),
+                $guide['summary']
+            );
+        }
+
+        $followUps = array_map(fn (array $g) => [
+            'topic' => 'how_to_guide',
+            'label' => $g['title'],
+            'question' => $g['question'],
+        ], $related);
+
+        if (count($followUps) < 3) {
+            $followUps[] = [
+                'topic' => 'daily_priorities',
+                'label' => 'What should I do today?',
+                'question' => $this->defaultDailyQuestion($role),
+            ];
+        }
+
+        return [
+            'title' => 'How to: '.$guide['title'],
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'Steps', 'value' => (string) $stepCount, 'tone' => 'primary'],
+                ['label' => 'Pages involved', 'value' => (string) count($paths), 'tone' => 'info'],
+                ['label' => 'Estimated time', 'value' => '~'.$guide['minutes'].' min', 'tone' => 'success'],
+                ['label' => 'Your access', 'value' => $accessible ? 'Allowed' : 'Other role', 'tone' => $accessible ? 'success' : 'warning'],
+            ],
+            'sections' => $sections,
+            'follow_ups' => array_slice($followUps, 0, 3),
+        ];
+    }
+
+    private function howToReadinessRows(User $user, array $guide): array
+    {
+        $rows = [];
+        $checks = $guide['checks'] ?? [];
+
+        if (in_array('active_semester', $checks, true)) {
+            $active = AcademicSemester::query()
+                ->with('academicYear')
+                ->where('status', 'active')
+                ->first();
+
+            if ($active !== null) {
+                $label = trim(($active->academicYear?->label ? 'AY '.$active->academicYear->label.' · ' : '').$this->semesterLabel((int) $active->number));
+                $rows[] = [
+                    'id' => 'ready-semester',
+                    'primary' => 'An active semester is open',
+                    'secondary' => $label,
+                    'status' => 'Ready',
+                    'status_tone' => 'success',
+                    'meta' => null,
+                    'href' => null,
+                ];
+            } else {
+                $rows[] = [
+                    'id' => 'ready-semester',
+                    'primary' => 'No semester is active yet',
+                    'secondary' => $user->role === 'SUPER_ADMIN'
+                        ? 'Activate a semester under Setup and records → Academic years first.'
+                        : 'Ask the SAO to activate the current semester first.',
+                    'status' => 'Action needed',
+                    'status_tone' => 'warning',
+                    'meta' => null,
+                    'href' => $this->routeAccess->hrefFor($user->role, '/dashboard/super-admin/academic-years'),
+                    'action_label' => 'Open academic years',
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    private function semesterLabel(int $number): string
+    {
+        return match ($number) {
+            1 => '1st Semester',
+            2 => '2nd Semester',
+            3 => 'Summer',
+            default => 'Semester '.$number,
+        };
+    }
+
+    private function buildHowToCatalog(User $user, string $question): array
+    {
+        $role = $user->role;
+        $guides = $this->guides->forRole($role);
+
+        $rows = array_map(function (array $g) use ($role) {
+            $firstPath = null;
+            foreach ($g['steps'] as $step) {
+                $firstPath = $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role));
+                if ($firstPath !== null) {
+                    break;
+                }
+            }
+
+            return [
+                'id' => 'guide-'.$g['id'],
+                'primary' => $g['title'],
+                'secondary' => $g['summary'],
+                'status' => $g['category'],
+                'status_tone' => 'info',
+                'meta' => count($g['steps']).' steps',
+                'href' => $firstPath,
+                'action_label' => 'Open page',
+                'ask_question' => $g['question'],
+            ];
+        }, $guides);
+
+        return [
+            'title' => 'How-to guides for your role',
+            'answer' => sprintf(
+                'I couldn\'t match "%s" to one procedure. Here are the %d step-by-step guides available for %s. Ask about any of them, for example "%s"',
+                Str::limit($question, 80),
+                count($guides),
+                HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
+                $guides[0]['question'] ?? 'How do I use Ask AI?'
+            ),
+            'highlights' => [
+                ['label' => 'Guides available', 'value' => (string) count($guides), 'tone' => 'primary'],
+                ['label' => 'Categories', 'value' => (string) count(array_unique(array_column($guides, 'category'))), 'tone' => 'info'],
+            ],
+            'sections' => [[
+                'id' => 'how-to-catalog',
+                'title' => 'What I can walk you through',
+                'description' => 'Ask "How do I …" with any of these, in your own words.',
+                'empty_message' => 'No guides for this role yet.',
+                'rows' => $rows,
+            ]],
+            'follow_ups' => array_map(fn (array $g) => [
+                'topic' => 'how_to_guide',
+                'label' => $g['title'],
+                'question' => $g['question'],
+            ], array_slice($guides, 0, 3)),
+        ];
     }
 
     // -------------------------------------------------------------------------
@@ -3323,6 +3612,13 @@ class AskAiService
                     'description' => 'Active student organizations without an active ADMIN profile and returned registrations.',
                 ],
                 [
+                    'id' => 'sao-howto-org',
+                    'topic' => 'how_to_guide',
+                    'label' => 'How do I create an organization?',
+                    'question' => 'How do I create an organization?',
+                    'description' => 'Step-by-step guide: academic year, requirements, college, organization, and its first admin.',
+                ],
+                [
                     'id' => 'sao-finance',
                     'topic' => 'finance_health',
                     'label' => 'University-wide budget health',
@@ -3365,6 +3661,13 @@ class AskAiService
                     'label' => 'Returned or missing-admin orgs',
                     'question' => 'Which organizations in my college are returned or missing an administrator?',
                     'description' => 'Organizations needing registration edits or administrator provisioning.',
+                ],
+                [
+                    'id' => 'dh-howto-endorse',
+                    'topic' => 'how_to_guide',
+                    'label' => 'How do I endorse an application?',
+                    'question' => 'How do I endorse an application?',
+                    'description' => 'Step-by-step guide for reviewing and endorsing public organization applications.',
                 ],
                 [
                     'id' => 'dh-events',
@@ -3411,6 +3714,13 @@ class AskAiService
                     'description' => 'Approved budget balances and open student invoices.',
                 ],
                 [
+                    'id' => 'adm-howto-event',
+                    'topic' => 'how_to_guide',
+                    'label' => 'How do I create an event?',
+                    'question' => 'How do I create an event?',
+                    'description' => 'Step-by-step guide for creating an event, uploading its requirements, and booking a venue.',
+                ],
+                [
                     'id' => 'adm-clearances',
                     'topic' => 'clearances_status',
                     'label' => 'Pending student clearances',
@@ -3455,6 +3765,13 @@ class AskAiService
                     'description' => 'Scheduled events and past events that need to be marked completed.',
                 ],
                 [
+                    'id' => 'off-howto-orders',
+                    'topic' => 'how_to_guide',
+                    'label' => 'How do I verify orders?',
+                    'question' => 'How do I verify orders?',
+                    'description' => 'Step-by-step guide for checking GCash proof and releasing items at the claim desk.',
+                ],
+                [
                     'id' => 'off-clearances',
                     'topic' => 'clearances_status',
                     'label' => 'Student clearances queue',
@@ -3497,6 +3814,13 @@ class AskAiService
                     'label' => 'Upcoming events',
                     'question' => 'What upcoming events are scheduled for my organization?',
                     'description' => 'Approved and ongoing organization events.',
+                ],
+                [
+                    'id' => 'stu-howto-clearance',
+                    'topic' => 'how_to_guide',
+                    'label' => 'How do I check my clearance?',
+                    'question' => 'How do I check my clearance?',
+                    'description' => 'Step-by-step guide for reading your clearance lines and settling holds.',
                 ],
                 [
                     'id' => 'stu-elections',

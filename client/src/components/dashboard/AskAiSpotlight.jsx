@@ -25,6 +25,11 @@ const PROMPTS_BY_ROLE = {
       topic: 'organizations_without_admin',
       question: 'Which active organizations still need an administrator or were returned?',
     },
+    {
+      label: 'How to create an organization',
+      topic: 'how_to_guide',
+      question: 'How do I create an organization as SAO?',
+    },
   ],
   DEPARTMENT_HEAD: [
     {
@@ -46,6 +51,11 @@ const PROMPTS_BY_ROLE = {
       label: 'Pending college approvals',
       topic: 'pending_approvals',
       question: 'What requests are waiting for my approval right now?',
+    },
+    {
+      label: 'How to endorse an application',
+      topic: 'how_to_guide',
+      question: 'How do I endorse an organization application?',
     },
   ],
   ADMIN: [
@@ -69,6 +79,11 @@ const PROMPTS_BY_ROLE = {
       topic: 'tasks_workload',
       question: 'Who has overdue or pending tasks in our organization?',
     },
+    {
+      label: 'How to create an event',
+      topic: 'how_to_guide',
+      question: 'How do I create an event and submit requirements?',
+    },
   ],
   SBO_OFFICER: [
     {
@@ -91,6 +106,11 @@ const PROMPTS_BY_ROLE = {
       topic: 'missing_submissions',
       question: 'Which event requirements or compliance documents are still missing?',
     },
+    {
+      label: 'How to verify orders',
+      topic: 'how_to_guide',
+      question: 'How do I verify merchandise orders and release items?',
+    },
   ],
   STUDENT: [
     {
@@ -112,6 +132,11 @@ const PROMPTS_BY_ROLE = {
       label: 'Status of my orders',
       topic: 'merchandise_orders',
       question: 'What is the status of my merchandise orders?',
+    },
+    {
+      label: 'How to check clearance',
+      topic: 'how_to_guide',
+      question: 'How do I check my clearance and settle holds?',
     },
   ],
 };
@@ -175,6 +200,7 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
   return (
     <section
       aria-label="Ask AI assistant"
+      data-tour="ask-ai-spotlight"
       className="rounded-xl border border-[#DDE7EF] bg-white p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -189,13 +215,23 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
             </p>
           </div>
         </div>
-        <Link
-          to="/dashboard/ask-ai"
-          className="inline-flex items-center gap-1 rounded-lg bg-[#EEF6FB] px-2.5 py-1.5 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9]"
-        >
-          <span>Open Ask AI</span>
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#DDE7EF] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD]"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-[#0878B7]" aria-hidden="true" />
+            <span>Interactive Role Tour</span>
+          </button>
+          <Link
+            to="/dashboard/ask-ai"
+            className="inline-flex items-center gap-1 rounded-lg bg-[#EEF6FB] px-2.5 py-1.5 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9]"
+          >
+            <span>Open Ask AI</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -302,6 +338,43 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                   <CheckCircle2 className="h-3.5 w-3.5 text-[#16A34A]" aria-hidden="true" />
                   <span>{primarySection.empty_message || 'No items require action.'}</span>
                 </div>
+              ) : primarySection.layout === 'steps' ? (
+                <ol className="space-y-2">
+                  {previewRows.map((row, idx) => (
+                    <li
+                      key={row.id || idx}
+                      className="flex items-start justify-between gap-3 rounded-lg border border-[#DDE7EF] bg-white p-2.5 text-xs"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0F2F62] text-[10px] font-bold text-white">
+                          {row.step || idx + 1}
+                        </span>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-semibold text-[#0F172A]">{row.primary}</span>
+                            {row.meta && (
+                              <span className="rounded bg-[#EEF6FB] px-1.5 py-0.5 text-[10px] font-medium text-[#0F2F62]">
+                                {row.meta}
+                              </span>
+                            )}
+                          </div>
+                          {row.secondary && (
+                            <p className="mt-0.5 text-[#475569]">{row.secondary}</p>
+                          )}
+                        </div>
+                      </div>
+                      {row.href && (
+                        <Link
+                          to={row.href}
+                          className="inline-flex shrink-0 items-center gap-1 font-medium text-[#0878B7] hover:underline"
+                        >
+                          <span>{row.action_label || 'Go'}</span>
+                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ol>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
                   <table className="w-full min-w-[460px] border-collapse text-left text-xs">

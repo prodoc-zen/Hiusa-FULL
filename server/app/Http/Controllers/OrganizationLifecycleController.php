@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\OrganizationDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 /** SAO decisions over an organization's lifecycle: registration review, archive and restore. */
@@ -29,6 +32,7 @@ class OrganizationLifecycleController extends Controller
         $data = $request->validate([
             'decision' => ['required', 'in:approve,return'],
             'remarks' => ['nullable', 'string', 'max:3000', 'required_if:decision,return'],
+            'file_remarks' => ['nullable', 'array'],
             'submitted_at' => ['required', 'date'],
         ]);
         $reviewer = $request->user();
@@ -57,6 +61,58 @@ class OrganizationLifecycleController extends Controller
             if ($approved) {
                 OrganizationComplianceSubmission::where('organization_id', $locked->id)->where('status', 'submitted')
                     ->update(['status' => 'approved', 'reviewed_by' => $reviewer->school_id, 'reviewed_at' => now()]);
+
+                // Auto-provision Founding Administrator (2-step process)
+                if (! empty($locked->admin_payload)) {
+                    $payload = $locked->admin_payload;
+                    $posTitle = $payload['position_title'] ?? 'President';
+                    $adminUser = User::whereKey($payload['school_id'])->first();
+                    if (! $adminUser) {
+                        $adminUser = User::create([
+                            'school_id' => $payload['school_id'],
+                            'first_name' => $payload['first_name'],
+                            'last_name' => $payload['last_name'],
+                            'email' => $payload['email'],
+                            'role' => 'ADMIN',
+                            'organization_id' => $locked->id,
+                            'account_status' => 'active',
+                            'position_title' => $posTitle,
+                            'password_hash' => Hash::make('Demo@12345'),
+                        ]);
+                    } else {
+                        $adminUser->update([
+                            'organization_id' => $locked->id,
+                            'role' => 'ADMIN',
+                            'account_status' => 'active',
+                            'position_title' => $posTitle,
+                        ]);
+                    }
+                    SboPosition::firstOrCreate(
+                        ['organization_id' => $locked->id, 'role' => 'ADMIN', 'title' => $posTitle],
+                        ['is_active' => true]
+                    );
+                    AccountProfile::firstOrCreate(
+                        ['user_school_id' => $adminUser->school_id, 'organization_id' => $locked->id],
+                        ['role' => 'ADMIN', 'account_status' => 'active', 'position_title' => $posTitle]
+                    );
+                }
+            } else {
+                // Per-file correction remarks when returning
+                if (! empty($data['file_remarks']) && is_array($data['file_remarks'])) {
+                    foreach ($data['file_remarks'] as $subId => $fileRemark) {
+                        $text = trim((string) $fileRemark);
+                        if ($text !== '') {
+                            OrganizationComplianceSubmission::where('organization_id', $locked->id)
+                                ->where('id', $subId)
+                                ->update([
+                                    'remarks' => $text,
+                                    'status' => 'returned',
+                                    'reviewed_by' => $reviewer->school_id,
+                                    'reviewed_at' => now(),
+                                ]);
+                        }
+                    }
+                }
             }
             $this->audit($request, $approved ? 'organization_approved' : 'organization_returned', $locked, ['remarks' => $data['remarks'] ?? null], $approved ? 'SAO approved an organization registration.' : 'SAO returned an organization registration.');
 

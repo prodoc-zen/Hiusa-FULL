@@ -30,7 +30,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventRequirements, submitEventRequirements, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getVenues } from '../../../services/venueService';
 import { getTasks, previewTaskRecommendation } from '../../../services/taskService';
@@ -380,6 +380,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [eventReload, setEventReload] = useState(0);
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [campusVenues, setCampusVenues] = useState([]);
+  const [activeEventRequirements, setActiveEventRequirements] = useState([]);
+  const [attachedEventFiles, setAttachedEventFiles] = useState({});
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [tasksPage, setTasksPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
@@ -676,6 +678,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         await updateEvent(editingEventId, payload);
       } else {
         created = (await createEvent(payload))?.data;
+        if (created?.id && Object.values(attachedEventFiles).some(Boolean)) {
+          try {
+            if (typeof submitEventRequirements === 'function') {
+              await submitEventRequirements(created.id, attachedEventFiles);
+            }
+          } catch (fileErr) {
+            console.warn('Initial event requirements upload:', fileErr);
+          }
+        }
       }
       setShowForm(false);
       setEditingEventId(null);
@@ -692,7 +703,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   function openCreateForm() {
     setEditingEventId(null);
     setForm(emptyEventForm());
+    setAttachedEventFiles({});
     setFormError(null);
+    (typeof getEventRequirements === 'function' ? getEventRequirements() : Promise.resolve({ data: [] }))
+      .then((res) => setActiveEventRequirements(res?.data || []))
+      .catch(() => setActiveEventRequirements([]));
     setShowForm(true);
   }
 
@@ -2078,6 +2093,43 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
+              {!editingEventId && activeEventRequirements.length > 0 && (
+                <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+                  <div>
+                    <h3 className="text-[13px] font-bold text-[#0F172A]">Required Event Letters & Documents (SAO Checklist)</h3>
+                    <p className="text-xs text-slate-500">Attach letters and required documents now so they submit together with your event proposal.</p>
+                  </div>
+                  <div className="space-y-2.5">
+                    {activeEventRequirements.filter((r) => r.is_active !== false).map((req) => (
+                      <div key={req.id} className="rounded-md border border-[#DDE7EF] bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-[#0F172A]">{req.name}</span>
+                            {req.is_optional && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(Optional)</span>}
+                            {req.description && <p className="text-[11px] text-slate-500">{req.description}</p>}
+                          </div>
+                          {req.template_url && (
+                            <a href={req.template_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0878B7] hover:underline">
+                              Sample template
+                            </a>
+                          )}
+                        </div>
+                        <div className="mt-2">
+                          <input
+                            type="file"
+                            accept={req.allowed_extensions ? req.allowed_extensions.map((ext) => `.${ext}`).join(',') : '.pdf'}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              setAttachedEventFiles((prev) => ({ ...prev, [req.id]: file }));
+                            }}
+                            className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-[#0878B7] hover:file:bg-[#DDE7EF]"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {formError && <p className="text-xs text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>

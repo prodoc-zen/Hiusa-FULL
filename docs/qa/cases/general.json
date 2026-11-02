@@ -3,14 +3,15 @@
     "id": "GEN-001",
     "role": "All roles",
     "module": "Smoke test",
-    "title": "Open the link and see the sign-in page",
+    "title": "Open the root link and see the Public Landing Page",
     "preconditions": "The test copy is running and you have its link.",
     "steps": [
-      "1. Open the test link in a desktop browser.",
+      "1. Open the test link (root path /) in a desktop browser.",
       "2. Wait for the page to finish loading.",
-      "3. Look at the left side and the right side of the page."
+      "3. Look at the hero section with campus imagery, university governance mission, and action links.",
+      "4. Select Sign in to navigate to the sign-in form."
     ],
-    "expected": "The page \"Sign in to HIUSA\" shows. A dark blue panel with the HIUSA logo is on the left. The form is on the right with School ID / ID Number, Password, Forgot password? and a Sign in button. No error text shows.",
+    "expected": "The Public Landing Page opens with the university header, campus imagery, system objectives, and action links. Selecting Sign in opens the Sign in to HIUSA page (/login) with the dark blue panel on the left and login form on the right (School ID / ID Number, Password, Forgot password?, and Sign in button).",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -2408,5 +2409,97 @@
     "type": "Usability",
     "round": "Any time",
     "depends": "Run after GEN-124, GEN-125, GEN-126, GEN-127 and GEN-128"
+  },
+  {
+    "id": "GEN-130",
+    "role": "All roles",
+    "module": "Public organization registration",
+    "title": "Student founder opens public registration portal and fills organization charter",
+    "preconditions": "The test copy is running. An academic semester is active. You are signed out.",
+    "steps": [
+      "1. Open the landing page and select Register your organization (or open /register-organization directly).",
+      "2. Read the page heading Register your organization and the instructions.",
+      "3. Type the Organization name and Organization code (acronym).",
+      "4. Select a College from the dropdown list.",
+      "5. Fill First name, Last name, School ID, Email address and Position title.",
+      "6. Scroll down to Registration requirements and observe the list of required accreditation files."
+    ],
+    "expected": "The public registration portal opens. All fields accept valid input. Active colleges appear in the college selector. The required documents list matches the active semester catalog with accepted file types and the 10 MB limit.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "GEN-131",
+    "role": "All roles",
+    "module": "Public organization registration",
+    "title": "Registration document upload validation and file restrictions",
+    "preconditions": "On the /register-organization page with active semester requirements.",
+    "steps": [
+      "1. Select Choose File on a requirement and choose a non-allowed file extension or a file over 10 MB.",
+      "2. Read the validation message.",
+      "3. Choose a valid PDF file under 10 MB."
+    ],
+    "expected": "Invalid formats or files exceeding 10 MB are refused with an immediate warning. Valid PDF files attach cleanly without error.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "GEN-132",
+    "role": "All roles",
+    "module": "Public organization registration",
+    "title": "Submit organization application and receive email verification notice",
+    "preconditions": "On /register-organization with all details and required files attached.",
+    "steps": [
+      "1. Fill all required organization and applicant fields.",
+      "2. Attach a valid PDF file for each required accreditation document.",
+      "3. Select Submit application.",
+      "4. Read the confirmation message."
+    ],
+    "expected": "The application is saved. A confirmation message confirms that the application was received and that a verification link was sent to the applicant email. The application enters the pending endorsement queue for the college Department Head.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "GEN-133",
+    "role": "All roles",
+    "module": "Public organization registration",
+    "title": "Track application status and request an edit link",
+    "preconditions": "An organization application has been submitted.",
+    "steps": [
+      "1. Open the landing page and navigate to /track-organization (or /register-organization/edit-link).",
+      "2. Enter the registered School ID or email address.",
+      "3. Select Request edit link or Check status."
+    ],
+    "expected": "The system validates the applicant identity. If the application is under review or rejected, the system informs the applicant and sends an edit link allowing them to update documents and resubmit.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-134",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Complete student organization lifecycle from public filing to active administration",
+    "preconditions": "An active semester exists. Department Head 940001, SAO 990001, and demo accounts exist.",
+    "steps": [
+      "1. Phase 1 (Founder): Navigate to /register-organization, fill organization details, attach required constitution and bylaws, and submit application.",
+      "2. Phase 2 (Department Head): Sign in as 940001, open Organization applications (/dashboard/organization-applications), review submitted documents, enter remarks, and select Endorse to SAO.",
+      "3. Phase 3 (SAO): Sign in as 990001, open Organization applications, review endorsement, select Approve registration, and provision the administrator account.",
+      "4. Phase 4 (Organization Admin): Sign in with the provisioned administrator credentials, set password on first login, land on the Admin Command Center, and verify the onboarding checklist.",
+      "5. Phase 5 (Governance & Activity): Admin sets up officer positions, adds members, proposes the inaugural event, and configures the financial ledger."
+    ],
+    "expected": "The organization traverses the full institutional lifecycle cleanly. Status moves from pending endorsement to endorsed to approved and active. The new administrator gains full operational access to govern their student body.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
   }
 ]
+

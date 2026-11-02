@@ -15,7 +15,7 @@ import { createSboPosition, deleteSboPosition, getSboPositions, updateSboPositio
 const PAGE_SIZE = 10;
 const EMPTY_FORM = { role: 'ADMIN', title: '', description: '', is_active: true };
 const ROLE_LABELS = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
-const ADMIN_TITLES = ['President', 'Secretary', 'Treasurer', 'Auditor', 'Chief of Developer'];
+const ADMIN_TITLES = ['President', 'Department Secretary', 'Secretary', 'Vice President', 'Treasurer', 'Auditor', 'Co-Administrator', 'Executive Secretary', 'Chief of Developer'];
 
 function firstError(error, fallback) {
   const errors = error.response?.data?.errors;

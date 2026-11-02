@@ -173,8 +173,9 @@ function FormattedBriefingBlock({ answer, formattedBlocks }) {
   );
 }
 
-function EvidenceSection({ section }) {
+function EvidenceSection({ section, onSelectFollowUp }) {
   const rows = Array.isArray(section.rows) ? section.rows : [];
+  const isStepsLayout = section.layout === 'steps';
 
   return (
     <div className="border-t border-[#DDE7EF] pt-4 first:border-t-0 first:pt-0">
@@ -190,6 +191,63 @@ function EvidenceSection({ section }) {
           <CheckCircle2 className="h-4 w-4 shrink-0 text-[#16A34A]" aria-hidden="true" />
           <span>{section.empty_message || 'No matching records require attention.'}</span>
         </div>
+      ) : isStepsLayout ? (
+        <ol aria-label={section.title} className="space-y-2.5">
+          {rows.map((row, idx) => (
+            <li
+              key={row.id || idx}
+              className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3.5 transition-colors hover:border-[#BAE6FD] hover:bg-[#F8FAFC]/60 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0F2F62] text-xs font-bold text-white shadow-xs"
+                >
+                  {row.step || idx + 1}
+                </span>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-[#0F172A]">
+                      {row.primary}
+                    </span>
+                    {row.meta && (
+                      <span className="inline-flex items-center rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-medium text-[#0F2F62]">
+                        {row.meta}
+                      </span>
+                    )}
+                  </div>
+                  {row.secondary && (
+                    <p className="text-xs leading-relaxed text-[#475569]">
+                      {row.secondary}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+                {row.href && (
+                  <Link
+                    to={row.href}
+                    className="inline-flex items-center gap-1 rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] active:scale-[0.98]"
+                  >
+                    <span>{row.action_label || 'Go to page'}</span>
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                )}
+                {row.ask_question && onSelectFollowUp && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#EEF6FB]"
+                  >
+                    <span>Show steps</span>
+                    <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
           <table className="w-full min-w-[540px] border-collapse text-left text-xs">
@@ -269,6 +327,15 @@ function EvidenceSection({ section }) {
                           <span>{row.action_label || 'Open'}</span>
                           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                         </Link>
+                      ) : row.ask_question && onSelectFollowUp ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
+                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#DDEEF9]"
+                        >
+                          <span>Show steps</span>
+                          <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
+                        </button>
                       ) : (
                         <span className="text-[#94A3B8]">—</span>
                       )}
@@ -401,7 +468,11 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
       {sections.length > 0 && (
         <div className="mt-4 space-y-4">
           {sections.map((section) => (
-            <EvidenceSection key={section.id || section.title} section={section} />
+            <EvidenceSection
+              key={section.id || section.title}
+              section={section}
+              onSelectFollowUp={onSelectFollowUp}
+            />
           ))}
         </div>
       )}

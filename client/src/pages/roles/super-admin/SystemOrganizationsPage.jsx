@@ -3,7 +3,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { deleteSystemOrganization, getSystemAgency, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
@@ -68,6 +68,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
   const [submitError, setSubmitError] = useState('');
   const [openingId, setOpeningId] = useState(null);
   const [fileError, setFileError] = useState('');
+  const [fileRemarks, setFileRemarks] = useState({});
   const remarksRef = useRef(null);
 
   const loadDetails = useCallback(async () => {
@@ -111,8 +112,21 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
     setSubmitError('');
     setSubmitting(decision);
     try {
+      const fileNotes = Object.entries(fileRemarks)
+        .filter(([, note]) => note && note.trim())
+        .map(([subId, note]) => {
+          const doc = documents.find((d) => String(d.id || d.submission_id) === String(subId));
+          return doc ? `• ${doc.item}: ${note.trim()}` : `• Document ${subId}: ${note.trim()}`;
+        });
+      const compiledRemarks = [trimmed, ...fileNotes].filter(Boolean).join('\n\n');
+      const hasFileRemarks = Object.values(fileRemarks).some((v) => v && v.trim());
       await reviewSystemOrganization(organization.id, decision === 'return'
-        ? { decision, remarks: trimmed, submitted_at: organization.submitted_at }
+        ? {
+            decision,
+            remarks: compiledRemarks,
+            ...(hasFileRemarks ? { file_remarks: fileRemarks } : {}),
+            submitted_at: organization.submitted_at,
+          }
         : { decision, submitted_at: organization.submitted_at });
       if (decision === 'approve') {
         setApproved(true);
@@ -131,8 +145,9 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
     }
   }
 
+  const hasAdminPayload = Boolean(details?.overview?.organization?.admin_payload);
   const registration = approved
-    ? { id: organization.id, name: organization.name, lifecycle_status: 'active', administrators_count: 0 }
+    ? { id: organization.id, name: organization.name, lifecycle_status: 'active', administrators_count: hasAdminPayload ? 1 : 0 }
     : { id: organization.id, name: organization.name, lifecycle_status: 'pending' };
   const submittedBy = details?.overview?.lifecycle?.submitted_by?.name;
   const documents = details?.documents || [];
@@ -162,6 +177,23 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         <div><dt className="text-xs font-semibold text-ink-muted">Description</dt><dd><RichTextBody value={organization.description || 'No description provided.'} className="text-sm text-ink" /></dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-medium text-ink">{organization.submitted_at ? manilaDate(organization.submitted_at) : 'Not available'}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-medium text-ink">{loading ? 'Loading...' : submittedBy || 'Not available'}</dd></div>
+        {details?.overview?.organization?.admin_payload && (
+          <div className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-3.5 space-y-1">
+            <dt className="text-xs font-bold text-[#0F2F62] flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-[#0878B7]" />
+              Founding Administrator (Auto-provisioned on approval)
+            </dt>
+            <dd className="text-sm font-bold text-[#0F172A]">
+              {details.overview.organization.admin_payload.first_name} {details.overview.organization.admin_payload.last_name}
+              <span className="ml-2 text-xs font-semibold text-[#0878B7]">
+                ID: {details.overview.organization.admin_payload.school_id} · {details.overview.organization.admin_payload.position_title || 'President'}
+              </span>
+            </dd>
+            <dd className="text-xs text-slate-500 font-medium">
+              {details.overview.organization.admin_payload.email}
+            </dd>
+          </div>
+        )}
       </dl>
 
       <section aria-labelledby="registration-documents" className="mt-5 border-t border-line pt-4">
@@ -173,12 +205,25 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         {!loading && !loadError && documents.length > 0 && (
           <ul className="mt-2 divide-y divide-line-soft">
             {documents.map((document) => (
-              <li key={`${document.source}-${document.open_url}`} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 break-words text-sm font-bold text-ink"><FileText size={15} className="shrink-0 text-brand-700" aria-hidden="true" />{document.item}</p>
-                  <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{document.file_name || 'No file name'}{document.submitted_at ? ` · ${manilaDate(document.submitted_at)}` : ''}</p>
+              <li key={`${document.source}-${document.open_url}`} className="py-3 space-y-2 border-b border-line-soft">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 break-words text-sm font-bold text-ink"><FileText size={15} className="shrink-0 text-brand-700" aria-hidden="true" />{document.item}</p>
+                    <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{document.file_name || 'No file name'}{document.submitted_at ? ` · ${manilaDate(document.submitted_at)}` : ''}</p>
+                  </div>
+                  <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingId === document.open_url} disabled={!document.open_url} className="max-md:min-h-[42px]" onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
                 </div>
-                <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingId === document.open_url} disabled={!document.open_url} className="max-md:min-h-[42px]" onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
+                {!approved && (
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder={`Add specific correction note for ${document.item} (optional)...`}
+                      value={fileRemarks[document.id || document.submission_id] || ''}
+                      onChange={(e) => setFileRemarks({ ...fileRemarks, [document.id || document.submission_id]: e.target.value })}
+                      className="h-8 w-full rounded border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 text-xs text-ink placeholder:text-slate-400 focus:border-[#0B8ED0] focus:bg-white"
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>

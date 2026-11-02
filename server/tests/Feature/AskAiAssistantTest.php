@@ -268,4 +268,41 @@ class AskAiAssistantTest extends TestCase
         $this->assertStringContainsString('Official PSITS Lanyard', $payloadString);
         $this->assertStringNotContainsString('Rival Leader', $payloadString);
     }
+
+    public function test_how_to_guide_answers_procedural_questions_with_step_by_step_guidance(): void
+    {
+        $saoOrg = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $sao = User::factory()->create([
+            'organization_id' => $saoOrg->id,
+            'role' => 'SUPER_ADMIN',
+            'account_status' => 'active',
+        ]);
+
+        Sanctum::actingAs($sao);
+
+        // SAO asks how to create academic year / activate semester
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I create an academic year and activate a semester?',
+        ])->assertOk();
+
+        $res->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsStringIgnoringCase('academic year', $res->json('title'));
+        $stepsSection = collect($res->json('sections'))->firstWhere('layout', 'steps');
+        $this->assertNotNull($stepsSection);
+        $this->assertNotEmpty($stepsSection['rows']);
+        $this->assertSame('Step 1', $stepsSection['rows'][0]['status']);
+        $this->assertNotNull($stepsSection['rows'][0]['href']);
+
+        // Student asks a procedure meant for another role
+        $student = User::factory()->student()->create();
+        Sanctum::actingAs($student);
+
+        $studentRes = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I approve a budget?',
+        ])->assertOk();
+
+        $studentRes->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsString('cannot do', $studentRes->json('answer'));
+        $this->assertSame('Other role', collect($studentRes->json('highlights'))->firstWhere('label', 'Your access')['value']);
+    }
 }

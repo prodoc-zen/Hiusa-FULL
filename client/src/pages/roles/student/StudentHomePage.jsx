@@ -6,7 +6,6 @@ import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { RoleBriefing } from '../../../components/dashboard';
-import AskAiSpotlight from '../../../components/dashboard/AskAiSpotlight';
 import { Button } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 
@@ -113,9 +112,8 @@ export default function StudentHomePage() {
   const upcomingEvents = Array.isArray(sidebar.upcoming_events) ? sidebar.upcoming_events : [];
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-6 overflow-x-hidden">
+    <div className="w-full space-y-6 overflow-x-hidden">
       <RoleBriefing onData={handleBriefing} />
-      <AskAiSpotlight role="STUDENT" />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           <div className="flex flex-wrap items-end justify-between gap-2">

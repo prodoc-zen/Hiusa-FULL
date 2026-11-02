@@ -48,7 +48,7 @@
       "4. Select Finance and read its sub items.",
       "5. Look at the bottom of the menu."
     ],
-    "expected": "The menu reads: Dashboard, Approvals, Organizations. Under the heading College view (read only): Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results, Announcements. At the bottom: Profile and Study objectives. There is NO Members, Events and tasks, Voting, Store, Updates, Records or My activity group. Selecting Finance opens Budgets.",
+    "expected": "The menu reads: Dashboard, Organization applications, Approvals, Organizations, College files, College compliance, Clearance signing, Announcements. Under the heading College view (read only): Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results. At the bottom: Profile and Study objectives. There is NO Members, Events and tasks, Voting, Store, Updates, Records or My activity group. Selecting Finance opens Budgets.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1722,5 +1722,91 @@
     "type": "Access",
     "round": "Any time",
     "depends": "Run after ADM-147"
+  },
+  {
+    "id": "DH-093",
+    "role": "Department Head",
+    "module": "Organization applications",
+    "title": "Department Head reviews pending college organization applications",
+    "preconditions": "Signed in as Department Head 940001. A public applicant has registered an organization under the College of Computer Studies.",
+    "steps": [
+      "1. Select Organization applications in the left menu (address ends with /dashboard/organization-applications).",
+      "2. Look at the page title Organization applications and the status filter.",
+      "3. Filter by Pending endorsement.",
+      "4. Open the row actions menu on an application and select View application."
+    ],
+    "expected": "The Organization applications page lists applications from the department head's college. The modal displays applicant details (name, email, school ID, position), college name, description, and links to view submitted compliance documents.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "DH-094",
+    "role": "Department Head",
+    "module": "Organization applications",
+    "title": "Department Head endorses an organization application to SAO",
+    "preconditions": "Signed in as Department Head 940001 with a pending application open in the review modal.",
+    "steps": [
+      "1. Review the applicant credentials and open the attached Constitution and By-Laws document.",
+      "2. Type optional endorsement remarks in the Review remarks field.",
+      "3. Select Endorse to SAO."
+    ],
+    "expected": "The application updates immediately and a confirmation toast appears. The application status changes to 'Endorsed, for SAO review' and advances to the SAO review queue.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "DH-095",
+    "role": "Department Head",
+    "module": "Organization applications",
+    "title": "Department Head rejects an invalid application with mandatory remarks",
+    "preconditions": "Signed in as Department Head 940001 with a pending application open in the review modal.",
+    "steps": [
+      "1. Leave the Review remarks field blank and observe the Reject application button.",
+      "2. Type remarks explaining what the applicant must correct.",
+      "3. Select Reject application."
+    ],
+    "expected": "The Reject application button is disabled while remarks are empty. Entering remarks enables the button. Confirming rejection updates status to Rejected and dispatches an email notification to the applicant with the remarks.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "DH-096",
+    "role": "Department Head",
+    "module": "College files",
+    "title": "Department Head accesses College Files and Documents",
+    "preconditions": "Signed in as Department Head 940001.",
+    "steps": [
+      "1. Select College files in the sidebar (address ends with /dashboard/department-head/documents).",
+      "2. Inspect the folders or document lists submitted by student organizations of your college.",
+      "3. Select a document link to view it."
+    ],
+    "expected": "The College files view opens scoped strictly to the department head's college. Documents submitted by college organizations open in a protected viewer without error.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-097",
+    "role": "Department Head",
+    "module": "College compliance",
+    "title": "Department Head accesses College Compliance and Semestral Submissions",
+    "preconditions": "Signed in as Department Head 940001.",
+    "steps": [
+      "1. Select College compliance in the sidebar (address ends with /dashboard/department-head/compliance).",
+      "2. Inspect the semestral compliance status of college organizations (e.g. accomplishment reports and financial statements).",
+      "3. Filter by status or organization."
+    ],
+    "expected": "The College compliance page displays the compliance status of organizations in the college. Required reports and submission dates are clearly shown.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Building2, CalendarClock, Eye, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -38,7 +38,7 @@ async function viewRequirementSample(requirement) {
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const FORM_FIELDS = ['name', 'acronym', 'description', 'color'];
+const FORM_FIELDS = ['name', 'acronym', 'description', 'color', 'admin_school_id', 'admin_first_name', 'admin_last_name', 'admin_email', 'admin_position_title'];
 
 const LIFECYCLE = {
   returned: { tone: 'danger', label: 'Returned' },
@@ -89,11 +89,17 @@ function formatSize(bytes) {
 }
 
 function emptyForm(organization) {
+  const adminPayload = organization?.admin_payload || {};
   return {
     name: organization?.name || '',
     acronym: organization?.acronym || '',
     description: organization?.description || '',
     color: organization?.color || '',
+    admin_school_id: adminPayload.school_id ? String(adminPayload.school_id) : '',
+    admin_first_name: adminPayload.first_name || '',
+    admin_last_name: adminPayload.last_name || '',
+    admin_email: adminPayload.email || '',
+    admin_position_title: adminPayload.position_title || 'President',
   };
 }
 
@@ -154,6 +160,12 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     else if (fields.acronym.length > 50) found.acronym = 'The acronym may not be longer than 50 characters.';
     if (fields.description.length > 3000) found.description = 'The description may not be longer than 3000 characters.';
     if (fields.color && !HEX_COLOR.test(fields.color)) found.color = 'Use a color like #0B8ED0.';
+    if (!isResubmit) {
+      if (!fields.admin_school_id.trim()) found.admin_school_id = 'Enter the founding administrator school ID.';
+      if (!fields.admin_first_name.trim()) found.admin_first_name = 'Enter the first name.';
+      if (!fields.admin_last_name.trim()) found.admin_last_name = 'Enter the last name.';
+      if (!fields.admin_email.trim()) found.admin_email = 'Enter the university email.';
+    }
     requirements.forEach((requirement) => {
       if (fileErrors[requirement.id]) found[`files.${requirement.id}`] = fileErrors[requirement.id];
       else if (!isResubmit && !files[requirement.id]) found[`files.${requirement.id}`] = 'Attach a file for this requirement.';
@@ -172,7 +184,19 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     }
 
     setSubmitting(true);
-    const payload = { name: fields.name.trim(), acronym: fields.acronym.trim(), description: fields.description, color: fields.color };
+    const payload = {
+      name: fields.name.trim(),
+      acronym: fields.acronym.trim(),
+      description: fields.description,
+      color: fields.color,
+      ...(!isResubmit && fields.admin_school_id?.trim() ? {
+        admin_school_id: Number(fields.admin_school_id.trim()),
+        admin_first_name: fields.admin_first_name.trim() || undefined,
+        admin_last_name: fields.admin_last_name.trim() || undefined,
+        admin_email: fields.admin_email.trim() || undefined,
+        admin_position_title: fields.admin_position_title.trim() || 'President',
+      } : {}),
+    };
     try {
       if (isResubmit) {
         await resubmitOrganization(organization.id, payload, files);
@@ -253,6 +277,59 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
               <Input value={fields.color} maxLength={7} placeholder="#0B8ED0" onChange={(event) => setField('color', event.target.value)} />
             </Field>
           </div>
+          {!isResubmit && (
+            <div className="rounded-xl border border-line bg-subtle p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-bold text-ink flex items-center gap-1.5">
+                  <ShieldCheck size={16} className="text-brand-700" />
+                  Founding Administrator / President (Auto-provisioned on approval)
+                </h3>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Upon SAO approval, this student account is immediately activated as the organization's initial Administrator in one step.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="School ID" required error={errors.admin_school_id}>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 202400123"
+                    value={fields.admin_school_id}
+                    onChange={(event) => setField('admin_school_id', event.target.value)}
+                  />
+                </Field>
+                <Field label="Position Title" error={errors.admin_position_title}>
+                  <Input
+                    placeholder="e.g. President or Department Secretary"
+                    value={fields.admin_position_title}
+                    onChange={(event) => setField('admin_position_title', event.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="First Name" required error={errors.admin_first_name}>
+                  <Input
+                    value={fields.admin_first_name}
+                    onChange={(event) => setField('admin_first_name', event.target.value)}
+                  />
+                </Field>
+                <Field label="Last Name" required error={errors.admin_last_name}>
+                  <Input
+                    value={fields.admin_last_name}
+                    onChange={(event) => setField('admin_last_name', event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="University Email" required error={errors.admin_email}>
+                <Input
+                  type="email"
+                  placeholder="student@holycross.edu.ph"
+                  value={fields.admin_email}
+                  onChange={(event) => setField('admin_email', event.target.value)}
+                />
+              </Field>
+            </div>
+          )}
+
           <div className="space-y-4 border-t border-line pt-4">
             <div>
               <h3 className="text-base font-bold text-ink">Registration requirements</h3>
@@ -270,6 +347,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
                   <span className="block">Accepted: {fileTypesLabel(requirement.allowed_extensions)}</span>
                   {requirement.deadline_at && <span className="block">Due {manilaDate(requirement.deadline_at, 'long')}</span>}
                   {requirement.current && <span className="block">Current file: {requirement.current.file_name || 'None'} ({(REQUIREMENT_STATUS[requirement.current.status] || REQUIREMENT_STATUS.not_submitted).label})</span>}
+                  {requirement.current?.remarks && <span className="mt-1 block rounded bg-red-50 p-2 text-xs font-bold text-red-700 border border-red-200">SAO correction needed: {requirement.current.remarks}</span>}
                   {requirement.current?.submission_id && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRegistrationFile(requirement.current.submission_id)}><Eye size={14} aria-hidden="true" />View current file</button>}
                   <RequirementSample requirement={requirement} onOpen={viewRequirementSample} />
                   {chosen && <span className="block font-semibold text-ink">Selected: {chosen.name} ({formatSize(chosen.size)})</span>}

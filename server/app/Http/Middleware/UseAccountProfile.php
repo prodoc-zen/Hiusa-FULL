@@ -11,7 +11,7 @@ class UseAccountProfile
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $tokenProfileId = $user?->currentAccessToken()?->account_profile_id;
+        $tokenProfileId = data_get($user?->currentAccessToken(), 'account_profile_id');
         $profile = $user?->accountProfiles()->with('organization')
             ->when($tokenProfileId, fn ($query) => $query->whereKey($tokenProfileId))
             ->when(! $tokenProfileId, fn ($query) => $query->where('organization_id', $user->getRawOriginal('organization_id')))

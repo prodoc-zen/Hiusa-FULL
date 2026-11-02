@@ -48,7 +48,7 @@
       "2. Open each group to see its pages.",
       "3. Scroll to the bottom of the menu."
     ],
-    "expected": "In order: Dashboard; Approvals; Members (People, Officer positions, Programs and sections); Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast); Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); Voting (Elections, Results); Store (Inventory, Orders, Claim desk); Updates (Announcements, Feed); Records (Compliance, Grievances, Clearance signing, Audit log); My activity (Vote, Shop, My orders, My receipts, Statement of account). Profile and Study objectives sit at the bottom. No SAO, Department Head or student-only pages are listed.",
+    "expected": "In order: Dashboard; Approvals; Members (People, Officer positions, Programs and sections); Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast); Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); Voting (Elections, Results); Store (Inventory, Orders, Claim desk); Updates (Announcements, Feed); Records (Compliance, Submitted files, Grievances, Clearance signing, Audit log); My activity (Vote, Shop, My orders, My receipts, Statement of account). Profile and Study objectives sit at the bottom. No SAO, Department Head or student-only pages are listed.",
     "priority": "High",
     "device": "Laptop",
     "type": "Usability",
@@ -2101,7 +2101,7 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A pending budget you created for testing.",
     "steps": [
       "1. Find the pending budget in the list.",
-      "2. Select 'Delete budget'.",
+      "2. Open the row action menu (...) on the pending budget and select 'Delete budget'.",
       "3. Read the dialog 'Delete this budget?'.",
       "4. Confirm with 'Delete budget'."
     ],
@@ -4385,5 +4385,24 @@
     "type": "Access",
     "round": "Any time",
     "depends": ""
+  },
+  {
+    "id": "ADM-244",
+    "role": "Admin / Adviser",
+    "module": "Records > Submitted files",
+    "title": "Admin views and downloads organization compliance submissions in Submitted files",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
+    "steps": [
+      "1. Open Records > Submitted files (address /dashboard/submitted-files).",
+      "2. Read the page header and submitted files table.",
+      "3. Filter by academic year or submission category if available.",
+      "4. Select 'Download' or 'View' on a submitted file."
+    ],
+    "expected": "The page lists all accreditation and semestral compliance documents submitted by the organization with status, submission date, reviewer notes, and file download links. Files open or download securely without exposing files of other organizations.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "ADM-003"
   }
 ]

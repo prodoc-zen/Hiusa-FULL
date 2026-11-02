@@ -1,0 +1,24 @@
+graph TD
+    A[Start: SAO Login] --> B{Verify Role}
+    B -- Is SAO --> C[SAO Dashboard]
+    
+    C --> D[View SBO Totals & Status]
+    C --> E[Review Routed Requests]
+    C --> F[View Notifications]
+    C --> G[View Audited Activity]
+    
+    E --> H{Request Type}
+    H -- Organization Setup --> I[Approve/Reject Org]
+    H -- Admin Actions --> J[Audit Admin Activity]
+    H -- Financial/Compliance --> K[Review Compliance]
+    
+    I --> L[Update Org Status]
+    J --> M[Log Audit Review]
+    K --> N[Add Compliance Notes]
+    
+    L --> O[End Task]
+    M --> O
+    N --> O
+    
+    C --> P[Logout]
+    P --> Q[End]
