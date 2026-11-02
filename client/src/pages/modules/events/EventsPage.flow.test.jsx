@@ -23,6 +23,7 @@ vi.mock('../../../services/eventService', () => ({
   discardEventWorkflow: vi.fn(),
   deleteEvent: vi.fn(),
   updateEvent: vi.fn(),
+  getEventRequirements: vi.fn(() => Promise.resolve({ data: [] })),
   submitEventRequirements: vi.fn(),
   downloadEventRequirementFile: vi.fn(),
   registerForEvent: vi.fn(),

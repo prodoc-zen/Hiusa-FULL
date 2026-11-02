@@ -1,0 +1,39 @@
+graph TD
+    A[Start: Admin Login] --> B{Verify Role}
+    B -- Is Admin --> C[Admin Dashboard]
+    
+    C --> D[Manage User Accounts]
+    C --> E[Manage Elections]
+    C --> F[Manage Merchandise]
+    C --> G[Manage Finances]
+    C --> H[Approve Requests]
+    
+    D --> D1[Create/Update/Deactivate User]
+    
+    E --> E1[Setup Election & Positions]
+    E --> E2[Manage Candidates/Partylists]
+    E --> E3[Monitor Election Status]
+    
+    F --> F1[Add/Edit Inventory]
+    F --> F2[Fulfill Merchandise Orders]
+    
+    G --> G1[View Financial Reports]
+    G --> G2[Generate AI Forecasts]
+    
+    H --> H1{Request Type}
+    H1 -- Events --> I1[Approve Event]
+    H1 -- Budgets --> I2[Approve Budget]
+    H1 -- Announcements --> I3[Approve Announcement]
+    H1 -- Merchandise Proof --> I4[Verify Payment Proof]
+    
+    D1 --> J[End Task]
+    E3 --> J
+    F2 --> J
+    G2 --> J
+    I1 --> J
+    I2 --> J
+    I3 --> J
+    I4 --> J
+    
+    C --> K[Logout]
+    K --> L[End]

@@ -65,9 +65,444 @@ progress meters, and visual CSS graphs."
 
 
 ================================================================================
+NEW FEATURE: INTERACTIVE ROLE TOUR & ANIMATED CURSOR GUIDE (TOPBAR HUD)
+================================================================================
+Every role workspace now includes an interactive guided onboarding & demo tour
+with a live animated pointer cursor, spotlight element highlighting, and built-in
+presenter speaking notes!
+
+HOW TO LAUNCH IT IN ANY ROLE:
+  - Click the "Interactive Tour" button in the top navigation bar (next to the
+    "Workspace Active" and "Ask AI" pills).
+
+3 SWITCHABLE TOUR TRACKS INSIDE THE HUD:
+  1. "Role Guide" (Default):
+     - Automatically adapts to the logged-in role (SAO Super Admin, College Dean,
+       Organization Admin, SBO Officer, or Student).
+     - Moves an animated cursor across the screen to highlight the sidebar
+       navigation, daily briefing header, setup checklist, attention queue, and
+       Ask AI spotlight, while showing you the exact presenter script to read!
+  2. "Create Org & Term":
+     - A step-by-step interactive walkthrough specifically built for today's
+       agenda: setting up Academic Years & Semesters, uploading Requirement
+       templates, creating Colleges & Deans, approving new Student Organizations,
+       and querying Ask AI about the newly created org.
+  3. "Ask AI Guide":
+     - Walks through how to ask natural-language questions, switch between
+       Formatted View (HTML tables + CSS graphs) and Grounding Context, and
+       export/copy briefings.
+
+TIP FOR YOUR PRESENTATION:
+  - You can click "Auto-play" inside the tour HUD to let the animated cursor
+    glide from feature to feature every 6.5 seconds while you speak, or use
+    "Next" / "Back" (or Left/Right arrow keys) to step through at your own pace!
+
+
+================================================================================
+NEW FEATURE: PROCEDURAL "HOW-TO" AI COPILOT & STEP-BY-STEP WORKFLOW TUTORIALS
+================================================================================
+You can now ask the AI in plain English HOW to perform any workflow or process
+in HIUSA, and it returns an interactive, numbered step-by-step guide with live
+readiness checks and direct "Go to page" action links!
+
+EXAMPLES TO DEMO TO THE PANEL:
+  1. SAO / SUPER ADMIN:
+     - Ask: "How do I create an organization and school year?"
+     - What AI does: Runs a live check to verify an active academic semester is
+       open, then delivers a numbered 4-step walkthrough with direct buttons to
+       Academic Years, Compliance Requirements, Colleges, and Organizations.
+  2. COLLEGE DEAN / DEPARTMENT HEAD:
+     - Ask: "How do I endorse an organization application?"
+     - What AI does: Explains how to inspect the founder's uploaded PDF files,
+       enter endorsement remarks, and forward it to SAO for final accreditation.
+  3. ORGANIZATION ADMIN (PRESIDENT):
+     - Ask: "How do I create an event?"
+     - What AI does: Guides the admin on creating an event proposal, attaching
+       event requirement documents, requesting a campus venue, and generating
+       task workflows.
+     - Try asking: "How do I request a budget?" or "How do I set up an election?"
+  4. SBO OFFICER:
+     - Ask: "How do I verify merchandise orders and release items?"
+     - What AI does: Walks through reviewing student GCash payment proofs and
+       scanning claim tokens at the claim desk.
+  5. STUDENT:
+     - Ask: "How do I check my clearance and settle holds?"
+     - What AI does: Shows how to check which signatories have signed, how to view
+       outstanding invoices under Statement of Account, and how to settle balances.
+  6. ROLE PERMISSION BOUNDARY DEMO (VERY IMPRESSIVE TO TEACHERS):
+     - While logged in as a Student, ask: "How do I approve a budget?"
+     - What AI does: Explains that students cannot approve budgets because that
+       governance action is reserved for the Department Head and SAO, while
+       educating the student on how the 3-tier approval hierarchy works!
+
+
+================================================================================
+ROLE-BY-ROLE SPEAKER CHEAT SHEET (WHAT EACH ROLE IS & WHAT IT CAN DO)
+================================================================================
+
+--------------------------------------------------------------------------------
+ROLE 1: SAO / SUPER ADMIN (Student Affairs Office — University-Wide Authority)
+--------------------------------------------------------------------------------
+- WHO THEY ARE:
+  The highest institutional authority in HIUSA (e.g., SAO Director). They oversee
+  every academic college and every accredited student organization across the
+  entire university.
+- WHAT TO SAY TO INTRODUCE THIS ROLE:
+  "The SAO / Super Admin is the university-wide regulator. Instead of managing a
+  single club's day-to-day tasks, the SAO governs the entire institutional
+  ecosystem—controlling academic terms, accrediting organizations, giving final
+  sign-off on college-endorsed events and financial reports, managing campus
+  venues, resolving student grievances, and signing final student clearances."
+- WHAT THIS ROLE CAN DO (CAPABILITIES):
+  * Open and close university Academic Years and Semesters.
+  * Review new student organization applications submitted by College Deans and
+    provision the initial Organization Admin (President) account.
+  * Define university-wide accreditation requirements (PDF templates, deadlines)
+    and approve or return organization compliance submissions.
+  * Give final institutional approval on budgets, events, and semester financial
+    reports after the College Dean endorses them.
+  * Manage campus venues and approve/reject event room booking requests.
+  * Triage and resolve student grievances ranked by AI urgency classification.
+  * Sign the final (3rd) stage of student clearances and audit system security logs.
+  * Ask the AI Copilot university-wide operational questions across all colleges.
+
+--------------------------------------------------------------------------------
+ROLE 2: DEPARTMENT HEAD / COLLEGE DEAN (Academic College Endorser)
+--------------------------------------------------------------------------------
+- WHO THEY ARE:
+  The head of a specific academic college (e.g., Dean of the College of Computer
+  Studies). They act as the middle governance tier between student organizations
+  in their college and the university-wide SAO.
+- WHAT TO SAY TO INTRODUCE THIS ROLE:
+  "The Department Head or College Dean represents the academic college layer.
+  They only see and govern the student organizations belonging to their own
+  college. Nothing from a student organization can reach the SAO without first
+  passing through the Dean's endorsement inbox."
+- WHAT THIS ROLE CAN DO (CAPABILITIES):
+  * Register new student organizations under their academic college and submit
+    registration documents to the SAO.
+  * Review, endorse, or return budgets, event proposals, and semester financial
+    reports from organizations within their college (Stage 1 Approval).
+  * Monitor accreditation compliance progress for all organizations in their college.
+  * Sign the 2nd stage of student clearances (after the student organization clears
+    the student, and before final SAO sign-off).
+  * Use the College-scoped Ask AI Copilot to check which organizations in their
+    college have or haven't submitted requirements or financial reports.
+
+--------------------------------------------------------------------------------
+ROLE 3: ORGANIZATION ADMIN / PRESIDENT (Student Organization Chief Executive)
+--------------------------------------------------------------------------------
+- WHO THEY ARE:
+  The top student leader (President / Organization Admin) of a specific accredited
+  student organization (e.g., PSITS-CCS). Their access is strictly isolated by
+  `organization_id` to their own organization.
+- WHAT TO SAY TO INTRODUCE THIS ROLE:
+  "The Organization Admin—typically the Student Organization President—is the
+  chief executive of a single student organization. They have full control over
+  their organization's internal operations: members, officers, AI task delegation,
+  event proposals, budgets, accounting ledgers, merchandise store, elections, and
+  accreditation uploads."
+- WHAT THIS ROLE CAN DO (CAPABILITIES):
+  * Manage the organization's member directory, assign SBO Officer positions, and
+    enroll student biometric fingerprints for event attendance.
+  * Delegate tasks to officers using the AI Task Delegation Engine (which scores
+    officers by position fit, workload, completion rate, and recency).
+  * Create event proposals, book campus venues, upload event requirement files,
+    and open post-event student evaluations.
+  * Manage the full Financial Suite: propose semester budgets, record income/expense
+    ledger transactions, issue student membership fee invoices, track cash advances
+    and liquidations, run AI Financial Forecasting, and submit financial reports.
+  * Manage the organization's Merchandise Catalog, stock levels, and promos.
+  * Create and manage organization Elections, ballot positions, and candidates.
+  * Upload mandatory accreditation compliance documents to the SAO.
+
+--------------------------------------------------------------------------------
+ROLE 4: SBO OFFICER (Student Body Organization Officer — Operational Executor)
+--------------------------------------------------------------------------------
+- WHO THEY ARE:
+  Elected or appointed officers of a student organization (e.g., Vice President,
+  Secretary, Treasurer, Auditor, PIO). They handle day-to-day execution inside
+  their organization without having destructive administrative privileges.
+- WHAT TO SAY TO INTRODUCE THIS ROLE:
+  "The SBO Officer role is built for day-to-day operational execution. While the
+  President sets up budgets, elections, and compliance, SBO Officers like the
+  Treasurer or Secretary focus on executing assigned tasks, scanning attendance
+  at events, verifying student merchandise payments, and clearing students at
+  the organization level."
+- WHAT THIS ROLE CAN DO (CAPABILITIES):
+  * View assigned tasks on the Task Board, update completion percentages (0-100%),
+    and log progress notes.
+  * Operate the live Event Check-In terminal using biometric fingerprint scanning
+    or manual School ID verification.
+  * Verify student payment proofs (e.g., GCash reference numbers) for merchandise
+    orders, approve orders, and mark items as claimed.
+  * Sign or place holds on Stage 1 (Organization-level) student clearances.
+  * Post organization announcements and use the Officer Ask AI Copilot to check
+    overdue tasks, pending orders, and upcoming events.
+
+--------------------------------------------------------------------------------
+ROLE 5: STUDENT (General Campus Member — Self-Service Portal)
+--------------------------------------------------------------------------------
+- WHO THEY ARE:
+  Every enrolled student member of an organization. Their account is strictly
+  scoped to their own personal academic, financial, and clearance records plus
+  the public activities of their organization.
+- WHAT TO SAY TO INTRODUCE THIS ROLE:
+  "Finally, the Student role provides complete self-service transparency for
+  every campus member. Instead of lining up at multiple offices to ask why their
+  clearance is on hold or how much they owe in organization fees, a student can
+  track their 3-stage clearance, view their Statement of Account, buy org
+  merchandise, vote in elections, evaluate events, and ask their personal AI
+  assistant about their own status."
+- WHAT THIS ROLE CAN DO (CAPABILITIES):
+  * Track their 3-stage clearance progress (Organization -> Dean -> SAO) in real
+    time and see exact hold reasons or unpaid obligations.
+  * View their personal Statement of Account (open fee invoices, payment history,
+    and official receipts).
+  * Browse their organization's Merchandise Store, place orders, upload payment
+    proofs, and track order fulfillment.
+  * Cast a secure, one-student-one-vote ballot in active organization elections.
+  * View upcoming organization events, check their attendance logs, and submit
+    post-event feedback evaluations.
+  * Submit confidential or formal student grievances to the SAO.
+  * Ask their Personal AI Assistant questions strictly scoped to their own
+    clearance signatories, unpaid fees, orders, and announcements.
+
+
+================================================================================
+DATABASE MODE SWITCHERS & SAMPLE PDF FILES (IN PROJECT ROOT)
+================================================================================
+Your database is currently set to **CLEAN SLATE MODE** so you can demonstrate
+creating School Years, Semesters, Requirements, Colleges, Organizations, and
+Admins from scratch in front of the Dean/Checker!
+
+1. `c:\BSIT\React\Hiusa-FULL\RESET_TO_CLEAN_SLATE.bat`
+   - Resets the database to a Clean Slate (0 Academic Years, 0 Semesters,
+     0 Student Organizations).
+   - Keeps SAO (`990001` / `Admin@123456`), CCS College + Dean (`940001` / `Demo@12345`),
+     and 3 Campus Venues ready so you can log in immediately.
+
+2. `c:\BSIT\React\Hiusa-FULL\RESTORE_FULL_DEMO_DATA.bat`
+   - Populates the full university dataset (AY 2026-2027 + Active 1st Semester +
+     5 Colleges + 5 Student Organizations including PSITS-CCS + 100+ Users +
+     Budgets + Ledger History + Events + Tasks + Merchandise + Elections +
+     Grievances + Clearances) in 3 seconds!
+   - Run this after finishing the Clean Slate creation demo if the panel wants
+     to see rich historical data for AI Financial Forecasting or multi-org RAG.
+
+3. `c:\BSIT\React\Hiusa-FULL\VERIFY_PUBLIC_APPLICATION.bat`
+   - If you submit the public `/register-organization` form during the demo,
+     double-click this file to instantly verify the applicant's email in local
+     dev so the application appears in the Dean's endorsement inbox immediately.
+
+4. `c:\BSIT\React\Hiusa-FULL\demo-sample-files\`
+   - Contains 5 ready-to-upload PDF files:
+     * `1_Letter_of_Intent.pdf`
+     * `2_Constitution_and_ByLaws.pdf`
+     * `3_Official_List_of_Officers.pdf`
+     * `4_Calendar_of_Activities.pdf`
+     * `5_Event_Venue_Request_Letter.pdf`
+   - Select any of these whenever a form asks for a sample format or document!
+
+
+================================================================================
+PART 1: CLEAN SLATE DEMO FLOW (CREATING SCHOOL YEARS, COLLEGES & ORGS FROM ZERO)
+================================================================================
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 1 (AS SAO `990001` / `Admin@123456`):
+CREATE THE SCHOOL YEAR & ACTIVATE THE 1ST SEMESTER
+--------------------------------------------------------------------------------
+- WHAT TO CLICK:
+  1. Log in at http://localhost:5173/login with `990001` / `Admin@123456`.
+  2. Click "Academic years" (`/dashboard/super-admin/academic-terms`) in the left sidebar.
+  3. Click the "Add academic year" button (top right).
+  4. Fill in the modal:
+     - Starts on:       `2026-08-01`
+     - Ends on:         `2027-05-31`
+     - Academic year:   `2026-2027` (auto-suggested!)
+     Click "Add academic year".
+  5. On the new `2026-2027` card/row, click "Add semester":
+     - Semester:        `1st Semester`
+     - Starts on:       `2026-08-01`
+     - Ends on:         `2026-12-20`
+     Click "Add semester".
+  6. Next to `1st Semester`, click "Activate".
+- WHAT HAPPENS ON SCREEN:
+  `AY 2026-2027` becomes the Current Academic Year, `1st Semester` becomes Active,
+  and the system automatically generates the default Accreditation Requirements
+  and Event Requirements for the semester (initially inactive until SAO attaches
+  sample formats).
+- WHAT TO SAY:
+  "Starting from a completely clean slate, the SAO first establishes the
+  Academic Year and activates the 1st Semester. Activating a semester
+  automatically scaffolds the university's standard accreditation and event
+  requirement checklists."
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 2 (AS SAO `990001`):
+PUBLISH REGISTRATION REQUIREMENTS WITH SAMPLE FORMATS
+--------------------------------------------------------------------------------
+- WHAT TO CLICK:
+  1. Click "Compliance" (`/dashboard/super-admin/compliance`) in the left sidebar.
+  2. Click the "Requirement settings" tab.
+  3. Find "Letter of Intent" (or "Constitutional By-Laws") and click the Active
+     toggle switch (or click `...` -> "Edit").
+  4. In the modal that opens:
+     - Under Sample format, click "Choose File" and select:
+       `c:\BSIT\React\Hiusa-FULL\demo-sample-files\1_Letter_of_Intent.pdf`
+     - Make sure "Active" is checked.
+     - Click "Save".
+  *(Tip: Only activate 1 or 2 requirements during the live demo so you only need
+  to upload 1 or 2 files when registering an organization!)*
+- WHAT TO SAY:
+  "Before any organization can register, the SAO publishes the active semester's
+  requirements and attaches official sample PDF templates so student founders
+  and Deans know the exact format expected."
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 3 (AS SAO `990001`):
+CREATE A COLLEGE & ASSIGN ITS DEPARTMENT HEAD (DEAN)
+--------------------------------------------------------------------------------
+- WHAT TO CLICK:
+  1. Click "Colleges" (`/dashboard/super-admin/colleges`) in the left sidebar.
+  2. Point out that `College of Computer Studies (CCS)` with `Dean Ramon Castillo`
+     (`940001`) is ready, OR click "Add college" to create a new one live:
+     - College name:    `College of Business Education`
+     - Code:            `CBE`
+     - Color:           `#F5A623`
+     - Description:     `Accountancy, Business Administration, and Customs programs.`
+     Click "Create college".
+  3. On the new college card, click `...` -> "Assign Department Head":
+     - School ID:       `940002`
+     - First name:      `Corazon`
+     - Last name:       `Villareal`
+     - Email:           `dean.cbe@uclm.edu.ph`
+     - Password:        `Demo@12345`
+     Click "Assign Department Head".
+- WHAT TO SAY:
+  "Here the SAO creates academic colleges and provisions each college's
+  Department Head or Dean account."
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 4:
+CREATE / REGISTER A STUDENT ORGANIZATION (3 WAYS TO DEMONSTRATE!)
+--------------------------------------------------------------------------------
+You can show the Dean/Checker any (or all) of the 3 ways organizations are born:
+
+WAY A — DEPARTMENT HEAD REGISTERS A COLLEGE ORGANIZATION (STREAMLINED 2-STEP FLOW):
+  1. Log out of SAO and log in as CCS Dean: `940001` / `Demo@12345`.
+  2. Click "Organizations" (`/dashboard/department-head/organizations`) in the sidebar.
+  3. Click "Register organization" (top right).
+  4. Fill in:
+     - Organization name: `Philippine Society of Information Technology Students`
+     - Acronym:           `PSITS-CCS`
+     - Description:       `Official computing student organization of CCS.`
+     - Color:             `#0B8ED0`
+     - Founding Administrator / President details:
+       * School ID:       `900001`
+       * First Name:      `Marco`
+       * Last Name:       `Dela Cruz`
+       * Email:           `marco.delacruz@uclm.edu.ph`
+       * Position:        `President`
+     - Attach file(s) for each active requirement from:
+       `c:\BSIT\React\Hiusa-FULL\demo-sample-files\1_Letter_of_Intent.pdf`
+  5. Click "Submit registration".
+  -> It immediately enters `Pending review` for the SAO with founding leadership ready!
+
+WAY B — PUBLIC STUDENT FOUNDER APPLIES FROM THE LANDING PAGE (`/register-organization`):
+  1. On the Landing Page (`http://localhost:5173`), click "Register an organization".
+  2. Fill in:
+     - Organization name: `Robotics and Innovation Society`
+     - Organization code: `ROBO-CCS`
+     - First name:        `Alex`
+     - Last name:         `Rivera`
+     - School ID:         `2100888`
+     - Email:             `alex.rivera@uclm.edu.ph`
+     - Position:          `Founding President`
+     - College:           `College of Computer Studies`
+     - Attach PDF file(s) from `c:\BSIT\React\Hiusa-FULL\demo-sample-files\`
+  3. Click "Submit application".
+  4. Double-click `c:\BSIT\React\Hiusa-FULL\VERIFY_PUBLIC_APPLICATION.bat` to
+     verify the email in local dev.
+  5. Log in as Dean (`940001` / `Demo@12345`) -> Click "Organization applications"
+     (`/dashboard/organization-applications`) -> Click "View" -> Enter remarks
+     and click "Endorse to SAO".
+  6. Log in as SAO (`990001` / `Admin@123456`) -> Click "Organization applications"
+     (`/dashboard/organization-applications`) -> Click "Approve" -> The org is
+     created and Alex Rivera (`2100888`) is provisioned as its first Admin!
+
+WAY C — SAO CREATES A UNIVERSITY-WIDE UNIFIED ORGANIZATION DIRECTLY:
+  1. Log in as SAO (`990001` / `Admin@123456`).
+  2. Go to "Organizations" (`/dashboard/super-admin/organizations`).
+  3. Click "Add unified organization" -> Enter `Supreme Student Government`,
+     Acronym `SSG-UC` -> Click "Create organization".
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 5 (AS SAO `990001`):
+APPROVE THE COLLEGE ORGANIZATION (AUTO-PROVISIONS FOUNDING ADMIN IN 1 CLICK!)
+--------------------------------------------------------------------------------
+- WHAT TO CLICK (After Way A):
+  1. Log in as SAO (`990001` / `Admin@123456`).
+  2. Click "Organizations" (`/dashboard/super-admin/organizations`) in the sidebar.
+  3. Click the "Pending review" tab -> Click "Review" on `PSITS-CCS`.
+  4. Inspect the uploaded registration PDF and note the Founding Administrator
+     details (Marco Dela Cruz `900001`) shown in the drawer.
+  5. Click "Approve".
+  -> The organization is activated and Marco Dela Cruz's Admin account is
+     automatically provisioned with default password `Demo@12345` in ONE step!
+     No separate manual "Step 3" needed!
+- WHAT TO SAY:
+  "In HIUSA's streamlined 2-step governance model, approving the registration
+  simultaneously activates the student organization and provisions its founding
+  Student President. There is no tedious manual hand-off step."
+
+--------------------------------------------------------------------------------
+CLEAN SLATE STEP 6 (AS NEW ORGANIZATION ADMIN `900001`):
+INITIALIZE PROGRAMS, SBO POSITIONS, MEMBERS, BUDGETS & EVENTS FROM SCRATCH
+--------------------------------------------------------------------------------
+- WHAT TO CLICK:
+  1. Log out of SAO and sign in as the new Admin: `900001` / `Demo@12345`.
+     *(Note: Because SAO created this account with a temporary password, the
+     system will prompt Marco to set a permanent password on first login—enter
+     `Demo@123456` and click Save!)*
+  2. SET UP ACADEMIC PROGRAMS & SECTIONS (`/dashboard/admin/academic-structure`):
+     - Click "Academic structure" in the sidebar.
+     - Click "Add program" -> Enter `BS Information Technology` -> Save.
+     - Add sections (e.g., `1-A`, `2-A`, `3-A`, `4-A`).
+  3. SET UP SBO OFFICER POSITIONS (`/dashboard/admin/sbo-positions`):
+     - Click "Officer positions" in the sidebar.
+     - Create positions: `Vice President`, `Secretary`, `Treasurer`, `Auditor`, `PIO`.
+  4. ADD OFFICERS & STUDENT MEMBERS (`/dashboard/users`):
+     - Click "Users & Members" -> Click "Add user".
+     - Create an SBO Officer (`900004`, `Diego Villanueva`, Role `SBO_OFFICER`,
+       Position `Treasurer`, Password `Demo@12345`).
+     - Create a Student Member (`2100142`, `Juan Dela Vega`, Role `STUDENT`,
+       Password `Demo@12345`).
+  5. CREATE FIRST BUDGET, EVENT, TASK, MERCHANDISE & ELECTION:
+     - Go to "Finance" -> Create a Semester Budget & add a Ledger Transaction.
+     - Go to "Events" -> Click "New event" -> Select `UC Main Auditorium` & submit.
+     - Go to "Tasks" -> Click "Create Task" & use AI Recommend Assignee.
+
+*(PRO TIP: Want to immediately jump to a fully populated university with 6 months
+of financial history, 5 organizations, and 100+ members for the rest of the demo?
+Just double-click `c:\BSIT\React\Hiusa-FULL\RESTORE_FULL_DEMO_DATA.bat`!)*
+
+
+================================================================================
+PART 2: FULL ROLE-BY-ROLE FEATURE WALKTHROUGH (WITH SEEDED OR CREATED DATA)
+================================================================================
+
+================================================================================
 JOURNEY 1: SAO / SUPER ADMIN (UNIVERSITY-WIDE GOVERNANCE)
 Login: School ID 990001 | Password: Admin@123456
 ================================================================================
+
+ROLE SUMMARY TO SAY WHEN LOGGING IN AS SAO:
+"We start at the top of the university hierarchy with the Student Affairs Office
+(SAO). This role oversees all colleges and all student organizations—managing
+academic terms, organization accreditation, final event and financial approvals,
+campus venues, student grievances, and final clearances."
 
 STEP 1.1 — SAO INSTITUTIONAL DASHBOARD & INLINE ASK AI SPOTLIGHT
 - WHAT TO CLICK:
@@ -165,6 +600,13 @@ JOURNEY 2: DEPARTMENT HEAD / COLLEGE DEAN (COLLEGE-LEVEL OVERSIGHT)
 Login: School ID 940001 | Password: Demo@12345 (Dean Ramon Castillo — CCS)
 ================================================================================
 
+ROLE SUMMARY TO SAY WHEN LOGGING IN AS DEPARTMENT HEAD / DEAN:
+"Next is the Department Head or College Dean role. This role governs all student
+organizations within a single academic college—in this case, the College of
+Computer Studies. The Dean registers college organizations, endorses their
+budgets, events, and financial reports before they can reach the SAO, and signs
+the second stage of student clearances."
+
 STEP 2.1 — DEAN DASHBOARD & ASK AI COLLEGE COPILOT
 - WHAT TO CLICK:
   1. Log out of SAO, then sign in with `940001` / `Demo@12345`.
@@ -206,6 +648,13 @@ STEP 2.3 — COLLEGE APPROVALS & COMPLIANCE ENDORSEMENT
 JOURNEY 3: ORGANIZATION ADMIN / PRESIDENT (STUDENT ORG LEADERSHIP)
 Login: School ID 900001 | Password: Demo@12345 (Marco Dela Cruz — PSITS-CCS)
 ================================================================================
+
+ROLE SUMMARY TO SAY WHEN LOGGING IN AS ORGANIZATION ADMIN:
+"Now we move to the Student Organization Admin—typically the Organization
+President. This role has full executive control over a single accredited
+organization (PSITS-CCS): managing members and biometric enrollment, delegating
+tasks with AI, proposing events and budgets, maintaining financial ledgers,
+running elections, managing merchandise, and uploading SAO compliance files."
 
 STEP 3.1 — ORGANIZATION LEADERSHIP DASHBOARD & DYNAMIC RAG AI
 - WHAT TO CLICK:
@@ -287,6 +736,13 @@ JOURNEY 4: SBO OFFICER (OPERATIONAL EXECUTION)
 Login: School ID 900004 | Password: Demo@12345 (Diego Villanueva — Treasurer)
 ================================================================================
 
+ROLE SUMMARY TO SAY WHEN LOGGING IN AS SBO OFFICER:
+"Next is the SBO Officer role—used by elected officers like the Vice President,
+Secretary, Treasurer, or Auditor. Unlike the President, officers have a focused
+operational workspace designed for day-to-day execution: updating their assigned
+tasks, scanning biometric or ID attendance at events, verifying student payment
+proofs for merchandise orders, and signing organization-stage clearances."
+
 STEP 4.1 — OFFICER WORKSPACE & ASK AI COPILOT
 - WHAT TO CLICK:
   1. Log out, then sign in with `900004` / `Demo@12345`.
@@ -318,6 +774,14 @@ STEP 4.2 — TASK PROGRESS UPDATES, EVENT CHECK-IN & ORDER VERIFICATION
 JOURNEY 5: STUDENT PORTAL (MEMBER EXPERIENCE)
 Login: School ID 2100142 | Password: Demo@12345 (Juan Dela Vega — BSIT Student)
 ================================================================================
+
+ROLE SUMMARY TO SAY WHEN LOGGING IN AS STUDENT:
+"Finally, we have the Student role for general campus members. This self-service
+portal gives every student complete visibility into their own status—tracking
+their 3-stage clearance signatures, viewing their Statement of Account and
+official receipts, ordering organization merchandise, voting in elections,
+evaluating attended events, and asking their Personal AI Assistant about their
+own clearance or fees."
 
 STEP 5.1 — STUDENT DASHBOARD & PERSONAL ASK AI ASSISTANT
 - WHAT TO CLICK:
@@ -379,3 +843,4 @@ Here are great example queries to type live:
    - "What fees or invoices do I still need to pay?"
    - "What announcements were posted recently?"
 ================================================================================
+

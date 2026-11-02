@@ -81,7 +81,7 @@ describe('OrganizationCompliancePage', () => {
       ? Promise.resolve(adminStatus('incomplete', [requirement('not_submitted', { requirement_name: 'Current semester evidence' })]))
       : organization);
     renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Semestral report' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Semestral/i }));
     await screen.findAllByText('Current semester evidence');
     await act(async () => { finishOrganization(adminStatus('incomplete', [requirement('not_submitted', { requirement_name: 'Older organization response' })])); });
     expect(screen.queryByText('Older organization response')).not.toBeInTheDocument();
@@ -94,7 +94,7 @@ describe('OrganizationCompliancePage', () => {
     mocks.getSubmissions.mockResolvedValue(queue([]));
     renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
     await screen.findAllByText('Constitution');
-    fireEvent.click(screen.getByRole('tab', { name: 'Semestral report' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Semestral/i }));
     await screen.findAllByText('Semester narrative');
     expect(mocks.getRequirementTypes).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' }));
     expect(mocks.getSubmissions).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' }));

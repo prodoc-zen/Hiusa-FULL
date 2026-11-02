@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
@@ -267,8 +267,22 @@ export default function TopBar({ onMenuToggle }) {
         </button>
         <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
-        <div className="min-w-0 flex-1">
-          {activeAcademicPeriod?.academic_year?.label && <span className="hidden max-w-full truncate rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62] min-[520px]:inline-block">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5" data-tour="topbar-period">
+          {activeAcademicPeriod?.academic_year?.label && (
+            <span className="hidden max-w-full items-center gap-1.5 truncate rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-3.5 py-1.5 text-xs font-semibold text-[#0F2F62] min-[520px]:inline-flex">
+              <span className="h-2 w-2 rounded-full bg-[#0878B7]" aria-hidden="true" />
+              <span>AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+            </span>
+          )}
+          <button
+            type="button"
+            data-tour="topbar-tour-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
+            className="hidden h-9 items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
+          >
+            <MousePointerClick size={14} className="text-[#0878B7]" aria-hidden="true" />
+            <span>Interactive Tour</span>
+          </button>
         </div>
 
         <button
@@ -276,10 +290,12 @@ export default function TopBar({ onMenuToggle }) {
           onClick={() => setPaletteOpen(true)}
           aria-label="Go to page"
           aria-keyshortcuts="Control+K Meta+K"
-          className="hidden h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-[#F8FBFD] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[360px]:flex sm:px-3"
+          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[360px]:flex md:min-w-[210px] lg:min-w-[270px]"
         >
-          <Search size={16} aria-hidden="true" />
-          <span className="hidden md:inline">Go to page</span>
+          <span className="flex items-center gap-2">
+            <Search size={16} aria-hidden="true" />
+            <span className="hidden md:inline">Go to page</span>
+          </span>
           <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
         </button>
 

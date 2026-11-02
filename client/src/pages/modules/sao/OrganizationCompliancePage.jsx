@@ -160,7 +160,7 @@ export default function OrganizationCompliancePage() {
         nextStep={accreditation && <NextStep {...toNextStepProps(accreditation)} primary={undefined} />}
       />
 
-      <Tabs value={category} onChange={(next) => { setPage(1); setCategory(next); }} tabs={[{ key: 'organization', label: 'Organization accreditation' }, { key: 'semestral_report', label: 'Semestral report' }]} />
+      <Tabs value={category} onChange={(next) => { setPage(1); setCategory(next); }} tabs={[{ key: 'organization', label: 'Organization Renewal & Annual Accreditation' }, { key: 'semestral_report', label: 'Semestral Accomplishment Reports' }]} />
 
       {state.loading && (
         <div className="space-y-3">

@@ -1,8 +1,9 @@
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import RouteLoadingFallback from './RouteLoadingFallback';
+import RoleOnboardingTour from '../onboarding/RoleOnboardingTour';
 import { PageBreadcrumb, PageHeaderView } from '../ui/PageHeader';
 import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
 import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../lib/pageMeta';
@@ -49,6 +50,13 @@ export default function DashboardLayout() {
   const role = getStoredRole();
   const pageMeta = getPageMeta(location.pathname, role);
   const breadcrumbs = getBreadcrumbs(location.pathname, role);
+  const [tourOpen, setTourOpen] = useState(false);
+
+  useEffect(() => {
+    const openTour = () => setTourOpen(true);
+    window.addEventListener('hiusa-open-onboarding-tour', openTour);
+    return () => window.removeEventListener('hiusa-open-onboarding-tour', openTour);
+  }, []);
 
   function toggleDesktopSidebar() {
     setDesktopCollapsed((current) => {
@@ -87,6 +95,7 @@ export default function DashboardLayout() {
           </div>
         </main>
       </div>
+      <RoleOnboardingTour role={role || 'ADMIN'} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

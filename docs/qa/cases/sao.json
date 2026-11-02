@@ -45,13 +45,14 @@
     "preconditions": "Signed in as SAO 990001.",
     "steps": [
       "1. Look at the left menu from top to bottom.",
-      "2. Select the group name Organizations and read the items under it.",
+      "2. Select the group name Governance and read the items under it.",
       "3. Select the group name Reviews and read the items under it.",
-      "4. Select the group name Updates and read the items under it.",
-      "5. Select the group name Setup and records and read the items under it.",
-      "6. Look for any menu item named Approvals, Finance, Events, Voting or Store."
+      "4. Select the group name Files and read the items under it.",
+      "5. Select the group name Updates and read the items under it.",
+      "6. Select the group name Setup and records and read the items under it.",
+      "7. Look for any menu item named Approvals, Finance, Events, Voting or Store."
     ],
-    "expected": "The menu reads: Dashboard; Organizations (Agency overview, Registrations and organizations, Administrators, Colleges); Reviews (Compliance, Venues, Grievances, Clearances); Updates (University announcements, Notifications); Setup and records (Academic years, Audit trail); then Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Approvals, Finance, Events, Voting or Store item.",
+    "expected": "The menu reads: Dashboard; University users; Governance (Organization applications, Registrations and organizations, Colleges); Reviews (Compliance, Organization approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Approvals, Finance, Events, Voting or Store item.",
     "priority": "High",
     "device": "Laptop",
     "type": "Usability",
@@ -176,19 +177,18 @@
     "id": "SAO-010",
     "role": "SAO",
     "module": "Access control",
-    "title": "The SAO has no way to create an organization or a college",
-    "preconditions": "Signed in as SAO 990001. The server also answers \"405 Method Not Allowed\" to any request that tries to create one; automated tests pin that.",
+    "title": "SAO manages university colleges and institutional unified organizations",
+    "preconditions": "Signed in as SAO 990001.",
     "steps": [
-      "1. Open Organizations > Registrations and organizations and look at all four tabs for a New, Create, Add or Register button.",
-      "2. Open Organizations > Agency overview and look for the same buttons.",
-      "3. Open Organizations > Colleges and look for a New, Add, Create, Edit or Delete college button.",
-      "4. Count the college cards.",
-      "5. Read the buttons on one college card."
+      "1. Open Governance > Registrations and organizations and observe the Add unified organization button.",
+      "2. Open Governance > Colleges and look at the Add college button.",
+      "3. Count the college cards and open the actions menu on one college card.",
+      "4. Verify options to Manage Department Head, Upload logo, Archive college, and Delete college."
     ],
-    "expected": "There is no button to create an organization or a college anywhere. Organizations only offer Review, Open, Provision administrator, Restore and the actions menu (Edit organization, Add existing user, Manage user profiles, Archive organization). A college card only offers Manage, Assign Department Head, View organizations and Upload logo. A fresh seed shows 5 college cards. Department Heads register organizations.",
+    "expected": "SAO can create and manage Colleges, assign deans, and add unified university-wide organizations. Regular student organizations are submitted via public registration and endorsed by Department Heads.",
     "priority": "High",
     "device": "Laptop",
-    "type": "Negative",
+    "type": "Functional",
     "round": "Any time"
   },
   {
@@ -2210,5 +2210,93 @@
     "type": "Access",
     "round": "Any time",
     "depends": ""
+  },
+  {
+    "id": "SAO-115",
+    "role": "SAO",
+    "module": "Governance > Organization applications",
+    "title": "SAO evaluates department-endorsed organization applications",
+    "preconditions": "Signed in as SAO 990001. A Department Head has endorsed an organization application.",
+    "steps": [
+      "1. Open Governance > Organization applications in the left menu (address ends with /dashboard/organization-applications).",
+      "2. Filter by status 'Endorsed, for SAO review'.",
+      "3. Select View application on an endorsed application row.",
+      "4. Inspect the applicant credentials, college name, and submitted compliance documents."
+    ],
+    "expected": "The application details modal opens displaying applicant information, the department head's endorsement notes, and protected links to view all attached accreditation PDF files.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SAO-116",
+    "role": "SAO",
+    "module": "Governance > Organization applications",
+    "title": "SAO approves organization application and provisions administrator credentials",
+    "preconditions": "Signed in as SAO 990001 with an endorsed application open in the review modal.",
+    "steps": [
+      "1. Select Approve registration in the modal footer.",
+      "2. Confirm the approval.",
+      "3. Open Governance > Registrations and organizations and check the Active tab."
+    ],
+    "expected": "The application is marked Approved and a success notification appears. The organization is created in the active registry and the founder is provisioned as the first administrator.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SAO-117",
+    "role": "SAO",
+    "module": "Governance > Colleges",
+    "title": "SAO adds a new college and assigns a department head",
+    "preconditions": "Signed in as SAO 990001 on /dashboard/super-admin/colleges.",
+    "steps": [
+      "1. Select Add college.",
+      "2. Enter college name, code, and description.",
+      "3. Select Save college.",
+      "4. On the new college card, select Assign Department Head from the actions menu."
+    ],
+    "expected": "The new college is created and appears in the agency directory. Assigning a department head updates the card with the dean's credentials.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-118",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "SAO publishes system-wide global announcement",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Updates > University announcements (/dashboard/super-admin/announcements).",
+      "2. Select New announcement.",
+      "3. Enter Title, Content, and choose target audience.",
+      "4. Select Publish."
+    ],
+    "expected": "The announcement is published and distributed across the university, appearing on student dashboards and public feeds.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-119",
+    "role": "SAO",
+    "module": "Files > Storage and limits",
+    "title": "SAO inspects system file storage usage and quotas",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Files > Storage and limits (/dashboard/super-admin/file-storage).",
+      "2. Review total storage metrics and document breakdown by college and organization.",
+      "3. Verify that capacity limits are shown."
+    ],
+    "expected": "The page displays cumulative system storage, document distribution, and institutional quota indicators.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]

@@ -35,45 +35,71 @@ const SHEET_BY_FILE = {
 };
 const SHEET_ORDER = Object.values(SHEET_BY_FILE);
 
+const FONT_FAMILY = 'Segoe UI';
+
 const NAVY = 'FF0B1831';
 const ACCENT = 'FF0B8ED0';
 const WHITE = 'FFFFFFFF';
+const LIGHT_BG = 'FFF8FAFC';
+const CARD_BG = 'FFF1F5F9';
+const BORDER_COLOR = 'FFE2E8F0';
+const DARK_BORDER = 'FFCBD5E1';
+
 const STATUS_FILL = {
   'Not run': 'FFFFFFFF',
-  Pass: 'FFC6EFCE',
-  Fail: 'FFFFC7CE',
-  Blocked: 'FFFFEB9C',
-  'N/A': 'FFD9D9D9',
+  Pass: 'FFDCFCE7', // Tailwind green-100
+  Fail: 'FFFEE2E2', // Tailwind red-100
+  Blocked: 'FFFEF3C7', // Tailwind amber-100
+  'N/A': 'FFF1F5F9', // Tailwind slate-100
 };
-const STATUS_FONT = { Pass: 'FF006100', Fail: 'FF9C0006', Blocked: 'FF7F6000', 'N/A': 'FF595959' };
+const STATUS_FONT = {
+  Pass: 'FF15803D', // Tailwind green-700
+  Fail: 'FFB91C1C', // Tailwind red-700
+  Blocked: 'FFB45309', // Tailwind amber-700
+  'N/A': 'FF475569', // Tailwind slate-600
+};
+
+const SEVERITY_FILL = {
+  Critical: 'FFFEE2E2',
+  Major: 'FFFFEDD5',
+  Minor: 'FFFEF9C3',
+  Cosmetic: 'FFF1F5F9',
+};
+const SEVERITY_FONT = {
+  Critical: 'FF991B1B',
+  Major: 'FFC2410C',
+  Minor: 'FFA16207',
+  Cosmetic: 'FF64748B',
+};
 
 // Columns of a case sheet. Letters are used by the Summary formulas, so keep them in step.
 const COLUMNS = [
-  { key: 'id', header: 'ID', width: 12 },
-  { key: 'module', header: 'Module', width: 20 },
-  { key: 'title', header: 'Test case', width: 38 },
-  { key: 'type', header: 'Type', width: 13 },
-  { key: 'priority', header: 'Priority', width: 10 },
+  { key: 'id', header: 'ID', width: 13 },
+  { key: 'module', header: 'Module', width: 25 },
+  { key: 'title', header: 'Test case', width: 44 },
+  { key: 'type', header: 'Type', width: 14 },
+  { key: 'priority', header: 'Priority', width: 12 },
   { key: 'device', header: 'Device', width: 12 },
-  { key: 'round', header: 'Round', width: 24 },
-  { key: 'depends', header: 'Depends on', width: 16 },
-  { key: 'preconditions', header: 'Preconditions', width: 34 },
-  { key: 'steps', header: 'Steps', width: 52 },
-  { key: 'expected', header: 'Expected result', width: 40 },
-  { key: 'note', header: 'Author note (unconfirmed)', width: 36 },
-  { key: 'status', header: 'Status', width: 12 },
-  { key: 'severity', header: 'Severity', width: 12 },
+  { key: 'round', header: 'Round', width: 26 },
+  { key: 'depends', header: 'Depends on', width: 15 },
+  { key: 'preconditions', header: 'Preconditions', width: 36 },
+  { key: 'steps', header: 'Steps', width: 56 },
+  { key: 'expected', header: 'Expected result', width: 48 },
+  { key: 'note', header: 'Author note (unconfirmed)', width: 34 },
+  { key: 'status', header: 'Status', width: 14 },
+  { key: 'severity', header: 'Severity', width: 14 },
   { key: 'tester', header: 'Tester', width: 18 },
-  { key: 'date', header: 'Date tested', width: 13 },
+  { key: 'date', header: 'Date tested', width: 14 },
   { key: 'browser', header: 'Device and browser used', width: 24 },
-  { key: 'actual', header: 'Actual result / notes', width: 44 },
-  { key: 'screenshot', header: 'Bug screenshot link', width: 30 },
+  { key: 'actual', header: 'Actual result / notes', width: 48 },
+  { key: 'screenshot', header: 'Bug screenshot link', width: 32 },
 ];
 const colLetter = (key) => String.fromCharCode(65 + COLUMNS.findIndex((c) => c.key === key));
 const ID_COL = colLetter('id');
 const STATUS_COL = colLetter('status');
 const SEVERITY_COL = colLetter('severity');
 const ROUND_COL = colLetter('round');
+const PRIORITY_COL = colLetter('priority');
 const colIndex = (key) => COLUMNS.findIndex((c) => c.key === key);
 
 function parseArgs(argv) {
@@ -198,128 +224,231 @@ function rowFor(c) {
 }
 
 const headerStyle = (cell, fill = NAVY) => {
-  cell.font = { bold: true, color: { argb: WHITE } };
+  cell.font = { name: FONT_FAMILY, size: 10, bold: true, color: { argb: WHITE } };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
   cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+  cell.border = {
+    top: { style: 'thin', color: { argb: DARK_BORDER } },
+    bottom: { style: 'medium', color: { argb: fill } },
+    left: { style: 'thin', color: { argb: '33FFFFFF' } },
+    right: { style: 'thin', color: { argb: '33FFFFFF' } },
+  };
 };
 
 function addHowToUse(wb) {
   const ws = wb.addWorksheet('How to use', { views: [{ showGridLines: false }] });
-  ws.columns = [{ width: 34 }, { width: 22 }, { width: 80 }];
+  ws.columns = [{ width: 28 }, { width: 32 }, { width: 85 }];
   let r = 1;
+
+  const banner = (titleText, subtitleText) => {
+    ws.mergeCells(r, 1, r, 3);
+    const cell = ws.getCell(r, 1);
+    cell.value = titleText;
+    cell.font = { name: FONT_FAMILY, bold: true, size: 16, color: { argb: WHITE } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    ws.getRow(r).height = 36;
+    r++;
+
+    ws.mergeCells(r, 1, r, 3);
+    const subCell = ws.getCell(r, 1);
+    subCell.value = subtitleText;
+    subCell.font = { name: FONT_FAMILY, size: 10.5, color: { argb: WHITE } };
+    subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+    subCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    ws.getRow(r).height = 24;
+    r++;
+    r++;
+  };
+
   const heading = (text) => {
     const row = ws.getRow(r++);
     row.getCell(1).value = text;
-    row.getCell(1).font = { bold: true, size: 13, color: { argb: ACCENT } };
+    row.getCell(1).font = { name: FONT_FAMILY, bold: true, size: 13, color: { argb: ACCENT } };
   };
+
   const line = (text, opts = {}) => {
     ws.mergeCells(r, 1, r, 3);
     const cell = ws.getCell(r, 1);
     cell.value = text;
+    cell.font = { name: FONT_FAMILY, size: 10, bold: Boolean(opts.bold) };
     cell.alignment = { wrapText: true, vertical: 'top' };
-    if (opts.bold) cell.font = { bold: true };
     if (opts.height) ws.getRow(r).height = opts.height;
     r++;
   };
 
-  ws.mergeCells(r, 1, r, 3);
-  const title = ws.getCell(r, 1);
-  title.value = 'HIUSA QA test sheet';
-  title.font = { bold: true, size: 18, color: { argb: WHITE } };
-  title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-  title.alignment = { vertical: 'middle' };
-  ws.getRow(r++).height = 32;
+  banner(
+    'HIUSA - Unified Student Affairs and Student Body Organization System',
+    'Comprehensive Quality Assurance & User Journey Test Suite | System Verification Guide'
+  );
+
+  heading('1. Purpose & How to Use This Verification Workbook');
+  line('1. Each role tab (SAO, Department Head, Admin & Adviser, SBO Officer, Student, General) contains targeted test cases mapped to the system.');
+  line('2. Sign in with the credentials specified for each role, execute the actions listed in the Steps column, and compare actual behavior against Expected result.');
+  line('3. Update the Status column (Pass, Fail, Blocked, N/A) for each case. Fill in Tester name, Date tested, and Device/Browser.');
+  line('4. When reporting defects, select the Severity level, document observations in Actual result / notes, and provide an image link.');
+  line('5. The Summary dashboard aggregates metrics automatically across all role sheets. Do not edit formulas on the Summary tab directly.');
   r++;
 
-  heading('What this is for');
-  line('1. Each tab (SAO, Department Head, Admin & Adviser, SBO Officer, Student, General) lists test cases for one role.');
-  line('2. Sign in with the account for that role, follow the Steps column, and compare what happens with the Expected result.');
-  line('3. Set the Status for every case you run. Fill Tester, Date tested, and the device and browser you used.');
-  line('4. If a case fails, set Severity, describe what you saw in Actual result / notes, and paste a screenshot link.');
-  line('5. The Summary tab counts your entries by itself. Do not type in it.');
+  heading('2. System Access & Environment');
+  line('Acquire the active test instance URL from the deployment administrator. The local development environment defaults to http://127.0.0.1:5173 (frontend) and http://127.0.0.1:8000 (backend API).', { bold: true });
   r++;
 
-  heading('Test link');
-  line('Ask the host for the current link; it changes if the host restarts it.', { bold: true });
-  r++;
-
-  heading('Test accounts');
+  heading('3. Pre-Seeded Verification Accounts');
   const head = ws.getRow(r++);
-  ['Role', 'School ID', 'Notes'].forEach((t, i) => {
+  ['Role Group', 'Account IDs / School IDs', 'Access Scope & Notes'].forEach((t, i) => {
     head.getCell(i + 1).value = t;
     headerStyle(head.getCell(i + 1), ACCENT);
+    if (i < 2) head.getCell(i + 1).alignment = { vertical: 'middle', horizontal: 'center' };
   });
+  head.height = 26;
+
   const accounts = [
-    ['SAO', '990001', 'The only SAO account on the test copy. Runs the university side.'],
-    ['Department Head', '940001 to 940009', '940001 College of Computer Studies, 940002 Business Education, 940003 Teacher Education, 940004 Health Sciences, 940005 Engineering, 940006 Criminal Justice Education, 940007 Hospitality, Tourism and Customs Administration, 940008 Maritime Education, 940009 Nursing. One head per college; pick the college you were assigned.'],
-    ['Admin (Organization Admin)', '900001 to 900003, 920011', '900001 President, 900002 Vice President Internal, 900003 Secretary (all PSITS-CCS). 920011 is the President of JPIA-CBE.'],
-    ['Adviser', '990002, 990012, 990022, 990032, 990042', 'An Admin assigned by the SAO. 990002 PSITS-CCS, 990012 JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. Same menu as an Admin.'],
-    ['SBO Officer', '900004 to 900007', '900004 Treasurer, 900005 Auditor, 900006 Public Information Officer, 900007 Business Manager (all PSITS-CCS).'],
-    ['Student', '2100142', 'PSITS-CCS. Also 2100217, 2100389, 2200055, 2200134, 2200298, 2200451, 2300078, 2300163, 2300247, 2300312, 2400019, 2400067, 2400093. 2400118 belongs to FES-CTE and 2400133 to EIG-COE.'],
+    ['SAO Super Admin', '990001', 'University-wide Student Affairs administration, college configuration, charter approvals, and governance oversight.'],
+    ['Department Head / Dean', '940001 to 940009', 'Colleges: 940001 Computer Studies, 940002 Business, 940003 Teacher Ed, 940004 Health Sciences, 940005 Engineering, 940006 Criminal Justice, 940007 Hospitality/Tourism, 940008 Maritime, 940009 Nursing.'],
+    ['Organization Admin', '900001 to 900003, 920011', 'PSITS-CCS Executive Officers: 900001 President, 900002 VP Internal, 900003 Secretary. JPIA-CBE President: 920011.'],
+    ['Faculty Adviser', '990002, 990012, 990022, 990032, 990042', 'Organization advisers assigned by SAO: 990002 PSITS-CCS, 990012 JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE.'],
+    ['SBO Officers', '900004 to 900007', 'PSITS-CCS working officers: 900004 Treasurer, 900005 Auditor, 900006 Public Information Officer, 900007 Business Manager.'],
+    ['Student Body', '2100142, 2100217, 2100389, ...', 'Regular enrolled student members for event registration, voting, store orders, clearance signing, and grievance filing.'],
   ];
   for (const a of accounts) {
     const row = ws.getRow(r++);
     a.forEach((t, i) => {
-      row.getCell(i + 1).value = t;
-      row.getCell(i + 1).alignment = { wrapText: true, vertical: 'top' };
-      row.getCell(i + 1).border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
+      const cell = row.getCell(i + 1);
+      cell.value = t;
+      cell.font = { name: FONT_FAMILY, size: 9.5 };
+      cell.alignment = { wrapText: true, vertical: 'top', horizontal: i < 2 ? 'center' : 'left' };
+      cell.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
     });
+    row.height = 24;
   }
-  line('Passwords: ask the host. Never share one account between two testers, because 5 wrong passwords lock it for 15 minutes.', { bold: true, height: 32 });
+  line('Account Security Policy: Do not share accounts across concurrent testing devices. Five consecutive incorrect password attempts will lock the account for 15 minutes.', { bold: true, height: 26 });
   r++;
 
-  heading('Status legend');
+  heading('4. Execution Status Legend');
   for (const s of STATUSES) {
     const row = ws.getRow(r++);
-    row.getCell(1).value = s;
-    row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: STATUS_FILL[s] } };
-    row.getCell(1).font = { bold: true, color: { argb: STATUS_FONT[s] || 'FF000000' } };
-    row.getCell(1).border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
+    const badge = row.getCell(1);
+    badge.value = s;
+    badge.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: STATUS_FILL[s] } };
+    badge.font = { name: FONT_FAMILY, bold: true, color: { argb: STATUS_FONT[s] || 'FF000000' } };
+    badge.alignment = { horizontal: 'center', vertical: 'middle' };
+    badge.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
+
     ws.mergeCells(row.number, 2, row.number, 3);
-    row.getCell(2).value = {
-      'Not run': 'Not tried yet. This is the starting value.',
-      Pass: 'You ran every step and the result matched the Expected result.',
-      Fail: 'You ran the steps and the result did not match. Set a Severity and describe it.',
-      Blocked: 'You could not run it because something earlier is broken or missing (say what in the notes).',
-      'N/A': 'The case does not apply to you, for example a phone-only case on a laptop.',
+    const desc = row.getCell(2);
+    desc.value = {
+      'Not run': 'Pending execution. Default starting state for all test cases.',
+      Pass: 'The actual system behavior completely matched all criteria in the Expected result.',
+      Fail: 'The actual behavior differed from expected criteria. Specify Severity and document notes.',
+      Blocked: 'Execution could not proceed due to a prerequisite system dependency, data issue, or preceding bug.',
+      'N/A': 'The test case is inapplicable to the current platform (e.g. mobile-only test verified on laptop).',
     }[s];
+    desc.font = { name: FONT_FAMILY, size: 9.5 };
+    desc.alignment = { vertical: 'middle', wrapText: true };
+    desc.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
+    row.height = 24;
   }
   r++;
 
-  heading('How to report a bug');
-  line('Write these in the row of the failed case (Actual result / notes), or send them to the host:');
-  line('1. Role and page (for example "Student, Store, Shop").', {});
-  line('2. What you did, step by step.');
-  line('3. What you expected.');
-  line('4. What actually happened, with the exact message if there was one.');
-  line('5. A screenshot, linked in the Bug screenshot link column.');
-  line('6. Whether you used a phone or a laptop, and which browser.');
-  line('Severity: Critical = cannot continue or data is wrong or lost; Major = a feature does not work; Minor = works but is awkward or has a workaround; Cosmetic = looks wrong only.', { height: 32 });
+  heading('5. Defect Severity Standards');
+  const sevRows = [
+    ['Critical', 'System crash, data corruption, financial calculation error, or severe security/authorization bypass preventing basic operations.'],
+    ['Major', 'A core functional requirement fails to perform as designed, with no viable workaround available.'],
+    ['Minor', 'An operational inconvenience, UI discrepancy, or non-critical validation error where a standard workaround exists.'],
+    ['Cosmetic', 'Visual alignment, layout spacing, typographical error, or minor color discrepancy not affecting operational logic.'],
+  ];
+  for (const [sev, descText] of sevRows) {
+    const row = ws.getRow(r++);
+    const badge = row.getCell(1);
+    badge.value = sev;
+    badge.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SEVERITY_FILL[sev] } };
+    badge.font = { name: FONT_FAMILY, bold: true, color: { argb: SEVERITY_FONT[sev] } };
+    badge.alignment = { horizontal: 'center', vertical: 'middle' };
+    badge.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
+
+    ws.mergeCells(row.number, 2, row.number, 3);
+    const desc = row.getCell(2);
+    desc.value = descText;
+    desc.font = { name: FONT_FAMILY, size: 9.5 };
+    desc.alignment = { vertical: 'middle', wrapText: true };
+    desc.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
+    row.height = 24;
+  }
   r++;
 
-  heading('Run order');
-  line('Before anyone tests the Department Head registration cases, the SAO must set up a semester: sign in as the SAO (990001), open Academic years under Setup and records, add a semester that covers the whole test period, then choose Set as active on it. Adding it is not enough; it starts as upcoming. See docs/MEMBER_TESTING.md sections 3 and 4.', { height: 64 });
-  line('Opening a semester hides the seeded events, tasks and election (they belong to no semester). So run the cases that use them first, then activate the semester and run the rest.', { height: 48 });
-  r++;
-
-  heading('Rounds, author notes and Blocked');
-  line('Round 1 / Round 2: Round 1 cases use the sample data that exists before the SAO opens a semester; the SAO activating a semester hides it. Do Round 1 first, then the SAO activates a semester, then Round 2. Cases marked Any time can run in either round.', { height: 48 });
-  line('Filter the Round column (the arrow in its header) to show one round at a time. The Depends on column names the case that must pass first.', { height: 32 });
-  line('Author note (unconfirmed): this column holds a guess the test writer was not sure about. Judge Pass or Fail on the Expected result only. If the unconfirmed note is wrong but the system behaves sensibly, mark Pass and write the real wording in the notes. If the behaviour itself is wrong, mark Fail.', { height: 48 });
-  line('Blocked means you could not run the case because something it depends on failed or does not exist (write what in the notes). Cases that wait for a scheduled job run by the host and show nothing after waiting 3 minutes should be marked Blocked, with a note saying so.', { height: 48 });
+  heading('6. Academic Semester Testing Order & Governance');
+  line('Round 1 (Baseline Data): Execute pre-semester registration, charter filing, catalog browsing, and initial governance setups before the academic term is activated.');
+  line('Round 2 (Active Semester): SAO sets an academic semester as active via Academic years under Setup and records. Once active, student clearance signing, event creation, task delegation, and elections become operational.');
+  line('Any Time: General UI responsiveness, navigation menus, user profiles, notifications, and Study Objectives verification can be evaluated at any stage.');
 }
 
 function addSummary(wb, sheets) {
-  const ws = wb.addWorksheet('Summary', { views: [{ state: 'frozen', ySplit: 3, showGridLines: false }] });
-  const heads = ['Role', 'Total', 'Not run', 'Pass', 'Fail', 'Blocked', 'N/A', 'Pass rate', 'Progress', ...SEVERITIES.map((s) => `${s} bugs`)];
-  ws.columns = heads.map((h, i) => ({ width: i === 0 ? 24 : 12 }));
+  const ws = wb.addWorksheet('Summary', { views: [{ state: 'frozen', ySplit: 7, showGridLines: false }] });
+  const heads = ['Role Group', 'Total Cases', 'Not Run', 'Passed', 'Failed', 'Blocked', 'N/A', 'Pass Rate', 'Progress', ...SEVERITIES.map((s) => `${s} Bugs`)];
+  ws.columns = heads.map((h, i) => ({ width: i === 0 ? 25 : 13 }));
+
+  // Main Banner
   ws.mergeCells(1, 1, 1, heads.length);
   const title = ws.getCell(1, 1);
-  title.value = 'Summary (fills in by itself from the role tabs)';
-  title.font = { bold: true, size: 16, color: { argb: WHITE } };
+  title.value = 'HIUSA Executive Quality Assurance Dashboard';
+  title.font = { name: FONT_FAMILY, bold: true, size: 16, color: { argb: WHITE } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-  ws.getRow(1).height = 28;
-  const head = ws.getRow(3);
+  title.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+  ws.getRow(1).height = 36;
+
+  // Row 2 is padding
+  ws.getRow(2).height = 10;
+
+  // Row 8 is where role data begins
+  const first = 8;
+  const last = first + sheets.length - 1;
+  const total = last + 1;
+  const totalCases = sheets.reduce((sum, s) => sum + s.count, 0);
+
+  // Executive KPI Cards (Rows 3-4)
+  const setKpiCard = (startCol, endCol, formula, label, valueFontColor, numFmt = null) => {
+    ws.mergeCells(3, startCol, 3, endCol);
+    const vCell = ws.getCell(3, startCol);
+    vCell.value = formula;
+    vCell.font = { name: FONT_FAMILY, bold: true, size: 18, color: { argb: valueFontColor } };
+    vCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    vCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CARD_BG } };
+    if (numFmt) vCell.numFmt = numFmt;
+
+    ws.mergeCells(4, startCol, 4, endCol);
+    const lCell = ws.getCell(4, startCol);
+    lCell.value = label;
+    lCell.font = { name: FONT_FAMILY, bold: true, size: 8.5, color: { argb: 'FF64748B' } };
+    lCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    lCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CARD_BG } };
+
+    for (let c = startCol; c <= endCol; c++) {
+      ws.getCell(3, c).border = { top: { style: 'thin', color: { argb: DARK_BORDER } }, left: c === startCol ? { style: 'thin', color: { argb: DARK_BORDER } } : undefined, right: c === endCol ? { style: 'thin', color: { argb: DARK_BORDER } } : undefined };
+      ws.getCell(4, c).border = { bottom: { style: 'thin', color: { argb: DARK_BORDER } }, left: c === startCol ? { style: 'thin', color: { argb: DARK_BORDER } } : undefined, right: c === endCol ? { style: 'thin', color: { argb: DARK_BORDER } } : undefined };
+    }
+  };
+
+  setKpiCard(1, 2, { formula: `B${total}`, result: totalCases }, 'TOTAL TEST CASES', NAVY);
+  setKpiCard(3, 4, { formula: `I${total}`, result: 0 }, 'EXECUTION PROGRESS', ACCENT, '0.0%');
+  setKpiCard(5, 6, { formula: `H${total}`, result: 0 }, 'OVERALL PASS RATE', 'FF15803D', '0.0%');
+  setKpiCard(7, 8, { formula: `F${total}`, result: 0 }, 'ACTIVE BLOCKERS', 'FFB45309');
+  setKpiCard(9, 13, { formula: `J${total}+K${total}`, result: 0 }, 'CRITICAL & MAJOR DEFECTS', 'FFB91C1C');
+
+  ws.getRow(3).height = 30;
+  ws.getRow(4).height = 18;
+  ws.getRow(5).height = 10;
+
+  // Section Heading for Role Table
+  ws.mergeCells(6, 1, 6, heads.length);
+  const secCell = ws.getCell(6, 1);
+  secCell.value = 'Role-Based Test Suite Breakdown';
+  secCell.font = { name: FONT_FAMILY, bold: true, size: 12, color: { argb: ACCENT } };
+  secCell.alignment = { vertical: 'middle' };
+  ws.getRow(6).height = 24;
+
+  // Table Headers (Row 7)
+  const head = ws.getRow(7);
   heads.forEach((h, i) => {
     head.getCell(i + 1).value = h;
     headerStyle(head.getCell(i + 1));
@@ -327,8 +456,6 @@ function addSummary(wb, sheets) {
   });
   head.height = 30;
 
-  const first = 4;
-  const last = first + sheets.length - 1;
   const rng = (name, col) => `'${name.replace(/'/g, "''")}'!$${col}$2:$${col}$${LAST_ROW}`;
   sheets.forEach((s, i) => {
     const r = first + i;
@@ -336,6 +463,7 @@ function addSummary(wb, sheets) {
     const sv = rng(s.name, SEVERITY_COL);
     const row = ws.getRow(r);
     row.getCell(1).value = s.name;
+    row.getCell(1).font = { name: FONT_FAMILY, size: 10, bold: true };
     row.getCell(2).value = { formula: `COUNTA(${rng(s.name, ID_COL)})`, result: s.count };
     row.getCell(3).value = { formula: `B${r}-D${r}-E${r}-F${r}-G${r}`, result: s.count };
     ['Pass', 'Fail', 'Blocked', 'N/A'].forEach((label, k) => {
@@ -344,78 +472,93 @@ function addSummary(wb, sheets) {
     SEVERITIES.forEach((sev, k) => {
       row.getCell(10 + k).value = { formula: `COUNTIFS(${st},"Fail",${sv},"${sev}")`, result: 0 };
     });
+    row.height = 22;
   });
-  const total = last + 1;
+
+  // Total Summary Row
   const trow = ws.getRow(total);
-  trow.getCell(1).value = 'All roles';
+  trow.getCell(1).value = 'All Roles Combined';
   for (let c = 2; c <= 7; c++) {
     const L = String.fromCharCode(64 + c);
-    trow.getCell(c).value = { formula: `SUM(${L}${first}:${L}${last})`, result: c === 2 || c === 3 ? sheets.reduce((n, s) => n + s.count, 0) : 0 };
+    trow.getCell(c).value = { formula: `SUM(${L}${first}:${L}${last})`, result: c === 2 || c === 3 ? totalCases : 0 };
   }
   for (let c = 10; c <= 13; c++) {
     const L = String.fromCharCode(64 + c);
     trow.getCell(c).value = { formula: `SUM(${L}${first}:${L}${last})`, result: 0 };
   }
+  trow.height = 26;
+
+  // Calculated Rates & Formatting
   for (let r = first; r <= total; r++) {
     const row = ws.getRow(r);
     row.getCell(8).value = { formula: `IF(D${r}+E${r}=0,"",D${r}/(D${r}+E${r}))`, result: '' };
     row.getCell(9).value = { formula: `IF(B${r}=0,"",(B${r}-C${r})/B${r})`, result: 0 };
-    row.getCell(8).numFmt = '0%';
-    row.getCell(9).numFmt = '0%';
-    for (let c = 2; c <= 13; c++) row.getCell(c).alignment = { horizontal: 'center' };
-    row.getCell(1).font = { bold: r === total };
+    row.getCell(8).numFmt = '0.0%';
+    row.getCell(9).numFmt = '0.0%';
+    for (let c = 2; c <= 13; c++) {
+      row.getCell(c).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(c).font = { name: FONT_FAMILY, size: 9.5 };
+    }
     for (let c = 1; c <= 13; c++) {
-      row.getCell(c).border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
+      row.getCell(c).border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
       if (r === total) {
-        row.getCell(c).font = { bold: true };
+        row.getCell(c).font = { name: FONT_FAMILY, size: 10, bold: true };
         row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCEEF8' } };
-        row.getCell(c).border = { top: { style: 'thin' } };
+        row.getCell(c).border = { top: { style: 'medium', color: { argb: ACCENT } }, bottom: { style: 'medium', color: { argb: ACCENT } } };
       }
     }
   }
 
-  const fill = (argb) => ({ fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } });
-  ws.addConditionalFormatting({ ref: `D${first}:D${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fill(STATUS_FILL.Pass), font: { color: { argb: STATUS_FONT.Pass } } } }] });
-  ws.addConditionalFormatting({ ref: `E${first}:E${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fill(STATUS_FILL.Fail), font: { color: { argb: STATUS_FONT.Fail } } } }] });
-  ws.addConditionalFormatting({ ref: `F${first}:F${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fill(STATUS_FILL.Blocked), font: { color: { argb: STATUS_FONT.Blocked } } } }] });
-  ws.addConditionalFormatting({ ref: `J${first}:J${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fill(STATUS_FILL.Fail), font: { bold: true, color: { argb: STATUS_FONT.Fail } } } }] });
-  ws.addConditionalFormatting({ ref: `H${first}:I${total}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 1 }], color: { argb: 'FF63BE7B' } }] });
+  const fillRule = (argb) => ({ fill: { type: 'pattern', pattern: 'solid', fgColor: { argb }, bgColor: { argb } } });
+  ws.addConditionalFormatting({ ref: `D${first}:D${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fillRule(STATUS_FILL.Pass), font: { color: { argb: STATUS_FONT.Pass } } } }] });
+  ws.addConditionalFormatting({ ref: `E${first}:E${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fillRule(STATUS_FILL.Fail), font: { bold: true, color: { argb: STATUS_FONT.Fail } } } }] });
+  ws.addConditionalFormatting({ ref: `F${first}:F${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fillRule(STATUS_FILL.Blocked), font: { color: { argb: STATUS_FONT.Blocked } } } }] });
+  ws.addConditionalFormatting({ ref: `J${first}:J${total}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { ...fillRule(SEVERITY_FILL.Critical), font: { bold: true, color: { argb: SEVERITY_FONT.Critical } } } }] });
 
   let n = total + 2;
   const notes = [
-    'Total = number of test cases on the tab. Not run = Total minus Pass, Fail, Blocked and N/A.',
-    'Pass rate = Pass / (Pass + Fail). It only counts cases that were actually run to a result; Not run, Blocked and N/A are left out.',
-    'Progress = (Total - Not run) / Total. It counts every case that has any status other than Not run.',
-    'Bug columns count cases with Status = Fail and the matching Severity. A Fail with no Severity is in Fail but in none of the bug columns.',
-    `Formulas read rows 2 to ${LAST_ROW} of each tab, so cases added below the last row are counted.`,
+    '• Total Cases: Total test cases on the respective role tab. Not Run = Total minus (Pass + Fail + Blocked + N/A).',
+    '• Pass Rate: Calculated as Pass / (Pass + Fail). Unfinished, Blocked, and N/A cases are excluded from the pass calculation.',
+    '• Progress: Calculated as (Total - Not Run) / Total, reflecting the percentage of verified cases.',
+    '• Defect Metrics: Categorizes cases where Status = Fail according to the selected Severity level.',
   ];
   for (const t of notes) {
     ws.mergeCells(n, 1, n, heads.length);
-    ws.getCell(n, 1).value = t;
-    ws.getCell(n, 1).alignment = { wrapText: true, vertical: 'top' };
+    const nCell = ws.getCell(n, 1);
+    nCell.value = t;
+    nCell.font = { name: FONT_FAMILY, size: 9, color: { argb: 'FF64748B' } };
+    nCell.alignment = { wrapText: true, vertical: 'top' };
     ws.getRow(n).height = 18;
     n++;
   }
 
-  // By round: live counts per Round value across every case sheet (the how-to sheet is not in `sheets`).
+  // Breakdown By Round Section
   n++;
-  ws.getCell(n, 1).value = 'By round';
-  ws.getCell(n, 1).font = { bold: true, size: 13, color: { argb: ACCENT } };
+  ws.mergeCells(n, 1, n, heads.length);
+  const rSec = ws.getCell(n, 1);
+  rSec.value = 'Execution Status by Academic Round';
+  rSec.font = { name: FONT_FAMILY, bold: true, size: 12, color: { argb: ACCENT } };
+  rSec.alignment = { vertical: 'middle' };
+  ws.getRow(n).height = 24;
   n++;
+
   const rhead = ws.getRow(n);
-  ['Round', 'Total', 'Pass', 'Fail', 'Blocked'].forEach((h, i) => {
+  ['Testing Round', 'Total Cases', 'Passed', 'Failed', 'Blocked'].forEach((h, i) => {
     rhead.getCell(i + 1).value = h;
     headerStyle(rhead.getCell(i + 1));
     if (i > 0) rhead.getCell(i + 1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   });
-  rhead.height = 22;
+  rhead.height = 26;
   n++;
+
   const countFor = (round, status) =>
     sheets.reduce((sum, s) => sum + s.cases.filter((c) => (c.round || DEFAULT_ROUND) === round && (status === null || (c.status || 'Not run') === status)).length, 0);
+
   for (const round of ROUNDS) {
     const row = ws.getRow(n);
     row.getCell(1).value = round;
-    row.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+    row.getCell(1).font = { name: FONT_FAMILY, size: 9.5 };
+    row.getCell(1).alignment = { wrapText: true, vertical: 'middle' };
     const sum = (status) =>
       sheets
         .map((s) => `COUNTIFS(${rng(s.name, ROUND_COL)},$A${n}${status ? `,${rng(s.name, STATUS_COL)},"${status}"` : ''})`)
@@ -424,15 +567,14 @@ function addSummary(wb, sheets) {
     ['Pass', 'Fail', 'Blocked'].forEach((status, k) => {
       row.getCell(3 + k).value = { formula: sum(status), result: countFor(round, status) };
     });
-    for (let c = 2; c <= 5; c++) row.getCell(c).alignment = { horizontal: 'center', vertical: 'top' };
-    for (let c = 1; c <= 5; c++) row.getCell(c).border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
-    row.height = 32;
+    for (let c = 2; c <= 5; c++) {
+      row.getCell(c).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(c).font = { name: FONT_FAMILY, size: 9.5 };
+    }
+    for (let c = 1; c <= 5; c++) row.getCell(c).border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
+    row.height = 26;
     n++;
   }
-  ws.mergeCells(n, 1, n, heads.length);
-  ws.getCell(n, 1).value = 'Counts cases by the Round column on each role tab. Cases with no round set count under Any time.';
-  ws.getCell(n, 1).alignment = { wrapText: true, vertical: 'top' };
-  ws.getRow(n).height = 18;
 }
 
 function addCaseSheet(wb, name, cases) {
@@ -445,18 +587,34 @@ function addCaseSheet(wb, name, cases) {
     headerStyle(cell, i >= colIndex('status') ? ACCENT : NAVY);
   });
   head.height = 30;
+
   cases.forEach((c, i) => {
     const row = ws.getRow(i + 2);
     const vals = rowFor(c);
     COLUMNS.forEach((col, k) => {
       const cell = row.getCell(k + 1);
       cell.value = vals[col.key] === undefined || vals[col.key] === '' ? null : vals[col.key];
+      cell.font = { name: FONT_FAMILY, size: 9.5 };
       cell.alignment = { vertical: 'top', wrapText: true };
-      cell.border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
+      cell.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
     });
-    row.getCell(colIndex('id') + 1).font = { bold: true };
+
+    // Formatting specific columns
+    row.getCell(colIndex('id') + 1).font = { name: FONT_FAMILY, size: 9.5, bold: true };
+    row.getCell(colIndex('id') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('type') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('priority') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('device') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('round') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('depends') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+
+    row.getCell(colIndex('status') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('severity') + 1).alignment = { vertical: 'top', horizontal: 'center' };
+    row.getCell(colIndex('date') + 1).alignment = { vertical: 'top', horizontal: 'center' };
     row.getCell(colIndex('date') + 1).numFmt = 'yyyy-mm-dd';
-    row.getCell(colIndex('note') + 1).font = { italic: true, color: { argb: 'FF7F7F7F' } };
+    row.getCell(colIndex('note') + 1).font = { name: FONT_FAMILY, size: 9, italic: true, color: { argb: 'FF64748B' } };
+
+    // Data validations
     row.getCell(`${ROUND_COL}`).dataValidation = {
       type: 'list',
       allowBlank: true,
@@ -485,8 +643,11 @@ function addCaseSheet(wb, name, cases) {
       error: `Choose one of: ${SEVERITIES.join(', ')}`,
     };
   });
+
   const lastRow = cases.length + 1;
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
+
+  // Status Conditional Formatting
   ws.addConditionalFormatting({
     ref: `${STATUS_COL}2:${STATUS_COL}${Math.max(lastRow, LAST_ROW)}`,
     rules: ['Pass', 'Fail', 'Blocked', 'N/A'].map((s, k) => ({
@@ -494,9 +655,44 @@ function addCaseSheet(wb, name, cases) {
       operator: 'equal',
       formulae: [`"${s}"`],
       priority: k + 1,
-      style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: STATUS_FILL[s] } }, font: { bold: true, color: { argb: STATUS_FONT[s] } } },
+      style: {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: STATUS_FILL[s] }, bgColor: { argb: STATUS_FILL[s] } },
+        font: { bold: true, color: { argb: STATUS_FONT[s] } },
+      },
     })),
   });
+
+  // Severity Conditional Formatting
+  ws.addConditionalFormatting({
+    ref: `${SEVERITY_COL}2:${SEVERITY_COL}${Math.max(lastRow, LAST_ROW)}`,
+    rules: ['Critical', 'Major', 'Minor', 'Cosmetic'].map((s, k) => ({
+      type: 'cellIs',
+      operator: 'equal',
+      formulae: [`"${s}"`],
+      priority: k + 10,
+      style: {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: SEVERITY_FILL[s] }, bgColor: { argb: SEVERITY_FILL[s] } },
+        font: { bold: s === 'Critical' || s === 'Major', color: { argb: SEVERITY_FONT[s] } },
+      },
+    })),
+  });
+
+  // High Priority Highlight
+  ws.addConditionalFormatting({
+    ref: `${PRIORITY_COL}2:${PRIORITY_COL}${Math.max(lastRow, LAST_ROW)}`,
+    rules: [
+      {
+        type: 'cellIs',
+        operator: 'equal',
+        formulae: ['"High"'],
+        priority: 20,
+        style: {
+          font: { bold: true, color: { argb: 'FFB91C1C' } },
+        },
+      },
+    ],
+  });
+
   ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9, printTitlesRow: '1:1' };
   return ws;
 }

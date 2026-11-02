@@ -21,6 +21,7 @@ class Organization extends Model
         return [
             'is_active' => 'boolean',
             'is_university_wide' => 'boolean',
+            'admin_payload' => 'array',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'archived_at' => 'datetime',

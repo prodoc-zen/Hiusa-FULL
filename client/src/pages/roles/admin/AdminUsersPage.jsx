@@ -29,7 +29,7 @@ const ROLE_LABELS = {
   SUPER_ADMIN: 'Super Admin',
   STUDENT: 'Student',
   SBO_OFFICER: 'SBO Officer',
-  ADMIN: 'Admin',
+  ADMIN: 'Administrator / Department Secretary (Full organization edit access)',
   DEPARTMENT_HEAD: 'Department Head',
 };
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
@@ -107,7 +107,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const menuRef = useRef(null);
   const name = `${user.first_name} ${user.last_name}`;
   const officerCanManageTarget = actorRole !== 'SBO_OFFICER' || user.role === 'STUDENT';
-  const canManageAccount = actorRole !== 'SBO_OFFICER' && officerCanManageTarget && user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
+  const canManageAccount = actorRole !== 'SBO_OFFICER' && officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const canManageFingerprint = officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const actions = [
     canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },

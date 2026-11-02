@@ -104,7 +104,10 @@ class AgencyOverviewController extends Controller
         $person = fn ($schoolId) => $people->get($schoolId) ? ['school_id' => $people[$schoolId]->school_id, 'name' => trim($people[$schoolId]->first_name.' '.$people[$schoolId]->last_name)] : null;
 
         return response()->json([
-            'organization' => $organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'is_active', 'lifecycle_status']),
+            'organization' => [
+                ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'is_active', 'lifecycle_status']),
+                'admin_payload' => $organization->admin_payload,
+            ],
             'lifecycle' => [
                 'status' => $organization->lifecycle_status,
                 'review_remarks' => $organization->review_remarks,

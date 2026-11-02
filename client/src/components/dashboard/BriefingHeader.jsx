@@ -15,7 +15,7 @@ export default function BriefingHeader({ user, summary, actions }) {
   const scopeLabel = user.organization?.name || 'University-wide';
 
   return (
-    <section className="border-b border-line pb-5">
+    <section data-tour="briefing-header" className="border-b border-line pb-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-ink-muted">

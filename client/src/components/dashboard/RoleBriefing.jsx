@@ -93,7 +93,7 @@ function BriefingBody({ data, introduction }) {
     <div className="space-y-4">
       <BriefingHeader user={user} summary={{ ...summary, headline }} actions={actions} />
       {introduction}
-      {inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}
+      <div className={setupCard ? 'grid items-start gap-4 xl:grid-cols-2' : ''}>{inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}</div>
       {role !== 'SUPER_ADMIN' && <details className="group overflow-hidden rounded-card border border-line bg-surface">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
