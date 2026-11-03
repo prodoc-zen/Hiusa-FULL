@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../utils/displayText.js';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User } from 'lucide-react';
+import { Bell, Building2, Check, ChevronDown, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User, X } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
@@ -9,7 +9,8 @@ import CommandPalette from './CommandPalette';
 import { ROLE_LABELS } from './navigation';
 import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
-import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
+import { getActiveAcademicPeriod, getAcademicPeriods } from '../../services/systemAdministrationService';
+import { getCollegeOrganizations } from '../../services/collegeOrganizationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
@@ -53,6 +54,22 @@ export default function TopBar({ onMenuToggle }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeAcademicPeriod, setActiveAcademicPeriod] = useState(null);
+  const [viewingPeriod, setViewingPeriod] = useState(null);
+  const [availablePeriods, setAvailablePeriods] = useState([]);
+  const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+  const periodRef = useRef(null);
+  const [subAccountDropdownOpen, setSubAccountDropdownOpen] = useState(false);
+  const [collegeOrganizations, setCollegeOrganizations] = useState([]);
+  const [activeSubAccount, setActiveSubAccount] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('hiusa_active_subaccount');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [subAccountSearch, setSubAccountSearch] = useState('');
+  const subAccountRef = useRef(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -65,7 +82,19 @@ export default function TopBar({ onMenuToggle }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    getActiveAcademicPeriod().then(setActiveAcademicPeriod).catch(() => setActiveAcademicPeriod(null));
+    getActiveAcademicPeriod().then((p) => {
+      setActiveAcademicPeriod(p);
+      const stored = sessionStorage.getItem('hiusa_selected_academic_period');
+      if (stored) {
+        try { setViewingPeriod(JSON.parse(stored)); } catch {}
+      }
+    }).catch(() => setActiveAcademicPeriod(null));
+
+    if (typeof getAcademicPeriods === 'function') {
+      getAcademicPeriods().then((list) => {
+        setAvailablePeriods(Array.isArray(list) ? list : (list?.data || []));
+      }).catch(() => setAvailablePeriods([]));
+    }
   }, []);
 
   useEffect(() => {
@@ -103,6 +132,64 @@ export default function TopBar({ onMenuToggle }) {
   const organizationName = organizationLabel(user);
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active && profile.organization.college_is_active !== false);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
+
+  useEffect(() => {
+    if (role === 'DEPARTMENT_HEAD' && typeof getCollegeOrganizations === 'function') {
+      getCollegeOrganizations()
+        .then((res) => {
+          const list = unwrapList(res?.data);
+          setCollegeOrganizations(list);
+        })
+        .catch(() => {});
+    }
+  }, [role]);
+
+  useEffect(() => {
+    const handleSubaccountChange = (e) => {
+      setActiveSubAccount(e.detail || null);
+    };
+    window.addEventListener('hiusa-subaccount-switched', handleSubaccountChange);
+    return () => window.removeEventListener('hiusa-subaccount-switched', handleSubaccountChange);
+  }, []);
+
+  useEffect(() => {
+    const handleReset = () => {
+      setViewingPeriod(activeAcademicPeriod);
+      sessionStorage.removeItem('hiusa_selected_academic_period');
+    };
+    window.addEventListener('hiusa-reset-academic-period', handleReset);
+    return () => window.removeEventListener('hiusa-reset-academic-period', handleReset);
+  }, [activeAcademicPeriod]);
+
+  const handleSelectPeriod = (period) => {
+    setViewingPeriod(period);
+    setPeriodDropdownOpen(false);
+    sessionStorage.setItem('hiusa_selected_academic_period', JSON.stringify(period));
+    window.dispatchEvent(new CustomEvent('hiusa-period-switched', { detail: period }));
+    notify.info(`Switched view to AY ${period.academic_year?.label} · ${period.number === 1 ? '1st' : '2nd'} Sem`);
+  };
+
+  const handleSelectSubAccount = (org) => {
+    setActiveSubAccount(org);
+    setSubAccountDropdownOpen(false);
+    if (org) {
+      sessionStorage.setItem('hiusa_active_subaccount', JSON.stringify(org));
+      window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: org }));
+      notify.success(`Sub-Account: ${org.name}`);
+    } else {
+      sessionStorage.removeItem('hiusa_active_subaccount');
+      window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: null }));
+      notify.info("Returned to Dean's Office (Master View)");
+    }
+  };
+
+  const filteredSubAccounts = useMemo(() => {
+    if (!subAccountSearch.trim()) return collegeOrganizations;
+    const term = subAccountSearch.toLowerCase();
+    return collegeOrganizations.filter(
+      (org) => org.name?.toLowerCase().includes(term) || org.acronym?.toLowerCase().includes(term)
+    );
+  }, [collegeOrganizations, subAccountSearch]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -222,6 +309,8 @@ export default function TopBar({ onMenuToggle }) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
       if (cartRef.current && !cartRef.current.contains(e.target)) setCartOpen(false);
+      if (periodRef.current && !periodRef.current.contains(e.target)) setPeriodDropdownOpen(false);
+      if (subAccountRef.current && !subAccountRef.current.contains(e.target)) setSubAccountDropdownOpen(false);
     }
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
@@ -267,23 +356,216 @@ export default function TopBar({ onMenuToggle }) {
         </button>
         <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
-        <div className="flex min-w-0 flex-1 items-center gap-2.5" data-tour="topbar-period">
-          {activeAcademicPeriod?.academic_year?.label && (
-            <span className="hidden max-w-full items-center gap-1.5 truncate rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-3.5 py-1.5 text-xs font-semibold text-[#0F2F62] min-[520px]:inline-flex">
-              <span className="h-2 w-2 rounded-full bg-[#0878B7]" aria-hidden="true" />
-              <span>AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
-            </span>
-          )}
-          <button
-            type="button"
-            data-tour="topbar-tour-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
-            className="hidden h-9 items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
-          >
-            <MousePointerClick size={14} className="text-[#0878B7]" aria-hidden="true" />
-            <span>Interactive Tour</span>
-          </button>
-        </div>
+        {(() => {
+          const currentDisplayPeriod = viewingPeriod || activeAcademicPeriod;
+          const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
+          const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
+          return (
+            <div className="flex min-w-0 flex-1 items-center gap-2.5" data-tour="topbar-period" ref={periodRef}>
+              {currentDisplayPeriod?.academic_year?.label && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setPeriodDropdownOpen((open) => !open)}
+                    aria-expanded={periodDropdownOpen}
+                    aria-haspopup="listbox"
+                    aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
+                    className={`hidden max-w-full items-center gap-2 truncate rounded-full border px-3.5 py-1.5 text-xs font-semibold transition min-[520px]:inline-flex active:scale-[0.98] cursor-pointer ${
+                      isAdvanceMode
+                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                        : isArchiveMode
+                        ? 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0878B7]/40 hover:bg-white'
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        isAdvanceMode ? 'bg-amber-500' : isArchiveMode ? 'bg-slate-400' : 'bg-[#0878B7]'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                    {isAdvanceMode && (
+                      <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                        Planning
+                      </span>
+                    )}
+                    {isArchiveMode && (
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                        Archive
+                      </span>
+                    )}
+                    <ChevronDown size={13} className={`text-slate-500 transition-transform duration-150 ${periodDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {periodDropdownOpen && (
+                    <div
+                      role="listbox"
+                      aria-label="Academic Periods"
+                      className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-[#DDE7EF] bg-white p-2 shadow-xl shadow-slate-200/60"
+                    >
+                      <div className="border-b border-[#DDE7EF] px-2.5 pb-2 pt-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">School Year &amp; Semester</p>
+                        <p className="mt-0.5 text-xs font-medium text-slate-600">Switch context to prepare upcoming periods in advance.</p>
+                      </div>
+                      <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
+                        {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : [])).map((p) => {
+                          const isSelected = p.id === currentDisplayPeriod.id;
+                          const isLive = p.id === activeAcademicPeriod?.id;
+                          const isUpcoming = p.status === 'upcoming';
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => handleSelectPeriod(p)}
+                              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
+                                isSelected ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
+                              }`}
+                            >
+                              <div>
+                                <p className="font-semibold text-[#0F172A]">AY {p.academic_year?.label} · {p.number === 1 ? '1st' : '2nd'} Semester</p>
+                                <p className="text-[10px] text-slate-500">
+                                  {isLive ? '🟢 Live University Period' : isUpcoming ? '🟡 Advance Planning' : '⚪ Completed Archive'}
+                                </p>
+                              </div>
+                              {isSelected && <Check size={14} className="text-[#0878B7]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {role === 'DEPARTMENT_HEAD' && (
+                <div className="relative" ref={subAccountRef}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAccountDropdownOpen((open) => !open)}
+                    aria-expanded={subAccountDropdownOpen}
+                    aria-haspopup="listbox"
+                    aria-label="Sub-Account Context Switcher"
+                    className={`hidden max-w-full items-center gap-2 truncate rounded-full border px-3.5 py-1.5 text-xs font-semibold transition min-[640px]:inline-flex active:scale-[0.98] cursor-pointer ${
+                      activeSubAccount
+                        ? 'border-[#0878B7]/50 bg-[#EEF6FB] text-[#0878B7] hover:bg-brand-100'
+                        : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0878B7]/40 hover:bg-white'
+                    }`}
+                  >
+                    <Building2 size={13} className={activeSubAccount ? 'text-[#0878B7]' : 'text-slate-500'} />
+                    <span className="truncate max-w-[140px] sm:max-w-[180px]">
+                      {activeSubAccount ? activeSubAccount.acronym || activeSubAccount.name : 'Dean’s Office'}
+                    </span>
+                    {activeSubAccount ? (
+                      <span className="rounded bg-[#0878B7] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                        Sub-Account
+                      </span>
+                    ) : (
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-700">
+                        Master
+                      </span>
+                    )}
+                    <ChevronDown size={13} className={`text-slate-500 transition-transform duration-150 ${subAccountDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {subAccountDropdownOpen && (
+                    <div
+                      role="listbox"
+                      aria-label="Sub-Account Organizations"
+                      className="absolute left-0 top-full z-50 mt-1.5 w-80 rounded-xl border border-[#DDE7EF] bg-white p-2 shadow-xl shadow-slate-200/60"
+                    >
+                      <div className="border-b border-[#DDE7EF] px-2.5 pb-2 pt-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">GHL Sub-Account Switcher</p>
+                        <p className="mt-0.5 text-xs font-medium text-slate-600">Switch into any student organization to oversee in supervisor mode.</p>
+                        <div className="mt-2">
+                          <input
+                            type="text"
+                            placeholder="Search organizations…"
+                            value={subAccountSearch}
+                            onChange={(e) => setSubAccountSearch(e.target.value)}
+                            className="w-full rounded-lg border border-[#DDE7EF] px-2.5 py-1 text-xs text-[#0F172A] placeholder-slate-400 focus:border-[#0878B7] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSubAccount(null)}
+                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
+                            !activeSubAccount ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="grid h-6 w-6 place-items-center rounded bg-[#0F2F62] text-[10px] font-bold text-white">
+                              HQ
+                            </span>
+                            <div>
+                              <p className="font-semibold text-[#0F172A]">Dean’s Office (Master View)</p>
+                              <p className="text-[10px] text-slate-500">Full college oversight</p>
+                            </div>
+                          </div>
+                          {!activeSubAccount && <Check size={14} className="text-[#0878B7]" />}
+                        </button>
+
+                        <div className="my-1 border-t border-[#DDE7EF] px-2.5 pt-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Student Organizations ({collegeOrganizations.length})
+                          </p>
+                        </div>
+
+                        {filteredSubAccounts.map((org) => {
+                          const isSelected = activeSubAccount?.id === org.id;
+                          return (
+                            <button
+                              key={org.id}
+                              type="button"
+                              onClick={() => handleSelectSubAccount(org)}
+                              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
+                                isSelected ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-brand-50 text-[10px] font-bold text-[#0878B7]">
+                                  {(org.acronym || org.name || '?').slice(0, 2).toUpperCase()}
+                                </span>
+                                <div className="min-w-0 truncate">
+                                  <p className="truncate font-semibold text-[#0F172A]">{formatDisplayText(org.name)}</p>
+                                  <p className="text-[10px] text-slate-500">{org.acronym || 'Student Org'} · {org.members_count ?? 0} members</p>
+                                </div>
+                              </div>
+                              {isSelected && <Check size={14} className="shrink-0 text-[#0878B7]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeSubAccount && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectSubAccount(null)}
+                  title="Exit Sub-Account Mode and return to Dean's Office"
+                  className="hidden items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition hover:bg-amber-200 active:scale-95 sm:inline-flex"
+                >
+                  <span>Exit {activeSubAccount.acronym || 'Sub-Account'}</span>
+                  <X size={12} aria-hidden="true" />
+                </button>
+              )}
+              <button
+                type="button"
+                data-tour="topbar-tour-btn"
+                onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
+                className="hidden h-9 items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
+              >
+                <MousePointerClick size={14} className="text-[#0878B7]" aria-hidden="true" />
+                <span>Interactive Tour</span>
+              </button>
+            </div>
+          );
+        })()}
 
         <button
           type="button"
