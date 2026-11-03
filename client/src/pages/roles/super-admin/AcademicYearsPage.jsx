@@ -257,7 +257,7 @@ export default function AcademicYearsPage() {
             <div className="flex items-center gap-2">
               {semester.status === 'upcoming' && (
                 <Button size="xs" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>
-                  Set as active
+                  Activate
                 </Button>
               )}
               <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[

@@ -373,13 +373,16 @@ CREATE A COLLEGE & ASSIGN ITS DEPARTMENT HEAD (DEAN)
      - Color:           `#F5A623`
      - Description:     `Accountancy, Business Administration, and Customs programs.`
      Click "Create college".
-  3. On the new college card, click `...` -> "Assign Department Head":
-     - School ID:       `940002`
-     - First name:      `Corazon`
-     - Last name:       `Villareal`
-     - Email:           `dean.cbe@uclm.edu.ph`
-     - Password:        `Demo@12345`
-     Click "Assign Department Head".
+  3. On the new college card, click "Assign / Invite" (or `...` -> "Assign Department Head"):
+     - You have 2 great options to show the panel:
+       * OPTION A (MAGIC LINK & BRANDED EMAIL ONBOARDING):
+         Select "Magic link & email", enter First Name (`Corazon`), Last Name (`Villareal`),
+         Email (`dean.cbe@uclm.edu.ph`), and click "Send Invitation".
+         -> A branded HTML email is dispatched, and a 1-click shareable magic link is
+            generated right in the modal to copy & paste via Chat/SMS!
+       * OPTION B (DIRECT CREDENTIAL SETUP):
+         Select "New account", enter School ID `940002`, First/Last Name, Email,
+         and Password `Demo@12345`, then click "Assign Department Head".
 - WHAT TO SAY:
   "Here the SAO creates academic colleges and provisions each college's
   Department Head or Dean account."
@@ -642,6 +645,24 @@ STEP 2.3 — COLLEGE APPROVALS & COMPLIANCE ENDORSEMENT
   student clearances after the student organization clears the member."
 - WHAT IT IS USED FOR:
   First-level institutional endorsement of budgets, events, reports, and clearances.
+
+STEP 2.4 — GHL-STYLE SUB-ACCOUNT OVERSIGHT & DEAN'S OFFICE STAFF DELEGATION
+- WHAT TO CLICK:
+  1. Click "Dean's Office Staff & Secretary" at the top of the Organizations page
+     (/dashboard/department-head/organizations) -> show adding a College Secretary
+     or Dean's Assistant with ADMIN authority to assist with reviews and compliance.
+  2. In the Top Navigation Bar, click the "Dean's Office" sub-account pill ->
+     search or click any student organization (e.g. PSITS-CCS) to switch into
+     "Sub-Account Oversight Mode" in 1 click without logging out!
+  3. Notice the persistent amber Sub-Account banner across the screen. Click
+     "Return to Dean's Office" or "Exit Sub-Account" to return to Master View anytime.
+  4. In the TopBar, click the "Academic Period" pill (e.g. AY 2026-2027 · 1st Semester) ->
+     switch to an upcoming semester for advance planning and preparation.
+- WHAT TO SAY:
+  "Just like sub-account management in enterprise platforms like GoHighLevel,
+  the Dean can oversee any student organization under their college without juggling
+  multiple logins. The Dean can also delegate administrative authority to their
+  College Secretary and switch academic periods to plan upcoming terms in advance."
 
 
 ================================================================================
