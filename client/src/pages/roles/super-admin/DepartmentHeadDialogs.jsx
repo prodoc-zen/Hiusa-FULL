@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyRound, UserCheck, UserX } from 'lucide-react';
+import { Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Modal from '../../../components/Modal';
 import { Button, Field, Input, StatusBadge } from '../../../components/ui';
-import { createDepartmentHead, resetDepartmentHeadPassword, updateDepartmentHead } from '../../../services/systemAdministrationService';
+import { createDepartmentHead, inviteDepartmentHead, resetDepartmentHeadPassword, updateDepartmentHead } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 
@@ -58,6 +58,8 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
+  const [copied, setCopied] = useState(false);
   const formRef = useRef(null);
   const focusFirstInvalid = useFirstInvalidFocus(formRef);
   const collegeName = formatDisplayText(college.name);
@@ -67,8 +69,54 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
+  async function handleCopyLink() {
+    if (!inviteResult?.magic_link) return;
+    try {
+      await navigator.clipboard.writeText(inviteResult.magic_link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
+    if (accountMode === 'invite') {
+      const found = {};
+      if (!values.first_name.trim()) found.first_name = 'Enter the first name.';
+      if (!values.last_name.trim()) found.last_name = 'Enter the last name.';
+      if (!values.email.trim()) found.email = 'Enter the email address.';
+      else if (!EMAIL_PATTERN.test(values.email.trim())) found.email = 'Enter a valid email address.';
+      if (values.school_id.trim() && (!/^\d{1,8}$/.test(values.school_id.trim()) || Number(values.school_id) < 1)) {
+        found.school_id = 'Use a School ID of up to 8 digits.';
+      }
+      setErrors(found);
+      setFormError('');
+      if (Object.keys(found).length > 0) {
+        focusFirstInvalid();
+        return;
+      }
+      setBusy(true);
+      try {
+        const res = await inviteDepartmentHead(college.id, {
+          first_name: values.first_name.trim(),
+          last_name: values.last_name.trim(),
+          email: values.email.trim().toLowerCase(),
+          school_id: values.school_id.trim() ? Number(values.school_id) : undefined,
+        });
+        setInviteResult(res);
+        setBusy(false);
+      } catch (cause) {
+        const mapped = serverFieldErrors(cause);
+        setErrors(mapped);
+        if (Object.keys(mapped).some((key) => ASSIGN_FIELDS.includes(key))) focusFirstInvalid();
+        else setFormError(getApiErrorMessage(cause, 'Could not invite the Department Head.'));
+        setBusy(false);
+      }
+      return;
+    }
+
     const found = accountMode === 'new' ? validateIdentity(values, { requireSchoolId: true }) : {};
     if (accountMode === 'existing') {
       const schoolId = values.school_id.trim();
@@ -110,6 +158,66 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
     }
   }
 
+  if (inviteResult) {
+    return (
+      <Modal
+        open
+        title="Dean Invitation Ready"
+        description={`${collegeName}. The magic link and email are generated.`}
+        onClose={() => {
+          onAssigned(inviteResult.invitation, `Invitation created for ${inviteResult.invitation?.first_name} ${inviteResult.invitation?.last_name}.`);
+          onClose();
+        }}
+        maxWidth="max-w-xl"
+        footer={(
+          <Button
+            type="button"
+            onClick={() => {
+              onAssigned(inviteResult.invitation, `Invitation created for ${inviteResult.invitation?.first_name} ${inviteResult.invitation?.last_name}.`);
+              onClose();
+            }}
+          >
+            Done
+          </Button>
+        )}
+      >
+        <div className="space-y-4 py-1">
+          <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-emerald-800">
+            <Check size={20} className="mt-0.5 shrink-0 text-emerald-600" />
+            <div>
+              <p className="font-bold text-emerald-950">Branded Invitation Email Dispatched</p>
+              <p className="mt-0.5 text-xs text-emerald-800">
+                An invitation with official university styling has been sent to <strong>{inviteResult.invitation?.email}</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3.5">
+            <label htmlFor="magic-link-input" className="block text-xs font-bold uppercase tracking-wider text-[#0F172A]">Shareable Magic Onboarding Link</label>
+            <p className="mt-1 text-xs text-slate-500">You can also copy and send this link directly to the Dean via Messenger, Viber, or SMS:</p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <input
+                id="magic-link-input"
+                type="text"
+                readOnly
+                value={inviteResult.magic_link || ''}
+                className="h-10 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-mono text-slate-700 outline-none select-all"
+              />
+              <Button
+                type="button"
+                variant={copied ? 'primary' : 'secondary'}
+                onClick={handleCopyLink}
+                className="shrink-0"
+              >
+                {copied ? <><Check size={14} className="mr-1" /> Copied</> : <><Copy size={14} className="mr-1" /> Copy link</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       open
@@ -121,46 +229,67 @@ export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button type="submit" form="assign-department-head-form" loading={busy}>Assign Department Head</Button>
+          <Button type="submit" form="assign-department-head-form" loading={busy}>
+            {accountMode === 'invite' ? 'Send Invitation' : 'Assign Department Head'}
+          </Button>
         </>
       )}
     >
       <form id="assign-department-head-form" ref={formRef} onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
         <fieldset className="sm:col-span-2">
-          <legend className="mb-2 text-sm font-semibold text-[#0F172A]">Account</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <legend className="mb-2 text-sm font-semibold text-[#0F172A]">Account setup method</legend>
+          <div className="grid gap-2 sm:grid-cols-3">
             {[
-              { value: 'new', label: 'New account', help: 'Create a college profile for someone without a HIUSA account.' },
-              { value: 'existing', label: 'Existing member', help: 'Keep their login and organization profile.' },
+              { value: 'new', label: 'New account', help: 'Direct setup with password.' },
+              { value: 'invite', label: 'Magic link & email', help: 'Dean sets password via link.' },
+              { value: 'existing', label: 'Existing member', help: 'Keep existing credentials.' },
             ].map((option) => (
-              <label key={option.value} className={`flex cursor-pointer gap-2 rounded-lg border p-3 text-sm ${accountMode === option.value ? 'border-[#0878B7] bg-[#EEF6FB]' : 'border-[#DDE7EF]'}`}>
-                <input type="radio" name="department-head-account-mode" value={option.value} checked={accountMode === option.value} onChange={() => { setAccountMode(option.value); setErrors({}); setFormError(''); }} className="mt-1 accent-[#0878B7]" />
-                <span><span className="block font-semibold text-[#0F172A]">{option.label}</span><span className="mt-1 block leading-5 text-slate-600">{option.help}</span></span>
+              <label key={option.value} className={`flex cursor-pointer gap-2 rounded-lg border p-3 text-xs ${accountMode === option.value ? 'border-[#0878B7] bg-[#EEF6FB]' : 'border-[#DDE7EF]'}`}>
+                <input type="radio" name="department-head-account-mode" value={option.value} checked={accountMode === option.value} onChange={() => { setAccountMode(option.value); setErrors({}); setFormError(''); }} className="mt-0.5 accent-[#0878B7]" />
+                <span><span className="block font-semibold text-[#0F172A]">{option.label}</span><span className="mt-0.5 block leading-relaxed text-slate-500">{option.help}</span></span>
               </label>
             ))}
           </div>
         </fieldset>
-        <Field label="School ID" required error={errors.school_id} className="sm:col-span-2">
+
+        <Field label="School ID" required={accountMode !== 'invite'} error={errors.school_id} hint={accountMode === 'invite' ? 'Optional: Dean can also enter this when accepting.' : undefined} className="sm:col-span-2">
           <Input inputMode="numeric" value={values.school_id} onChange={(event) => setField('school_id', event.target.value)} />
         </Field>
         {accountMode === 'existing' && <p className="text-sm leading-5 text-slate-600 sm:col-span-2">Use the School ID of an active student or officer in this college. Their current password stays the same, and they can switch between college and organization profiles.</p>}
-        {accountMode === 'new' && <>
-        <Field label="First name" required error={errors.first_name}>
-          <Input autoComplete="off" value={values.first_name} onChange={(event) => setField('first_name', event.target.value)} />
-        </Field>
-        <Field label="Last name" required error={errors.last_name}>
-          <Input autoComplete="off" value={values.last_name} onChange={(event) => setField('last_name', event.target.value)} />
-        </Field>
-        <Field label="Email" required error={errors.email} className="sm:col-span-2">
-          <Input type="email" autoComplete="off" value={values.email} onChange={(event) => setField('email', event.target.value)} />
-        </Field>
-        <Field label="Password" required error={errors.password} hint="At least 8 characters. Share it privately; they can change it from their profile.">
-          <Input type="password" autoComplete="new-password" value={values.password} onChange={(event) => setField('password', event.target.value)} />
-        </Field>
-        <Field label="Confirm password" required error={errors.password_confirmation}>
-          <Input type="password" autoComplete="new-password" value={values.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} />
-        </Field>
-        </>}
+
+        {accountMode === 'invite' && (
+          <>
+            <Field label="First name" required error={errors.first_name}>
+              <Input autoComplete="off" value={values.first_name} onChange={(event) => setField('first_name', event.target.value)} />
+            </Field>
+            <Field label="Last name" required error={errors.last_name}>
+              <Input autoComplete="off" value={values.last_name} onChange={(event) => setField('last_name', event.target.value)} />
+            </Field>
+            <Field label="Email address" required error={errors.email} className="sm:col-span-2">
+              <Input type="email" autoComplete="off" value={values.email} onChange={(event) => setField('email', event.target.value)} />
+            </Field>
+          </>
+        )}
+
+        {accountMode === 'new' && (
+          <>
+            <Field label="First name" required error={errors.first_name}>
+              <Input autoComplete="off" value={values.first_name} onChange={(event) => setField('first_name', event.target.value)} />
+            </Field>
+            <Field label="Last name" required error={errors.last_name}>
+              <Input autoComplete="off" value={values.last_name} onChange={(event) => setField('last_name', event.target.value)} />
+            </Field>
+            <Field label="Email" required error={errors.email} className="sm:col-span-2">
+              <Input type="email" autoComplete="off" value={values.email} onChange={(event) => setField('email', event.target.value)} />
+            </Field>
+            <Field label="Password" required error={errors.password} hint="At least 8 characters. Share it privately; they can change it from their profile.">
+              <Input type="password" autoComplete="new-password" value={values.password} onChange={(event) => setField('password', event.target.value)} />
+            </Field>
+            <Field label="Confirm password" required error={errors.password_confirmation}>
+              <Input type="password" autoComplete="new-password" value={values.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} />
+            </Field>
+          </>
+        )}
         {formError && <p role="alert" className="rounded-control border border-red-200 bg-red-50 p-3 text-sm font-semibold text-danger-strong sm:col-span-2">{formError}</p>}
       </form>
     </Modal>

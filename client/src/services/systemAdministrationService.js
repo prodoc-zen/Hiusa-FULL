@@ -22,6 +22,9 @@ export const uploadSystemCollegeLogo = (id, file) => {
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
 export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
+export const inviteDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/invite-department-head`, payload));
+export const getDepartmentHeadInvitation = (token) => unwrap(api.get(`/department-head-invitations/${token}`));
+export const acceptDepartmentHeadInvitation = (token, payload) => unwrap(api.post(`/department-head-invitations/${token}/accept`, payload));
 export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
 export const permanentlyDeleteCollege = (id, confirmationName) => unwrap(api.delete(`/system/colleges/${id}`, { data: { mode: 'permanent', confirmation_name: confirmationName } }));
 export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));

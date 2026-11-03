@@ -13,6 +13,7 @@ use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ClassListImportController;
 use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\CollegeController;
+use App\Http\Controllers\DepartmentHeadInvitationController;
 use App\Http\Controllers\CollegeOrganizationController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ComplianceReminderController;
@@ -74,6 +75,8 @@ Route::get('/organization-applications/{application}/track', [OrganizationApplic
 Route::get('/organization-applications/{application}/edit', [OrganizationApplicationController::class, 'edit'])->middleware(['signed:relative', 'throttle:public'])->name('organization-applications.edit');
 Route::post('/organization-applications/{application}/edit', [OrganizationApplicationController::class, 'resubmit'])->middleware(['signed:relative', 'throttle:registration']);
 Route::get('/organization-applications/{application}/edit/documents/{document}', [OrganizationApplicationController::class, 'editDocument'])->middleware(['signed:relative', 'throttle:public'])->name('organization-applications.edit-document');
+Route::get('/department-head-invitations/{token}', [DepartmentHeadInvitationController::class, 'show'])->middleware('throttle:public');
+Route::post('/department-head-invitations/{token}/accept', [DepartmentHeadInvitationController::class, 'accept'])->middleware('throttle:registration');
 
 Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
@@ -155,6 +158,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/system/colleges/{college}/restore', [CollegeController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/department-head', [SystemAdministrationController::class, 'storeDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/colleges/{college}/invite-department-head', [DepartmentHeadInvitationController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/department-heads/{user}', [SystemAdministrationController::class, 'updateDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/department-heads/{user}/password-reset', [SystemAdministrationController::class, 'initiateDepartmentHeadPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
@@ -179,6 +183,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::put('/college/organizations/{organization}', [CollegeOrganizationController::class, 'update'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::delete('/college/organizations/{organization}', [CollegeOrganizationController::class, 'destroy'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/staff', [CollegeOrganizationController::class, 'staff'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
+    Route::post('/college/staff', [CollegeOrganizationController::class, 'storeStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
+    Route::delete('/college/staff/{user}', [CollegeOrganizationController::class, 'destroyStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::patch('/system/organizations/{organization}/review', [OrganizationLifecycleController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/archive', [OrganizationLifecycleController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/restore', [OrganizationLifecycleController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);

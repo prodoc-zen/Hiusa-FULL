@@ -14,6 +14,7 @@ const TrackOrganizationPage = lazy(() => import('./pages/auth/TrackOrganizationP
 const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/OrganizationApplicationsPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const AcceptInvitationPage = lazy(() => import('./pages/auth/AcceptInvitationPage'));
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
@@ -221,6 +222,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
       
 
