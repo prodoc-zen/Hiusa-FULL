@@ -374,13 +374,37 @@ a {
 }
 
 .modal-surface {
-  background-image: radial-gradient(circle at 8% 0%, rgba(113, 199, 250, 0.12), transparent 34%),
-    radial-gradient(circle at 100% 16%, rgba(65, 105, 240, 0.08), transparent 36%),
-    radial-gradient(circle at 50% 100%, rgba(16, 12, 176, 0.035), transparent 42%);
+  background-color: #FFFFFF;
 }
 
 .modal-surface > header {
-  background: linear-gradient(135deg, rgba(238, 246, 251, 0.95), rgba(255, 255, 255, 0.92) 55%);
+  background-color: #F8FBFD;
+  border-bottom: 1px solid #DDE7EF;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.overlay-fade-in {
+  animation: overlayFadeIn 150ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-pop-in {
+  animation: modalPopIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 
 h1 {
@@ -410,9 +434,7 @@ body:has(> .app-overlay) #root {
   max-height: calc(100dvh - 2rem);
   max-width: min(100%, 52rem);
   overflow-y: auto;
-  background-image: radial-gradient(circle at 8% 0%, rgba(113, 199, 250, 0.10), transparent 33%),
-    radial-gradient(circle at 100% 16%, rgba(65, 105, 240, 0.07), transparent 36%),
-    radial-gradient(circle at 50% 100%, rgba(16, 12, 176, 0.025), transparent 42%);
+  background-color: #FFFFFF;
 }
 
 @media (max-width: 767px) {
