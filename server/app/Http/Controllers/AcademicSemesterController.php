@@ -49,7 +49,7 @@ class AcademicSemesterController extends Controller
     public function index(Request $request)
     {
         return response()->json(AcademicSemester::with('academicYear:id,label')
-            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('status', '!=', 'upcoming'))
+            ->when(! in_array($request->user()->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'], true), fn ($query) => $query->where('status', '!=', 'upcoming'))
             ->orderByDesc('academic_year_id')->orderBy('number')->get());
     }
 
