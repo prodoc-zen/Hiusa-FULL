@@ -23,3 +23,6 @@ export const resubmitOrganization = (id, fields, files = {}) => {
 
 export const withdrawOrganization = (id) => api.delete(`/college/organizations/${id}`);
 export const getCollegeOverview = () => api.get('/college/overview', { cache: false });
+export const getCollegeStaff = () => api.get('/college/staff', { cache: false });
+export const addCollegeStaff = (data) => api.post('/college/staff', data);
+export const removeCollegeStaff = (schoolId) => api.delete(`/college/staff/${schoolId}`);

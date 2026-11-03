@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, Eye, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Building2, CalendarClock, Eye, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -8,7 +8,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getCollegeStaff, addCollegeStaff, removeCollegeStaff, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -64,7 +64,7 @@ function roleCount(organization, key) {
   return count ?? (key === 'admin' ? organization.administrators_count ?? 0 : 0);
 }
 
-function CollegeHeader({ overview }) {
+function CollegeHeader({ overview, onManageStaff }) {
   const user = storedUser();
   const name = overview?.college?.name || headCollegeName(user);
   if (!name) return null;
@@ -72,7 +72,8 @@ function CollegeHeader({ overview }) {
   const logo = overview?.college?.logo_url;
 
   return (
-    <section aria-label="Your college" className="flex items-center gap-4 rounded-lg border border-line bg-surface p-4">
+    <section aria-label="Your college" className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 shadow-xs">
+      <div className="flex items-center gap-4 min-w-0">
       <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand-50 text-brand-700" style={overview?.college?.color ? { borderLeft: `4px solid ${overview.college.color}` } : undefined}>
         {logo ? <img src={resolveAssetUrl(logo)} alt="" className="h-full w-full object-cover" /> : <Building2 size={24} aria-hidden="true" />}
       </span>
@@ -80,7 +81,218 @@ function CollegeHeader({ overview }) {
         <h2 className="break-words text-lg font-bold text-ink">{formatDisplayText(name)}</h2>
         {headName && <p className="text-sm font-medium text-ink-muted">Department Head: {headName}</p>}
       </div>
+      </div>
+      {onManageStaff && (
+        <Button
+          variant="secondary"
+          size="sm"
+          leftIcon={Users}
+          onClick={onManageStaff}
+          className="active:scale-[0.98] transition-transform duration-100 ease-out"
+        >
+          Dean’s Office Staff &amp; Secretary
+        </Button>
+      )}
     </section>
+  );
+}
+
+function CollegeStaffModal({ open, onClose }) {
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({
+    school_id: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    position_title: 'Department Secretary',
+    role: 'ADMIN',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    if (typeof getCollegeStaff === 'function') {
+      getCollegeStaff()
+        .then((res) => {
+          setStaff(Array.isArray(res?.data) ? res.data : []);
+          setLoading(false);
+        })
+        .catch((err) => {
+          setError(getApiErrorMessage(err, 'Could not load office staff.'));
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  const handleCreateStaff = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!form.school_id || !form.first_name.trim() || !form.last_name.trim() || !form.email.trim() || !form.position_title.trim()) {
+      setFormError('Please fill out all required fields.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await addCollegeStaff({
+        school_id: Number(form.school_id),
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        email: form.email.trim(),
+        position_title: form.position_title.trim(),
+        role: form.role || 'ADMIN',
+      });
+      notify.success(`${form.first_name} ${form.last_name} assigned as ${form.position_title}.`);
+      setAdding(false);
+      setForm({ school_id: '', first_name: '', last_name: '', email: '', position_title: 'Department Secretary', role: 'ADMIN' });
+      load();
+    } catch (err) {
+      setFormError(getApiErrorMessage(err, 'Could not assign staff member.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemoveStaff = async () => {
+    if (!removeTarget) return;
+    setRemoveBusy(true);
+    try {
+      await removeCollegeStaff(removeTarget.school_id);
+      notify.success(`${removeTarget.name} removed from college staff.`);
+      setRemoveTarget(null);
+      load();
+    } catch (err) {
+      notify.error(getApiErrorMessage(err, 'Could not remove staff member.'));
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title="Dean’s Office Staff & Delegation"
+      description="Delegate operational authority to department secretaries and assistants to help oversee student organizations and process approvals."
+      onClose={onClose}
+      maxWidth="max-w-[680px]"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-ink">Office Delegates ({staff.length})</h3>
+            <p className="text-xs text-ink-muted">Authorized staff with administrative management permissions</p>
+          </div>
+          {!adding && (
+            <Button size="sm" leftIcon={Plus} onClick={() => setAdding(true)} className="active:scale-[0.98] transition-transform">
+              Add Delegate / Secretary
+            </Button>
+          )}
+        </div>
+
+        {adding && (
+          <form onSubmit={handleCreateStaff} className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#0878B7]">New Delegate Information</h4>
+              <button type="button" onClick={() => setAdding(false)} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+            </div>
+            {formError && <p role="alert" className="rounded-md border border-danger/30 bg-danger-tint p-2 text-xs font-semibold text-danger-strong">{formError}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="School ID">
+                <Input type="number" required value={form.school_id} onChange={(e) => setForm((f) => ({ ...f, school_id: e.target.value }))} placeholder="e.g. 20261199" />
+              </Field>
+              <Field label="Position Title">
+                <Input required value={form.position_title} onChange={(e) => setForm((f) => ({ ...f, position_title: e.target.value }))} placeholder="e.g. Department Secretary" />
+              </Field>
+              <Field label="First Name">
+                <Input required value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} placeholder="First name" />
+              </Field>
+              <Field label="Last Name">
+                <Input required value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} placeholder="Last name" />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="University Email">
+                  <Input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="user@university.edu.ph" />
+                </Field>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" size="sm" type="button" onClick={() => setAdding(false)}>Cancel</Button>
+              <Button size="sm" type="submit" loading={submitting}>Assign Delegate</Button>
+            </div>
+          </form>
+        )}
+
+        {loading ? (
+          <div className="space-y-2 py-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : error ? (
+          <ErrorState description={error} onRetry={load} />
+        ) : staff.length === 0 ? (
+          <p className="py-6 text-center text-xs text-ink-muted">No additional office staff assigned yet.</p>
+        ) : (
+          <ul className="divide-y divide-line-soft rounded-lg border border-line bg-surface">
+            {staff.map((member) => (
+              <li key={member.school_id} className="flex items-center justify-between gap-3 p-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-[#0878B7]">
+                    {member.first_name?.[0] || 'S'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">{member.name}</p>
+                    <p className="text-xs text-ink-muted">{member.position_title} · ID: {member.school_id}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${member.is_lead_head ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0878B7]'}`}>
+                    {member.is_lead_head ? 'Lead Head' : 'Delegate'}
+                  </span>
+                  {!member.is_lead_head && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => setRemoveTarget(member)}
+                      className="text-danger hover:bg-danger-tint"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={Boolean(removeTarget)}
+        title="Remove Office Delegate?"
+        message={`Are you sure you want to remove ${removeTarget?.name} as ${removeTarget?.position_title}? They will no longer have access to Dean's office management.`}
+        confirmText="Remove Delegate"
+        variant="danger"
+        busy={removeBusy}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={handleRemoveStaff}
+      />
+    </Modal>
   );
 }
 
@@ -446,6 +658,7 @@ export default function CollegeOrganizationsPage() {
   const [withdrawBusy, setWithdrawBusy] = useState(false);
   const [withdrawError, setWithdrawError] = useState(null);
   const [overview, setOverview] = useState(null);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
 
   function changeTab(key) {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
@@ -562,7 +775,7 @@ export default function CollegeOrganizationsPage() {
         description="Review applications from your college and follow their SAO review. Organizations apply from the public HIUSA home page or can be registered here."
         primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
       />
-      <CollegeHeader overview={overview} />
+      <CollegeHeader overview={overview} onManageStaff={() => setStaffModalOpen(true)} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
@@ -589,6 +802,16 @@ export default function CollegeOrganizationsPage() {
                 {organization.lifecycle_status !== 'archived' && (
                   <TableRowActions subject={organization.name} actions={[
                     { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
+                    {
+                      label: 'Oversee Sub-Account',
+                      icon: Building2,
+                      onClick: () => {
+                        sessionStorage.setItem('hiusa_active_subaccount', JSON.stringify(organization));
+                        window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: organization }));
+                        notify.success(`Switched context to ${organization.name}`);
+                        openDetails(organization);
+                      },
+                    },
                     organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },
                     ['pending', 'returned'].includes(organization.lifecycle_status) && { label: 'Withdraw', icon: Trash2, danger: true, onClick: () => { setWithdrawError(null); setWithdrawTarget(organization); } },
                   ]} />
@@ -630,6 +853,8 @@ export default function CollegeOrganizationsPage() {
           onEdit={(organization) => { setRecordId(null); setFormTarget({ mode: 'resubmit', organization }); }}
         />
       </Drawer>
+
+      <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
     </div>
   );
 }

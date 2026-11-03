@@ -15,6 +15,7 @@ const authMocks = vi.hoisted(() => ({
 }));
 const periodMocks = vi.hoisted(() => ({
   getActiveAcademicPeriod: vi.fn(),
+  getAcademicPeriods: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../services/notificationService', () => notificationMocks);
