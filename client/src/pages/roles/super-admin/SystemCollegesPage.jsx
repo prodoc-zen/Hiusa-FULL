@@ -107,7 +107,16 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
                 </div>
                 <p className="mt-0.5 break-all text-xs font-medium text-ink-muted">{head.email}</p>
               </>
-            ) : <p className="mt-1 text-sm font-medium text-ink-muted">No Department Head yet</p>}
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-sm font-medium text-ink-muted">No Department Head yet</p>
+                {college.is_active && (
+                  <Button size="xs" variant="secondary" onClick={() => onAssign(college)}>
+                    Assign / Invite
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
