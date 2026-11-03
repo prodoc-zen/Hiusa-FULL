@@ -16,6 +16,7 @@ import {
   Clock,
   Download,
   Eye,
+  FileText,
   Fingerprint,
   ImagePlus,
   List,
@@ -43,6 +44,7 @@ import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 import PersonalAttendanceSummary from '../../../components/events/PersonalAttendanceSummary';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
@@ -382,6 +384,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [campusVenues, setCampusVenues] = useState([]);
   const [activeEventRequirements, setActiveEventRequirements] = useState([]);
   const [attachedEventFiles, setAttachedEventFiles] = useState({});
+  const [attachedFileErrors, setAttachedFileErrors] = useState({});
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [tasksPage, setTasksPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
@@ -700,10 +703,62 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }
   }
 
+  async function handleViewEventSample(requirement) {
+    if (requirement.template_url) {
+      window.open(requirement.template_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      await openProtectedFile(`/event-requirements/${requirement.id}/template`);
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, 'Could not open the sample template.'));
+    }
+  }
+
+  function handleEventFileChange(req, file) {
+    if (!file) {
+      setAttachedEventFiles((prev) => {
+        const copy = { ...prev };
+        delete copy[req.id];
+        return copy;
+      });
+      setAttachedFileErrors((prev) => {
+        const copy = { ...prev };
+        delete copy[req.id];
+        return copy;
+      });
+      return;
+    }
+
+    const maxKb = req.max_file_size_kb || 10240;
+    if (file.size > maxKb * 1024) {
+      const maxMb = Math.round(maxKb / 1024);
+      setAttachedFileErrors((prev) => ({ ...prev, [req.id]: `File exceeds ${maxMb}MB limit.` }));
+      return;
+    }
+
+    const allowed = (req.allowed_extensions && req.allowed_extensions.length > 0)
+      ? req.allowed_extensions.map((ext) => ext.toLowerCase().replace(/^\./, ''))
+      : ['pdf'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext && !allowed.includes(ext)) {
+      setAttachedFileErrors((prev) => ({ ...prev, [req.id]: `Only ${allowed.map((e) => `.${e}`).join(', ')} files are allowed.` }));
+      return;
+    }
+
+    setAttachedFileErrors((prev) => {
+      const copy = { ...prev };
+      delete copy[req.id];
+      return copy;
+    });
+    setAttachedEventFiles((prev) => ({ ...prev, [req.id]: file }));
+  }
+
   function openCreateForm() {
     setEditingEventId(null);
     setForm(emptyEventForm());
     setAttachedEventFiles({});
+    setAttachedFileErrors({});
     setFormError(null);
     (typeof getEventRequirements === 'function' ? getEventRequirements() : Promise.resolve({ data: [] }))
       .then((res) => setActiveEventRequirements(res?.data || []))
@@ -1927,7 +1982,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       )}
 
       {showForm && (
-        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'New event'} onClose={() => { setShowForm(false); setEditingEventId(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'New event'} onClose={() => { setShowForm(false); setEditingEventId(null); setAttachedFileErrors({}); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">{editingEventId ? 'Edit event' : 'New event'}</h2>
@@ -2100,33 +2155,64 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <p className="text-xs text-slate-500">Attach letters and required documents now so they submit together with your event proposal.</p>
                   </div>
                   <div className="space-y-2.5">
-                    {activeEventRequirements.filter((r) => r.is_active !== false).map((req) => (
-                      <div key={req.id} className="rounded-md border border-[#DDE7EF] bg-white p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <span className="text-xs font-bold text-[#0F172A]">{req.name}</span>
-                            {req.is_optional && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(Optional)</span>}
-                            {req.description && <p className="text-[11px] text-slate-500">{req.description}</p>}
+                    {activeEventRequirements.filter((r) => r.is_active !== false).map((req) => {
+                      const attachedFile = attachedEventFiles[req.id];
+                      const fileErr = attachedFileErrors[req.id];
+                      return (
+                        <div key={req.id} className="rounded-md border border-[#DDE7EF] bg-white p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <span className="text-xs font-bold text-[#0F172A]">{req.name}</span>
+                              {req.is_optional && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(Optional)</span>}
+                              {req.description && <p className="text-[11px] text-slate-500">{req.description}</p>}
+                            </div>
+                            {(req.template_url || req.template_original_name) && (
+                              <button
+                                type="button"
+                                onClick={() => handleViewEventSample(req)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0878B7] hover:underline cursor-pointer"
+                              >
+                                <FileText size={12} aria-hidden="true" />
+                                <span>Sample template</span>
+                              </button>
+                            )}
                           </div>
-                          {req.template_url && (
-                            <a href={req.template_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0878B7] hover:underline">
-                              Sample template
-                            </a>
+                          {attachedFile ? (
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-3 py-1.5 text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText size={14} className="text-[#0878B7] shrink-0" />
+                                <span className="font-semibold text-[#0F2F62] truncate">{attachedFile.name}</span>
+                                <span className="text-[11px] text-slate-500 shrink-0">({(attachedFile.size / 1024).toFixed(0)} KB)</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleEventFileChange(req, null)}
+                                className="ml-2 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                                aria-label={`Remove attached ${req.name}`}
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2">
+                              <input
+                                type="file"
+                                accept={req.allowed_extensions ? req.allowed_extensions.map((ext) => `.${ext}`).join(',') : '.pdf'}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  handleEventFileChange(req, file);
+                                }}
+                                className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-[#0878B7] hover:file:bg-[#DDE7EF]"
+                              />
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                Allowed: {req.allowed_extensions ? req.allowed_extensions.map((ext) => `.${ext}`).join(', ') : '.pdf'} · Max {(req.max_file_size_kb || 10240) >= 1024 ? `${Math.round((req.max_file_size_kb || 10240) / 1024)}MB` : `${req.max_file_size_kb || 10240}KB`}
+                              </p>
+                            </div>
                           )}
+                          {fileErr && <p className="mt-1 text-xs font-semibold text-red-600">{fileErr}</p>}
                         </div>
-                        <div className="mt-2">
-                          <input
-                            type="file"
-                            accept={req.allowed_extensions ? req.allowed_extensions.map((ext) => `.${ext}`).join(',') : '.pdf'}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              setAttachedEventFiles((prev) => ({ ...prev, [req.id]: file }));
-                            }}
-                            className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-[#0878B7] hover:file:bg-[#DDE7EF]"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
