@@ -305,4 +305,85 @@ class AskAiAssistantTest extends TestCase
         $this->assertStringContainsString('cannot do', $studentRes->json('answer'));
         $this->assertSame('Other role', collect($studentRes->json('highlights'))->firstWhere('label', 'Your access')['value']);
     }
+
+    public function test_how_to_guide_matches_dean_magic_link_delegation_and_subaccount_questions(): void
+    {
+        $saoOrg = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $sao = User::factory()->create([
+            'organization_id' => $saoOrg->id,
+            'role' => 'SUPER_ADMIN',
+            'account_status' => 'active',
+        ]);
+
+        Sanctum::actingAs($sao);
+
+        // 1. SAO asks about dean magic link invitation
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I invite a dean with a magic link?',
+        ])->assertOk();
+
+        $res->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsStringIgnoringCase('Invite a Department Head', $res->json('title'));
+        $this->assertStringContainsStringIgnoringCase('magic onboarding link', $res->json('answer'));
+
+        // 2. Dean asks about delegating secretary and staff access
+        $college = $this->makeCollege('COE');
+        $dean = $this->makeCollegeHead($college);
+        Sanctum::actingAs($dean);
+
+        $staffRes = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I add office staff or delegate a secretary?',
+        ])->assertOk();
+
+        $staffRes->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsStringIgnoringCase('College Secretary', $staffRes->json('title'));
+
+        // 3. Dean asks about sub-account oversight mode
+        $subaccountRes = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I oversee organizations as sub-accounts?',
+        ])->assertOk();
+
+        $subaccountRes->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsStringIgnoringCase('sub-accounts', $subaccountRes->json('title'));
+
+        // 4. Admin asks about advance planning
+        $org = Organization::factory()->create(['college_id' => $college->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        Sanctum::actingAs($admin);
+
+        $planRes = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'How do I switch academic periods for advance planning?',
+        ])->assertOk();
+
+        $planRes->assertJsonPath('intent', 'how_to_guide');
+        $this->assertStringContainsStringIgnoringCase('advance planning', $planRes->json('title'));
+    }
+
+    public function test_all_how_to_guide_paths_conform_to_client_route_allowlist(): void
+    {
+        $guides = app(\App\Services\Ai\HowToGuideLibrary::class)->all();
+        $routeAccess = app(\App\Services\Dashboard\ClientRouteAccess::class);
+
+        foreach ($guides as $guide) {
+            foreach ($guide['steps'] as $stepIndex => $step) {
+                $path = $step['path'];
+                if ($path === null) {
+                    continue;
+                }
+
+                foreach ($guide['roles'] as $role) {
+                    $resolvedPath = is_array($path) ? ($path[$role] ?? null) : $path;
+                    if ($resolvedPath === null) {
+                        continue;
+                    }
+
+                    $checked = $routeAccess->hrefFor($role, $resolvedPath);
+                    $this->assertNotNull(
+                        $checked,
+                        "Guide '{$guide['id']}' step #{$stepIndex} path '{$resolvedPath}' is not allowed for role {$role}"
+                    );
+                }
+            }
+        }
+    }
 }
