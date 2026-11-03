@@ -370,7 +370,7 @@ export default function TopBar({ onMenuToggle }) {
                     aria-expanded={periodDropdownOpen}
                     aria-haspopup="listbox"
                     aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
-                    className={`hidden max-w-full items-center gap-2 truncate rounded-full border px-3.5 py-1.5 text-xs font-semibold transition min-[520px]:inline-flex active:scale-[0.98] cursor-pointer ${
+                    className={`inline-flex max-w-[140px] min-[420px]:max-w-[200px] min-[540px]:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
                       isAdvanceMode
                         ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
                         : isArchiveMode
@@ -384,14 +384,14 @@ export default function TopBar({ onMenuToggle }) {
                       }`}
                       aria-hidden="true"
                     />
-                    <span>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                    <span className="truncate">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
                     {isAdvanceMode && (
-                      <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                      <span className="hidden min-[480px]:inline rounded bg-amber-200 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase text-amber-900">
                         Planning
                       </span>
                     )}
                     {isArchiveMode && (
-                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                      <span className="hidden min-[480px]:inline rounded bg-slate-200 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase text-slate-700">
                         Archive
                       </span>
                     )}
@@ -446,18 +446,18 @@ export default function TopBar({ onMenuToggle }) {
                     aria-expanded={subAccountDropdownOpen}
                     aria-haspopup="listbox"
                     aria-label="Sub-Account Context Switcher"
-                    className={`hidden max-w-full items-center gap-2 truncate rounded-full border px-3.5 py-1.5 text-xs font-semibold transition min-[640px]:inline-flex active:scale-[0.98] cursor-pointer ${
+                    className={`inline-flex max-w-[110px] min-[420px]:max-w-[150px] sm:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
                       activeSubAccount
                         ? 'border-[#0878B7]/50 bg-[#EEF6FB] text-[#0878B7] hover:bg-brand-100'
                         : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0878B7]/40 hover:bg-white'
                     }`}
                   >
                     <Building2 size={13} className={activeSubAccount ? 'text-[#0878B7]' : 'text-slate-500'} />
-                    <span className="truncate max-w-[140px] sm:max-w-[180px]">
+                    <span className="truncate max-w-[90px] min-[420px]:max-w-[130px] sm:max-w-[180px]">
                       {activeSubAccount ? activeSubAccount.acronym || activeSubAccount.name : 'Dean’s Office'}
                     </span>
                     {activeSubAccount ? (
-                      <span className="rounded bg-[#0878B7] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                      <span className="hidden min-[420px]:inline rounded bg-[#0878B7] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
                         Sub-Account
                       </span>
                     ) : (
@@ -548,10 +548,10 @@ export default function TopBar({ onMenuToggle }) {
                   type="button"
                   onClick={() => handleSelectSubAccount(null)}
                   title="Exit Sub-Account Mode and return to Dean's Office"
-                  className="hidden items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition hover:bg-amber-200 active:scale-95 sm:inline-flex"
-                >
-                  <span>Exit {activeSubAccount.acronym || 'Sub-Account'}</span>
-                  <X size={12} aria-hidden="true" />
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] sm:text-[11px] font-bold text-amber-900 transition hover:bg-amber-200 active:scale-95"
+  >
+  <span className="hidden sm:inline">Exit {activeSubAccount.acronym || 'Sub-Account'}</span><span className="inline sm:hidden">Exit</span>
+  <X size={11} aria-hidden="true" />
                 </button>
               )}
               <button
@@ -572,7 +572,7 @@ export default function TopBar({ onMenuToggle }) {
           onClick={() => setPaletteOpen(true)}
           aria-label="Go to page"
           aria-keyshortcuts="Control+K Meta+K"
-          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[360px]:flex md:min-w-[210px] lg:min-w-[270px]"
+          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px]"
         >
           <span className="flex items-center gap-2">
             <Search size={16} aria-hidden="true" />

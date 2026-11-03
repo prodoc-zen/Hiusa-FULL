@@ -20,7 +20,10 @@ function SignatureRow({ signature }) {
           <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} />
         </div>
         {signature.status === 'held' && (
-          <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">{signature.remarks || 'On hold.'} Please see {whoToSee(signature.required_role)}.</p>
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900">
+            <p className="font-semibold text-amber-950">Hold notice</p>
+            <p className="mt-0.5 font-medium leading-5">{signature.remarks || 'On hold.'} Please see {whoToSee(signature.required_role)}.</p>
+          </div>
         )}
         {signature.status === 'pending' && (
           <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">Waiting on {whoToSee(signature.required_role)}.</p>
