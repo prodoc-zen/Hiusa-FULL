@@ -30,6 +30,11 @@ const PROMPTS_BY_ROLE = {
       topic: 'how_to_guide',
       question: 'How do I create an organization as SAO?',
     },
+    {
+      label: 'Invite Dean via magic link',
+      topic: 'how_to_guide',
+      question: 'How do I invite a dean with a magic link?',
+    },
   ],
   DEPARTMENT_HEAD: [
     {
@@ -57,6 +62,16 @@ const PROMPTS_BY_ROLE = {
       topic: 'how_to_guide',
       question: 'How do I endorse an organization application?',
     },
+    {
+      label: 'Sub-account oversight guide',
+      topic: 'how_to_guide',
+      question: 'How do I oversee organizations as sub-accounts?',
+    },
+    {
+      label: 'Delegate college secretary',
+      topic: 'how_to_guide',
+      question: 'How do I add office staff or delegate a secretary?',
+    },
   ],
   ADMIN: [
     {
@@ -83,6 +98,11 @@ const PROMPTS_BY_ROLE = {
       label: 'How to create an event',
       topic: 'how_to_guide',
       question: 'How do I create an event and submit requirements?',
+    },
+    {
+      label: 'Plan upcoming terms in advance',
+      topic: 'how_to_guide',
+      question: 'How do I switch academic periods for advance planning?',
     },
   ],
   SBO_OFFICER: [

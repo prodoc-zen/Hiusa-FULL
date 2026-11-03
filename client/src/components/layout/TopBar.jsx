@@ -439,7 +439,7 @@ export default function TopBar({ onMenuToggle }) {
               )}
 
               {role === 'DEPARTMENT_HEAD' && (
-                <div className="relative" ref={subAccountRef}>
+                <div className="relative" ref={subAccountRef} data-tour="topbar-subaccount">
                   <button
                     type="button"
                     onClick={() => setSubAccountDropdownOpen((open) => !open)}

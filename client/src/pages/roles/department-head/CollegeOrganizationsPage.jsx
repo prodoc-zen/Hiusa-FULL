@@ -88,6 +88,7 @@ function CollegeHeader({ overview, onManageStaff }) {
           size="sm"
           leftIcon={Users}
           onClick={onManageStaff}
+          data-tour="dean-staff-btn"
           className="active:scale-[0.98] transition-transform duration-100 ease-out"
         >
           Dean’s Office Staff &amp; Secretary
