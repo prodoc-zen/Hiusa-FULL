@@ -4404,5 +4404,46 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "ADM-003"
+  },
+  {
+    "id": "ADM-245",
+    "role": "Admin / Adviser",
+    "module": "Events",
+    "title": "Admin proposes event with required documents checklist, file validation, and SAO sample format viewer",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS).",
+    "steps": [
+      "1. Open Events and tasks > Events (/dashboard/events/manage-events).",
+      "2. Click New event.",
+      "3. In the Required Documents & Letters section, click Sample template to view the SAO sample format.",
+      "4. Attach a valid PDF file and verify the file pill with name, size, and remove button.",
+      "5. Test client validation by attaching a non-PDF or oversized file (> 10MB).",
+      "6. Submit the event proposal."
+    ],
+    "expected": "Sample templates open securely via protected URL. Client-side file validation prevents invalid uploads. Attached files submit cleanly with the proposal into the approval workflow.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "ADM-003"
+  },
+  {
+    "id": "ADM-246",
+    "role": "Admin / Adviser",
+    "module": "Planning and academic terms",
+    "title": "Admin prepares event proposals and draft budgets in Advance Planning mode",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS).",
+    "steps": [
+      "1. In the TopBar, click the Academic Period dropdown pill.",
+      "2. Select an upcoming semester marked Advance Planning.",
+      "3. Verify the amber planning banner appears.",
+      "4. Draft an event proposal or budget for the upcoming term.",
+      "5. Click Return to Live Semester."
+    ],
+    "expected": "Advance planning mode allows student leaders to prepare upcoming term activities and draft budgets ahead of time.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "ADM-003"
   }
 ]

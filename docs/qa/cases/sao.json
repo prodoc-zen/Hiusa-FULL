@@ -2298,5 +2298,43 @@
     "device": "Any",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "SAO-120",
+    "role": "SAO",
+    "module": "Governance > Colleges",
+    "title": "SAO invites a Department Head (Dean) using a 48h Magic Link and branded HTML email",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Governance > Colleges (/dashboard/super-admin/colleges).",
+      "2. Locate a college card without a head or click Assign / Invite in the card or kebab menu.",
+      "3. In the modal, select Magic link & email mode.",
+      "4. Enter the Dean full name and email address.",
+      "5. Click Send invitation & generate link.",
+      "6. Verify the modal displays the copyable 1-click magic link and dispatches the collegiate HTML email."
+    ],
+    "expected": "The modal generates a secure single-use 48-hour magic onboarding token, dispatches the branded HTML email, and provides a 1-click Copy Magic Link button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-121",
+    "role": "SAO",
+    "module": "Academic setup > Semesters",
+    "title": "SAO previews upcoming academic semesters in Advance Planning mode",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. In the Top navigation bar, click the Academic Period dropdown pill.",
+      "2. Select an upcoming academic semester labeled Advance Planning.",
+      "3. Verify the amber planning mode banner appears across the dashboard.",
+      "4. Click Return to Live Semester in the banner to restore active university operations."
+    ],
+    "expected": "The dashboard context switches into Advance Planning mode without disrupting active live university operations, allowing advance preparation of proposals and budgets.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]
