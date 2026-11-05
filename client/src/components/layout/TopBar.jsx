@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Building2, Check, ChevronDown, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User, X } from 'lucide-react';
+import { Bell, Building2, Check, ChevronDown, Compass, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User, X } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
@@ -821,6 +821,17 @@ export default function TopBar({ onMenuToggle }) {
               >
                 <User size={16} />
                 View Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(false);
+                  window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'));
+                }}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
+              >
+                <Compass size={16} className="text-[#0878B7]" />
+                System Walkthrough & Tour
               </button>
               <div className="my-1.5 border-t border-[#DDE7EF]" />
               <button

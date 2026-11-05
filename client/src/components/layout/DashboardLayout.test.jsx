@@ -247,4 +247,26 @@ describe('DashboardLayout desktop sidebar width', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
     expect(localStorage.getItem('hiusa_desktop_sidebar_collapsed')).toBe('false');
   });
+
+  it('renders onboarding welcome banner for first-time visits and can dismiss it', () => {
+    localStorage.clear();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'President', last_name: 'Admin' }));
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard/admin']}>
+        <Routes>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route path="admin" element={<div>Admin Home Page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('complementary', { name: 'Welcome and tour guide' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Start 2-Min Tour/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss welcome guide' }));
+    expect(screen.queryByRole('complementary', { name: 'Welcome and tour guide' })).not.toBeInTheDocument();
+    expect(localStorage.getItem('hiusa_tour_seen_ADMIN')).toBe('true');
+  });
 });
