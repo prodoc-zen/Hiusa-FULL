@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { Compass, Sparkles, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import RouteLoadingFallback from './RouteLoadingFallback';
@@ -52,6 +53,22 @@ export default function DashboardLayout() {
   const pageMeta = getPageMeta(location.pathname, role);
   const breadcrumbs = getBreadcrumbs(location.pathname, role);
   const [tourOpen, setTourOpen] = useState(false);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(`hiusa_tour_seen_${role}`) === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const dismissWelcome = useCallback(() => {
+    setWelcomeDismissed(true);
+    try {
+      localStorage.setItem(`hiusa_tour_seen_${role}`, 'true');
+    } catch {
+      // storage unavailable
+    }
+  }, [role]);
   const [viewingPeriod, setViewingPeriod] = useState(() => {
     try {
       const saved = sessionStorage.getItem('hiusa_selected_academic_period');
@@ -165,6 +182,47 @@ export default function DashboardLayout() {
         )}
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
           <div className="route-fade-in">
+            {pageMeta.isHome && !welcomeDismissed && (
+              <aside
+                aria-label="Welcome and tour guide"
+                className="mb-4 flex flex-col gap-3 rounded-2xl border border-[#0878B7]/30 bg-gradient-to-r from-[#EEF6FB] via-white to-[#EEF6FB] p-4 text-[#0F2F62] shadow-xs sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#0878B7] text-white shadow-xs" aria-hidden="true">
+                    <Compass size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-extrabold text-[#0B1831]">
+                      Welcome to your HIUSA Workspace!
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      New here? Take an interactive 2-minute walkthrough covering your role tools, approvals, advance planning, and Ask AI copilot.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dismissWelcome();
+                      setTourOpen(true);
+                    }}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0878B7] px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#0B1831] active:scale-[0.98]"
+                  >
+                    <Sparkles size={14} aria-hidden="true" />
+                    <span>Start 2-Min Tour</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissWelcome}
+                    aria-label="Dismiss welcome guide"
+                    className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98]"
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              </aside>
+            )}
             {defaultHeader}
             <PageHeaderRegistryContext value={registry}>
               <div ref={contentRef}>

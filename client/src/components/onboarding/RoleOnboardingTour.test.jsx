@@ -1,9 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RoleOnboardingTour from './RoleOnboardingTour';
 
 describe('RoleOnboardingTour', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('renders nothing when closed', () => {
     render(
       <MemoryRouter>
@@ -31,10 +35,25 @@ describe('RoleOnboardingTour', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create Org & Term/i }));
     expect(screen.getByRole('heading', { name: /Step 1: Create Academic Year & Activate Semester/i })).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: /Clearances/i }));
+    expect(screen.getByRole('heading', { name: 'Stage 1: Student Organization Sign-Off' })).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /Ask AI Guide/i }));
     expect(screen.getByRole('heading', { name: 'Inline Dashboard Ask AI Spotlight' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close interactive tour' }));
     expect(onClose).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('hiusa_tour_seen_DEPARTMENT_HEAD')).toBe('true');
+  });
+
+  it('renders SAO university-wide command center steps', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard/super-admin']}>
+        <RoleOnboardingTour role="SUPER_ADMIN" open onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'SAO University-Wide Command Center' })).toBeInTheDocument();
+    expect(screen.getByText(/SAO \/ University Regulator/i)).toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@ import {
   MousePointerClick,
   Pause,
   Play,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 
@@ -77,6 +78,33 @@ const ROLE_TOURS = {
       whatToSay: 'Once a Dean registers a student organization, SAO approves it here and provisions the Student President’s Admin account.',
       route: '/dashboard/super-admin/organizations',
       actionLabel: 'Open Organizations',
+    },
+    {
+      id: 'sao-venues',
+      title: '5. Campus Facilities & Venue Reservations',
+      selector: 'aside a[href*="/super-admin/venues"], aside a[href*="/venues"]',
+      whatItDoes: 'Configures university facilities, capacity limits, operating hours, and approves or rejects student organization venue booking requests.',
+      whatToSay: 'Here SAO manages all campus venues and approves student organization reservation requests to prevent scheduling collisions.',
+      route: '/dashboard/super-admin/venues',
+      actionLabel: 'Open Venues',
+    },
+    {
+      id: 'sao-clearances',
+      title: '6. University-Wide Final Clearance Sign-Off',
+      selector: 'aside a[href*="/super-admin/clearances"], aside a[href*="/clearances"]',
+      whatItDoes: 'Conducts university-wide clearance reviews for graduating and enrolling students across all colleges.',
+      whatToSay: 'SAO executes the final Stage 3 clearance, approving students who have passed Organization and College Dean stages.',
+      route: '/dashboard/super-admin/clearances',
+      actionLabel: 'Open Clearances',
+    },
+    {
+      id: 'sao-grievances',
+      title: '7. Confidential Grievances & Integrity Oversight',
+      selector: 'aside a[href*="/super-admin/grievances"], aside a[href*="/grievances"]',
+      whatItDoes: 'Monitors student grievances, anonymous complaints, and dispute resolutions across the university with complete audit trails.',
+      whatToSay: 'SAO maintains an institutional audit log of student grievances to ensure fair resolution and governance integrity.',
+      route: '/dashboard/super-admin/grievances',
+      actionLabel: 'Open Grievances',
     },
   ],
   DEPARTMENT_HEAD: [
@@ -217,6 +245,33 @@ const ROLE_TOURS = {
       route: '/dashboard/tasks/task-board',
       actionLabel: 'Open Task Board',
     },
+    {
+      id: 'admin-elections',
+      title: 'Student Council Elections & Platforms',
+      selector: 'aside a[href*="/elections"]',
+      whatItDoes: 'Configures election periods, candidate slates, candidate requirements, and monitors voter turnout in real-time.',
+      whatToSay: 'Organization leaders run transparent elections with verified candidate slates and tamper-proof student council voting.',
+      route: '/dashboard/elections',
+      actionLabel: 'Open Elections',
+    },
+    {
+      id: 'admin-merchandise',
+      title: 'Merchandise Store & Inventory Management',
+      selector: 'aside a[href*="/merchandise"], aside button:has-text("Store")',
+      whatItDoes: 'Adds organization shirts, lanyards, and uniforms with variant sizes, pre-order deadlines, and stock counts.',
+      whatToSay: 'We manage our organization store, track inventory, and verify student GCash payments before generating claim tokens.',
+      route: '/dashboard/merchandise/manage-items',
+      actionLabel: 'Open Merchandise',
+    },
+    {
+      id: 'admin-period',
+      title: 'Advance Term Planning & Budget Drafting',
+      selector: '[data-tour="topbar-period"]',
+      whatItDoes: 'Allows the President to switch into upcoming semesters to prepare early budgets, calendar events, and compliance documents in advance.',
+      whatToSay: 'In the top bar, we can switch to upcoming school terms in advance planning mode, enabling proactive event planning.',
+      route: null,
+      actionLabel: 'Focus Period Switcher',
+    },
   ],
   SBO_OFFICER: [
     {
@@ -264,6 +319,15 @@ const ROLE_TOURS = {
       route: '/dashboard/clearances',
       actionLabel: 'Open Clearances',
     },
+    {
+      id: 'officer-events',
+      title: 'Biometric Event Attendance Desk',
+      selector: 'aside a[href*="/events"]',
+      whatItDoes: 'Operates event check-in desks using DigitalPersona USB fingerprint biometrics or instant school ID lookups.',
+      whatToSay: 'Officers operate the event check-in desk, scanning member fingerprints to record attendance with tamper-proof timestamps.',
+      route: '/dashboard/events/manage-events',
+      actionLabel: 'Open Events Desk',
+    },
   ],
   STUDENT: [
     {
@@ -310,6 +374,15 @@ const ROLE_TOURS = {
       whatToSay: 'Students can also vote in student council elections, order merchandise, evaluate events, and file grievances.',
       route: '/dashboard/elections',
       actionLabel: 'Open Elections',
+    },
+    {
+      id: 'student-grievance',
+      title: 'Confidential Grievance & Student Dispute Filing',
+      selector: 'aside a[href*="/student/grievances"], aside a[href*="/grievances"]',
+      whatItDoes: 'Allows students to submit confidential or anonymous grievances directly to the organization and SAO with secure file attachments.',
+      whatToSay: 'Students have a safe, confidential channel to report organization disputes, financial irregularities, or unfair clearance holds.',
+      route: '/dashboard/grievances',
+      actionLabel: 'Open Grievances',
     },
   ],
 };
@@ -359,6 +432,54 @@ const CREATION_TOUR = [
     whatToSay: 'Because our Ask AI engine uses live database RAG, we can immediately ask it questions about the organization we just created!',
     route: '/dashboard/ask-ai',
     actionLabel: 'Open Ask AI Copilot',
+  },
+  {
+    id: 'create-step-6',
+    title: 'Step 6: Switch Organization Context in 1-Click (Dean Sub-Accounts)',
+    selector: '[data-tour="topbar-subaccount"], [data-tour="topbar-period"]',
+    whatItDoes: 'The Dean switches into the newly created student organization in 1 click to inspect its initial ledger, roster, or event proposals with zero login friction.',
+    whatToSay: 'Using the sub-account switcher in the top bar, the Dean can immediately jump into the student organization as a supervisor and oversee operations.',
+    route: '/dashboard/department-head/organizations',
+    actionLabel: 'View Sub-Accounts',
+  },
+];
+
+const CLEARANCE_TOUR = [
+  {
+    id: 'clearance-step-1',
+    title: 'Stage 1: Student Organization Sign-Off',
+    selector: 'aside a[href*="/clearances"], aside a[href*="/my-clearance"]',
+    whatItDoes: 'Organization Treasurers and Officers clear student members once semester dues, merchandise orders, and required event attendance quotas are fulfilled.',
+    whatToSay: 'Clearance begins at the grassroots organization level. Officers review financial dues and event obligations before giving the first clearance signature.',
+    route: '/dashboard/clearances',
+    actionLabel: 'Open Org Clearances',
+  },
+  {
+    id: 'clearance-step-2',
+    title: 'Stage 2: College Dean Academic Endorsement',
+    selector: 'aside a[href*="/department-head/clearances"], aside a[href*="/clearances"]',
+    whatItDoes: 'The Department Head reviews college student standing, verifies departmental requirements, and endorses the clearance or places an academic hold with custom remarks.',
+    whatToSay: 'Next, the College Dean signs Stage 2 of student clearance or records an academic hold with a transparent reason visible to the student.',
+    route: '/dashboard/department-head/clearances',
+    actionLabel: 'Open Dean Clearances',
+  },
+  {
+    id: 'clearance-step-3',
+    title: 'Stage 3: SAO University Final Sign-Off',
+    selector: 'aside a[href*="/super-admin/clearances"], aside a[href*="/compliance"]',
+    whatItDoes: 'The Student Affairs Office conducts the final university-wide audit. Approving Stage 3 releases the student for semester graduation or next-term enrollment.',
+    whatToSay: 'The Student Affairs Office provides the final institutional clearance, verifying university-wide requirements across all student activities.',
+    route: '/dashboard/super-admin/clearances',
+    actionLabel: 'Open SAO Clearances',
+  },
+  {
+    id: 'clearance-step-4',
+    title: 'Student 360° Real-Time Transparency & AI Status',
+    selector: 'aside a[href*="/statement-of-account"], [data-tour="ask-ai-spotlight"]',
+    whatItDoes: 'Students see all three approval stages live, read hold notes, review open fee balances in their Statement of Account, or ask Ask AI who is holding their clearance.',
+    whatToSay: 'Students never have to guess or run between campus offices: their portal displays real-time signature statuses, hold reasons, and instant AI status answers.',
+    route: '/dashboard/my-clearance',
+    actionLabel: 'Open Student Clearance',
   },
 ];
 
@@ -410,12 +531,22 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
 
   const steps = useMemo(() => {
     if (track === 'creation') return CREATION_TOUR;
+    if (track === 'clearance') return CLEARANCE_TOUR;
     if (track === 'ai') return AI_TOUR;
     return ROLE_TOURS[role] || ROLE_TOURS.ADMIN;
   }, [role, track]);
 
   const safeIndex = Math.min(stepIndex, Math.max(0, steps.length - 1));
   const currentStep = steps[safeIndex] || steps[0];
+
+  const handleClose = useCallback(() => {
+    try {
+      localStorage.setItem(`hiusa_tour_seen_${role}`, 'true');
+    } catch {
+      // Ignore if localStorage unavailable
+    }
+    onClose?.();
+  }, [role, onClose]);
 
   const updateHighlight = useCallback(() => {
     if (!open || !currentStep) return;
@@ -474,13 +605,13 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
   useEffect(() => {
     if (!open) return undefined;
     function onKeyDown(e) {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') handleClose();
       if (e.key === 'ArrowRight') setStepIndex((i) => Math.min(steps.length - 1, i + 1));
       if (e.key === 'ArrowLeft') setStepIndex((i) => Math.max(0, i - 1));
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose, steps.length]);
+  }, [open, handleClose, steps.length]);
 
   if (!open || !currentStep) return null;
 
@@ -534,14 +665,14 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
       </div>
 
       {/* Interactive Coachmark HUD Card (Bottom-Right Docked so it never blocks center tables/modals) */}
-      <aside className="pointer-events-auto fixed bottom-4 right-4 z-[95] w-[calc(100vw-2rem)] max-w-[430px] overflow-hidden rounded-2xl border border-[#0B8ED0]/40 bg-[#0B1831] text-white shadow-2xl">
+      <aside className="pointer-events-auto fixed bottom-4 right-4 z-[95] w-[calc(100vw-2rem)] max-w-[440px] overflow-hidden rounded-2xl border border-[#0B8ED0]/40 bg-[#0B1831] text-white shadow-2xl">
         {/* Top Track Switcher Bar */}
-        <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-[#0F2F62]/80 px-4 py-2.5">
+        <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-[#0F2F62]/80 px-3.5 py-2.5">
           <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => switchTrack('role')}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
                 track === 'role' ? 'bg-[#0878B7] text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -551,7 +682,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
             <button
               type="button"
               onClick={() => switchTrack('creation')}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
                 track === 'creation' ? 'bg-[#0878B7] text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -560,8 +691,18 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
             </button>
             <button
               type="button"
+              onClick={() => switchTrack('clearance')}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
+                track === 'clearance' ? 'bg-[#0878B7] text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <ShieldCheck size={12} />
+              Clearances
+            </button>
+            <button
+              type="button"
               onClick={() => switchTrack('ai')}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
                 track === 'ai' ? 'bg-[#0878B7] text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -571,7 +712,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close interactive tour"
             className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
@@ -607,7 +748,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
             <button
               type="button"
               onClick={() => navigate(currentStep.route)}
-              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-[#16C7F3]/50 bg-[#0878B7]/30 px-3 py-2 text-xs font-bold text-white transition hover:bg-[#0878B7]"
+              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-[#16C7F3]/50 bg-[#0878B7]/30 px-3 py-2 text-xs font-bold text-white transition hover:bg-[#0878B7] active:scale-[0.98]"
             >
               <ExternalLink size={13} />
               {currentStep.actionLabel || 'Open this page now'}
@@ -634,7 +775,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
               <button
                 type="button"
                 onClick={() => setAutoPlay((v) => !v)}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/10"
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/10 active:scale-[0.98]"
               >
                 {autoPlay ? <Pause size={12} /> : <Play size={12} />}
                 {autoPlay ? 'Pause' : 'Auto'}
@@ -644,7 +785,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
                 disabled={safeIndex === 0}
                 onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
                 aria-label="Previous step"
-                className="grid h-8 w-8 place-items-center rounded-lg border border-white/15 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-35"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-white/15 bg-white/5 text-white transition hover:bg-white/10 active:scale-[0.98] disabled:opacity-35"
               >
                 <ArrowLeft size={14} />
               </button>
@@ -652,7 +793,7 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
                 <button
                   type="button"
                   onClick={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}
-                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white transition hover:bg-[#0B8ED0]"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white transition hover:bg-[#0B8ED0] active:scale-[0.98]"
                 >
                   Next
                   <ArrowRight size={13} />
@@ -660,8 +801,8 @@ export default function RoleOnboardingTour({ role = 'ADMIN', open, onClose }) {
               ) : (
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-500"
+                  onClick={handleClose}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-500 active:scale-[0.98]"
                 >
                   <CheckCircle2 size={13} />
                   Done
