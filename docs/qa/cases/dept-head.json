@@ -1808,5 +1808,79 @@
     "device": "Any",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "DH-098",
+    "role": "Department Head",
+    "module": "Onboarding and invitation",
+    "title": "Dean accepts invitation via Magic Link and sets School ID and password",
+    "preconditions": "Received a valid magic invitation link for a college Department Head appointment.",
+    "steps": [
+      "1. Open the magic invitation link in a browser (/accept-invitation?token=...).",
+      "2. Verify that the prefilled appointment details and college name are displayed.",
+      "3. Enter the designated School ID and choose a secure password with confirmation.",
+      "4. Submit the registration form."
+    ],
+    "expected": "The invitation token is verified and redeemed. The Department Head profile is activated and the user is automatically authenticated and redirected to /dashboard/department-head.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-099",
+    "role": "Department Head",
+    "module": "College administration and staff",
+    "title": "Dean delegates office staff and assigns College Secretary",
+    "preconditions": "Signed in as Department Head 940001.",
+    "steps": [
+      "1. Open Governance > Organizations (/dashboard/department-head/organizations).",
+      "2. Click Deans Office Staff & Secretary in the college header.",
+      "3. Enter staff full name, email, School ID, and select role (ADMIN or DEPARTMENT_HEAD).",
+      "4. Save the staff delegation and verify their entry in the active office roster.",
+      "5. Test the 1-click revoke button on an office staff entry."
+    ],
+    "expected": "Staff member is granted delegated authority to assist with college reviews and compliance. Dean can manage or revoke delegated access in 1 click.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-100",
+    "role": "Department Head",
+    "module": "College organizations and supervision",
+    "title": "Dean switches context into student organizations using GHL-style Sub-Account Oversight Mode",
+    "preconditions": "Signed in as Department Head 940001. College has at least one active student organization.",
+    "steps": [
+      "1. In the TopBar, click the Deans Office (Master View) dropdown pill.",
+      "2. Search or select a student organization under your college (e.g. PSITS).",
+      "3. Observe the TopBar badge changing to Sub-Account and the supervisor banner appearing.",
+      "4. Inspect the student organizations records, events, and compliance in supervisor mode.",
+      "5. Click Exit Sub-Account to return to Deans Office Master View."
+    ],
+    "expected": "The workspace seamlessly switches into student organization oversight mode without logging out. 1-click Exit restores the Deans Office Master View without session disruption.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-101",
+    "role": "Department Head",
+    "module": "Academic terms and planning",
+    "title": "Dean previews upcoming semester in Advance Planning mode",
+    "preconditions": "Signed in as Department Head 940001.",
+    "steps": [
+      "1. In the TopBar, click the Academic Period dropdown pill.",
+      "2. Select an upcoming semester marked Advance Planning.",
+      "3. Review upcoming term guidelines or advance proposals.",
+      "4. Click Return to Live Semester in the amber planning banner."
+    ],
+    "expected": "Context switches to the upcoming semester with the amber planning indicator, allowing advance review before the academic term goes live.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]

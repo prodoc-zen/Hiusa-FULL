@@ -632,6 +632,16 @@ SAO,SAO-118,Updates > University announcements,SAO publishes system-wide global 
 SAO,SAO-119,Files > Storage and limits,SAO inspects system file storage usage and quotas,Functional,Medium,Any,Any time,,Signed in as SAO 990001.,"1. Select Files > Storage and limits (/dashboard/super-admin/file-storage).
 2. Review total storage metrics and document breakdown by college and organization.
 3. Verify that capacity limits are shown.","The page displays cumulative system storage, document distribution, and institutional quota indicators.",,Not run,,,,,,
+SAO,SAO-120,Governance > Colleges,SAO invites a Department Head (Dean) using a 48h Magic Link and branded HTML email,Functional,High,Any,Any time,,Signed in as SAO 990001.,"1. Select Governance > Colleges (/dashboard/super-admin/colleges).
+2. Locate a college card without a head or click Assign / Invite in the card or kebab menu.
+3. In the modal, select Magic link & email mode.
+4. Enter the Dean full name and email address.
+5. Click Send invitation & generate link.
+6. Verify the modal displays the copyable 1-click magic link and dispatches the collegiate HTML email.","The modal generates a secure single-use 48-hour magic onboarding token, dispatches the branded HTML email, and provides a 1-click Copy Magic Link button.",,Not run,,,,,,
+SAO,SAO-121,Academic setup > Semesters,SAO previews upcoming academic semesters in Advance Planning mode,Functional,High,Any,Any time,,Signed in as SAO 990001.,"1. In the Top navigation bar, click the Academic Period dropdown pill.
+2. Select an upcoming academic semester labeled Advance Planning.
+3. Verify the amber planning mode banner appears across the dashboard.
+4. Click Return to Live Semester in the banner to restore active university operations.","The dashboard context switches into Advance Planning mode without disrupting active live university operations, allowing advance preparation of proposals and budgets.",,Not run,,,,,,
 Department Head,DH-001,Sign in,Department Head signs in and lands on the Department Head dashboard,Functional,High,Any,Any time,,Account 940001 exists. The password is given to you separately.,"1. Open the HIUSA address in a browser.
 2. Type 940001 in School ID / ID Number.
 3. Type the password you were given.
@@ -1082,6 +1092,24 @@ Department Head,DH-096,College files,Department Head accesses College Files and 
 Department Head,DH-097,College compliance,Department Head accesses College Compliance and Semestral Submissions,Functional,Medium,Any,Any time,,Signed in as Department Head 940001.,"1. Select College compliance in the sidebar (address ends with /dashboard/department-head/compliance).
 2. Inspect the semestral compliance status of college organizations (e.g. accomplishment reports and financial statements).
 3. Filter by status or organization.",The College compliance page displays the compliance status of organizations in the college. Required reports and submission dates are clearly shown.,,Not run,,,,,,
+Department Head,DH-098,Onboarding and invitation,Dean accepts invitation via Magic Link and sets School ID and password,Functional,High,Any,Any time,,Received a valid magic invitation link for a college Department Head appointment.,"1. Open the magic invitation link in a browser (/accept-invitation?token=...).
+2. Verify that the prefilled appointment details and college name are displayed.
+3. Enter the designated School ID and choose a secure password with confirmation.
+4. Submit the registration form.",The invitation token is verified and redeemed. The Department Head profile is activated and the user is automatically authenticated and redirected to /dashboard/department-head.,,Not run,,,,,,
+Department Head,DH-099,College administration and staff,Dean delegates office staff and assigns College Secretary,Functional,High,Any,Any time,,Signed in as Department Head 940001.,"1. Open Governance > Organizations (/dashboard/department-head/organizations).
+2. Click Deans Office Staff & Secretary in the college header.
+3. Enter staff full name, email, School ID, and select role (ADMIN or DEPARTMENT_HEAD).
+4. Save the staff delegation and verify their entry in the active office roster.
+5. Test the 1-click revoke button on an office staff entry.",Staff member is granted delegated authority to assist with college reviews and compliance. Dean can manage or revoke delegated access in 1 click.,,Not run,,,,,,
+Department Head,DH-100,College organizations and supervision,Dean switches context into student organizations using GHL-style Sub-Account Oversight Mode,Functional,High,Any,Any time,,Signed in as Department Head 940001. College has at least one active student organization.,"1. In the TopBar, click the Deans Office (Master View) dropdown pill.
+2. Search or select a student organization under your college (e.g. PSITS).
+3. Observe the TopBar badge changing to Sub-Account and the supervisor banner appearing.
+4. Inspect the student organizations records, events, and compliance in supervisor mode.
+5. Click Exit Sub-Account to return to Deans Office Master View.",The workspace seamlessly switches into student organization oversight mode without logging out. 1-click Exit restores the Deans Office Master View without session disruption.,,Not run,,,,,,
+Department Head,DH-101,Academic terms and planning,Dean previews upcoming semester in Advance Planning mode,Functional,Medium,Any,Any time,,Signed in as Department Head 940001.,"1. In the TopBar, click the Academic Period dropdown pill.
+2. Select an upcoming semester marked Advance Planning.
+3. Review upcoming term guidelines or advance proposals.
+4. Click Return to Live Semester in the amber planning banner.","Context switches to the upcoming semester with the amber planning indicator, allowing advance review before the academic term goes live.",,Not run,,,,,,
 Admin & Adviser,ADM-001,Sign in > Dashboard,Admin signs in and lands on the Dashboard,Functional,High,Any,Any time,,A seeded copy is running and you have its address. You are signed out. Use Admin 900001 and the password from the tester sheet.,"1. Open the HIUSA address you were given.
 2. Type 900001 in the box 'School ID / ID Number'.
 3. Type the password in the box 'Password'.
@@ -2059,6 +2087,17 @@ Admin & Adviser,ADM-244,Records > Submitted files,Admin views and downloads orga
 2. Read the page header and submitted files table.
 3. Filter by academic year or submission category if available.
 4. Select 'Download' or 'View' on a submitted file.","The page lists all accreditation and semestral compliance documents submitted by the organization with status, submission date, reviewer notes, and file download links. Files open or download securely without exposing files of other organizations.",,Not run,,,,,,
+Admin & Adviser,ADM-245,Events,"Admin proposes event with required documents checklist, file validation, and SAO sample format viewer",Functional,High,Any,Any time,ADM-003,Signed in as Admin 900001 (President of PSITS-CCS).,"1. Open Events and tasks > Events (/dashboard/events/manage-events).
+2. Click New event.
+3. In the Required Documents & Letters section, click Sample template to view the SAO sample format.
+4. Attach a valid PDF file and verify the file pill with name, size, and remove button.
+5. Test client validation by attaching a non-PDF or oversized file (> 10MB).
+6. Submit the event proposal.",Sample templates open securely via protected URL. Client-side file validation prevents invalid uploads. Attached files submit cleanly with the proposal into the approval workflow.,,Not run,,,,,,
+Admin & Adviser,ADM-246,Planning and academic terms,Admin prepares event proposals and draft budgets in Advance Planning mode,Functional,Medium,Any,Any time,ADM-003,Signed in as Admin 900001 (President of PSITS-CCS).,"1. In the TopBar, click the Academic Period dropdown pill.
+2. Select an upcoming semester marked Advance Planning.
+3. Verify the amber planning banner appears.
+4. Draft an event proposal or budget for the upcoming term.
+5. Click Return to Live Semester.",Advance planning mode allows student leaders to prepare upcoming term activities and draft budgets ahead of time.,,Not run,,,,,,
 SBO Officer,SBO-001,Sign in,Officer signs in and lands on the Dashboard,Functional,High,Any,Any time,,Nobody is signed in on this browser. Use account 900004 (Treasurer). On a fresh seed no password change is asked (docs/MEMBER_TESTING.md section 2).,"1. Open the HIUSA address you were given.
 2. Type 900004 in the box ""School ID / ID Number"".
 3. Type the password in the box ""Password"".
