@@ -87,6 +87,38 @@ class CollegeController extends Controller
         return response()->json($college, 201);
     }
 
+    public function update(Request $request, College $college)
+    {
+        $request->merge([
+            'name' => is_string($request->input('name')) ? trim($request->input('name')) : $request->input('name'),
+            'code' => is_string($request->input('code')) ? (trim($request->input('code')) ?: null) : $request->input('code'),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')->ignore($college->id)],
+            'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')->ignore($college->id)],
+            'description' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        $updated = DB::transaction(function () use ($request, $college, $data) {
+            $oldName = $college->name;
+            $college->update($data);
+            if ($oldName !== $college->name) {
+                Organization::where('college_id', $college->id)->update(['college' => $college->name]);
+            }
+            if ($college->homeOrganization) {
+                $college->homeOrganization->update([
+                    'college' => $college->name,
+                    'acronym' => $college->code,
+                ]);
+            }
+            $this->audit($request, $college, 'updated');
+
+            return $college->fresh();
+        });
+
+        return response()->json($updated);
+    }
+
     /** One head per college: the active one, else an inactive one (the last by School ID) so the SAO can still reactivate it. */
     private function departmentHeadsByCollege(): array
     {

@@ -52,8 +52,8 @@ function useFirstInvalidFocus(formRef) {
   return () => setRequest((count) => count + 1);
 }
 
-export function AssignDepartmentHeadModal({ college, onClose, onAssigned }) {
-  const [accountMode, setAccountMode] = useState('new');
+export function AssignDepartmentHeadModal({ college, initialMode = 'new', onClose, onAssigned }) {
+  const [accountMode, setAccountMode] = useState(initialMode);
   const [values, setValues] = useState(EMPTY_ASSIGNMENT);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');

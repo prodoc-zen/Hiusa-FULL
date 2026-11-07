@@ -17,6 +17,20 @@ export default function CreateAdministratorModal({ organization = null, onClose,
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const selectedOrgId = organization ? organization.id : form.organization_id;
+  const inviteUrl = selectedOrgId ? `${window.location.origin}/register?organization=${selectedOrgId}&role=ADMIN` : '';
+
+  async function copyInviteLink() {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard?.writeText?.(inviteUrl);
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2500);
+    } catch {
+      setCopiedInvite(false);
+    }
+  }
 
   useEffect(() => {
     if (organization) return undefined;
@@ -57,6 +71,17 @@ export default function CreateAdministratorModal({ organization = null, onClose,
   return <Modal open title="Add administrator" description="Create an Admin login for an active student organization. The administrator must change the initial password after signing in." onClose={busy ? undefined : onClose} closeOnEscape={!busy}
     footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="submit" form={formId} loading={busy} disabled={loading || Boolean(loadError) || !form.organization_id}>Create administrator</Button></>}>
     <form id={formId} onSubmit={save} className="space-y-4">
+      {inviteUrl && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#BCE3FA] bg-[#F2F9FD] p-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-[#0F2F62]">Admin Invite Link</p>
+            <p className="truncate font-mono text-xs text-ink-muted">{inviteUrl}</p>
+          </div>
+          <Button variant="secondary" size="sm" type="button" onClick={copyInviteLink}>
+            {copiedInvite ? 'Copied!' : 'Copy invite link'}
+          </Button>
+        </div>
+      )}
       {onUseExisting && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-subtle p-3"><p className="text-sm text-ink-muted">Already has a university login?</p><Button variant="secondary" size="sm" disabled={busy} onClick={onUseExisting}>Use existing user</Button></div>}
       {organization ? <p className="text-sm font-semibold text-ink">{formatDisplayText(organization.name)}</p> : <Field label="Organization" required error={errors.organization_id?.[0]}><Select required value={form.organization_id} onChange={change('organization_id')} disabled={busy || loading || Boolean(loadError)}><option value="">{loading ? 'Loading organizations...' : 'Choose an organization'}</option>{organizations.map((item) => <option key={item.id} value={item.id}>{formatDisplayText(item.name)}</option>)}</Select></Field>}
       {!organization && !loading && !loadError && organizations.length === 0 && <p role="status" className="text-sm text-ink-muted">No active student organizations are available. Approve or restore an organization before adding its administrator.</p>}

@@ -381,13 +381,34 @@ class OrganizationApplicationController extends Controller
 
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', FilterValues::rule(['in:pending_endorsement,endorsed,approved,rejected'])], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = OrganizationApplication::with(['college:id,name', 'documents.requirementType:id,name,description'])->whereNotNull('email_verified_at');
+        $data = $request->validate([
+            'status' => ['nullable', FilterValues::rule(['in:pending_endorsement,endorsed,approved,rejected'])],
+            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $query = OrganizationApplication::with(['college:id,name', 'documents.requirementType:id,name,description,academic_semester_id'])->whereNotNull('email_verified_at');
         if ($request->user()->role === 'DEPARTMENT_HEAD') {
             $this->scopeForHead($query, $request->user());
         }
         if (! empty($data['status'])) {
             $query->whereIn('status', FilterValues::values($data['status']));
+        }
+        if (! empty($data['academic_semester_id'])) {
+            $semesterId = (int) $data['academic_semester_id'];
+            $query->where(function ($sub) use ($semesterId) {
+                $sub->whereHas('documents.requirementType', fn ($rt) => $rt->where('academic_semester_id', $semesterId))
+                    ->orWhereDoesntHave('documents');
+            });
+        }
+        if (! empty($data['search'])) {
+            $term = trim($data['search']);
+            $query->where(function ($sub) use ($term) {
+                $sub->where('name', 'like', "%{$term}%")
+                    ->orWhere('acronym', 'like', "%{$term}%")
+                    ->orWhere('first_name', 'like', "%{$term}%")
+                    ->orWhere('last_name', 'like', "%{$term}%");
+            });
         }
 
         return response()->json($query->latest()->paginate($data['per_page'] ?? 10));

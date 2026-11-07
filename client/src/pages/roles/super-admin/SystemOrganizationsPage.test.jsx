@@ -59,19 +59,12 @@ describe('SystemOrganizationsPage', () => {
     expect(await screen.findByText('Administrator account created.')).toBeInTheDocument();
   });
 
-  it('creates a unified organization and opens its first administrator form', async () => {
-    const unified = org({ id: 77, name: 'University Council', acronym: 'UC', is_university_wide: true, college: null, college_id: null });
-    mocks.createUnifiedOrganization.mockResolvedValue(unified);
+  it('provides an admin invite link action instead of a manual add organization button', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(screen.getByRole('button', { name: 'Add unified organization' }));
-    const dialog = screen.getByRole('dialog', { name: 'Add unified organization' });
-    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: 'University Council' } });
-    fireEvent.change(within(dialog).getByLabelText(/Acronym/), { target: { value: 'UC' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create organization' }));
-    const admin = await screen.findByRole('dialog', { name: 'Add administrator' });
-    expect(within(admin).getByText('University Council')).toBeInTheDocument();
-    expect(mocks.createUnifiedOrganization).toHaveBeenCalledWith({ name: 'University Council', acronym: 'UC', description: null });
-    expect(mocks.createSystemAdmin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Add unified organization/i })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy admin invite link' }));
+    expect(await screen.findByText('Admin invite link copied for Main SBO.')).toBeInTheDocument();
   });
 
   it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {
