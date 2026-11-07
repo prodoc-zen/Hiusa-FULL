@@ -74,21 +74,22 @@ describe('AcademicYearsPage', () => {
       { id: 12, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' },
     ] }];
 
-    it('offers delete only for semesters that are not active', async () => {
+    it('offers delete only for semesters that are not active and renders status toggle switches', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       renderPage();
       expect((await screen.findAllByText('Current'))[0]).toHaveClass('bg-success-tint', 'text-success-strong');
-      expect(screen.getByText('Active', { exact: true })).toHaveClass('bg-success-tint', 'text-success-strong');
-      expect(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Actions for 1st semester of AY 2026-2027' }));
-      expect(screen.queryByRole('menuitem', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
+      expect(screen.getAllByText('Active', { exact: true })[0]).toBeInTheDocument();
+      expect(screen.getByRole('switch', { name: 'Toggle active status for 1st semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
     });
 
     it('deletes after confirmation and reloads the calendar', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(deleteAcademicSemester).mockResolvedValue('');
       renderPage();
-      fireEvent.click(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
 
@@ -100,7 +101,7 @@ describe('AcademicYearsPage', () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(deleteAcademicSemester).mockRejectedValue({ response: { status: 409, data: { message: 'This semester cannot be deleted because of: events, tasks.', reasons: ['events', 'tasks'] } } });
       renderPage();
-      fireEvent.click(await findRowAction('Delete 2nd semester of AY 2026-2027', '2nd semester of AY 2026-2027'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
 

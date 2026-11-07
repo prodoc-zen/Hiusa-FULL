@@ -45,11 +45,14 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'academic_year' => ['nullable', 'string', 'max:20'],
-            'category' => ['nullable', 'in:organization,semestral_report'],
+            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
+            'category' => ['nullable', 'in:organization,renewal,semestral_report'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = ComplianceRequirementType::query()->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category));
+        $query = ComplianceRequirementType::query()
+            ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
+            ->when($filters['academic_semester_id'] ?? null, fn ($q, $semId) => $q->where('academic_semester_id', $semId));
 
         if ($request->user()->role === 'ADMIN') {
             // ADMIN only needs what it must act on: active requirements for
@@ -68,7 +71,7 @@ class ComplianceController extends Controller
         $data = $request->validate([
             'academic_year' => ['required', 'string', 'max:20', ...(AcademicYear::exists() ? [Rule::exists('academic_years', 'label')] : [])],
             'name' => ['required', 'string', 'max:255'],
-            'category' => ['sometimes', 'required', 'in:organization,semestral_report'],
+            'category' => ['sometimes', 'required', 'in:organization,renewal,semestral_report'],
             'description' => ['nullable', 'string', 'max:3000'],
             'allowed_extensions' => ['sometimes', 'required', 'array', 'min:1'],
             'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(ComplianceRequirementType::SUPPORTED_EXTENSIONS)],

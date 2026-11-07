@@ -125,20 +125,20 @@ class AcademicSemesterTest extends TestCase
         Sanctum::actingAs($director);
         $first = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
-        $this->assertSame(20, ComplianceRequirementType::where('academic_semester_id', $first)->count());
-        $this->assertSame(20, ComplianceRequirementType::where('academic_semester_id', $second)->count());
-        $this->assertSame(0, ComplianceRequirementType::where('academic_semester_id', $first)->where('is_active', true)->count());
+        $this->assertSame(30, ComplianceRequirementType::where('academic_semester_id', $first)->count());
+        $this->assertSame(30, ComplianceRequirementType::where('academic_semester_id', $second)->count());
+        $this->assertSame(30, ComplianceRequirementType::where('academic_semester_id', $first)->where('is_active', true)->count());
         $this->patchJson("/api/system/academic-semesters/{$first}/active")->assertOk();
-        $requirement = ComplianceRequirementType::where('academic_semester_id', $first)->where('name', 'List of Members')->firstOrFail();
+        $requirement = ComplianceRequirementType::where('academic_semester_id', $first)->where('category', 'organization')->where('name', 'List of Members')->firstOrFail();
         $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['deadline_at' => '2026-12-20', 'is_active' => true, 'template_url' => 'https://example.edu/member-list-format'])->assertOk();
 
         Sanctum::actingAs($admin);
-        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 1);
+        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 30);
         Sanctum::actingAs($director);
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertOk();
         $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['is_active' => false])->assertStatus(409);
         Sanctum::actingAs($admin);
-        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 0);
+        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 30);
         $this->post('/api/compliance/submissions', [
             'requirement_type_id' => $requirement->id,
             'document' => UploadedFile::fake()->create('members.pdf', 20, 'application/pdf'),
@@ -155,7 +155,7 @@ class AcademicSemesterTest extends TestCase
         Sanctum::actingAs($director);
         $semester = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $this->assertSame(18, EventRequirement::where('academic_semester_id', $semester)->count());
-        $this->assertSame(0, EventRequirement::where('academic_semester_id', $semester)->where('is_active', true)->count());
+        $this->assertSame(18, EventRequirement::where('academic_semester_id', $semester)->where('is_active', true)->count());
         $this->patchJson("/api/system/academic-semesters/{$semester}/active")->assertOk();
         foreach (EventRequirement::where('academic_semester_id', $semester)->get() as $requirement) {
             $this->putJson('/api/event-requirements/'.$requirement->id, [

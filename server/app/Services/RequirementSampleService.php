@@ -15,7 +15,8 @@ class RequirementSampleService
     {
         $hasSample = $requirement && ($requirement->template_url
             || ($requirement->template_path && Storage::disk('local')->exists($requirement->template_path)));
-        $required = ! $requirement || ($request->boolean('is_active', $requirement->is_active) && ! $hasSample);
+        $isSemesterDefault = $requirement && $requirement->academic_semester_id && ! $requirement->template_path;
+        $required = ! $requirement || ($request->boolean('is_active', $requirement->is_active) && ! $hasSample && ! $isSemesterDefault);
         $types = implode(',', $extensions);
 
         return $request->validate([

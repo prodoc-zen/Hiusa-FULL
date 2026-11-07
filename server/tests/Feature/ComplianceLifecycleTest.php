@@ -93,15 +93,17 @@ class ComplianceLifecycleTest extends TestCase
         $id = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])
             ->assertCreated()->json('id');
 
-        $this->assertSame(20, ComplianceRequirementType::where('academic_semester_id', $id)->count());
+        $this->assertSame(30, ComplianceRequirementType::where('academic_semester_id', $id)->count());
         $semestralTypes = ComplianceRequirementType::where('academic_semester_id', $id)->where('category', 'semestral_report')->get();
+        $renewalTypes = ComplianceRequirementType::where('academic_semester_id', $id)->where('category', 'renewal')->get();
         $this->assertCount(10, $semestralTypes);
+        $this->assertCount(10, $renewalTypes);
         $this->assertEqualsCanonicalizing(ComplianceRequirementType::SEMESTRAL_REPORT_NAMES, $semestralTypes->pluck('name')->all());
 
         foreach ($semestralTypes as $type) {
             $this->assertSame('2026-2027', $type->academic_year);
             $this->assertSame('2026-12-31', $type->deadline_at->toDateString());
-            $this->assertFalse($type->is_active);
+            $this->assertTrue($type->is_active);
             $this->assertSame(['pdf'], $type->allowed_extensions);
         }
     }

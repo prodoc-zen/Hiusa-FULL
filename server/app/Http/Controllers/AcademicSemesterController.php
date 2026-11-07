@@ -76,14 +76,37 @@ class AcademicSemesterController extends Controller
                 'status' => 'upcoming',
                 'created_by' => $request->user()->school_id,
             ]);
-            foreach ([...RegistrationRequirementCatalog::NAMES, ...ComplianceRequirementType::SEMESTRAL_REPORT_NAMES] as $name) {
+            foreach (RegistrationRequirementCatalog::NAMES as $name) {
                 ComplianceRequirementType::create([
+                    'category' => 'organization',
                     'academic_year' => $academicYear->label,
                     'academic_semester_id' => $semester->id,
                     'name' => $name,
                     'allowed_extensions' => ['pdf'],
                     'deadline_at' => $semester->ends_on->endOfDay(),
-                    'is_active' => false,
+                    'is_active' => true,
+                    'created_by' => $request->user()->school_id,
+                ]);
+                ComplianceRequirementType::create([
+                    'category' => 'renewal',
+                    'academic_year' => $academicYear->label,
+                    'academic_semester_id' => $semester->id,
+                    'name' => $name,
+                    'allowed_extensions' => ['pdf'],
+                    'deadline_at' => $semester->ends_on->endOfDay(),
+                    'is_active' => true,
+                    'created_by' => $request->user()->school_id,
+                ]);
+            }
+            foreach (ComplianceRequirementType::SEMESTRAL_REPORT_NAMES as $name) {
+                ComplianceRequirementType::create([
+                    'category' => 'semestral_report',
+                    'academic_year' => $academicYear->label,
+                    'academic_semester_id' => $semester->id,
+                    'name' => $name,
+                    'allowed_extensions' => ['pdf'],
+                    'deadline_at' => $semester->ends_on->endOfDay(),
+                    'is_active' => true,
                     'created_by' => $request->user()->school_id,
                 ]);
             }
@@ -95,7 +118,7 @@ class AcademicSemesterController extends Controller
                         'venue_type' => $venueType,
                         'academic_semester_id' => $semester->id,
                         'allowed_extensions' => ['pdf'],
-                        'is_active' => false,
+                        'is_active' => true,
                         'is_optional' => str_contains($name, '(If Applicable)'),
                         'sort_order' => ++$sortOrder,
                     ]);
