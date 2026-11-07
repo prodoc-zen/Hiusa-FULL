@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Eye, FileText, Pencil, Trash2, X } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, Select, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusToggleSwitch, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
@@ -18,9 +18,33 @@ import { fetchAllPages } from '../../../services/pagination';
 const empty = { name: '', description: '', allowed_extensions: ['pdf'], venue_type: 'all', is_optional: false, is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
 const VENUE_TYPE_LABEL = { on_campus: 'On campus', off_campus: 'Off campus' };
+const ON_CAMPUS_PRESETS = [
+  'Venue Reservation Letter',
+  'Request Letter',
+  'Equipment & Technical Request Forms',
+];
+const OFF_CAMPUS_PRESETS = [
+  'Approved Letter Of Intent For The Proposed Activity',
+  'Document Tracking Slip',
+  'Student Activity Clearance/Permit Form',
+  'Modified Checklist Requirements For Off-Campus Activity',
+  'Report Of Compliance',
+  'Designation Letter For Personnel In-Charge',
+  'Participants Parents Consent Form',
+  'Minutes Of The Meeting (Planning Stage)',
+  'Curriculum Requirement',
+  'Journal',
+  'Sanitary Permit (If Applicable)',
+  'Emergency Preparedness Plan',
+  'Mobility Of Students',
+  'LGU/NGO',
+  'Gate Pass From PCO (If Applicable)',
+];
 
 export default function EventRequirementsTab({ mode = 'settings', organizationId = '' }) {
   const [reviewSearch, setReviewSearch] = useState('');
+  const [venueFilter, setVenueFilter] = useState('all');
+  const [togglingId, setTogglingId] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [form, setForm] = useState(empty);
@@ -227,8 +251,31 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     }
   }
 
+  async function toggleRequirementActive(requirement) {
+    setTogglingId(requirement.id);
+    setActionError('');
+    try {
+      await updateEventRequirement(requirement.id, {
+        name: requirement.name,
+        description: requirement.description || '',
+        allowed_extensions: requirement.allowed_extensions || ['pdf'],
+        venue_type: requirement.venue_type || 'all',
+        is_optional: Boolean(requirement.is_optional),
+        is_active: !requirement.is_active,
+      });
+      notify.success(requirement.is_active ? `"${requirement.name}" marked inactive.` : `"${requirement.name}" marked active.`);
+      await load();
+    } catch (cause) {
+      setActionError(getApiErrorMessage(cause, 'Could not update the requirement status.'));
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  const filteredRequirements = requirements.filter((item) => venueFilter === 'all' || item.venue_type === venueFilter);
+
   const checklistColumns = [
-    { key: 'order', header: '#', render: (requirement) => requirements.indexOf(requirement) + 1 },
+    { key: 'order', header: '#', render: (requirement) => filteredRequirements.indexOf(requirement) + 1 },
     {
       key: 'name',
       header: 'File',
@@ -237,6 +284,18 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
           <p className="break-words font-bold text-ink">{formatDisplayText(requirement.name)}</p>
           {requirement.description && <RichTextBody value={requirement.description} className="mt-1 break-words text-xs font-medium text-ink-muted" />}
         </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (requirement) => (
+        <StatusToggleSwitch
+          checked={Boolean(requirement.is_active)}
+          disabled={busy || togglingId === requirement.id}
+          onChange={() => toggleRequirementActive(requirement)}
+          label={`${requirement.is_active ? 'Deactivate' : 'Activate'} ${formatDisplayText(requirement.name)}`}
+        />
       ),
     },
     {
@@ -268,10 +327,26 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
           description="Active items require one file each. Order is shared with organizations."
           actions={<span className="text-xs font-semibold text-ink-muted">{requirements.filter((item) => item.is_active).length} active</span>}
         >
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[
+              ['all', `All venues (${requirements.length})`],
+              ['on_campus', `On-campus (${requirements.filter((r) => r.venue_type === 'on_campus').length})`],
+              ['off_campus', `Off-campus (${requirements.filter((r) => r.venue_type === 'off_campus').length})`],
+            ].map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={venueFilter === key ? 'primary' : 'secondary'}
+                onClick={() => setVenueFilter(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
           <DataTable
             stickyHeader={false}
             columns={checklistColumns}
-            rows={requirements}
+            rows={filteredRequirements}
             loading={loading}
             actions={(requirement) => <TableRowActions subject={formatDisplayText(requirement.name)} actions={[
               (requirement.template_url || requirement.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewTemplate(requirement) },
@@ -320,6 +395,30 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   <option value="off_campus">Off campus</option>
                 </Select>
               </Field>
+              {(form.venue_type === 'on_campus' || form.venue_type === 'off_campus') && (
+                <Field label={`Standard ${form.venue_type === 'on_campus' ? 'On-Campus' : 'Off-Campus'} requirements`}>
+                  <Select
+                    aria-label="Standard requirement preset"
+                    value=""
+                    onChange={(event) => {
+                      const chosen = event.target.value;
+                      if (chosen) {
+                        setForm((curr) => ({
+                          ...curr,
+                          name: chosen,
+                          is_optional: /if applicable/i.test(chosen),
+                        }));
+                        setNameError(null);
+                      }
+                    }}
+                  >
+                    <option value="">Select a standard requirement preset…</option>
+                    {(form.venue_type === 'on_campus' ? ON_CAMPUS_PRESETS : OFF_CAMPUS_PRESETS).map((preset) => (
+                      <option key={preset} value={preset}>{preset}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <Field label="Instructions for organizations">
                 <RichTextEditor maxLength={500} rows={3} value={form.description} onChange={(description) => setForm({ ...form, description })} />
               </Field>

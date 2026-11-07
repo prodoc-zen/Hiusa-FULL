@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, Eye, FileText, ShieldCheck } from 'lucide-react';
+import { Bell, Check, Eye, FileText, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
 import ComplianceReminderModal from './ComplianceReminderModal';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
@@ -8,6 +8,7 @@ import Modal from '../../../components/Modal';
 import { manilaDate } from '../../../lib/format';
 import TableRowActions from '../../../components/TableRowActions';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { reviewSubmission } from '../../../services/complianceService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 
@@ -19,12 +20,37 @@ function orgPendingCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'submitted').length;
 }
 
-export default function AccreditationTab({ overview, onRetry, onReviewOrganization, role = 'SUPER_ADMIN' }) {
+export default function AccreditationTab({ title = 'Organization accreditation', overview, onRetry, onReviewOrganization, onChanged, role = 'SUPER_ADMIN' }) {
   const [search, setSearch] = useState('');
   const rows = useMemo(() => [...overview.organizations].sort((a, b) => String(a.organization_name).localeCompare(String(b.organization_name)) || a.organization_id - b.organization_id).filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search]);
   const [selectedId, setSelectedId] = useState(null);
   const [reminder, setReminder] = useState(null);
+  const [fileComments, setFileComments] = useState({});
+  const [fileBusyId, setFileBusyId] = useState(null);
   const selected = rows.find((org) => org.organization_id === selectedId);
+
+  async function decideFile(requirement, status) {
+    if (!requirement.submission_id) return;
+    const comment = (fileComments[requirement.submission_id] || '').trim();
+    if (status === 'returned' && !comment) {
+      notify.error('Enter a comment for this file before returning it.');
+      return;
+    }
+    setFileBusyId(requirement.submission_id);
+    try {
+      await reviewSubmission(requirement.submission_id, {
+        status,
+        ...(comment ? { remarks: comment } : {}),
+        submitted_at: requirement.submitted_at,
+      });
+      notify.success(status === 'approved' ? `"${requirement.requirement_name}" approved.` : `"${requirement.requirement_name}" returned with your comment.`);
+      onChanged?.();
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Could not update this submission.'));
+    } finally {
+      setFileBusyId(null);
+    }
+  }
 
   async function viewFile(requirement) {
     try {
@@ -63,7 +89,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
 
   return (
     <>
-    <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
+    <Card title={title} description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
       <DataTable
         stickyHeader={false}
         columns={columns}
@@ -95,7 +121,36 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         rowKey={(requirement) => requirement.requirement_type_id}
         rows={selected?.requirements || []}
         columns={[
-          { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.status === 'returned' && requirement.remarks && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks}</p>}</div> },
+          {
+            key: 'name',
+            header: 'Requirement',
+            render: (requirement) => (
+              <div className="space-y-1.5">
+                <strong>{requirement.requirement_name}</strong>
+                {requirement.status === 'returned' && requirement.remarks && (
+                  <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks}</p>
+                )}
+                {role === 'SUPER_ADMIN' && requirement.submission_id && requirement.status === 'submitted' && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <input
+                      type="text"
+                      aria-label={`Comment for ${requirement.requirement_name}`}
+                      placeholder="Add file comment (required to return)…"
+                      value={fileComments[requirement.submission_id] ?? (requirement.remarks || '')}
+                      onChange={(e) => setFileComments((curr) => ({ ...curr, [requirement.submission_id]: e.target.value }))}
+                      className="h-8 min-w-[200px] flex-1 rounded border border-line bg-surface px-2 text-xs text-ink"
+                    />
+                    <Button size="xs" variant="secondary" leftIcon={Check} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'approved')}>
+                      Approve
+                    </Button>
+                    <Button size="xs" variant="danger" leftIcon={RotateCcw} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'returned')}>
+                      Return
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ),
+          },
           { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '—' },
           { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
           { key: 'status', header: 'Status', render: (requirement) => <StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },

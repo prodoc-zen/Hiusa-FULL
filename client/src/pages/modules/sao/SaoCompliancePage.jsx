@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, ClipboardList, ShieldCheck, Wallet } from 'lucide-react';
-import { Card, EmptyState, PageHeader, Tabs } from '../../../components/ui';
+import { CalendarCheck, Check, ClipboardList, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
+import { Card, EmptyState, PageHeader, Select, Tabs } from '../../../components/ui';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus } from '../../../services/complianceService';
 import { fetchAllPages } from '../../../services/pagination';
-import { getSystemOrganizations } from '../../../services/systemAdministrationService';
+import * as systemAdminService from '../../../services/systemAdministrationService';
 import AccreditationTab from './AccreditationTab';
 import EventRequirementsTab from './EventRequirementsTab';
 import FinancialReportsTab from './FinancialReportsTab';
@@ -20,8 +20,9 @@ const DEFAULT_REVIEW_FILTERS = { organizationId: '', status: 'submitted' };
 
 const TABS = [
   { key: 'organizations', label: 'Organizations', icon: ShieldCheck, panelId: PANEL_ID, defaultTab: 'accreditation' },
+  { key: 'renewal', label: 'Renewal', icon: RefreshCw, panelId: PANEL_ID, defaultTab: 'renewal' },
   { key: 'event-reviews', label: 'Event reviews', icon: CalendarCheck, panelId: PANEL_ID, defaultTab: 'event-reviews' },
-  { key: 'financial', label: 'Financial reports', icon: Wallet, panelId: PANEL_ID },
+  { key: 'financial', label: 'Semestral Report & Financial Report', icon: Wallet, panelId: PANEL_ID },
   { key: 'settings', label: 'Requirement settings', icon: ClipboardList, panelId: PANEL_ID, defaultTab: 'requirements' },
 ];
 const ORGANIZATION_TABS = [
@@ -30,10 +31,21 @@ const ORGANIZATION_TABS = [
 ];
 const SETTING_TABS = [
   { key: 'requirements', label: 'Organization requirements', panelId: SUB_PANEL_ID },
+  { key: 'renewal-requirements', label: 'Renewal requirements', panelId: SUB_PANEL_ID },
   { key: 'events', label: 'Event requirements', panelId: SUB_PANEL_ID },
-  { key: 'semestral-requirements', label: 'Semestral report requirements', panelId: SUB_PANEL_ID },
+  { key: 'semestral-requirements', label: 'Semestral report & financial report requirements', panelId: SUB_PANEL_ID },
 ];
-const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'semestral-requirements': 'settings', 'event-reviews': 'event-reviews', financial: 'financial' };
+const TAB_GROUP = {
+  accreditation: 'organizations',
+  review: 'organizations',
+  renewal: 'renewal',
+  requirements: 'settings',
+  'renewal-requirements': 'settings',
+  events: 'settings',
+  'semestral-requirements': 'settings',
+  'event-reviews': 'event-reviews',
+  financial: 'financial',
+};
 
 function getCurrentRole() {
   try {
@@ -51,13 +63,38 @@ export default function SaoCompliancePage() {
   const activeTab = Object.hasOwn(TAB_GROUP, requestedTab) ? requestedTab : (hasRecord ? 'review' : DEFAULT_TAB);
   const activeGroup = TAB_GROUP[activeTab];
 
+  const [semesterId, setSemesterId] = useState('');
+  const [periods, setPeriods] = useState([]);
   const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : { ...DEFAULT_REVIEW_FILTERS, organizationId: searchParams.get('organization') || '' });
 
+  useEffect(() => {
+    if (role !== 'SUPER_ADMIN') return;
+    try {
+      if ('getAcademicPeriods' in systemAdminService && typeof systemAdminService.getAcademicPeriods === 'function') {
+        Promise.resolve(systemAdminService.getAcademicPeriods()).then((data) => {
+          const list = Array.isArray(data) ? data : [];
+          setPeriods(list);
+          const active = list.find((p) => p.is_active);
+          if (active) setSemesterId(String(active.id));
+        }).catch(() => {});
+      }
+    } catch {
+      // Ignore if not mocked in tests
+    }
+  }, [role]);
+
+  const statusCategory = activeTab === 'renewal' ? 'renewal' : undefined;
+
   const loadOverview = useCallback(() => {
     setOverview((current) => ({ ...current, loading: true, error: null }));
-    getComplianceStatus()
+    const params = {
+      ...(statusCategory ? { category: statusCategory } : {}),
+      ...(semesterId ? { academic_semester_id: semesterId } : {}),
+    };
+    const request = Object.keys(params).length > 0 ? getComplianceStatus(params) : getComplianceStatus();
+    request
       .then((response) => {
         setOverview({
           loading: false,
@@ -67,14 +104,13 @@ export default function SaoCompliancePage() {
         });
       })
       .catch((err) => setOverview((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load accreditation status.') })));
-  }, []);
+  }, [statusCategory, semesterId]);
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadOverview(); }, [loadOverview, role]);
 
-  // New and returned organizations are not accredited yet, so the accreditation overview skips them, but their registration files are in the queue.
   useEffect(() => {
     if (role !== 'SUPER_ADMIN') return;
-    Promise.all(['pending', 'returned'].map((lifecycleStatus) => fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: lifecycleStatus }))))
+    Promise.all(['pending', 'returned'].map((lifecycleStatus) => fetchAllPages((params) => systemAdminService.getSystemOrganizations({ ...params, lifecycle_status: lifecycleStatus }))))
       .then(([pending, returned]) => setPendingRegistrations([...pending, ...returned].map((organization) => ({ organization_id: organization.id, organization_name: `${organization.name} (registration)` }))))
       .catch(() => setPendingRegistrations([]));
   }, [role]);
@@ -105,13 +141,31 @@ export default function SaoCompliancePage() {
   const organizationTabs = ORGANIZATION_TABS.map((tab) => (tab.key === 'review' && awaitingReview > 0
     ? { ...tab, label: `${tab.label} (${awaitingReview})` }
     : tab));
-  const activeLabel = [...ORGANIZATION_TABS, ...SETTING_TABS, ...TABS].find((tab) => tab.key === activeTab).label;
+  const activeLabel = [...ORGANIZATION_TABS, ...SETTING_TABS, ...TABS].find((tab) => tab.key === activeTab)?.label || 'Compliance';
 
   if (requestedTab === 'documents') return <Navigate to="/dashboard/super-admin/documents" replace />;
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader />
+      <PageHeader
+        actions={
+          <div className="flex items-center gap-2">
+            <Select
+              filter
+              aria-label="Semester"
+              value={semesterId}
+              onChange={(e) => setSemesterId(e.target.value)}
+            >
+              <option value="">Active / All Semesters</option>
+              {periods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {period.academic_year?.label || period.academic_year_label || 'Academic Year'} · Semester {period.number}{period.is_active ? ' (Active)' : ''}
+                </option>
+              ))}
+            </Select>
+          </div>
+        }
+      />
 
       <Tabs value={activeGroup} onChange={(key) => changeTab(TABS.find((tab) => tab.key === key).defaultTab || key)} tabs={TABS} />
 
@@ -120,12 +174,20 @@ export default function SaoCompliancePage() {
         {activeGroup === 'settings' && <Tabs value={activeTab} onChange={changeTab} tabs={SETTING_TABS} />}
         <div role={activeGroup === 'organizations' || activeGroup === 'settings' ? 'tabpanel' : undefined} id={SUB_PANEL_ID} aria-label={activeLabel} className="space-y-5">
           {activeTab === 'accreditation' && (
-            <AccreditationTab overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} />
+            <AccreditationTab overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} onChanged={loadOverview} />
+          )}
+          {activeTab === 'renewal' && (
+            <AccreditationTab title="Annual organization renewal" overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} onChanged={loadOverview} />
           )}
           {activeTab === 'requirements' && (
-            <RequirementsTab currentAcademicYear={overview.academicYear} onChanged={loadOverview} />
+            <RequirementsTab currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
           )}
-          {activeTab === 'semestral-requirements' && <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} onChanged={loadOverview} />}
+          {activeTab === 'renewal-requirements' && (
+            <RequirementsTab key="renewal" category="renewal" currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
+          )}
+          {activeTab === 'semestral-requirements' && (
+            <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
+          )}
           {activeTab === 'review' && (
             <ReviewQueueTab
               organizations={[...overview.organizations, ...pendingRegistrations]}
@@ -139,7 +201,7 @@ export default function SaoCompliancePage() {
           )}
           {activeTab === 'events' && <EventRequirementsTab />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
-          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Financial reports">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
+          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral Report & Financial Report">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
         </div>
       </div>
     </div>

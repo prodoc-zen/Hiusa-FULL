@@ -160,7 +160,15 @@ export default function OrganizationCompliancePage() {
         nextStep={accreditation && <NextStep {...toNextStepProps(accreditation)} primary={undefined} />}
       />
 
-      <Tabs value={category} onChange={(next) => { setPage(1); setCategory(next); }} tabs={[{ key: 'organization', label: 'Organization Renewal & Annual Accreditation' }, { key: 'semestral_report', label: 'Semestral Accomplishment Reports' }]} />
+      <Tabs
+        value={category}
+        onChange={(next) => { setPage(1); setCategory(next); }}
+        tabs={[
+          { key: 'organization', label: 'Organization Accreditation' },
+          { key: 'renewal', label: 'Annual Organization Renewal' },
+          { key: 'semestral_report', label: 'Semestral Report & Financial Report' },
+        ]}
+      />
 
       {state.loading && (
         <div className="space-y-3">
@@ -192,7 +200,24 @@ export default function OrganizationCompliancePage() {
             rows={state.requirements.slice((page - 1) * 10, page * 10)}
             pagination={<PaginationControls currentPage={page} totalItems={state.requirements.length} pageSize={10} onPageChange={setPage} label="requirements" />}
             columns={[
-              { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>}</div> },
+              {
+                key: 'name',
+                header: 'Requirement',
+                render: (requirement) => (
+                  <div>
+                    <strong>{requirement.requirement_name}</strong>
+                    {requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}
+                    {requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && (
+                      <div className="mt-1.5 rounded border border-danger/30 bg-danger-tint p-2">
+                        <p className="text-xs font-semibold text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>
+                        <Button size="xs" variant="secondary" leftIcon={Pencil} className="mt-1.5" onClick={() => openUpload(requirement)}>
+                          Edit & resubmit
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ),
+              },
               { key: 'sample', header: 'Sample format', render: (requirement) => <RequirementSample requirement={requirement} onOpen={viewSample} /> },
               { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
               { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
