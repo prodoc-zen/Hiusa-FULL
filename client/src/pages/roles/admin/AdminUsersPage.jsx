@@ -3,6 +3,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useInRouterContext, useSearchParams } from 'react-router-dom';
 import { dashboardPopupLeft, dashboardPopupTop } from '../../../utils/dashboardPopupPosition';
 import { BookOpen, BriefcaseBusiness, CalendarDays, CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, Hash, Image, KeyRound, Layers3, Mail, MoreVertical, PencilLine, Phone, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserRound, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -395,6 +396,11 @@ export default function AdminUsersPage() {
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
+  const inRouter = useInRouterContext();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [searchParams, setSearchParams] = inRouter ? useSearchParams() : [new URLSearchParams(), () => {}];
+  const [activeUnit, setActiveUnit] = useState(() => (searchParams.get('tab') === 'admins' ? 'admins' : 'members'));
+  const isAdminsUnit = activeUnit === 'admins';
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
@@ -402,7 +408,22 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState(() => (searchParams.get('tab') === 'admins' ? 'ADMIN' : 'all'));
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') === 'admins' ? 'admins' : 'members';
+    setActiveUnit(tabParam);
+    setRoleFilter(tabParam === 'admins' ? 'ADMIN' : 'all');
+  }, [searchParams]);
+  const switchUnit = (unit) => {
+    setActiveUnit(unit);
+    setRoleFilter(unit === 'admins' ? 'ADMIN' : 'all');
+    if (inRouter) {
+      const next = new URLSearchParams(searchParams);
+      if (unit === 'admins') next.set('tab', 'admins');
+      else next.delete('tab');
+      setSearchParams(next, { replace: true });
+    }
+  };
   const [programFilter, setProgramFilter] = useState('all');
   const [yearLevelFilter, setYearLevelFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
@@ -517,7 +538,7 @@ export default function AdminUsersPage() {
 
 
   const openCreate = () => {
-    setCreateForm({ ...emptyCreateForm, department: academicStructure.department || 'College of Computer Studies' });
+    setCreateForm({ ...emptyCreateForm, role: isAdminsUnit ? 'ADMIN' : 'STUDENT', department: academicStructure.department || 'College of Computer Studies' });
     setModalError('');
     setModalFieldErrors({}); setCreatePhoto(null);
     setShowCreate(true);
@@ -796,6 +817,41 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
+      {actorRole === 'ADMIN' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2" role="tablist" aria-label="Member management units">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isAdminsUnit}
+              onClick={() => switchUnit('members')}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${!isAdminsUnit ? 'bg-[#0878B7] text-white' : 'text-slate-600 hover:bg-[#F8FBFD]'}`}
+            >
+              <UsersRound size={15} /> All Members
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isAdminsUnit}
+              onClick={() => switchUnit('admins')}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${isAdminsUnit ? 'bg-[#0878B7] text-white' : 'text-slate-600 hover:bg-[#F8FBFD]'}`}
+            >
+              <ShieldCheck size={15} /> Manage Admins
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${isAdminsUnit ? 'bg-white/20 text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{roleSummary.ADMIN ?? 0}</span>
+            </button>
+          </div>
+          {isAdminsUnit && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]"
+            >
+              <UserPlus size={15} /> Add Admin
+            </button>
+          )}
+        </div>
+      )}
 
       <section className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-4 shadow-sm lg:flex-row lg:items-center">
         <div className="grid flex-1 gap-3 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [

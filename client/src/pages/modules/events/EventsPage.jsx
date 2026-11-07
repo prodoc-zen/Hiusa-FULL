@@ -2151,11 +2151,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               {!editingEventId && activeEventRequirements.length > 0 && (
                 <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
                   <div>
-                    <h3 className="text-[13px] font-bold text-[#0F172A]">Required Event Letters & Documents (SAO Checklist)</h3>
+                    <h3 className="text-[13px] font-bold text-[#0F172A]">Required Event Letters & Documents ({form.venue_type === 'on_campus' ? 'On-Campus' : 'Off-Campus'} SAO Checklist)</h3>
                     <p className="text-xs text-slate-500">Attach letters and required documents now so they submit together with your event proposal.</p>
                   </div>
                   <div className="space-y-2.5">
-                    {activeEventRequirements.filter((r) => r.is_active !== false).map((req) => {
+                    {activeEventRequirements.filter((r) => r.is_active !== false && (!r.venue_type || r.venue_type === 'both' || r.venue_type === form.venue_type)).map((req) => {
                       const attachedFile = attachedEventFiles[req.id];
                       const fileErr = attachedFileErrors[req.id];
                       return (
