@@ -5,8 +5,8 @@ import SystemCollegesPage from './SystemCollegesPage';
 import { findRowAction } from '../../../test/rowActions';
 
 const mocks = vi.hoisted(() => ({
-  getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), createSystemCollege: vi.fn(), uploadSystemCollegeLogo: vi.fn(), deleteSystemCollege: vi.fn(),
-  createDepartmentHead: vi.fn(), updateDepartmentHead: vi.fn(), resetDepartmentHeadPassword: vi.fn(),
+  getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), createSystemCollege: vi.fn(), updateSystemCollege: vi.fn(), uploadSystemCollegeLogo: vi.fn(), deleteSystemCollege: vi.fn(),
+  createDepartmentHead: vi.fn(), inviteDepartmentHead: vi.fn(), updateDepartmentHead: vi.fn(), resetDepartmentHeadPassword: vi.fn(),
   archiveSystemCollege: vi.fn(), restoreSystemCollege: vi.fn(), permanentlyDeleteCollege: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
@@ -49,7 +49,7 @@ describe('SystemCollegesPage', () => {
   it('offers college creation and management', async () => {
     renderPage();
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
-    expect(screen.getByText(/COA · 0 organizations · Active/)).toBeInTheDocument();
+    expect(screen.getByText(/COA · 0 organizations · 0 members · Active/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add college' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     expect((await findRowAction('Delete college and transfer users'))).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('SystemCollegesPage', () => {
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Colleges');
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
   });
 
   it('reads the colleges and the agency overview together', async () => {

@@ -506,7 +506,7 @@ export default function SystemOrganizationsPage() {
     <div className="space-y-6">
       {status && <Tabs tabs={tabs} value={status} onChange={selectStatus} />}
       <div {...(status ? { role: 'tabpanel', id: PANEL_ID, 'aria-label': STATUS_TABS.find((tab) => tab.key === status).label } : {})} className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field><Button leftIcon={Building2} onClick={() => setCreatingUnified(true)}>Add unified organization</Button></div>
+      <div className="flex flex-wrap items-end justify-between gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field></div>
       {status === 'archived' && <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">Archived organizations are read-only. Restore to make changes.</p>}
       {error && !form && <ErrorState description={error} onRetry={() => load()} />}
       {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
@@ -546,6 +546,16 @@ export default function SystemOrganizationsPage() {
                   )}
                   <TableRowActions subject={name} label="Organization actions" actions={[
                     { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
+                    lifecycle === 'active' && {
+                      label: 'Copy admin invite link',
+                      icon: ExternalLink,
+                      disabled: org.college_is_active === false,
+                      onClick: () => {
+                        const url = `${window.location.origin}/register?organization=${org.id}&role=ADMIN`;
+                        navigator.clipboard?.writeText?.(url).catch(() => {});
+                        setNotice(`Admin invite link copied for ${name}.`);
+                      },
+                    },
                     lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
                     needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setAdminOrganization(org) },
                     lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
