@@ -26,6 +26,7 @@ export {
 } from './Skeleton';
 export { default as Stat } from './Stat';
 export { default as StatusBadge } from './StatusBadge';
+export { default as StatusToggleSwitch } from './StatusToggleSwitch';
 export { default as Tabs } from './Tabs';
 export { default as Textarea } from './Textarea';
 export { default as Tooltip } from './Tooltip';

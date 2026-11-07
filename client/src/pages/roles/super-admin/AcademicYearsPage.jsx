@@ -2,7 +2,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarRange, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
@@ -135,7 +135,7 @@ export default function AcademicYearsPage() {
     setSemesterErrors({});
     try {
       await createAcademicSemester(semesterYear.id, { ...semesterForm, number: Number(semesterForm.number) });
-      notify.success('Semester added', { description: 'Default requirements are inactive. After activating the semester, attach sample formats in Requirement settings before publishing each item.' });
+      notify.success('Semester added', { description: 'All default requirements for organizations, renewals, events, and semestral reports are active for this semester.' });
       setSemesterYear(null);
       setSemesterForm(EMPTY_SEMESTER);
       await load();
@@ -230,7 +230,7 @@ export default function AcademicYearsPage() {
       </Card>
 
       <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
-        <p className="mb-4 text-sm text-ink-muted">New semester requirements start inactive. After activating the semester, add sample formats and publish each item in Requirement settings.</p>
+        <p className="mb-4 text-sm text-ink-muted">New semester requirements start active by default. Toggle off any requirement that is not needed in Requirement settings.</p>
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
@@ -255,16 +255,26 @@ export default function AcademicYearsPage() {
           <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
             <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><StatusBadge status={semester.status} /></div>
             <div className="flex items-center gap-2">
-              {semester.status === 'upcoming' && (
-                <Button size="xs" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>
-                  Activate
-                </Button>
+              <StatusToggleSwitch
+                checked={semester.status === 'active'}
+                disabled={busy || semester.status === 'completed'}
+                label={`Toggle active status for ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                activeText="Active"
+                inactiveText={semester.status === 'completed' ? 'Completed' : 'Inactive'}
+                onChange={(next) => changeSemester(semester, next ? 'activate' : 'close')}
+              />
+              {semester.status !== 'active' && (
+                <button
+                  type="button"
+                  aria-label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                  title={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester`}
+                  disabled={busy}
+                  onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-soft text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
               )}
-              <TableRowActions subject={`${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} actions={[
-                semester.status === 'upcoming' && { label: 'Set as active', disabled: busy, onClick: () => changeSemester(semester, 'activate') },
-                semester.status === 'active' && { label: 'Close semester', disabled: busy, onClick: () => changeSemester(semester, 'close') },
-                semester.status !== 'active' && { label: `Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`, icon: Trash2, danger: true, disabled: busy, onClick: () => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); } },
-              ]} />
             </div>
           </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
         </div>)}
