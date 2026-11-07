@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, Eye, Pencil, Plus, Power, Trash2 } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, Select } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusToggleSwitch } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -25,8 +25,9 @@ import {
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
 
-export default function RequirementsTab({ currentAcademicYear, onChanged, category = 'organization' }) {
+export default function RequirementsTab({ currentAcademicYear, semesterId = '', onChanged, category = 'organization' }) {
   const semestral = category === 'semestral_report';
+  const renewal = category === 'renewal';
   const [types, setTypes] = useState({ loading: true, error: null, items: [], total: 0 });
   const [page, setPage] = useState(1);
   const [typeModal, setTypeModal] = useState(null);
@@ -49,7 +50,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
   const loadTypes = useCallback((refresh = false) => {
     const version = ++loadVersion.current;
     setTypes((current) => ({ ...current, loading: true, error: null }));
-    const params = { per_page: 10, page, category };
+    const params = { per_page: 10, page, category, ...(semesterId ? { academic_semester_id: semesterId } : {}) };
     const request = refresh ? getRequirementTypes(params, { cache: false }) : getRequirementTypes(params);
     request
       .then((response) => {
@@ -58,7 +59,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
       .catch((err) => {
         if (version === loadVersion.current) setTypes((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load requirement types.') }));
       });
-  }, [category, page]);
+  }, [category, page, semesterId]);
 
   useEffect(() => {
     const requests = loadVersion;
@@ -188,7 +189,18 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
 
   const columns = [
     { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{formatDisplayText(type.name)}</span> },
-    { key: 'academic_year', header: 'Academic year' },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (type) => (
+        <StatusToggleSwitch
+          checked={Boolean(type.is_active)}
+          disabled={togglingId === type.id}
+          onChange={() => requestToggle(type)}
+          label={`${type.is_active ? 'Deactivate' : 'Activate'} ${formatDisplayText(type.name)}`}
+        />
+      ),
+    },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'allowed_extensions', header: 'Accepted files', render: (type) => fileTypesLabel(type.allowed_extensions) },
     { key: 'sample', header: 'Sample format', render: (type) => type.template_original_name || (type.template_url ? 'Link' : <span className="font-semibold text-danger-strong">Sample format required</span>) },
@@ -198,8 +210,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
   return (
     <>
       <Card
-        title={semestral ? 'Semestral report requirements' : 'Organization requirements'}
-        description={semestral ? 'Files organization admins submit to SAO for their semestral report, with deadlines, accepted formats and samples.' : 'Files for organization registration and accreditation, with deadlines and accepted formats.'}
+        title={semestral ? 'Semestral report & financial report requirements' : renewal ? 'Renewal requirements' : 'Organization requirements'}
+        description={semestral ? 'Files organization admins submit to SAO for their semestral and financial report, with deadlines, accepted formats and samples.' : renewal ? 'Annual organization renewal requirements submitted by active organizations.' : 'Files for organization registration and accreditation, with deadlines and accepted formats.'}
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
         {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">You must provide a sample format for every requirement you publish. Edit the requirements marked “Sample format required” to attach a file or link.</p>}
@@ -234,7 +246,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged, catego
 
       <Modal
         open={Boolean(typeModal)}
-        title={`${typeModal?.mode === 'edit' ? 'Edit' : 'New'} ${semestral ? 'semestral report' : 'organization'} requirement`}
+        title={`${typeModal?.mode === 'edit' ? 'Edit' : 'New'} ${semestral ? 'semestral report' : renewal ? 'renewal' : 'organization'} requirement`}
         description={semestral ? 'Organization admins submit these files from the Semestral report tab in Compliance.' : 'Used for accreditation. Current-semester requirements also appear during organization registration.'}
         onClose={typeSaving ? undefined : () => setTypeModal(null)}
         closeOnEscape={!typeSaving}

@@ -70,7 +70,7 @@ describe('SaoVenuesPage', () => {
     it('opens on the calendar with the booking requests tab second', async () => {
       render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       const tabs = await screen.findAllByRole('tab');
-      expect(tabs.map((tab) => tab.textContent)).toEqual(['Calendar', 'Booking requests', 'Venue catalog']);
+      expect(tabs.map((tab) => tab.textContent)).toEqual(['Calendar', 'Booking requests', 'Venue catalog', 'Venue requirements']);
       expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
       expect(await screen.findByRole('heading', { name: 'Venue calendar' })).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: 'Booking requests' })).not.toBeInTheDocument();

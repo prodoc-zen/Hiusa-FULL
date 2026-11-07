@@ -26,6 +26,7 @@ import { fetchWindowBookings } from './fetchVenueWindow';
 import VenueCalendar from './VenueCalendar';
 import { conflictingPendingIds, overlaps } from './venueConflicts';
 import { venueStageText } from './venueStage';
+import EventRequirementsTab from '../sao/EventRequirementsTab';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -363,6 +364,7 @@ export default function SaoVenuesPage() {
           { key: 'calendar', label: 'Calendar', icon: CalendarDays },
           { key: 'bookings', label: 'Booking requests', icon: ClipboardCheck },
           { key: 'venues', label: 'Venue catalog', icon: Building2 },
+          { key: 'requirements', label: 'Venue requirements', icon: ClipboardCheck },
         ]}
       />
 
@@ -413,6 +415,10 @@ export default function SaoVenuesPage() {
             )}
           />
         </Card>
+      )}
+
+      {activeTab === 'requirements' && (
+        <EventRequirementsTab />
       )}
 
       {activeTab === 'bookings' && (
