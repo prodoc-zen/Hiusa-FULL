@@ -80,7 +80,7 @@ describe('desktop sidebar rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Governance' }));
     expect(screen.queryByRole('link', { name: 'Administrators' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Organization applications' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Applications' }));
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/organization-applications');
   });
 
@@ -142,7 +142,7 @@ describe('desktop sidebar rail', () => {
   ])('keeps the SAO registrations link current and opened on %s', (url) => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
     render(<MemoryRouter initialEntries={[url]}><SidebarHarness /></MemoryRouter>);
-    const link = screen.getByRole('link', { name: 'Registrations and organizations' });
+    const link = screen.getByRole('link', { name: 'Organizations' });
     expect(link).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending');
     expect(link).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');

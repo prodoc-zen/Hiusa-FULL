@@ -101,8 +101,8 @@ describe('getBreadcrumbs', () => {
   it('adds the parent page on a record page: Home, group, list, record', () => {
     expect(getBreadcrumbs('/dashboard/super-admin/organizations/7', 'SUPER_ADMIN')).toEqual([
       { label: 'Home', to: '/dashboard/super-admin' },
-      { label: 'Governance', to: '/dashboard/organization-applications' },
-      { label: 'Registrations and organizations', to: '/dashboard/super-admin/organizations' },
+      { label: 'Governance', to: '/dashboard/super-admin/colleges' },
+      { label: 'Organizations', to: '/dashboard/super-admin/organizations' },
       { label: 'Organization overview' },
     ]);
     expect(getBreadcrumbs('/dashboard/elections/manage-candidates', 'ADMIN').map((crumb) => crumb.label)).toEqual(['Home', 'Voting', 'Elections', 'Candidates']);

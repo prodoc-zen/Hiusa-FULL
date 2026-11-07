@@ -1,10 +1,9 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock, Eye, ExternalLink } from 'lucide-react';
+import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock, Eye, ExternalLink, RotateCcw } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import notify from '../../../lib/notify';
@@ -13,7 +12,7 @@ import { fetchAllPages, listMeta, unwrapList } from '../../../services/paginatio
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { Button, EmptyState, FlowStepper, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
-import { getSystemOrganizations } from '../../../services/systemAdministrationService';
+import * as systemAdminService from '../../../services/systemAdministrationService';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import ApprovalDetailDrawer from '../../../components/approvals/ApprovalDetailDrawer';
@@ -191,9 +190,8 @@ export default function DepartmentHeadApprovalsPage() {
   const [page, setPage] = useState(1);
   const [entityFilter, setEntityFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [sort, setSort] = useState('newest');
+  const [semesterFilter, setSemesterFilter] = useState('all');
+  const [periods, setPeriods] = useState([]);
   const [opened, setOpened] = useState(null);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
   const [submitting, setSubmitting] = useState(false);
@@ -203,14 +201,28 @@ export default function DepartmentHeadApprovalsPage() {
   const loadCounter = useRef(0);
   const organizationNames = useMemo(() => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])), [organizations]);
   const statusTabs = tab === 'submitted' ? SUBMITTED_STATUS_TABS : REVIEW_STATUS_TABS;
-  const filtersActive = Boolean(search || entityFilter !== 'all' || from || to || organizationFilter !== 'all');
+  const filtersActive = Boolean(search || entityFilter !== 'all' || organizationFilter !== 'all' || semesterFilter !== 'all');
+
+  useEffect(() => {
+    try {
+      if ('getAcademicPeriods' in systemAdminService && typeof systemAdminService.getAcademicPeriods === 'function') {
+        systemAdminService.getAcademicPeriods()
+          .then((data) => setPeriods(Array.isArray(data) ? data : []))
+          .catch(() => setPeriods([]));
+      }
+    } catch {
+      // Mocked module without getAcademicPeriods
+    }
+  }, []);
 
   useEffect(() => {
     if (!isDepartmentHead && !isSao) return;
-    fetchAllPages((params) => isSao ? getSystemOrganizations(params) : getCollegeOrganizations(params).then((res) => res.data))
+    fetchAllPages((params) => isSao ? systemAdminService.getSystemOrganizations(params) : getCollegeOrganizations(params).then((res) => res.data))
       .then(setOrganizations)
       .catch(() => notify.error('Could not load organizations.'));
   }, [isDepartmentHead, isSao]);
+
+  const activePeriod = useMemo(() => periods.find((period) => period.status === 'active') || null, [periods]);
 
   // Hoisted so the CSV export can reuse the exact same filter set as the
   // loaded page, without page/per_page, via fetchAllPages.
@@ -219,11 +231,9 @@ export default function DepartmentHeadApprovalsPage() {
     scope: tab === 'submitted' ? 'submitted' : undefined,
     entity_type: entityFilter === 'all' ? undefined : entityFilter,
     search: search || undefined,
-    from: from || undefined,
-    to: to || undefined,
-    sort,
     organization_id: organizationFilter === 'all' ? undefined : organizationFilter,
-  }), [statusFilter, tab, entityFilter, search, from, to, sort, organizationFilter]);
+    academic_semester_id: semesterFilter === 'all' ? undefined : semesterFilter,
+  }), [statusFilter, tab, entityFilter, search, organizationFilter, semesterFilter]);
 
   // A silent refresh re-reads the page the user is looking at without touching the loading flag,
   // the shared error or anything typed. It yields to any newer full load and to a changed view.
@@ -242,14 +252,10 @@ export default function DepartmentHeadApprovalsPage() {
       setForbidden(false);
     }
     const isStale = () => ticket !== loadCounter.current || (silent && signature !== currentView.current);
-    // The "Pending (n)" button always names the pending queue, even while
-    // viewing "All History", so it is read from its own totals-only request
-    // rather than from whichever status is currently loaded into `requests`.
-    // An Admin on "Submitted by me" also needs the To review count for its tab.
     const reviewCountRequest = isAdmin && tab === 'submitted' ? getApprovalRequests({ status: 'pending', per_page: 1 }) : null;
     return Promise.all([
       getApprovalRequests({ ...queryParams, page }),
-      getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id, scope: queryParams.scope }),
+      getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id, scope: queryParams.scope, academic_semester_id: queryParams.academic_semester_id }),
       reviewCountRequest,
     ])
       .then(([listRes, pendingRes, reviewRes]) => {
@@ -287,7 +293,7 @@ export default function DepartmentHeadApprovalsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, tab, entityFilter, search, from, to, sort, organizationFilter]);
+  }, [statusFilter, tab, entityFilter, search, organizationFilter, semesterFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => load(), 250);
@@ -295,8 +301,6 @@ export default function DepartmentHeadApprovalsPage() {
   }, [load]);
   useRefetchOnReturn(() => load({ silent: true }));
 
-  // ?record= opens the drawer. The row is taken from the loaded list when it is there; otherwise
-  // (a notification link, a filter hiding it, another page of results) it is read by id from the server.
   useEffect(() => {
     if (!recordId) {
       setOpened(null);
@@ -338,9 +342,7 @@ export default function DepartmentHeadApprovalsPage() {
     setSearch('');
     setEntityFilter('all');
     setOrganizationFilter('all');
-    setFrom('');
-    setTo('');
-    setSort('newest');
+    setSemesterFilter('all');
   }
 
   const canAct = (request) => request.status === 'pending' && Boolean(role) && request.required_role === role && request.requested_by !== user.school_id;
@@ -369,7 +371,7 @@ export default function DepartmentHeadApprovalsPage() {
     }
 
     if (filtersActive) {
-      return <EmptyState kind="filtered" title="No requests match these filters" description="Try a different type, date range or search." onClearFilters={resetFilters} />;
+      return <EmptyState kind="filtered" title="No requests match these filters" description="Try a different type, semester or search." onClearFilters={resetFilters} />;
     }
 
     if (tab === 'submitted') {
@@ -396,11 +398,16 @@ export default function DepartmentHeadApprovalsPage() {
   }
 
   const headerPrimary = isAdmin || isOfficer ? <Button to={NEW_REQUEST_PATH} leftIcon={Plus}>New request</Button> : undefined;
+  const headerActions = (
+    <Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>
+      {exporting ? 'Exporting...' : 'Export CSV'}
+    </Button>
+  );
   const listLabel = tab === 'submitted' ? 'Requests submitted by my organization' : 'Requests to review';
 
   return (
     <div className="space-y-6">
-      <PageHeader primary={headerPrimary} />
+      <PageHeader actions={headerActions} primary={headerPrimary} />
 
       {isAdmin && (
         <Tabs
@@ -414,26 +421,48 @@ export default function DepartmentHeadApprovalsPage() {
       )}
 
       <div id="approvals-panel" role={isAdmin ? 'tabpanel' : undefined} aria-label={isAdmin ? listLabel : undefined} className="space-y-6">
-        <div className="flex flex-wrap gap-2">
-          {statusTabs.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={statusFilter === option.value}
-              onClick={() => { setStatusFilter(option.value); setPage(1); }}
-              className={`h-11 rounded-lg px-4 text-[13px] font-bold transition-all ${
-                statusFilter === option.value
-                  ? 'bg-brand-700 text-white'
-                  : 'border border-line bg-surface text-ink-muted-strong hover:bg-subtle'
-              }`}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {statusTabs.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={statusFilter === option.value}
+                onClick={() => { setStatusFilter(option.value); setPage(1); }}
+                className={`h-11 rounded-lg px-4 text-[13px] font-bold transition-all ${
+                  statusFilter === option.value
+                    ? 'bg-brand-700 text-white'
+                    : 'border border-line bg-surface text-ink-muted-strong hover:bg-subtle'
+                }`}
+              >
+                {option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label}
+              </button>
+            ))}
+          </div>
+          {periods.length > 0 && (
+            <HiusaSelect
+              filter
+              aria-label="Semester"
+              value={semesterFilter}
+              onChange={(event) => setSemesterFilter(event.target.value)}
+              className="h-11 min-w-52 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"
             >
-              {option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label}
-            </button>
-          ))}
+              <option value="all">
+                {activePeriod
+                  ? `Active: AY ${activePeriod.academic_year?.label} · ${activePeriod.number === 1 ? '1st' : '2nd'} Semester`
+                  : 'All semesters'}
+              </option>
+              {periods.map((period) => (
+                <option key={period.id} value={String(period.id)}>
+                  AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester{period.status === 'active' ? ' (Active)' : ''}
+                </option>
+              ))}
+            </HiusaSelect>
+          )}
         </div>
 
         <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-          <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${isDepartmentHead ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
+          <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${(isDepartmentHead || isSao) ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
             <label className="relative min-w-0 xl:col-span-2">
               <Search size={15} className="absolute left-3 top-3.5 text-slate-500" aria-hidden="true" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." aria-label="Search requests" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
@@ -446,15 +475,8 @@ export default function DepartmentHeadApprovalsPage() {
                 <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
               </HiusaSelect>
             )}
-            <DateTimeInput type="date" aria-label="Requested from" value={from} onChange={(event) => setFrom(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <DateTimeInput type="date" aria-label="Requested to" value={to} onChange={(event) => setTo(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <HiusaSelect aria-label="Sort order" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></HiusaSelect>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-slate-500">{meta.total} matching request{meta.total === 1 ? '' : 's'} · {pendingTotal} awaiting action</p>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={resetFilters}>Reset</Button>
-              <Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+            <div className="flex items-center justify-end">
+              <Button variant="secondary" leftIcon={RotateCcw} onClick={resetFilters}>Reset</Button>
             </div>
           </div>
         </section>

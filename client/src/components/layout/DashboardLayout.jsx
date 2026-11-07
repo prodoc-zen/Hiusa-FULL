@@ -5,9 +5,9 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import RouteLoadingFallback from './RouteLoadingFallback';
 import RoleOnboardingTour from '../onboarding/RoleOnboardingTour';
-import { PageBreadcrumb, PageHeaderView } from '../ui/PageHeader';
+import { PageHeaderView } from '../ui/PageHeader';
 import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
-import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../lib/pageMeta';
+import { getPageMeta, getStoredRole } from '../../lib/pageMeta';
 import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
 
 // A page that was not moved to PageHeader yet still writes its own h1. Watching the content for one
@@ -51,7 +51,6 @@ export default function DashboardLayout() {
 
   const role = getStoredRole();
   const pageMeta = getPageMeta(location.pathname, role);
-  const breadcrumbs = getBreadcrumbs(location.pathname, role);
   const [tourOpen, setTourOpen] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState(() => {
     try {
@@ -132,10 +131,8 @@ export default function DashboardLayout() {
   }
 
   let defaultHeader = null;
-  if (pageMeta.matched && registeredHeaders === 0) {
-    defaultHeader = contentHasHeading
-      ? <div className="mb-4"><PageBreadcrumb crumbs={breadcrumbs} /></div>
-      : <PageHeaderView className="mb-6" breadcrumbs={breadcrumbs} title={pageMeta.title} lead={pageMeta.isHome ? undefined : pageMeta.purpose} />;
+  if (pageMeta.matched && registeredHeaders === 0 && !contentHasHeading) {
+    defaultHeader = <PageHeaderView className="mb-6" title={pageMeta.title} lead={pageMeta.isHome ? undefined : pageMeta.purpose} />;
   }
 
   return (
