@@ -40,6 +40,7 @@ const group = (id, label, icon, children, extra = {}) => ({ id, label, icon, chi
 
 const L = {
   people: leaf('manage-users', 'People', '/dashboard/admin/users', UsersRound, { aliases: ['Manage Users', 'User Management'] }),
+  admins: leaf('manage-admins', 'Admins', '/dashboard/admin/users?tab=admins', ShieldCheck, { aliases: ['Manage Admins', 'Organization Admins'] }),
   positions: leaf('manage-positions', 'Officer positions', '/dashboard/admin/positions', BadgeCheck, { aliases: ['Manage Positions', 'SBO positions'], also: ['/dashboard/admin/sbo-positions'] }),
   programs: leaf('manage-programs-sections', 'Programs and sections', '/dashboard/admin/programs-sections', GraduationCap, { aliases: ['Programs & Sections'] }),
 
@@ -100,7 +101,7 @@ const NAV_BY_ROLE = {
     dashboard('ADMIN'),
     askAi(),
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/approvals', also: ['/dashboard/approval-requests/new'] },
-    group('members', 'Members', Users, [L.people, L.positions, L.programs], { band: 'Manage' }),
+    group('members', 'Members', Users, [L.people, L.admins, L.positions, L.programs], { band: 'Manage' }),
     group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.collections, L.studentAccounts, L.reports, L.forecast], { band: 'Manage' }),
     group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.events, L.venues, L.planning, L.tasks, L.aiDelegation, L.checkIn], { band: 'Manage' }),
     group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
@@ -151,15 +152,14 @@ const NAV_BY_ROLE = {
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
     askAi(),
-    { id: 'sao-users', label: 'University users', icon: UsersRound, path: '/dashboard/super-admin/users' },
     group('sao-organizations-group', 'Governance', Building2, [
-      leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),
-      leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
       leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'] }),
+      leaf('sao-applications', 'Applications', '/dashboard/organization-applications', ClipboardCheck, { aliases: ['Organization applications'] }),
+      leaf('sao-organizations', 'Organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Registrations and organizations'] }),
     ]),
     group('sao-reviews', 'Reviews', ClipboardCheck, [
       leaf('sao-compliance', 'Compliance', '/dashboard/super-admin/compliance', ClipboardCheck),
-      leaf('sao-organization-approvals', 'Organization approvals', '/dashboard/super-admin/organization-approvals', ClipboardCheck),
+      leaf('sao-organization-approvals', 'Approvals', '/dashboard/super-admin/organization-approvals', ClipboardCheck, { aliases: ['Organization approvals'] }),
       leaf('sao-venues', 'Venues', '/dashboard/super-admin/venues', MapPin),
       leaf('sao-grievances', 'Grievances', '/dashboard/super-admin/grievances', MessageSquare),
       leaf('sao-clearances', 'Clearances', '/dashboard/super-admin/clearances', ShieldCheck),

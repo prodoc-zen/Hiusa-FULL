@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
 import DepartmentHeadApprovalsPage from './DepartmentHeadApprovalsPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), openProtectedFile: vi.fn() }));
-vi.mock('../../../services/systemAdministrationService', () => ({ getSystemOrganizations: mocks.getSystemOrganizations }));
+const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), getAcademicPeriods: vi.fn().mockResolvedValue([]), openProtectedFile: vi.fn() }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getSystemOrganizations: mocks.getSystemOrganizations, getAcademicPeriods: mocks.getAcademicPeriods }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
@@ -92,7 +92,7 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
 
     await waitFor(() => expect(screen.queryByText(/chess report/i)).not.toBeInTheDocument());
     expect(screen.getByText(/drama report/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 matching request ·/)).toBeInTheDocument();
+    expect(screen.queryByText(/matching request/i)).not.toBeInTheDocument();
     expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ organization_id: '8', status: 'pending', page: 1 }));
   });
 
@@ -108,7 +108,6 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '8' } });
 
     expect(await screen.findByText(/drama report 1/i)).toBeInTheDocument();
-    expect(screen.getByText('45 matching requests · 3 awaiting action')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pending (3)' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next page of requests' }));
@@ -591,7 +590,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
 
     expect(listCalls()).toEqual([expect.objectContaining({ search: 'report', status: 'pending', page: 1 })]);
     expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('2 matching requests · 2 awaiting action')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pending (2)' })).toBeInTheDocument();
     expect(loaded()).toBe(true);
     expect(screen.getByLabelText('Search requests')).toHaveValue('report');
     expect(screen.getByRole('dialog')).toBeInTheDocument();

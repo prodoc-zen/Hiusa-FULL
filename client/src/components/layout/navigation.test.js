@@ -25,7 +25,7 @@ const SPEC = {
     { label: 'Dashboard', path: '/dashboard/admin' },
     { label: 'Ask AI', path: '/dashboard/ask-ai' },
     { label: 'Approvals', path: '/dashboard/approvals' },
-    { band: 'Manage', label: 'Members', children: [['People', '/dashboard/admin/users'], ['Officer positions', '/dashboard/admin/positions'], ['Programs and sections', '/dashboard/admin/programs-sections']] },
+    { band: 'Manage', label: 'Members', children: [['People', '/dashboard/admin/users'], ['Admins', '/dashboard/admin/users?tab=admins'], ['Officer positions', '/dashboard/admin/positions'], ['Programs and sections', '/dashboard/admin/programs-sections']] },
     {
       band: 'Manage',
       label: 'Finance',
@@ -105,20 +105,19 @@ const SPEC = {
   SUPER_ADMIN: [
     { label: 'Dashboard', path: '/dashboard/super-admin' },
     { label: 'Ask AI', path: '/dashboard/ask-ai' },
-    { label: 'University users', path: '/dashboard/super-admin/users' },
     {
       label: 'Governance',
       children: [
-        ['Organization applications', '/dashboard/organization-applications'],
-        ['Registrations and organizations', '/dashboard/super-admin/organizations?status=pending'],
         ['Colleges', '/dashboard/super-admin/colleges'],
+        ['Applications', '/dashboard/organization-applications'],
+        ['Organizations', '/dashboard/super-admin/organizations?status=pending'],
       ],
     },
     {
       label: 'Reviews',
       children: [
         ['Compliance', '/dashboard/super-admin/compliance'],
-        ['Organization approvals', '/dashboard/super-admin/organization-approvals'],
+        ['Approvals', '/dashboard/super-admin/organization-approvals'],
         ['Venues', '/dashboard/super-admin/venues'],
         ['Grievances', '/dashboard/super-admin/grievances'],
         ['Clearances', '/dashboard/super-admin/clearances'],
@@ -146,11 +145,11 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it.each([
-    ['ADMIN', 11, 35],
+    ['ADMIN', 11, 36],
     ['SBO_OFFICER', 10, 25],
     ['DEPARTMENT_HEAD', 12, 15],
     ['STUDENT', 8, 12],
-    ['SUPER_ADMIN', 8, 17],
+    ['SUPER_ADMIN', 7, 16],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -172,7 +171,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
 
   it('opens a group on its first page', () => {
     const group = getNavForRole('SUPER_ADMIN').find((item) => item.label === 'Governance');
-    expect(resolveItemPath(group)).toBe('/dashboard/organization-applications');
+    expect(resolveItemPath(group)).toBe('/dashboard/super-admin/colleges');
     expect(getVisibleChildren(group)).toHaveLength(3);
   });
 

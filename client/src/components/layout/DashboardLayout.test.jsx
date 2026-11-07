@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PageHeader from '../ui/PageHeader';
@@ -122,27 +122,22 @@ function renderRouted(path, page, role = 'ADMIN') {
   );
 }
 
-function crumbLabels() {
-  return within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getAllByRole('listitem').map((item) => item.textContent);
-}
-
 describe('DashboardLayout page header', () => {
   beforeEach(() => localStorage.clear());
 
   it.each([
-    ['SUPER_ADMIN', '/dashboard/organization-applications', 'Organization applications', /Review verified applications/, ['Home', 'Governance', 'Organization applications']],
-    ['ADMIN', '/dashboard/finance/budget-allocation', 'Budgets', /Plan and review organization budgets/, ['Home', 'Finance', 'Budgets']],
-    ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/, ['Home', 'Organizations']],
-    ['STUDENT', '/dashboard/events/activity-calendar', 'Events', /Browse approved activities/, ['Home', 'Events']],
-    ['SBO_OFFICER', '/dashboard/events/activity-calendar', 'Calendar', /Browse approved activities/, ['Home', 'Events and tasks', 'Calendar']],
-  ])('gives a page without a header of its own one h1, a purpose and a breadcrumb for %s on %s', (role, path, title, purpose, crumbs) => {
+    ['SUPER_ADMIN', '/dashboard/organization-applications', 'Applications', /Review verified applications/],
+    ['ADMIN', '/dashboard/finance/budget-allocation', 'Budgets', /Plan and review organization budgets/],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/],
+    ['STUDENT', '/dashboard/events/activity-calendar', 'Events', /Browse approved activities/],
+    ['SBO_OFFICER', '/dashboard/events/activity-calendar', 'Calendar', /Browse approved activities/],
+  ])('gives a page without a header of its own one h1 and a purpose without cluttering breadcrumbs for %s on %s', (role, path, title, purpose) => {
     renderRouted(path, <p>Plain page body</p>, role);
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
     expect(screen.getByText(purpose)).toBeInTheDocument();
-    expect(screen.getAllByRole('navigation', { name: 'Breadcrumb' })).toHaveLength(1);
-    expect(crumbLabels()).toEqual(crumbs);
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
     expect(screen.getByText('Plain page body')).toBeInTheDocument();
   });
 
@@ -150,7 +145,7 @@ describe('DashboardLayout page header', () => {
     renderRouted('/dashboard/admin', <p>Briefing</p>);
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.queryByText(/what needs attention/i)).not.toBeInTheDocument();
-    expect(crumbLabels()).toEqual(['Home']);
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
   });
 
   it('shows the default header while a lazy page loads, so the person still sees where they are', () => {
@@ -160,24 +155,23 @@ describe('DashboardLayout page header', () => {
     expect(screen.getByRole('status', { name: 'Loading page' })).toBeInTheDocument();
   });
 
-  it('adds no title of its own when the page renders a PageHeader, and its breadcrumb is the only one', () => {
+  it('adds no title of its own when the page renders a PageHeader', () => {
     renderRouted('/dashboard/finance/budget-allocation', <PageHeader title="Budget planning" description="Own description." />);
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Budget planning' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: 'Budgets' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('navigation', { name: 'Breadcrumb' })).toHaveLength(1);
-    expect(crumbLabels()).toEqual(['Home', 'Finance', 'Budgets']);
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
     expect(screen.getByText('Own description.')).toBeInTheDocument();
     expect(screen.queryByText(/Plan and review organization budgets/)).not.toBeInTheDocument();
   });
 
-  it('keeps one h1 and gains the breadcrumb for a page that still writes its own h1', async () => {
+  it('keeps one h1 for a page that still writes its own h1', async () => {
     renderRouted('/dashboard/my-clearance', <h1>My clearance</h1>, 'STUDENT');
 
     await waitFor(() => expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1));
     expect(screen.getByRole('heading', { level: 1, name: 'My clearance' })).toBeInTheDocument();
-    expect(crumbLabels()).toEqual(['Home', 'Support', 'My clearance']);
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
   });
 
   it('swaps back to the default header when the page header goes away', async () => {

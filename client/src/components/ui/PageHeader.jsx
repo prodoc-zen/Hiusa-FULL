@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import { Link, useInRouterContext, useLocation } from 'react-router-dom';
-import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../lib/pageMeta';
+import { getPageMeta, getStoredRole } from '../../lib/pageMeta';
 import { useRegisterPageHeader } from '../../lib/pageHeaderRegistry';
 
 export function PageBreadcrumb({ crumbs }) {
@@ -79,7 +79,7 @@ function RoutedPageHeader({ breadcrumbs, title, description, purpose, ...rest })
   return (
     <PageHeaderView
       {...rest}
-      breadcrumbs={breadcrumbs ?? getBreadcrumbs(pathname, role)}
+      breadcrumbs={breadcrumbs}
       title={title ?? pageMeta.title}
       lead={description ?? purpose ?? (pageMeta.isHome ? undefined : pageMeta.purpose) ?? undefined}
     />
