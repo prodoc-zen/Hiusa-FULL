@@ -289,7 +289,7 @@ export default function TopBar({ onMenuToggle }) {
 
   return (
     <header ref={headerRef} className="relative z-30 mx-2 mt-2 min-w-0 shrink-0 rounded-2xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6 sm:rounded-3xl">
-      <div className="flex min-h-16 min-w-0 items-center gap-1.5 px-2 py-2 sm:gap-3 sm:px-6 sm:py-3">
+      <div className="group/bar flex min-h-16 min-w-0 items-center gap-1.5 px-2 py-2 sm:gap-3 sm:px-6 sm:py-3">
         {/* Hamburger toggle */}
         <button
           type="button"
@@ -306,16 +306,16 @@ export default function TopBar({ onMenuToggle }) {
           const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
           const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
           return (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5" data-tour="topbar-period" ref={periodRef}>
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 max-xl:[&:has([data-tour=topbar-subaccount])>[data-period-chip]]:hidden" data-tour="topbar-period" ref={periodRef}>
               {currentDisplayPeriod?.academic_year?.label && (
-                <div className="relative">
+                <div className="relative flex min-w-0" data-period-chip>
                   <button
                     type="button"
                     onClick={() => setPeriodDropdownOpen((open) => !open)}
                     aria-expanded={periodDropdownOpen}
                     aria-haspopup="listbox"
                     aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
-                    className={`inline-flex max-w-[140px] min-[420px]:max-w-[200px] min-[540px]:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
+                    className={`inline-flex min-w-0 max-w-[140px] min-[420px]:max-w-[200px] sm:min-w-[9rem] min-[540px]:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
                       isAdvanceMode
                         ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
                         : isArchiveMode
@@ -399,11 +399,13 @@ export default function TopBar({ onMenuToggle }) {
               <button
                 type="button"
                 data-tour="topbar-tour-btn"
+                aria-label="Interactive Tour"
+                title="Interactive Tour"
                 onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
-                className="hidden h-9 items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
+                className="hidden h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#DDE7EF] bg-white px-2.5 2xl:px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
               >
                 <MousePointerClick size={14} className="text-[#0878B7]" aria-hidden="true" />
-                <span>Interactive Tour</span>
+                <span className="hidden 2xl:inline">Interactive Tour</span>
               </button>
             </div>
           );
@@ -414,13 +416,13 @@ export default function TopBar({ onMenuToggle }) {
           onClick={() => setPaletteOpen(true)}
           aria-label="Go to page"
           aria-keyshortcuts="Control+K Meta+K"
-          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px]"
+          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px] group-has-[[data-tour=topbar-subaccount]]/bar:max-xl:min-w-0 group-has-[[data-tour=topbar-subaccount]]/bar:max-xl:px-2.5"
         >
           <span className="flex items-center gap-2">
             <Search size={16} aria-hidden="true" />
-            <span className="hidden md:inline">Go to page</span>
+            <span className="hidden md:inline group-has-[[data-tour=topbar-subaccount]]/bar:max-xl:hidden">Go to page</span>
           </span>
-          <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
+          <Kbd className="hidden md:inline-flex group-has-[[data-tour=topbar-subaccount]]/bar:max-xl:hidden">Ctrl K</Kbd>
         </button>
 
         {canOrderMerchandise && (
@@ -495,7 +497,7 @@ export default function TopBar({ onMenuToggle }) {
         )}
 
         {/* Notification Bell */}
-        <div className={`relative ${canOrderMerchandise ? '' : 'ml-auto sm:ml-0'}`} ref={notifRef}>
+        <div className={`relative shrink-0 ${canOrderMerchandise ? '' : 'ml-auto sm:ml-0'}`} ref={notifRef}>
           <button
             type="button"
             aria-label="Notifications"
@@ -599,7 +601,7 @@ export default function TopBar({ onMenuToggle }) {
         </div>
 
         {/* Profile dropdown */}
-        <div className="relative" ref={profileRef}>
+        <div className="relative shrink-0" ref={profileRef}>
           <button
             type="button"
             ref={profileTriggerRef}

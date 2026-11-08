@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
@@ -172,9 +172,8 @@ function DocumentsTab({ space }) {
 
 export default function OrgSpacePage() {
   const { orgId } = useParams();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { subAccount, enter, leave } = useActiveSubAccount();
+  const { subAccount, enter } = useActiveSubAccount();
   const [space, setSpace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -206,11 +205,6 @@ export default function OrgSpacePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
-  function backToCollege() {
-    leave();
-    navigate('/dashboard/department-head');
-  }
-
   function openTab(key) {
     const next = new URLSearchParams(params);
     if (key === 'overview') next.delete('tab');
@@ -222,7 +216,6 @@ export default function OrgSpacePage() {
     <PageHeader
       title={space?.organization?.name || 'Organization'}
       description={space ? `${space.organization.acronym ? `${space.organization.acronym} · ` : ''}${space.organization.college}` : undefined}
-      actions={<Button variant="secondary" onClick={backToCollege}>Back to my college</Button>}
     />
   );
 
