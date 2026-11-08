@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AccountProfile;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\Candidate;
 use App\Models\College;
 use App\Models\Election;

@@ -15,7 +15,6 @@ use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;

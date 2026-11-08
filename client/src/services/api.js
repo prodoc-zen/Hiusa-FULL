@@ -136,6 +136,17 @@ api.interceptors.response.use(
     if (status === 403) {
       error.isForbidden = true;
 
+      // The profile this sign-in was opened with no longer works, for example after an election
+      // handed its post to someone else. Signing in again picks a profile that does.
+      if (error.response.data?.error_code === 'PROFILE_UNAVAILABLE') {
+        clearApiCache();
+        clearAuthSession();
+        if (!['/', '/login'].includes(window.location.pathname)) {
+          window.location.assign('/login');
+        }
+        return Promise.reject(error);
+      }
+
       if (error.response.data?.error_code === 'PASSWORD_CHANGE_REQUIRED') {
         error.isPasswordChangeRequired = true;
         markPasswordChangeRequired();

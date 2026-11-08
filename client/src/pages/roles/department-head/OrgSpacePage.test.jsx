@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OrgSpacePage from './OrgSpacePage';
@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({ getOrganizationSpace: vi.fn(), openProtectedFi
 
 vi.mock('../../../services/orgSpaceService', () => ({ getOrganizationSpace: mocks.getOrganizationSpace }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
+vi.mock('../../../components/org/OrgAccessPanel', () => ({
+  default: ({ organizationId, actorRole }) => <p data-testid="org-access">{`access panel ${organizationId} as ${actorRole}`}</p>,
+}));
 
 const space = {
   organization: { id: 12, name: 'Computing Society', acronym: 'CS', college: 'College of Computing', lifecycle_status: 'active' },
@@ -67,16 +70,10 @@ describe('OrgSpacePage', () => {
     await waitFor(() => expect(JSON.parse(sessionStorage.getItem(SUB_ACCOUNT_KEY))).toMatchObject({ id: 12, name: 'Computing Society' }));
   });
 
-  it('lists the people with their access, name first and school ID small', async () => {
+  it('mounts the access panel for the dean on the people tab', async () => {
     renderPage('/dashboard/department-head/org/12?tab=people');
 
-    const table = await screen.findByRole('table', { name: 'People with access to this organization' });
-    const rows = within(table).getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('Ana Reyes');
-    expect(rows[1]).toHaveTextContent('Org head');
-    expect(rows[1]).toHaveTextContent('President');
-    expect(rows[1]).toHaveTextContent('ID 20240001');
-    expect(rows[2]).toHaveTextContent('Member');
+    expect(await screen.findByTestId('org-access')).toHaveTextContent('access panel 12 as DEPARTMENT_HEAD');
   });
 
   it('shows upcoming and recent events', async () => {
@@ -127,11 +124,9 @@ describe('OrgSpacePage', () => {
 
   it('shows empty states when there is nothing yet', async () => {
     mocks.getOrganizationSpace.mockResolvedValue({ data: { ...space, members: [], documents: [], finance: { ...space.finance, budgets: [], approved_budget_count: 0 } } });
-    renderPage('/dashboard/department-head/org/12?tab=people');
-    expect(await screen.findByText('No one yet')).toBeInTheDocument();
+    renderPage('/dashboard/department-head/org/12?tab=documents');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect(screen.getByText('No documents yet')).toBeInTheDocument();
+    expect(await screen.findByText('No documents yet')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Finance' }));
     expect(screen.getByText('No approved budget yet')).toBeInTheDocument();
   });

@@ -83,7 +83,7 @@ class ElectionController extends Controller
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->whereIn('organization_id', $readableOrgIds);
-        $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
@@ -158,7 +158,7 @@ class ElectionController extends Controller
 
     public function store(Request $request)
     {
-        $semester = AcademicSemester::active();
+        $semester = AcademicSemester::selected($request);
         if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new elections can be created.'], 409);
         }
@@ -177,7 +177,7 @@ class ElectionController extends Controller
         ]);
         if ($semester && (Carbon::parse($data['start_time'])->toDateString() < $semester->starts_on->toDateString()
             || Carbon::parse($data['end_time'])->toDateString() > $semester->ends_on->toDateString())) {
-            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the active semester.']]);
+            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in.']]);
         }
 
         $imageUrl = $request->hasFile('image') ? $this->storeElectionImage($request) : null;

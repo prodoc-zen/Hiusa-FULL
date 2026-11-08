@@ -210,13 +210,13 @@ class ApprovalRequestController extends Controller
         }
         if ($approval->entity_type === 'event') {
             $event = Event::where('organization_id', $approval->organization_id)->find($approval->entity_id);
-            if ($event?->academic_semester_id && $event->academic_semester_id !== AcademicSemester::active()?->id) {
+            if (AcademicSemester::isClosed($event?->academic_semester_id)) {
                 return response()->json(['message' => 'Historical semester event approvals are read only.'], 409);
             }
         }
         if ($approval->entity_type === 'election') {
             $election = Election::where('organization_id', $approval->organization_id)->find($approval->entity_id);
-            if ($election?->academic_semester_id && $election->academic_semester_id !== AcademicSemester::active()?->id) {
+            if (AcademicSemester::isClosed($election?->academic_semester_id)) {
                 return response()->json(['message' => 'Historical semester election approvals are read only.'], 409);
             }
         }

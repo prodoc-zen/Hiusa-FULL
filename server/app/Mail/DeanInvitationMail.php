@@ -35,4 +35,3 @@ class DeanInvitationMail extends Mailable implements ShouldQueue
         );
     }
 }
-

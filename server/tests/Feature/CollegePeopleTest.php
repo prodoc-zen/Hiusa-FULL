@@ -8,7 +8,6 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -31,33 +30,11 @@ class CollegePeopleTest extends TestCase
     {
         parent::setUp();
 
-        $this->ensureRegistryTable();
-
         $this->computing = $this->makeCollege('COC');
         $this->arts = $this->makeCollege('CAS');
         $this->computingHome = $this->makeCollegeHome($this->computing);
         $this->artsHome = $this->makeCollegeHome($this->arts);
         $this->dean = $this->makeCollegeHead($this->computing, ['first_name' => 'Dana', 'last_name' => 'Dean']);
-    }
-
-    private function ensureRegistryTable(): void
-    {
-        if (Schema::hasTable('student_registry')) {
-            return;
-        }
-
-        Schema::create('student_registry', function ($table) {
-            $table->id();
-            $table->unsignedBigInteger('school_id')->unique();
-            $table->string('first_name');
-            $table->string('last_name');
-            $table->date('birth_date');
-            $table->unsignedBigInteger('college_id');
-            $table->string('program')->nullable();
-            $table->string('year_level')->nullable();
-            $table->string('section')->nullable();
-            $table->timestamp('claimed_at')->nullable();
-        });
     }
 
     private function registryRow(int $schoolId, string $first, string $last, College $college, ?string $claimedAt = null): void

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\College;
 use App\Models\Grievance;
 use App\Models\Merchandise;
 use App\Models\Order;

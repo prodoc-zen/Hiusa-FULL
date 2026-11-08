@@ -3,12 +3,15 @@ import { Check, Copy, Search, UserPlus } from 'lucide-react';
 import { Button, DataTable, EmptyState, Field, Input, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Modal from '../../../components/Modal';
+import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import PaginationControls from '../../../components/PaginationControls';
+import StudentRecordsPanel from '../../../components/students/StudentRecordsPanel';
 import notify from '../../../lib/notify';
-import { getCollegePeople, inviteCollegeStaff } from '../../../services/collegePeopleService';
-import { removeCollegeStaff } from '../../../services/collegeOrganizationService';
+import { getCollegePeople } from '../../../services/collegePeopleService';
+import { inviteCollegeStaff, removeCollegeStaff } from '../../../services/collegeOrganizationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { storedUser } from '../../../utils/collegeIdentity';
 
 const TABS = [
   { key: 'students', label: 'Students' },
@@ -72,6 +75,7 @@ const staffColumns = [
 ];
 
 function InviteStaffModal({ open, onClose }) {
+  const [position, setPosition] = useState('');
   const [email, setEmail] = useState('');
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,6 +84,7 @@ function InviteStaffModal({ open, onClose }) {
 
   useEffect(() => {
     if (open) {
+      setPosition('');
       setEmail('');
       setLink('');
       setError('');
@@ -92,7 +97,7 @@ function InviteStaffModal({ open, onClose }) {
     setBusy(true);
     setError('');
     try {
-      const response = await inviteCollegeStaff(email.trim() ? { email: email.trim() } : {});
+      const response = await inviteCollegeStaff({ position_title: position.trim(), ...(email.trim() && { email: email.trim() }) });
       setLink(response.data.magic_link);
     } catch (cause) {
       setError(getApiErrorMessage(cause, 'Could not create the link. Try again.'));
@@ -130,13 +135,16 @@ function InviteStaffModal({ open, onClose }) {
         </div>
       ) : (
         <form onSubmit={createLink} className="flex flex-col gap-4">
+          <Field label="Position" required hint="For example, College Secretary.">
+            <Input value={position} onChange={(event) => setPosition(event.target.value)} maxLength={100} autoComplete="off" />
+          </Field>
           <Field label="Send it to (optional)" hint="Leave this empty to share the link yourself.">
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" />
           </Field>
           {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={busy}>Create link</Button>
+            <Button type="submit" loading={busy} disabled={!position.trim()}>Create link</Button>
           </div>
         </form>
       )}
@@ -152,6 +160,8 @@ export default function CollegePeoplePage() {
   const [reload, setReload] = useState(0);
   const [state, setState] = useState({ tab: 'students', loading: true, error: '', rows: [], meta: { total: 0, perPage: 25 } });
   const [inviting, setInviting] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [granting, setGranting] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
 
@@ -171,6 +181,11 @@ export default function CollegePeoplePage() {
       .catch((cause) => { if (current) setState({ tab, loading: false, error: getApiErrorMessage(cause, 'Could not load this list.'), rows: [], meta: { total: 0, perPage: 25 } }); });
     return () => { current = false; };
   }, [tab, query, page, reload]);
+
+  function toggleRecords() {
+    if (recordsOpen) setReload((value) => value + 1);
+    setRecordsOpen(!recordsOpen);
+  }
 
   function changeTab(next) {
     setTab(next);
@@ -193,6 +208,7 @@ export default function CollegePeoplePage() {
     }
   }
 
+  const collegeId = storedUser()?.organization?.college_id || null;
   const filtersActive = Boolean(query);
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
@@ -205,8 +221,16 @@ export default function CollegePeoplePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="People"
+        actions={tab === 'students' ? (
+          <>
+            <Button variant="secondary" onClick={() => setGranting(true)}>Allow a student to apply</Button>
+            {collegeId && <Button variant="secondary" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>}
+          </>
+        ) : null}
         primary={tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Invite staff</Button> : null}
       />
+
+      {tab === 'students' && collegeId && recordsOpen && <StudentRecordsPanel collegeId={collegeId} />}
 
       <div className="rounded-card border border-line bg-surface shadow-card">
         <div className="px-5">
@@ -237,7 +261,11 @@ export default function CollegePeoplePage() {
             emptyState={filtersActive ? (
               <EmptyState kind="filtered" query={query} description="Try a different name, email or school ID." />
             ) : (
-              <EmptyState title={EMPTY[tab].title} description={EMPTY[tab].description} />
+              <EmptyState
+                title={EMPTY[tab].title}
+                description={EMPTY[tab].description}
+                action={tab === 'students' && collegeId && !recordsOpen ? <Button onClick={toggleRecords}>Load student records</Button> : undefined}
+              />
             )}
             actions={tab === 'staff' ? staffActions : undefined}
             actionsHeader=""
@@ -250,6 +278,7 @@ export default function CollegePeoplePage() {
       </div>
 
       <InviteStaffModal open={inviting} onClose={() => setInviting(false)} />
+      <ApplicantGrantModal open={granting} onClose={() => setGranting(false)} onGranted={() => setReload((value) => value + 1)} />
       <ConfirmModal
         open={Boolean(removing)}
         title="Remove from the college office"

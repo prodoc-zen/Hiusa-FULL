@@ -2,8 +2,8 @@
 
 namespace App\Services\Records;
 
-use App\Models\AccountProfile;
 use App\Models\AcademicSemester;
+use App\Models\AccountProfile;
 use App\Models\Organization;
 use App\Models\OrganizationSemesterRecord;
 use Illuminate\Support\Facades\DB;

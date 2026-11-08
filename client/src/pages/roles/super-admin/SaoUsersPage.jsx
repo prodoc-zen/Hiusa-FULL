@@ -8,6 +8,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import { getSystemUser, getSystemUsers, deleteSystemUser } from '../../../services/systemAdministrationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { visibleSchoolId } from '../../../utils/schoolId';
 
 const ROLES = [
   ['SUPER_ADMIN', 'SAO'], ['ADMIN', 'Organization Admin'], ['SBO_OFFICER', 'Officer'],
@@ -92,7 +93,7 @@ export default function SaoUsersPage() {
           <thead className="bg-subtle text-xs font-bold uppercase text-ink-muted"><tr><th scope="col" className="px-4 py-3">User</th><th scope="col" className="px-4 py-3">School ID</th><th scope="col" className="px-4 py-3">Organization</th><th scope="col" className="px-4 py-3">Role</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="px-4 py-3 text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-line">{state.rows.map((user) => <tr key={user.school_id}>
             <td className="px-4 py-3"><span className="block font-semibold text-ink">{fullName(user)}</span><span className="break-all text-xs text-ink-muted">{user.email}</span></td>
-            <td className="px-4 py-3 tabular-nums text-ink-muted-strong">{user.school_id}</td>
+            <td className="px-4 py-3 tabular-nums text-ink-muted-strong">{visibleSchoolId(user.school_id) ?? <span className="text-ink-soft">Not used</span>}</td>
             <td className="px-4 py-3 text-ink-muted-strong">{user.organization?.name || '—'}</td>
             <td className="px-4 py-3 text-ink-muted-strong">{[...new Set([user.role, ...(user.profile_roles || [])])].map((role) => ROLE_NAMES[role] || role).join(', ')}</td>
             <td className="px-4 py-3"><StatusBadge status={user.account_status} /></td>
@@ -106,7 +107,7 @@ export default function SaoUsersPage() {
       </div>}
       {!state.loading && !state.error && <div className="p-4"><PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" /></div>}
     </Card>
-    <Drawer open={Boolean(selected)} title={fullName(selected)} description={selected ? `School ID ${selected.school_id}` : undefined} onClose={() => setSelected(null)} width="max-w-2xl">
+    <Drawer open={Boolean(selected)} title={fullName(selected)} description={selected && visibleSchoolId(selected.school_id) ? `School ID ${selected.school_id}` : undefined} onClose={() => setSelected(null)} width="max-w-2xl">
       {detailError ? <p role="alert" className="text-sm text-danger-strong">{detailError}</p> : !detail ? <p role="status" className="text-sm text-ink-muted">Loading account…</p> : <div className="space-y-6">
         <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-xs font-semibold text-ink-muted">Email</dt><dd className="break-all font-medium text-ink">{detail.user.email}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Status</dt><dd><StatusBadge status={detail.user.account_status} /></dd></div></dl>
         <section><h3 className="text-sm font-bold text-ink">Profiles</h3><ul className="mt-2 divide-y divide-line rounded-lg border border-line">{detail.user.profiles.map((profile) => <li key={profile.id} className="flex flex-wrap justify-between gap-2 px-3 py-2 text-sm"><span className="font-medium text-ink">{profile.organization?.name || 'Organization unavailable'}</span><span className="text-ink-muted">{ROLE_NAMES[profile.role] || profile.role}</span></li>)}</ul></section>

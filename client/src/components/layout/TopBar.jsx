@@ -126,6 +126,7 @@ export default function TopBar({ onMenuToggle }) {
   const organizationName = organizationLabel(user);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
   const hasRecords = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER'].includes(role);
+  const canPlanAhead = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'].includes(role);
   const { subAccount } = useActiveSubAccount();
   const workspaces = useWorkspaces({ enabled: role !== 'SUPER_ADMIN', activeSubAccount: subAccount });
   const accountProfiles = workspaces.profiles;
@@ -301,7 +302,7 @@ export default function TopBar({ onMenuToggle }) {
         <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
         {(() => {
-          const currentDisplayPeriod = viewingPeriod || activeAcademicPeriod;
+          const currentDisplayPeriod = (canPlanAhead && viewingPeriod) || activeAcademicPeriod;
           const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
           const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
           return (
@@ -353,7 +354,9 @@ export default function TopBar({ onMenuToggle }) {
                         <p className="mt-0.5 text-xs font-medium text-slate-600">Pick an upcoming semester to plan ahead. Closed semesters are in Records.</p>
                       </div>
                       <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
-                        {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : [])).map((p) => {
+                        {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : []))
+                          .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords : canPlanAhead))
+                          .map((p) => {
                           const isSelected = p.id === currentDisplayPeriod.id;
                           const isLive = p.id === activeAcademicPeriod?.id;
                           const isUpcoming = p.status === 'upcoming';

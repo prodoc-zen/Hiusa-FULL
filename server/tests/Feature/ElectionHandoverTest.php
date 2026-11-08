@@ -173,6 +173,20 @@ class ElectionHandoverTest extends TestCase
         $this->assertNull($this->access($tiedB));
     }
 
+    public function test_an_outgoing_officer_is_told_the_profile_is_unavailable_so_the_client_can_sign_out(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+
+        $this->release($election)->assertOk();
+
+        Sanctum::actingAs($outgoing);
+        $this->getJson('/api/elections')
+            ->assertForbidden()
+            ->assertJson(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE']);
+    }
+
     public function test_every_winner_of_a_multi_seat_position_gets_access(): void
     {
         $election = $this->closedElection();

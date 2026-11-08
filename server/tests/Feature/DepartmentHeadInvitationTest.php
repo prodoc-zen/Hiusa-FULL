@@ -22,7 +22,9 @@ class DepartmentHeadInvitationTest extends TestCase
     use RefreshDatabase;
 
     private User $sao;
+
     private College $college;
+
     private Organization $home;
 
     protected function setUp(): void
@@ -285,7 +287,7 @@ class DepartmentHeadInvitationTest extends TestCase
         $method = new ReflectionMethod(DepartmentHeadInvitationController::class, 'createAccount');
 
         try {
-            $method->invoke(new DepartmentHeadInvitationController(), new Request(), $invitationId, $this->details(['email' => 'late@example.edu']));
+            $method->invoke(new DepartmentHeadInvitationController, new Request, $invitationId, $this->details(['email' => 'late@example.edu']));
             $this->fail('A used link must not create a second account.');
         } catch (HttpException $e) {
             $this->assertSame(410, $e->getStatusCode());

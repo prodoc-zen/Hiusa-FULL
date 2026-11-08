@@ -3,10 +3,16 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CollegePeoplePage from './CollegePeoplePage';
 
-const people = vi.hoisted(() => ({ getCollegePeople: vi.fn(), inviteCollegeStaff: vi.fn() }));
-const college = vi.hoisted(() => ({ removeCollegeStaff: vi.fn() }));
+const people = vi.hoisted(() => ({ getCollegePeople: vi.fn() }));
+const college = vi.hoisted(() => ({ removeCollegeStaff: vi.fn(), inviteCollegeStaff: vi.fn() }));
 vi.mock('../../../services/collegePeopleService', () => people);
 vi.mock('../../../services/collegeOrganizationService', () => college);
+vi.mock('../../../components/org/ApplicantGrantModal', () => ({
+  default: ({ open }) => (open ? <div role="dialog" aria-label="Allow a student to apply" /> : null),
+}));
+vi.mock('../../../components/students/StudentRecordsPanel', () => ({
+  default: ({ collegeId }) => <p data-testid="records-panel">{`records for college ${collegeId}`}</p>,
+}));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const pageOf = (rows, extra = {}) => ({ data: { data: rows, current_page: 1, last_page: 1, per_page: 25, total: rows.length, ...extra } });
@@ -26,7 +32,8 @@ describe('College people page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(byTab[key])));
-    people.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/invite/abc' } });
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', organization: { id: 9, college_id: 5, organization_type: 'COLLEGE' } }));
+    college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/invite/abc' } });
     college.removeCollegeStaff.mockResolvedValue({ data: {} });
   });
 
@@ -95,24 +102,58 @@ describe('College people page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Invite staff' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create link' })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Position/), { target: { value: 'College Secretary' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create link' }));
-    await waitFor(() => expect(people.inviteCollegeStaff).toHaveBeenCalledWith({}));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ position_title: 'College Secretary' }));
     expect(await within(dialog).findByDisplayValue('http://localhost/invite/abc')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
   });
 
   it('passes the optional email along and shows an error when the link cannot be made', async () => {
-    people.inviteCollegeStaff.mockRejectedValueOnce({ response: { data: { message: 'This college already has a pending link.' } } });
+    college.inviteCollegeStaff.mockRejectedValueOnce({ response: { data: { message: 'This college already has a pending link.' } } });
     renderPage();
     await screen.findAllByText('Ana Alvarez');
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
     fireEvent.click(screen.getByRole('button', { name: 'Invite staff' }));
     const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Position/), { target: { value: 'College Secretary' } });
     fireEvent.change(within(dialog).getByLabelText(/Send it to/), { target: { value: 'sol@school.test' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create link' }));
     expect(await within(dialog).findByText('This college already has a pending link.')).toBeInTheDocument();
-    expect(people.inviteCollegeStaff).toHaveBeenCalledWith({ email: 'sol@school.test' });
+    expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ position_title: 'College Secretary', email: 'sol@school.test' });
+  });
+
+  it('opens the student records upload for the own college of the dean, on the students tab only', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    expect(screen.queryByTestId('records-panel')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Student records' }));
+    expect(screen.getByTestId('records-panel')).toHaveTextContent('records for college 5');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide student records' }));
+    expect(screen.queryByTestId('records-panel')).not.toBeInTheDocument();
+    await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'students').length).toBe(2));
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(screen.queryByRole('button', { name: 'Student records' })).not.toBeInTheDocument();
+  });
+
+  it('lets the dean allow a student to apply from the students tab', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    fireEvent.click(screen.getByRole('button', { name: 'Allow a student to apply' }));
+    expect(await screen.findByRole('dialog', { name: 'Allow a student to apply' })).toBeInTheDocument();
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(screen.queryByRole('button', { name: 'Allow a student to apply' })).not.toBeInTheDocument();
+  });
+
+  it('offers to load student records when the college has no students yet', async () => {
+    people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(key === 'students' ? [] : byTab[key])));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Load student records' }));
+    expect(screen.getByTestId('records-panel')).toBeInTheDocument();
   });
 
   it('removes a staff member after confirming, but never offers it for the dean or yourself', async () => {

@@ -5,13 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
-use App\Services\OrganizationDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class CollegeController extends Controller
 {
