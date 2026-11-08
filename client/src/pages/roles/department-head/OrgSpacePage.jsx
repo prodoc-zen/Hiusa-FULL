@@ -145,7 +145,7 @@ function FinanceTab({ space }) {
           </div>
         ))}
       </dl>
-      <Card title="Approved budgets" description="Only budgets the SAO approved count here.">
+      <Card title="Approved budgets">
         <DataTable
           columns={columns}
           rows={finance.budgets}
@@ -180,7 +180,6 @@ function DocumentsTab({ space }) {
   return (
     <Card
       title="Documents"
-      description="Requirements this organization sent in."
       actions={<Button variant="secondary" size="sm" to="/dashboard/records">Open records</Button>}
     >
       <DataTable

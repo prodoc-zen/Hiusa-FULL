@@ -2,8 +2,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Eye, ExternalLink, Plus, Search } from 'lucide-react';
-import TableRowActions from '../../../components/TableRowActions';
+import { Download, Plus, Search } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import notify from '../../../lib/notify';
 import PaginationControls from '../../../components/PaginationControls';
@@ -139,10 +138,6 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
             {link.label}
           </Button>
         )}
-        <TableRowActions subject={formatDisplayText(request.title)} actions={[
-          { label: canAct ? 'Review' : 'Details', icon: Eye, onClick: () => onOpen(request) },
-          link && { label: link.label, icon: ExternalLink, to: link.to },
-        ]} />
       </div>
     </li>
   );

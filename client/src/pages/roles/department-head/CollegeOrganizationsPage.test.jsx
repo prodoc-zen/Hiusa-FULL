@@ -37,8 +37,7 @@ const organizations = [
 const paginator = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 100, total: data.length } });
 
 async function chooseOrganizationAction(name, action) {
-  fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${name}` }))[0]);
-  fireEvent.click(await screen.findByRole('menuitem', { name: action }));
+  fireEvent.click((await screen.findAllByRole('button', { name: `${action} for ${name}` }))[0]);
 }
 
 function LocationProbe() {
@@ -188,10 +187,9 @@ describe('CollegeOrganizationsPage', () => {
 
     expect((await screen.findAllByText(/The constitution is missing signatures\./)).length).toBeGreaterThan(0);
     expect(screen.getAllByText('SAO remarks').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Drama Guild' })[0]);
-    expect(await screen.findByRole('menuitem', { name: 'View checklist' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Withdraw' })).not.toBeInTheDocument();
+    expect((await screen.findAllByRole('button', { name: 'View checklist for Drama Guild' })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /Edit and resubmit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Withdraw/ })).not.toBeInTheDocument();
   });
 
   it('preselects the status tab from the status query parameter', async () => {

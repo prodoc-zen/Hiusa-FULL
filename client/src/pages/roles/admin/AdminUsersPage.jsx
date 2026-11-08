@@ -737,44 +737,55 @@ export default function AdminUsersPage() {
     { key: 'fingerprint', header: 'Fingerprint', render: (user) => (user.fingerprint_enrolled ? 'Enrolled' : null) },
   ];
 
-  const filters = (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative min-w-0 flex-1 sm:max-w-sm">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
-        <Input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, school ID, program or email" className="pl-9" />
-      </div>
-      {!isAdminsUnit && visibleFilterRoles.length > 1 && (
-        <Select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="sm:w-44">
-          <option value="all">All roles</option>
-          {visibleFilterRoles.map((role) => (
-            <option key={role} value={role}>{ROLE_SHORT[role]}</option>
-          ))}
-        </Select>
+  const canManage = actorRole !== 'SBO_OFFICER';
+
+  // Export and Import sit with the table they act on, so the page header holds only the one primary action
+  // and stays inside a 390px screen.
+  const tableTools = (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <p className="text-sm tabular-nums text-ink-muted">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
+      {canManage && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>
+          {actorRole === 'ADMIN' && <Button variant="secondary" leftIcon={Upload} onClick={() => setShowImport(true)}>Import</Button>}
+        </div>
       )}
-      <Select aria-label="Filter by program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)} className="sm:w-52">
-        <option value="all">All programs</option>
-        {academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}
-      </Select>
-      {filtersActive && (
-        <button type="button" onClick={clearUserFilters} className="min-h-11 self-start rounded-control px-1 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-auto">Clear</button>
-      )}
-      <p className="text-sm tabular-nums text-ink-muted sm:ml-auto">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
     </div>
   );
 
-  const canManage = actorRole !== 'SBO_OFFICER';
+  const filters = (
+    <div className="mb-4 space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+          <Input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, school ID, program or email" className="pl-9" />
+        </div>
+        {!isAdminsUnit && visibleFilterRoles.length > 1 && (
+          <Select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="sm:w-44">
+            <option value="all">All roles</option>
+            {visibleFilterRoles.map((role) => (
+              <option key={role} value={role}>{ROLE_SHORT[role]}</option>
+            ))}
+          </Select>
+        )}
+        <Select aria-label="Filter by program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)} className="sm:w-52">
+          <option value="all">All programs</option>
+          {academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}
+        </Select>
+        {filtersActive && (
+          <button type="button" onClick={clearUserFilters} className="min-h-11 self-start rounded-control px-1 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-auto">Clear</button>
+        )}
+      </div>
+      {tableTools}
+    </div>
+  );
+
   const tabClass = (selected) => `-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm ${selected ? 'border-brand-700 font-semibold text-ink' : 'border-transparent font-medium text-ink-muted hover:text-ink'}`;
 
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
       <PageHeader
-        actions={canManage ? (
-          <>
-            <Button variant="secondary" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>
-            {actorRole === 'ADMIN' && <Button variant="secondary" leftIcon={Upload} onClick={() => setShowImport(true)}>Import</Button>}
-          </>
-        ) : undefined}
         primary={canManage ? <Button leftIcon={UserPlus} onClick={() => openAddStudent()}>{isAdminsUnit ? 'Add administrator' : 'Add existing student'}</Button> : undefined}
       />
 

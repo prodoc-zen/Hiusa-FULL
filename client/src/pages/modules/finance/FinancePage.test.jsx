@@ -207,6 +207,27 @@ describe('FinancePage transaction search', () => {
     expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
   });
 
+  it('leaves the drawer button as the only filled action while the budget form is open', async () => {
+    render(<FinancePage initialTab="budgets" startBudgetProposal />);
+
+    await screen.findByRole('heading', { name: 'Propose budget' });
+    expect(screen.queryByRole('button', { name: 'Propose budget' })).not.toBeInTheDocument();
+  });
+
+  it('asks for the forecast and report lists only after the first batch has answered', async () => {
+    let releaseTransactions;
+    financeMocks.getTransactions.mockReturnValue(new Promise((resolve) => { releaseTransactions = resolve; }));
+    render(<FinancePage initialTab="transactions" />);
+
+    await waitFor(() => expect(financeMocks.getBudgets).toHaveBeenCalled());
+    expect(financeMocks.getForecasts).not.toHaveBeenCalled();
+    expect(financeMocks.getFinancialReports).not.toHaveBeenCalled();
+
+    releaseTransactions({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    await waitFor(() => expect(financeMocks.getForecasts).toHaveBeenCalled());
+    await waitFor(() => expect(financeMocks.getFinancialReports).toHaveBeenCalled());
+  });
+
   it('lets a Department Head review budgets read-only, without any write controls', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
     financeMocks.getBudgets.mockResolvedValue({

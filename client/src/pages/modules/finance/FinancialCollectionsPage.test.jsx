@@ -42,6 +42,7 @@ describe('FinancialCollectionsPage', () => {
     render(<FinancialCollectionsPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Record collection' }));
     const dialog = screen.getByRole('dialog', { name: 'Record collection' });
+    expect(screen.getAllByRole('button', { name: 'Record collection' })).toHaveLength(1);
     fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'Club fees' } });
     fireEvent.change(screen.getByLabelText('Amount collected'), { target: { value: '125.00' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record collection' }));

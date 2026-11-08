@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, Eye, Plus, UserPlus, Users } from 'lucide-react';
-import TableRowActions from '../../../components/TableRowActions';
+import { Building2, Plus, UserPlus, Users } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import PersonPicker from '../../../components/people/PersonPicker';
@@ -39,6 +38,9 @@ const LIFECYCLE = {
   active: { tone: 'success', label: 'Active' },
   archived: { tone: 'neutral', label: 'Archived' },
 };
+
+// Only filed before applications moved to the grant flow, so their tabs show only while some organization is in them.
+const LEGACY_STATUSES = new Set(['returned', 'pending']);
 
 const REQUIREMENT_STATUS = {
   submitted: { tone: 'info', label: 'Submitted' },
@@ -314,7 +316,7 @@ function OrganizationDetails({ organization, onClose }) {
               { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{item.file_name || 'No file'}</span> },
               { key: 'status', header: 'Status', render: (item) => <StatusBadge status={item.status} label={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).label} tone={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).tone} /> },
             ]}
-            actions={(item) => item.submission_id && <TableRowActions subject={item.requirement_name} actions={[{ label: 'View file', icon: Eye, onClick: () => viewRegistrationFile(item.submission_id) }]} />}
+            actions={(item) => item.submission_id && <Button variant="secondary" size="sm" aria-label={`View file for ${item.requirement_name}`} onClick={() => viewRegistrationFile(item.submission_id)}>View file</Button>}
           />
         )}
       </div>
@@ -397,7 +399,9 @@ export default function CollegeOrganizationsPage() {
 
   const tabs = [
     { key: 'all', label: `All (${state.organizations.length})`, panelId: STATUS_PANEL_ID },
-    ...Object.entries(LIFECYCLE).map(([key, value]) => ({ key, label: `${value.label} (${counts[key] || 0})`, panelId: STATUS_PANEL_ID })),
+    ...Object.entries(LIFECYCLE)
+      .filter(([key]) => !LEGACY_STATUSES.has(key) || counts[key] > 0 || key === tab)
+      .map(([key, value]) => ({ key, label: `${value.label} (${counts[key] || 0})`, panelId: STATUS_PANEL_ID })),
   ];
 
   const mutedIfArchived = (organization) => (organization.lifecycle_status === 'archived' ? 'text-ink-muted' : '');
@@ -452,17 +456,18 @@ export default function CollegeOrganizationsPage() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
                 {organization.lifecycle_status !== 'archived' && (
-                  <TableRowActions subject={organization.name} actions={[
-                    { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
-                    {
-                      label: 'Open organization space',
-                      icon: Building2,
-                      onClick: () => {
-                        enterOrganizationSpace(organization);
-                        navigate(`/dashboard/department-head/org/${organization.id}`);
-                      },
-                    },
-                  ]} />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="max-sm:h-[42px]"
+                    aria-label={`Open organization space for ${organization.name}`}
+                    onClick={() => {
+                      enterOrganizationSpace(organization);
+                      navigate(`/dashboard/department-head/org/${organization.id}`);
+                    }}
+                  >
+                    Open space
+                  </Button>
                 )}
               </div>
             )}

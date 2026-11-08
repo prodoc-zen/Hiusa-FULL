@@ -60,7 +60,7 @@ const Button = forwardRef(function Button(
 
   if (to && !isDisabled) {
     return (
-      <Link ref={ref} to={to} className={classes} {...rest}>
+      <Link ref={ref} to={to} data-variant={variant} className={classes} {...rest}>
         {content}
       </Link>
     );
@@ -72,6 +72,7 @@ const Button = forwardRef(function Button(
       type={type || 'button'}
       disabled={isDisabled}
       aria-busy={loading || undefined}
+      data-variant={variant}
       className={classes}
       {...rest}
     >

@@ -38,7 +38,7 @@ describe('Department Head announcements', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish announcement' }));
     await waitFor(() => expect(announcements.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, is_published: true, title: 'College orientation' })));
     expect(await screen.findByText('Announcement published to the selected organization.')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
   it('saves a draft and preserves entered fields after validation fails', async () => {
     announcements.createAnnouncement.mockRejectedValueOnce({ response: { status: 422, data: { message: 'Please correct the title.', errors: { title: ['Title already exists.'] } } } });

@@ -151,6 +151,7 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Add student charge' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add student charge' });
+    expect(screen.queryByRole('button', { name: 'Add student charge' })).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Add charge' })).toBeDisabled();
 

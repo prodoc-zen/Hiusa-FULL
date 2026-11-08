@@ -237,6 +237,19 @@ function ProductForm({ editing = false, value, onChange, images, onImagesChange,
   );
 }
 
+// A notice row whose action is secondary: the Add product button stays the one filled button on the screen.
+function InventoryNotice({ title, body, blocked = false, actionLabel, onAction }) {
+  return (
+    <div role={blocked ? "alert" : undefined} className={`flex flex-col gap-3 rounded-card border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${blocked ? "border-danger/40 bg-danger-tint" : "border-line bg-white"}`}>
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${blocked ? "text-danger-strong" : "text-ink"}`}>{title}</p>
+        <p className="mt-0.5 text-sm text-ink-muted-strong">{body}</p>
+      </div>
+      <Button type="button" variant="secondary" className="shrink-0" onClick={onAction}>{actionLabel}</Button>
+    </div>
+  );
+}
+
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "-";
 }
@@ -2633,18 +2646,20 @@ export default function MerchandisePage({ initialTab }) {
   const inventoryGuidance = activeTab === "inventory" && !loading && role === "ADMIN" && (outOfStockItems.length > 0 || gcashUnavailable) ? (
     <div className="space-y-3">
       {outOfStockItems.length > 0 && (
-        <NextStep
+        <InventoryNotice
           title={everyItemSoldOut ? "Every active item is out of stock" : `${outOfStockItems.length} ${outOfStockItems.length === 1 ? "item is" : "items are"} out of stock`}
-          tone="blocked"
+          blocked
           body="Students cannot order an item until you add stock."
-          primary={{ label: "Add stock", onClick: () => openAddStockModal(outOfStockItems[0]) }}
+          actionLabel="Add stock"
+          onAction={() => openAddStockModal(outOfStockItems[0])}
         />
       )}
       {gcashUnavailable && (
-        <NextStep
+        <InventoryNotice
           title="Set up GCash so students can pay online"
           body="Upload the official GCash QR code. Until then students pay cash at pickup."
-          primary={{ label: "Set up GCash", onClick: () => setShowPaymentSettings(true) }}
+          actionLabel="Set up GCash"
+          onAction={() => setShowPaymentSettings(true)}
         />
       )}
     </div>

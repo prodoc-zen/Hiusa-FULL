@@ -393,6 +393,7 @@ export default function SaoVenuesPage() {
         <Card title="Venues">
           <DataTable
             columns={venueColumns}
+            caption="Venue catalog"
             rows={venues.items}
             loading={venues.loading}
             error={venues.error}
@@ -431,6 +432,7 @@ export default function SaoVenuesPage() {
           )}
           <DataTable
             columns={bookingColumns}
+            caption="Venue booking requests"
             rows={bookings.items}
             loading={bookings.loading}
             error={bookings.error}
@@ -470,7 +472,7 @@ export default function SaoVenuesPage() {
               />
             )}
             emptyState={bookingFiltersActive ? (
-              <EmptyState kind="filtered" title="No booking requests match" onClearFilters={() => { setStatusFilter('pending'); setVenueFilter(''); }} />
+              <EmptyState kind="filtered" title="No booking requests match" description="Try a different status or venue." onClearFilters={() => { setStatusFilter('pending'); setVenueFilter(''); }} />
             ) : (
               <EmptyState
                 kind="first-run"

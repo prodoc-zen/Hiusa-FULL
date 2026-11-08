@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, Megaphone, PencilLine, Plus, Send, Trash2 } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
-import Modal from '../../../components/Modal';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -138,7 +137,7 @@ export default function DepartmentHeadAnnouncementsPage() {
         />
       </div>
     </Card>
-    <Modal open={Boolean(form)} title={form?.id ? 'Edit announcement' : 'New announcement'} onClose={busy ? undefined : () => setForm(null)} closeOnEscape={!busy} footer={<><Button variant="secondary" disabled={busy} onClick={() => setForm(null)}>Cancel</Button>{!form?.id && <Button variant="secondary" type="submit" form="college-announcement" name="publication" value="draft" disabled={busy || !form?.organization_id}>Save draft</Button>}<Button type="submit" form="college-announcement" name="publication" value="publish" loading={busy} disabled={!form?.organization_id}>{form?.id ? 'Save changes' : 'Publish announcement'}</Button></>}>
+    <Drawer open={Boolean(form)} title={form?.id ? 'Edit announcement' : 'New announcement'} onClose={busy ? undefined : () => setForm(null)} footer={<>{!form?.id && <Button variant="secondary" type="submit" form="college-announcement" name="publication" value="draft" disabled={busy || !form?.organization_id}>Save draft</Button>}<Button type="submit" form="college-announcement" name="publication" value="publish" loading={busy} disabled={!form?.organization_id}>{form?.id ? 'Save changes' : 'Publish announcement'}</Button></>}>
       {form && <form id="college-announcement" className="space-y-4" onSubmit={(event) => save(event, event.nativeEvent.submitter?.value === 'publish')}>
         <Field label="Organization" required error={errors.organization_id?.[0]}><Select required value={form.organization_id} onChange={change('organization_id')} disabled={busy || optionsLoading || Boolean(form.id)}><option value="">{optionsLoading ? 'Loading organizations...' : 'Choose an organization'}</option>{form.id && !organizations.some((org) => String(org.id) === form.organization_id) && <option value={form.organization_id}>{form.organization?.name || 'Selected organization'}</option>}{organizations.map((org) => <option key={org.id} value={org.id} disabled={org.is_active === false}>{org.name}</option>)}</Select></Field>
         {optionError && <p role="alert" className="text-sm text-danger-strong">{optionError} <Button size="sm" variant="secondary" onClick={() => loadOrganizations(optionPage + 1)}>Retry</Button></p>}
@@ -149,7 +148,7 @@ export default function DepartmentHeadAnnouncementsPage() {
         <Field label="Audience" required error={errors.target_role?.[0]}><Select value={form.target_role} disabled={busy} onChange={change('target_role')}><option value="all">All organization members</option><option value="STUDENT">Students</option><option value="SBO_OFFICER">Officers</option><option value="ADMIN">Organization Admins</option></Select></Field>
         {error && <p role="alert" className="text-sm text-danger-strong">{error}</p>}
       </form>}
-    </Modal>
+    </Drawer>
     <ConfirmModal open={Boolean(deleting)} title="Delete announcement?" recordName={deleting?.title} message="This removes your announcement from the selected organization." confirmText="Delete announcement" busy={busy} error={error} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
 }

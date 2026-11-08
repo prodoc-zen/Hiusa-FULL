@@ -25,7 +25,6 @@ import StatusBadge from '../../../components/ui/StatusBadge';
 import { isReturned, withApprovalState } from '../../../components/elections/electionFlow';
 import { electionLifecycle } from '../../../lib/lifecycle';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
@@ -407,6 +406,25 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     firstRunState = <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />;
   }
 
+  // The create form has more than five fields and an upload, so it is a page, not a modal. The list
+  // and its Create election button are not rendered while it is open, which leaves one filled button.
+  if (showCreate && canManageElections) {
+    return (
+      <div className="space-y-4">
+        <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+        <PageHeader title="Create election" />
+        <form id="create-election-form" onSubmit={handleCreate} className="max-w-3xl space-y-4">
+          <ElectionFormFields form={form} setForm={setForm} />
+          {formError && <p role="alert" className={ALERT}>{formError}</p>}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+            <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={submitting}>Cancel</Button>
+            <Button type="submit" loading={submitting} disabled={!form.title.trim() || !form.start_time || !form.end_time}>Submit for approval</Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
@@ -431,9 +449,6 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
         } : undefined}
       />
 
-      <Modal open={showCreate && canManageElections} title="Create election" description="Build the ballot and submit it for Department Head approval." onClose={() => !submitting && setShowCreate(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<><Button variant="secondary" onClick={() => setShowCreate(false)} disabled={submitting}>Cancel</Button><Button type="submit" form="create-election-form" loading={submitting} disabled={!form.title.trim() || !form.start_time || !form.end_time}>Submit for approval</Button></>}>
-        <form id="create-election-form" onSubmit={handleCreate}><ElectionFormFields form={form} setForm={setForm} />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
-      </Modal>
       <Drawer open={showEdit && canManageElections} title="Edit election" description="Update the artwork and schedule." onClose={() => !submitting && closeEdit()} width="max-w-xl" footer={<><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>Save changes</Button></>}>
         <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
       </Drawer>
