@@ -95,7 +95,15 @@ export default function DepartmentHeadHomePage() {
   const stat = (val) => loading ? '-' : val;
 
   const college = headCollegeName(storedUser());
-  const organizationCount = (status) => data.organizations.filter((o) => o.lifecycle_status === status).length;
+  let activeSubId = null;
+  try {
+    const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
+    activeSubId = sub?.id ? String(sub.id) : null;
+  } catch {
+    activeSubId = null;
+  }
+  const scopedOrganizations = activeSubId ? data.organizations.filter((o) => String(o.id) === activeSubId) : data.organizations;
+  const organizationCount = (status) => scopedOrganizations.filter((o) => o.lifecycle_status === status).length;
 
   const totalPendingApprovals = pendingApprovalsTotal;
   const approvalsByType = APPROVAL_TYPE_ORDER

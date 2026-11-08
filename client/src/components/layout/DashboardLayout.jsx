@@ -8,6 +8,7 @@ import RoleOnboardingTour from '../onboarding/RoleOnboardingTour';
 import { PageHeaderView } from '../ui/PageHeader';
 import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
 import { getPageMeta, getStoredRole } from '../../lib/pageMeta';
+import { clearApiCache } from '../../services/api';
 import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
 
 // A page that was not moved to PageHeader yet still writes its own h1. Watching the content for one
@@ -152,6 +153,7 @@ export default function DashboardLayout() {
               type="button"
               onClick={() => {
                 sessionStorage.removeItem('hiusa_active_subaccount');
+                clearApiCache();
                 window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: null }));
               }}
               className="rounded-lg border border-[#0878B7]/30 bg-white px-2.5 py-1 text-xs font-bold text-[#0878B7] shadow-xs transition hover:bg-brand-50 active:scale-[0.98]"
@@ -224,7 +226,7 @@ export default function DashboardLayout() {
             <PageHeaderRegistryContext value={registry}>
               <div ref={contentRef}>
                 <Suspense fallback={<RouteLoadingFallback />}>
-                  <Outlet />
+                  <Outlet key={activeSubAccount?.id ? `sub-${activeSubAccount.id}` : 'master'} />
                 </Suspense>
               </div>
             </PageHeaderRegistryContext>

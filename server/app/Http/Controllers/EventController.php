@@ -58,8 +58,9 @@ class EventController extends Controller
             'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
         ]);
 
+        $readableOrgIds = $this->readableOrganizationIds($request);
         $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
-            ->whereIn('organization_id', $user->scopedOrganizationIds())
+            ->whereIn('organization_id', $readableOrgIds)
             ->withCount([
                 'attendanceRecords',
                 'tasks',
@@ -72,7 +73,7 @@ class EventController extends Controller
         }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
-            $submittedEventIds = ApprovalRequest::whereIn('organization_id', $user->scopedOrganizationIds())
+            $submittedEventIds = ApprovalRequest::whereIn('organization_id', $readableOrgIds)
                 ->where('entity_type', 'event')->pluck('entity_id');
             $query->where(fn ($events) => $events->whereIn('status', ['approved', 'ongoing', 'completed'])->orWhereIn('id', $submittedEventIds));
         } elseif ($user->role !== 'ADMIN') {

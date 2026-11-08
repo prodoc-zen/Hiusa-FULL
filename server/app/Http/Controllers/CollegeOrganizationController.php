@@ -207,7 +207,7 @@ class CollegeOrganizationController extends Controller
                 ];
             }
 
-            $password = Str::random(12);
+            $password = 'Demo@12345';
             $user = User::create([
                 'organization_id' => $home->id,
                 'school_id' => (int) $data['school_id'],
@@ -217,7 +217,7 @@ class CollegeOrganizationController extends Controller
                 'role' => $role,
                 'position_title' => $data['position_title'],
                 'account_status' => 'active',
-                'must_change_password' => true,
+                'must_change_password' => false,
                 'password_hash' => bcrypt($password),
                 'department' => $college->name,
                 'is_member' => true,
@@ -247,6 +247,7 @@ class CollegeOrganizationController extends Controller
                 'position_title' => $data['position_title'],
                 'account_status' => 'active',
                 'is_lead_head' => false,
+                'temporary_password' => $password,
             ];
         });
 
