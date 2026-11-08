@@ -1,5 +1,6 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { ENTITY_LABEL } from './approvalStage';
+import { roleLabel } from '../../lib/lifecycle';
 import { StatusBadge } from '../ui';
 import { formatDateTime, fullName, summaryLine } from './approvalFormat';
 
@@ -11,15 +12,14 @@ export default function ApprovalReceipt({ request, organizationName, compact = f
     ...(organizationName ? [['Organization', organizationName]] : []),
     ['Type', ENTITY_LABEL[request.entity_type] || request.entity_type],
     ['Status', <StatusBadge status={request.status} />],
-    ['Required role', request.required_role],
+    ['Waiting on', roleLabel(request.required_role)],
     ['Requester', fullName(request.requester) || '-'],
     ['School ID', request.requester?.school_id || '-'],
     ['Email', request.requester?.email],
-    ['Role / position', [request.requester?.role, request.requester?.position_title].filter(Boolean).join(' · ')],
+    ['Role / position', [roleLabel(request.requester?.role), request.requester?.position_title].filter(Boolean).join(' · ')],
     ['Department', request.requester?.department],
     ['Academic profile', [request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ')],
     ['Submitted', formatDateTime(request.requested_at)],
-    ['Record ID', request.entity_id],
     ...(compact ? [] : [
       ['Reviewer', fullName(request.reviewer) || '-'],
       ['Reviewed', formatDateTime(request.reviewed_at)],

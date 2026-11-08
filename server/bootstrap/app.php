@@ -16,6 +16,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -64,6 +65,27 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsurePasswordChanged::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Runs for every exception Laravel would report (not validation, auth or 404), and
+        // does not stop the default report, so the configured channel still gets it too.
+        $exceptions->report(function (Throwable $exception) {
+            try {
+                $request = app()->bound('request') ? request() : null;
+                // The route pattern, never the raw path: segments such as an invitation token
+                // are secrets and the log is kept for days.
+                Log::channel('exceptions')->error(sprintf(
+                    '%s %s: %s',
+                    $request?->route() ? $request->method().' /'.ltrim($request->route()->uri(), '/') : 'console',
+                    $exception::class,
+                    $exception->getMessage(),
+                ), [
+                    'user' => $request?->user()?->getAuthIdentifier(),
+                    'at' => $exception->getFile().':'.$exception->getLine(),
+                    'exception' => $exception,
+                ]);
+            } catch (Throwable) {
+                // A full disk or unwritable log folder must never turn into a second failure.
+            }
+        });
         $exceptions->render(function (AuthenticationException $exception, Request $request) {
             if ($request->is('api/*')) {
                 return response()->json(['message' => 'Unauthenticated.'], 401);

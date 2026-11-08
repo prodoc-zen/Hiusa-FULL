@@ -71,6 +71,20 @@ describe('ManageCandidatesPage', () => {
     await waitFor(() => expect(createElectionCandidate).toHaveBeenCalledWith(5, expect.objectContaining({ user_id: 302, position_id: 2 })));
   });
 
+  it('asks for students and officers and lists an officer in the Add candidate list', async () => {
+    getUsers.mockResolvedValue([...students, { id: 3, school_id: 303, role: 'SBO_OFFICER', first_name: 'Mara', last_name: 'Dizon', email: 'mara@example.com' }]);
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    expect(getUsers).toHaveBeenCalledWith({ role: JSON.stringify(['STUDENT', 'SBO_OFFICER']), account_status: 'active' });
+    fireEvent.click(screen.getByRole('button', { name: 'Add candidate' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Add candidate' });
+    const student = within(dialog).getByRole('combobox', { name: 'Student' });
+    fireEvent.focus(student);
+    fireEvent.change(student, { target: { value: 'Mara' } });
+    expect(await within(dialog).findByRole('option', { name: /Mara Dizon/ })).toBeInTheDocument();
+  });
+
   it('shows no Add candidate button once the ballot is locked', async () => {
     outlet.election.finalized_at = '2026-09-01T08:00:00Z';
     renderPage();

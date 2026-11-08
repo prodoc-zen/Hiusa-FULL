@@ -68,6 +68,15 @@ describe('OrganizationApplicationsPage', () => {
     expect(screen.getByRole('tab', { name: 'Not approved (0)' })).toBeInTheDocument();
   });
 
+  it('opens office staff on the same list as the dean, at the dean stage', async () => {
+    renderPage('ADMIN');
+
+    await screen.findAllByText('Chess Club');
+    expect(mocks.getOrganizationApplications).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending_dean' }));
+    expect(screen.getByRole('tab', { name: 'To review (1)' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'With the SAO (2)' })).toBeInTheDocument();
+  });
+
   it('opens the SAO on the applications the dean endorsed', async () => {
     mocks.getOrganizationApplications.mockResolvedValue(page([row({ status: 'pending_sao' })]));
     renderPage('SUPER_ADMIN');
@@ -144,6 +153,16 @@ describe('OrganizationApplicationsPage', () => {
 
     expect(await screen.findByText('No applications to review')).toBeInTheDocument();
     expect(screen.getByText('Applications show here once a student you allowed to apply sends one.')).toBeInTheDocument();
+  });
+
+  it('explains an empty queue for office staff without claiming they allowed anyone to apply', async () => {
+    mocks.getOrganizationApplications.mockResolvedValue(page([], { pending_dean: 0 }));
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { id: 9, name: 'Rehearsal College', organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter initialEntries={['/dashboard/organization-applications']}><OrganizationApplicationsPage /></MemoryRouter>);
+
+    expect(await screen.findByText('No applications to review')).toBeInTheDocument();
+    expect(screen.getByText('Applications show here once a student the dean allowed to apply sends one.')).toBeInTheDocument();
+    expect(screen.queryByText('Applications show here once a student you allowed to apply sends one.')).not.toBeInTheDocument();
   });
 
   it('opens an application as its own page and keeps it addressable with ?record', async () => {

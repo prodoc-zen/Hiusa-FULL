@@ -26,8 +26,8 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The review queue. The Department Head acts on applications from their own college while they
- * are pending_dean, the SAO on those pending_sao. Either may return an application with a note
+ * The review queue. The Department Head, and the office staff the dean added, act on applications from
+ * their own college while they are pending_dean, the SAO on those pending_sao. Either may return an application with a note
  * per requirement and attached files; only the SAO approves or rejects. Either may also leave a
  * note that changes nothing about the application. Notes and decisions read back as one history,
  * for reviewers only: the applicant's own page never carries it.
@@ -207,7 +207,7 @@ class OrganizationApplicationReviewController extends Controller
                 match ($data['action']) {
                     'endorse' => $locked->forceFill(['status' => 'pending_sao', 'endorsed_by' => $actor->school_id, 'endorsed_at' => now(), 'endorsement_note' => $data['remarks'] ?? null]),
                     'approve' => $this->approve($locked, $documents, $actor, $data['remarks'] ?? null, $copied),
-                    'return' => $locked->forceFill(['status' => 'returned', 'remarks' => $data['remarks'] ?? null, 'returned_by' => $actor->school_id, 'returned_by_role' => $actor->role, 'returned_at' => now()]),
+                    'return' => $locked->forceFill(['status' => 'returned', 'remarks' => $data['remarks'] ?? null, 'returned_by' => $actor->school_id, 'returned_by_role' => $stage === 'dean' ? 'DEPARTMENT_HEAD' : 'SUPER_ADMIN', 'returned_at' => now()]),
                     'reject' => $locked->forceFill(['status' => 'rejected', 'remarks' => $data['remarks'], 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]),
                 };
                 $locked->save();
@@ -252,7 +252,7 @@ class OrganizationApplicationReviewController extends Controller
     {
         return AuditLog::query()
             ->where('module', 'organization_applications')->where('record_type', OrganizationApplication::class)->where('record_id', $application->id)
-            ->whereIn('actor_role', ['DEPARTMENT_HEAD', 'SUPER_ADMIN'])
+            ->whereIn('actor_role', ['DEPARTMENT_HEAD', 'ADMIN', 'SUPER_ADMIN'])
             ->whereIn('action', ['comment', ...array_keys(self::DECISION_LABEL)])
             ->with('user:school_id,first_name,last_name')->orderBy('id')->get()
             ->map(fn (AuditLog $entry) => [
@@ -261,7 +261,7 @@ class OrganizationApplicationReviewController extends Controller
                 'label' => $entry->action === 'comment' ? 'Comment' : self::DECISION_LABEL[$entry->action],
                 'note' => $entry->new_values['note'] ?? null,
                 'by' => $entry->user ? trim("{$entry->user->first_name} {$entry->user->last_name}") : null,
-                'stage_label' => OrganizationApplicationPresenter::STAGE_LABEL[$entry->actor_role === 'DEPARTMENT_HEAD' ? 'dean' : 'sao'],
+                'stage_label' => OrganizationApplicationPresenter::STAGE_LABEL[$entry->actor_role === 'SUPER_ADMIN' ? 'sao' : 'dean'],
                 'at' => $entry->created_at,
             ])->values()->all();
     }
@@ -329,7 +329,7 @@ class OrganizationApplicationReviewController extends Controller
 
     private function stageOf(User $actor): string
     {
-        return $actor->role === 'DEPARTMENT_HEAD' ? 'dean' : 'sao';
+        return $actor->role === 'SUPER_ADMIN' ? 'sao' : 'dean';
     }
 
     private function waitingStatus(string $stage): string
@@ -340,15 +340,16 @@ class OrganizationApplicationReviewController extends Controller
     private function scoped(User $user)
     {
         $query = OrganizationApplication::whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED);
-        if ($user->role !== 'DEPARTMENT_HEAD') {
+        if ($user->role === 'SUPER_ADMIN') {
             return $query;
         }
+        abort_unless($user->role === 'DEPARTMENT_HEAD' || $user->isCollegeOfficeStaff(), 403, 'Only the college office and the SAO review applications.');
         $home = $user->organization;
 
         return $home?->organization_type === 'COLLEGE' && $home->college_id ? $query->where('college_id', $home->college_id) : $query->whereRaw('1 = 0');
     }
 
-    /** A wrong college and a missing id answer alike, so a Department Head cannot probe other colleges. */
+    /** A wrong college and a missing id answer alike, so college reviewers cannot probe other colleges. */
     private function authorizeScope(User $user, OrganizationApplication $application): void
     {
         NotFound::unless($this->scoped($user)->whereKey($application->id)->exists());

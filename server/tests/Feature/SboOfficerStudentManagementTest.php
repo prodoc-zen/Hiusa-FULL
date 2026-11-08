@@ -41,7 +41,7 @@ class SboOfficerStudentManagementTest extends TestCase
             ->assertJsonValidationErrors('samples');
     }
 
-    public function test_sbo_officer_directory_never_exposes_non_student_accounts(): void
+    public function test_sbo_officer_directory_lists_students_and_officers_but_never_admins(): void
     {
         $organization = Organization::factory()->create();
         $otherOrganization = Organization::factory()->create();
@@ -53,7 +53,8 @@ class SboOfficerStudentManagementTest extends TestCase
         Sanctum::actingAs($actor);
 
         $this->getJson('/api/users?role=ADMIN')->assertOk()->assertJsonCount(0, 'data');
-        $this->getJson('/api/users?role=SBO_OFFICER')->assertOk()->assertJsonCount(0, 'data');
+        // Fellow officers are listed so an officer can pick election candidates; fingerprint actions stay Student only.
+        $this->getJson('/api/users?role=SBO_OFFICER')->assertOk()->assertJsonCount(2, 'data');
         $this->getJson('/api/users?role=STUDENT')->assertOk()->assertJsonCount(1, 'data');
 
         foreach ([$otherOfficer, $admin] as $protectedUser) {

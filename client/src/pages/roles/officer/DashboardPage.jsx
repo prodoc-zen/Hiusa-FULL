@@ -7,6 +7,7 @@ import { getEvents } from '../../../services/eventService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
+import { readUserModules } from '../../../utils/userModules';
 import { Button, DataTable, EmptyState, ErrorState, Skeleton, Stat, StatusBadge } from '../../../components/ui';
 
 const TASK_STATUS_BAR = {
@@ -41,7 +42,17 @@ const TASK_COLUMNS = [
   { key: 'status', header: 'Status', render: (task) => (task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />) },
 ];
 
+const EMPTY_PAGE = { data: { data: [], total: 0 } };
+
 export default function DashboardPage() {
+  // An officer only reaches the areas the Admin ticked (null means all). Each request below is
+  // one area's list and answers 403 outside it, so an area that was not given is never asked for.
+  const [modules] = useState(readUserModules);
+  const hasModule = (name) => !Array.isArray(modules) || modules.includes(name);
+  const canTasks = hasModule('tasks');
+  const canEvents = hasModule('events');
+  const canOrders = hasModule('merchandise');
+
   const [stats, setStats] = useState({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
   const [urgentTasks, setUrgentTasks] = useState([]);
   const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
@@ -65,15 +76,15 @@ export default function DashboardPage() {
           pendingRes, inProgressRes, completedRes, overdueRes,
           events, pendingOrdersRes,
         ] = await Promise.all([
-          getTasks({ status: 'pending', per_page: 10 }),
-          getTasks({ status: 'in_progress', per_page: 10 }),
-          getTasks({ status: 'completed', per_page: 1 }),
-          getTasks({ status: 'overdue', per_page: 1 }),
-          fetchAllPages((p) => getEvents(p).then((r) => r.data)),
+          canTasks ? getTasks({ status: 'pending', per_page: 10 }) : EMPTY_PAGE,
+          canTasks ? getTasks({ status: 'in_progress', per_page: 10 }) : EMPTY_PAGE,
+          canTasks ? getTasks({ status: 'completed', per_page: 1 }) : EMPTY_PAGE,
+          canTasks ? getTasks({ status: 'overdue', per_page: 1 }) : EMPTY_PAGE,
+          canEvents ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : [],
           // /orders only accepts per_page=10 (its validation rejects any other
           // value with a 422); the true pending count still comes from
           // pendingOrdersMeta.total regardless of the page size requested.
-          getOrders({ status: 'pending', per_page: 10 }),
+          canOrders ? getOrders({ status: 'pending', per_page: 10 }) : EMPTY_PAGE,
         ]);
 
         if (cancelled) return;
@@ -115,7 +126,7 @@ export default function DashboardPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [reloadKey]);
+  }, [reloadKey, canTasks, canEvents, canOrders]);
 
   const retry = () => {
     setFailed(false);
@@ -131,10 +142,10 @@ export default function DashboardPage() {
 
   // Three tiles, each a link to the list behind the number.
   const statCards = [
-    { label: 'Open tasks', value: stats.openTasks, to: '/dashboard/tasks/assigned-tasks' },
-    { label: 'Upcoming events', value: stats.upcomingEvents, to: '/dashboard/events/activity-calendar' },
-    { label: 'Pending orders', value: stats.pendingOrders, to: '/dashboard/merchandise/manage-orders' },
-  ];
+    canTasks && { label: 'Open tasks', value: stats.openTasks, to: '/dashboard/tasks/assigned-tasks' },
+    canEvents && { label: 'Upcoming events', value: stats.upcomingEvents, to: '/dashboard/events/activity-calendar' },
+    canOrders && { label: 'Pending orders', value: stats.pendingOrders, to: '/dashboard/merchandise/manage-orders' },
+  ].filter(Boolean);
 
   // Nothing assigned yet: name the first action instead of a wall of zeros.
   const firstRun = !loading && !failed && totalTasksCount === 0 && Object.values(stats).every((value) => value === 0);
@@ -148,7 +159,7 @@ export default function DashboardPage() {
             kind="first-run"
             title="No work has been assigned to you yet"
             description="Tasks, orders to verify and events show here once your Admin assigns them."
-            action={<Button to="/dashboard/tasks/assigned-tasks" variant="secondary">Open My tasks</Button>}
+            action={canTasks ? <Button to="/dashboard/tasks/assigned-tasks" variant="secondary">Open My tasks</Button> : undefined}
           />
         </section>
       </div>
@@ -169,7 +180,7 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      {canTasks && <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-card border border-line bg-surface p-4 sm:p-5" aria-labelledby="urgent-tasks-title">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -218,7 +229,7 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }
