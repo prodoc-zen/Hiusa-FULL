@@ -101,17 +101,17 @@ export default function ElectionDetailPage() {
     <div className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section aria-label="Ballot configuration actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
+      <section aria-label="Ballot configuration actions" className="rounded-lg border border-line bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(election.title)}</p>
+            <p className="text-sm font-bold text-ink">{formatDisplayText(election.title)}</p>
             <p className="mt-1 text-xs font-medium text-slate-600">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
           {!ballotLocked && (
             <button
               type="button"
               onClick={openAddPosition}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition hover:bg-navy-800"
             >
               <CirclePlus size={15} />
               Add Position
@@ -132,14 +132,14 @@ export default function ElectionDetailPage() {
 
       <div className="space-y-4">
         {groupedCandidates.map(({ position, candidates: positionCandidates }) => (
-          <div key={position.id} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div key={position.id} className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-[#0F172A]">{formatDisplayText(position.title)}</h3>
+                <h3 className="text-base font-bold text-ink">{formatDisplayText(position.title)}</h3>
                 <p className="text-sm text-slate-500">Up to {position.max_winners} winner{position.max_winners > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0F2F62]">{positionCandidates.length} candidates</span>
+                <span className="rounded-full bg-page px-3 py-1 text-xs font-bold text-navy-800">{positionCandidates.length} candidates</span>
                 {!ballotLocked && (
                   <button
                     type="button"
@@ -156,12 +156,12 @@ export default function ElectionDetailPage() {
               {positionCandidates.map((candidate) => {
                 const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
                 return (
-                  <div key={candidate.id} className="flex items-center justify-between rounded-lg bg-[#F8FBFD] px-4 py-3">
+                  <div key={candidate.id} className="flex items-center justify-between rounded-lg bg-subtle px-4 py-3">
                     <div>
-                      <p className="font-semibold text-[#0F172A]">{formatDisplayText(name)}</p>
+                      <p className="font-semibold text-ink">{formatDisplayText(name)}</p>
                       <p className="text-xs text-slate-500">{formatDisplayText(candidate.partylist?.name) || 'Independent'}</p>
                     </div>
-                    <span className="text-xs font-bold text-[#0878B7]">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
+                    <span className="text-xs font-bold text-brand-700">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
                   </div>
                 );
               })}
@@ -181,19 +181,19 @@ export default function ElectionDetailPage() {
         maxWidth="max-w-lg"
         footer={(
           <>
-            <button type="button" onClick={closeAddPosition} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
+            <button type="button" onClick={closeAddPosition} disabled={busy} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">Cancel</button>
+            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
           </>
         )}
       >
         <form id="add-position-form" onSubmit={handleAddPosition} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position Title</span>
-            <input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" placeholder="e.g. Treasurer" />
+            <span className="mb-1.5 block text-[13px] font-semibold text-ink">Position Title</span>
+            <input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" placeholder="e.g. Treasurer" />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Max Winners</span>
-            <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+            <span className="mb-1.5 block text-[13px] font-semibold text-ink">Max Winners</span>
+            <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </label>
           {modalError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{modalError}</div>

@@ -102,7 +102,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="app-overlay overlay-fade-in fixed inset-0 z-[70] flex items-center justify-center bg-navy-950/55 p-4 backdrop-blur-sm sm:p-6"
+      className="app-overlay overlay-fade-in fixed inset-0 z-[70] flex items-center justify-center bg-navy-950/55 p-4 sm:p-6"
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
@@ -115,12 +115,12 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
-        className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-white/80 bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
+        className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-card border border-white/80 bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
       >
         {(title || description || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
             <div className="min-w-0">
-              {title && <h2 id="modal-title" className="flex items-center gap-2 break-words text-lg font-extrabold text-ink">{titleIcon}{title}</h2>}
+              {title && <h2 id="modal-title" className="flex items-center gap-2 break-words text-lg font-semibold text-ink">{titleIcon}{title}</h2>}
               {description && <p className="mt-1 text-sm font-medium leading-5 text-ink-muted">{description}</p>}
             </div>
             {onClose && (

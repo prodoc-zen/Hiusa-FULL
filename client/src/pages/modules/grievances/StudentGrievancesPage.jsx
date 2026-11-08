@@ -36,7 +36,7 @@ function ClassificationAdvisory({ grievance }) {
   return (
     <div className="rounded-card border border-line bg-subtle p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">AI classification (advisory)</p>
+        <p className="text-xs font-bold text-ink-soft">AI classification (advisory)</p>
         <EngineBadge engine={grievance.classification_engine} />
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -233,7 +233,7 @@ export default function StudentGrievancesPage() {
 
                 {grievance.remarks && (
                   <div className="rounded-card border border-line bg-subtle p-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Response</p>
+                    <p className="text-xs font-bold text-ink-soft">Response</p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{grievance.remarks}</p>
                   </div>
                 )}

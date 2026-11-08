@@ -6,14 +6,14 @@ export function cn(...classes) {
 
 export function Badge({ color, children }) {
   const map = {
-    blue: 'bg-[#E6F6FD] text-[#0F2F62]',
+    blue: 'bg-brand-50 text-navy-800',
     green: 'bg-green-100 text-green-800',
     red: 'bg-red-100 text-red-800',
     yellow: 'bg-amber-100 text-amber-800',
-    purple: 'bg-[#E6F6FD] text-[#0F2F62]',
+    purple: 'bg-brand-50 text-navy-800',
     gray: 'bg-gray-100 text-gray-700',
     orange: 'bg-amber-100 text-amber-800',
-    teal: 'bg-[#E6F6FD] text-[#0F2F62]',
+    teal: 'bg-brand-50 text-navy-800',
   };
 
   return (
@@ -52,7 +52,7 @@ export function SectionHeader({ title, sub = null, action = null, onAction = nul
   return (
     <div className="mb-5 flex items-center justify-between">
       <div>
-        <h2 className="text-lg font-bold text-[#0F172A]">
+        <h2 className="text-lg font-bold text-ink">
           {title}
         </h2>
         {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
@@ -60,7 +60,7 @@ export function SectionHeader({ title, sub = null, action = null, onAction = nul
       {action && (
         <button
           onClick={onAction}
-          className="flex items-center gap-1.5 rounded-lg bg-[#0878B7] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0F2F62]"
+          className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-800"
         >
           <Plus size={15} />
           {action}
@@ -80,7 +80,7 @@ export function Avatar({ name, size = 'sm', color = null }) {
     .join('')
     .toUpperCase() || '?';
 
-  const colors = ['bg-[#0878B7]', 'bg-[#0B8ED0]', 'bg-[#0F2F62]', 'bg-[#0B1831]'];
+  const colors = ['bg-brand-700', 'bg-brand-600', 'bg-navy-800', 'bg-navy-950'];
   const bg = color || colors[safeName.charCodeAt(0) % colors.length];
   const sizeClass = size === 'lg' ? 'h-12 w-12 text-base' : size === 'md' ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs';
 

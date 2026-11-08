@@ -92,13 +92,13 @@ function ReportExtras({ request }) {
       </Button>
       <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted-strong">Required signatories</dt>
+          <dt className="text-xs font-bold text-ink-muted-strong">Required signatories</dt>
           {Object.entries(summary.signatories || {}).map(([role, name]) => (
             <dd key={role} className="mt-2 capitalize text-ink-muted-strong">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></dd>
           ))}
         </div>
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted-strong">Supporting documents</dt>
+          <dt className="text-xs font-bold text-ink-muted-strong">Supporting documents</dt>
           {documents.map((document) => (
             <dd key={document.index}>
               <button type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-brand-700 hover:underline">
@@ -118,7 +118,7 @@ function RequirementFiles({ files }) {
 
   return (
     <section aria-label="SAO event files">
-      <h3 className="text-xs font-bold uppercase tracking-wide text-ink-muted-strong">SAO event files</h3>
+      <h3 className="text-xs font-bold text-ink-muted-strong">SAO event files</h3>
       <ul className="mt-2 space-y-1 text-sm text-ink">
         {files.map((file) => <li key={file.id}>{file.requirement ? `${file.requirement}: ` : ''}{file.original_name}</li>)}
       </ul>
@@ -182,7 +182,7 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
         {request.entity_type === 'event' && <RequirementFiles files={request.summary?.requirement_files} />}
         {request.entity_type === 'financial_report' && <ReportExtras request={request} />}
         <section aria-label="History">
-          <h3 className="text-xs font-bold uppercase tracking-wide text-ink-muted-strong">History</h3>
+          <h3 className="text-xs font-bold text-ink-muted-strong">History</h3>
           <ol className="mt-2 space-y-3 border-l border-line pl-4">
             {historyEntries(request).map((entry) => (
               <li key={entry.key} className="text-sm">

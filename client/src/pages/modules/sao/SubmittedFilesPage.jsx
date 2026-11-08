@@ -103,7 +103,7 @@ export default function SubmittedFilesPage({ role }) {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-[13px]">
               <caption className="sr-only">Submitted files and their review status</caption>
-              <thead className="bg-subtle text-xs font-bold uppercase text-ink-muted"><tr><th scope="col" className="px-4 py-3">File</th><th scope="col" className="px-4 py-3">Organization</th><th scope="col" className="px-4 py-3">Type</th><th scope="col" className="px-4 py-3">Submitted</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="px-4 py-3 text-right">Actions</th></tr></thead>
+              <thead className="bg-subtle text-xs font-bold text-ink-muted"><tr><th scope="col" className="px-4 py-3">File</th><th scope="col" className="px-4 py-3">Organization</th><th scope="col" className="px-4 py-3">Type</th><th scope="col" className="px-4 py-3">Submitted</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="px-4 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-line">
                 {state.rows.map((row) => <tr key={`${row.source}-${row.id}`} className="align-top">
                   <td className="max-w-xs px-4 py-3"><span className="block break-words font-semibold text-ink">{row.file_name}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></td>

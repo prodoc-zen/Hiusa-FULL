@@ -64,7 +64,7 @@ export default function PillarPulse({ pillars = {}, order = [] }) {
               )}
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink-muted">{data.label}</p>
-                <p className="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatValue(data.unit, data.value)}</p>
+                <p className="mt-0.5 text-xl font-semibold tabular-nums text-ink">{formatValue(data.unit, data.value)}</p>
                 <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{data.context}</p>
               </div>
             </div>

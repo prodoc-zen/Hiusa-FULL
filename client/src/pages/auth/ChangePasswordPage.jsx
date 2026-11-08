@@ -88,8 +88,8 @@ export default function ChangePasswordPage() {
 
   return (
     <AuthLayout>
-      <h1 className="text-[28px] font-extrabold leading-tight text-ink">Choose a new password</h1>
-      <p className="mt-1.5 text-sm font-medium text-ink-muted">
+      <h1 className="text-xl font-semibold text-ink sm:text-2xl">Choose a new password</h1>
+      <p className="mt-2 text-sm text-ink-muted">
         Your account was created with a default password. Set your own before you continue.
       </p>
 

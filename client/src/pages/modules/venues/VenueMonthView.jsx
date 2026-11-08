@@ -14,7 +14,7 @@ export default function VenueMonthView({ days, anchor, slots, conflictIds, onSel
     <div className="max-w-full overflow-x-auto rounded-control border border-line" role="region" tabIndex={0} aria-label="Month of bookings. Scroll sideways to see every day." data-testid="month-grid">
       <div className="min-w-[560px]">
         <div className="grid grid-cols-7 border-b border-line bg-subtle" aria-hidden="true">
-          {WEEKDAYS.map((name) => <span key={name} className="px-2 py-2 text-center text-xs font-bold uppercase text-ink-muted">{name}</span>)}
+          {WEEKDAYS.map((name) => <span key={name} className="px-2 py-2 text-center text-xs font-bold text-ink-muted">{name}</span>)}
         </div>
         <div className="grid grid-cols-7">
           {days.map((day) => {

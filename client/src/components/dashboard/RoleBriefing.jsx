@@ -68,6 +68,8 @@ function BriefingBody({ data, introduction }) {
     actions = ACTIONS[role] || [];
   }
 
+  // The AI insights stay out of the SAO and dean journeys; both read plain lists of work.
+  const showInsights = role !== 'SUPER_ADMIN' && role !== 'DEPARTMENT_HEAD';
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;
   const attentionTitle = ATTENTION_TITLE[role] || 'Needs attention';
 
@@ -82,7 +84,7 @@ function BriefingBody({ data, introduction }) {
   );
   const attentionCard = (
     <section aria-labelledby="briefing-attention" className="flex min-h-0 flex-col overflow-hidden rounded-card border border-line bg-surface">
-      <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">{attentionTitle}</h2>
+      <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">{attentionTitle}</h2>
       <div className="max-h-72 overflow-y-auto px-4 sm:px-5">
         {role === 'SUPER_ADMIN' ? <ReviewInbox areas={reviewAreas} /> : <AttentionList items={attention} />}
       </div>
@@ -95,15 +97,15 @@ function BriefingBody({ data, introduction }) {
       {introduction}
       <div className={setupCard ? 'grid items-start gap-4 xl:grid-cols-2' : ''}>{inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}</div>
       {role !== 'SUPER_ADMIN' && <details className="group overflow-hidden rounded-card border border-line bg-surface">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
           <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
       </details>}
-      {role !== 'SUPER_ADMIN' && insights.length > 0 && (
+      {showInsights && insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
-          <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-bold text-ink sm:px-6">What HIUSA noticed</h2>
+          <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-semibold text-ink sm:px-6">What HIUSA noticed</h2>
           <div className="divide-y divide-line-soft px-5 sm:px-6">
             {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
           </div>

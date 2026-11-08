@@ -8,8 +8,10 @@ import { visibleSchoolId } from '../../utils/schoolId';
 const DEBOUNCE_MS = 250;
 const MIN_CHARS = 2;
 
+// Where the person belongs (an organization if they are in one, else their college), then the email
+// that tells two people with the same name apart.
 function defaultDetail(person) {
-  return [person.email, person.program].filter(Boolean).join(' · ');
+  return [person.organizations?.[0]?.name || person.college, person.email].filter(Boolean).join(' · ');
 }
 
 export default function PersonPicker({
@@ -71,7 +73,7 @@ export default function PersonPicker({
         setStatus('done');
       } catch (err) {
         if (request !== requestRef.current) return;
-        setFailure(getApiErrorMessage(err, 'We could not search just now.'));
+        setFailure(getApiErrorMessage(err, 'Could not search. Try again.'));
         setStatus('error');
       }
     }, DEBOUNCE_MS);
@@ -110,15 +112,12 @@ export default function PersonPicker({
     }
   };
 
-  const labelClass = 'text-[13px] font-semibold text-ink';
+  const labelClass = 'text-[13px] font-medium text-ink';
 
   if (selected) {
     return (
       <div className={`flex flex-col gap-1.5 ${className}`}>
-        <span id={`${baseId}-label`} className={labelClass}>
-          
-          {label}
-        </span>
+        <span id={`${baseId}-label`} className={labelClass}>{label}</span>
         <div
           role="group"
           aria-labelledby={`${baseId}-label`}
@@ -126,8 +125,8 @@ export default function PersonPicker({
         >
           <Avatar name={selected.name} size="sm" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-ink">{selected.name}</p>
-            <p className="truncate text-xs font-medium text-ink-muted">{describe(selected)}</p>
+            <p className="truncate text-sm font-semibold text-ink">{selected.name}</p>
+            <p className="truncate text-xs text-ink-muted">{describe(selected)}</p>
           </div>
           <Button variant="secondary" size="sm" onClick={remove} disabled={disabled} aria-label={`Remove ${selected.name}`}>
             Remove
@@ -142,10 +141,7 @@ export default function PersonPicker({
 
   return (
     <div className={`relative flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={inputId} className={labelClass}>
-        
-        {label}
-      </label>
+      <label htmlFor={inputId} className={labelClass}>{label}</label>
       <div className="relative">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
         <Input
@@ -178,19 +174,19 @@ export default function PersonPicker({
         role="listbox"
         aria-label={`${label} results`}
         hidden={!showList}
-        className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-72 overflow-y-auto rounded-control border border-line bg-surface shadow-lg"
+        className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-72 overflow-y-auto rounded-control border border-line bg-surface shadow-card"
       >
-        {status === 'loading' && <p role="status" className="px-3 py-3 text-sm font-medium text-ink-muted">Searching...</p>}
+        {status === 'loading' && <p role="status" className="px-3 py-3 text-sm text-ink-muted">Searching...</p>}
         {status === 'error' && (
           <div className="flex items-center justify-between gap-3 px-3 py-3">
-            <p role="alert" className="text-sm font-medium text-danger-strong">{failure}</p>
+            <p role="alert" className="text-sm text-danger-strong">{failure}</p>
             <Button variant="secondary" size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => setRetry((count) => count + 1)}>
               Try again
             </Button>
           </div>
         )}
         {status === 'done' && results.length === 0 && (
-          <p role="status" className="px-3 py-3 text-sm font-medium text-ink-muted">No one matches &quot;{trimmed}&quot;</p>
+          <p role="status" className="px-3 py-3 text-sm text-ink-muted">No one matches &quot;{trimmed}&quot;</p>
         )}
         {status === 'done' && results.map((person, index) => (
           <div
@@ -205,15 +201,15 @@ export default function PersonPicker({
           >
             <Avatar name={person.name} size="sm" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-ink">{person.name}</p>
-              <p className="truncate text-xs font-medium text-ink-muted">{describe(person)}</p>
+              <p className="truncate text-sm font-semibold text-ink">{person.name}</p>
+              <p className="truncate text-xs text-ink-muted">{describe(person)}</p>
             </div>
-            {visibleSchoolId(person.school_id) !== null && <span className="shrink-0 text-[11px] font-medium text-ink-soft">{visibleSchoolId(person.school_id)}</span>}
+            {visibleSchoolId(person.school_id) !== null && <span className="shrink-0 text-xs text-ink-muted">{visibleSchoolId(person.school_id)}</span>}
           </div>
         ))}
       </div>
 
-      {hint && !error && <p id={`${inputId}-hint`} className="text-xs font-medium text-ink-muted">{hint}</p>}
+      {hint && !error && <p id={`${inputId}-hint`} className="text-xs text-ink-muted">{hint}</p>}
       {error && <p id={`${inputId}-error`} role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>}
     </div>
   );

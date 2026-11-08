@@ -14,9 +14,9 @@ export default function ObjectiveEvidenceList({ items }) {
         const zero = isZeroEvidence(item);
         const body = (
           <span className="min-w-0">
-            <span className="block text-lg font-extrabold tabular-nums text-ink">{formatted}</span>
+            <span className="block text-lg font-semibold tabular-nums text-ink">{formatted}</span>
             <span className="block text-xs font-semibold text-ink-muted">{item.label}</span>
-            {zero && <span className="block text-[11px] font-medium text-ink-soft">No activity yet</span>}
+            {zero && <span className="block text-xs font-medium text-ink-soft">No activity yet</span>}
           </span>
         );
 

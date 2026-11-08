@@ -9,5 +9,5 @@ export function notificationAppearance(notification) {
   const tone = notificationTone(notification);
   if (tone === 'danger') return { row: notification.is_read ? 'border-transparent' : 'border-red-600 bg-red-50', icon: 'text-red-700' };
   if (tone === 'success') return { row: notification.is_read ? 'border-transparent' : 'border-green-600 bg-green-50', icon: 'text-green-800' };
-  return { row: notification.is_read ? 'border-transparent' : 'border-[#0B8ED0] bg-[#E6F6FD]', icon: notification.is_read ? 'text-slate-500' : 'text-[#0878B7]' };
+  return { row: notification.is_read ? 'border-transparent' : 'border-brand-600 bg-brand-50', icon: notification.is_read ? 'text-slate-500' : 'text-brand-700' };
 }

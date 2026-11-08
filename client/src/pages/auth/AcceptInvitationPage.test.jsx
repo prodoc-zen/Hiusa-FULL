@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import AcceptInvitationPage from './AcceptInvitationPage';
 
@@ -43,6 +43,7 @@ function renderPage(path = '/accept-invitation?token=valid-secret-token') {
   );
 }
 
+const summary = () => screen.getByRole('group', { name: 'There is a problem' });
 const type = (label, value) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 function fillForm(overrides = {}) {
@@ -60,13 +61,13 @@ describe('AcceptInvitationPage', () => {
     localStorage.clear();
   });
 
-  it('shows a plain error when the link has no code', async () => {
+  it('shows one title and one next step when the link has no code', async () => {
     renderPage('/accept-invitation');
 
-    expect(await screen.findByText('This link does not work')).toBeInTheDocument();
-    expect(screen.getByText(/missing its code/i)).toBeInTheDocument();
+    expect(await screen.findByText('This invitation link is incomplete')).toBeInTheDocument();
+    expect(screen.getByText(/Open the link exactly as it was sent/)).toBeInTheDocument();
     expect(mocks.getDepartmentHeadInvitation).not.toHaveBeenCalled();
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+    expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
   });
 
   it('shows a loading state while the link is checked', async () => {
@@ -76,13 +77,22 @@ describe('AcceptInvitationPage', () => {
     expect(screen.getByRole('status', { name: 'Loading invitation' })).toBeInTheDocument();
   });
 
-  it('shows an expired or used link as an error state', async () => {
+  it('shows an expired link with one title and one next step', async () => {
     mocks.getDepartmentHeadInvitation.mockRejectedValue({ response: { status: 410, data: { message: 'This link has expired. Ask for a new one.' } } });
     renderPage();
 
-    expect(await screen.findByText('This link does not work')).toBeInTheDocument();
-    expect(screen.getByText('This link has expired. Ask for a new one.')).toBeInTheDocument();
+    expect(await screen.findByText('This invitation link has expired')).toBeInTheDocument();
+    expect(screen.getByText('Ask the office that sent it for a new one.')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
+
+  it('sends someone with a used link to sign in', async () => {
+    mocks.getDepartmentHeadInvitation.mockRejectedValue({ response: { status: 410, data: { message: 'This link was already used. Sign in instead.' } } });
+    renderPage();
+
+    expect(await screen.findByText('This invitation link was already used')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   });
 
   it('offers a retry when the server is down, not a dead end', async () => {
@@ -105,6 +115,17 @@ describe('AcceptInvitationPage', () => {
     });
     expect(screen.queryByLabelText(/School ID|Employee number/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Create account/ })).toHaveLength(1);
+  });
+
+  it('says who invited the dean and who invited office staff', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    const { unmount } = renderPage();
+    expect(await screen.findByText(/Invited by the Student Affairs Office\./)).toBeInTheDocument();
+    unmount();
+
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(staffInvite);
+    renderPage();
+    expect(await screen.findByText(/Invited by the Department Head of College of Arts and Sciences\./)).toBeInTheDocument();
   });
 
   it('registers the dean, signs them in with their email and lands on the dean home', async () => {
@@ -176,15 +197,22 @@ describe('AcceptInvitationPage', () => {
     await screen.findByRole('heading', { name: /You're invited to lead/ });
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    expect(await screen.findByText('Enter your first name.')).toBeInTheDocument();
-    expect(screen.getByText('Enter your last name.')).toBeInTheDocument();
-    expect(screen.getByText('Enter your email.')).toBeInTheDocument();
-    expect(screen.getByText('Choose a password.')).toBeInTheDocument();
+    const errorSummary = await screen.findByRole('group', { name: 'There is a problem' });
+    ['Enter your first name.', 'Enter your last name.', 'Enter your email.', 'Choose a password.'].forEach((message) => {
+      expect(within(errorSummary).getByText(message)).toBeInTheDocument();
+      expect(screen.getAllByText(message)).toHaveLength(2);
+    });
+    expect(errorSummary).toHaveFocus();
+    expect(screen.getByLabelText(/^First name/)).toHaveAttribute('aria-invalid', 'true');
+
+    fireEvent.click(within(errorSummary).getByText('Enter your first name.'));
+    expect(screen.getByLabelText(/^First name/)).toHaveFocus();
 
     fillForm({ confirm: 'Mismatch!!' });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    expect(await screen.findByText('The two passwords do not match.')).toBeInTheDocument();
+    expect(await within(summary()).findByText('The two passwords do not match.')).toBeInTheDocument();
+    expect(screen.getAllByText('The two passwords do not match.')).toHaveLength(2);
     expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
   });
 
@@ -197,7 +225,8 @@ describe('AcceptInvitationPage', () => {
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    expect(await screen.findByText('The email has already been taken.')).toBeInTheDocument();
+    expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText('The email has already been taken.')).toBeInTheDocument();
+    expect(screen.getAllByText('The email has already been taken.')).toHaveLength(2);
     expect(screen.getByLabelText(/First name/)).toHaveValue('Arthur');
     expect(mocks.login).not.toHaveBeenCalled();
   });
@@ -211,11 +240,11 @@ describe('AcceptInvitationPage', () => {
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    expect(await screen.findByText('This link does not work')).toBeInTheDocument();
-    expect(screen.getByText('This link was already used. Sign in instead.')).toBeInTheDocument();
+    expect(await screen.findByText('This invitation link was already used')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   });
 
-  it('shows a conflict from the server as a message above the button', async () => {
+  it('shows a conflict from the server in the summary at the top of the form', async () => {
     mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
     mocks.acceptDepartmentHeadInvitation.mockRejectedValue({ response: { status: 409, data: { message: 'This college already has an active Department Head. Deactivate the current one first.' } } });
     renderPage();
@@ -224,7 +253,7 @@ describe('AcceptInvitationPage', () => {
     fillForm();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('This college already has an active Department Head.');
+    expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText(/This college already has an active Department Head\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled();
   });
 

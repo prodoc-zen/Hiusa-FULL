@@ -270,7 +270,7 @@ export default function AcademicYearsPage() {
                   title={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester`}
                   disabled={busy}
                   onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-soft text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-soft text-danger-strong transition hover:bg-danger-tint disabled:opacity-50"
                 >
                   <Trash2 size={16} aria-hidden="true" />
                 </button>

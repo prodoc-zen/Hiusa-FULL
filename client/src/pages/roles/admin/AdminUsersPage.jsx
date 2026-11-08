@@ -58,7 +58,7 @@ function Field({ label, children, error, required = false, className = '' }) {
   const Icon = FIELD_ICONS[label];
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#0F172A]">{Icon && <Icon size={14} aria-hidden="true" className="text-[#0878B7]" />}{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
+      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-ink">{Icon && <Icon size={14} aria-hidden="true" className="text-brand-700" />}{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
       {children}
       {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
     </label>
@@ -76,12 +76,12 @@ function firstError(error) {
 
 const ACTION_ICON_COLORS = {
   edit: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-  view: 'border-[#DDE7EF] bg-[#EEF6FB] text-[#0F2F62] hover:bg-[#E6F6FD]',
-  fingerprint: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62] hover:bg-[#E6F6FD]',
-  enrolledFingerprint: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
-  verify: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62] hover:bg-[#F8FBFD]',
+  view: 'border-line bg-page text-navy-800 hover:bg-brand-50',
+  fingerprint: 'border-line bg-brand-50 text-navy-800 hover:bg-brand-50',
+  enrolledFingerprint: 'border-success/30 bg-success-tint text-success-strong hover:bg-success-tint',
+  verify: 'border-line bg-brand-50 text-navy-800 hover:bg-subtle',
   deactivate: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
-  reactivate: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+  reactivate: 'border-success/30 bg-success-tint text-success-strong hover:bg-success-tint',
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
 };
 
@@ -167,10 +167,10 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       aria-label={`Actions for ${formatDisplayText(name)}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
-      className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+      className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-lg border border-line bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
     >
       <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">User actions</p>
+        <p className="text-xs font-semibold tracking-[0.16em] text-brand-700">User actions</p>
         <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{formatDisplayText(name)}</p>
       </div>
       <div className="space-y-0.5">
@@ -185,11 +185,11 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
               aria-label={action.label}
               tabIndex={expanded ? 0 : -1}
               onClick={() => run(action)}
-              className={`group flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
+              className={`group flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-subtle hover:text-brand-700'}`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-colors duration-150 ${ACTION_ICON_COLORS[action.color]}`}><Icon size={14} strokeWidth={2.1} /></span>
               <span className="min-w-0 flex-1 truncate">{action.menuLabel}</span>
-              <span className={`h-1.5 w-1.5 rounded-full transition-all duration-150 ${destructive ? 'bg-red-200 group-hover:bg-red-500' : 'bg-slate-200 group-hover:bg-[#16C7F3]'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full transition-[background-color,color,border-color,transform] duration-150 ${destructive ? 'bg-red-200 group-hover:bg-red-500' : 'bg-slate-200 group-hover:bg-accent'}`} />
             </button>
           );
         })}
@@ -208,7 +208,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
         aria-haspopup="menu"
         aria-controls={menuId}
         onClick={toggleMenu}
-        className={`grid h-9 w-9 place-items-center rounded-lg border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-[#16C7F3] bg-[#E6F6FD] text-[#0F2F62] shadow-[#16C7F3]/15' : 'border-[#DDE7EF] bg-white text-slate-500 hover:border-[#DDE7EF] hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
+        className={`grid h-9 w-9 place-items-center rounded-lg border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-accent bg-brand-50 text-navy-800 shadow-accent/15' : 'border-line bg-white text-slate-500 hover:border-line hover:bg-subtle hover:text-brand-700'}`}
       >
         <MoreVertical size={18} />
       </button>
@@ -276,25 +276,25 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
       footer={<>
-        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
+        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
         {user.fingerprint_enrolled && <button type="button" onClick={() => setConfirmRemove(true)} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
-        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
+        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
       </>}
       maxWidth="max-w-lg"
     >
       <div className="space-y-4">
         <UserIdentityCard user={user} compact />
         <ScannerStatus reader={reader} />
-        <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0878B7]">{captured} / 4</span></div>
-          <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-[#0878B7]' : 'bg-[#DDE7EF]'}`} />)}</div>
+        <div className="rounded-lg border border-line bg-subtle p-4">
+          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-ink">Capture progress</p><span className="text-xs font-bold text-brand-700">{captured} / 4</span></div>
+          <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-brand-700' : 'bg-line'}`} />)}</div>
           <p className="mt-3 text-xs leading-5 text-slate-500">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
         </div>
-        <label className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 text-xs font-medium leading-5 text-slate-600">
-          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#DDE7EF]" />
+        <label className="flex items-start gap-3 rounded-lg border border-line bg-white p-3 text-xs font-medium leading-5 text-slate-600">
+          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-line" />
           <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
         </label>
-        {busy && <p className="rounded-lg border border-[#DDE7EF] bg-[#E6F6FD] px-3 py-2 text-xs font-semibold text-[#0F2F62]">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
+        {busy && <p className="rounded-lg border border-line bg-brand-50 px-3 py-2 text-xs font-semibold text-navy-800">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
         {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
       </div>
     </Modal>
@@ -341,30 +341,30 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
       closeOnEscape={!busy}
       maxWidth="max-w-xl"
       footer={<>
-        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
-        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62] disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
+        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
+        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition-colors hover:bg-navy-800 disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
       </>}
     >
       <div className="space-y-4">
         <ScannerStatus reader={reader} />
-        <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">Expected account</p>
+        <div className="rounded-lg border border-line bg-subtle p-4">
+          <p className="text-xs font-semibold tracking-[0.16em] text-brand-700">Expected account</p>
           <div className="mt-2 flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E6F6FD] text-sm font-black text-[#0F2F62]">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
-            <div><p className="text-sm font-black text-[#0F172A]">{formatDisplayText(expectedUser.first_name)} {formatDisplayText(expectedUser.last_name)}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-navy-800">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
+            <div><p className="text-sm font-semibold text-ink">{formatDisplayText(expectedUser.first_name)} {formatDisplayText(expectedUser.last_name)}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
           </div>
         </div>
 
-        {busy && <div className="rounded-lg border border-[#DDE7EF] bg-[#E6F6FD] px-4 py-3"><p className="text-sm font-bold text-[#0F2F62]">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-[#0F2F62]">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
+        {busy && <div className="rounded-lg border border-line bg-brand-50 px-4 py-3"><p className="text-sm font-bold text-navy-800">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-navy-800">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-        {result && <div className={`rounded-lg border p-4 ${result.matchesExpected ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+        {result && <div className={`rounded-lg border p-4 ${result.matchesExpected ? 'border-success/30 bg-success-tint' : 'border-amber-200 bg-amber-50'}`}>
           <div className="flex items-start gap-3">
-            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${result.matchesExpected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><UserCheck size={19} /></span>
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${result.matchesExpected ? 'bg-success-tint text-success-strong' : 'bg-amber-100 text-amber-700'}`}><UserCheck size={19} /></span>
             <div className="min-w-0 flex-1">
-              <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${result.matchesExpected ? 'text-emerald-700' : 'text-amber-700'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>
-              <p className="mt-1 text-base font-black text-[#0F172A]">{identifiedName}</p>
+              <p className={`text-xs font-semibold tracking-[0.16em] ${result.matchesExpected ? 'text-success-strong' : 'text-amber-700'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>
+              <p className="mt-1 text-base font-semibold text-ink">{identifiedName}</p>
               <p className="text-xs font-medium text-slate-600">School ID {result.user?.school_id} · {ROLE_LABELS[result.user?.role] || result.user?.role}</p>
-              {Number.isFinite(Number(result.score)) && <p className="mt-2 text-[11px] font-semibold text-slate-500">Match score {Number(result.score).toFixed(2)}{Number.isFinite(Number(result.threshold)) ? ` · Required ${Number(result.threshold).toFixed(2)}` : ''}</p>}
+              {Number.isFinite(Number(result.score)) && <p className="mt-2 text-xs font-semibold text-slate-500">Match score {Number(result.score).toFixed(2)}{Number.isFinite(Number(result.threshold)) ? ` · Required ${Number(result.threshold).toFixed(2)}` : ''}</p>}
             </div>
           </div>
         </div>}
@@ -660,24 +660,24 @@ export default function AdminUsersPage() {
 
   const userForm = (form, setForm) => (
     <form id="edit-user-form" onSubmit={handleEdit} className="grid gap-4 sm:grid-cols-2">
-      <div className="sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Identity and contact</h3><p className="text-xs text-slate-500">Fields marked * are required.</p></div>
+      <div className="sm:col-span-2"><h3 className="text-sm font-bold text-navy-800">Identity and contact</h3><p className="text-xs text-slate-500">Fields marked * are required.</p></div>
       {selectedUser && <div className="sm:col-span-2"><UserIdentityCard user={selectedUser} compact /></div>}
       <Field label="Email" required error={modalFieldErrors.email?.[0]}>
-        <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
       </Field>
       <Field label="First Name" required error={modalFieldErrors.first_name?.[0]}>
-        <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
       </Field>
       <Field label="Last Name" required error={modalFieldErrors.last_name?.[0]}>
-        <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
       </Field>
       <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
-        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
       </Field>
-      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setEditPhoto(event.target.files?.[0] || null)} className="w-full rounded-lg border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
-      <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Role and academic details</h3></div>
+      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setEditPhoto(event.target.files?.[0] || null)} className="w-full rounded-lg border border-line p-2 text-xs" /><span className="mt-1 block text-xs text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
+      <div className="mt-2 border-t border-line pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-navy-800">Role and academic details</h3></div>
       <Field label="Role" required error={modalFieldErrors.role?.[0]}>
-        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
+        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100 disabled:text-slate-500">
           {(selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
@@ -688,7 +688,7 @@ export default function AdminUsersPage() {
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
           disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
-          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500"
+          className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100 disabled:text-slate-500"
         >
           <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
           {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
@@ -697,14 +697,14 @@ export default function AdminUsersPage() {
         </HiusaSelect>
       </Field>}
       <Field label="Course / Program" error={modalFieldErrors.program?.[0]}>
-        <HiusaSelect value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
+        <HiusaSelect value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
         {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
       </Field>
       <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
-        <HiusaSelect value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
+        <HiusaSelect value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
       </Field>
-      <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section" error={modalFieldErrors.section?.[0]}><HiusaSelect value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect></Field>
+      <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-line px-3 text-sm" /></Field>
+      <Field label="Section" error={modalFieldErrors.section?.[0]}><HiusaSelect value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-card border border-line px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect></Field>
       {modalError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 sm:col-span-2">
           {modalError}
@@ -739,14 +739,14 @@ export default function AdminUsersPage() {
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
       {actorRole === 'ADMIN' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2" role="tablist" aria-label="Member management units">
             <button
               type="button"
               role="tab"
               aria-selected={!isAdminsUnit}
               onClick={() => switchUnit('members')}
-              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${!isAdminsUnit ? 'bg-[#0878B7] text-white' : 'text-slate-600 hover:bg-[#F8FBFD]'}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${!isAdminsUnit ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-subtle'}`}
             >
               <UsersRound size={15} /> All Members
             </button>
@@ -755,22 +755,22 @@ export default function AdminUsersPage() {
               role="tab"
               aria-selected={isAdminsUnit}
               onClick={() => switchUnit('admins')}
-              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${isAdminsUnit ? 'bg-[#0878B7] text-white' : 'text-slate-600 hover:bg-[#F8FBFD]'}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${isAdminsUnit ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-subtle'}`}
             >
               <ShieldCheck size={15} /> Manage Admins
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${isAdminsUnit ? 'bg-white/20 text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{roleSummary.ADMIN ?? 0}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isAdminsUnit ? 'bg-white/20 text-white' : 'bg-page text-navy-800'}`}>{roleSummary.ADMIN ?? 0}</span>
             </button>
           </div>
         </div>
       )}
 
-      <section className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-4 shadow-sm lg:flex-row lg:items-center">
+      <section className="flex flex-col gap-4 rounded-lg border border-line bg-page p-4 shadow-sm lg:flex-row lg:items-center">
         <div className="grid flex-1 gap-3 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [
           ['Students', meta.total, GraduationCap], ['Fingerprint directory', 'Attendance use only', Fingerprint],
         ] : [
           ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
-        ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-[#DDE7EF] bg-white p-4"><div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></div><Icon size={22} className="text-[#0878B7]" aria-hidden="true" /></dl>)}</div>
-        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}<button type="button" onClick={() => openAddStudent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> Add existing student</button></div>}
+        ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-line bg-white p-4"><div><dt className="text-xs font-bold text-slate-500">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{value}</dd></div><Icon size={22} className="text-brand-700" aria-hidden="true" /></dl>)}</div>
+        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-bold text-navy-800 hover:bg-subtle disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-bold text-navy-800 hover:bg-subtle"><Upload size={15} /> Import</button>}<button type="button" onClick={() => openAddStudent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800"><UserPlus size={15} /> Add existing student</button></div>}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -795,7 +795,7 @@ export default function AdminUsersPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
       )}
 
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-3 shadow-sm sm:p-5">
+      <section className="rounded-lg border border-line bg-white p-3 shadow-sm sm:p-5">
         <TableFilterBar
           searchValue={search}
           onSearchChange={(value) => { setSearch(value); setPage(1); }}
@@ -809,28 +809,28 @@ export default function AdminUsersPage() {
           <HiusaSelect filter
             value={roleFilter}
             onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+            className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
           >
             <option value="all">All roles</option>
             {visibleFilterRoles.map((role) => (
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => matchesFilter(programFilter, program.name)).flatMap((program) => program.sections || []).filter((section) => filterValues(yearLevelFilter).length === 0 || filterValues(yearLevelFilter).some((year) => Number(section.year_level) === yearNumber(year))).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
-          <HiusaSelect aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => matchesFilter(programFilter, program.name)).flatMap((program) => program.sections || []).filter((section) => filterValues(yearLevelFilter).length === 0 || filterValues(yearLevelFilter).some((year) => Number(section.year_level) === yearNumber(year))).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
+          <HiusaSelect filter aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
+          <HiusaSelect aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></HiusaSelect>
         </TableFilterBar>
         <div className="space-y-3 md:hidden" aria-label="Users">
-          {loading && Array.from({ length: 3 }, (_, index) => <div key={`user-card-skeleton-${index}`} className="h-32 animate-pulse rounded-xl bg-slate-100" />)}
+          {loading && Array.from({ length: 3 }, (_, index) => <div key={`user-card-skeleton-${index}`} className="h-32 animate-pulse rounded-card bg-slate-100" />)}
           {!loading && sortedUsers.map((user) => (
-            <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
+            <article key={user.id} className="min-w-0 rounded-card border border-line p-4">
               <div className="flex min-w-0 items-start justify-between gap-2">
-                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
+                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-ink">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
                 <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => openAddStudent(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span><span className={`rounded-full px-2.5 py-1 ${user.fingerprint_enrolled ? 'bg-sky-50 text-[#0878B7]' : 'bg-slate-100 text-slate-600'}`}>{user.fingerprint_enrolled ? 'Fingerprint enrolled' : 'Not enrolled'}</span></div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-page px-2.5 py-1 text-navy-800">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-success-tint text-success-strong' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span><span className={`rounded-full px-2.5 py-1 ${user.fingerprint_enrolled ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>{user.fingerprint_enrolled ? 'Fingerprint enrolled' : 'Not enrolled'}</span></div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
             </article>
           ))}
@@ -838,7 +838,7 @@ export default function AdminUsersPage() {
         </div>
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[940px] text-left">
-            <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <thead className="bg-subtle text-xs font-bold text-slate-500">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">School ID</th>
@@ -850,7 +850,7 @@ export default function AdminUsersPage() {
                 <th className="w-[72px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#DDE7EF] text-sm">
+            <tbody className="divide-y divide-line text-sm">
               {loading && Array.from({ length: 6 }, (_, index) => (
                 <tr key={`user-skeleton-${index}`} aria-hidden="true">
                   {Array.from({ length: 8 }, (__, cellIndex) => (
@@ -861,22 +861,22 @@ export default function AdminUsersPage() {
                 </tr>
               ))}
               {!loading && sortedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-[#F8FBFD]">
-                  <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
+                <tr key={user.id} className="hover:bg-subtle">
+                  <td className="px-4 py-3.5 font-semibold text-ink">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-ink-muted">{user.school_id}</td>
                   <td className="px-4 py-3.5">
-                    <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span>
+                    <span className="rounded-full bg-page px-2.5 py-1 text-xs font-bold text-navy-800">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
-                  <td className="px-4 py-3.5 text-xs text-[#64748B]"><p className="font-semibold text-slate-700">{user.program || '-'}</p>{user.major && <p className="mt-0.5">{user.major}</p>}</td>
+                  <td className="px-4 py-3.5 text-xs text-ink-muted"><p className="font-semibold text-slate-700">{user.program || '-'}</p>{user.major && <p className="mt-0.5">{user.major}</p>}</td>
                   <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.year_level || '-'}</td>
                   <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.section || '-'}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
-                      {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
+                      {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-success-strong" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
                       {user.fingerprint_enrolled ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-[#0878B7]"><Fingerprint aria-label="Fingerprint enrolled" size={14} /> Enrolled</span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700"><Fingerprint aria-label="Fingerprint enrolled" size={14} /> Enrolled</span>
                       ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">Not enrolled</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">Not enrolled</span>
                       )}
                     </div>
                   </td>
@@ -898,7 +898,7 @@ export default function AdminUsersPage() {
               ))}
               {!loading && users.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-ink-soft">
                     {meta.total === 0 ? 'No users found.' : 'No users on this page.'}
                   </td>
                 </tr>
@@ -923,28 +923,28 @@ export default function AdminUsersPage() {
         description={profileUser ? `${profileUser.first_name} ${profileUser.last_name} - School ID ${profileUser.school_id}` : ''}
         onClose={closeProfile}
         maxWidth="max-w-3xl"
-        footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Close</button>}
+        footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle">Close</button>}
       >
         {profileUser && <div className="space-y-5">
           <UserIdentityCard user={profileUser} />
-          <div className="grid gap-3 rounded-2xl border border-[#DDE7EF] bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 rounded-card border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
               ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'], ['Fingerprint enrollment', profileUser.fingerprint_enrolled ? 'Enrolled' : 'Not enrolled'],
-            ].map(([label, value]) => <div key={label} className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold leading-6 text-[#0F172A]">{value}</p></div>)}
+            ].map(([label, value]) => <div key={label} className="min-w-0"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold leading-6 text-ink">{value}</p></div>)}
           </div>
           {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section>
-            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Financial standing</p><h3 className="mt-1 text-lg font-black text-[#0F172A]">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold text-brand-700">Financial standing</p><h3 className="mt-1 text-lg font-semibold text-ink">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-success-tint text-success-strong' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
             {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-lg bg-slate-100" />}
             {profileError && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{profileError}</p>}
             {!profileLoading && profileDebt && <>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">₱{Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-lg border border-line bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-semibold text-ink">₱{Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
               {profileDebt.total_debt > 0 && <div className="mt-4 space-y-3">
-                {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>₱{Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
-                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{formatDisplayText(order.merchandise?.name) || 'Merchandise item'}</span></span><strong>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
+                {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-ink">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>₱{Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
+                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-ink">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{formatDisplayText(order.merchandise?.name) || 'Merchandise item'}</span></span><strong>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
               </div>}
-              {profileDebt.total_debt <= 0 && <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">No current invoices or reserved-merchandise debt found.</p>}
+              {profileDebt.total_debt <= 0 && <p className="mt-4 rounded-lg border border-success/30 bg-success-tint px-3 py-2 text-sm font-semibold text-success-strong">No current invoices or reserved-merchandise debt found.</p>}
             </>}
           </section>}
         </div>}
@@ -977,8 +977,8 @@ export default function AdminUsersPage() {
         closeOnEscape={!busy}
         footer={(
           <>
-            <button type="button" onClick={closeEdit} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
+            <button type="button" onClick={closeEdit} disabled={busy} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">Cancel</button>
+            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
           </>
         )}
       >

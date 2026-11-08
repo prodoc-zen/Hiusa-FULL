@@ -165,7 +165,7 @@ function OrganizerRoster({ event }) {
         {[['Registered', summary.registered], ['Attended', summary.attended], ['No-show', summary.no_show], ['Cancelled', summary.cancelled]].map(([label, value]) => (
           <div key={label} className="rounded-control bg-subtle px-3 py-2">
             <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
-            <dd className="mt-0.5 text-base font-extrabold tabular-nums text-ink">{value ?? 0}</dd>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{value ?? 0}</dd>
           </div>
         ))}
       </dl>

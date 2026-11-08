@@ -42,10 +42,10 @@ describe('College people page', () => {
   it('opens on students with names first, school ID as small detail, and sign-up status', async () => {
     renderPage();
     expect((await screen.findAllByText('Ana Alvarez')).length).toBeGreaterThan(0);
-    expect(people.getCollegePeople).toHaveBeenCalledWith({ tab: 'students', q: undefined, page: 1 });
+    expect(people.getCollegePeople).toHaveBeenCalledWith({ tab: 'students', q: undefined, page: 1, per_page: 20 });
     expect(screen.getAllByText('ana@school.test · ID 20261234').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Signed up').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Signed up')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 20260001').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Add staff' })).not.toBeInTheDocument();
@@ -81,8 +81,31 @@ describe('College people page', () => {
     await screen.findAllByText('Ana Alvarez');
     people.getCollegePeople.mockResolvedValue(pageOf([]));
     fireEvent.change(screen.getByLabelText('Search students'), { target: { value: 'zzz' } });
-    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: 'zzz', page: 1 }));
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: 'zzz', page: 1, per_page: 20 }));
     expect(await screen.findByText('No results for "zzz"')).toBeInTheDocument();
+  });
+
+  it('clears the search from a Clear link and from the no-match state', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search students'), { target: { value: 'zzz' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByLabelText('Search students')).toHaveValue('');
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: undefined, page: 1, per_page: 20 }));
+  });
+
+  it('keeps one filled button on each tab', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    const filled = () => screen.queryAllByRole('button').filter((button) => button.classList.contains('bg-brand-700'));
+    expect(filled().map((button) => button.textContent)).toEqual(['Allow a student to apply']);
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(filled().map((button) => button.textContent)).toEqual(['Add staff']);
+    tab('Organization leaders');
+    await screen.findAllByText('Pia Perez');
+    expect(filled()).toHaveLength(0);
   });
 
   it('lists organization leaders with their organization and access', async () => {
@@ -93,7 +116,7 @@ describe('College people page', () => {
     expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
     expect(screen.getAllByText('President').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Organization head').length).toBeGreaterThan(0);
-    expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'leaders', q: undefined, page: 1 });
+    expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'leaders', q: undefined, page: 1, per_page: 20 });
   });
 
   it('opens the add staff dialog from the office staff tab only', async () => {

@@ -48,7 +48,25 @@ describe('ProcessTracker', () => {
     const link = await screen.findByRole('link', { name: 'Load student records' });
     expect(link).toHaveAttribute('href', '/dashboard/department-head/people');
     expect(screen.getAllByRole('link')).toHaveLength(1);
-    expect(screen.getByText('Next:')).toBeInTheDocument();
+    expect(screen.getByText('Next for you: Student records loaded')).toBeInTheDocument();
+  });
+
+  it('links a visited step when the server says where it was done, and never a step still to do', async () => {
+    mocks.getProcessStatus.mockResolvedValue({ data: { ...dean, steps: dean.steps.map((step) => (step.key === 'staff-added' || step.key === 'students-allowed' ? { ...step, path: `/dashboard/${step.key}` } : step)) } });
+    renderTracker();
+
+    const done = await screen.findByRole('link', { name: /Office staff added/ });
+    expect(done).toHaveAttribute('href', '/dashboard/staff-added');
+    expect(screen.queryByRole('link', { name: /Students allowed to apply/ })).not.toBeInTheDocument();
+  });
+
+  it('shows one next-step row with one button and no card around the steps', async () => {
+    renderTracker();
+
+    await screen.findByRole('list', { name: 'Setting up your college' });
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Where you are in the process' }).className).not.toMatch(/border|shadow/);
   });
 
   it('says it is waiting when the current step has no action for this person', async () => {
@@ -63,7 +81,7 @@ describe('ProcessTracker', () => {
     } });
     renderTracker();
 
-    expect(await screen.findByText('Waiting on:')).toBeInTheDocument();
+    expect(await screen.findByText('Waiting on: Dean review')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.getByText(/Returned by your Department Head/)).toBeInTheDocument();
   });

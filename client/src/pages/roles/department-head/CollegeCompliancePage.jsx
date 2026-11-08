@@ -12,5 +12,5 @@ export default function CollegeCompliancePage() {
       .catch((error) => setOverview((current) => ({ ...current, loading: false, error: getApiErrorMessage(error, 'Could not load college compliance.') })));
   }, []);
   useEffect(() => { load(); }, [load]);
-  return <div className="space-y-5"><PageHeader title="College compliance" description="Track each organization's requirements and send reminders to its members." /><AccreditationTab role="DEPARTMENT_HEAD" overview={overview} onRetry={load} /></div>;
+  return <div className="space-y-5"><PageHeader title="College compliance" /><AccreditationTab role="DEPARTMENT_HEAD" overview={overview} onRetry={load} /></div>;
 }

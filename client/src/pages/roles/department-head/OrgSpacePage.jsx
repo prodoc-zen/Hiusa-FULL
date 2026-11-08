@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import OrgTransactions from '../../../components/org/OrgTransactions';
-import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonTable, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 import { manilaDate, peso } from '../../../lib/format';
 import notify from '../../../lib/notify';
@@ -24,11 +24,8 @@ const TABS = [
 
 function Loading() {
   return (
-    <div className="mt-6 space-y-4" role="status" aria-label="Loading organization">
-      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-4">
-        <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
-      </div>
-      <SkeletonCard />
+    <div className="mt-6" role="status" aria-label="Loading organization">
+      <SkeletonTable columns={4} rows={5} />
     </div>
   );
 }
@@ -39,36 +36,37 @@ function OverviewTab({ space, onOpen, oversight }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Members" value={counts.members} />
-        <Stat label="Officers" value={counts.officers} />
-        <Stat label="Upcoming events" value={counts.upcoming_events} />
-        <Stat label="Documents to review" value={counts.pending_documents} />
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-3">
+        <Stat label="Members" value={counts.members} to="?tab=people" />
+        <Stat label="Upcoming events" value={counts.upcoming_events} to="?tab=events" />
+        <Stat label="Documents to review" value={counts.pending_documents} to="?tab=documents" />
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Standing">
           <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge status={lifecycle.status} />
-            {lifecycle.reviewed_at && <span className="text-sm font-medium text-ink-muted">Reviewed {manilaDate(lifecycle.reviewed_at)}</span>}
+            {lifecycle.status === 'active'
+              ? <span className="text-sm text-ink">Registered and active</span>
+              : <StatusBadge status={lifecycle.status} />}
+            {lifecycle.reviewed_at && <span className="text-sm text-ink-muted">Reviewed {manilaDate(lifecycle.reviewed_at)}</span>}
           </div>
-          {lifecycle.review_remarks && <p className="mt-3 text-sm font-medium text-ink">{lifecycle.review_remarks}</p>}
+          {lifecycle.review_remarks && <p className="mt-3 text-sm text-ink">{lifecycle.review_remarks}</p>}
           {oversight && <Button variant="secondary" size="sm" className="mt-3" to={`/dashboard/super-admin/organizations/${space.organization.id}`}>Registration details</Button>}
         </Card>
         <Card title="Next event" actions={<Button variant="secondary" size="sm" onClick={() => onOpen('events')}>All events</Button>}>
           {next ? (
             <div>
-              <p className="text-sm font-bold text-ink">{next.title}</p>
+              <p className="text-sm font-semibold text-ink">{next.title}</p>
               <p className="mt-1 text-sm font-medium text-ink-muted">{manilaDate(next.start_time, 'long')}{next.location ? ` · ${next.location}` : ''}</p>
             </div>
           ) : (
-            <p className="text-sm font-medium text-ink-muted">No upcoming events.</p>
+            <p className="text-sm text-ink-muted">No upcoming events.</p>
           )}
         </Card>
         <Card title="Money" actions={<Button variant="secondary" size="sm" onClick={() => onOpen('finance')}>See finance</Button>}>
           {finance.approved_budget_count > 0 ? (
-            <p className="text-sm font-medium text-ink"><span className="text-2xl font-extrabold tabular-nums">{peso(finance.remaining)}</span> left across {finance.approved_budget_count} approved {finance.approved_budget_count === 1 ? 'budget' : 'budgets'}</p>
+            <p className="text-sm text-ink"><span className="text-2xl font-semibold tabular-nums">{peso(finance.remaining)}</span> left across {finance.approved_budget_count} approved {finance.approved_budget_count === 1 ? 'budget' : 'budgets'}</p>
           ) : (
-            <p className="text-sm font-medium text-ink-muted">No approved budget yet.</p>
+            <p className="text-sm text-ink-muted">No approved budget yet.</p>
           )}
         </Card>
       </div>
@@ -78,7 +76,7 @@ function OverviewTab({ space, onOpen, oversight }) {
 
 function MembersTab({ space }) {
   const columns = [
-    { key: 'name', header: 'Name', render: (member) => <span className="block min-w-0"><span className="block break-words font-bold">{member.name}</span><span className="block text-xs font-medium text-ink-muted">{member.email}</span></span> },
+    { key: 'name', header: 'Name', render: (member) => <span className="block min-w-0"><span className="block break-words font-semibold">{member.name}</span><span className="block text-xs font-medium text-ink-muted">{member.email}</span></span> },
     { key: 'position_title', header: 'Position', render: (member) => member.position_title || 'Member' },
     { key: 'role', header: 'Access', render: (member) => ROLE_LABELS[member.role] || member.role },
     { key: 'school_id', header: 'ID', render: (member) => <span className="text-xs font-medium text-ink-muted">{member.school_id}</span> },
@@ -101,13 +99,13 @@ function EventList({ title, events, empty }) {
   return (
     <Card title={title}>
       {events.length === 0 ? (
-        <p className="text-sm font-medium text-ink-muted">{empty}</p>
+        <p className="text-sm text-ink-muted">{empty}</p>
       ) : (
         <ul className="divide-y divide-line-soft">
           {events.map((event) => (
             <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-ink">{event.title}</p>
+                <p className="text-sm font-semibold text-ink">{event.title}</p>
                 <p className="text-xs font-medium text-ink-muted">{manilaDate(event.start_time, 'long')}{event.location ? ` · ${event.location}` : ''}</p>
               </div>
               <StatusBadge status={event.status} />
@@ -131,7 +129,7 @@ function EventsTab({ space }) {
 function FinanceTab({ space }) {
   const { finance } = space;
   const columns = [
-    { key: 'title', header: 'Budget', render: (budget) => <span className="font-bold">{budget.title}</span> },
+    { key: 'title', header: 'Budget', render: (budget) => <span className="font-semibold">{budget.title}</span> },
     { key: 'allocated', header: 'Allocated', align: 'right', render: (budget) => peso(budget.allocated) },
     { key: 'spent', header: 'Spent', align: 'right', render: (budget) => peso(budget.spent) },
     { key: 'remaining', header: 'Left', align: 'right', render: (budget) => peso(budget.remaining) },
@@ -139,12 +137,14 @@ function FinanceTab({ space }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Allocated" value={peso(finance.allocated)} />
-        <Stat label="Income" value={peso(finance.income)} />
-        <Stat label="Spent" value={peso(finance.spent)} />
-        <Stat label="Left" value={peso(finance.remaining)} />
-      </div>
+      <dl className="grid grid-cols-2 gap-4 border-y border-line py-3 lg:grid-cols-4">
+        {[['Allocated', finance.allocated], ['Income', finance.income], ['Spent', finance.spent], ['Left', finance.remaining]].map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs font-medium text-ink-muted">{label}</dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums text-ink">{peso(value)}</dd>
+          </div>
+        ))}
+      </dl>
       <Card title="Approved budgets" description="Only budgets the SAO approved count here.">
         <DataTable
           columns={columns}
@@ -172,7 +172,7 @@ function DocumentsTab({ space }) {
   }
 
   const columns = [
-    { key: 'requirement_name', header: 'Requirement', render: (document) => <span className="font-bold">{document.requirement_name || 'Document'}</span> },
+    { key: 'requirement_name', header: 'Requirement', render: (document) => <span className="font-semibold">{document.requirement_name || 'Document'}</span> },
     { key: 'status', header: 'Status', render: (document) => <StatusBadge status={document.status} /> },
     { key: 'submitted_at', header: 'Sent', render: (document) => (document.submitted_at ? manilaDate(document.submitted_at) : 'Not sent') },
   ];

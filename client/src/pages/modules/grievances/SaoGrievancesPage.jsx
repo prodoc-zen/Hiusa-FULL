@@ -150,13 +150,13 @@ export default function SaoGrievancesPage() {
         {STATUSES.map((value) => (
           <button key={value} type="button" onClick={() => setStatus(status === value ? '' : value)} className={`rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-semibold text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
-            <p className="mt-1 text-xl font-extrabold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
         ))}
         {URGENCIES.map((value) => (
           <button key={value} type="button" onClick={() => setUrgency(urgency === value ? '' : value)} className={`rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-semibold text-ink-muted">{value}</p>
-            <p className="mt-1 text-xl font-extrabold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
         ))}
       </div>

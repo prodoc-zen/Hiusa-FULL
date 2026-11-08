@@ -64,10 +64,18 @@ describe('OrgSpacePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Computing Society' })).toBeInTheDocument();
     expect(mocks.getOrganizationSpace).toHaveBeenCalledWith('12');
-    expect(screen.getByText('Documents to review').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Documents to review').closest('a')).toHaveTextContent('1');
     expect(screen.getByText('Hack Night')).toBeInTheDocument();
     expect(screen.getByText(/left across 1 approved budget/)).toBeInTheDocument();
     await waitFor(() => expect(JSON.parse(sessionStorage.getItem(SUB_ACCOUNT_KEY))).toMatchObject({ id: 12, name: 'Computing Society' }));
+  });
+
+  it('makes each overview figure a link to the tab it counts', async () => {
+    renderPage();
+
+    fireEvent.click((await screen.findByText('Members')).closest('a'));
+
+    expect(await screen.findByTestId('org-access')).toBeInTheDocument();
   });
 
   it('mounts the access panel for the dean on the people tab', async () => {

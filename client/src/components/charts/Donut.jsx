@@ -67,8 +67,8 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
               ))}
             </svg>
             <div className="absolute inset-0 grid place-content-center text-center">
-              <p className="text-2xl font-black tabular-nums text-ink">{format(centerValue ?? total)}</p>
-              {centerLabel && <p className="max-w-20 text-[10px] font-bold uppercase leading-4 tracking-wide text-ink-muted">{centerLabel}</p>}
+              <p className="text-2xl font-semibold tabular-nums text-ink">{format(centerValue ?? total)}</p>
+              {centerLabel && <p className="max-w-20 text-xs font-bold leading-4 text-ink-muted">{centerLabel}</p>}
             </div>
             {activeSegment && (
               <div
@@ -89,7 +89,7 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
               <div key={segment.label} className="flex items-center gap-2.5">
                 <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: segment.color }} aria-hidden="true" />
                 <dt className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-muted" title={segment.label}>{segment.label}</dt>
-                <dd className="shrink-0 text-right text-sm font-black tabular-nums text-ink">
+                <dd className="shrink-0 text-right text-sm font-semibold tabular-nums text-ink">
                   {format(segment.value)}
                   <span className="ml-1.5 text-xs font-semibold text-ink-muted">{Math.round(segment.percentage)}%</span>
                 </dd>

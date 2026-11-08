@@ -1,51 +1,50 @@
 import { ROLE_LABELS, formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Building2, ExternalLink, FileText } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { RegistrationNextStep, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
-import { Button, ErrorState, SkeletonCard, SkeletonStat, StatusBadge } from '../../../components/ui';
+import { Button, ErrorState, PageHeader, SkeletonCard, SkeletonStat, StatusBadge } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 import { getComplianceDocuments } from '../../../services/complianceService';
 import { getSystemOrganizationOverview, restoreSystemOrganization } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { formatDateTime } from '../../../utils/dateTime';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { accreditationBadge } from './agencyStatus';
 
 const COLLEGES_PATH = '/dashboard/super-admin/colleges';
-const LINK_CLASS = 'mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-700 hover:underline';
+const LINK_CLASS = 'mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline';
 
 function Section({ id, title, children }) {
   return (
     <section aria-labelledby={id} className="rounded-card border border-line bg-surface p-4 sm:p-5">
-      <h2 id={id} className="text-base font-bold text-ink">{title}</h2>
+      <h2 id={id} className="text-base font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
 }
 
 function Figure({ label, value }) {
-  return <div><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-1 text-lg font-extrabold tabular-nums text-ink">{value}</dd></div>;
+  return <div><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-ink">{value}</dd></div>;
 }
 
 function EventList({ title, events }) {
   return (
     <div>
-      <h3 className="text-sm font-bold text-ink">{title}</h3>
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
       {events.length ? (
         <ul className="mt-2 divide-y divide-line-soft">
           {events.map((event) => (
             <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-              <div className="min-w-0"><p className="break-words text-sm font-bold text-ink">{event.title}</p><p className="text-xs font-medium text-ink-muted">{formatDateTime(event.start_time)}{event.location ? ` · ${event.location}` : ''}</p></div>
+              <div className="min-w-0"><p className="break-words text-sm font-semibold text-ink">{event.title}</p><p className="text-xs font-medium text-ink-muted">{formatDateTime(event.start_time)}{event.location ? ` · ${event.location}` : ''}</p></div>
               <StatusBadge status={event.status} />
             </li>
           ))}
         </ul>
-      ) : <p className="mt-2 text-sm font-medium text-ink-muted">None.</p>}
+      ) : <p className="mt-2 text-sm text-ink-muted">None.</p>}
     </div>
   );
 }
@@ -109,7 +108,7 @@ function LatestDocuments({ organizationId, refreshTick }) {
         {documents.map((document) => (
           <li key={`${document.source}-${document.open_url}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="min-w-0">
-              <p className="flex items-center gap-2 break-words text-sm font-bold text-ink"><FileText size={15} className="shrink-0 text-brand-700" aria-hidden="true" />{document.item}</p>
+              <p className="flex items-center gap-2 break-words text-sm font-semibold text-ink">{document.item}</p>
               <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{document.file_name || 'No file name'}{document.submitted_at ? ` · ${formatDateTime(document.submitted_at)}` : ''}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -177,14 +176,14 @@ export default function SaoOrganizationOverviewPage() {
     }
   }
 
-  const back = <Link to={COLLEGES_PATH} className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-brand-700 hover:underline"><ArrowLeft size={16} aria-hidden="true" />Back to colleges</Link>;
+  const crumbs = (label) => [{ label: 'Colleges', to: COLLEGES_PATH }, { label }];
 
   if (loading && !overview) {
-    return <div className="space-y-5" aria-busy="true">{back}<SkeletonCard /><div className="grid gap-4 sm:grid-cols-2"><SkeletonStat /><SkeletonStat /></div></div>;
+    return <div className="space-y-5" aria-busy="true"><PageHeader title="Organization" breadcrumbs={crumbs('Organization')} /><SkeletonCard /><div className="grid gap-4 sm:grid-cols-2"><SkeletonStat /><SkeletonStat /></div></div>;
   }
 
   if (error || !overview) {
-    return <div className="space-y-3">{back}<ErrorState title="Organization unavailable" description={error} onRetry={() => load()} /></div>;
+    return <div className="space-y-3"><PageHeader title="Organization" breadcrumbs={crumbs('Organization')} /><ErrorState title="Organization unavailable" description={error} onRetry={() => load()} /></div>;
   }
 
   const { organization, lifecycle, leadership = [], member_counts: members = {}, events = {}, budget = {}, compliance = {}, pending_approvals_count: pendingApprovals = 0 } = overview;
@@ -194,21 +193,13 @@ export default function SaoOrganizationOverviewPage() {
 
   return (
     <div className="space-y-5">
-      {back}
-
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${organization.color || '#0B8ED0'}` }}>
-            {organization.logo_url ? <img src={resolveAssetUrl(organization.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={22} aria-hidden="true" />}
-          </span>
-          <div className="min-w-0">
-            <h1 className="break-words text-[28px] font-extrabold leading-tight text-ink">{name}</h1>
-            <p className="mt-1 text-sm font-medium text-ink-muted">{organization.acronym} · {organization.college || 'No college assigned'}</p>
-            <div className="mt-2"><StatusBadge status={lifecycle.status} /></div>
-          </div>
-        </div>
-        {lifecycle.status === 'archived' && <Button onClick={() => setRestoreOpen(true)}>Restore organization</Button>}
-      </header>
+      <PageHeader
+        title={name}
+        breadcrumbs={crumbs(name)}
+        description={`${organization.acronym} · ${organization.college || 'No college assigned'}`}
+        meta={lifecycle.status === 'active' ? undefined : <StatusBadge status={lifecycle.status} />}
+        primary={lifecycle.status === 'archived' ? <Button onClick={() => setRestoreOpen(true)}>Restore organization</Button> : undefined}
+      />
 
       {lifecycle.status === 'archived' && (
         <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">
@@ -231,8 +222,8 @@ export default function SaoOrganizationOverviewPage() {
             <ul className="divide-y divide-line-soft">
               {leadership.map((person) => (
                 <li key={`${person.school_id}-${person.role}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                  <div className="min-w-0"><p className="break-words text-sm font-bold text-ink">{person.name}</p><p className="text-xs font-medium text-ink-muted">{person.position_title || ROLE_LABELS[person.role] || person.role}{person.position_title ? ` · ${ROLE_LABELS[person.role] || person.role}` : ''}</p></div>
-                  <StatusBadge status={person.account_status} />
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-ink">{person.name}</p><p className="text-xs font-medium text-ink-muted">{person.position_title || ROLE_LABELS[person.role] || person.role}{person.position_title ? ` · ${ROLE_LABELS[person.role] || person.role}` : ''}</p></div>
+                  {person.account_status !== 'active' && <StatusBadge status={person.account_status} />}
                 </li>
               ))}
             </ul>
@@ -274,7 +265,7 @@ export default function SaoOrganizationOverviewPage() {
         </Section>
 
         <Section id="pending-approvals" title="Pending approvals">
-          <p className="text-sm font-medium text-ink"><span className="text-lg font-extrabold tabular-nums">{pendingApprovals}</span> {pendingApprovals === 1 ? 'request is' : 'requests are'} waiting for a decision.</p>
+          <p className="text-sm font-medium text-ink"><span className="text-lg font-semibold tabular-nums">{pendingApprovals}</span> {pendingApprovals === 1 ? 'request is' : 'requests are'} waiting for a decision.</p>
         </Section>
       </div>
 

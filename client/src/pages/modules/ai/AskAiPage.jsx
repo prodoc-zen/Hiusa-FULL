@@ -13,30 +13,30 @@ import {
 import { askAiAssistant, getAiAssistantOverview } from '../../../services/askAiService';
 
 const STATUS_BADGE_STYLES = {
-  danger: 'bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]',
-  warning: 'bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]',
-  success: 'bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]',
-  info: 'bg-[#E0F2FE] text-[#0284C7] border-[#BAE6FD]',
-  primary: 'bg-[#EEF6FB] text-[#0F2F62] border-[#BAE6FD]',
-  neutral: 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]',
+  danger: 'bg-danger-tint text-danger border-danger/30',
+  warning: 'bg-warning-tint text-warning-strong border-warning/30',
+  success: 'bg-success-tint text-success border-success/30',
+  info: 'bg-brand-50 text-brand-700 border-brand-100',
+  primary: 'bg-page text-navy-800 border-brand-100',
+  neutral: 'bg-subtle text-ink-muted-strong border-line-soft',
 };
 
 const BAR_FILL_STYLES = {
-  danger: 'bg-[#DC2626]',
-  warning: 'bg-[#D97706]',
-  success: 'bg-[#16A34A]',
-  info: 'bg-[#0B8ED0]',
-  primary: 'bg-[#0F2F62]',
-  neutral: 'bg-[#64748B]',
+  danger: 'bg-danger',
+  warning: 'bg-warning-strong',
+  success: 'bg-success',
+  info: 'bg-brand-600',
+  primary: 'bg-navy-800',
+  neutral: 'bg-ink-muted',
 };
 
 const HIGHLIGHT_TONE_STYLES = {
-  danger: 'text-[#DC2626]',
-  warning: 'text-[#D97706]',
-  success: 'text-[#16A34A]',
-  primary: 'text-[#0F2F62]',
-  info: 'text-[#0B8ED0]',
-  neutral: 'text-[#0F172A]',
+  danger: 'text-danger',
+  warning: 'text-warning-strong',
+  success: 'text-success',
+  primary: 'text-navy-800',
+  info: 'text-brand-600',
+  neutral: 'text-ink',
 };
 
 function formatRichText(text) {
@@ -47,7 +47,7 @@ function formatRichText(text) {
       return (
         <strong
           key={index}
-          className="rounded bg-white/80 px-1 py-0.5 font-semibold text-[#0F2F62] tabular-nums"
+          className="rounded bg-white/80 px-1 py-0.5 font-semibold text-navy-800 tabular-nums"
         >
           {part}
         </strong>
@@ -63,7 +63,7 @@ function AiVisualCharts({ charts }) {
   return (
     <div
       aria-label="Visual data graphs"
-      className="mt-4 grid gap-4 border-t border-[#DDE7EF] pt-4 lg:grid-cols-2"
+      className="mt-4 grid gap-4 border-t border-line pt-4 lg:grid-cols-2"
     >
       {charts.map((chart) => {
         const items = Array.isArray(chart.items) ? chart.items : [];
@@ -71,21 +71,21 @@ function AiVisualCharts({ charts }) {
         const isDistribution = chart.type === 'distribution';
 
         return (
-          <div key={chart.id || chart.title} className="rounded-lg bg-[#F8FAFC] p-3.5">
+          <div key={chart.id || chart.title} className="rounded-lg bg-subtle p-3.5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-[#0B8ED0]" aria-hidden="true" />
-                <h3 className="text-xs font-semibold text-[#0F172A]">{chart.title}</h3>
+                <BarChart3 className="h-4 w-4 text-brand-600" aria-hidden="true" />
+                <h3 className="text-xs font-semibold text-ink">{chart.title}</h3>
               </div>
               {chart.subtitle && (
-                <span className="text-[11px] text-[#475569]">{chart.subtitle}</span>
+                <span className="text-xs text-ink-muted-strong">{chart.subtitle}</span>
               )}
             </div>
 
             {isDistribution && (
               <div
                 aria-label={`${chart.title} stacked bar`}
-                className="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-[#E2E8F0]"
+                className="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-line-soft"
               >
                 {items.map((item) => {
                   const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
@@ -94,7 +94,7 @@ function AiVisualCharts({ charts }) {
                     <div
                       key={item.label}
                       title={`${item.label}: ${item.display_value} (${widthPct}%)`}
-                      className={`h-full transition-all duration-300 ${fill}`}
+                      className={`h-full transition-[background-color,color,border-color,transform] duration-300 ${fill}`}
                       style={{ width: `${widthPct}%` }}
                     />
                   );
@@ -109,21 +109,21 @@ function AiVisualCharts({ charts }) {
                 return (
                   <div key={item.label} className="space-y-1">
                     <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex items-center gap-1.5 font-medium text-[#0F172A]">
+                      <span className="flex items-center gap-1.5 font-medium text-ink">
                         <span
                           className={`inline-block h-2 w-2 shrink-0 rounded-full ${fill}`}
                           aria-hidden="true"
                         />
                         {item.label}
                       </span>
-                      <span className="font-semibold text-[#0F2F62] tabular-nums">
+                      <span className="font-semibold text-navy-800 tabular-nums">
                         {item.display_value ?? item.value}
                         {item.share_percent != null ? ` (${item.share_percent}%)` : ''}
                       </span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-line-soft">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${fill}`}
+                        className={`h-full rounded-full transition-[background-color,color,border-color,transform] duration-300 ${fill}`}
                         style={{ width: `${widthPct}%` }}
                       />
                     </div>
@@ -143,25 +143,25 @@ function FormattedBriefingBlock({ answer, formattedBlocks }) {
 
   return (
     <div className="mt-3.5 space-y-3">
-      <div className="rounded-lg bg-[#EEF6FB] px-4 py-3 text-sm leading-relaxed text-[#0F172A]">
+      <div className="rounded-lg bg-page px-4 py-3 text-sm leading-relaxed text-ink">
         {formatRichText(answer)}
       </div>
 
       {recommended && (
-        <div className="flex flex-col justify-between gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-2 rounded-lg bg-subtle px-3.5 py-2.5 sm:flex-row sm:items-center">
           <div className="min-w-0">
-            <span className="text-xs font-semibold text-[#0F2F62]">
+            <span className="text-xs font-semibold text-navy-800">
               Recommended next step:{' '}
             </span>
-            <span className="text-xs font-medium text-[#0F172A]">{recommended.title}</span>
+            <span className="text-xs font-medium text-ink">{recommended.title}</span>
             {recommended.detail && (
-              <span className="ml-1.5 text-xs text-[#475569]">— {recommended.detail}</span>
+              <span className="ml-1.5 text-xs text-ink-muted-strong">— {recommended.detail}</span>
             )}
           </div>
           {recommended.href && (
             <Link
               to={recommended.href}
-              className="inline-flex shrink-0 items-center gap-1 self-start rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] sm:self-center"
+              className="inline-flex shrink-0 items-center gap-1 self-start rounded-md bg-navy-800 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-brand-600 sm:self-center"
             >
               <span>{recommended.action_label || 'Take action'}</span>
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -178,17 +178,17 @@ function EvidenceSection({ section, onSelectFollowUp }) {
   const isStepsLayout = section.layout === 'steps';
 
   return (
-    <div className="border-t border-[#DDE7EF] pt-4 first:border-t-0 first:pt-0">
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-[#0F172A]">{section.title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{section.title}</h3>
         {section.description && (
-          <p className="text-xs text-[#475569]">{section.description}</p>
+          <p className="text-xs text-ink-muted-strong">{section.description}</p>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 text-xs text-[#475569]">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-[#16A34A]" aria-hidden="true" />
+        <div className="flex items-center gap-2 rounded-lg bg-subtle px-3.5 py-2.5 text-xs text-ink-muted-strong">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />
           <span>{section.empty_message || 'No matching records require attention.'}</span>
         </div>
       ) : isStepsLayout ? (
@@ -196,28 +196,28 @@ function EvidenceSection({ section, onSelectFollowUp }) {
           {rows.map((row, idx) => (
             <li
               key={row.id || idx}
-              className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3.5 transition-colors hover:border-[#BAE6FD] hover:bg-[#F8FAFC]/60 sm:flex-row sm:items-start sm:justify-between"
+              className="flex flex-col gap-3 rounded-lg border border-line bg-white p-3.5 transition-colors hover:border-brand-100 hover:bg-subtle/60 sm:flex-row sm:items-start sm:justify-between"
             >
               <div className="flex items-start gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0F2F62] text-xs font-bold text-white shadow-xs"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-bold text-white shadow-xs"
                 >
                   {row.step || idx + 1}
                 </span>
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-[#0F172A]">
+                    <span className="text-xs font-semibold text-ink">
                       {row.primary}
                     </span>
                     {row.meta && (
-                      <span className="inline-flex items-center rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-medium text-[#0F2F62]">
+                      <span className="inline-flex items-center rounded-full bg-page px-2 py-0.5 text-xs font-medium text-navy-800">
                         {row.meta}
                       </span>
                     )}
                   </div>
                   {row.secondary && (
-                    <p className="text-xs leading-relaxed text-[#475569]">
+                    <p className="text-xs leading-relaxed text-ink-muted-strong">
                       {row.secondary}
                     </p>
                   )}
@@ -228,7 +228,7 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                 {row.href && (
                   <Link
                     to={row.href}
-                    className="inline-flex items-center gap-1 rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] active:scale-[0.98]"
+                    className="inline-flex items-center gap-1 rounded-md bg-navy-800 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-brand-600 active:scale-[0.98]"
                   >
                     <span>{row.action_label || 'Go to page'}</span>
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -238,10 +238,10 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                   <button
                     type="button"
                     onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
-                    className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#EEF6FB]"
+                    className="inline-flex items-center gap-1 rounded-md border border-line bg-subtle px-2.5 py-1 text-xs font-medium text-navy-800 hover:bg-page"
                   >
                     <span>Show steps</span>
-                    <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
+                    <ArrowRight className="h-3 w-3 text-brand-600" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -249,10 +249,10 @@ function EvidenceSection({ section, onSelectFollowUp }) {
           ))}
         </ol>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
+        <div className="overflow-x-auto rounded-lg border border-line">
           <table className="w-full min-w-[540px] border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-[#DDE7EF] bg-[#F8FAFC] text-[#475569]">
+              <tr className="border-b border-line bg-subtle text-ink-muted-strong">
                 <th scope="col" className="px-3.5 py-2 font-semibold">
                   Record / Organization
                 </th>
@@ -270,7 +270,7 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#DDE7EF] bg-white">
+            <tbody className="divide-y divide-line bg-white">
               {rows.map((row) => {
                 const badgeStyle =
                   STATUS_BADGE_STYLES[row.status_tone] || STATUS_BADGE_STYLES.neutral;
@@ -281,17 +281,17 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                   !Number.isNaN(Number(row.progress_percent));
 
                 return (
-                  <tr key={row.id} className="transition-colors hover:bg-[#F8FAFC]">
-                    <td className="px-3.5 py-2.5 align-middle font-medium text-[#0F172A]">
+                  <tr key={row.id} className="transition-colors hover:bg-subtle">
+                    <td className="px-3.5 py-2.5 align-middle font-medium text-ink">
                       {row.primary}
                     </td>
-                    <td className="px-3.5 py-2.5 align-middle text-[#475569]">
+                    <td className="px-3.5 py-2.5 align-middle text-ink-muted-strong">
                       {row.secondary || '—'}
                     </td>
                     <td className="px-3.5 py-2.5 align-middle">
                       {row.status ? (
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeStyle}`}
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${badgeStyle}`}
                         >
                           {row.status}
                         </span>
@@ -302,12 +302,12 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                     <td className="px-3.5 py-2.5 align-middle">
                       <div className="min-w-[110px] space-y-1">
                         {row.meta && (
-                          <span className="block font-medium text-[#0F172A] tabular-nums">
+                          <span className="block font-medium text-ink tabular-nums">
                             {row.meta}
                           </span>
                         )}
                         {hasProgress && (
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
                             <div
                               className={`h-full rounded-full ${barFill}`}
                               style={{
@@ -322,7 +322,7 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                       {row.href ? (
                         <Link
                           to={row.href}
-                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9] active:scale-[0.98]"
+                          className="inline-flex items-center gap-1 rounded-md bg-page px-2.5 py-1 text-xs font-medium text-navy-800 transition-colors hover:bg-brand-50 active:scale-[0.98]"
                         >
                           <span>{row.action_label || 'Open'}</span>
                           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -331,13 +331,13 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                         <button
                           type="button"
                           onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
-                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#DDEEF9]"
+                          className="inline-flex items-center gap-1 rounded-md bg-page px-2.5 py-1 text-xs font-medium text-navy-800 hover:bg-brand-50"
                         >
                           <span>Show steps</span>
-                          <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
+                          <ArrowRight className="h-3 w-3 text-brand-600" aria-hidden="true" />
                         </button>
                       ) : (
-                        <span className="text-[#94A3B8]">—</span>
+                        <span className="text-ink-soft">—</span>
                       )}
                     </td>
                   </tr>
@@ -366,20 +366,20 @@ function RagTelemetryStrip({ ragMetadata }) {
   return (
     <div
       aria-label="Semantic RAG retrieval telemetry"
-      className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-2 text-[11px] text-[#475569]"
+      className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-subtle px-3 py-2 text-xs text-ink-muted-strong"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded bg-[#0F2F62] px-2 py-0.5 font-semibold text-white">
-          <Sparkles className="h-3 w-3 text-[#38BDF8]" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1 rounded bg-navy-800 px-2 py-0.5 font-semibold text-white">
+          <Sparkles className="h-3 w-3 text-accent" aria-hidden="true" />
           <span>{ragMetadata.engine || 'Hybrid Semantic RAG'}</span>
         </span>
         <span className="tabular-nums">
-          Indexed <strong className="text-[#0F172A]">{ragMetadata.corpus_size ?? 0}</strong> records across{' '}
-          <strong className="text-[#0F172A]">{ragMetadata.domains_searched ?? 0}</strong> domains · Retrieved{' '}
-          <strong className="text-[#0F172A]">{ragMetadata.retrieved_count ?? 0}</strong> matches
+          Indexed <strong className="text-ink">{ragMetadata.corpus_size ?? 0}</strong> records across{' '}
+          <strong className="text-ink">{ragMetadata.domains_searched ?? 0}</strong> domains · Retrieved{' '}
+          <strong className="text-ink">{ragMetadata.retrieved_count ?? 0}</strong> matches
         </span>
         {ragMetadata.top_confidence != null && (
-          <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 font-semibold text-[#166534] tabular-nums">
+          <span className="rounded bg-success-tint px-1.5 py-0.5 font-semibold text-success-strong tabular-nums">
             {ragMetadata.top_confidence}% semantic match
           </span>
         )}
@@ -390,7 +390,7 @@ function RagTelemetryStrip({ ragMetadata }) {
           {entities.slice(0, 3).map((entity) => (
             <span
               key={entity}
-              className="rounded-full bg-[#EEF6FB] px-2 py-0.5 font-medium text-[#0F2F62]"
+              className="rounded-full bg-page px-2 py-0.5 font-medium text-navy-800"
             >
               Entity: {entity}
             </span>
@@ -398,7 +398,7 @@ function RagTelemetryStrip({ ragMetadata }) {
           {concepts.slice(0, 2).map((concept) => (
             <span
               key={concept}
-              className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-medium text-[#334155]"
+              className="rounded-full bg-line-soft px-2 py-0.5 font-medium text-ink-muted-strong"
             >
               {concept}
             </span>
@@ -418,22 +418,22 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
   return (
     <article
       aria-label={turn.title || turn.question}
-      className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
+      className="rounded-card border border-line bg-white p-4 sm:p-5"
     >
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#DDE7EF] pb-3.5">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line pb-3.5">
         <div>
-          <h2 className="text-base font-semibold text-[#0F172A]">
+          <h2 className="text-base font-semibold text-ink">
             {turn.title || 'AI Operational Briefing'}
           </h2>
           {turn.question && (
-            <p className="mt-0.5 text-xs text-[#475569]">
+            <p className="mt-0.5 text-xs text-ink-muted-strong">
               Question: &ldquo;{turn.question}&rdquo;
             </p>
           )}
         </div>
         {isLatest && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-xs font-medium text-[#0F2F62]">
-            <Sparkles className="h-3.5 w-3.5 text-[#0B8ED0]" aria-hidden="true" />
+          <span className="inline-flex items-center gap-1 rounded-full bg-page px-2.5 py-0.5 text-xs font-medium text-navy-800">
+            <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
             Semantic RAG Live
           </span>
         )}
@@ -447,13 +447,13 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
       />
 
       {highlights.length > 0 && (
-        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-[#DDE7EF] pt-3.5 sm:grid-cols-4">
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-line pt-3.5 sm:grid-cols-4">
           {highlights.map((item) => {
             const valueColor =
               HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
             return (
-              <div key={item.label} className="rounded-lg bg-[#F8FAFC] px-3 py-2">
-                <dt className="text-[11px] font-medium text-[#475569]">{item.label}</dt>
+              <div key={item.label} className="rounded-lg bg-subtle px-3 py-2">
+                <dt className="text-xs font-medium text-ink-muted-strong">{item.label}</dt>
                 <dd className={`mt-0.5 text-base font-bold tabular-nums ${valueColor}`}>
                   {item.value}
                 </dd>
@@ -478,17 +478,17 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
       )}
 
       {followUps.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#DDE7EF] pt-3.5">
-          <span className="text-xs font-medium text-[#475569]">Ask next:</span>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
+          <span className="text-xs font-medium text-ink-muted-strong">Ask next:</span>
           {followUps.map((f) => (
             <button
               key={f.question}
               type="button"
               onClick={() => onSelectFollowUp(f.question, f.topic)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#EEF6FB] active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-subtle px-3 py-1 text-xs font-medium text-navy-800 transition-colors hover:border-brand-600 hover:bg-page active:scale-[0.98]"
             >
               <span>{f.label}</span>
-              <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
+              <ArrowRight className="h-3 w-3 text-brand-600" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -571,8 +571,8 @@ export default function AskAiPage() {
   if (loadingOverview) {
     return (
       <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-xl bg-[#EEF6FB]" />
-        <div className="h-64 animate-pulse rounded-xl bg-[#EEF6FB]" />
+        <div className="h-32 animate-pulse rounded-card bg-page" />
+        <div className="h-64 animate-pulse rounded-card bg-page" />
       </div>
     );
   }
@@ -581,13 +581,13 @@ export default function AskAiPage() {
     return (
       <div
         role="alert"
-        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-white p-4 text-sm text-[#0F172A]"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-white p-4 text-sm text-ink"
       >
         <span>{overviewError}</span>
         <button
           type="button"
           onClick={loadOverview}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B8ED0] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0978B2]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Retry
@@ -625,19 +625,19 @@ export default function AskAiPage() {
     <div className="space-y-5">
       <section
         aria-label="Ask AI prompt bar"
-        className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
+        className="rounded-card border border-line bg-white p-4 sm:p-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-page text-brand-600">
               <Bot className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-[#0F172A]">
+              <h1 className="text-lg font-semibold text-ink">
                 {overview?.role_label || 'Ask AI Assistant'}
               </h1>
-              <p className="text-xs text-[#475569]">
-                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Hybrid Semantic Search &amp; RAG over live records
+              <p className="text-xs text-ink-muted-strong">
+                Scope: <span className="font-medium text-ink">{overview?.scope_label}</span> · Hybrid Semantic Search &amp; RAG over live records
               </p>
             </div>
           </div>
@@ -645,7 +645,7 @@ export default function AskAiPage() {
             <button
               type="button"
               onClick={() => setTurns([])}
-              className="rounded-lg border border-[#DDE7EF] px-2.5 py-1 text-xs font-medium text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+              className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-ink-muted-strong hover:bg-subtle hover:text-ink"
             >
               Reset to today&apos;s plan
             </button>
@@ -663,12 +663,12 @@ export default function AskAiPage() {
             onChange={(e) => setQuestionInput(e.target.value)}
             placeholder="Ask anything: officers, specific organizations, merchandise stock, ledger expenses, venues, compliance..."
             disabled={asking}
-            className="min-h-[42px] flex-1 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3.5 py-2 text-base text-[#0F172A] placeholder:text-[#64748B] focus:border-[#0B8ED0] focus:bg-white focus:outline-none sm:text-sm"
+            className="min-h-[42px] flex-1 rounded-lg border border-line bg-subtle px-3.5 py-2 text-base text-ink placeholder:text-ink-muted focus:border-brand-600 focus:bg-white focus:outline-none sm:text-sm"
           />
           <button
             type="submit"
             disabled={asking || !questionInput.trim()}
-            className="inline-flex min-h-[42px] shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0978B2] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-[42px] shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Send className="h-4 w-4" aria-hidden="true" />
             <span>{asking ? 'Analyzing...' : 'Ask AI'}</span>
@@ -676,14 +676,14 @@ export default function AskAiPage() {
         </form>
 
         {askError && (
-          <p role="alert" className="mt-2.5 text-xs font-medium text-[#DC2626]">
+          <p role="alert" className="mt-2.5 text-xs font-medium text-danger">
             {askError}
           </p>
         )}
 
         {suggestedQuestions.length > 0 && (
           <div className="mt-4">
-            <div className="mb-2 text-xs font-medium text-[#475569]">
+            <div className="mb-2 text-xs font-medium text-ink-muted-strong">
               Suggested questions for your role:
             </div>
             <div className="flex flex-wrap gap-2">
@@ -693,9 +693,9 @@ export default function AskAiPage() {
                   type="button"
                   disabled={asking}
                   onClick={() => runQuestion(item.question, item.topic)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-1.5 text-left text-xs font-medium text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#EEF6FB] active:scale-[0.98] disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-subtle px-3 py-1.5 text-left text-xs font-medium text-navy-800 transition-colors hover:border-brand-600 hover:bg-page active:scale-[0.98] disabled:opacity-60"
                 >
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#0B8ED0]" aria-hidden="true" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                   <span>{item.label}</span>
                 </button>
               ))}
@@ -726,26 +726,26 @@ export default function AskAiPage() {
       {recentQueries.length > 0 && (
         <section
           aria-label="Recent AI questions"
-          className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
+          className="rounded-card border border-line bg-white p-4 sm:p-5"
         >
           <div className="mb-3 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#475569]" aria-hidden="true" />
-            <h2 className="text-sm font-semibold text-[#0F172A]">Recent Questions You Asked</h2>
+            <Clock className="h-4 w-4 text-ink-muted-strong" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-ink">Recent Questions You Asked</h2>
           </div>
-          <div className="divide-y divide-[#DDE7EF]">
+          <div className="divide-y divide-line">
             {recentQueries.map((item) => (
               <div
                 key={item.id}
                 className="flex flex-col justify-between gap-2 py-2.5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
               >
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-[#0F172A]">{item.question}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-[#475569]">{item.answer}</p>
+                  <p className="text-xs font-medium text-ink">{item.question}</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted-strong">{item.answer}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => runQuestion(item.question, null)}
-                  className="shrink-0 self-start rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#DDEEF9] sm:self-center"
+                  className="shrink-0 self-start rounded-md bg-page px-2.5 py-1 text-xs font-medium text-navy-800 hover:bg-brand-50 sm:self-center"
                 >
                   Ask again
                 </button>

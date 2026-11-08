@@ -171,23 +171,23 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
             <IdentitySection grievance={grievance} viewerRole={viewerRole} />
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Addressed to</p>
+              <p className="text-xs font-bold text-ink-soft">Addressed to</p>
               <p className="mt-1 text-sm font-semibold text-ink">{addressedToLabel(grievance)}</p>
             </div>
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Description</p>
+              <p className="text-xs font-bold text-ink-soft">Description</p>
               <RichTextBody value={grievance.description} className="mt-1 text-sm leading-6 text-ink" />
             </div>
 
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Filed</p>
+              <p className="text-xs font-bold text-ink-soft">Filed</p>
               <p className="mt-1 text-sm font-medium text-ink-muted">{manilaDate(grievance.created_at, 'weekday')}</p>
             </div>
 
             {grievance.remarks && (
               <div className="rounded-card border border-line bg-subtle p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Remarks</p>
+                <p className="text-xs font-bold text-ink-soft">Remarks</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{grievance.remarks}</p>
               </div>
             )}
@@ -196,7 +196,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
               <div className="space-y-3"><p className="text-xs font-semibold text-ink-muted">This grievance is closed and cannot be reopened.</p><Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button></div>
             ) : (
               <div className="border-t border-line pt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Update status</p>
+                <p className="text-xs font-bold text-ink-soft">Update status</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {allowed.map((status, index) => (
                     <Button

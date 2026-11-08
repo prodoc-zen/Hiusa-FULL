@@ -1,13 +1,11 @@
-import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Building2, ClipboardCheck, ExternalLink, FileText, PencilLine, RotateCcw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, Building2, ClipboardCheck, ExternalLink, PencilLine, RotateCcw, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { deleteSystemOrganization, getSystemAgency, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
-import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PermanentDeleteModal from '../../../components/organizations/PermanentDeleteModal';
 import Modal from '../../../components/Modal';
@@ -15,7 +13,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import CreateUnifiedOrganizationModal from '../../../components/organizations/CreateUnifiedOrganizationModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
-import { Button, Drawer, EmptyState, ErrorState, Field, Input, SkeletonCard, StatusBadge, Tabs, Textarea } from '../../../components/ui';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -48,9 +46,9 @@ const EMPTY_HINT = {
   archived: 'Archive an active organization to keep it here as read only.',
 };
 const needsAdministrator = (organization) => organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? organization.administrators?.length ?? 0) === 0;
-const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 font-normal outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20';
 
 function LifecycleBadge({ status }) {
+  if (status === 'active') return null;
   if (status !== 'archived') return <StatusBadge status={status} className="h-fit" />;
   return <span role="img" aria-label="Archived, read only" className="h-fit"><StatusBadge status={status} /></span>;
 }
@@ -170,57 +168,49 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         {approved && <RegistrationNextStep organization={registration} viewerRole="SUPER_ADMIN" />}
       </div>
       <dl className="grid gap-3 text-sm">
-        <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-bold text-ink">{formatDisplayText(organization.name)} {organization.acronym && `(${organization.acronym})`}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-semibold text-ink">{formatDisplayText(organization.name)} {organization.acronym && `(${organization.acronym})`}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">College</dt><dd className="font-medium text-ink">{organization.is_university_wide ? 'All colleges' : organization.college || 'Not assigned'}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Description</dt><dd><RichTextBody value={organization.description || 'No description provided.'} className="text-sm text-ink" /></dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-medium text-ink">{organization.submitted_at ? manilaDate(organization.submitted_at) : 'Not available'}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-medium text-ink">{loading ? 'Loading...' : submittedBy || 'Not available'}</dd></div>
         {details?.overview?.organization?.admin_payload && (
-          <div className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-3.5 space-y-1">
-            <dt className="text-xs font-bold text-[#0F2F62] flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-[#0878B7]" />
-              Founding Administrator (Auto-provisioned on approval)
-            </dt>
-            <dd className="text-sm font-bold text-[#0F172A]">
+          <div className="border-t border-line pt-3">
+            <dt className="text-xs font-semibold text-ink-muted">Founding administrator, added when you approve</dt>
+            <dd className="font-semibold text-ink">
               {details.overview.organization.admin_payload.first_name} {details.overview.organization.admin_payload.last_name}
-              <span className="ml-2 text-xs font-semibold text-[#0878B7]">
-                ID: {details.overview.organization.admin_payload.school_id} · {details.overview.organization.admin_payload.position_title || 'President'}
-              </span>
             </dd>
-            <dd className="text-xs text-slate-500 font-medium">
-              {details.overview.organization.admin_payload.email}
+            <dd className="text-xs text-ink-muted">
+              ID {details.overview.organization.admin_payload.school_id} · {details.overview.organization.admin_payload.position_title || 'President'} · {details.overview.organization.admin_payload.email}
             </dd>
           </div>
         )}
       </dl>
 
       <section aria-labelledby="registration-documents" className="mt-5 border-t border-line pt-4">
-        <h3 id="registration-documents" className="text-sm font-bold text-ink">Registration documents</h3>
+        <h3 id="registration-documents" className="text-sm font-semibold text-ink">Registration documents</h3>
         {loading && <p role="status" className="mt-2 text-sm text-ink-muted">Loading registration details...</p>}
         {!loading && loadError && <ErrorState className="py-6" description={loadError} onRetry={loadDetails} />}
         {!loading && !loadError && !documents.length && <p className="mt-2 text-sm font-medium text-ink-muted">No registration documents were submitted.</p>}
-        {fileError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">{fileError}</p>}
+        {fileError && <p role="alert" className="mt-2 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{fileError}</p>}
         {!loading && !loadError && documents.length > 0 && (
           <ul className="mt-2 divide-y divide-line-soft">
             {documents.map((document) => (
-              <li key={`${document.source}-${document.open_url}`} className="py-3 space-y-2 border-b border-line-soft">
+              <li key={`${document.source}-${document.open_url}`} className="space-y-2 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 break-words text-sm font-bold text-ink"><FileText size={15} className="shrink-0 text-brand-700" aria-hidden="true" />{document.item}</p>
+                    <p className="break-words text-sm font-semibold text-ink">{document.item}</p>
                     <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{document.file_name || 'No file name'}{document.submitted_at ? ` · ${manilaDate(document.submitted_at)}` : ''}</p>
                   </div>
                   <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingId === document.open_url} disabled={!document.open_url} className="max-md:min-h-[42px]" onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
                 </div>
                 {!approved && (
-                  <div className="pt-1">
-                    <input
-                      type="text"
-                      placeholder={`Add specific correction note for ${document.item} (optional)...`}
-                      value={fileRemarks[document.id || document.submission_id] || ''}
-                      onChange={(e) => setFileRemarks({ ...fileRemarks, [document.id || document.submission_id]: e.target.value })}
-                      className="h-8 w-full rounded border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 text-xs text-ink placeholder:text-slate-400 focus:border-[#0B8ED0] focus:bg-white"
-                    />
-                  </div>
+                  <Input
+                    type="text"
+                    aria-label={`Correction note for ${document.item}`}
+                    placeholder="Correction note for this file (optional)"
+                    value={fileRemarks[document.id || document.submission_id] || ''}
+                    onChange={(e) => setFileRemarks({ ...fileRemarks, [document.id || document.submission_id]: e.target.value })}
+                  />
                 )}
               </li>
             ))}
@@ -232,7 +222,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         <Field label="Remarks (required to return)" error={remarksError} hint="Shown to the Department Head when you return the registration.">
           <Textarea ref={remarksRef} rows={4} maxLength={3000} value={remarks} onChange={(event) => { setRemarks(event.target.value); setRemarksError(''); }} disabled={Boolean(submitting)} />
         </Field>
-        {submitError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{submitError}</p>}
+        {submitError && <p role="alert" className="mt-3 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{submitError}</p>}
       </div>}
     </Drawer>
   );
@@ -258,7 +248,7 @@ function ArchiveModal({ organization, busy, error, onCancel, onConfirm }) {
       <Field label="Reason (optional)">
         <Textarea rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} />
       </Field>
-      {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-3 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{error}</p>}
     </Modal>
   );
 }
@@ -503,40 +493,40 @@ export default function SystemOrganizationsPage() {
     <div className="space-y-6">
       {status && <Tabs tabs={tabs} value={status} onChange={selectStatus} />}
       <div {...(status ? { role: 'tabpanel', id: PANEL_ID, 'aria-label': STATUS_TABS.find((tab) => tab.key === status).label } : {})} className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field></div>
+      <div className="flex flex-wrap items-end gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field>{search && <button type="button" onClick={() => setSearch('')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}</div>
       {status === 'archived' && <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">Archived organizations are read-only. Restore to make changes.</p>}
       {error && !form && <ErrorState description={error} onRetry={() => load()} />}
-      {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
-      {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-      {loading && !error && <section aria-label="Loading organizations" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3"><SkeletonCard /><SkeletonCard /></section>}
-      {!loading && !error && items.length > 0 && <div className="max-w-full overflow-x-auto rounded-lg border border-line bg-surface">
+      {actionError && <p role="alert" className="rounded-control bg-red-50 p-3 text-sm text-danger-strong">{actionError}</p>}
+      {notice && <p role="status" className="rounded-control bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+      {loading && !error && <section aria-label="Loading organizations"><SkeletonTable columns={5} rows={5} /></section>}
+      {!loading && !error && items.length > 0 && <div className="max-w-full overflow-x-auto rounded-card border border-line bg-surface">
         <table className="w-full min-w-[760px] text-left text-sm">
           <caption className="sr-only">Student organizations, registration progress, membership, and actions</caption>
-          <thead className="border-b border-line bg-subtle text-xs text-ink-muted"><tr>
-            <th scope="col" className="px-4 py-3">Organization / college</th><th scope="col" className="px-4 py-3">Status</th>
-            <th scope="col" className="px-4 py-3">Registration progress</th><th scope="col" className="px-4 py-3">Membership</th><th scope="col" className="px-4 py-3">Actions</th>
+          <thead className="border-b border-line bg-subtle text-xs font-semibold text-ink-muted"><tr>
+            <th scope="col" className="px-4 py-2.5">Organization / college</th><th scope="col" className="px-4 py-2.5">Status</th>
+            <th scope="col" className="px-4 py-2.5">Registration progress</th><th scope="col" className="px-4 py-2.5 text-right">Membership</th><th scope="col" className="px-4 py-2.5 text-right">Actions</th>
           </tr></thead>
-          <tbody className="divide-y divide-line">{items.map((org) => {
+          <tbody className="divide-y divide-line-soft">{items.map((org) => {
             const lifecycle = org.lifecycle_status || status;
             const name = formatDisplayText(org.name);
             return <tr key={org.id} className={lifecycle === 'archived' ? 'bg-subtle' : ''}>
-              <th scope="row" className="max-w-80 px-4 py-4 align-top font-normal">
+              <th scope="row" className="max-w-80 px-4 py-3 align-top font-normal">
                 <div className="flex items-start gap-3">
                   {org.logo_url && <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />}
-                  <div className="min-w-0"><h3 className="break-words font-bold text-ink">{name}</h3><p className="mt-1 text-xs text-ink-muted">{org.acronym} · {org.is_university_wide ? 'All colleges' : org.college || 'No college assigned'}</p>
+                  <div className="min-w-0"><h3 className="break-words font-semibold text-ink">{name}</h3><p className="mt-1 text-xs text-ink-muted">{org.acronym} · {org.is_university_wide ? 'All colleges' : org.college || 'No college assigned'}</p>
                     {org.parent_organization && <p className="mt-1 text-xs text-ink-muted">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}
                   </div>
                 </div>
               </th>
-              <td className="px-4 py-4 align-top"><LifecycleBadge status={lifecycle} />{org.college_is_active === false && <p className="mt-2 text-xs text-danger-strong">College archived · sign-in disabled</p>}</td>
-              <td className="max-w-80 px-4 py-4 align-top"><RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" />
+              <td className="px-4 py-3 align-top"><LifecycleBadge status={lifecycle} />{org.college_is_active === false && <p className="mt-2 text-xs text-danger-strong">College archived · sign-in disabled</p>}</td>
+              <td className="max-w-80 px-4 py-3 align-top"><RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" />
                 {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
                 {lifecycle === 'returned' && <p className="mt-2 text-xs text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
               </td>
-              <td className="px-4 py-4 align-top text-xs font-semibold text-slate-500">
-                <span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count || 0} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
+              <td className="px-4 py-3 text-right align-top text-sm tabular-nums text-ink-muted">
+                {org.users_count || 0} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins
               </td>
-              <td className="px-4 py-3 align-top">
+              <td className="px-4 py-2.5 align-top">
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {lifecycle === 'pending' && (
                     <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
@@ -559,19 +549,55 @@ export default function SystemOrganizationsPage() {
           })}</tbody>
         </table>
       </div>}
-      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} />}
-      {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}
+      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} onClearFilters={() => setSearch('')} />}
+      {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs text-ink-muted"><Button variant="secondary" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span>Page {page} of {lastPage}</span><Button variant="secondary" size="sm" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </div>
-      {form &&!membershipOrganization && !profileOrganization && <AccessibleOverlay label="Edit organization" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><h3 className="text-lg font-black text-slate-900">Edit organization</h3>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mt-5 grid gap-3">
-        <label className="text-sm font-semibold text-slate-700">Organization name<input required value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} /></label>
-        <label className="text-sm font-semibold text-slate-700">Organization code<input required value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} className={inputClass} /></label>
-        <label className="text-sm font-semibold text-slate-700">Main organization<HiusaSelect disabled={parentLoading || Boolean(parentError)} value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })} className={inputClass}><option value="">This is a main organization</option>{parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}</HiusaSelect></label>
-        {parentLoading && <p role="status" className="text-xs text-ink-muted">Loading parent organizations...</p>}
-        {parentError && <p role="alert" className="text-sm text-danger-strong">{parentError} <button type="button" onClick={loadParents} className="min-h-11 font-bold underline">Retry parent organizations</button></p>}
-        <div className="text-sm font-semibold text-slate-700">College<p className="mt-1 flex h-11 items-center rounded-lg border border-[#DDE7EF] bg-subtle px-3 font-normal text-ink">{formatDisplayText(form.college) || 'Not assigned'}</p></div>
-        <label className="text-sm font-semibold text-slate-700">Organization color<input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="mt-1 h-11 w-20 rounded-lg border border-[#DDE7EF] bg-white p-1" /></label>
-        <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>
-        <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description">Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>      </div><div className="mt-5 border-t border-[#DDE7EF] pt-4"><h4 className="text-sm font-bold text-[#0F2F62]">Organization members</h4><p className="mt-1 text-xs text-[#64748B]">Add an eligible existing university user with a separate organization profile.</p><button type="button" disabled={busy || !editingBase?.is_active || (!editingBase?.college_id && !editingBase?.is_university_wide)} onClick={() => setMembershipOrganization(editingBase)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50"><UserPlus size={16} aria-hidden="true" /> Add existing student</button><button type="button" disabled={busy} onClick={() => setProfileOrganization(editingBase)} className="ml-2 mt-3 min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7]">Manage user profiles</button></div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}
+      {form && !membershipOrganization && !profileOrganization && (
+        <Drawer
+          open
+          title="Edit organization"
+          onClose={() => !busy && setForm(null)}
+          width="max-w-lg"
+          footer={(
+            <>
+              <Button variant="secondary" disabled={busy} onClick={() => setForm(null)}>Cancel</Button>
+              <Button type="submit" form="edit-organization-form" loading={busy}>Save organization</Button>
+            </>
+          )}
+        >
+          <form id="edit-organization-form" onSubmit={save} className="space-y-4">
+            {error && <p role="alert" className="rounded-control bg-red-50 p-3 text-sm text-danger-strong">{error}</p>}
+            <Field label="Organization name" required><Input value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
+            <Field label="Organization code" required><Input value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} /></Field>
+            <Field label="Main organization">
+              <Select disabled={parentLoading || Boolean(parentError)} value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })}>
+                <option value="">This is a main organization</option>
+                {parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}
+              </Select>
+            </Field>
+            {parentLoading && <p role="status" className="text-xs text-ink-muted">Loading parent organizations...</p>}
+            {parentError && <p role="alert" className="text-sm text-danger-strong">{parentError} <button type="button" onClick={loadParents} className="min-h-10 font-medium underline">Retry parent organizations</button></p>}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[13px] font-medium text-ink">College</span>
+              <p className="flex h-10 items-center rounded-control border border-line bg-subtle px-3 text-sm text-ink">{formatDisplayText(form.college) || 'Not assigned'}</p>
+            </div>
+            <Field label="Organization color" optional><input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-10 w-20 cursor-pointer rounded-control border border-line bg-surface p-1" /></Field>
+            <Field label="Organization logo" optional hint={logoFile ? logoFile.name : undefined}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="block w-full rounded-control border border-line bg-surface p-2 text-sm" /></Field>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="organization-description" className="text-[13px] font-medium text-ink">Description <span className="font-normal text-ink-muted">(optional)</span></label>
+              <RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} />
+            </div>
+            <div className="border-t border-line pt-4">
+              <h4 className="text-sm font-semibold text-ink">Organization members</h4>
+              <p className="mt-1 text-xs text-ink-muted">Add an eligible existing university user with a separate organization profile.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="secondary" leftIcon={UserPlus} disabled={busy || !editingBase?.is_active || (!editingBase?.college_id && !editingBase?.is_university_wide)} onClick={() => setMembershipOrganization(editingBase)}>Add existing student</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => setProfileOrganization(editingBase)}>Manage user profiles</Button>
+              </div>
+            </div>
+          </form>
+        </Drawer>
+      )}
       {reviewTarget && <ReviewDrawer key={reviewTarget.id} organization={reviewTarget} open={reviewOpen} onClose={closeReview} onReviewed={finishReview} onApproved={approvedReview} onStale={staleReview} />}
       {deleteTarget && <PermanentDeleteModal key={deleteTarget.id} name={deleteTarget.name} kind="organization" busy={lifecycleBusy} error={lifecycleError} onClose={() => setDeleteTarget(null)} onConfirm={(name) => runLifecycle(() => deleteSystemOrganization(deleteTarget.id, name), deleteTarget, 'Organization, memberships, records, and files permanently deleted.')} />}
       {archiveTarget && <ArchiveModal organization={archiveTarget} busy={lifecycleBusy} error={lifecycleError} onCancel={() => setArchiveTarget(null)} onConfirm={(reason) => runLifecycle(() => archiveSystemOrganization(archiveTarget.id, reason ? { reason } : {}), archiveTarget, `${formatDisplayText(archiveTarget.name)} archived.`)} />}

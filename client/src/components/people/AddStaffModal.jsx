@@ -76,7 +76,7 @@ export default function AddStaffModal({ open, onClose }) {
   }
 
   const emailField = (
-    <Field label="Send it to (optional)" hint="Leave this empty to share the link yourself.">
+    <Field label="Send it to" optional hint="Leave this empty to share the link yourself.">
       <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" />
     </Field>
   );
@@ -110,13 +110,13 @@ export default function AddStaffModal({ open, onClose }) {
       return (
         <form onSubmit={createLink} className="flex flex-col gap-4">
           {!hasRecords && (
-            <p className="text-sm font-medium text-ink-muted">No office staff are in the school records for your college yet. You can create a plain link, or load employee records first.</p>
+            <p className="text-sm text-ink-muted">No office staff are in the school records for your college yet. You can create a plain link, or load employee records first.</p>
           )}
           <Field label="Position" required hint="For example, College Secretary.">
             <Input value={position} onChange={(event) => setPosition(event.target.value)} maxLength={100} autoComplete="off" />
           </Field>
           {emailField}
-          {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+          {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {hasRecords ? (
               <Button variant="ghost" size="sm" onClick={() => { setPlain(false); setError(''); }}>Back to the school records</Button>
@@ -150,7 +150,7 @@ export default function AddStaffModal({ open, onClose }) {
           </div>
         )}
         {record && emailField}
-        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+        {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={() => { setPlain(true); setError(''); }}>Not in the school records? Create a plain invite link</Button>
           <div className="flex flex-wrap justify-end gap-2">

@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonStat, SkeletonTable, Stat, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
@@ -76,15 +76,14 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
 
   return (
     <article aria-labelledby={`college-${college.id}`} className="overflow-hidden rounded-card border border-line bg-surface">
-      <div className="h-2 w-full bg-[#0878B7]" style={college.color ? { backgroundColor: college.color } : undefined} aria-hidden="true" />
       <div className="p-4">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]" style={college.color ? { borderLeft: `4px solid ${college.color}` } : undefined}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-control bg-page text-ink-muted">
             {college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id={`college-${college.id}`} className="break-words text-base font-bold text-ink">{name}</h2>
-            <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'} · {college.is_active ? 'Active' : 'Archived'}</p>
+            <h2 id={`college-${college.id}`} className="break-words text-base font-semibold text-ink">{name}</h2>
+            <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}</p>
             {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted" />}
           </div>
         </div>
@@ -109,8 +108,8 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             {head ? (
               <>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="break-words text-sm font-bold text-ink">{formatDisplayText(head.name)}</span>
-                  <StatusBadge status={head.account_status} />
+                  <span className="break-words text-sm font-semibold text-ink">{formatDisplayText(head.name)}</span>
+                  {!headIsActive && <StatusBadge status={head.account_status} />}
                 </div>
                 <p className="mt-0.5 break-all text-xs font-medium text-ink-muted">{head.email}</p>
               </>
@@ -138,7 +137,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
               aria-controls={panelId}
               aria-label={`Organizations of ${name}`}
               onClick={() => setExpanded((current) => !current)}
-              className="flex min-h-11 items-center gap-2 text-left text-sm font-bold text-ink"
+              className="flex min-h-11 items-center gap-2 text-left text-sm font-semibold text-ink"
             >
               <ChevronDown size={18} className={`shrink-0 text-brand-700 transition-transform duration-150 ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
               Organizations
@@ -254,7 +253,7 @@ export default function SystemCollegesPage() {
       await load();
     } catch (cause) {
       const fieldErrors = cause.response?.data?.errors || {};
-      setEditError(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : getApiErrorMessage(cause, 'Could not update this college.'));
+      setEditError(Object.keys(fieldErrors).length ? 'Check the highlighted fields.' : getApiErrorMessage(cause, 'Could not update this college.'));
       setEditFieldErrors(fieldErrors);
     } finally {
       setEditBusy(false);
@@ -273,7 +272,7 @@ export default function SystemCollegesPage() {
       await load();
     } catch (cause) {
       const fieldErrors = cause.response?.data?.errors || {};
-      setAddError(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : getApiErrorMessage(cause, 'Could not add this college.'));
+      setAddError(Object.keys(fieldErrors).length ? 'Check the highlighted fields.' : getApiErrorMessage(cause, 'Could not add this college.'));
       setAddFieldErrors(fieldErrors);
     } finally {
       setAddBusy(false);
@@ -323,38 +322,41 @@ export default function SystemCollegesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        purpose="Add a college, edit it, invite its Department Head, and see its organizations."
         actions={<Button variant="secondary" leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>}
         primary={<Button leftIcon={Plus} disabled={loading} onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddError(''); setAddFieldErrors({}); setAdding(true); }}>Add college</Button>}
       />
       {error && !loading ? <ErrorState description={error} onRetry={() => load()} /> : (
         <>
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true"><SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat /></div>
+            <div className="grid gap-4 sm:grid-cols-3" aria-busy="true"><SkeletonStat /><SkeletonStat /><SkeletonStat /></div>
           ) : agencyUnavailable ? (
             <ErrorState title="Agency overview unavailable" description={agencyError} onRetry={() => load()} className="rounded-card border border-line bg-surface" />
           ) : (
-            <section aria-label="Agency totals" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section aria-label="Agency totals" className="grid gap-4 sm:grid-cols-3">
               <Stat label="Pending reviews" value={byStatus.pending || 0} to={PENDING_REVIEW_PATH} />
               <Stat label="Organizations" value={totals.organizations ?? 0} to="/dashboard/super-admin/organizations?status=active" />
-              <Stat label="Colleges" value={totals.colleges ?? colleges.length} />
               <Stat label="Archived" value={byStatus.archived || 0} to="/dashboard/super-admin/organizations?status=archived" />
             </section>
           )}
-          <Field label="Search colleges" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Search colleges" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
+            {term && <button type="button" onClick={() => setSearch('')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+          </div>
           {uploadError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
           {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
           {loading ? (
-            <section aria-label="Loading colleges" className="space-y-3"><SkeletonCard /><SkeletonCard /></section>
+            <section aria-label="Loading colleges"><SkeletonTable columns={4} rows={4} /></section>
           ) : visible.length ? (
             <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onDelete={(item) => { setDeleteError(''); setDeleteTarget(item); }} />)}</section>
           ) : (
-            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'Add the first college to get started.'} />
+            colleges.length
+              ? <EmptyState kind="filtered" icon={Building2} title="No colleges match" description="No college has that name or code." onClearFilters={() => setSearch('')} />
+              : <EmptyState kind="first-run" icon={Building2} title="No colleges yet" description="Add a college, then invite its Department Head." />
           )}
           {!loading && unassigned.length > 0 && (
             <section aria-labelledby="unassigned-organizations" className="overflow-hidden rounded-card border border-line bg-surface">
               <header className="border-b border-line px-4 py-3">
-                <h2 id="unassigned-organizations" className="text-base font-bold text-ink">Organizations without a college</h2>
+                <h2 id="unassigned-organizations" className="text-base font-semibold text-ink">Organizations without a college</h2>
                 <p className="mt-1 text-xs font-medium text-ink-muted">These organizations are not assigned to a college yet.</p>
               </header>
               <OrganizationsTable rows={unassigned} caption="Organizations without a college" showAdmins={showAdmins} />
@@ -368,22 +370,22 @@ export default function SystemCollegesPage() {
       <Modal open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} size="lg" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
         {viewing && (
           <div className="space-y-4">
-            <div className="grid gap-3 rounded-lg border border-line bg-surface-muted/40 p-3 sm:grid-cols-3">
+            <div className="grid gap-3 border-y border-line py-3 sm:grid-cols-3">
               <div>
                 <p className="text-xs font-semibold text-ink-muted">Code</p>
-                <p className="mt-0.5 text-sm font-bold text-ink">{viewing.code || 'No code'}</p>
+                <p className="mt-0.5 text-sm font-semibold text-ink">{viewing.code || 'No code'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-ink-muted">Total members</p>
-                <p className="mt-0.5 text-sm font-bold text-ink">{(viewing.organizations || []).reduce((sum, org) => sum + Number(org.member_counts?.total || 0), 0)}</p>
+                <p className="mt-0.5 text-sm font-semibold text-ink">{(viewing.organizations || []).reduce((sum, org) => sum + Number(org.member_counts?.total || 0), 0)}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-ink-muted">Organizations</p>
-                <p className="mt-0.5 text-sm font-bold text-ink">{viewing.organizations_count || 0}</p>
+                <p className="mt-0.5 text-sm font-semibold text-ink">{viewing.organizations_count || 0}</p>
               </div>
             </div>
             {(viewing.organizations || []).length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-line">
+              <div className="overflow-hidden rounded-card border border-line">
                 <OrganizationsTable rows={viewing.organizations} caption={`Organizations in ${viewing.name}`} showAdmins={showAdmins} />
               </div>
             ) : (
@@ -395,16 +397,16 @@ export default function SystemCollegesPage() {
       <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
         <form id="add-college-form" onSubmit={addCollege} className="space-y-4">
           <Field label="College name" required error={addFieldErrors.name?.[0]}><Input required maxLength={255} value={addForm.name} onChange={(event) => setAddForm((form) => ({ ...form, name: event.target.value }))} /></Field>
-          <Field label="Code" error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
-          <Field label="Color" error={addFieldErrors.color?.[0]}><input type="color" value={addForm.color || DEFAULT_COLLEGE_COLOR} onChange={(event) => setAddForm((form) => ({ ...form, color: event.target.value.toUpperCase() }))} className="h-11 w-20 cursor-pointer rounded-md border border-line bg-surface p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" /></Field>
+          <Field label="Code" optional error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
+          <Field label="Color" optional error={addFieldErrors.color?.[0]}><input type="color" value={addForm.color || DEFAULT_COLLEGE_COLOR} onChange={(event) => setAddForm((form) => ({ ...form, color: event.target.value.toUpperCase() }))} className="h-10 w-20 cursor-pointer rounded-control border border-line bg-surface p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" /></Field>
           {addError && <p role="alert" className="text-sm text-danger-strong">{addError}</p>}
         </form>
       </Modal>
       <Modal open={Boolean(editing)} title="Edit college" onClose={editBusy ? undefined : () => setEditing(null)} footer={<><Button variant="secondary" disabled={editBusy} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" form="edit-college-form" loading={editBusy}>Save changes</Button></>}>
         <form id="edit-college-form" onSubmit={saveEditCollege} className="space-y-4">
           <Field label="College name" required error={editFieldErrors.name?.[0]}><Input required maxLength={255} value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} /></Field>
-          <Field label="Code" error={editFieldErrors.code?.[0]}><Input maxLength={50} value={editForm.code} onChange={(event) => setEditForm((form) => ({ ...form, code: event.target.value }))} /></Field>
-          <Field label="Description" error={editFieldErrors.description?.[0]}><Textarea maxLength={3000} rows={3} value={editForm.description} onChange={(event) => setEditForm((form) => ({ ...form, description: event.target.value }))} /></Field>
+          <Field label="Code" optional error={editFieldErrors.code?.[0]}><Input maxLength={50} value={editForm.code} onChange={(event) => setEditForm((form) => ({ ...form, code: event.target.value }))} /></Field>
+          <Field label="Description" optional error={editFieldErrors.description?.[0]}><Textarea maxLength={3000} rows={3} value={editForm.description} onChange={(event) => setEditForm((form) => ({ ...form, description: event.target.value }))} /></Field>
           {editError && <p role="alert" className="text-sm text-danger-strong">{editError}</p>}
         </form>
       </Modal>

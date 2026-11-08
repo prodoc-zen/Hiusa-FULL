@@ -160,7 +160,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+      <section className="overflow-hidden rounded-lg border border-line bg-white">
         <TableFilterBar
           searchValue={filters.search}
           onSearchChange={(value) => setFilters((current) => ({ ...current, search: value }))}
@@ -171,16 +171,16 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
           resultLabel={meta.total === 1 ? 'financial report' : 'financial reports'}
           secondaryClassName="grid gap-3 sm:grid-cols-3"
         >
-          {!initialOrganizationId && <HiusaSelect filter aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          {!initialOrganizationId && <HiusaSelect filter aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-600 focus:outline-none">
             <option value="">All organizations</option>
             {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym} - {formatDisplayText(organization.name)}</option>)}
           </HiusaSelect>}
-          <HiusaSelect filter aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          <HiusaSelect filter aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-600 focus:outline-none">
             <option value="">All document types</option>
             <option value="financial_report">Financial reports</option>
             <option value="income_statement">Income statements</option>
           </HiusaSelect>
-          <HiusaSelect filter aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          <HiusaSelect filter aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-600 focus:outline-none">
             <option value="">All statuses</option>
             <option value="pending_sao">Awaiting SAO review</option>
             <option value="approved">Approved</option>
@@ -189,27 +189,27 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
         </TableFilterBar>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="border-b border-[#DDE7EF] px-5 py-4">
-          <h2 className="font-bold text-[#0F172A]">Report inbox</h2>
+      <section className="overflow-hidden rounded-lg border border-line bg-white">
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="font-bold text-ink">Report inbox</h2>
           <p className="mt-1 text-xs text-slate-500">Only reports that completed Department Head review appear here.</p>
         </div>
         {loading ? (
           <p className="p-8 text-center text-sm text-slate-500">Loading financial reports...</p>
         ) : reports.length ? (
-          <div className="divide-y divide-[#DDE7EF]">
+          <div className="divide-y divide-line">
             {reports.map((report) => {
               const approval = pendingApprovals.get(Number(report.id));
               return (
                 <article key={report.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><FileText size={18} /></span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-page text-navy-800"><FileText size={18} /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-[#0F172A]">{formatDisplayText(report.title)}</p>
+                    <p className="font-bold text-ink">{formatDisplayText(report.title)}</p>
                     <p className="mt-1 text-xs text-slate-500">{report.organization?.acronym || formatDisplayText(report.organization?.name)} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
                   </div>
-                  <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
+                  <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"><Eye size={14} />View</button>
+                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-700 px-3 text-xs font-bold text-white hover:bg-navy-800"><Eye size={14} />View</button>
                     <TableRowActions subject={formatDisplayText(report.title)} actions={[
                       { label: 'View report', icon: Eye, onClick: () => openReport(report) },
                       { label: 'Download PDF', icon: Download, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
@@ -223,7 +223,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
           </div>
         ) : (
           <div className="p-8 text-center">
-            <p className="font-semibold text-[#0F172A]">No financial reports found.</p>
+            <p className="font-semibold text-ink">No financial reports found.</p>
             <p className="mt-1 text-sm text-slate-500">Only reports approved by a Department Head appear here. A notification about a report deadline does not mean a report has been submitted.</p>
           </div>
         )}
@@ -237,23 +237,23 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
         onClose={() => setDetail(null)}
         maxWidth="max-w-4xl"
         footer={detail?.report && <>
-          <button type="button" onClick={() => downloadReport(detail.report)} disabled={downloadingId === detail.report.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700"><Download size={15} />Download PDF</button>
+          <button type="button" onClick={() => downloadReport(detail.report)} disabled={downloadingId === detail.report.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-4 text-sm font-bold text-slate-700"><Download size={15} />Download PDF</button>
           {detailApproval && <>
             <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report })} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700"><X size={15} />Reject</button>
-            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'approved', report: detail.report })} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Check size={15} />Approve</button>
+            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'approved', report: detail.report })} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white"><Check size={15} />Approve</button>
           </>}
         </>}
       >
         {detail && <div className="space-y-4">
           <p className="text-sm leading-6 text-slate-600">{detail.report.summary_text}</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-[#DDE7EF] p-4">
-              <h3 className="text-sm font-bold text-[#0F172A]">Required signatories</h3>
+            <div className="rounded-lg border border-line p-4">
+              <h3 className="text-sm font-bold text-ink">Required signatories</h3>
               {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></p>)}
             </div>
-            <div className="rounded-lg border border-[#DDE7EF] p-4">
-              <h3 className="text-sm font-bold text-[#0F172A]">Supporting documents</h3>
-              {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#0878B7]"><ExternalLink size={14} />{document.name}</button>)}
+            <div className="rounded-lg border border-line p-4">
+              <h3 className="text-sm font-bold text-ink">Supporting documents</h3>
+              {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-brand-700"><ExternalLink size={14} />{document.name}</button>)}
               {!(detail.report.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents were attached.</p>}
             </div>
           </div>
@@ -281,12 +281,12 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
         closeOnEscape={!reviewing}
         maxWidth="max-w-md"
         footer={<>
-          <button type="button" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700">Cancel</button>
+          <button type="button" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }} className="min-h-11 rounded-lg border border-line px-4 text-sm font-bold text-slate-700">Cancel</button>
           <button type="button" disabled={reviewing || !rejectionRemarks.trim()} onClick={submitReview} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-50">{reviewing ? 'Rejecting...' : 'Reject report'}</button>
         </>}
       >
-        <label className="block text-sm font-semibold text-[#0F172A]">Rejection reason
-          <textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-lg border border-[#DDE7EF] p-3 text-sm focus:border-[#0B8ED0] focus:outline-none" placeholder="Describe the missing or incorrect report details." />
+        <label className="block text-sm font-semibold text-ink">Rejection reason
+          <textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-lg border border-line p-3 text-sm focus:border-brand-600 focus:outline-none" placeholder="Describe the missing or incorrect report details." />
         </label>
       </Modal>
 

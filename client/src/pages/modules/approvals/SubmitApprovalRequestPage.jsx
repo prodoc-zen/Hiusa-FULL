@@ -75,7 +75,7 @@ export default function SubmitApprovalRequestPage() {
       />
       <form onSubmit={continueToRequest} className="rounded-lg border border-line bg-surface shadow-sm">
         <div className="border-b border-line p-5">
-          <h2 className="text-lg font-extrabold text-ink">What are you submitting?</h2>
+          <h2 className="text-lg font-semibold text-ink">What are you submitting?</h2>
           <p className="mt-1 text-sm text-ink-muted-strong">Only request types available to your role are shown. Each one says who approves it.</p>
         </div>
         <fieldset className="grid gap-3 p-5 sm:grid-cols-2">
@@ -89,7 +89,7 @@ export default function SubmitApprovalRequestPage() {
                 <span className="flex items-start gap-3">
                   <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${selected ? 'bg-brand-700 text-white' : 'bg-brand-50 text-navy-800'}`}><Icon size={19} aria-hidden="true" /></span>
                   <span>
-                    <span className="block text-sm font-extrabold text-ink">{type.title}</span>
+                    <span className="block text-sm font-semibold text-ink">{type.title}</span>
                     <span className="mt-1 block text-xs font-medium leading-5 text-ink-muted-strong">{type.description}</span>
                     <span className="mt-2 block text-xs font-bold leading-5 text-ink">{type.approver[role]}</span>
                   </span>

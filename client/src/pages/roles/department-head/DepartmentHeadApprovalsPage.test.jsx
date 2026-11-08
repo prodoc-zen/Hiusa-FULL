@@ -175,6 +175,28 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     expect(search.closest('label').parentElement).toHaveClass('grid-cols-1');
   });
 
+  it('filters with a search and two selects at most, and clears them with one link', async () => {
+    respondWith(reportRequest({}));
+    renderPage();
+
+    await screen.findByLabelText('Search requests');
+    expect(screen.queryByLabelText('Semester')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search requests'), { target: { value: 'zzz' } });
+    expect(await screen.findByRole('button', { name: 'Clear' })).toBeInTheDocument();
+  });
+
+  it('shows no badge on a request that is still pending, since its stage line says so', async () => {
+    respondWith(reportRequest({}));
+    renderPage();
+
+    const row = (await screen.findByText('October Financial Report')).closest('li');
+    expect(within(row).queryByText('Pending')).not.toBeInTheDocument();
+    expect(within(row).getByRole('progressbar')).toBeInTheDocument();
+  });
+
   it('keeps one list for the Department Head: no tabs and no New request button', async () => {
     respondWith(reportRequest({ submission_status: 'pending_department_head' }));
     renderPage('/dashboard/department-head/approvals');
@@ -307,7 +329,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     serve({ review: [] });
     renderPage();
 
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No requests to review')).toBeInTheDocument();
     expect(screen.getByText(/officers submit and student payments/)).toBeInTheDocument();
     expect(screen.getByText(/Officers send them from their own pages/)).toBeInTheDocument();
   });
@@ -333,7 +355,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     renderPage();
 
     expect(await screen.findByText('Approvals are for the Admin and the Department Head')).toBeInTheDocument();
-    expect(screen.queryByText('Failed to load approval requests.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load approval requests.')).not.toBeInTheDocument();
   });
 });
 
@@ -606,7 +628,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
     await act(async () => { await refetchHook.current(); });
 
     expect(screen.getAllByText(/chess report/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText('Failed to load approval requests.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load approval requests.')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(loaded()).toBe(true);
   });
@@ -620,13 +642,13 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
     const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
-    const banner = () => document.querySelector('p.text-red-700');
-    await waitFor(() => expect(banner()).toHaveTextContent('Failed to submit review. Please try again.'));
+    const banner = () => document.querySelector('[role="alert"] p');
+    await waitFor(() => expect(banner()).toHaveTextContent('Could not save your decision. Try again.'));
     mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report'), row(2, 'Drama report')]));
 
     await act(async () => { await refetchHook.current(); });
 
-    expect(banner()).toHaveTextContent('Failed to submit review. Please try again.');
+    expect(banner()).toHaveTextContent('Could not save your decision. Try again.');
     expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
   });
 

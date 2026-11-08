@@ -38,48 +38,57 @@ describe('DepartmentHeadHomePage', () => {
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active'), org(2, 'active'), org(3, 'pending'), org(4, 'returned')]));
   });
 
-  it('summarises the college organizations by status and links to the organizations page', async () => {
+  it('shows three tiles, each a link, with older returned and pending filings as context', async () => {
     renderPage();
 
     const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
     const section = heading.closest('section');
-    const tiles = within(section).getAllByRole('link').filter((link) => link.getAttribute('href').includes('?status='));
-    expect(tiles.map((tile) => tile.textContent)).toEqual(['ReturnedAction needed1', 'Pending review1', 'Active2', 'Archived0']);
+    const tiles = within(section).getAllByRole('link');
+    expect(tiles.map((tile) => tile.textContent)).toEqual(['Awaiting your approval0', 'Active organizations21 returned, 1 pending review', 'Upcoming events0']);
     expect(tiles.map((tile) => tile.getAttribute('href'))).toEqual([
-      '/dashboard/department-head/organizations?status=returned',
-      '/dashboard/department-head/organizations?status=pending',
+      '/dashboard/department-head/approvals',
       '/dashboard/department-head/organizations?status=active',
-      '/dashboard/department-head/organizations?status=archived',
+      '/dashboard/events',
     ]);
-    expect(tiles[0]).toHaveClass('bg-danger-tint');
-    expect(tiles[1]).not.toHaveClass('bg-danger-tint');
-    expect(within(section).getByRole('link', { name: 'Manage organizations' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
   });
 
-  it('lets the dashboard columns shrink to a phone width, with the empty election card inside them', async () => {
+  it('counts every upcoming event, not only the four listed', async () => {
+    const soon = (id) => ({ id, title: `Event ${id}`, status: 'upcoming', start_time: `2030-01-0${id}T08:00:00` });
+    mocks.getEvents.mockResolvedValue(paginator([1, 2, 3, 4, 5, 6].map(soon)));
     renderPage();
 
-    const empty = (await screen.findByText('No Active Election')).closest('section');
-    expect(empty.parentElement).toHaveClass('min-w-0');
-    expect(empty.parentElement.parentElement).toHaveClass('grid-cols-1');
+    const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    expect(within(heading.closest('section')).getByRole('link', { name: /^Upcoming events/ })).toHaveTextContent('6');
+    expect(screen.getAllByText(/^Event \d$/)).toHaveLength(4);
   });
 
-  it('does not highlight Returned when nothing is returned', async () => {
+  it('adds no context to the Active tile when nothing is returned or pending', async () => {
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active')]));
     renderPage();
 
     const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
-    const returned = within(heading.closest('section')).getByRole('link', { name: /^Returned/ });
-    expect(returned).not.toHaveClass('bg-danger-tint');
-    expect(within(returned).queryByText('Action needed')).not.toBeInTheDocument();
+    expect(within(heading.closest('section')).getByRole('link', { name: /^Active organizations/ }).textContent).toBe('Active organizations1');
   });
 
-  it('puts the college organizations before the oversight snapshot', async () => {
+  it('leaves out the active election card when none is running', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    expect(screen.queryByText('Active election')).not.toBeInTheDocument();
+  });
+
+  it('shows the active election when one is running', async () => {
+    mocks.getElections.mockResolvedValue([{ id: 1, title: 'Officer Election 2026', status: 'active', start_time: '2026-11-01', end_time: '2026-11-03' }]);
+    renderPage();
+    expect(await screen.findByText('Officer Election 2026')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View results' })).toHaveAttribute('href', '/dashboard/elections/election-results');
+  });
+
+  it('lets the dashboard columns shrink to a phone width', async () => {
     renderPage();
 
-    const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
-    const snapshot = await screen.findByText('Oversight snapshot');
-    expect(heading.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const events = (await screen.findByText('No upcoming events.')).closest('section');
+    expect(events).toHaveClass('min-w-0');
+    expect(events.parentElement).toHaveClass('grid-cols-1');
   });
 
   it('names the first action when the college has no organization yet', async () => {
@@ -87,9 +96,8 @@ describe('DepartmentHeadHomePage', () => {
     renderPage();
 
     expect(await screen.findByText('No student organizations yet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
-    expect(screen.queryByRole('link', { name: 'Register an organization' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^Returned/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Allow a student to apply' })).toHaveAttribute('href', '/dashboard/department-head/people');
+    expect(screen.queryByRole('link', { name: /^Active organizations/ })).not.toBeInTheDocument();
   });
 
   it('does not call a failed load an empty college', async () => {
@@ -98,13 +106,6 @@ describe('DepartmentHeadHomePage', () => {
 
     await screen.findByRole('button', { name: 'Try again' });
     expect(screen.queryByText('No student organizations yet')).not.toBeInTheDocument();
-  });
-
-  it('keeps the existing oversight snapshot', async () => {
-    renderPage();
-
-    expect(await screen.findByText('Oversight snapshot')).toBeInTheDocument();
-    expect(screen.getByText('Pending Approvals')).toBeInTheDocument();
   });
 
   it('shows an error with a retry when the data cannot load', async () => {
@@ -134,27 +135,27 @@ describe('DepartmentHeadHomePage', () => {
   });
 
   describe('silent refresh while the tab stays open', () => {
-    const returnedTile = () => within(screen.getByRole('heading', { name: 'College of Engineering organizations' }).closest('section')).getByRole('link', { name: /^Returned/ });
+    const returnedTile = () => within(screen.getByRole('heading', { name: 'College of Engineering organizations' }).closest('section')).getByRole('link', { name: /^Active organizations/ });
 
     it('updates the status tiles without a loading state', async () => {
       renderPage();
       await screen.findByRole('heading', { name: 'College of Engineering organizations' });
-      expect(returnedTile()).toHaveTextContent('1');
+      expect(returnedTile()).toHaveTextContent('1 returned');
 
       let release;
       mocks.getCollegeOrganizations.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
       let refresh;
       act(() => { refresh = refetchHook.current(); });
-      expect(document.querySelector('.animate-pulse')).toBeNull();
-      expect(returnedTile()).toHaveTextContent('1');
+      expect(screen.queryByRole('status', { name: 'Loading stat' })).not.toBeInTheDocument();
+      expect(returnedTile()).toHaveTextContent('1 returned');
 
       await act(async () => {
         release(paginator([org(1, 'returned'), org(2, 'returned'), org(3, 'returned'), org(4, 'returned')]));
         await refresh;
       });
 
-      expect(returnedTile()).toHaveTextContent('4');
-      expect(document.querySelector('.animate-pulse')).toBeNull();
+      expect(returnedTile()).toHaveTextContent('4 returned');
+      expect(screen.queryByRole('status', { name: 'Loading stat' })).not.toBeInTheDocument();
       expect(returnedTile()).not.toHaveTextContent('-');
     });
 
@@ -165,9 +166,9 @@ describe('DepartmentHeadHomePage', () => {
       mocks.getCollegeOrganizations.mockRejectedValueOnce(new Error('offline'));
       await act(async () => { await refetchHook.current(); });
 
-      expect(returnedTile()).toHaveTextContent('1');
+      expect(returnedTile()).toHaveTextContent('1 returned');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-      expect(document.querySelector('.animate-pulse')).toBeNull();
+      expect(screen.queryByRole('status', { name: 'Loading stat' })).not.toBeInTheDocument();
     });
 
     it('clears a load error once a silent refresh succeeds', async () => {
@@ -178,7 +179,7 @@ describe('DepartmentHeadHomePage', () => {
       await act(async () => { await refetchHook.current(); });
 
       expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
-      expect(returnedTile()).toHaveTextContent('1');
+      expect(returnedTile()).toHaveTextContent('1 returned');
     });
 
     it('drops a silent response that arrives after a newer full load', async () => {
@@ -193,14 +194,14 @@ describe('DepartmentHeadHomePage', () => {
       mocks.getCollegeOrganizations.mockResolvedValueOnce(paginator([org(1, 'returned'), org(2, 'returned')]));
       await act(async () => { retry.click(); });
       expect(await screen.findByRole('heading', { name: 'College of Engineering organizations' })).toBeInTheDocument();
-      expect(returnedTile()).toHaveTextContent('2');
+      expect(returnedTile()).toHaveTextContent('2 returned');
 
       await act(async () => {
         releaseSilent(paginator([org(1, 'returned'), org(2, 'returned'), org(3, 'returned'), org(4, 'returned'), org(5, 'returned')]));
         await refresh;
       });
 
-      expect(returnedTile()).toHaveTextContent('2');
+      expect(returnedTile()).toHaveTextContent('2 returned');
     });
   });
 

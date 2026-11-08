@@ -2,14 +2,14 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock, Eye, ExternalLink, RotateCcw } from 'lucide-react';
+import { Download, Eye, ExternalLink, Plus, Search } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import notify from '../../../lib/notify';
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
-import { Button, EmptyState, FlowStepper, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, EmptyState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import * as systemAdminService from '../../../services/systemAdministrationService';
 import useRecordParam from '../../../lib/useRecordParam';
@@ -29,18 +29,9 @@ function getCurrentUser() {
   }
 }
 
-const ENTITY_ICON = {
-  event: CalendarDays,
-  budget: Coins,
-  election: Vote,
-  announcement: Megaphone,
-  payment: Package,
-  financial_report: FileText,
-};
-
 const REVIEW_STATUS_TABS = [
   { value: 'pending', label: 'Pending' },
-  { value: 'all', label: 'All History' },
+  { value: 'all', label: 'All history' },
 ];
 
 const SUBMITTED_STATUS_TABS = [
@@ -54,7 +45,7 @@ const NEW_REQUEST_PATH = '/dashboard/approval-requests/new';
 
 const REVIEW_EMPTY = {
   SUPER_ADMIN: 'Review university-wide organization requests and the financial reports and events routed to SAO.',
-  DEPARTMENT_HEAD: 'Events, budgets, elections and financial reports from the organizations in your college appear here for your decision. The organization Admin sends them.',
+  DEPARTMENT_HEAD: 'Events, budgets, elections and financial reports from the organizations in your college appear here. The organization Admin sends them.',
   ADMIN: 'Announcements your officers submit and student payments that need a check appear here for your decision. Officers send them from their own pages.',
 };
 
@@ -78,30 +69,26 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
   const isReject = action === 'rejected';
 
   return (
-    <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-extrabold text-[#0F172A]">
+    <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-card border border-line bg-surface p-6">
+        <h3 className="text-lg font-semibold text-ink">
           {isReject ? 'Reject' : 'Approve'} "{formatDisplayText(request.title)}"
         </h3>
         <div className="mt-4"><ApprovalReceipt request={request} organizationName={organizationName} /></div>
-        <div className="mt-4 space-y-1.5">
-          <label htmlFor="approval-remarks" className="text-[13px] font-semibold text-[#0F172A]">
-            Remarks {isReject ? '(required)' : '(optional)'}
-          </label>
-          <textarea
+        <Field className="mt-4" label={isReject ? 'Remarks (required)' : 'Remarks'} optional={!isReject} required={isReject}>
+          <Textarea
             id="approval-remarks"
             value={remarks}
             onChange={(event) => setRemarks(event.target.value)}
             rows={3}
-            required={isReject}
-            placeholder={isReject ? 'e.g. Budget not yet finalized.' : 'Optional note for the requester...'}
-            className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+            placeholder={isReject ? 'e.g. Budget not yet finalized.' : 'A note for the requester'}
+            className="resize-none"
           />
-        </div>
+        </Field>
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
           <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || (isReject && !remarks.trim())}>
-            {busy ? 'Processing...' : isReject ? 'Reject' : 'Approve'}
+            {busy ? 'Saving...' : isReject ? 'Reject' : 'Approve'}
           </Button>
         </div>
       </div>
@@ -110,45 +97,38 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
 }
 
 function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
-  const Icon = ENTITY_ICON[request.entity_type] || Clock;
   const info = describeApproval(request, role);
   const link = entityLink(request, role);
   const typeLabel = ENTITY_LABEL[request.entity_type] || request.entity_type;
   const summary = summaryLine(request.entity_type, request.summary);
 
   return (
-    <li className="flex flex-col gap-3 p-5 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800">
-          <Icon size={17} aria-hidden="true" />
+    <li className="flex flex-col gap-3 p-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-sm font-semibold text-ink">{formatDisplayText(request.title)}</p>
+          {request.status !== 'pending' && <StatusBadge status={request.status} />}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-bold text-ink">{formatDisplayText(request.title)}</p>
-            <span className="rounded-full border border-line bg-subtle px-2 py-0.5 text-[11px] font-bold text-ink-muted-strong">{typeLabel}</span>
-            {organizationName && <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-bold text-navy-800">{organizationName}</span>}
-            <StatusBadge status={request.status} />
-          </div>
-          {summary && <p className="mt-1 text-xs text-ink-muted-strong">{summary}</p>}
-          <p className="mt-1 text-xs text-ink-muted-strong">
-            Requested by {request.requester ? `${formatDisplayText(request.requester.first_name)} ${formatDisplayText(request.requester.last_name)}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
-          </p>
-          <p className="mt-1 text-xs text-ink-muted-strong">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
-          <div className="mt-3 max-w-md">
-            {info.kind === 'lifecycle' && <FlowStepper variant="compact" steps={info.steps} ariaLabel={`${typeLabel} progress for ${formatDisplayText(request.title)}`} />}
-            {(info.kind === 'lifecycle' || request.status === 'pending') && (
-              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-bold text-ink">
-                {info.kind === 'chip' ? <StatusBadge label={info.stageText} tone={info.tone} /> : <span>{info.stageText}</span>}
-                {info.waitingOn && <span className="font-semibold text-ink-muted-strong">Waiting on {info.waitingOn}</span>}
-              </p>
-            )}
-          </div>
-          {request.status !== 'pending' && request.remarks && (
-            <p className="mt-2 rounded-md bg-subtle px-2.5 py-1.5 text-xs text-ink-muted-strong">
-              <span className="font-semibold">Remarks:</span> {request.remarks}
+        <p className="mt-1 text-xs text-ink-muted-strong">{[typeLabel, organizationName].filter(Boolean).join(' · ')}</p>
+        {summary && <p className="mt-1 text-xs text-ink-muted-strong">{summary}</p>}
+        <p className="mt-1 text-xs text-ink-muted-strong">
+          Requested by {request.requester ? `${formatDisplayText(request.requester.first_name)} ${formatDisplayText(request.requester.last_name)}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
+        </p>
+        <p className="mt-1 text-xs text-ink-muted-strong">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
+        <div className="mt-3 max-w-md">
+          {info.kind === 'lifecycle' && <FlowStepper variant="compact" steps={info.steps} ariaLabel={`${typeLabel} progress for ${formatDisplayText(request.title)}`} />}
+          {(info.kind === 'lifecycle' || request.status === 'pending') && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-medium text-ink">
+              {info.kind === 'chip' ? <StatusBadge label={info.stageText} tone={info.tone} /> : <span>{info.stageText}</span>}
+              {info.waitingOn && <span className="font-normal text-ink-muted-strong">Waiting on {info.waitingOn}</span>}
             </p>
           )}
         </div>
+        {request.status !== 'pending' && request.remarks && (
+          <p className="mt-2 rounded-control bg-subtle px-2.5 py-1.5 text-xs text-ink-muted-strong">
+            <span className="font-medium">Remarks:</span> {request.remarks}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button variant="secondary" aria-label={`${canAct ? 'Review' : 'Details'}: ${formatDisplayText(request.title)}`} onClick={() => onOpen(request)}>
@@ -190,8 +170,6 @@ export default function DepartmentHeadApprovalsPage() {
   const [page, setPage] = useState(1);
   const [entityFilter, setEntityFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [semesterFilter, setSemesterFilter] = useState('all');
-  const [periods, setPeriods] = useState([]);
   const [opened, setOpened] = useState(null);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
   const [submitting, setSubmitting] = useState(false);
@@ -205,19 +183,7 @@ export default function DepartmentHeadApprovalsPage() {
   const loadCounter = useRef(0);
   const organizationNames = useMemo(() => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])), [organizations]);
   const statusTabs = tab === 'submitted' ? SUBMITTED_STATUS_TABS : REVIEW_STATUS_TABS;
-  const filtersActive = Boolean(search || entityFilter !== 'all' || organizationFilter !== 'all' || semesterFilter !== 'all');
-
-  useEffect(() => {
-    try {
-      if ('getAcademicPeriods' in systemAdminService && typeof systemAdminService.getAcademicPeriods === 'function') {
-        systemAdminService.getAcademicPeriods()
-          .then((data) => setPeriods(Array.isArray(data) ? data : []))
-          .catch(() => setPeriods([]));
-      }
-    } catch {
-      // Mocked module without getAcademicPeriods
-    }
-  }, []);
+  const filtersActive = Boolean(search || entityFilter !== 'all' || organizationFilter !== 'all');
 
   useEffect(() => {
     if (!isDepartmentHead && !isSao) return;
@@ -225,8 +191,6 @@ export default function DepartmentHeadApprovalsPage() {
       .then(setOrganizations)
       .catch(() => notify.error('Could not load organizations.'));
   }, [isDepartmentHead, isSao]);
-
-  const activePeriod = useMemo(() => periods.find((period) => period.status === 'active') || null, [periods]);
 
   // Hoisted so the CSV export can reuse the exact same filter set as the
   // loaded page, without page/per_page, via fetchAllPages.
@@ -236,8 +200,7 @@ export default function DepartmentHeadApprovalsPage() {
     entity_type: entityFilter === 'all' ? undefined : entityFilter,
     search: search || undefined,
     organization_id: organizationFilter === 'all' ? undefined : organizationFilter,
-    academic_semester_id: semesterFilter === 'all' ? undefined : semesterFilter,
-  }), [statusFilter, tab, entityFilter, search, organizationFilter, semesterFilter]);
+  }), [statusFilter, tab, entityFilter, search, organizationFilter]);
 
   // A silent refresh re-reads the page the user is looking at without touching the loading flag,
   // the shared error or anything typed. It yields to any newer full load and to a changed view.
@@ -259,7 +222,7 @@ export default function DepartmentHeadApprovalsPage() {
     const reviewCountRequest = isAdmin && tab === 'submitted' ? getApprovalRequests({ status: 'pending', per_page: 1 }) : null;
     return Promise.all([
       getApprovalRequests({ ...queryParams, page }),
-      getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id, scope: queryParams.scope, academic_semester_id: queryParams.academic_semester_id }),
+      getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id, scope: queryParams.scope }),
       reviewCountRequest,
     ])
       .then(([listRes, pendingRes, reviewRes]) => {
@@ -276,7 +239,7 @@ export default function DepartmentHeadApprovalsPage() {
       .catch((err) => {
         if (silent || isStale()) return;
         if (err?.response?.status === 403) setForbidden(true);
-        else setError('Failed to load approval requests.');
+        else setError('Could not load approval requests.');
       })
       .finally(() => {
         if (!silent && ticket === loadCounter.current) setLoading(false);
@@ -289,7 +252,7 @@ export default function DepartmentHeadApprovalsPage() {
       const all = await fetchAllPages((params) => getApprovalRequests(params).then((res) => res.data), queryParams);
       downloadCsv(all, organizationNames);
     } catch {
-      setError('Failed to export approval requests.');
+      setError('Could not export approval requests.');
     } finally {
       setExporting(false);
     }
@@ -297,7 +260,7 @@ export default function DepartmentHeadApprovalsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, tab, entityFilter, search, organizationFilter, semesterFilter]);
+  }, [statusFilter, tab, entityFilter, search, organizationFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => load(), 250);
@@ -346,7 +309,6 @@ export default function DepartmentHeadApprovalsPage() {
     setSearch('');
     setEntityFilter('all');
     setOrganizationFilter('all');
-    setSemesterFilter('all');
   }
 
   const canAct = (request) => request.status === 'pending' && Boolean(role) && request.required_role === role && request.requested_by !== user.school_id;
@@ -362,8 +324,8 @@ export default function DepartmentHeadApprovalsPage() {
       notify.success(`Request ${action}.`);
       load();
     } catch {
-      setError('Failed to submit review. Please try again.');
-      notify.error('Failed to submit review. Please try again.');
+      setError('Could not save your decision. Try again.');
+      notify.error('Could not save your decision. Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -375,7 +337,7 @@ export default function DepartmentHeadApprovalsPage() {
     }
 
     if (filtersActive) {
-      return <EmptyState kind="filtered" title="No requests match these filters" description="Try a different type, semester or search." onClearFilters={resetFilters} />;
+      return <EmptyState kind="filtered" title="No requests match these filters" description="Try a different type, organization or search." onClearFilters={resetFilters} />;
     }
 
     if (tab === 'submitted') {
@@ -386,7 +348,6 @@ export default function DepartmentHeadApprovalsPage() {
 
       return (
         <EmptyState
-          icon={Clock}
           title="Nothing submitted yet"
           description="Events, budgets, elections, announcements and reports your organization sends for approval are tracked here, with the stage each one is at and who it is waiting on."
           action={<Button variant="secondary" to={NEW_REQUEST_PATH}>Start a new request</Button>}
@@ -395,10 +356,10 @@ export default function DepartmentHeadApprovalsPage() {
     }
 
     if (statusFilter === 'pending') {
-      return <EmptyState icon={Clock} title="Nothing to review" description={REVIEW_EMPTY[role] ?? 'Requests sent to you for a decision appear here.'} />;
+      return <EmptyState title="No requests to review" description={REVIEW_EMPTY[role] ?? 'Requests sent to you for a decision appear here.'} />;
     }
 
-    return <EmptyState icon={Clock} title="No approval history yet" description="Requests you approve or reject are listed here afterwards." />;
+    return <EmptyState title="No approval history yet" description="Requests you approve or reject are listed here afterwards." />;
   }
 
   const headerPrimary = isAdmin || isOfficer ? <Button to={NEW_REQUEST_PATH} leftIcon={Plus}>New request</Button> : undefined;
@@ -424,82 +385,54 @@ export default function DepartmentHeadApprovalsPage() {
         />
       )}
 
-      <div id="approvals-panel" role={isAdmin ? 'tabpanel' : undefined} aria-label={isAdmin ? listLabel : undefined} className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {statusTabs.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={statusFilter === option.value}
-                onClick={() => { setStatusFilter(option.value); setPage(1); }}
-                className={`h-11 rounded-lg px-4 text-[13px] font-bold transition-all ${
-                  statusFilter === option.value
-                    ? 'bg-brand-700 text-white'
-                    : 'border border-line bg-surface text-ink-muted-strong hover:bg-subtle'
-                }`}
-              >
-                {option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label}
-              </button>
-            ))}
-          </div>
-          {periods.length > 0 && (
-            <HiusaSelect
-              filter
-              aria-label="Semester"
-              value={semesterFilter}
-              onChange={(event) => setSemesterFilter(event.target.value)}
-              className="h-11 min-w-52 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"
+      <div id="approvals-panel" role={isAdmin ? 'tabpanel' : undefined} aria-label={isAdmin ? listLabel : undefined} className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {statusTabs.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={statusFilter === option.value}
+              onClick={() => { setStatusFilter(option.value); setPage(1); }}
+              className={`min-h-11 rounded-control border px-4 text-sm font-medium transition-colors duration-150 sm:min-h-10 ${
+                statusFilter === option.value
+                  ? 'border-brand-600 bg-brand-600/10 text-brand-800'
+                  : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'
+              }`}
             >
-              <option value="all">
-                {activePeriod
-                  ? `Active: AY ${activePeriod.academic_year?.label} · ${activePeriod.number === 1 ? '1st' : '2nd'} Semester`
-                  : 'All semesters'}
-              </option>
-              {periods.map((period) => (
-                <option key={period.id} value={String(period.id)}>
-                  AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester{period.status === 'active' ? ' (Active)' : ''}
-                </option>
-              ))}
-            </HiusaSelect>
-          )}
+              {option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label}
+            </button>
+          ))}
         </div>
 
-        <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-          <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${(isDepartmentHead || isSao) ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
-            <label className="relative min-w-0 xl:col-span-2">
-              <Search size={15} className="absolute left-3 top-3.5 text-slate-500" aria-hidden="true" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." aria-label="Search requests" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
-            </label>
-            <HiusaSelect filter aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
-              <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        <div className={`grid grid-cols-1 items-center gap-3 md:grid-cols-2 ${(isDepartmentHead || isSao) ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
+          <label className="relative min-w-0 xl:col-span-2">
+            <Search size={15} className="pointer-events-none absolute left-3 top-3 text-ink-muted" aria-hidden="true" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks" aria-label="Search requests" className="pl-9" />
+          </label>
+          <HiusaSelect filter aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}>
+            <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </HiusaSelect>
+          {(isDepartmentHead || isSao) && (
+            <HiusaSelect filter aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)}>
+              <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
             </HiusaSelect>
-            {(isDepartmentHead || isSao) && (
-              <HiusaSelect filter aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
-                <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
-              </HiusaSelect>
-            )}
-            <div className="flex items-center justify-end">
-              <Button variant="secondary" leftIcon={RotateCcw} onClick={resetFilters}>Reset</Button>
-            </div>
-          </div>
-        </section>
+          )}
+          {filtersActive && <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center justify-self-start rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+        </div>
 
         {error && (
-          <div role="alert" className="rounded-lg border border-red-100 bg-red-50 p-4 text-center">
-            <p className="text-sm font-semibold text-red-700">{error}</p>
+          <div role="alert" className="rounded-card border border-danger/40 bg-danger-tint px-4 py-3">
+            <p className="text-sm font-semibold text-danger-strong">{error}</p>
           </div>
         )}
 
-        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-card border border-line bg-surface">
           {loading ? (
-            <div className="space-y-2 p-5">
-              {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
-            </div>
+            <SkeletonTable rows={3} columns={3} className="border-0" />
           ) : requests.length === 0 ? (
-            renderEmpty()
+            <div className="px-4">{renderEmpty()}</div>
           ) : (
-            <ul aria-label={listLabel} className="divide-y divide-[#DDE7EF]">
+            <ul aria-label={listLabel} className="divide-y divide-line">
               {requests.map((request) => (
                 <ApprovalRow
                   key={request.id}

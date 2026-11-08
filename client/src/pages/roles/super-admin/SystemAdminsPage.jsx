@@ -57,7 +57,7 @@ const emptyForm = () => ({
 });
 
 function statusStyle(status) {
-  if (status === "active") return "bg-emerald-50 text-emerald-700";
+  if (status === "active") return "bg-success-tint text-success-strong";
   if (status === "disabled") return "bg-red-50 text-red-700";
   return "bg-slate-100 text-slate-600";
 }
@@ -81,7 +81,7 @@ function AdminIdentity({ admin }) {
 
 function StatusPill({ status }) {
   return (
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusStyle(status)}`}>
+    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusStyle(status)}`}>
       {status}
     </span>
   );
@@ -367,19 +367,19 @@ export default function SystemAdminsPage() {
         ].map(([label, value, Icon]) => (
           <article
             key={label}
-            className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm"
+            className="rounded-lg border border-line bg-white p-4 shadow-sm"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-navy-800">
               <Icon size={17} />
             </span>
             <p className="mt-3 text-xs font-semibold text-slate-500">{label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A]">{value}</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">{value}</p>
           </article>
         ))}
       </section>
 
       {success && (
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-success/30 bg-success-tint px-4 py-3 text-sm font-semibold text-success-strong">
           <span className="flex items-start gap-2">
             <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> {success}
           </span>
@@ -394,9 +394,9 @@ export default function SystemAdminsPage() {
         </div>
       )}
 
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-line bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
-          <label className="flex h-11 items-center sm:col-span-2 lg:col-span-1 gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
+          <label className="flex h-11 items-center sm:col-span-2 lg:col-span-1 gap-2 rounded-lg border border-line px-3 focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-accent/15">
             <Search size={16} className="shrink-0 text-slate-500" />
             <span className="sr-only">Search administrators</span>
             <input
@@ -411,7 +411,7 @@ export default function SystemAdminsPage() {
             aria-label="Filter by organization"
             value={organizationFilter}
             onChange={(event) => setOrganizationFilter(event.target.value)}
-            className="h-11 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
+            className="h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-brand-600"
           >
             <option value="">All organizations</option>
             {organizations.map((organization) => (
@@ -424,7 +424,7 @@ export default function SystemAdminsPage() {
             aria-label="Filter by account status"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-11 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-[#0B8ED0]"
+            className="h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-slate-600 outline-none focus:border-brand-600"
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
@@ -434,7 +434,7 @@ export default function SystemAdminsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
         {loading ? (
           <div className="space-y-3 p-5">
             {[1, 2, 3].map((row) => (
@@ -444,7 +444,7 @@ export default function SystemAdminsPage() {
         ) : visibleAdmins.length === 0 ? (
           <div className="p-10 text-center">
             <Users size={38} className="mx-auto text-slate-200" />
-            <p className="mt-3 text-sm font-bold text-[#0F172A]">
+            <p className="mt-3 text-sm font-bold text-ink">
               No administrator accounts match this view.
             </p>
             <p className="mt-1 text-xs text-slate-500">
@@ -462,7 +462,7 @@ export default function SystemAdminsPage() {
                   <col className="w-[14%]" />
                   <col className="w-[10%]" />
                 </colgroup>
-                <thead className="bg-subtle text-xs uppercase tracking-wide text-ink-muted">
+                <thead className="bg-subtle text-xs text-ink-muted">
                   <tr>
                     <th scope="col" className="border-b border-line px-4 py-3 font-bold">Administrator</th>
                     <th scope="col" className="border-b border-line px-4 py-3 font-bold">Organization</th>
@@ -473,7 +473,7 @@ export default function SystemAdminsPage() {
                 </thead>
                 {groups.map(([label, members]) => (
                   <tbody key={label}>
-                    <tr className="bg-[#EEF6FB]"><th colSpan={5} scope="rowgroup" className="px-4 py-2 text-left text-xs font-bold text-[#0F2F62]">{label}</th></tr>
+                    <tr className="bg-page"><th colSpan={5} scope="rowgroup" className="px-4 py-2 text-left text-xs font-bold text-navy-800">{label}</th></tr>
                     {members.map((admin) => (
                       <tr key={profileKey(admin)} className="border-b border-line-soft transition-colors duration-150 hover:bg-subtle">
                         <td className="px-4 py-3 align-middle"><AdminIdentity admin={admin} /></td>
@@ -495,22 +495,22 @@ export default function SystemAdminsPage() {
             <div className="md:hidden" data-view="cards">
               {groups.map(([label, members]) => (
                 <div key={label}>
-                  <p className="bg-[#EEF6FB] px-4 py-2 text-xs font-bold text-[#0F2F62]">{label}</p>
+                  <p className="bg-page px-4 py-2 text-xs font-bold text-navy-800">{label}</p>
                   <ul className="flex flex-col divide-y divide-line-soft">
                     {members.map((admin) => (
                       <li key={profileKey(admin)} className="px-4 py-4">
                         <AdminIdentity admin={admin} />
                         <dl className="mt-3 flex flex-col gap-2">
                           <div className="flex items-start justify-between gap-3">
-                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Organization</dt>
+                            <dt className="text-xs font-bold text-ink-muted">Organization</dt>
                             <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">{admin.organization?.acronym || formatDisplayText(admin.organization?.name) || "Not assigned"}</dd>
                           </div>
                           <div className="flex items-start justify-between gap-3">
-                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Position</dt>
+                            <dt className="text-xs font-bold text-ink-muted">Position</dt>
                             <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">{formatDisplayText(admin.position_title) || "Organization Admin"}</dd>
                           </div>
                           <div className="flex items-start justify-between gap-3">
-                            <dt className="text-xs font-bold uppercase tracking-wide text-ink-muted">Status</dt>
+                            <dt className="text-xs font-bold text-ink-muted">Status</dt>
                             <dd><StatusPill status={admin.account_status} /></dd>
                           </div>
                         </dl>
@@ -526,18 +526,18 @@ export default function SystemAdminsPage() {
       </section>
 
       {form && (
-        <AccessibleOverlay label="Edit administrator" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Edit administrator" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
           <form
             onSubmit={save}
-            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white shadow-2xl"
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-line bg-white"
           >
-            <div className="flex items-start justify-between border-b border-[#DDE7EF] px-5 py-4">
+            <div className="flex items-start justify-between border-b border-line px-5 py-4">
               <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800">
                   <PencilLine size={18} />
                 </span>
                 <div>
-                  <h3 className="text-lg font-black text-[#0F172A]">
+                  <h3 className="text-lg font-semibold text-ink">
                     Edit Admin User
                   </h3>
                   <p className="mt-0.5 text-xs font-medium text-slate-500">
@@ -549,39 +549,39 @@ export default function SystemAdminsPage() {
                 type="button"
                 onClick={() => setForm(null)}
                 aria-label="Close administrator form"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-[#F8FBFD] hover:text-[#0F172A]"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-subtle hover:text-ink"
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink">
                 First name *
-                <input required value={form.first_name} onChange={(event) => updateField("first_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <input required value={form.first_name} onChange={(event) => updateField("first_name", event.target.value)} className="h-11 w-full rounded-lg border border-line px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink">
                 Last name *
-                <input required value={form.last_name} onChange={(event) => updateField("last_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <input required value={form.last_name} onChange={(event) => updateField("last_name", event.target.value)} className="h-11 w-full rounded-lg border border-line px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink sm:col-span-2">
                 Email address *
-                <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} className="h-11 w-full rounded-lg border border-line px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink">
                 Contact number
-                <input inputMode="tel" value={form.contact_number} onChange={(event) => updateField("contact_number", event.target.value)} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <input inputMode="tel" value={form.contact_number} onChange={(event) => updateField("contact_number", event.target.value)} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-line px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink">
                 Position title
-                <input list="admin-leadership-titles" value={form.position_title} onChange={(event) => updateField("position_title", event.target.value)} placeholder="Select or enter a title" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <input list="admin-leadership-titles" value={form.position_title} onChange={(event) => updateField("position_title", event.target.value)} placeholder="Select or enter a title" className="h-11 w-full rounded-lg border border-line px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
                 <datalist id="admin-leadership-titles">
                   {LEADERSHIP_TITLES.map((title) => <option key={title} value={title} />)}
                 </datalist>
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink sm:col-span-2">
                 Assigned organization *
-                <HiusaSelect required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <HiusaSelect required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15">
                   <option value="">Select an active student organization</option>
                   {organizations
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
@@ -592,9 +592,9 @@ export default function SystemAdminsPage() {
                     ))}
                 </HiusaSelect>
               </label>
-              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
+              <label className="space-y-1.5 text-[13px] font-semibold text-ink sm:col-span-2">
                 Account status
-                <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
+                <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none focus:border-brand-600">
                   <option value="active">Active: can sign in</option>
                   <option value="inactive">Inactive: temporarily unavailable</option>
                   <option value="disabled">Disabled: access revoked</option>
@@ -607,11 +607,11 @@ export default function SystemAdminsPage() {
               )}
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-[#DDE7EF] px-5 py-4 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setForm(null)} disabled={busy} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">
+            <div className="flex flex-col-reverse gap-2 border-t border-line px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setForm(null)} disabled={busy} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">
                 Cancel
               </button>
-              <button disabled={busy} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
+              <button disabled={busy} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">
                 {busy ? "Saving..." : "Save Changes"}
               </button>
             </div>

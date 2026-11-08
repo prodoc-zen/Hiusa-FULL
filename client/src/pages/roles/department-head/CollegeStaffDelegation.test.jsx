@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import CollegeOrganizationsPage from './CollegeOrganizationsPage';
@@ -106,23 +106,23 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     people.searchPeople.mockResolvedValue([{ school_id: 20262288, name: 'Alex Rivera Assistant', email: 'alex@univ.edu.ph', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
-  it('renders the Dean’s Office Staff & Secretary button and opens the modal', async () => {
+  it('renders the Office staff button and opens the modal', async () => {
     render(
       <MemoryRouter>
         <CollegeOrganizationsPage />
       </MemoryRouter>
     );
 
-    const staffBtn = await screen.findByRole('button', { name: /Dean’s Office Staff & Secretary/i });
+    const staffBtn = await screen.findByRole('button', { name: /^Office staff$/i });
     expect(staffBtn).toBeInTheDocument();
 
     fireEvent.click(staffBtn);
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Dean’s Office Staff & Delegation')).toBeInTheDocument();
+    expect(screen.getByText('People who can review applications for your college.')).toBeInTheDocument();
     expect(await screen.findByText('Clara Secretary')).toBeInTheDocument();
-    expect(screen.getByText('Lead Head')).toBeInTheDocument();
-    expect(screen.getByText('Delegate')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(/^Department Head/)).toBeInTheDocument();
+    expect(screen.queryByText('Delegate')).not.toBeInTheDocument();
   });
 
   it('can open the form to assign a new delegate', async () => {
@@ -132,21 +132,20 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /Dean’s Office Staff & Secretary/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Office staff$/i }));
     expect(await screen.findByText('Clara Secretary')).toBeInTheDocument();
 
-    const addBtn = screen.getByRole('button', { name: /Add Delegate \/ Secretary/i });
+    const addBtn = screen.getByRole('button', { name: /^Add staff$/i });
     fireEvent.click(addBtn);
 
-    expect(screen.getByText('New Delegate Information')).toBeInTheDocument();
     expect(screen.queryByLabelText(/School ID/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/First Name/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Position Title/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Assign Delegate' })).toBeDisabled();
+    expect(screen.getByLabelText(/^Position$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add to office staff' })).toBeDisabled();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Person' }), { target: { value: 'alex' } });
     fireEvent.click(await screen.findByRole('option', { name: /Alex Rivera Assistant/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Assign Delegate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to office staff' }));
 
     await waitFor(() => {
       expect(mocks.addCollegeStaff).toHaveBeenCalledWith({
