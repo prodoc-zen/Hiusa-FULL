@@ -256,8 +256,9 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
               {requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
                 const priorReviews = requirement.reviews.filter((review) => !actionable || review.stage !== stage);
-                // One word per row: what the reviewer is marking now, else what the record says.
-                const state = actionable && mark ? mark : (requirement.document ? worstStatus(priorReviews) : 'missing');
+                // One word per row. While deciding it is this reviewer's own mark, so an unmarked row reads
+                // Not checked even if the Department Head accepted it. Otherwise it is what the record says.
+                const state = actionable ? (mark || (requirement.document ? '' : 'missing')) : (requirement.document ? worstStatus(priorReviews) : 'missing');
                 const needsAction = state === 'needs_changes' || state === 'missing' || priorReviews.some((review) => review.status !== 'ok');
                 const hasDetail = priorReviews.some((review) => review.note) || requirement.review_files.length > 0;
                 const open = openId === requirement.id;

@@ -65,7 +65,8 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
   const headIsActive = head?.account_status === 'active';
   const counts = college.by_lifecycle_status || {};
   const awaitingAdministrator = (college.organizations || []).filter(needsAdministrator).length;
-  const needsReview = (counts.pending || 0) + (counts.returned || 0) + awaitingAdministrator > 0;
+  const waitingCount = (counts.pending || 0) + (counts.returned || 0) + awaitingAdministrator;
+  const needsReview = waitingCount > 0;
   const [expanded, setExpanded] = useState(needsReview);
   const panelId = `college-${college.id}-organizations`;
 
@@ -86,7 +87,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             <h2 id={`college-${college.id}`} className="text-base font-semibold text-ink">
               <button type="button" onClick={() => onView(college)} className="break-words rounded-control text-left hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']">{name}</button>
             </h2>
-            <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}</p>
+            <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}{!head && college.is_active && <span className="md:hidden"> · No Department Head</span>}{waitingCount > 0 && <span className="md:hidden"> · {waitingCount} waiting</span>}</p>
             {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted max-md:hidden" />}
           </div>
           <div className="relative z-10 -mr-2 -mt-1 shrink-0">

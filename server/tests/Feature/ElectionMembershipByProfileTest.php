@@ -92,6 +92,18 @@ class ElectionMembershipByProfileTest extends TestCase
         $this->assertDatabaseCount('candidates', 0);
     }
 
+    public function test_a_disabled_account_with_an_active_profile_is_refused(): void
+    {
+        $disabled = $this->collegeStudent();
+        $disabled->update(['account_status' => 'disabled']);
+
+        $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $disabled->school_id, 'position_id' => $this->position->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Only students can be added as candidates.');
+
+        $this->assertDatabaseCount('candidates', 0);
+    }
+
     public function test_an_officer_seat_holder_is_not_a_candidate(): void
     {
         $officer = $this->collegeStudent('SBO_OFFICER');

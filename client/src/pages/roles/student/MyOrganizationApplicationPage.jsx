@@ -132,9 +132,13 @@ export default function MyOrganizationApplicationPage() {
   const returned = application?.status === 'returned';
   const generalFiles = application?.review_files || [];
   // Only the files that need changes get an upload while sending again. An accepted file stays
-  // attached, and the applicant can still ask for every upload.
-  const uploads = (application?.requirements || []).filter((requirement) => allFiles || needsAction(requirement) || errors[`files.${requirement.id}`]);
-  const hiddenUploads = (application?.requirements?.length || 0) - uploads.length;
+  // attached, and the applicant can still ask for every upload. A return on a general note alone
+  // flags no file, so then every upload shows: the note may ask for any of them to be replaced.
+  const requirements = application?.requirements || [];
+  const flaggedUploads = requirements.filter((requirement) => needsAction(requirement) || errors[`files.${requirement.id}`]);
+  const everyFileAccepted = requirements.length > 0 && requirements.every((requirement) => requirementState(requirement) === 'ok');
+  const uploads = allFiles || (flaggedUploads.length === 0 && !everyFileAccepted) ? requirements : flaggedUploads;
+  const hiddenUploads = requirements.length - uploads.length;
   const returnedBy = application?.returned_by_role === 'DEPARTMENT_HEAD' ? 'your Department Head' : 'the SAO';
 
   return (
