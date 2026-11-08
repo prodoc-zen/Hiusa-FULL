@@ -36,7 +36,7 @@ class CollegeStaffDelegationTest extends TestCase
         ]);
     }
 
-    public function test_department_head_can_create_new_staff_delegate(): void
+    public function test_department_head_cannot_create_a_staff_account_with_a_typed_identity_or_a_default_password(): void
     {
         $college = $this->makeCollege('CCS');
         $head = $this->makeCollegeHead($college);
@@ -52,21 +52,10 @@ class CollegeStaffDelegationTest extends TestCase
             'role' => 'ADMIN',
         ];
 
-        $response = $this->postJson('/api/college/staff', $payload);
-        $response->assertStatus(201);
-        $response->assertJsonFragment([
-            'school_id' => 20261199,
-            'name' => 'Clara Secretary',
-            'position_title' => 'College Secretary',
-            'role' => 'ADMIN',
-        ]);
+        $this->postJson('/api/college/staff', $payload)->assertUnprocessable()->assertJsonValidationErrors('school_id');
 
-        $this->assertDatabaseHas('users', [
-            'school_id' => 20261199,
-            'email' => 'clara.sec@university.edu.ph',
-            'role' => 'ADMIN',
-            'position_title' => 'College Secretary',
-        ]);
+        $this->assertDatabaseMissing('users', ['school_id' => 20261199]);
+        $this->assertDatabaseMissing('users', ['email' => 'clara.sec@university.edu.ph']);
     }
 
     public function test_department_head_can_assign_existing_user_as_college_staff(): void

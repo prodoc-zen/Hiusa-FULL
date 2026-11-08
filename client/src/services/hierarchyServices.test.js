@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
 import { deleteClearancePeriod } from './clearanceService';
 import { deleteRequirementType, getComplianceDocuments } from './complianceService';
-import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, resubmitOrganization } from './collegeOrganizationService';
-import { getApplicationRequirements, submitOrganizationApplication } from './organizationApplicationService';
+import { getCollegeOrganizations, getCollegeOverview } from './collegeOrganizationService';
+import { allowStudentToApply, revokeApplicantGrant } from './applicantGrantService';
+import { attachReviewFile, getMyOrganizationApplications, resubmitOrganizationApplication, submitOrganizationApplication } from './organizationApplicationService';
 import { downloadFinancialReportDocument } from './financeService';
 import { deleteGrievance } from './grievanceService';
 import {
@@ -69,32 +70,44 @@ describe('hierarchy services', () => {
     expect(api.get).toHaveBeenCalledWith('/financial-reports/12/documents/0', { responseType: 'blob' });
   });
 
-  it('lists a college and its registration requirements', () => {
+  it('lists a college and reads its overview', () => {
     getCollegeOrganizations({ lifecycle_status: 'pending' });
-    getRegistrationRequirements();
     expect(api.get).toHaveBeenCalledWith('/college/organizations', { params: { lifecycle_status: 'pending' }, cache: false });
-    expect(api.get).toHaveBeenCalledWith('/college/organizations/requirements', { cache: false });
     getCollegeOverview();
     expect(api.get).toHaveBeenCalledWith('/college/overview', { cache: false });
   });
 
-  it('submits the public organization application as multipart data with one file per requirement', () => {
+  it('submits the application from the signed-in account as multipart data with one file per requirement', () => {
     const charter = new File(['pdf'], 'charter.pdf', { type: 'application/pdf' });
-    getApplicationRequirements();
-    submitOrganizationApplication({ name: 'Robotics Guild', acronym: 'ROBO', email: 'alex@example.test' }, { 12: charter });
+    getMyOrganizationApplications();
+    submitOrganizationApplication({ name: 'Robotics Guild', acronym: 'ROBO', description: undefined }, { 12: charter, 13: null });
     const [url, data] = api.post.mock.calls[0];
-    expect(api.get).toHaveBeenCalledWith('/organization-applications/requirements', { cache: false });
-    expect(url).toBe('/organization-applications');
+    expect(api.get).toHaveBeenCalledWith('/my/organization-applications', { cache: false });
+    expect(url).toBe('/my/organization-applications');
     expect(data.get('name')).toBe('Robotics Guild');
-    expect(data.get('email')).toBe('alex@example.test');
     expect(data.has('description')).toBe(false);
     expect(data.get('files[12]')).toBe(charter);
+    expect(data.has('files[13]')).toBe(false);
   });
 
-  it('resubmits a returned organization through a spoofed PUT because multipart PUT is not parsed', () => {
-    resubmitOrganization(8, { name: 'Robotics Guild' }, {});
+  it('sends a returned application again to its own resubmit route', () => {
+    resubmitOrganizationApplication(8, { name: 'Robotics Guild' }, {});
+    expect(api.post.mock.calls[0][0]).toBe('/my/organization-applications/8/resubmit');
+  });
+
+  it('attaches a reviewer file to one requirement', () => {
+    const file = new File(['pdf'], 'note.pdf', { type: 'application/pdf' });
+    attachReviewFile(5, file, 12);
     const [url, data] = api.post.mock.calls[0];
-    expect(url).toBe('/college/organizations/8');
-    expect(data.get('_method')).toBe('PUT');
+    expect(url).toBe('/organization-applications/5/review-files');
+    expect(data.get('file')).toBe(file);
+    expect(data.get('requirement_type_id')).toBe('12');
+  });
+
+  it('lets a dean allow and take back a student applying', () => {
+    allowStudentToApply(20260001);
+    revokeApplicantGrant(4);
+    expect(api.post).toHaveBeenCalledWith('/college/applicant-grants', { school_id: 20260001 });
+    expect(api.delete).toHaveBeenCalledWith('/college/applicant-grants/4');
   });
 });

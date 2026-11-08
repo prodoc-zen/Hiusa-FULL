@@ -81,6 +81,16 @@ const DESTINATIONS = {
     return null;
   },
 
+  organization_application: (role, id) => {
+    if (role === 'STUDENT') {
+      const value = safeId(id);
+      return value ? `/dashboard/student/organization-applications/${value}` : '/dashboard/student/apply-organization';
+    }
+    return role === 'DEPARTMENT_HEAD' || role === 'SUPER_ADMIN' ? record('/dashboard/organization-applications', id) : null;
+  },
+
+  organization_applicant_grant: (role) => (role === 'STUDENT' ? '/dashboard/student/apply-organization' : null),
+
   event: (role, id) => {
     if (role === 'ADMIN') return record('/dashboard/events/manage-events', id);
     if (role === 'SBO_OFFICER' || role === 'DEPARTMENT_HEAD' || role === 'STUDENT') return record('/dashboard/events/activity-calendar', id);

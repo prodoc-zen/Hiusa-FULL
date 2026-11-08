@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, Eye, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Building2, Eye, Plus, UserPlus, Users } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
+import ApplicantGrantList from '../../../components/org/ApplicantGrantList';
+import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getCollegeOverview, getCollegeStaff, addCollegeStaff, removeCollegeStaff, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getCollegeStaff, addCollegeStaff, removeCollegeStaff } from '../../../services/collegeOrganizationService';
+import { getApplicantGrants } from '../../../services/applicantGrantService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
-import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
+import { RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
-import { openRequirementSample } from '../../../utils/requirementSample';
-import RequirementSample from '../../../components/requirements/RequirementSample';
-import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../../utils/requirementFiles';
 
 async function viewRegistrationFile(submissionId) {
   try {
@@ -29,17 +29,7 @@ async function viewRegistrationFile(submissionId) {
   }
 }
 
-async function viewRequirementSample(requirement) {
-  try {
-    await openRequirementSample(requirement);
-  } catch (error) {
-    notify.error(getApiErrorMessage(error, 'Could not open the sample file.'));
-  }
-}
-
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const FORM_FIELDS = ['name', 'acronym', 'description', 'color', 'admin_school_id', 'admin_first_name', 'admin_last_name', 'admin_email', 'admin_position_title'];
-
+// pending and returned only appear on registrations filed before applications moved to the grant flow.
 const LIFECYCLE = {
   returned: { tone: 'danger', label: 'Returned' },
   pending: { tone: 'warning', label: 'Pending review' },
@@ -57,7 +47,6 @@ const REQUIREMENT_STATUS = {
 const LEADER_ROLE = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
 
 const STATUS_PANEL_ID = 'organization-status-panel';
-const NO_SEMESTER_NOTICE = 'Registration is closed. The SAO must activate a semester first.';
 
 function roleCount(organization, key) {
   const count = organization.role_counts?.[key];
@@ -297,294 +286,7 @@ function CollegeStaffModal({ open, onClose }) {
   );
 }
 
-function formatSize(bytes) {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-function emptyForm(organization) {
-  const adminPayload = organization?.admin_payload || {};
-  return {
-    name: organization?.name || '',
-    acronym: organization?.acronym || '',
-    description: organization?.description || '',
-    color: organization?.color || '',
-    admin_school_id: adminPayload.school_id ? String(adminPayload.school_id) : '',
-    admin_first_name: adminPayload.first_name || '',
-    admin_last_name: adminPayload.last_name || '',
-    admin_email: adminPayload.email || '',
-    admin_position_title: adminPayload.position_title || 'President',
-  };
-}
-
-function OrganizationForm({ open, organization, onClose, onSaved }) {
-  const isResubmit = Boolean(organization);
-  const [fields, setFields] = useState(emptyForm(organization));
-  const [files, setFiles] = useState({});
-  const [fileErrors, setFileErrors] = useState({});
-  const [errors, setErrors] = useState({});
-  const [formError, setFormError] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [focusRequest, setFocusRequest] = useState(0);
-  const formRef = useRef(null);
-  const [requirementsState, setRequirementsState] = useState({ loading: !isResubmit, error: null, semester: null, requirements: [] });
-
-  const loadRequirements = useCallback(() => {
-    setRequirementsState({ loading: true, error: null, semester: null, requirements: [] });
-    getRegistrationRequirements()
-      .then((res) => setRequirementsState({ loading: false, error: null, semester: res.data?.academic_semester ?? null, requirements: res.data?.requirements ?? [] }))
-      .catch((err) => setRequirementsState({ loading: false, error: getApiErrorMessage(err, 'Could not load the registration requirements.'), semester: null, requirements: [] }));
-  }, []);
-
-  useEffect(() => {
-    if (open && !isResubmit) loadRequirements();
-  }, [open, isResubmit, loadRequirements]);
-
-  useEffect(() => {
-    if (focusRequest > 0) formRef.current?.querySelector('[aria-invalid="true"]')?.focus();
-  }, [focusRequest]);
-
-  const requirements = useMemo(() => (isResubmit
-    ? (organization.registration_requirements || []).map((item) => ({ id: item.requirement_type_id, name: item.requirement_name, allowed_extensions: item.allowed_extensions, template_original_name: item.template_original_name, template_url: item.template_url, current: item }))
-    : requirementsState.requirements.map((item) => ({ id: item.id, name: item.name, description: item.description, deadline_at: item.deadline_at, allowed_extensions: item.allowed_extensions, template_original_name: item.template_original_name, template_url: item.template_url }))), [isResubmit, organization, requirementsState.requirements]);
-
-  function setField(key, value) {
-    setFields((current) => ({ ...current, [key]: value }));
-    setErrors((current) => ({ ...current, [key]: undefined }));
-  }
-
-  function chooseFile(requirementId, file) {
-    if (!file) return;
-    const problem = validateRequirementFile(file, requirements.find((item) => item.id === requirementId)?.allowed_extensions);
-    setFileErrors((current) => ({ ...current, [requirementId]: problem || undefined }));
-    setErrors((current) => ({ ...current, [`files.${requirementId}`]: undefined }));
-    setFiles((current) => {
-      const next = { ...current };
-      if (problem) delete next[requirementId];
-      else next[requirementId] = file;
-      return next;
-    });
-  }
-
-  function validate() {
-    const found = {};
-    if (!fields.name.trim()) found.name = 'Enter the organization name.';
-    else if (fields.name.length > 255) found.name = 'The name may not be longer than 255 characters.';
-    if (!fields.acronym.trim()) found.acronym = 'Enter the acronym.';
-    else if (fields.acronym.length > 50) found.acronym = 'The acronym may not be longer than 50 characters.';
-    if (fields.description.length > 3000) found.description = 'The description may not be longer than 3000 characters.';
-    if (fields.color && !HEX_COLOR.test(fields.color)) found.color = 'Use a color like #0B8ED0.';
-    if (!isResubmit) {
-      if (!fields.admin_school_id.trim()) found.admin_school_id = 'Enter the founding administrator school ID.';
-      if (!fields.admin_first_name.trim()) found.admin_first_name = 'Enter the first name.';
-      if (!fields.admin_last_name.trim()) found.admin_last_name = 'Enter the last name.';
-      if (!fields.admin_email.trim()) found.admin_email = 'Enter the university email.';
-    }
-    requirements.forEach((requirement) => {
-      if (fileErrors[requirement.id]) found[`files.${requirement.id}`] = fileErrors[requirement.id];
-      else if (!isResubmit && !files[requirement.id]) found[`files.${requirement.id}`] = 'Attach a file for this requirement.';
-    });
-    return found;
-  }
-
-  async function handleSubmit(event) {
-    event?.preventDefault();
-    const found = validate();
-    setErrors(found);
-    setFormError(null);
-    if (Object.keys(found).length > 0) {
-      setFocusRequest((count) => count + 1);
-      return;
-    }
-
-    setSubmitting(true);
-    const payload = {
-      name: fields.name.trim(),
-      acronym: fields.acronym.trim(),
-      description: fields.description,
-      color: fields.color,
-      ...(!isResubmit && fields.admin_school_id?.trim() ? {
-        admin_school_id: Number(fields.admin_school_id.trim()),
-        admin_first_name: fields.admin_first_name.trim() || undefined,
-        admin_last_name: fields.admin_last_name.trim() || undefined,
-        admin_email: fields.admin_email.trim() || undefined,
-        admin_position_title: fields.admin_position_title.trim() || 'President',
-      } : {}),
-    };
-    try {
-      if (isResubmit) {
-        await resubmitOrganization(organization.id, payload, files);
-      } else {
-        await registerOrganization(payload, files);
-      }
-      notify.success(isResubmit ? 'Registration resubmitted to the SAO.' : 'Organization submitted to the SAO for review.');
-      onSaved();
-    } catch (err) {
-      const serverErrors = err?.response?.data?.errors || {};
-      const mapped = Object.fromEntries(Object.entries(serverErrors).map(([key, messages]) => [key, [].concat(messages)[0]]));
-      setErrors(mapped);
-      const knownKeys = [...FORM_FIELDS, ...requirements.map((requirement) => `files.${requirement.id}`)];
-      if (!Object.keys(mapped).some((key) => knownKeys.includes(key))) setFormError(getApiErrorMessage(err, 'Could not submit this registration.'));
-      else setFocusRequest((count) => count + 1);
-      if (err?.response?.status === 409) onSaved({ stayOpen: true });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const noSemester = !isResubmit && !requirementsState.loading && !requirementsState.error && requirements.length === 0;
-  const showForm = isResubmit || (!requirementsState.loading && !requirementsState.error && !noSemester);
-  const swatch = HEX_COLOR.test(fields.color) ? fields.color : '#0B8ED0';
-
-  return (
-    <Modal
-      open={open}
-      title={isResubmit ? `Edit and resubmit ${organization.name}` : 'Register an organization'}
-      description={isResubmit ? 'Change the details and replace only the documents the SAO returned. Resubmitting sends it back to the SAO for review.' : 'The SAO reviews every registration. Attach all required documents in the accepted formats.'}
-      onClose={() => !submitting && onClose()}
-      closeOnBackdrop={false}
-      maxWidth="max-w-[640px]"
-      footer={showForm ? (
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>{isResubmit ? 'Resubmit to SAO' : 'Submit for review'}</Button>
-        </>
-      ) : <Button variant="secondary" onClick={onClose}>Close</Button>}
-    >
-      {requirementsState.loading && <div className="space-y-3"><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></div>}
-      {requirementsState.error && <ErrorState description={requirementsState.error} onRetry={loadRequirements} />}
-      {noSemester && (
-        <div role="status" className="flex items-start gap-3 rounded-control border border-warning/40 bg-warning-tint p-4 text-sm font-semibold text-warning-strong">
-          <CalendarClock size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <p>{NO_SEMESTER_NOTICE}</p>
-        </div>
-      )}
-      {showForm && (
-        <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4">
-          {formError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{formError}</p>}
-          {isResubmit && organization.review_remarks && (
-            <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">SAO remarks</p>
-              <p className="mt-1 text-sm font-medium text-danger-strong">{organization.review_remarks}</p>
-            </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Organization name" required error={errors.name}>
-              <Input value={fields.name} maxLength={255} onChange={(event) => setField('name', event.target.value)} />
-            </Field>
-            <Field label="Acronym" required error={errors.acronym}>
-              <Input value={fields.acronym} maxLength={50} onChange={(event) => setField('acronym', event.target.value)} />
-            </Field>
-          </div>
-          <Field label="Description" hint="Optional. What the organization does." error={errors.description}>
-            <Textarea rows={3} maxLength={3000} value={fields.description} onChange={(event) => setField('description', event.target.value)} />
-          </Field>
-          <div className="flex items-start gap-2">
-            <input
-              type="color"
-              aria-label="Pick a color"
-              value={swatch}
-              onChange={(event) => setField('color', event.target.value.toUpperCase())}
-              className="mt-[26px] h-11 w-14 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-1"
-            />
-            <Field label="Color" hint="Optional. A hex color such as #0B8ED0." error={errors.color} className="min-w-0 flex-1">
-              <Input value={fields.color} maxLength={7} placeholder="#0B8ED0" onChange={(event) => setField('color', event.target.value)} />
-            </Field>
-          </div>
-          {!isResubmit && (
-            <div className="rounded-xl border border-line bg-subtle p-4 space-y-3">
-              <div>
-                <h3 className="text-sm font-bold text-ink flex items-center gap-1.5">
-                  <ShieldCheck size={16} className="text-brand-700" />
-                  Founding Administrator / President (Auto-provisioned on approval)
-                </h3>
-                <p className="mt-0.5 text-xs text-ink-muted">
-                  Upon SAO approval, this student account is immediately activated as the organization's initial Administrator in one step.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="School ID" required error={errors.admin_school_id}>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 202400123"
-                    value={fields.admin_school_id}
-                    onChange={(event) => setField('admin_school_id', event.target.value)}
-                  />
-                </Field>
-                <Field label="Position Title" error={errors.admin_position_title}>
-                  <Input
-                    placeholder="e.g. President or Department Secretary"
-                    value={fields.admin_position_title}
-                    onChange={(event) => setField('admin_position_title', event.target.value)}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="First Name" required error={errors.admin_first_name}>
-                  <Input
-                    value={fields.admin_first_name}
-                    onChange={(event) => setField('admin_first_name', event.target.value)}
-                  />
-                </Field>
-                <Field label="Last Name" required error={errors.admin_last_name}>
-                  <Input
-                    value={fields.admin_last_name}
-                    onChange={(event) => setField('admin_last_name', event.target.value)}
-                  />
-                </Field>
-              </div>
-              <Field label="University Email" required error={errors.admin_email}>
-                <Input
-                  type="email"
-                  placeholder="student@holycross.edu.ph"
-                  value={fields.admin_email}
-                  onChange={(event) => setField('admin_email', event.target.value)}
-                />
-              </Field>
-            </div>
-          )}
-
-          <div className="space-y-4 border-t border-line pt-4">
-            <div>
-              <h3 className="text-base font-bold text-ink">Registration requirements</h3>
-              <p className="mt-1 text-xs font-medium text-ink-muted">
-                {isResubmit ? 'Documents already on file stay as they are. Choose a file only to replace one. ' : requirementsState.semester ? `Academic year ${requirementsState.semester.academic_year}, semester ${requirementsState.semester.number}. ` : ''}
-                Up to 10 MB each. Accepted types are listed per requirement.
-              </p>
-            </div>
-            {requirements.map((requirement) => {
-              const chosen = files[requirement.id];
-              const key = `files.${requirement.id}`;
-              const hint = (
-                <>
-                  {requirement.description && <span className="block">{requirement.description}</span>}
-                  <span className="block">Accepted: {fileTypesLabel(requirement.allowed_extensions)}</span>
-                  {requirement.deadline_at && <span className="block">Due {manilaDate(requirement.deadline_at, 'long')}</span>}
-                  {requirement.current && <span className="block">Current file: {requirement.current.file_name || 'None'} ({(REQUIREMENT_STATUS[requirement.current.status] || REQUIREMENT_STATUS.not_submitted).label})</span>}
-                  {requirement.current?.remarks && <span className="mt-1 block rounded bg-red-50 p-2 text-xs font-bold text-red-700 border border-red-200">SAO correction needed: {requirement.current.remarks}</span>}
-                  {requirement.current?.submission_id && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRegistrationFile(requirement.current.submission_id)}><Eye size={14} aria-hidden="true" />View current file</button>}
-                  <RequirementSample requirement={requirement} onOpen={viewRequirementSample} />
-                  {chosen && <span className="block font-semibold text-ink">Selected: {chosen.name} ({formatSize(chosen.size)})</span>}
-                </>
-              );
-              return (
-                <Field key={requirement.id} label={requirement.name} required={!isResubmit} hint={hint} error={errors[key]}>
-                  <input
-                    type="file"
-                    accept={fileAccept(requirement.allowed_extensions)}
-                    onChange={(event) => { chooseFile(requirement.id, event.target.files?.[0]); event.target.value = ''; }}
-                    className="block w-full rounded-control border border-line bg-surface p-2 text-sm font-medium text-ink file:mr-3 file:h-9 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-3 file:text-xs file:font-bold file:text-ink"
-                  />
-                </Field>
-              );
-            })}
-          </div>
-        </form>
-      )}
-    </Modal>
-  );
-}
-
-function OrganizationDetails({ organization, onClose, onEdit }) {
+function OrganizationDetails({ organization, onClose }) {
   if (!organization) return null;
   const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active;
   const checklist = organization.registration_requirements || [];
@@ -597,7 +299,13 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
         {organization.submitted_at && <span className="text-xs font-medium text-ink-muted">Submitted {manilaDate(organization.submitted_at, 'long')}</span>}
       </div>
       <RegistrationStepper organization={organization} viewerRole="DEPARTMENT_HEAD" />
-      <RegistrationNextStep organization={organization} viewerRole="DEPARTMENT_HEAD" onPrimary={() => onEdit(organization)} />
+      {organization.lifecycle_status === 'pending' && <p className="text-sm font-semibold text-ink-muted">Waiting for the SAO to decide.</p>}
+      {organization.lifecycle_status === 'returned' && (
+        <p className="rounded-control border border-line bg-subtle p-3 text-sm font-medium text-ink">
+          {organization.review_remarks ? `The SAO returned this: ${organization.review_remarks} ` : 'The SAO returned this. '}
+          New organizations start with an application now, so ask the SAO about this one.
+        </p>
+      )}
       {organization.lifecycle_status === 'archived' && <p className="text-sm font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
       <div>
         <h3 className="text-base font-bold text-ink">Leadership</h3>
@@ -648,18 +356,16 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
 
 export default function CollegeOrganizationsPage() {
   const [state, setState] = useState({ loading: true, error: null, organizations: [] });
+  const [grants, setGrants] = useState({ error: null, rows: [] });
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedStatus = searchParams.get('status');
   const tab = Object.hasOwn(LIFECYCLE, requestedStatus) ? requestedStatus : 'all';
-  const [formTarget, setFormTarget] = useState(null);
   const [recordId, setRecordId] = useRecordParam();
   const [lastDetails, setLastDetails] = useState(null);
   const [missingRecord, setMissingRecord] = useState(false);
-  const [withdrawTarget, setWithdrawTarget] = useState(null);
-  const [withdrawBusy, setWithdrawBusy] = useState(false);
-  const [withdrawError, setWithdrawError] = useState(null);
   const [overview, setOverview] = useState(null);
   const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [grantModalOpen, setGrantModalOpen] = useState(false);
 
   function changeTab(key) {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
@@ -683,7 +389,12 @@ export default function CollegeOrganizationsPage() {
       });
   }, []);
 
+  const loadGrants = useCallback(() => getApplicantGrants()
+    .then((res) => setGrants({ error: null, rows: res.data.data }))
+    .catch((err) => setGrants((current) => ({ ...current, error: getApiErrorMessage(err, 'Could not load the students allowed to apply.') }))), []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadGrants(); }, [loadGrants]);
   useRefetchOnReturn(() => load({ silent: true }));
   useEffect(() => {
     let cancelled = false;
@@ -713,6 +424,7 @@ export default function CollegeOrganizationsPage() {
   const detailsTarget = recordId ? state.organizations.find((organization) => String(organization.id) === recordId) ?? null : null;
   if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
   const shownDetails = detailsTarget ?? lastDetails;
+  const noOrganizations = !state.loading && !state.error && state.organizations.length === 0;
 
   useEffect(() => {
     if (!recordId || state.loading || state.error) return;
@@ -743,7 +455,6 @@ export default function CollegeOrganizationsPage() {
           <div className="min-w-0 text-left">
             <p className={`break-words font-semibold ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
             <p className="text-xs font-medium text-ink-muted">{organization.acronym}</p>
-            <RegistrationRowStatus organization={organization} viewerRole="DEPARTMENT_HEAD" className="mt-2 max-w-xs" />
             {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm font-semibold text-danger-strong"><span className="block text-xs font-bold uppercase tracking-wide">SAO remarks</span>{organization.review_remarks}</p>}
             {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
           </div>
@@ -757,41 +468,11 @@ export default function CollegeOrganizationsPage() {
     { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : '-'}</span> },
   ];
 
-  function closeForm() {
-    setFormTarget(null);
-  }
-
-  function handleSaved(options) {
-    if (!options?.stayOpen) {
-      if (formTarget?.mode === 'resubmit' && tab !== 'all') changeTab('pending');
-      closeForm();
-    }
-    setRecordId(null);
-    load();
-  }
-
-  async function confirmWithdraw() {
-    setWithdrawBusy(true);
-    setWithdrawError(null);
-    try {
-      await withdrawOrganization(withdrawTarget.id);
-      notify.success(`${withdrawTarget.name} withdrawn.`);
-      setWithdrawTarget(null);
-      setRecordId(null);
-      load();
-    } catch (err) {
-      setWithdrawError(getApiErrorMessage(err, 'Could not withdraw this registration.'));
-      if (err?.response?.status === 409) load();
-    } finally {
-      setWithdrawBusy(false);
-    }
-  }
-
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        description="Review applications from your college and follow their SAO review. Organizations apply from the public HIUSA home page or can be registered here."
-        primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
+        description="The student organizations of your college. A new one starts when you allow a student to apply; you then review their application."
+        primary={state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
       />
       <CollegeHeader overview={overview} onManageStaff={() => setStaffModalOpen(true)} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
@@ -809,14 +490,11 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." action={<Button variant="secondary" leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>} />
+              ? <EmptyState icon={Building2} title="No organizations yet" description="Pick a student of your college to apply. Their application comes to you for review." action={<Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
-                {organization.lifecycle_status === 'returned' && (
-                  <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>
-                )}
                 {organization.lifecycle_status !== 'archived' && (
                   <TableRowActions subject={organization.name} actions={[
                     { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
@@ -830,8 +508,6 @@ export default function CollegeOrganizationsPage() {
                         openDetails(organization);
                       },
                     },
-                    organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },
-                    ['pending', 'returned'].includes(organization.lifecycle_status) && { label: 'Withdraw', icon: Trash2, danger: true, onClick: () => { setWithdrawError(null); setWithdrawTarget(organization); } },
                   ]} />
                 )}
               </div>
@@ -840,36 +516,12 @@ export default function CollegeOrganizationsPage() {
         </div>
       </Card>
 
-      {formTarget && (
-        <OrganizationForm
-          key={formTarget.organization?.id ?? 'register'}
-          open
-          organization={formTarget.organization}
-          onClose={closeForm}
-          onSaved={handleSaved}
-        />
-      )}
+      <ApplicantGrantList grants={grants.rows} error={grants.error} onRetry={loadGrants} onChanged={loadGrants} />
 
-      <ConfirmModal
-        open={Boolean(withdrawTarget)}
-        title="Withdraw this registration?"
-        message={withdrawTarget?.lifecycle_status === 'pending' ? 'The SAO is told it was withdrawn and its documents are removed. This cannot be undone.' : 'Its documents are removed. This cannot be undone.'}
-        recordName={withdrawTarget?.name}
-        confirmText="Withdraw registration"
-        cancelText="Keep registration"
-        variant="danger"
-        busy={withdrawBusy}
-        error={withdrawError}
-        onCancel={() => setWithdrawTarget(null)}
-        onConfirm={confirmWithdraw}
-      />
+      <ApplicantGrantModal open={grantModalOpen} onClose={() => setGrantModalOpen(false)} onGranted={loadGrants} />
 
       <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setRecordId(null)} width="max-w-lg">
-        <OrganizationDetails
-          organization={shownDetails}
-          onClose={() => setRecordId(null)}
-          onEdit={(organization) => { setRecordId(null); setFormTarget({ mode: 'resubmit', organization }); }}
-        />
+        <OrganizationDetails organization={shownDetails} onClose={() => setRecordId(null)} />
       </Drawer>
 
       <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
