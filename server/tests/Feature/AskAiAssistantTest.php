@@ -324,7 +324,7 @@ class AskAiAssistantTest extends TestCase
 
         $res->assertJsonPath('intent', 'how_to_guide');
         $this->assertStringContainsStringIgnoringCase('Invite a Department Head', $res->json('title'));
-        $this->assertStringContainsStringIgnoringCase('magic onboarding link', $res->json('answer'));
+        $this->assertStringContainsStringIgnoringCase('invitation link', $res->json('answer'));
 
         // 2. Dean asks about delegating secretary and staff access
         $college = $this->makeCollege('COE');

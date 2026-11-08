@@ -10,6 +10,8 @@ class DepartmentHeadInvitation extends Model
 {
     protected $fillable = [
         'college_id',
+        'role',
+        'position_title',
         'first_name',
         'last_name',
         'email',

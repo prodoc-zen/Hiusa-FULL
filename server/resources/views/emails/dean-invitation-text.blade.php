@@ -1,11 +1,10 @@
-Dear {{ $firstName }} {{ $lastName }},
+Hello,
 
-You have been officially invited by the Student Affairs Office (SAO) to serve as the Department Head of {{ $collegeName }} on HIUSA.
+You are invited to join {{ $collegeName }} on HIUSA as {{ $roleLabel }}.
 
-To accept your invitation and activate your account, open the following link:
+Open this link to create your account:
 {{ $magicLink }}
 
-This link will expire in {{ $expiresInHours }} hours.
+The link works once and expires in {{ $expiresInHours }} hours. If you were not expecting it, you can ignore this message.
 
-HIUSA System · University Student Organization Portal
-
+HIUSA

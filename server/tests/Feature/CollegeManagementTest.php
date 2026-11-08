@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\AccountProfile;
 use App\Models\College;
 use App\Models\Organization;
 use App\Models\User;
@@ -31,104 +30,66 @@ class CollegeManagementTest extends TestCase
             ->assertJsonPath('0.organizations_count', 1);
     }
 
-    public function test_sao_can_create_an_empty_college_with_a_home_organization(): void
-    {
-        $this->actingAsSao();
-        $response = $this->postJson('/api/system/colleges', ['name' => 'College of Computing', 'code' => 'COC', 'description' => 'Computing programs.'])
-            ->assertCreated()->assertJsonPath('name', 'College of Computing');
-        $college = College::findOrFail($response->json('id'));
-        $home = $college->homeOrganization;
-        $this->assertSame('COLLEGE', $home->organization_type);
-        $this->assertSame($college->id, $home->college_id);
-        $this->getJson('/api/system/colleges')->assertOk()->assertJsonPath('0.can_receive_transfer', true)->assertJsonPath('0.has_assignments', false);
-        $this->postJson('/api/system/colleges', ['name' => 'College of Computing', 'code' => 'OTHER'])->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->postJson('/api/system/colleges', ['name' => 'Another College', 'code' => 'COC'])->assertUnprocessable()->assertJsonValidationErrors('code');
-    }
-
-    public function test_only_sao_can_create_or_delete_colleges(): void
+    public function test_colleges_are_a_fixed_list_so_nobody_can_add_or_delete_one(): void
     {
         $college = College::create(['name' => 'Empty College', 'is_active' => true]);
-        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertUnauthorized();
+
+        $this->actingAsSao();
+        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertStatus(405);
+        $this->deleteJson('/api/system/colleges/'.$college->id)->assertStatus(405);
+        $this->assertDatabaseMissing('colleges', ['name' => 'New College']);
+        $this->assertNotNull($college->fresh());
+    }
+
+    public function test_the_college_list_no_longer_reports_transfer_or_assignment_flags(): void
+    {
+        College::create(['name' => 'Some College', 'is_active' => true]);
+        $this->actingAsSao();
+
+        $row = $this->getJson('/api/system/colleges')->assertOk()->json('0');
+
+        $this->assertArrayNotHasKey('has_assignments', $row);
+        $this->assertArrayNotHasKey('can_receive_transfer', $row);
+        $this->assertArrayHasKey('department_head', $row);
+    }
+
+    public function test_sao_can_edit_a_college_and_its_home_organization_follows(): void
+    {
+        $college = College::create(['name' => 'Old College', 'code' => 'OLD', 'is_active' => true]);
+        $home = Organization::factory()->create(['college' => 'Old College', 'college_id' => $college->id, 'organization_type' => 'COLLEGE']);
+        $this->actingAsSao();
+
+        $this->putJson('/api/system/colleges/'.$college->id, ['name' => 'College of Computing', 'code' => 'COC', 'description' => 'Computing programs.'])
+            ->assertOk()->assertJsonPath('name', 'College of Computing');
+
+        $this->assertSame('COC', $home->fresh()->acronym);
+        $this->assertSame('College of Computing', $home->fresh()->college);
+    }
+
+    public function test_college_edit_rejects_a_duplicate_name_or_code_and_non_sao_callers(): void
+    {
+        $first = College::create(['name' => 'First College', 'code' => 'FIR', 'is_active' => true]);
+        $second = College::create(['name' => 'Second College', 'code' => 'SEC', 'is_active' => true]);
+
         Sanctum::actingAs(User::factory()->admin()->create());
-        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertForbidden();
-        $this->deleteJson('/api/system/colleges/'.$college->id)->assertForbidden();
+        $this->putJson('/api/system/colleges/'.$second->id, ['name' => 'Second College'])->assertForbidden();
+
+        $this->actingAsSao();
+        $this->putJson('/api/system/colleges/'.$second->id, ['name' => 'First College'])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->putJson('/api/system/colleges/'.$second->id, ['name' => 'Second College', 'code' => 'FIR'])->assertUnprocessable()->assertJsonValidationErrors('code');
+        $this->assertSame('First College', $first->fresh()->name);
     }
 
-    public function test_populated_college_requires_an_empty_replacement_and_preserves_accounts_on_transfer(): void
+    public function test_archive_and_restore_still_work_on_a_college(): void
     {
+        $college = College::create(['name' => 'Archive College', 'code' => 'ARC', 'is_active' => true]);
+        Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE']);
         $this->actingAsSao();
-        $sourceId = $this->postJson('/api/system/colleges', ['name' => 'Source College'])->assertCreated()->json('id');
-        $busyId = $this->postJson('/api/system/colleges', ['name' => 'Busy College'])->assertCreated()->json('id');
-        $emptyId = $this->postJson('/api/system/colleges', ['name' => 'Replacement College'])->assertCreated()->json('id');
-        $source = College::findOrFail($sourceId);
-        $sourceHome = $source->homeOrganization;
-        $targetHome = College::findOrFail($emptyId)->homeOrganization;
-        $studentOrg = Organization::factory()->create(['college_id' => $sourceId, 'college' => $source->name, 'parent_organization_id' => $sourceHome->id]);
-        $member = User::factory()->admin()->create(['organization_id' => $studentOrg->id, 'department' => $source->name]);
-        $head = User::factory()->departmentHead()->create(['organization_id' => $sourceHome->id, 'department' => $source->name]);
-        $profile = AccountProfile::where('user_school_id', $head->school_id)->where('organization_id', $sourceHome->id)->firstOrFail();
-        $member->createToken('member-session');
-        $head->createToken('head-session');
-        Organization::factory()->create(['college_id' => $busyId, 'college' => 'Busy College']);
 
-        $this->deleteJson('/api/system/colleges/'.$sourceId)->assertUnprocessable()->assertJsonValidationErrors('transfer_to_college_id');
-        $this->deleteJson('/api/system/colleges/'.$sourceId, ['transfer_to_college_id' => $busyId])->assertConflict();
-        $this->deleteJson('/api/system/colleges/'.$sourceId, ['transfer_to_college_id' => $sourceId])->assertUnprocessable();
-        $this->assertNull($source->fresh()->deleted_at);
-
-        $this->deleteJson('/api/system/colleges/'.$sourceId, ['transfer_to_college_id' => $emptyId])->assertNoContent();
-        $this->assertSoftDeleted($source);
-        $this->assertSame($emptyId, $studentOrg->fresh()->college_id);
-        $this->assertSame($targetHome->id, $studentOrg->fresh()->parent_organization_id);
-        $this->assertSame('active', $member->fresh()->account_status);
-        $this->assertSame('Replacement College', $member->fresh()->department);
-        $this->assertSame($targetHome->id, $head->fresh()->organization_id);
-        $this->assertSame('active', $head->fresh()->account_status);
-        $this->assertSame($targetHome->id, $profile->fresh()->organization_id);
-        $this->assertSame(0, $member->tokens()->count());
-        $this->assertSame(0, $head->tokens()->count());
-        $this->getJson('/api/system/colleges')->assertOk()->assertJsonPath('1.can_receive_transfer', false);
-    }
-
-    public function test_empty_college_can_be_deleted_without_a_replacement(): void
-    {
-        $this->actingAsSao();
-        $id = $this->postJson('/api/system/colleges', ['name' => 'Unused College'])->assertCreated()->json('id');
-        $this->deleteJson('/api/system/colleges/'.$id)->assertNoContent();
-        $this->assertSoftDeleted(College::withTrashed()->findOrFail($id));
-    }
-
-    public function test_college_with_only_a_department_head_needs_a_replacement_without_any_users(): void
-    {
-        $this->actingAsSao();
-        $sourceId = $this->postJson('/api/system/colleges', ['name' => 'Head College'])->assertCreated()->json('id');
-        $busyId = $this->postJson('/api/system/colleges', ['name' => 'Head Destination'])->assertCreated()->json('id');
-        $head = User::factory()->departmentHead()->create(['organization_id' => College::findOrFail($sourceId)->homeOrganization->id]);
-        User::factory()->departmentHead()->create(['organization_id' => College::findOrFail($busyId)->homeOrganization->id]);
-
-        $this->getJson('/api/system/colleges')->assertOk()->assertJsonPath('0.has_assignments', true)->assertJsonPath('1.can_receive_transfer', false);
-        $this->deleteJson('/api/system/colleges/'.$sourceId)->assertUnprocessable()->assertJsonValidationErrors('transfer_to_college_id');
-        $this->deleteJson('/api/system/colleges/'.$sourceId, ['transfer_to_college_id' => $busyId])->assertConflict();
-        $this->assertSame('active', $head->fresh()->account_status);
-    }
-
-    public function test_profile_only_membership_moves_to_the_replacement_and_revokes_its_user_session(): void
-    {
-        $this->actingAsSao();
-        $sourceId = $this->postJson('/api/system/colleges', ['name' => 'Profile College'])->assertCreated()->json('id');
-        $targetId = $this->postJson('/api/system/colleges', ['name' => 'Profile Replacement'])->assertCreated()->json('id');
-        $home = College::findOrFail($sourceId)->homeOrganization;
-        $targetHome = College::findOrFail($targetId)->homeOrganization;
-        $external = Organization::factory()->create();
-        $user = User::factory()->admin()->create(['organization_id' => $external->id]);
-        $profile = AccountProfile::create(['user_school_id' => $user->school_id, 'organization_id' => $home->id, 'role' => 'DEPARTMENT_HEAD', 'account_status' => 'active']);
-        $user->createToken('session');
-
-        $this->deleteJson('/api/system/colleges/'.$sourceId)->assertUnprocessable();
-        $this->deleteJson('/api/system/colleges/'.$sourceId, ['transfer_to_college_id' => $targetId])->assertNoContent();
-        $this->assertSame($targetHome->id, $profile->fresh()->organization_id);
-        $this->assertSame($external->id, $user->fresh()->organization_id);
-        $this->assertSame(0, $user->tokens()->count());
+        $this->postJson("/api/system/colleges/{$college->id}/archive")->assertOk();
+        $this->assertFalse($college->fresh()->is_active);
+        $this->postJson("/api/system/colleges/{$college->id}/restore")->assertOk();
+        $this->assertTrue($college->fresh()->is_active);
     }
 
     private function actingAsSao(): void

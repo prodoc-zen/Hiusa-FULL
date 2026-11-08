@@ -107,14 +107,21 @@ class MustChangePasswordFlaggingTest extends TestCase
         $this->assertNull(User::find(88000004));
     }
 
-    public function test_a_department_head_the_sao_creates_must_change_the_password(): void
+    public function test_a_department_head_who_registers_through_the_link_keeps_the_password_they_chose(): void
     {
         $college = $this->makeCollege('CCS');
         $this->makeCollegeHome($college);
         Sanctum::actingAs($this->sao());
 
-        $this->postJson("/api/system/colleges/{$college->id}/department-head", $this->accountPayload(88000005))->assertCreated();
+        $link = $this->postJson("/api/system/colleges/{$college->id}/invite-department-head")->assertCreated()->json('magic_link');
+        parse_str((string) parse_url($link, PHP_URL_QUERY), $query);
+        app('auth')->forgetGuards();
 
-        $this->assertTrue((bool) User::find(88000005)->must_change_password);
+        $this->postJson("/api/department-head-invitations/{$query['token']}/accept", [
+            'first_name' => 'Ramon', 'last_name' => 'Castillo', 'email' => 'ramon@example.edu', 'school_id' => 88000005,
+            'password' => 'Dean2026!Pass', 'password_confirmation' => 'Dean2026!Pass',
+        ])->assertOk();
+
+        $this->assertFalse((bool) User::find(88000005)->must_change_password);
     }
 }

@@ -1,27 +1,23 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonCard, SkeletonStat, Stat, StatusBadge, Textarea } from '../../../components/ui';
+import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, RotateCcw, UserPlus } from 'lucide-react';
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
-import PermanentDeleteModal from '../../../components/organizations/PermanentDeleteModal';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import {
   archiveSystemCollege,
   restoreSystemCollege,
-  permanentlyDeleteCollege,
-  createSystemCollege,
   updateSystemCollege,
-  deleteSystemCollege,
   getSystemAgency,
   getSystemColleges,
   uploadSystemCollegeLogo,
 } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
-import { AssignDepartmentHeadModal, ManageDepartmentHeadModal, summarizeHead } from './DepartmentHeadDialogs';
+import { InviteDepartmentHeadModal, ManageDepartmentHeadModal, summarizeHead } from './DepartmentHeadDialogs';
 import {
   Count,
   NO_ORGANIZATIONS,
@@ -57,7 +53,7 @@ function OrganizationsSummary({ college, awaitingAdministrator }) {
   );
 }
 
-function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUpload, onView, onEdit, onAssign, onInvite, onManage, onDelete, onArchive, onPurge }) {
+function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUpload, onView, onEdit, onInvite, onManage, onArchive }) {
   const totalMembers = (college.organizations || []).reduce((sum, org) => sum + Number(org.member_counts?.total || 0), 0);
   const fileInput = useRef(null);
   const name = formatDisplayText(college.name);
@@ -95,11 +91,8 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
             college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
             college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
-            college.is_active && !headIsActive && { label: `Assign Department Head to ${name}`, icon: UserPlus, onClick: () => onAssign(college) },
             { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
             { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
-            { label: 'Delete college and transfer users', icon: Trash2, danger: true, onClick: () => onDelete(college) },
-            { label: 'Delete with all data', icon: Trash2, danger: true, onClick: () => onPurge(college) },
           ]} />
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
@@ -118,7 +111,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
                 <p className="text-sm font-medium text-ink-muted">No Department Head yet</p>
                 {college.is_active && (
                   <Button size="xs" variant="secondary" onClick={() => onInvite(college)}>
-                    Assign / Invite
+                    Invite Department Head
                   </Button>
                 )}
               </div>
@@ -165,8 +158,7 @@ export default function SystemCollegesPage() {
   const [uploadingId, setUploadingId] = useState(null);
   const [notice, setNotice] = useState('');
   const [uploadError, setUploadError] = useState('');
-  const [assigning, setAssigning] = useState(null);
-  const [assignMode, setAssignMode] = useState('new');
+  const [inviting, setInviting] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', code: '', description: '' });
@@ -174,19 +166,9 @@ export default function SystemCollegesPage() {
   const [editError, setEditError] = useState('');
   const [editFieldErrors, setEditFieldErrors] = useState({});
   const [managing, setManaging] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [purgeTarget, setPurgeTarget] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState('');
-  const [transferTo, setTransferTo] = useState('');
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', code: '', description: '' });
-  const [addBusy, setAddBusy] = useState(false);
-  const [addError, setAddError] = useState('');
-  const [addFieldErrors, setAddFieldErrors] = useState({});
 
   const loadEpoch = useRef(0);
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -243,26 +225,6 @@ export default function SystemCollegesPage() {
     setNotice(message);
   }
 
-  async function addCollege(event) {
-    event.preventDefault();
-    setAddBusy(true);
-    setAddError('');
-    setAddFieldErrors({});
-    try {
-      const saved = await createSystemCollege({ name: addForm.name.trim(), code: addForm.code.trim() || null, description: addForm.description.trim() || null });
-      setAdding(false);
-      setAddForm({ name: '', code: '', description: '' });
-      setNotice(`${formatDisplayText(saved.name)} added. You can now assign a Department Head.`);
-      await load();
-    } catch (cause) {
-      const fieldErrors = cause.response?.data?.errors || {};
-      setAddError(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : getApiErrorMessage(cause, 'Could not add this college.'));
-      setAddFieldErrors(fieldErrors);
-    } finally {
-      setAddBusy(false);
-    }
-  }
-
   async function saveEditCollege(event) {
     event.preventDefault();
     if (!editing) return;
@@ -283,33 +245,12 @@ export default function SystemCollegesPage() {
     }
   }
 
-  async function confirmDelete() {
-    setDeleteBusy(true);
-    setDeleteError('');
-    try {
-      await deleteSystemCollege(deleteTarget.id, transferTo);
-      setDeleteTarget(null);
-      setNotice(transferTo ? 'College deleted. Its organizations and users were moved to the replacement college.' : 'Empty college deleted.');
-      await load();
-    } catch (cause) {
-      setDeleteError(getApiErrorMessage(cause, 'Could not delete this college.'));
-    } finally {
-      setDeleteBusy(false);
-    }
-  }
-
   async function changeLifecycle() {
     setLifecycleBusy(true);
     setLifecycleError('');
     try {
-      if (purgeTarget) {
-        await permanentlyDeleteCollege(purgeTarget.id, purgeTarget.name);
-        setNotice('College, its organizations, memberships, and files permanently deleted.');
-      } else {
-        await (archiveTarget.is_active ? archiveSystemCollege : restoreSystemCollege)(archiveTarget.id);
-        setNotice(archiveTarget.is_active ? 'College archived. Sign-in is disabled; SAO can still view its files.' : 'College restored. Previously active organizations and accounts can sign in again.');
-      }
-      setPurgeTarget(null);
+      await (archiveTarget.is_active ? archiveSystemCollege : restoreSystemCollege)(archiveTarget.id);
+      setNotice(archiveTarget.is_active ? 'College archived. Sign-in is disabled; SAO can still view its files.' : 'College restored. Previously active organizations and accounts can sign in again.');
       setArchiveTarget(null);
       await load();
     } catch (cause) {
@@ -324,15 +265,17 @@ export default function SystemCollegesPage() {
   const showAdmins = [...merged.flatMap((college) => college.organizations || []), ...unassigned].some(hasAdministratorCount);
   const term = search.trim().toLowerCase();
   const visible = sortColleges(merged.filter((college) => [college.name, college.code].some((value) => String(value || '').toLowerCase().includes(term))));
-  const replacements = colleges.filter((college) => college.id !== deleteTarget?.id && college.can_receive_transfer);
+  const invitable = colleges.filter((college) => college.is_active && college.department_head?.account_status !== 'active');
   const totals = agency?.totals || {};
   const byStatus = totals.by_lifecycle_status || {};
   const agencyUnavailable = Boolean(agencyError);
 
   return (
     <div className="space-y-5">
-      <PageHeader purpose="Add colleges, assign Department Heads, and manage each college's organizations." />
-      <Button leftIcon={Plus} onClick={() => { setAddError(''); setAddFieldErrors({}); setAdding(true); }}>Add college</Button>
+      <PageHeader
+        purpose="Edit a college, invite its Department Head, and see its organizations."
+        primary={<Button leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>}
+      />
       {error && !loading ? <ErrorState description={error} onRetry={() => load()} /> : (
         <>
           {loading ? (
@@ -353,9 +296,9 @@ export default function SystemCollegesPage() {
           {loading ? (
             <section aria-label="Loading colleges" className="space-y-3"><SkeletonCard /><SkeletonCard /></section>
           ) : visible.length ? (
-            <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onAssign={(item) => { setAssignMode('new'); setAssigning(item); }} onInvite={(item) => { setAssignMode('invite'); setAssigning(item); }} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onPurge={(item) => { setLifecycleError(''); setPurgeTarget(item); }} onDelete={(item) => { setDeleteTarget(item); setTransferTo(''); setDeleteError(''); }} />)}</section>
+            <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} />)}</section>
           ) : (
-            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'Add the first college to begin assigning Department Heads.'} />
+            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'The list of colleges has not been set up yet.'} />
           )}
           {!loading && unassigned.length > 0 && (
             <section aria-labelledby="unassigned-organizations" className="overflow-hidden rounded-card border border-line bg-surface">
@@ -368,9 +311,8 @@ export default function SystemCollegesPage() {
           )}
         </>
       )}
-      {purgeTarget && <PermanentDeleteModal key={purgeTarget.id} name={purgeTarget.name} kind="college" busy={lifecycleBusy} error={lifecycleError} onClose={() => setPurgeTarget(null)} onConfirm={changeLifecycle} />}
       <ConfirmModal open={Boolean(archiveTarget)} title={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} message={archiveTarget?.is_active ? `Archive ${archiveTarget.name}? All college and organization profiles will be blocked from signing in. SAO can still view their files. Existing organization statuses are preserved.` : `Restore ${archiveTarget?.name}? Previously active organizations and accounts regain access. Individually archived organizations stay archived.`} confirmText={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} error={lifecycleError} busy={lifecycleBusy} onCancel={() => setArchiveTarget(null)} onConfirm={changeLifecycle} />
-      {assigning && <AssignDepartmentHeadModal college={assigning} initialMode={assignMode} onClose={() => setAssigning(null)} onAssigned={(user, message) => headChanged(assigning.id, user, message)} />}
+      {inviting && <InviteDepartmentHeadModal colleges={invitable} initialCollegeId={inviting.collegeId} onClose={() => setInviting(null)} onCreated={(message) => { setUploadError(''); setNotice(message); }} />}
       <Modal open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} size="lg" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
         {viewing && (
           <div className="space-y-4">
@@ -407,20 +349,6 @@ export default function SystemCollegesPage() {
         </form>
       </Modal>
       {managing?.department_head && <ManageDepartmentHeadModal college={managing} head={managing.department_head} onClose={() => setManaging(null)} onChanged={(user, message) => headChanged(managing.id, user, message)} />}
-      <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
-        <form id="add-college-form" onSubmit={addCollege} className="space-y-4">
-          <Field label="College name" required error={addFieldErrors.name?.[0]}><Input required maxLength={255} value={addForm.name} onChange={(event) => setAddForm((form) => ({ ...form, name: event.target.value }))} /></Field>
-          <Field label="Code" error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
-          <Field label="Description" error={addFieldErrors.description?.[0]}><Textarea maxLength={3000} rows={3} value={addForm.description} onChange={(event) => setAddForm((form) => ({ ...form, description: event.target.value }))} /></Field>
-          {addError && <p role="alert" className="text-sm text-danger-strong">{addError}</p>}
-        </form>
-      </Modal>
-      <Modal open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.name || 'college'}`} onClose={deleteBusy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={deleteBusy} disabled={Boolean(deleteTarget?.has_assignments && !transferTo)} onClick={confirmDelete}>Delete college</Button></>}>
-        <p className="text-sm text-ink-muted">{deleteTarget?.has_assignments ? 'This college has organizations or users. Choose an empty active college to receive them before deleting it. Their accounts will stay active, but they will need to sign in again.' : 'This college has no assigned organizations or users and can be deleted.'}</p>
-        {deleteTarget?.has_assignments && <Field label="Replacement college" required className="mt-4"><Select required value={transferTo} onChange={(event) => setTransferTo(event.target.value)}><option value="">Select an empty college</option>{replacements.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}</Select></Field>}
-        {deleteTarget?.has_assignments && !replacements.length && <p className="mt-3 text-sm text-ink-muted">No empty college is available. Cancel this dialog and add a new college first.</p>}
-        {deleteError && <p role="alert" className="mt-3 text-sm text-danger-strong">{deleteError}</p>}
-      </Modal>
     </div>
   );
 }

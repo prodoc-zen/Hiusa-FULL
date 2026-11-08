@@ -15,19 +15,15 @@ export const uploadSystemOrganizationLogo = (id, file) => {
   return unwrap(api.post(`/system/organizations/${id}/logo`, data));
 };
 export const getSystemColleges = () => unwrap(api.get('/system/colleges', { cache: false }));
-export const createSystemCollege = (payload) => unwrap(api.post('/system/colleges', payload));
 export const updateSystemCollege = (id, payload) => unwrap(api.put(`/system/colleges/${id}`, payload));
 export const uploadSystemCollegeLogo = (id, file) => {
   const data = new FormData();
   data.append('logo', file);
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
-export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
 export const inviteDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/invite-department-head`, payload));
 export const getDepartmentHeadInvitation = (token) => unwrap(api.get(`/department-head-invitations/${token}`));
 export const acceptDepartmentHeadInvitation = (token, payload) => unwrap(api.post(`/department-head-invitations/${token}/accept`, payload));
-export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
-export const permanentlyDeleteCollege = (id, confirmationName) => unwrap(api.delete(`/system/colleges/${id}`, { data: { mode: 'permanent', confirmation_name: confirmationName } }));
 export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));
 export const restoreSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/restore`));
 export const deleteSystemOrganization = (id, confirmationName) => unwrap(api.delete(`/system/organizations/${id}`, { data: { confirmation_name: confirmationName } }));
