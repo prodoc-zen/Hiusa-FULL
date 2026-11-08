@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, RotateCcw, UserPlus } from 'lucide-react';
+import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
 import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -9,6 +9,8 @@ import TableRowActions from '../../../components/TableRowActions';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import {
   archiveSystemCollege,
+  createSystemCollege,
+  deleteSystemCollege,
   restoreSystemCollege,
   updateSystemCollege,
   getSystemAgency,
@@ -53,7 +55,10 @@ function OrganizationsSummary({ college, awaitingAdministrator }) {
   );
 }
 
-function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUpload, onView, onEdit, onInvite, onManage, onArchive }) {
+const DEFAULT_COLLEGE_COLOR = '#0B8ED0';
+const EMPTY_ADD_FORM = { name: '', code: '', color: '' };
+
+function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUpload, onView, onEdit, onInvite, onManage, onArchive, onDelete }) {
   const totalMembers = (college.organizations || []).reduce((sum, org) => sum + Number(org.member_counts?.total || 0), 0);
   const fileInput = useRef(null);
   const name = formatDisplayText(college.name);
@@ -93,6 +98,9 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
             { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
             { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
+            college.can_delete === false
+              ? { label: 'Delete college (has organizations or people)', icon: Trash2, danger: true, disabled: true }
+              : { label: 'Delete college', icon: Trash2, danger: true, onClick: () => onDelete(college) },
           ]} />
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
@@ -165,7 +173,15 @@ export default function SystemCollegesPage() {
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState('');
   const [editFieldErrors, setEditFieldErrors] = useState({});
+  const [adding, setAdding] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [addFieldErrors, setAddFieldErrors] = useState({});
   const [managing, setManaging] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState('');
@@ -245,6 +261,40 @@ export default function SystemCollegesPage() {
     }
   }
 
+  async function addCollege(event) {
+    event.preventDefault();
+    setAddBusy(true);
+    setAddError('');
+    setAddFieldErrors({});
+    try {
+      const saved = await createSystemCollege({ name: addForm.name.trim(), code: addForm.code.trim() || null, color: addForm.color || null });
+      setAdding(false);
+      setNotice(`${formatDisplayText(saved.name)} added.`);
+      await load();
+    } catch (cause) {
+      const fieldErrors = cause.response?.data?.errors || {};
+      setAddError(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : getApiErrorMessage(cause, 'Could not add this college.'));
+      setAddFieldErrors(fieldErrors);
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      await deleteSystemCollege(deleteTarget.id);
+      setNotice(`${formatDisplayText(deleteTarget.name)} deleted.`);
+      setDeleteTarget(null);
+      await load();
+    } catch (cause) {
+      setDeleteError(getApiErrorMessage(cause, 'Could not delete this college.'));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   async function changeLifecycle() {
     setLifecycleBusy(true);
     setLifecycleError('');
@@ -273,8 +323,9 @@ export default function SystemCollegesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        purpose="Edit a college, invite its Department Head, and see its organizations."
-        primary={<Button leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>}
+        purpose="Add a college, edit it, invite its Department Head, and see its organizations."
+        actions={<Button variant="secondary" leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>}
+        primary={<Button leftIcon={Plus} disabled={loading} onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddError(''); setAddFieldErrors({}); setAdding(true); }}>Add college</Button>}
       />
       {error && !loading ? <ErrorState description={error} onRetry={() => load()} /> : (
         <>
@@ -296,9 +347,9 @@ export default function SystemCollegesPage() {
           {loading ? (
             <section aria-label="Loading colleges" className="space-y-3"><SkeletonCard /><SkeletonCard /></section>
           ) : visible.length ? (
-            <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} />)}</section>
+            <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onDelete={(item) => { setDeleteError(''); setDeleteTarget(item); }} />)}</section>
           ) : (
-            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'The list of colleges has not been set up yet.'} />
+            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'Add the first college to get started.'} />
           )}
           {!loading && unassigned.length > 0 && (
             <section aria-labelledby="unassigned-organizations" className="overflow-hidden rounded-card border border-line bg-surface">
@@ -312,6 +363,7 @@ export default function SystemCollegesPage() {
         </>
       )}
       <ConfirmModal open={Boolean(archiveTarget)} title={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} message={archiveTarget?.is_active ? `Archive ${archiveTarget.name}? All college and organization profiles will be blocked from signing in. SAO can still view their files. Existing organization statuses are preserved.` : `Restore ${archiveTarget?.name}? Previously active organizations and accounts regain access. Individually archived organizations stay archived.`} confirmText={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} error={lifecycleError} busy={lifecycleBusy} onCancel={() => setArchiveTarget(null)} onConfirm={changeLifecycle} />
+      <ConfirmModal open={Boolean(deleteTarget)} title="Delete college" message={`Delete ${deleteTarget?.name}? This cannot be undone. If it has organizations or people, archive it instead.`} confirmText="Delete college" error={deleteError} busy={deleteBusy} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
       {inviting && <InviteDepartmentHeadModal colleges={invitable} initialCollegeId={inviting.collegeId} onClose={() => setInviting(null)} onCreated={(message) => { setUploadError(''); setNotice(message); }} />}
       <Modal open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} size="lg" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
         {viewing && (
@@ -339,6 +391,14 @@ export default function SystemCollegesPage() {
             )}
           </div>
         )}
+      </Modal>
+      <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
+        <form id="add-college-form" onSubmit={addCollege} className="space-y-4">
+          <Field label="College name" required error={addFieldErrors.name?.[0]}><Input required maxLength={255} value={addForm.name} onChange={(event) => setAddForm((form) => ({ ...form, name: event.target.value }))} /></Field>
+          <Field label="Code" error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
+          <Field label="Color" error={addFieldErrors.color?.[0]}><input type="color" value={addForm.color || DEFAULT_COLLEGE_COLOR} onChange={(event) => setAddForm((form) => ({ ...form, color: event.target.value.toUpperCase() }))} className="h-11 w-20 cursor-pointer rounded-md border border-line bg-surface p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" /></Field>
+          {addError && <p role="alert" className="text-sm text-danger-strong">{addError}</p>}
+        </form>
       </Modal>
       <Modal open={Boolean(editing)} title="Edit college" onClose={editBusy ? undefined : () => setEditing(null)} footer={<><Button variant="secondary" disabled={editBusy} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" form="edit-college-form" loading={editBusy}>Save changes</Button></>}>
         <form id="edit-college-form" onSubmit={saveEditCollege} className="space-y-4">
