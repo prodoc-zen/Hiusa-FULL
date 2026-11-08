@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invitation to Join HIUSA as Department Head</title>
+    <title>Your HIUSA invitation</title>
 </head>
 <body style="margin:0;padding:0;background-color:#EEF6FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#EEF6FB;padding:40px 16px;">
@@ -26,22 +26,19 @@
                     <!-- Main Content -->
                     <tr>
                         <td style="padding:32px 32px 24px;">
-                            <p style="margin:0 0 16px;font-size:16px;font-weight:700;color:#0F172A;">Dear {{ $firstName }} {{ $lastName }},</p>
+                            <p style="margin:0 0 16px;font-size:16px;font-weight:700;color:#0F172A;">Hello,</p>
                             <p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#334155;">
-                                You have been officially invited by the Student Affairs Office (SAO) to serve as the <strong>Department Head / Dean</strong> for the <strong>{{ $collegeName }}</strong> on the HIUSA platform.
-                            </p>
-                            <p style="margin:0 0 24px;font-size:14px;line-height:1.65;color:#334155;">
-                                As Department Head, you will oversee student organizations, endorse event proposals, review semestral compliance submissions, and supervise budget allocations across your college.
+                                You are invited to join <strong>{{ $collegeName }}</strong> on HIUSA as <strong>{{ $roleLabel }}</strong>.
                             </p>
                             
                             <!-- Call to Action Box -->
                             <div style="background-color:#F8FBFD;border:1px solid #DDE7EF;border-radius:8px;padding:24px;text-align:center;margin:0 0 24px;">
-                                <p style="margin:0 0 16px;font-size:13px;font-weight:600;color:#0F2F62;">Activate your account and set up your access credentials below:</p>
-                                <a href="{{ $magicLink }}" style="display:inline-block;background-color:#0878B7;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:6px;box-shadow:0 2px 6px rgba(8,120,183,0.35);">Accept Invitation &amp; Enter Workspace</a>
+                                <p style="margin:0 0 16px;font-size:13px;font-weight:600;color:#0F2F62;">Create your account:</p>
+                                <a href="{{ $magicLink }}" style="display:inline-block;background-color:#0878B7;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:6px;box-shadow:0 2px 6px rgba(8,120,183,0.35);">Create my account</a>
                             </div>
 
                             <p style="margin:0 0 8px;font-size:12px;color:#64748B;line-height:1.6;">
-                                Alternatively, you can copy and paste this secure link directly into your browser:
+                                Or paste this link into your browser:
                             </p>
                             <p style="margin:0 0 20px;font-size:12px;line-height:1.5;word-break:break-all;color:#0878B7;">
                                 <a href="{{ $magicLink }}" style="color:#0878B7;text-decoration:underline;">{{ $magicLink }}</a>
@@ -49,10 +46,10 @@
 
                             <div style="border-top:1px solid #E2E8F0;padding-top:16px;">
                                 <p style="margin:0 0 6px;font-size:12px;color:#64748B;">
-                                    <strong>Important Note:</strong> This invitation link is personalized for you and will expire in {{ $expiresInHours }} hours.
+                                    The link works once and expires in {{ $expiresInHours }} hours.
                                 </p>
                                 <p style="margin:0;font-size:12px;color:#94A3B8;">
-                                    If you were not expecting this appointment, please contact the Student Affairs Office immediately.
+                                    If you were not expecting this, you can ignore this message.
                                 </p>
                             </div>
                         </td>

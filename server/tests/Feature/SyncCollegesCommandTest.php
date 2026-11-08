@@ -781,7 +781,7 @@ class SyncCollegesCommandTest extends TestCase
         }
     }
 
-    public function test_a_synced_college_can_be_given_a_department_head_by_the_sao(): void
+    public function test_a_synced_college_can_be_given_a_department_head_through_an_sao_link(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
@@ -789,14 +789,18 @@ class SyncCollegesCommandTest extends TestCase
         $college = College::where('name', 'College of Business')->firstOrFail();
         Sanctum::actingAs($director);
 
-        $this->postJson("/api/system/colleges/{$college->id}/department-head", [
+        $link = $this->postJson("/api/system/colleges/{$college->id}/invite-department-head")->assertCreated()->json('magic_link');
+        parse_str((string) parse_url($link, PHP_URL_QUERY), $query);
+        app('auth')->forgetGuards();
+
+        $this->postJson("/api/department-head-invitations/{$query['token']}/accept", [
             'school_id' => 20269001,
             'first_name' => 'Ramon',
             'last_name' => 'Castillo',
             'email' => 'ramon.castillo@example.edu',
             'password' => 'Dean2026!Pass',
             'password_confirmation' => 'Dean2026!Pass',
-        ])->assertCreated();
+        ])->assertOk();
 
         $this->assertSame($this->homeOf($college)->id, User::findOrFail(20269001)->organization_id);
     }

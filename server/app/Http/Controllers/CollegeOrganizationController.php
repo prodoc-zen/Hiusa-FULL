@@ -131,6 +131,7 @@ class CollegeOrganizationController extends Controller
         return response()->json($allStaff->values());
     }
 
+    /** Attaches an account that already exists. A new person comes through POST /college/staff/invitations. */
     public function storeStaff(Request $request)
     {
         $college = $this->college($request->user());
@@ -138,89 +139,29 @@ class CollegeOrganizationController extends Controller
 
         $data = $request->validate([
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
-            'first_name' => ['required', 'string', 'max:60'],
-            'last_name' => ['required', 'string', 'max:60'],
-            'email' => ['required', 'string', 'email', 'max:100'],
             'position_title' => ['required', 'string', 'max:100'],
-            'role' => ['nullable', 'in:ADMIN,DEPARTMENT_HEAD'],
         ]);
 
-        $role = $data['role'] ?? 'ADMIN';
+        $staff = DB::transaction(function () use ($request, $data, $home, $college) {
+            $existing = User::whereKey($data['school_id'])->lockForUpdate()->first();
 
-        $staff = DB::transaction(function () use ($request, $data, $home, $college, $role) {
-            $existing = User::whereKey($data['school_id'])->orWhere('email', $data['email'])->first();
-
-            if ($existing) {
-                if ($existing->school_id !== (int) $data['school_id'] || strtolower($existing->email) !== strtolower($data['email'])) {
-                    throw ValidationException::withMessages([
-                        'school_id' => ['The school ID or email belongs to another registered account.'],
-                    ]);
-                }
-
-                if ($existing->accountProfiles()->where('organization_id', $home->id)->exists()) {
-                    throw ValidationException::withMessages([
-                        'school_id' => ['This user is already an assigned staff member of this college office.'],
-                    ]);
-                }
-
-                $profile = $existing->accountProfiles()->create([
-                    'organization_id' => $home->id,
-                    'role' => $role,
-                    'position_title' => $data['position_title'],
-                    'account_status' => 'active',
+            if (! $existing || $existing->getRawOriginal('account_status') !== 'active' || $existing->getRawOriginal('role') === 'SUPER_ADMIN') {
+                throw ValidationException::withMessages([
+                    'school_id' => ['Pick someone who already has an active account. New people need an invitation link.'],
                 ]);
-
-                AuditLog::create([
-                    'organization_id' => $home->id,
-                    'user_id' => $request->user()->school_id,
-                    'actor_role' => $request->user()->role,
-                    'module' => 'users',
-                    'action' => 'college_staff_delegated',
-                    'record_type' => AccountProfile::class,
-                    'record_id' => $profile->id,
-                    'new_values' => ['user_school_id' => $existing->school_id, 'position_title' => $data['position_title'], 'role' => $role],
-                    'description' => "Assigned {$existing->first_name} {$existing->last_name} as {$data['position_title']} in {$college->name}.",
-                    'ip_address' => $request->ip(),
-                    'created_at' => now(),
-                ]);
-
-                Notification::create([
-                    'organization_id' => $home->id,
-                    'user_id' => $existing->school_id,
-                    'notification_type' => 'general',
-                    'title' => 'College Office Role Assigned',
-                    'message' => "You have been assigned as {$data['position_title']} for {$college->name}.",
-                    'is_read' => false,
-                    'sent_at' => now(),
-                ]);
-
-                return [
-                    'school_id' => $existing->school_id,
-                    'name' => trim("{$existing->first_name} {$existing->last_name}"),
-                    'first_name' => $existing->first_name,
-                    'last_name' => $existing->last_name,
-                    'email' => $existing->email,
-                    'role' => $role,
-                    'position_title' => $data['position_title'],
-                    'account_status' => 'active',
-                    'is_lead_head' => false,
-                ];
             }
 
-            $password = 'Demo@12345';
-            $user = User::create([
+            if ($existing->accountProfiles()->where('organization_id', $home->id)->exists() || (int) $existing->getRawOriginal('organization_id') === (int) $home->id) {
+                throw ValidationException::withMessages([
+                    'school_id' => ['This person is already on the college office staff.'],
+                ]);
+            }
+
+            $profile = $existing->accountProfiles()->create([
                 'organization_id' => $home->id,
-                'school_id' => (int) $data['school_id'],
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'email' => $data['email'],
-                'role' => $role,
+                'role' => 'ADMIN',
                 'position_title' => $data['position_title'],
                 'account_status' => 'active',
-                'must_change_password' => false,
-                'password_hash' => bcrypt($password),
-                'department' => $college->name,
-                'is_member' => true,
             ]);
 
             AuditLog::create([
@@ -228,26 +169,35 @@ class CollegeOrganizationController extends Controller
                 'user_id' => $request->user()->school_id,
                 'actor_role' => $request->user()->role,
                 'module' => 'users',
-                'action' => 'college_staff_created',
-                'record_type' => User::class,
-                'record_id' => $user->school_id,
-                'new_values' => ['school_id' => $user->school_id, 'position_title' => $data['position_title'], 'role' => $role],
-                'description' => "Created college staff account for {$user->first_name} {$user->last_name} ({$data['position_title']}).",
+                'action' => 'college_staff_delegated',
+                'record_type' => AccountProfile::class,
+                'record_id' => $profile->id,
+                'new_values' => ['user_school_id' => $existing->school_id, 'position_title' => $data['position_title'], 'role' => 'ADMIN'],
+                'description' => "Assigned {$existing->first_name} {$existing->last_name} as {$data['position_title']} in {$college->name}.",
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
 
+            Notification::create([
+                'organization_id' => $home->id,
+                'user_id' => $existing->school_id,
+                'notification_type' => 'general',
+                'title' => 'College Office Role Assigned',
+                'message' => "You have been assigned as {$data['position_title']} for {$college->name}.",
+                'is_read' => false,
+                'sent_at' => now(),
+            ]);
+
             return [
-                'school_id' => $user->school_id,
-                'name' => trim("{$user->first_name} {$user->last_name}"),
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'role' => $role,
+                'school_id' => $existing->school_id,
+                'name' => trim("{$existing->first_name} {$existing->last_name}"),
+                'first_name' => $existing->first_name,
+                'last_name' => $existing->last_name,
+                'email' => $existing->email,
+                'role' => 'ADMIN',
                 'position_title' => $data['position_title'],
                 'account_status' => 'active',
                 'is_lead_head' => false,
-                'temporary_password' => $password,
             ];
         });
 
