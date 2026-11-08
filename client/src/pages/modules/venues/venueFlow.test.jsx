@@ -92,7 +92,7 @@ describe('VenueBookingPage', () => {
 
   it.each(['ADMIN', 'SBO_OFFICER'])('lets the %s see who holds the venue, hear about a conflict and then book a free slot', async (role) => {
     localStorage.setItem('user', JSON.stringify({ role }));
-    const day = new Date().toISOString().slice(0, 10);
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
     mocks.getVenueAvailability.mockResolvedValue({ data: [
       { id: 1, start_time: `${day}T01:00:00Z`, end_time: `${day}T03:00:00Z`, status: 'approved', reserved_by: 'Another organization' },
       { id: 2, start_time: `${day}T05:00:00Z`, end_time: `${day}T06:00:00Z`, status: 'pending', reserved_by: 'Your organization' },
