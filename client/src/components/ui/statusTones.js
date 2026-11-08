@@ -76,6 +76,8 @@ const STATUS_MAP = {
   active: { tone: 'success', label: 'Active' },
   inactive: { tone: 'neutral', label: 'Inactive' },
   disabled: { tone: 'danger', label: 'Disabled' },
+  signed_up: { tone: 'success', label: 'Signed up' },
+  not_signed_up: { tone: 'neutral', label: 'Not signed up' },
 
   // Announcements
   published: { tone: 'success', label: 'Published' },
