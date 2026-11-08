@@ -19,7 +19,16 @@ class VenueBooking extends Model
         'requested_by',
         'reviewed_by',
         'reviewed_at',
+        'academic_semester_id',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (VenueBooking $booking) {
+            $booking->academic_semester_id ??= ($booking->event_id ? Event::whereKey($booking->event_id)->value('academic_semester_id') : null)
+                ?? AcademicSemester::forNewRecord()?->id;
+        });
+    }
 
     protected function casts(): array
     {
