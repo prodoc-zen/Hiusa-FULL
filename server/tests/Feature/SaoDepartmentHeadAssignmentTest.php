@@ -137,8 +137,6 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         Sanctum::actingAs($this->director);
 
         $this->postJson("/api/system/colleges/{$this->computing->id}/department-head", ['school_id' => 20269001, 'account_mode' => 'existing'])->assertNotFound();
-        $this->postJson('/api/system/colleges', ['name' => 'Another College'])->assertStatus(405);
-        $this->deleteJson("/api/system/colleges/{$this->computing->id}")->assertStatus(405);
     }
 
     public function test_an_unknown_college_is_not_found(): void

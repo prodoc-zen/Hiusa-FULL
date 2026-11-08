@@ -7,7 +7,7 @@ import { findRowAction } from '../../../test/rowActions';
 const mocks = vi.hoisted(() => ({
   getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), updateSystemCollege: vi.fn(), uploadSystemCollegeLogo: vi.fn(),
   inviteDepartmentHead: vi.fn(), updateDepartmentHead: vi.fn(), resetDepartmentHeadPassword: vi.fn(),
-  archiveSystemCollege: vi.fn(), restoreSystemCollege: vi.fn(),
+  archiveSystemCollege: vi.fn(), restoreSystemCollege: vi.fn(), createSystemCollege: vi.fn(), deleteSystemCollege: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const refetchHook = vi.hoisted(() => ({ current: null }));
@@ -46,16 +46,78 @@ describe('SystemCollegesPage', () => {
     mocks.getSystemAgency.mockResolvedValue(agency());
   });
 
-  it('offers editing and one Department Head invite, and no way to add or delete a college', async () => {
+  it('offers one primary Add college button beside a secondary Department Head invite, and edit, archive and delete per college', async () => {
     renderPage();
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
     expect(screen.getByText(/COA · 0 organizations · 0 members · Active/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Invite Department Head' })[0]).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Add college' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add college' })).toBeEnabled();
     expect(await findRowAction(/^Edit College of Arts/)).toBeInTheDocument();
     expect(await findRowAction('Archive college')).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /Delete/ })).not.toBeInTheDocument();
-    expect(screen.getByText('Edit a college, invite its Department Head, and see its organizations.')).toBeInTheDocument();
+    expect(await findRowAction('Delete college')).toBeEnabled();
+    expect(screen.getByText('Add a college, edit it, invite its Department Head, and see its organizations.')).toBeInTheDocument();
+  });
+
+  it('adds a college from the modal, sends only the filled fields and shows it in the list', async () => {
+    mocks.createSystemCollege.mockResolvedValue({ id: 8, name: 'College of Law', code: 'LAW' });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add college' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add college' });
+    fireEvent.change(within(dialog).getByLabelText(/College name/), { target: { value: '  College of Law ' } });
+    fireEvent.change(within(dialog).getByLabelText('Code'), { target: { value: 'LAW' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add college' }));
+    await waitFor(() => expect(mocks.createSystemCollege).toHaveBeenCalledWith({ name: 'College of Law', code: 'LAW', color: null }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('College of Law added.');
+    expect(mocks.getSystemColleges).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the chosen color and keeps the modal open with field errors when the name is taken', async () => {
+    mocks.createSystemCollege.mockRejectedValue({ response: { status: 422, data: { errors: { name: ['The name has already been taken.'] } } } });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add college' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add college' });
+    fireEvent.change(within(dialog).getByLabelText(/College name/), { target: { value: 'College of Arts' } });
+    fireEvent.change(within(dialog).getByLabelText('Color'), { target: { value: '#123abc' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add college' }));
+    expect(await within(dialog).findByText('The name has already been taken.')).toBeInTheDocument();
+    expect(mocks.createSystemCollege).toHaveBeenCalledWith({ name: 'College of Arts', code: null, color: '#123ABC' });
+    expect(screen.getByRole('dialog', { name: 'Add college' })).toBeInTheDocument();
+  });
+
+  it('deletes an empty college after confirmation and refreshes the list', async () => {
+    mocks.deleteSystemCollege.mockResolvedValue(undefined);
+    renderPage();
+    fireEvent.click(await findRowAction('Delete college'));
+    const dialog = screen.getByRole('dialog', { name: 'Delete college' });
+    expect(dialog).toHaveTextContent('Delete College of Arts?');
+    expect(mocks.deleteSystemCollege).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete college' }));
+    await waitFor(() => expect(mocks.deleteSystemCollege).toHaveBeenCalledWith(3));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('College of Arts deleted.');
+    expect(mocks.getSystemColleges).toHaveBeenCalledTimes(2);
+  });
+
+  it('disables Delete with the reason when the college still has organizations or people', async () => {
+    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', code: 'COA', is_active: true, organizations_count: 2, can_delete: false }]);
+    renderPage();
+    const item = await findRowAction('Delete college (has organizations or people)');
+    expect(item).toBeDisabled();
+    fireEvent.click(item);
+    expect(screen.queryByRole('dialog', { name: 'Delete college' })).not.toBeInTheDocument();
+    expect(mocks.deleteSystemCollege).not.toHaveBeenCalled();
+  });
+
+  it('shows the server refusal inside the delete dialog and keeps the college', async () => {
+    mocks.deleteSystemCollege.mockRejectedValue({ response: { status: 409, data: { message: 'This college still has organizations or people. Archive it instead.' } } });
+    renderPage();
+    fireEvent.click(await findRowAction('Delete college'));
+    const dialog = screen.getByRole('dialog', { name: 'Delete college' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete college' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Archive it instead.');
+    expect(screen.getByRole('dialog', { name: 'Delete college' })).toBeInTheDocument();
+    expect(screen.getByText('College of Arts')).toBeInTheDocument();
   });
 
   it('archives with confirmation and displays an API failure inside the dialog', async () => {
