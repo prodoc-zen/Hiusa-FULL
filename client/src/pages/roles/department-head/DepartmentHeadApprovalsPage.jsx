@@ -20,6 +20,7 @@ import ApprovalReceipt from '../../../components/approvals/ApprovalReceipt';
 import { ENTITY_LABEL, describeApproval, entityLink } from '../../../components/approvals/approvalStage';
 import { formatDateTime, fullName, summaryLine } from '../../../components/approvals/approvalFormat';
 import { findApprovalRequest } from '../../modules/approvals/approvalApi';
+import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
 function getCurrentUser() {
   try {
@@ -197,22 +198,11 @@ export default function DepartmentHeadApprovalsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [organizations, setOrganizations] = useState([]);
-  const [organizationFilter, setOrganizationFilter] = useState(() => {
-    try {
-      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
-      return sub?.id ? String(sub.id) : 'all';
-    } catch {
-      return 'all';
-    }
-  });
+  const { subAccountId } = useActiveSubAccount();
+  const [organizationFilter, setOrganizationFilter] = useState(() => (subAccountId ? String(subAccountId) : 'all'));
   useEffect(() => {
-    const onSubAccountSwitched = (event) => {
-      const org = event?.detail;
-      setOrganizationFilter(org?.id ? String(org.id) : 'all');
-    };
-    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-  }, []);
+    setOrganizationFilter(subAccountId ? String(subAccountId) : 'all');
+  }, [subAccountId]);
   const loadCounter = useRef(0);
   const organizationNames = useMemo(() => Object.fromEntries(organizations.map((organization) => [organization.id, organization.name])), [organizations]);
   const statusTabs = tab === 'submitted' ? SUBMITTED_STATUS_TABS : REVIEW_STATUS_TABS;

@@ -2,12 +2,14 @@ import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeftClose, PanelLeftOpen, X, ChevronDown, LogOut } from 'lucide-react';
+import { ArrowLeft, PanelLeftClose, PanelLeftOpen, X, ChevronDown, LogOut } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
-import { ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath } from './navigation';
+import useActiveSubAccount from '../../hooks/useActiveSubAccount';
+import { readUserModules } from '../../utils/userModules';
+import { ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, resolveItemPath } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
@@ -183,8 +185,14 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
   const role = user?.role || 'SBO_OFFICER';
   const roleLabel = ROLE_LABELS[role] || role;
-  const nav = getNavForRole(role);
-  const activeId = useMemo(() => findActiveNavId([...getNavLeaves(role), ...footerNav], location.pathname, location.search), [role, location.pathname, location.search]);
+  const { subAccount, leave } = useActiveSubAccount();
+  const orgSpace = role === 'DEPARTMENT_HEAD' ? subAccount : null;
+  const modules = useMemo(() => readUserModules(), []);
+  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : getNavForRole(role, modules)), [orgSpace, role, modules]);
+  const activeId = useMemo(
+    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(role, modules), ...footerNav], location.pathname, location.search),
+    [orgSpace, nav, role, modules, location.pathname, location.search],
+  );
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
   const handleLogout = async () => {
@@ -196,6 +204,12 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
       setLogoutConfirmOpen(false);
       navigate('/login');
     }
+  };
+
+  const handleBackToCollege = () => {
+    leave();
+    navigate('/dashboard/department-head');
+    if (window.innerWidth < 1024) onClose();
   };
 
   const handleNavItemClick = () => {
@@ -222,6 +236,15 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
       <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="flex-1 space-y-1">
+          {orgSpace && (
+            <div className="mb-2 border-b border-white/10 pb-3">
+              <button type="button" onClick={handleBackToCollege} aria-label={desktopCollapsed ? 'Back to my college' : undefined} title={desktopCollapsed ? 'Back to my college' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+                <ArrowLeft size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+                <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Back to my college</span>
+              </button>
+              <p className={`truncate px-3 pt-2 text-xs font-bold text-white ${desktopCollapsed ? 'lg:hidden' : ''}`} title={orgSpace.name}>{formatDisplayText(orgSpace.name)}</p>
+            </div>
+          )}
           {nav.map((item, index) => {
             const visibleChildren = getVisibleChildren(item);
             const itemPath = resolveItemPath(item);
