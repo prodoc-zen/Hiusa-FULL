@@ -85,7 +85,7 @@ class SetupChecklistService
 
         return [
             $this->step('positions', 'Set up your officer positions', 'Positions decide task delegation and who reviews what.', $scoped('sbo_positions')->where('is_active', true)->exists(), '/dashboard/admin/positions'),
-            $this->step('members', 'Add your members', 'Import a roster from a CSV file, or add people one at a time.', $scoped('users')->where('role', 'STUDENT')->exists(), '/dashboard/admin/users'),
+            $this->step('members', 'Add your members', 'Import a roster from a CSV file, or add people one at a time.', $scoped('users')->where('role', 'STUDENT')->exists() || $scoped('account_profiles')->where('role', 'STUDENT')->exists(), '/dashboard/admin/users'),
             $this->step('academic', 'Set up programs and sections', 'Lets you filter members and target announcements by section.', $scoped('academic_programs')->exists(), '/dashboard/admin/programs-sections'),
             DB::table('compliance_requirement_types')->exists()
                 ? $this->step('compliance', 'Submit your accreditation requirements', 'The Student Affairs Office reviews them for your accreditation.', $scoped('organization_compliance_submissions')->exists(), '/dashboard/compliance')
