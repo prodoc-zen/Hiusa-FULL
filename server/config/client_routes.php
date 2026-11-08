@@ -108,6 +108,8 @@ return [
         '/dashboard/elections/manage-partylists',
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
+        // The dean's office staff (an ADMIN on the college home organization); App.jsx sends other ADMINs away.
+        '/dashboard/organization-applications',
     ],
 
     'SBO_OFFICER' => [

@@ -73,6 +73,17 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Unhandled exceptions (the cause behind every 500) are always written here, whatever
+        // LOG_CHANNEL says. A stderr default is discarded under php-fpm unless the pool sets
+        // catch_workers_output, which left production 500s with no trace at all.
+        'exceptions' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/exceptions.log'),
+            'level' => 'error',
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

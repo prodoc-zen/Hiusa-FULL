@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardPage from './DashboardPage';
 
 const taskMocks = vi.hoisted(() => ({ getTasks: vi.fn() }));
@@ -80,6 +80,33 @@ describe('Officer DashboardPage stat cards', () => {
     expect(screen.getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
     expect(screen.queryByText('Open tasks')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open My tasks' })).not.toHaveClass('bg-brand-700');
+  });
+
+  describe('an officer given only some areas', () => {
+    afterEach(() => localStorage.removeItem('user'));
+
+    it('does not ask for orders or show the tile when Merchandise was not given', async () => {
+      localStorage.setItem('user', JSON.stringify({ modules: ['events', 'tasks'] }));
+      orderMocks.getOrders.mockRejectedValue(Object.assign(new Error('forbidden'), { response: { status: 403 } }));
+      render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+      await waitFor(() => expect(statValue('Open tasks')).toBe('42'));
+      expect(orderMocks.getOrders).not.toHaveBeenCalled();
+      expect(screen.queryByText('Pending orders')).not.toBeInTheDocument();
+      expect(screen.queryByText('Your work summary could not load')).not.toBeInTheDocument();
+      expect(statValue('Upcoming events')).toBe('1');
+    });
+
+    it('does not ask for events or tasks that were not given', async () => {
+      localStorage.setItem('user', JSON.stringify({ modules: ['merchandise'] }));
+      render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+      await waitFor(() => expect(statValue('Pending orders')).toBe('8'));
+      expect(taskMocks.getTasks).not.toHaveBeenCalled();
+      expect(eventMocks.getEvents).not.toHaveBeenCalled();
+      expect(screen.queryByText('Open tasks')).not.toBeInTheDocument();
+      expect(screen.queryByText('Urgent tasks')).not.toBeInTheDocument();
+    });
   });
 
   it('does not call a failed load an empty queue', async () => {

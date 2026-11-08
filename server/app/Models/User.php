@@ -140,6 +140,12 @@ class User extends Authenticatable
         return $this->activeAccountProfile;
     }
 
+    /** An ADMIN profile on a college's own home organization: the dean's office staff, not an organization head. */
+    public function isCollegeOfficeStaff(): bool
+    {
+        return $this->role === 'ADMIN' && $this->organization?->organization_type === 'COLLEGE' && $this->organization->college_id !== null;
+    }
+
     /** The org areas the active profile is limited to; null means every area for the role. */
     public function getModulesAttribute(): ?array
     {

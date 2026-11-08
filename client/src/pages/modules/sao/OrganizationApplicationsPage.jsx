@@ -21,7 +21,8 @@ const TABS = {
 
 function currentRole() {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}').role === 'DEPARTMENT_HEAD' ? 'DEPARTMENT_HEAD' : 'SUPER_ADMIN';
+    // Office staff review at the dean's stage, so they see the Department Head's list.
+    return ['DEPARTMENT_HEAD', 'ADMIN'].includes(JSON.parse(localStorage.getItem('user') || '{}').role) ? 'DEPARTMENT_HEAD' : 'SUPER_ADMIN';
   } catch {
     return 'SUPER_ADMIN';
   }

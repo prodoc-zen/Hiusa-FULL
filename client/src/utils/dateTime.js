@@ -38,6 +38,7 @@ export function formatDateTime(value, fallback = 'Not available') {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: 'Asia/Manila',
   }).format(date);
 }
 
