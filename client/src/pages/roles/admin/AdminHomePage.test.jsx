@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminHomePage from './AdminHomePage';
 
 const dashboardMock = vi.hoisted(() => ({ getAdminDashboard: vi.fn() }));
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../services/adminDashboardService', () => dashboardMock);
 
 const payload = {
@@ -50,5 +51,12 @@ describe('AdminHomePage', () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     expect(await screen.findByText('Pending Orders')).toBeInTheDocument();
     expect(screen.queryByText('Nothing has happened here yet')).not.toBeInTheDocument();
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+    await screen.findByText('Enrollment Notice');
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });

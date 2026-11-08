@@ -6,6 +6,7 @@ import SuperAdminHomePage from './SuperAdminHomePage';
 const mocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn(), getSystemOverview: vi.fn() }));
 
 vi.mock('../../../services/systemAdministrationService', () => mocks);
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../components/dashboard', () => ({ RoleBriefing: ({ introduction }) => <div>{introduction}</div> }));
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
@@ -86,5 +87,12 @@ describe('SuperAdminHomePage', () => {
       expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('2');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
+    await screen.findByText('Registered organizations');
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });
