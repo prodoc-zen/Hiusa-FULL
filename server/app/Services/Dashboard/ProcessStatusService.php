@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -97,7 +98,7 @@ class ProcessStatusService
             ->where('account_profiles.account_status', 'active')
             ->where('users.account_status', 'active')
             ->groupBy('organizations.college_id')->selectRaw('organizations.college_id as college_id, count(*) as total')->pluck('total', 'college_id');
-        $records = DB::table('student_registry')->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
+        $records = DB::table('student_registry')->where('record_type', StudentRegistryEntry::STUDENT)->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
         $applications = DB::table('organization_applications')->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)
             ->whereNotNull('college_id')->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
         $active = Organization::student()->where('lifecycle_status', 'active')->whereNotNull('college_id')
@@ -154,7 +155,7 @@ class ProcessStatusService
             ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
             ->where('account_profiles.organization_id', $home->id)->where('account_profiles.role', 'ADMIN')
             ->where('account_profiles.account_status', 'active')->where('users.account_status', 'active')->count();
-        $records = DB::table('student_registry')->where('college_id', $collegeId)->count();
+        $records = DB::table('student_registry')->where('college_id', $collegeId)->where('record_type', StudentRegistryEntry::STUDENT)->count();
         $grants = OrganizationApplicantGrant::where('college_id', $collegeId)->whereNull('revoked_at')->count();
         $applications = DB::table('organization_applications')->where('college_id', $collegeId)
             ->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
@@ -178,9 +179,11 @@ class ProcessStatusService
             return $this->none();
         }
 
+        // Access is granted as an account profile: officers, or a named head (an elected president can be given the head role). The viewer is the head already, so they never count.
         $officers = DB::table('account_profiles')
             ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
-            ->where('account_profiles.organization_id', $organization->id)->where('account_profiles.role', 'SBO_OFFICER')
+            ->where('account_profiles.organization_id', $organization->id)->whereIn('account_profiles.role', ['SBO_OFFICER', 'ADMIN'])
+            ->where('account_profiles.user_school_id', '!=', $user->school_id)
             ->where('account_profiles.account_status', 'active')->where('users.account_status', 'active')->count();
 
         $semester = AcademicSemester::active();

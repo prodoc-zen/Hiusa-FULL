@@ -85,6 +85,14 @@ class ProcessStatusTest extends TestCase
         ]);
     }
 
+    private function employeeRecord(College $college, int $schoolId): StudentRegistryEntry
+    {
+        return StudentRegistryEntry::create([
+            'school_id' => $schoolId, 'record_type' => StudentRegistryEntry::EMPLOYEE, 'first_name' => 'Ben', 'last_name' => 'Cruz',
+            'birth_date' => '1985-01-01', 'college_id' => $college->id, 'position' => 'Secretary',
+        ]);
+    }
+
     private function application(College $college, User $student, string $status, array $attributes = []): OrganizationApplication
     {
         return OrganizationApplication::create([
@@ -310,6 +318,55 @@ class ProcessStatusTest extends TestCase
 
         $election->forceFill(['access_handed_over_at' => now()])->save();
         $this->assertTrue($this->statusOf($admin)->json()['complete']);
+    }
+
+    public function test_employee_records_alone_do_not_count_as_school_records_loaded(): void
+    {
+        $dean = User::factory()->departmentHead()->create(['organization_id' => $this->computingHome->id]);
+        $this->employeeRecord($this->computing, 2600101);
+        $this->employeeRecord($this->computing, 2600102);
+
+        $deanSteps = $this->steps($this->statusOf($dean)->assertOk()->json());
+        $this->assertSame('current', $deanSteps['staff-added']['state']);
+        $this->assertSame(0, $deanSteps['records-loaded']['count']);
+        $this->assertNotSame('done', $deanSteps['records-loaded']['state']);
+
+        $computing = collect($this->statusOf($this->sao)->json('colleges'))->keyBy('name')['College of Computing'];
+        $this->assertSame(0, $this->steps($computing)['records-loaded']['count']);
+        $this->assertNotSame('done', $this->steps($computing)['records-loaded']['state']);
+
+        $this->record($this->computing, 2600103);
+        $this->assertSame(1, $this->steps($this->statusOf($dean)->json())['records-loaded']['count']);
+        $this->assertSame('done', $this->steps($this->statusOf($dean)->json())['records-loaded']['state']);
+        $computing = collect($this->statusOf($this->sao)->json('colleges'))->keyBy('name')['College of Computing'];
+        $this->assertSame(1, $this->steps($computing)['records-loaded']['count']);
+        $this->assertSame('done', $this->steps($computing)['records-loaded']['state']);
+    }
+
+    public function test_admin_officer_step_counts_officer_level_access_but_not_the_head_or_plain_members(): void
+    {
+        $organization = $this->studentOrganization($this->computing);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $member = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        $member->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $step = $this->steps($this->statusOf($admin)->assertOk()->json())['officers-access'];
+        $this->assertSame('current', $step['state']);
+        $this->assertSame(0, $step['count']);
+
+        $president = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        $president->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'position_title' => 'President', 'account_status' => 'active']);
+
+        $step = $this->steps($this->statusOf($admin)->json())['officers-access'];
+        $this->assertSame('done', $step['state']);
+        $this->assertSame(1, $step['count']);
+
+        AccountProfile::where('user_school_id', $president->school_id)->update(['account_status' => 'inactive']);
+        $this->assertSame('current', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
+
+        $treasurer = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        $treasurer->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Treasurer', 'account_status' => 'active']);
+        $this->assertSame('done', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
     }
 
     public function test_admin_renewal_appears_only_when_the_organization_was_approved_before_the_semester_started(): void
