@@ -282,7 +282,7 @@ describe('SystemCollegesPage', () => {
       expect(within(first).getByText('12')).toBeInTheDocument();
       expect(within(first).getByText('2 approvals, 4 documents')).toBeInTheDocument();
       expect(within(first).queryByText('Accredited')).not.toBeInTheDocument();
-      expect(within(first).getByRole('link', { name: 'Open Computing Society' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/1');
+      expect(within(first).getByRole('link', { name: 'Open Computing Society' })).toHaveAttribute('href', '/dashboard/super-admin/org/1');
       const second = within(table).getByText('Robotics Club').closest('tr');
       expect(within(second).getByText('Nothing waiting')).toBeInTheDocument();
     });

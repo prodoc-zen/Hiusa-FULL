@@ -7,18 +7,21 @@ use App\Models\Budget;
 use App\Models\Event;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 
-/** A Department Head's working view of one student organization in their college. */
+/** The oversight view of one student organization: the Department Head sees their college's, the SAO sees any. Read only. */
 class OrgSpaceController extends Controller
 {
     private const MEMBER_LIMIT = 300;
+
+    private const TRANSACTIONS_PER_PAGE = 15;
 
     private const EVENT_COLUMNS = ['id', 'title', 'status', 'start_time', 'end_time', 'location'];
 
     public function show(Request $request, Organization $organization)
     {
-        abort_unless(in_array($organization->id, $request->user()->scopedOrganizationIds(), true), 403, 'This organization is not in your college.');
+        $this->authorizeSpace($request, $organization);
 
         $id = $organization->id;
         $people = AccountProfile::query()
@@ -93,5 +96,60 @@ class OrgSpaceController extends Controller
                 'open_url' => $submission->file_path ? '/compliance/submissions/'.$submission->id.'/document' : null,
             ])->values(),
         ]);
+    }
+
+    public function transactions(Request $request, Organization $organization)
+    {
+        $this->authorizeSpace($request, $organization);
+
+        $filters = $request->validate([
+            'type' => ['nullable', 'in:income,expense'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $ledger = Transaction::where('organization_id', $organization->id);
+        $summary = (clone $ledger)->selectRaw('type, sum(amount) as total')->groupBy('type')->pluck('total', 'type');
+
+        $page = (clone $ledger)
+            ->when($filters['type'] ?? null, fn ($query, $type) => $query->where('type', $type))
+            ->with(['recorder:school_id,first_name,last_name', 'budget:id,title'])
+            ->orderByDesc('transaction_date')->orderByDesc('id')
+            ->paginate(self::TRANSACTIONS_PER_PAGE);
+
+        return response()->json([
+            'data' => $page->getCollection()->map(fn (Transaction $transaction) => [
+                'id' => $transaction->id,
+                'transaction_date' => $transaction->transaction_date,
+                'description' => $transaction->description,
+                'category' => $transaction->category,
+                'type' => $transaction->type,
+                'amount' => round((float) $transaction->amount, 2),
+                'budget_title' => $transaction->budget?->title,
+                'recorded_by' => $transaction->recorder ? trim($transaction->recorder->first_name.' '.$transaction->recorder->last_name) : null,
+            ])->values(),
+            'meta' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
+            'summary' => [
+                'income' => round((float) ($summary['income'] ?? 0), 2),
+                'expense' => round((float) ($summary['expense'] ?? 0), 2),
+            ],
+        ]);
+    }
+
+    private function authorizeSpace(Request $request, Organization $organization): void
+    {
+        $user = $request->user();
+
+        if ($user->role === 'SUPER_ADMIN') {
+            abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION', 403, 'This is not a student organization.');
+
+            return;
+        }
+
+        abort_unless($user->role === 'DEPARTMENT_HEAD' && in_array($organization->id, $user->scopedOrganizationIds(), true), 403, 'This organization is not in your college.');
     }
 }

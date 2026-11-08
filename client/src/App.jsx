@@ -237,6 +237,7 @@ function App() {
           <Route path="super-admin/agency" element={<Navigate to="/dashboard/super-admin/colleges" replace />} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
           <Route path="super-admin/organizations/:organizationId" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoOrganizationOverviewPage /></ProtectedRoute>} />
+          <Route path="super-admin/org/:orgId" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><OrgSpacePage oversight /></ProtectedRoute>} />
           <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />
           <Route path="super-admin/student-records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><StudentRecordsPage /></ProtectedRoute>} />
           <Route path="super-admin/users" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoUsersPage /></ProtectedRoute>} />
