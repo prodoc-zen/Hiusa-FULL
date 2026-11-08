@@ -57,6 +57,8 @@ const STATUS_MAP = {
   upcoming: { tone: 'info', label: 'Upcoming' },
   voting: { tone: 'success', label: 'Live Voting' },
   closed: { tone: 'neutral', label: 'Closed' },
+  access_handed_over: { tone: 'success', label: 'Access handed over' },
+  tie: { tone: 'warning', label: 'Tie, assign manually' },
 
   // Events / tasks
   planning: { tone: 'neutral', label: 'Planning' },
