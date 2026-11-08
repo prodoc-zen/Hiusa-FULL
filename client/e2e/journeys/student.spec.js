@@ -18,13 +18,14 @@ const WIDTHS = [
 ];
 const PASSWORD = 'Demo@12345';
 
+// Closing a ballot hands its winner the officer role, so each width has its own candidate.
 // Seeded students. A registration row, even a cancelled one, ticks the home checklist, so journey 1 takes
 // the first student of EVENT_POOL who has none yet; a run needs a freshly seeded database after five runs.
 const fresh = (schoolId) => ({ schoolId, password: PASSWORD, role: 'STUDENT', home: '/dashboard/student' });
 const EVENT_POOL = [2400093, 2400067, 2300247, 2400019, 2300312].map(fresh);
 const BY_WIDTH = {
-  1440: { order: fresh(2400019), owing: fresh(2200055), grievance: fresh(2200451) },
-  390: { order: fresh(2300312), owing: fresh(2200298), grievance: fresh(2300078) },
+  1440: { order: fresh(2400019), owing: fresh(2200055), grievance: fresh(2200451), candidate: { id: 2100389, name: 'Carlo Mendoza' } },
+  390: { order: fresh(2300312), owing: fresh(2200298), grievance: fresh(2300078), candidate: { id: 2300163, name: 'Andrei Navarro' } },
 };
 
 function counter() {
@@ -83,7 +84,7 @@ async function closeActiveElections(admin) {
 // so no student could vote in it. Settings are what the Admin form creates, including the server default
 // for results_visible. Once the SAO has an active semester the ballot also needs its informative letter
 // (a PDF), so the proposal is sent as the form does, with one attached.
-async function seedOpenElection() {
+async function seedOpenElection(candidateId) {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
   await closeActiveElections(admin);
@@ -104,7 +105,7 @@ async function seedOpenElection() {
   const party = await admin.post('/partylists', { name: `Journey Party ${stamp}`, acronym: 'JP' });
   expect(party.status, JSON.stringify(party.body)).toBe(201);
   const positions = await admin.get(`/elections/${election.id}/positions`);
-  const candidate = await admin.post(`/elections/${election.id}/candidates`, { user_id: 2100389, position_id: positions.body[0].id, partylist_id: party.body.id });
+  const candidate = await admin.post(`/elections/${election.id}/candidates`, { user_id: candidateId, position_id: positions.body[0].id, partylist_id: party.body.id });
   expect(candidate.status, JSON.stringify(candidate.body)).toBe(201);
   const finalized = await admin.patch(`/elections/${election.id}/finalize`);
   expect(finalized.status, JSON.stringify(finalized.body)).toBe(200);
@@ -166,21 +167,21 @@ for (const viewport of WIDTHS) {
     });
 
     test('J2 vote (ceiling 6 from home)', async ({ page }, testInfo) => {
-      const election = await seedOpenElection();
+      const election = await seedOpenElection(who.candidate.id);
       const account = STUDENT;
       await uiLogin(page, account);
       const c = counter();
 
       const shortcuts = page.getByRole('complementary', { name: 'Student shortcuts' });
-      await tap(c, shortcuts.getByRole('link', { name: 'Enter secure voting' }), 'home Enter secure voting');
+      await tap(c, shortcuts.getByRole('link', { name: 'Vote now' }), 'home Vote now');
       await tap(c, page.getByRole('button', { name: /Start my ballot/ }), 'Start my ballot');
-      await tap(c, page.getByRole('button', { name: /Carlo Mendoza/ }), 'choose candidate');
+      await tap(c, page.getByRole('button', { name: new RegExp(who.candidate.name) }), 'choose candidate');
       await tap(c, page.getByRole('button', { name: /Review ballot/ }), 'Review ballot');
       await tap(c, page.getByRole('button', { name: /Submit final ballot/ }), 'Submit final ballot');
       await tap(c, page.getByRole('dialog').getByRole('button', { name: 'Confirm and submit' }), 'Confirm and submit');
 
       await expect(page.getByRole('heading', { name: 'Ballot submitted' })).toBeVisible();
-      await expect(page.getByText('Ballot receipt hash')).toBeVisible();
+      await expect(page.getByText('Ballot receipt', { exact: true })).toBeVisible();
       record(testInfo, c);
       expect.soft(c.n, c.log.join(' > ')).toBeLessThanOrEqual(6);
 
@@ -200,10 +201,10 @@ for (const viewport of WIDTHS) {
 
       await menuTo(page, place, { group: 'Store', leaf: 'Shop' });
       const product = page.getByRole('article').filter({ hasText: 'HIUSA Tote Bag' }).first();
-      await tap(place, product.getByRole('button', { name: /Add to Cart/ }), 'Add to Cart');
-      await tap(place, page.getByRole('button', { name: /^My Cart/ }), 'My Cart');
-      await tap(place, page.getByRole('button', { name: 'Review & Continue' }), 'Review & Continue');
-      await tap(place, page.getByRole('button', { name: 'Place Reservation' }), 'Place Reservation');
+      await tap(place, product.getByRole('button', { name: /Add to cart/ }), 'Add to cart');
+      await tap(place, page.getByRole('button', { name: 'View cart' }), 'View cart');
+      await tap(place, page.getByRole('button', { name: 'Review and continue' }), 'Review and continue');
+      await tap(place, page.getByRole('button', { name: 'Place reservation' }), 'Place reservation');
       await expect(page.getByText(/ORD-\d+ reserved/).first()).toBeVisible();
       record(testInfo, place, { phase: 'place' });
       expect.soft(place.n, place.log.join(' > ')).toBeLessThanOrEqual(6);
