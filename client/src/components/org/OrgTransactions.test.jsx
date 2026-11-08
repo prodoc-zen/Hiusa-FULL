@@ -52,7 +52,28 @@ describe('OrgTransactions', () => {
     expect(within(expense).getByText('expense')).toBeInTheDocument();
     expect(within(income).getByText('income')).toBeInTheDocument();
     expect(list).toHaveClass('md:hidden');
-    expect(within(list).queryByText('Ana Reyes')).not.toBeInTheDocument();
+  });
+
+  it('shows the date, category and who recorded it on the phone list, and lets a long description wrap', async () => {
+    const longDescription = 'Van rental for Leadership Seminar and the overnight team building retreat';
+    mocks.getOrganizationTransactions.mockResolvedValue(page([{ ...rows[0], description: longDescription }, rows[1]]));
+    render(<OrgTransactions organizationId={12} />);
+
+    const list = await screen.findByRole('list', { name: 'Organization transactions' });
+    const [expense, income] = within(list).getAllByRole('listitem');
+    expect(within(expense).getByText('Oct 5, 2026 · venue · Ana Reyes')).toBeInTheDocument();
+    expect(within(income).getByText('Oct 1, 2026 · membership · Ben Cruz')).toBeInTheDocument();
+    const description = within(expense).getByText(longDescription);
+    expect(description).toHaveClass('break-words');
+    expect(description).not.toHaveClass('truncate');
+  });
+
+  it('falls back to Unknown and a plain category on the phone list when the row has none', async () => {
+    mocks.getOrganizationTransactions.mockResolvedValue(page([{ ...rows[0], category: null, recorded_by: null }]));
+    render(<OrgTransactions organizationId={12} />);
+
+    const list = await screen.findByRole('list', { name: 'Organization transactions' });
+    expect(within(list).getByText('Oct 5, 2026 · None · Unknown')).toBeInTheDocument();
   });
 
   it('shows the pager once, outside both the table and the phone list', async () => {

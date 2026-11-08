@@ -424,13 +424,14 @@ class ElectionController extends Controller
         return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
     }
 
-    /** A candidate is a student with an active student profile in the organization, wherever their own account lives. */
+    /** A candidate is a student with an active student profile in the organization, wherever their own account lives, and an account that is itself active. */
     private function isStudentOf(int $schoolId, int $organizationId): bool
     {
         return AccountProfile::where('user_school_id', $schoolId)
             ->where('organization_id', $organizationId)
             ->where('role', 'STUDENT')
             ->where('account_status', 'active')
+            ->whereHas('user', fn ($q) => $q->where('account_status', 'active'))
             ->exists();
     }
 

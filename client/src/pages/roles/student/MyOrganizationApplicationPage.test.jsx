@@ -146,6 +146,33 @@ describe('MyOrganizationApplicationPage', () => {
     expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
   });
 
+  it('shows every upload and never says every file was accepted when it was returned on a note alone', async () => {
+    const noted = application({ remarks: 'Replace the constitution with the signed copy.' });
+    noted.requirements.forEach((requirement) => { requirement.reviews = []; requirement.review_files = []; });
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: noted });
+    renderPage();
+    await screen.findByText('Replace the constitution with the signed copy.');
+
+    expect(screen.getByLabelText(/Constitution/, { selector: 'input' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Officer list/, { selector: 'input' })).toBeInTheDocument();
+    expect(screen.queryByText('Every file was accepted.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
+  });
+
+  it('says every file was accepted only when each one is, and still lets the applicant reach every upload', async () => {
+    const accepted = application({ remarks: 'Add a cover letter.' });
+    accepted.requirements.forEach((requirement) => { requirement.reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: null }]; requirement.review_files = []; });
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: accepted });
+    renderPage();
+    await screen.findByText('Add a cover letter.');
+
+    expect(screen.getByText(/Every file was accepted\./)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Officer list/, { selector: 'input' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 2 uploads' }));
+    expect(screen.getByLabelText(/Constitution/, { selector: 'input' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Officer list/, { selector: 'input' })).toBeInTheDocument();
+  });
+
   it('opens the applicant file and the reviewer attachments through the protected route', async () => {
     openMocks.openProtectedFile.mockResolvedValue();
     renderPage();

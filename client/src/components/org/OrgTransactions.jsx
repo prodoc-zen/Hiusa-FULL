@@ -21,15 +21,15 @@ const COLUMNS = [
 ];
 
 // On a phone each transaction is one block of two lines: what and when on the left, the amount and its
-// direction in words on the right. Category and who recorded it stay in the desktop table.
+// direction in words on the right. The second line carries the date, category and who recorded it.
 function TransactionList({ rows }) {
   return (
     <ul className="divide-y divide-line-soft md:hidden" aria-label="Organization transactions" data-view="transactions">
       {rows.map((row) => (
         <li key={row.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink">{row.description || 'No description'}</p>
-            <p className="truncate text-xs text-ink-muted">{manilaDate(row.transaction_date)}</p>
+            <p className="break-words text-sm font-medium text-ink">{row.description || 'No description'}</p>
+            <p className="break-words text-xs text-ink-muted">{manilaDate(row.transaction_date)} · {row.category || 'None'} · {row.recorded_by || 'Unknown'}</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-sm font-medium tabular-nums text-ink">{peso(row.amount)}</p>

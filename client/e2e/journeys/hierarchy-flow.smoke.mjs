@@ -13,9 +13,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium, expect } from '@playwright/test';
+import { assertLocalOnly } from '../support/local-only.mjs';
 
 process.env.HIUSA_E2E_API_URL ??= 'http://127.0.0.1:8030/api';
 const BASE = process.env.HIUSA_E2E_BASE_URL || 'http://127.0.0.1:5200';
+
+// Writes real rows (registrations, claims, colleges), so refuse any host that is not this machine.
+try {
+  assertLocalOnly({ HIUSA_E2E_API_URL: process.env.HIUSA_E2E_API_URL, HIUSA_E2E_BASE_URL: BASE });
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 const OUT = process.env.HIUSA_SMOKE_OUT || 'D:/Claude/scratch/hiusa-smoke2';
 const { SAO, PSITS_ADMIN, HEAD_CCS, STUDENT, STUDENT_B, PSITS_ORGANIZATION_ID, apiCall, pdfFile } = await import('../support/live.js');
 const { ensureOpenSemester } = await import('../support/pipeline.js');

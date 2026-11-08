@@ -250,6 +250,36 @@ describe('SystemCollegesPage', () => {
     expect(within(drawer).getByRole('table')).toBeInTheDocument();
   });
 
+  it('adds a mobile-only cue to the one-line meta when the college has no Department Head or has organizations waiting', async () => {
+    const overview = agency({ colleges: [{ ...agency().colleges[0], organizations: [row(), row({ id: 2, name: 'Robotics Club', lifecycle_status: 'returned' }), row({ id: 3, name: 'Chess Club', administrators_count: 0 })], organizations_count: 3, by_lifecycle_status: { pending: 1, returned: 1, active: 1, archived: 0 } }, agency().colleges[1]] });
+    show(overview);
+    mocks.getSystemColleges.mockResolvedValue(collegeList(overview).map((college) => (college.id === 3 ? { ...college, department_head: { school_id: 5001, name: 'Maria Cruz', email: 'maria@example.edu', account_status: 'active' } } : { ...college, department_head: null })));
+    renderPage();
+    await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
+    const computingMeta = cardOf('College of Computing').querySelector('h2 + p');
+    const noHead = within(computingMeta).getByText('· No Department Head');
+    expect(noHead).toHaveClass('md:hidden');
+    const waiting = within(computingMeta).getByText('· 3 waiting');
+    expect(waiting).toHaveClass('md:hidden');
+    const artsMeta = cardOf('College of Arts').querySelector('h2 + p');
+    expect(within(artsMeta).queryByText(/No Department Head/)).not.toBeInTheDocument();
+    expect(within(artsMeta).queryByText(/waiting/)).not.toBeInTheDocument();
+  });
+
+  it('adds no mobile cue for an archived college without a head or for a quiet college with one', async () => {
+    mocks.getSystemColleges.mockResolvedValue([
+      { id: 3, name: 'College of Arts', code: 'COA', is_active: false, organizations_count: 0, department_head: null },
+      { id: 4, name: 'College of Science', code: 'COS', is_active: true, organizations_count: 0, department_head: { school_id: 5001, name: 'Maria Cruz', email: 'maria@example.edu', account_status: 'active' } },
+    ]);
+    renderPage();
+    await screen.findByRole('heading', { level: 2, name: 'College of Arts' });
+    const meta = (name) => cardOf(name).querySelector('h2 + p');
+    expect(meta('College of Arts')).toHaveTextContent('COA · 0 organizations · 0 members · Archived');
+    expect(meta('College of Arts')).not.toHaveTextContent('No Department Head');
+    expect(meta('College of Science')).not.toHaveTextContent('No Department Head');
+    expect(meta('College of Science')).not.toHaveTextContent('waiting');
+  });
+
   it('labels the search field with visible text', async () => {
     renderPage();
     await screen.findByText('College of Arts');

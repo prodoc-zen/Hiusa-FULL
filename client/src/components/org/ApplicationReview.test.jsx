@@ -439,6 +439,32 @@ describe('ApplicationReview', () => {
     expect(screen.getByLabelText('Review of Officer list')).toBeInTheDocument();
   });
 
+  it('shows an unmarked row to the SAO as Not checked even when the Department Head accepted it, and keeps Approve off', async () => {
+    const dean = { stage: 'dean', stage_label: 'Department Head', status: 'ok', note: null };
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      status: 'pending_sao',
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [dean], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/y' }, reviews: [dean], review_files: [] },
+      ],
+    }) });
+    renderReview('SUPER_ADMIN');
+    await screen.findByText('Ana Cruz');
+
+    const rows = within(screen.getByRole('region', { name: 'Requirements' })).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      expect(within(row).getByText('Not checked')).toBeInTheDocument();
+      expect(within(row).queryByText('Accepted')).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Constitution' }));
+    expect(screen.getByText(/Department Head:/).parentElement).toHaveTextContent('Department Head: Accepted.');
+    mark('Constitution', 'ok');
+    expect(within(rows[0]).getByText('Accepted', { selector: 'span' })).toBeInTheDocument();
+  });
+
   it('collapses a read-only accepted row and shows its note only on request', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
       status: 'pending_sao',
