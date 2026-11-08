@@ -31,7 +31,7 @@ const STATUS_TABS = [
   { key: 'archived', label: 'Archived', panelId: PANEL_ID },
 ];
 const STATUS_KEYS = STATUS_TABS.map((tab) => tab.key);
-const DEFAULT_ORDER = ['active', 'pending', 'returned', 'archived'];
+const DEFAULT_ORDER = ['pending', 'active', 'returned', 'archived'];
 const FALLBACK_STATUS = 'active';
 const EMPTY_COPY = {
   pending: 'No organizations are waiting for review.',
@@ -40,7 +40,7 @@ const EMPTY_COPY = {
   archived: 'No archived organizations.',
 };
 const EMPTY_HINT = {
-  pending: 'Department Heads register the organizations of their college. New registrations appear here for your review.',
+  pending: 'A student the Department Head allows applies for an organization. The Department Head reviews the application, then it appears here for your approval.',
   active: 'Approved registrations appear here. Review the pending ones first.',
   returned: 'A returned registration waits for its Department Head to edit and resubmit it.',
   archived: 'Archive an active organization to keep it here as read only.',
@@ -305,7 +305,7 @@ export default function SystemOrganizationsPage() {
     }
   }, []);
   useEffect(() => {
-    loadCounts().then((byStatus) => setDefaultStatus(DEFAULT_ORDER.find((key) => (byStatus?.[key] || 0) > 0) ?? (byStatus ? DEFAULT_ORDER[0] : FALLBACK_STATUS)));
+    loadCounts().then((byStatus) => setDefaultStatus(DEFAULT_ORDER.find((key) => (byStatus?.[key] || 0) > 0) ?? FALLBACK_STATUS));
   }, [loadCounts]);
 
   useEffect(() => {
