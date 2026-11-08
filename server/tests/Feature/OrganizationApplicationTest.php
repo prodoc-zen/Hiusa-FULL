@@ -420,6 +420,100 @@ class OrganizationApplicationTest extends TestCase
         $this->assertDatabaseMissing('organization_application_review_files', ['id' => $id]);
     }
 
+    private function comment(OrganizationApplication $application, array $payload)
+    {
+        return $this->postJson("/api/organization-applications/{$application->id}/comments", $payload);
+    }
+
+    public function test_a_dean_saves_a_note_for_their_college_without_changing_the_status(): void
+    {
+        $college = $this->college();
+        $student = $this->student($college);
+        $application = $this->submitted($college, $student);
+        $dean = $this->dean($college);
+
+        Sanctum::actingAs($dean);
+        $this->comment($application, ['note' => '  Ask the adviser to sign first.  '])->assertCreated()
+            ->assertJsonPath('status', 'pending_dean')
+            ->assertJsonCount(1, 'history')
+            ->assertJsonPath('history.0.kind', 'comment')
+            ->assertJsonPath('history.0.label', 'Comment')
+            ->assertJsonPath('history.0.note', 'Ask the adviser to sign first.')
+            ->assertJsonPath('history.0.by', trim("{$dean->first_name} {$dean->last_name}"))
+            ->assertJsonPath('history.0.stage_label', 'Department Head');
+
+        $application->refresh();
+        $this->assertSame('pending_dean', $application->status);
+        $this->assertSame(1, $application->round);
+        $this->assertDatabaseCount('organization_application_requirement_reviews', 0);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $student->school_id]);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'organization_applications', 'action' => 'comment', 'record_id' => $application->id, 'user_id' => $dean->school_id]);
+
+        $this->getJson("/api/organization-applications/{$application->id}")->assertOk()->assertJsonPath('history.0.note', 'Ask the adviser to sign first.');
+    }
+
+    public function test_the_sao_can_note_an_application_in_any_college_at_any_stage(): void
+    {
+        $college = $this->college();
+        $application = $this->submitted($college, $this->student($college));
+
+        Sanctum::actingAs($this->sao);
+        $this->comment($application, ['note' => 'Check the adviser against the faculty list.'])->assertCreated()
+            ->assertJsonPath('status', 'pending_dean')->assertJsonPath('history.0.stage_label', 'SAO');
+
+        $application->update(['status' => 'pending_sao']);
+        $this->comment($application, ['note' => 'Second look done.'])->assertCreated()->assertJsonPath('status', 'pending_sao')->assertJsonCount(2, 'history');
+    }
+
+    public function test_the_history_lists_notes_and_decisions_in_order(): void
+    {
+        $college = $this->college();
+        $application = $this->submitted($college, $this->student($college));
+
+        Sanctum::actingAs($this->dean($college));
+        $this->comment($application, ['note' => 'Looks complete.'])->assertCreated();
+        $this->review($application, ['action' => 'endorse', 'remarks' => 'Good constitution.'])->assertOk();
+
+        $history = $this->getJson("/api/organization-applications/{$application->id}")->assertOk()->json('history');
+
+        $this->assertSame(['comment', 'decision'], array_column($history, 'kind'));
+        $this->assertSame(['Comment', 'Endorsed'], array_column($history, 'label'));
+        $this->assertSame(['Looks complete.', 'Good constitution.'], array_column($history, 'note'));
+    }
+
+    public function test_a_note_needs_text_and_only_reviewers_of_the_college_can_add_one(): void
+    {
+        $college = $this->college();
+        $student = $this->student($college);
+        $application = $this->submitted($college, $student);
+
+        Sanctum::actingAs($this->dean($college));
+        $this->comment($application, ['note' => '   '])->assertUnprocessable()->assertJsonValidationErrors('note');
+        $this->comment($application, [])->assertUnprocessable()->assertJsonValidationErrors('note');
+        $this->comment($application, ['note' => str_repeat('a', 2001)])->assertUnprocessable()->assertJsonValidationErrors('note');
+
+        Sanctum::actingAs($this->dean($this->college('College of Arts')));
+        $this->comment($application, ['note' => 'Not mine.'])->assertNotFound();
+
+        Sanctum::actingAs($student);
+        $this->comment($application, ['note' => 'Mine.'])->assertForbidden();
+
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'comment']);
+    }
+
+    public function test_the_applicant_never_receives_the_reviewers_history(): void
+    {
+        $college = $this->college();
+        $student = $this->student($college);
+        $application = $this->submitted($college, $student);
+
+        Sanctum::actingAs($this->dean($college));
+        $this->comment($application, ['note' => 'Internal: check the adviser.'])->assertCreated();
+
+        Sanctum::actingAs($student);
+        $this->getJson("/api/my/organization-applications/{$application->id}")->assertOk()->assertJsonMissingPath('history')->assertDontSee('Internal: check the adviser.');
+    }
+
     public function test_documents_are_private_and_department_heads_only_see_their_college(): void
     {
         $college = $this->college();

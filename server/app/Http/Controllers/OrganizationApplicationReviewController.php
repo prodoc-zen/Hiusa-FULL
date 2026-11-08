@@ -28,13 +28,18 @@ use Illuminate\Validation\ValidationException;
 /**
  * The review queue. The Department Head acts on applications from their own college while they
  * are pending_dean, the SAO on those pending_sao. Either may return an application with a note
- * per requirement and attached files; only the SAO approves or rejects.
+ * per requirement and attached files; only the SAO approves or rejects. Either may also leave a
+ * note that changes nothing about the application. Notes and decisions read back as one history,
+ * for reviewers only: the applicant's own page never carries it.
  */
 class OrganizationApplicationReviewController extends Controller
 {
     private const PREFIX = '/organization-applications';
 
     private const MAX_REVIEW_FILES = 10;
+
+    /** The word the history uses for each status a decision leaves behind. */
+    private const DECISION_LABEL = ['pending_sao' => 'Endorsed', 'approved' => 'Approved', 'returned' => 'Returned', 'rejected' => 'Not approved'];
 
     public function __construct(private readonly OrganizationApplicationPresenter $presenter) {}
 
@@ -67,7 +72,7 @@ class OrganizationApplicationReviewController extends Controller
     {
         $this->authorizeScope($request->user(), $application);
 
-        return response()->json($this->presenter->detail($application, self::PREFIX, false));
+        return response()->json($this->detail($application));
     }
 
     public function document(Request $request, OrganizationApplication $application, OrganizationApplicationDocument $document)
@@ -206,7 +211,7 @@ class OrganizationApplicationReviewController extends Controller
                     'reject' => $locked->forceFill(['status' => 'rejected', 'remarks' => $data['remarks'], 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]),
                 };
                 $locked->save();
-                AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => $locked->status, 'record_type' => OrganizationApplication::class, 'record_id' => $locked->id, 'new_values' => ['status' => $locked->status, 'round' => $locked->round], 'created_at' => now(), 'ip_address' => request()->ip()]);
+                AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => $locked->status, 'record_type' => OrganizationApplication::class, 'record_id' => $locked->id, 'new_values' => ['status' => $locked->status, 'round' => $locked->round, 'note' => filled($data['remarks'] ?? null) ? trim($data['remarks']) : null], 'created_at' => now(), 'ip_address' => request()->ip()]);
 
                 return $locked;
             });
@@ -217,7 +222,48 @@ class OrganizationApplicationReviewController extends Controller
 
         $this->notifyAfterDecision($locked, $data['action']);
 
-        return response()->json($this->presenter->detail($locked->refresh(), self::PREFIX, false));
+        return response()->json($this->detail($locked->refresh()));
+    }
+
+    /** A note from a reviewer. It never touches the status, the requirement marks or the applicant's notifications. */
+    public function comment(Request $request, OrganizationApplication $application)
+    {
+        $actor = $request->user();
+        $this->authorizeScope($actor, $application);
+        $data = $request->validate(['note' => ['required', 'string', 'max:2000']]);
+        $note = trim($data['note']);
+        if ($note === '') {
+            throw ValidationException::withMessages(['note' => 'Write a note before saving.']);
+        }
+
+        AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => 'comment', 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['note' => $note, 'round' => $application->round], 'created_at' => now(), 'ip_address' => $request->ip()]);
+
+        return response()->json($this->detail($application), 201);
+    }
+
+    /** The shared application detail plus the reviewers' history. */
+    private function detail(OrganizationApplication $application): array
+    {
+        return [...$this->presenter->detail($application, self::PREFIX, false), 'history' => $this->history($application)];
+    }
+
+    /** Notes and decisions, oldest first, read from the audit log so no second record of them exists. */
+    private function history(OrganizationApplication $application): array
+    {
+        return AuditLog::query()
+            ->where('module', 'organization_applications')->where('record_type', OrganizationApplication::class)->where('record_id', $application->id)
+            ->whereIn('actor_role', ['DEPARTMENT_HEAD', 'SUPER_ADMIN'])
+            ->whereIn('action', ['comment', ...array_keys(self::DECISION_LABEL)])
+            ->with('user:school_id,first_name,last_name')->orderBy('id')->get()
+            ->map(fn (AuditLog $entry) => [
+                'id' => $entry->id,
+                'kind' => $entry->action === 'comment' ? 'comment' : 'decision',
+                'label' => $entry->action === 'comment' ? 'Comment' : self::DECISION_LABEL[$entry->action],
+                'note' => $entry->new_values['note'] ?? null,
+                'by' => $entry->user ? trim("{$entry->user->first_name} {$entry->user->last_name}") : null,
+                'stage_label' => OrganizationApplicationPresenter::STAGE_LABEL[$entry->actor_role === 'DEPARTMENT_HEAD' ? 'dean' : 'sao'],
+                'at' => $entry->created_at,
+            ])->values()->all();
     }
 
     /** Creates the organization in the college the grant named and gives the applicant an ADMIN profile on it. Their account, role and home organization stay as they are. */

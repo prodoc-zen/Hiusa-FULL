@@ -151,6 +151,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/organization-applications/{application}/review-files/{file}', [OrganizationApplicationReviewController::class, 'openFile'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/organization-applications/{application}/review-files', [OrganizationApplicationReviewController::class, 'storeFile'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::delete('/organization-applications/{application}/review-files/{file}', [OrganizationApplicationReviewController::class, 'destroyFile'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/organization-applications/{application}/comments', [OrganizationApplicationReviewController::class, 'comment'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::patch('/organization-applications/{application}/review', [OrganizationApplicationReviewController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/my/organization-applications', [OrganizationApplicationController::class, 'mine'])->middleware('throttle:api-read');
     Route::post('/my/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:api-write');
