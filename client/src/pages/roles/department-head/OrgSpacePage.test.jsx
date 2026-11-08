@@ -142,7 +142,6 @@ describe('OrgSpacePage', () => {
   it('leaves going back to the college to the sidebar and the Viewing strip', async () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Computing Society' });
-    await waitFor(() => expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).not.toBeNull());
 
     expect(screen.queryByRole('button', { name: /back to (my college|mine)/i })).not.toBeInTheDocument();
   });

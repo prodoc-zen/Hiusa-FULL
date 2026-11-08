@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\AccountProfile;
+use App\Models\Announcement;
 use App\Models\College;
+use App\Models\Election;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\SboPosition;
@@ -257,13 +259,54 @@ class OrgAccessGrantTest extends TestCase
         Sanctum::actingAs($officer);
 
         $this->getJson('/api/elections')->assertSuccessful();
-        $this->getJson('/api/announcements')->assertSuccessful();
+        $this->getJson('/api/announcements?published_only=1')->assertSuccessful();
+        $this->getJson('/api/announcements')->assertForbidden();
         $this->getJson('/api/merchandise')->assertSuccessful();
         $this->getJson('/api/orders?mine=1')->assertSuccessful();
         $this->getJson('/api/tasks')->assertSuccessful();
         $this->assertNotSame(403, $this->postJson('/api/elections/999999/vote', [])->getStatusCode());
         $this->assertNotSame(403, $this->postJson('/api/orders', [])->getStatusCode());
         $this->assertNotSame(403, $this->patchJson('/api/tasks/999999/status', ['status' => 'completed'])->getStatusCode());
+    }
+
+    public function test_a_restricted_officer_never_sees_drafts_but_an_officer_with_all_modules_does(): void
+    {
+        $restricted = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $restricted->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['events']]);
+        $full = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+
+        $draftNotice = Announcement::factory()->create([
+            'organization_id' => $this->computingOrg->id, 'created_by' => $full->school_id, 'title' => 'Draft notice',
+            'target_role' => 'all', 'is_published' => false, 'approval_status' => 'pending',
+        ]);
+        $liveNotice = Announcement::factory()->create([
+            'organization_id' => $this->computingOrg->id, 'created_by' => $full->school_id, 'title' => 'Live notice',
+            'target_role' => 'all', 'is_published' => true, 'approval_status' => 'approved', 'published_at' => now(),
+        ]);
+        $draftElection = Election::factory()->create([
+            'organization_id' => $this->computingOrg->id, 'title' => 'Draft election', 'status' => 'upcoming', 'finalized_at' => null,
+        ]);
+        $liveElection = Election::factory()->create([
+            'organization_id' => $this->computingOrg->id, 'title' => 'Live election', 'status' => 'active', 'finalized_at' => now(),
+        ]);
+
+        Sanctum::actingAs($restricted);
+        $this->getJson('/api/announcements')->assertForbidden();
+        $titles = collect($this->getJson('/api/announcements?published_only=1')->assertSuccessful()->json('data'))->pluck('title');
+        $this->assertTrue($titles->contains('Live notice'));
+        $this->assertFalse($titles->contains('Draft notice'));
+        $electionTitles = collect($this->getJson('/api/elections')->assertSuccessful()->json())->pluck('title');
+        $this->assertTrue($electionTitles->contains('Live election'));
+        $this->assertFalse($electionTitles->contains('Draft election'));
+        $this->getJson('/api/elections/'.$draftElection->id)->assertForbidden();
+        $this->getJson('/api/elections/'.$liveElection->id)->assertSuccessful();
+
+        Sanctum::actingAs($full);
+        $titles = collect($this->getJson('/api/announcements')->assertSuccessful()->json('data'))->pluck('title');
+        $this->assertTrue($titles->contains('Draft notice'));
+        $electionTitles = collect($this->getJson('/api/elections')->assertSuccessful()->json())->pluck('title');
+        $this->assertTrue($electionTitles->contains('Draft election'));
+        $this->getJson('/api/elections/'.$draftElection->id)->assertSuccessful();
     }
 
     public function test_an_officer_with_all_modules_and_an_org_head_are_never_blocked(): void

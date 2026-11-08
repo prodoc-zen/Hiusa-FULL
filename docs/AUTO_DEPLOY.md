@@ -7,7 +7,7 @@ A push to `main` goes live without anyone logging in to the server. Branches oth
 1. The Tests workflow runs on the push (Laravel, client, AI service, MySQL migrations, end-to-end).
 2. Only if every job is green, the Deploy workflow (`.github/workflows/deploy.yml`) starts for that exact commit.
 3. It opens an ssh session to the Lightsail host with a dedicated deploy key and runs `scripts/deploy-lightsail.sh <commit>` there:
-   1. Stops if the server checkout has local edits, or if the effective config is not `mail.default=log` and `services.edp.driver=local`.
+   1. Stops if the server checkout has local edits, or if the effective config is not `mail.default=log` and `services.edp.driver=local`. Code from before the EDP setting existed has no `services.edp` key and counts as local; the check runs again after the merge, against the new code.
    2. Backs up the database and uploads to `/var/backups/hiusa` (`hiusa_db-pre-deploy-<time>.sql.gz`, checked with `gzip -t`; the newest 14 are kept).
    3. Fast-forwards the checkout to the commit (never a merge commit).
    4. `composer install --no-dev`; `npm ci && npm run build` when `client/` changed; Python requirements when they changed.
@@ -32,9 +32,11 @@ Do not reuse `hiusa-lightsail.pem`. Make a key that can only be used for deploys
 5. In that environment add the secrets `DEPLOY_HOST` (`13.228.227.182`), `DEPLOY_USER` (`ubuntu`), `DEPLOY_SSH_KEY` (the full private key, the contents of `hiusa-deploy`) and `DEPLOY_KNOWN_HOSTS` (the line from step 3). Optional variable: `DEPLOY_SITE_URL` (for example `https://13.228.227.182`).
 6. Delete the local private key file after pasting it. Never commit it.
 
+Before the first automatic deploy, the live server must already report `mail.default=log`. A read-only check on 2026-11-08 found it on `smtp`, so the guard would refuse. On the server, set `MAIL_MAILER=log` in `/var/www/hiusa/server/.env`, run `sudo -u www-data hiusa-artisan config:cache`, and confirm `sudo -u www-data hiusa-artisan config:show mail.default` prints `log`.
+
 Until the four secrets exist, the Deploy workflow runs, prints a warning that it was skipped, and changes nothing.
 
-To run a deploy by hand: GitHub, Actions, Deploy, Run workflow (it deploys the commit it runs from, which must be on `main`).
+To run a deploy by hand: GitHub, Actions, Deploy, Run workflow (it deploys the commit it runs from, which must be on `main`). A manual run also needs a successful Tests run on that exact commit; without one it stops before touching the server.
 
 ## When a deploy stops
 

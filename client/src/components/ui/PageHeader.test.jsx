@@ -101,6 +101,17 @@ describe('PageHeader', () => {
     expect(stepper.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('lets the action row wrap inside the page width, so two buttons never push a phone sideways', () => {
+    renderHeader({
+      title: 'College announcements',
+      actions: <button type="button">View announcement feed</button>,
+      primary: <button type="button">New announcement</button>,
+    });
+    const row = screen.getByRole('button', { name: 'View announcement feed' }).parentElement;
+    expect(row).toHaveClass('flex-wrap');
+    expect(row).toHaveClass('max-w-full');
+  });
+
   it('still renders with only a title and the original actions prop', () => {
     renderHeader({ title: 'Plain', actions: <button type="button">Go</button> });
     expect(screen.getByRole('button', { name: 'Go' })).toBeInTheDocument();

@@ -168,4 +168,36 @@ describe('TopBar school year picker', () => {
     expect(JSON.parse(localStorage.getItem(PERIOD_KEY)).id).toBe(4);
     expect(sessionStorage.getItem(PERIOD_KEY)).toBeNull();
   });
+
+  describe('semester selector for a user with a workspace switcher', () => {
+    const hidesAtSomeWidth = (element) => element.className.split(/\s+/).some((token) => token === 'hidden' || token.endsWith(':hidden'));
+
+    it('keeps the selector in the page and visible at every width, with the switcher beside it', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Olive', last_name: 'Officer' }));
+      mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(2, 'SBO_OFFICER', 'Computing Society')] } });
+      renderTopBar();
+
+      expect(await screen.findByRole('button', { name: 'Workspace: My account' })).toBeInTheDocument();
+      const period = screen.getByRole('button', { name: /Academic Period: AY 2026-2027 · 1st Semester/ });
+
+      // A width rule such as max-xl:hidden would take the control away from deans and officers on laptops and phones.
+      for (let element = period; element && element.tagName !== 'HEADER'; element = element.parentElement) {
+        expect(hidesAtSomeWidth(element), `${element.tagName} class "${element.className}" hides the selector`).toBe(false);
+      }
+
+      fireEvent.click(period);
+      expect(screen.getByRole('listbox', { name: 'Academic Periods' })).toBeInTheDocument();
+    });
+
+    it('shrinks to an icon with a name of its own instead of leaving the bar', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Olive', last_name: 'Officer' }));
+      mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(2, 'SBO_OFFICER', 'Computing Society')] } });
+      renderTopBar();
+
+      await screen.findByRole('button', { name: 'Workspace: My account' });
+      const period = screen.getByRole('button', { name: /Academic Period: AY 2026-2027 · 1st Semester/ });
+
+      expect(period.querySelector('.lucide-calendar-days')).not.toBeNull();
+    });
+  });
 });
