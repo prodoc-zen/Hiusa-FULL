@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\College;
 use App\Models\Event;
 use App\Models\Organization;
+use App\Models\OrganizationApplication;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -33,36 +34,22 @@ class NotFoundShapeTest extends TestCase
         $this->head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'organization_type' => 'COLLEGE'])->id]);
     }
 
-    private function foreignRegistration(): Organization
+    public function test_an_application_of_another_college_matches_one_that_does_not_exist(): void
     {
-        return Organization::factory()->create(['college' => $this->cbe->name, 'college_id' => $this->cbe->id, 'lifecycle_status' => 'returned', 'is_active' => false]);
-    }
-
-    public function test_withdrawing_another_colleges_registration_matches_withdrawing_one_that_does_not_exist(): void
-    {
-        $foreign = $this->foreignRegistration();
+        $foreign = OrganizationApplication::create(['college_id' => $this->cbe->id, 'name' => 'Chess Club', 'acronym' => 'CHESS', 'school_id' => 87000010, 'first_name' => 'Ana', 'last_name' => 'Cruz', 'email' => 'ana@example.test', 'position_title' => 'President', 'status' => 'pending_dean']);
         Sanctum::actingAs($this->head);
 
-        $wrongOwner = $this->deleteJson("/api/college/organizations/{$foreign->id}");
-        $missing = $this->deleteJson('/api/college/organizations/999999');
+        $wrongOwner = $this->getJson("/api/organization-applications/{$foreign->id}");
+        $missing = $this->getJson('/api/organization-applications/999999');
+        $reviewWrongOwner = $this->patchJson("/api/organization-applications/{$foreign->id}/review", ['action' => 'endorse']);
+        $reviewMissing = $this->patchJson('/api/organization-applications/999999/review', ['action' => 'endorse']);
 
         $this->assertSame(404, $wrongOwner->getStatusCode());
         $this->assertSame($wrongOwner->getContent(), $missing->getContent());
+        $this->assertSame(404, $reviewWrongOwner->getStatusCode());
+        $this->assertSame($reviewWrongOwner->getContent(), $reviewMissing->getContent());
         $this->assertStringNotContainsString('App\\Models', (string) $missing->json('message'));
-        $this->assertDatabaseHas('organizations', ['id' => $foreign->id]);
-    }
-
-    public function test_editing_another_colleges_registration_matches_editing_one_that_does_not_exist(): void
-    {
-        $foreign = $this->foreignRegistration();
-        Sanctum::actingAs($this->head);
-
-        $wrongOwner = $this->putJson("/api/college/organizations/{$foreign->id}", ['name' => 'Renamed']);
-        $missing = $this->putJson('/api/college/organizations/999999', ['name' => 'Renamed']);
-
-        $this->assertSame(404, $wrongOwner->getStatusCode());
-        $this->assertSame($wrongOwner->getContent(), $missing->getContent());
-        $this->assertStringNotContainsString('App\\Models', (string) $missing->json('message'));
+        $this->assertSame('pending_dean', $foreign->fresh()->status);
     }
 
     public function test_an_event_file_the_caller_cannot_see_matches_one_that_does_not_exist(): void

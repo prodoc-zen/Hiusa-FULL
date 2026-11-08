@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Event;
 use App\Models\Grievance;
 use App\Models\Organization;
+use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Transaction;
 use App\Models\User;
@@ -54,8 +56,12 @@ class PartSixWorkflowTest extends TestCase
         $this->putJson('/api/compliance/requirement-types/'.$report.'/template-link', ['template_url' => 'https://example.edu/format'])->assertOk()->assertJsonPath('template_url', 'https://example.edu/format');
         $this->post('/api/compliance/requirement-types/'.$report.'/template', ['template' => UploadedFile::fake()->create('format.pdf', 10, 'application/pdf')], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('template_url', null);
         $this->putJson('/api/compliance/requirement-types/'.$report, ['name' => 'Semester evidence'])->assertOk()->assertJsonPath('category', 'semestral_report');
-        $this->getJson('/api/organization-applications/requirements')->assertOk()->assertJsonCount(1, 'requirements')->assertJsonPath('requirements.0.id', $registration);
-        $this->getJson('/api/organization-applications/requirements/'.$report.'/template')->assertNotFound();
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        $student = $this->user('STUDENT', Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE']));
+        OrganizationApplicantGrant::create(['college_id' => $college->id, 'user_school_id' => $student->school_id, 'granted_by' => $sao->school_id]);
+        Sanctum::actingAs($student);
+        $this->getJson('/api/my/organization-applications')->assertOk()->assertJsonCount(1, 'requirements')->assertJsonPath('requirements.0.id', $registration);
+        $this->getJson('/api/my/organization-applications/requirements/'.$report.'/template')->assertNotFound();
 
         Sanctum::actingAs($admin);
         $this->getJson('/api/compliance/status?category=semestral_report')->assertOk()->assertJsonCount(1, 'organizations.requirements')->assertJsonPath('organizations.requirements.0.requirement_type_id', $report);
