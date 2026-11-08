@@ -54,6 +54,24 @@ describe('SaoVenuesPage', () => {
     await waitFor(() => expect(venueMocks.updateVenue).toHaveBeenCalledWith(8, { is_active: false }));
   });
 
+  it('swaps the tab row for a section picker on a phone so the labels are not clipped', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    try {
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
+      expect(await screen.findByRole('combobox', { name: 'Section' })).toBeInTheDocument();
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Venue calendar' })).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the tabs plain text, with no icon in front of a label', async () => {
+    render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
+    const tabs = await screen.findAllByRole('tab');
+    tabs.forEach((tab) => expect(tab.querySelector('svg')).toBeNull());
+  });
+
   describe('calendar', () => {
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ['Date'] });

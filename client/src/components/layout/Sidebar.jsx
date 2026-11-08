@@ -2,12 +2,15 @@ import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeftClose, PanelLeftOpen, X, ChevronDown, LogOut } from 'lucide-react';
+import { ArrowLeft, PanelLeftClose, PanelLeftOpen, X, ChevronDown, LogOut } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
-import { ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath } from './navigation';
+import useActiveSubAccount from '../../hooks/useActiveSubAccount';
+import { useApplicantAccess } from '../../hooks/useApplicantAccess';
+import { readUserModules } from '../../utils/userModules';
+import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, resolveItemPath, withApplicantAccess } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
@@ -17,9 +20,8 @@ function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = 
       aria-current={active ? 'page' : undefined}
       aria-label={desktopCollapsed ? label : undefined}
       title={desktopCollapsed ? label : undefined}
-      className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${active ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+      className={`flex h-11 items-center gap-3 rounded-control px-3 text-[13px] transition-colors duration-150 lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${active ? 'bg-white/10 font-semibold text-white' : 'font-medium text-white/80 hover:bg-white/10 hover:text-white'}`}
     >
-      {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
       <Icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
       <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{label}</span>
     </Link>
@@ -32,7 +34,7 @@ function SubNavItem({ label, path, icon: Icon, active, onClick }) {
       to={path}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${active ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      className={`flex min-h-10 items-center gap-2 rounded-control px-3 py-2 text-xs transition-colors duration-150 ${active ? 'bg-white/10 font-semibold text-white' : 'font-medium text-white/80 hover:bg-white/10 hover:text-white'}`}
     >
       <Icon size={14} className="shrink-0" aria-hidden="true" />
       {label}
@@ -44,23 +46,8 @@ function BandHeading({ label, desktopCollapsed }) {
   return (
     <>
       {desktopCollapsed && <div aria-hidden="true" className="mx-2 mb-2 mt-3 hidden border-t border-white/10 lg:block" />}
-      <p className={`px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-slate-400 ${desktopCollapsed ? 'lg:hidden' : ''}`}>{label}</p>
+      <p className={`px-3 pb-1 pt-4 text-xs font-medium text-white/60 ${desktopCollapsed ? 'lg:hidden' : ''}`}>{label}</p>
     </>
-  );
-}
-
-function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
-  const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || 'HI';
-  const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
-
-  return (
-    <div className={`flex items-center gap-3 px-2 py-2 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${formatDisplayText(name)} · ${roleLabel}` : undefined}>
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
-      <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
-        <p className="truncate text-sm font-bold text-white">{formatDisplayText(name)}</p>
-        <p className="truncate text-xs font-medium text-slate-300 capitalize">{roleLabel}</p>
-      </div>
-    </div>
   );
 }
 
@@ -182,9 +169,16 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   }, []);
 
   const role = user?.role || 'SBO_OFFICER';
-  const roleLabel = ROLE_LABELS[role] || role;
-  const nav = getNavForRole(role);
-  const activeId = useMemo(() => findActiveNavId([...getNavLeaves(role), ...footerNav], location.pathname, location.search), [role, location.pathname, location.search]);
+  const { subAccount, leave } = useActiveSubAccount();
+  const orgSpace = role === 'DEPARTMENT_HEAD' ? subAccount : null;
+  const modules = useMemo(() => readUserModules(), []);
+  const { visible: canApply } = useApplicantAccess(role);
+  const showApply = role === 'STUDENT' && canApply;
+  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(role, modules), showApply)), [orgSpace, role, modules, showApply]);
+  const activeId = useMemo(
+    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(role, modules), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
+    [orgSpace, nav, role, modules, showApply, location.pathname, location.search],
+  );
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
   const handleLogout = async () => {
@@ -198,6 +192,12 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
     }
   };
 
+  const handleBackToCollege = () => {
+    leave();
+    navigate('/dashboard/department-head');
+    if (window.innerWidth < 1024) onClose();
+  };
+
   const handleNavItemClick = () => {
     if (window.innerWidth < 1024) {
       onClose();
@@ -209,19 +209,27 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
       <div className={`flex h-[72px] items-center gap-3 border-b border-white/10 px-5 ${desktopCollapsed ? 'lg:justify-center lg:px-3' : ''}`}>
         <img src={hiusaLogo} alt="HIUSA logo" className={`h-10 w-10 object-contain ${desktopCollapsed ? 'lg:hidden' : ''}`} />
         <div className={desktopCollapsed ? 'lg:hidden' : ''}>
-          <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
-          {/* <p className="text-[11px] font-medium text-slate-300">{roleLabel} System</p> */}
+          <p className="text-sm font-semibold text-white">HIUSA</p>
         </div>
-        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-control text-white/60 transition-colors hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
         </button>
-        <button type="button" onClick={onToggleDesktop} aria-label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!desktopCollapsed} title={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className={`hidden h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-200 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] lg:grid ${desktopCollapsed ? '' : 'ml-auto'}`}>
+        <button type="button" onClick={onToggleDesktop} aria-label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!desktopCollapsed} title={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className={`hidden h-11 w-11 shrink-0 place-items-center rounded-control text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:grid ${desktopCollapsed ? '' : 'ml-auto'}`}>
           {desktopCollapsed ? <PanelLeftOpen size={20} aria-hidden="true" /> : <PanelLeftClose size={20} aria-hidden="true" />}
         </button>
       </div>
 
       <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
-        <div className="flex-1 space-y-1">
+        <div className="space-y-1">
+          {orgSpace && (
+            <div className="mb-2 border-b border-white/10 pb-3">
+              <button type="button" onClick={handleBackToCollege} aria-label={desktopCollapsed ? 'Back to my college' : undefined} title={desktopCollapsed ? 'Back to my college' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+                <ArrowLeft size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+                <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Back to my college</span>
+              </button>
+              <p className={`truncate px-3 pt-2 text-xs font-semibold text-white ${desktopCollapsed ? 'lg:hidden' : ''}`} title={orgSpace.name}>{formatDisplayText(orgSpace.name)}</p>
+            </div>
+          )}
           {nav.map((item, index) => {
             const visibleChildren = getVisibleChildren(item);
             const itemPath = resolveItemPath(item);
@@ -267,12 +275,11 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                   aria-label={desktopCollapsed ? item.label : undefined}
                   aria-expanded={desktopCollapsed && window.innerWidth >= 1024 ? flyout?.id === item.id : isExpanded}
                   title={desktopCollapsed ? item.label : undefined}
-                  className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+                  className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] transition-colors duration-150 lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-white/10 font-semibold text-white' : 'font-medium text-white/80 hover:bg-white/10 hover:text-white'}`}
                 >
-                  {onParentRoute && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
                   <item.icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
                   <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{item.label}</span>
-                  <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-slate-500 transition-transform duration-200 ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-white/60 transition-transform duration-150 motion-reduce:transition-none ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isExpanded && (
@@ -289,42 +296,39 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
           })}
         </div>
 
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.06] p-2">
-          <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
-          <div className="mt-1 border-t border-white/10 pt-1">
-          {footerNav.map((item) => (
-            <div key={item.path} onClick={handleNavItemClick}>
-              <NavItem {...item} active={activeId === item.id} desktopCollapsed={desktopCollapsed} />
-            </div>
-          ))}
-          <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Logout' : undefined} title={desktopCollapsed ? 'Logout' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
-            <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-            <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Logout</span>
-          </button>
-          </div>
-        </div>
       </nav>
+      <div className="shrink-0 space-y-0.5 border-t border-white/10 px-3 py-2">
+        {footerNav.map((item) => (
+          <div key={item.path} onClick={handleNavItemClick}>
+            <NavItem {...item} active={activeId === item.id} desktopCollapsed={desktopCollapsed} />
+          </div>
+        ))}
+        <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Log out' : undefined} title={desktopCollapsed ? 'Log out' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+          <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+          <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Log out</span>
+        </button>
+      </div>
     </>
   );
 
   return (
     <>
-      {isOpen && <div className="mobile-nav-overlay fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col rounded-r-xl bg-[#0B1831]/95 shadow-2xl backdrop-blur-md transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      {isOpen && <div className="mobile-nav-overlay fixed inset-0 z-40 bg-navy-950/60 lg:hidden" onClick={onClose} />}
+      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-navy-950 transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       {flyoutGroup && createPortal(
-        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
-          <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
+        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-card border border-line bg-white p-2 shadow-raised">
+          <p className="px-3 py-2 text-xs font-semibold text-navy-800">{flyoutGroup.label}</p>
           <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
-            {getVisibleChildren(flyoutGroup).map((child) => { const Icon = child.icon || flyoutGroup.icon; const active = activeId === child.id; return <Link key={child.id} to={child.path} onClick={() => setFlyout(null)} aria-current={active ? 'page' : undefined} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${active ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}><Icon size={16} aria-hidden="true" />{child.label}</Link>; })}
+            {getVisibleChildren(flyoutGroup).map((child) => { const Icon = child.icon || flyoutGroup.icon; const active = activeId === child.id; return <Link key={child.id} to={child.path} onClick={() => setFlyout(null)} aria-current={active ? 'page' : undefined} className={`flex min-h-11 items-center gap-2 rounded-control px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${active ? 'bg-page text-navy-800' : 'text-ink hover:bg-page'}`}><Icon size={16} aria-hidden="true" />{child.label}</Link>; })}
           </nav>
         </div>,
         document.body,
       )}
       <ConfirmModal
         open={logoutConfirmOpen}
-        title="Log Out"
+        title="Log out"
         message="You will need to sign in again to access your dashboard."
-        confirmText="Log Out"
+        confirmText="Log out"
         variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}

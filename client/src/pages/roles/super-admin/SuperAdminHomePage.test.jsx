@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SuperAdminHomePage from './SuperAdminHomePage';
@@ -6,6 +6,7 @@ import SuperAdminHomePage from './SuperAdminHomePage';
 const mocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn(), getSystemOverview: vi.fn() }));
 
 vi.mock('../../../services/systemAdministrationService', () => mocks);
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../components/dashboard', () => ({ RoleBriefing: ({ introduction }) => <div>{introduction}</div> }));
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
@@ -42,6 +43,18 @@ describe('SuperAdminHomePage', () => {
     expect(screen.getByRole('link', { name: 'Colleges and Department Heads' })).toHaveAttribute('href', '/dashboard/super-admin/colleges');
   });
 
+  it('shows three figures, each one a link to the organizations it counts', async () => {
+    render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
+
+    const figures = within(await screen.findByRole('region', { name: 'University operations' })).getAllByRole('link');
+    expect(figures.map((link) => link.getAttribute('href'))).toEqual([
+      '/dashboard/super-admin/organizations',
+      '/dashboard/super-admin/organizations?status=active',
+      '/dashboard/super-admin/organizations?status=archived',
+    ]);
+    expect(figures[0]).toHaveTextContent('Registered organizations3');
+  });
+
   it('names the first action when no organization is registered yet', async () => {
     mocks.getSystemOverview.mockResolvedValue({ organizations: { total: 0, active: 0, inactive: 0 }, operations: { pending_approvals: 0 }, notifications: { unread: 0, recent: [] } });
     render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
@@ -55,7 +68,7 @@ describe('SuperAdminHomePage', () => {
     it('updates the counts without a loading state', async () => {
       render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
       await screen.findByText('Registered organizations');
-      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('2');
+      expect(screen.getByText('Active organizations').closest('a')).toHaveTextContent('2');
 
       let release;
       mocks.getSystemOverview.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
@@ -72,7 +85,7 @@ describe('SuperAdminHomePage', () => {
         await refresh;
       });
 
-      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('4');
+      expect(screen.getByText('Active organizations').closest('a')).toHaveTextContent('4');
       expect(screen.queryByText('Loading university operations...')).not.toBeInTheDocument();
     });
 
@@ -83,8 +96,15 @@ describe('SuperAdminHomePage', () => {
       mocks.getSystemOverview.mockRejectedValueOnce(new Error('offline'));
       await act(async () => { await refetchHook.current(); });
 
-      expect(screen.getByText('Active organizations').closest('div')).toHaveTextContent('2');
+      expect(screen.getByText('Active organizations').closest('a')).toHaveTextContent('2');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
+    await screen.findByText('Registered organizations');
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });

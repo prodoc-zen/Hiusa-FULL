@@ -66,7 +66,7 @@ describe('grievance lists and details', () => {
 
   it('prints the same stage sentence on the student row and the SAO row', async () => {
     const student = renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     expect(await screen.findByText('Waiting for SAO to review')).toBeInTheDocument();
     student.unmount();
 
@@ -77,16 +77,16 @@ describe('grievance lists and details', () => {
 
   it('shows the student one step per stage with the current one marked', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
-    const stepper = await screen.findByRole('list', { name: 'Progress of Noisy Lab' });
-    expect(within(stepper).getAllByRole('listitem')).toHaveLength(3);
-    expect(within(stepper).getByText('Under review')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
+    const stepper = await screen.findByRole('progressbar', { name: 'Progress of Noisy Lab' });
+    expect(stepper).toHaveAttribute('aria-valuemax', '3');
+    expect(stepper).toHaveAttribute('aria-valuetext', expect.stringContaining('Under review'));
   });
 
   it('opens the student on their own list with the named grievance when ?record= is set', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([TO_ORG, TO_SAO]));
     renderAt('/dashboard/my-grievances?record=2', <StudentGrievancesPage />);
-    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('My grievances');
+    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('Filed grievances');
     await waitFor(() => expect(document.getElementById('grievance-2')).not.toBeNull());
     expect(mocks.notifyError).not.toHaveBeenCalled();
   });
@@ -99,9 +99,9 @@ describe('grievance lists and details', () => {
   it('gives the student a first-run state with the button to file one', async () => {
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Filed grievances' }));
     expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
-    expect(screen.getByText(/If something went wrong, file one here/)).toBeInTheDocument();
+    expect(screen.getByText('File one here and follow its status on this page.')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button', { name: 'File a grievance' });
     expect(buttons).toHaveLength(1);
     fireEvent.click(buttons[0]);
@@ -110,7 +110,7 @@ describe('grievance lists and details', () => {
 
   it('puts the one primary File a grievance button in the header once there are rows', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     await screen.findByText('Noisy Lab');
     expect(screen.getAllByRole('button', { name: 'File a grievance' })).toHaveLength(1);
   });
@@ -121,7 +121,7 @@ describe('grievance lists and details', () => {
     renderAt('/dashboard/grievances?record=1', <OrganizationGrievancesPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Broken Lock' });
     expect(mocks.getGrievance).toHaveBeenCalledWith('1');
-    expect(within(drawer).getByRole('list', { name: 'Grievance progress' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('progressbar', { name: 'Grievance progress' })).toBeInTheDocument();
     expect(within(drawer).getByText('Review this grievance')).toBeInTheDocument();
     expect(within(drawer).getByText('Owner: Admin')).toBeInTheDocument();
   });
@@ -198,13 +198,13 @@ describe('grievance lists and details', () => {
   it('tells an organization admin who sends grievances, and offers a way out of a filtered empty list', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     renderAt('/dashboard/grievances', <OrganizationGrievancesPage />);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
-    expect(screen.getByText(/Students of your organization file confidential grievances/)).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
+    expect(screen.getByText('Confidential grievances from your members appear here.')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'resolved' } });
-    expect(await screen.findByText('No grievances match these filters')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances match')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
   it.each([

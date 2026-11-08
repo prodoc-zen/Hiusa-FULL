@@ -103,7 +103,7 @@ describe("MerchandisePage buyer experience", () => {
     );
 
     expect(await screen.findByText("8 in stock")).toBeInTheDocument();
-    expect(screen.getByText("OUT OF STOCK")).toBeInTheDocument();
+    expect(screen.getByText("Out of stock")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Currently unavailable" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Filter merchandise category"), {
@@ -143,9 +143,9 @@ describe("MerchandisePage buyer experience", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel Order" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel order" }));
     expect(screen.getByRole("heading", { name: "Cancel this order?" })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Cancel Order" }).at(-1));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel order" }).at(-1));
 
     await waitFor(() => expect(orderMocks.cancelOrder).toHaveBeenCalledWith(17));
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
@@ -171,12 +171,12 @@ describe("MerchandisePage buyer experience", () => {
       promotion_remaining: 12, promotion_available_to_viewer: true, is_low_stock: true,
     }], current_page: 1, last_page: 1 } });
     render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
-    expect(await screen.findByText("FIRST 100 BUYERS")).toBeInTheDocument();
-    expect(screen.getByText("LOW STOCK")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    expect(await screen.findByText("First 100 buyers")).toBeInTheDocument();
+    expect(screen.getByText("Low stock")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
     expect(screen.getByText("Select a variant for HIUSA Shirt.")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Select variant for HIUSA Shirt" }), { target: { value: "11" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
     expect(screen.getByText(/1 x HIUSA Shirt added to cart/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View HIUSA Shirt images" }));
     expect(screen.getByRole("img", { name: "HIUSA Shirt image 1" })).toBeInTheDocument();
@@ -184,14 +184,39 @@ describe("MerchandisePage buyer experience", () => {
     expect(screen.getByRole("img", { name: "HIUSA Shirt image 2" })).toBeInTheDocument();
   });
 
-  it("opens My Cart from the metric and shows a printable claim ticket in My Orders", async () => {
+  it("shows a printable claim ticket in My Orders without the shop summary tiles", async () => {
     const paidOrder = { id: 29, merchandise: products[0], quantity: 1, total_price: "350.00", status: "paid", claim_token: "CLAIMTOKEN123456", created_at: "2026-09-13T10:00:00Z" };
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([paidOrder]) });
     render(<MemoryRouter><MerchandisePage initialTab="my-orders" /></MemoryRouter>);
     expect(await screen.findByText(/Merchandise claim ticket/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Print ticket" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /My Cart/ }));
-    expect(await screen.findByText("Your cart is empty.")).toBeInTheDocument();
+    expect(screen.queryByText("Available items")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /My cart/ })).not.toBeInTheDocument();
+  });
+
+  it("opens the cart from one row in the shop, only when the cart has items", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    await screen.findByText("HIUSA Shirt");
+    expect(screen.queryByRole("button", { name: "View cart" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Available items")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
+    expect(screen.getByText(/1 item in your cart/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View cart" }));
+    expect(await screen.findByRole("button", { name: "Review and continue" })).toBeInTheDocument();
+  });
+
+  it("gives every card a stock count and no grey placeholder tile", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [
+      { ...products[0], is_low_stock: true },
+      { ...products[1], stock_quantity: 20, name: "HIUSA Pen" },
+    ], current_page: 1, last_page: 1 } });
+    const { container } = render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    await screen.findByText("HIUSA Shirt");
+    expect(screen.getByText("8 in stock")).toBeInTheDocument();
+    expect(screen.getByText("20 in stock")).toBeInTheDocument();
+    expect(screen.getByText("Low stock")).toBeInTheDocument();
+    expect(container.querySelector(".lucide-package")).toBeNull();
   });
 });
 
@@ -362,7 +387,8 @@ describe("MerchandisePage fulfillment experience", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Release an order" })).toBeInTheDocument();
-    expect(await screen.findByText("CLAIMTOKEN123456")).toBeInTheDocument();
+    expect((await screen.findAllByText(/Aquino/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText("CLAIMTOKEN123456")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(orderMocks.getOrders).toHaveBeenCalledWith(
         expect.objectContaining({ status: "claimable", sort: "oldest" }),
@@ -379,7 +405,7 @@ describe("MerchandisePage fulfillment experience", () => {
     await waitFor(() => expect(orderMocks.verifyClaimToken).toHaveBeenCalledWith(paidOrder.claim_token));
     expect(orderMocks.claimByToken).not.toHaveBeenCalled();
     expect(await screen.findByText("Verify purchaser and release")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Claim / Release" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm release" }));
     await waitFor(() => expect(orderMocks.claimByToken).toHaveBeenCalledWith(paidOrder.claim_token));
   });
 
@@ -409,10 +435,10 @@ describe("MerchandisePage fulfillment experience", () => {
     render(<MemoryRouter><MerchandisePage initialTab="inventory" /></MemoryRouter>);
     expect(await screen.findByText("Top sellers")).toBeInTheDocument();
     expect(await screen.findByText(/1,400\.00 collected/)).toBeInTheDocument();
-    fireEvent.click(await findRowAction("Add Stock"));
+    fireEvent.click(await findRowAction("Add stock"));
     fireEvent.change(screen.getByPlaceholderText("e.g. New delivery received"), { target: { value: "New delivery" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Stock" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Confirm stock addition" })).getByRole("button", { name: "Add stock" }));
     await waitFor(() => expect(merchandiseMocks.adjustStock).toHaveBeenCalledWith(1, 1, "New delivery", null));
   });
 });
@@ -501,7 +527,7 @@ describe("MerchandisePage order stages for the buyer", () => {
 
     expect(await screen.findByText("Pay cash at pickup")).toBeInTheDocument();
     expect(screen.getAllByText("Online payment is not available. Pay cash at pickup.").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Submit GCash Proof" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit GCash proof" })).not.toBeInTheDocument();
   });
 
   it("says so on the shop when GCash is not set up and not when it is", async () => {
@@ -578,7 +604,9 @@ describe("MerchandisePage order stages for the buyer", () => {
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     renderAt("/dashboard/merchandise/my-orders", "my-orders");
 
-    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No orders yet")).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox", { name: "Search orders" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Available items")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Browse the shop" }));
     expect(await screen.findByText("HIUSA Shirt")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/merchandise/order-merchandise");
@@ -589,7 +617,7 @@ describe("MerchandisePage order stages for the buyer", () => {
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     renderAt("/dashboard/merchandise/order-merchandise", "order");
 
-    expect(await screen.findByText("Nothing to buy yet.")).toBeInTheDocument();
+    expect(await screen.findByText("Nothing to buy yet")).toBeInTheDocument();
     expect(screen.getByText("Your officers add merchandise here.")).toBeInTheDocument();
   });
 
@@ -604,10 +632,10 @@ describe("MerchandisePage order stages for the buyer", () => {
     });
     renderAt("/dashboard/merchandise/order-merchandise", "order");
 
-    fireEvent.click(await screen.findByRole("button", { name: /My Cart/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Review & Continue" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
     expect(screen.getByText(/Next: your items are reserved\. Pay cash at pickup/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Place Reservation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place reservation" }));
 
     expect(await screen.findByText("ORD-41 reserved")).toBeInTheDocument();
     expect(screen.getByText(/Next: Pay cash at pickup\./)).toBeInTheDocument();
@@ -748,13 +776,13 @@ describe("MerchandisePage order stages for staff", () => {
     orderMocks.getOrders.mockResolvedValue(queue([]));
     renderAt("/dashboard/merchandise/manage-orders", "orders");
 
-    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No orders yet")).toBeInTheDocument();
     expect(screen.getByText("Orders appear here when students check out from the Shop.")).toBeInTheDocument();
 
     fireEvent.click(within(screen.getByRole("group", { name: "Filter orders by status" })).getByRole("button", { name: "Claimed" }));
-    expect(await screen.findByText("No orders match these filters.")).toBeInTheDocument();
+    expect(await screen.findByText("No orders match these filters")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    await waitFor(() => expect(screen.getByText("No orders yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No orders yet")).toBeInTheDocument());
   });
 });
 
@@ -801,7 +829,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
-    await screen.findByText("HIUSA Shirt");
+    await screen.findAllByText("HIUSA Shirt");
     await waitFor(() => expect(merchandiseMocks.getGcashSettings).toHaveBeenCalled());
     expect(screen.queryByText("Set up GCash so students can pay online")).not.toBeInTheDocument();
   });
@@ -812,7 +840,9 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
     expect(await screen.findByText("1 item is out of stock")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveClass("bg-danger-tint");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const filled = screen.getAllByRole("button").filter((button) => button.className.includes("bg-brand-700"));
+    expect(filled.map((button) => button.textContent)).toEqual(["Add product"]);
     fireEvent.click(screen.getByRole("button", { name: "Add stock" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
   });
@@ -823,7 +853,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
 
     expect(await findRowAction("Delete HIUSA Shirt")).toBeInTheDocument();
     fireEvent.click(await findRowAction("Delete HIUSA Shirt"));
-    const dialog = await screen.findByRole("dialog", { name: "Delete Product" });
+    const dialog = await screen.findByRole("dialog", { name: "Delete product" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(merchandiseMocks.deleteItem).toHaveBeenCalledWith(1));
@@ -835,7 +865,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
-    expect(await screen.findByText("No items yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
     expect(screen.getByText("Add your first merchandise item so students can order it from the Shop.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add product" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add your first item" }));
@@ -846,7 +876,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     renderAt("/dashboard/merchandise/claim-tokens", "tokens");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Claim desk" })).toBeInTheDocument();
-    expect(await screen.findByText("No claim tokens yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No claim tokens yet")).toBeInTheDocument();
     expect(screen.queryByText(/Validate/)).not.toBeInTheDocument();
   });
 
@@ -859,5 +889,101 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(headers[headers.length - 1]).toBe("Actions");
     expect(within(table).queryByRole("columnheader", { name: "Details" })).not.toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "Actions for Order 12" })).toBeInTheDocument();
+  });
+
+  it("does not print the buyer's claim token in the claim desk register", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 12, status: "paid", claim_token: "CLAIMTOKEN000012", student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino" } })]) });
+    renderAt("/dashboard/merchandise/claim-tokens", "tokens");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Rafael Aquino")).toBeInTheDocument();
+    expect(within(table).getByText("Waiting to be claimed")).toBeInTheDocument();
+    expect(within(table).queryByText("CLAIMTOKEN000012")).not.toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+  });
+});
+
+describe("MerchandisePage order queue reads", () => {
+  const withProfile = (overrides) => buyerOrder({
+    id: 2,
+    student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino", role: "STUDENT", program: "BS Information Technology", year_level: "1", section: "A" },
+    transaction: { receipt_reference: "MERCH-ORD-2" },
+    ...overrides,
+  });
+  const queue = (rows) => ({
+    data: {
+      ...paginatedOrders(rows),
+      summary: { total_users: 1, purchased_users: 1, not_purchased_users: 0, purchase_rate: 100, paid_orders: 0, pending_orders: rows.length, claimed_orders: 0, unclaimed_orders: 0, total_collected: 0, outstanding_balance: 0, breakdown: [] },
+      filter_options: { programs: [], majors: [], roles: [], positions: [], merchandise: products, statuses: [], payment_methods: [] },
+    },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+  });
+
+  it("separates the school ID from the program, shows one order reference and names the payment method", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([withProfile({ payment_method: "cash" })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("2200451").parentElement).toHaveTextContent("2200451 · BS Information Technology · Y1 · A");
+    expect(within(table).getByText("ORD-2")).toBeInTheDocument();
+    expect(within(table).queryByText("MERCH-ORD-2")).not.toBeInTheDocument();
+    expect(within(table).getByText("Cash")).toBeInTheDocument();
+    expect(within(table).queryByText("cash")).not.toBeInTheDocument();
+  });
+
+  it("leaves the payment cell and the row blank instead of printing placeholders when no method is chosen", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([withProfile({ payment_method: null })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    await screen.findByRole("table");
+    expect(screen.queryByText("Not selected")).not.toBeInTheDocument();
+    expect(screen.queryByText("No method")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reference pending")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Officer: /)).not.toBeInTheDocument();
+  });
+
+  it("keeps the GCash reference note only for a GCash order and names the method", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([withProfile({ payment_method: "gcash", payment_reference: null })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("GCash")).toBeInTheDocument();
+    expect(within(table).getByText("Reference pending")).toBeInTheDocument();
+  });
+
+  it("opens the GCash settings over the order queue when the page opens on the gcash tab", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    orderMocks.getOrders.mockResolvedValue(queue([]));
+    renderAt("/dashboard/merchandise/gcash-payment", "gcash");
+
+    expect(await screen.findByRole("dialog", { name: "GCash payment settings" })).toBeInTheDocument();
+    expect(await screen.findByText("No orders yet")).toBeInTheDocument();
+  });
+
+  it("shows a hidden item as Not selling even when it is also low on stock", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [{ ...products[0], is_active: false, is_low_stock: true }], current_page: 1, last_page: 1 } });
+    orderMocks.getOrders.mockResolvedValue(queue([]));
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Not selling")).toBeInTheDocument();
+    expect(within(table).queryByText("Low stock")).not.toBeInTheDocument();
+  });
+
+  it("shows the claim desk payment method with a capital letter", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 12, status: "paid", claim_token: "CLAIMTOKEN000012", payment_method: "cash", student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino" } })]) });
+    renderAt("/dashboard/merchandise/claim-tokens", "tokens");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Cash")).toBeInTheDocument();
+    expect(within(table).queryByText("cash")).not.toBeInTheDocument();
   });
 });

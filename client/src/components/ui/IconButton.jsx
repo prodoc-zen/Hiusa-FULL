@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import Tooltip from './Tooltip';
 
-const SIZES = { sm: 'h-9 w-9', md: 'h-11 w-11', lg: 'h-12 w-12' };
+const SIZES = { sm: 'h-9 w-9', md: 'h-10 w-10', lg: 'h-12 w-12' };
 const ICON_SIZE = { sm: 16, md: 18, lg: 20 };
 
 const VARIANTS = {
@@ -21,7 +21,7 @@ const IconButton = forwardRef(function IconButton(
         ref={ref}
         type={type || 'button'}
         aria-label={label}
-        className={`inline-flex shrink-0 items-center justify-center rounded-control transition-[translate,background-color,color,opacity] duration-[150ms] ease-out disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-control transition-[background-color,transform] duration-150 ease-out active:scale-[0.98] motion-reduce:active:scale-100 disabled:cursor-not-allowed disabled:active:scale-100 disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
         {...rest}
       >
         <Icon size={ICON_SIZE[size]} aria-hidden="true" />

@@ -41,7 +41,7 @@ describe('SaoOrganizationOverviewPage', () => {
     renderPage();
     expect(await screen.findByRole('heading', { level: 1, name: 'Computing Society' })).toBeInTheDocument();
     expect(screen.getByText('CS · College of Computing')).toBeInTheDocument();
-    expect(within(screen.getByRole('banner')).getByText('Active')).toBeInTheDocument();
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Leadership' })).getByText('Ana Reyes')).toBeInTheDocument();
     const members = screen.getByRole('region', { name: 'Members by role' });
     expect(within(members).getByText('Total').nextSibling).toHaveTextContent('12');
@@ -52,7 +52,15 @@ describe('SaoOrganizationOverviewPage', () => {
     const compliance = screen.getByRole('region', { name: 'Compliance' });
     expect(within(compliance).getByText('Pending review')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Pending approvals' })).getByText('3')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to colleges/ })).toHaveAttribute('href', '/dashboard/super-admin/colleges');
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: 'Colleges' })).toHaveAttribute('href', '/dashboard/super-admin/colleges');
+  });
+
+  it('shows the status only when the organization is archived, with Restore as the one primary action', async () => {
+    mocks.getSystemOrganizationOverview.mockResolvedValue(overview('archived'));
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Computing Society' })).toBeInTheDocument();
+    expect(screen.getAllByText('Archived').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Restore organization' })).toHaveLength(1);
   });
 
   it('has no edit or restore controls for an active organization', async () => {
@@ -157,12 +165,12 @@ describe('SaoOrganizationOverviewPage', () => {
       expect(screen.getByText(/Add the first Admin account so the organization can sign in/)).toBeInTheDocument();
     });
 
-    it('shows a complete stepper and the administrator state once an administrator exists', async () => {
+    it('drops the progress block once an administrator exists, because nothing is left to do', async () => {
       renderPage();
-      const view = await progress();
+      await screen.findByRole('heading', { level: 1, name: 'Computing Society' });
 
-      expect(within(stage(view)).getAllByText(/^Done:/)).toHaveLength(4);
-      expect(view.getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Registration progress' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/administrator can sign in/)).not.toBeInTheDocument();
     });
 
     it('shows the stepper without a callout for an archived organization', async () => {
@@ -197,7 +205,7 @@ describe('SaoOrganizationOverviewPage', () => {
     mocks.getSystemOrganizationOverview.mockRejectedValueOnce({ response: { status: 404, data: { message: 'Not found.' } } });
     renderPage();
     expect(await screen.findByText('Not found.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to colleges/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Colleges' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Computing Society' })).toBeInTheDocument();
   });

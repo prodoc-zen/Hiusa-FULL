@@ -1,5 +1,5 @@
 import {
-  BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
+  Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
   TicketCheck, User, Users, UsersRound, Vote, WalletCards,
@@ -39,6 +39,7 @@ const leaf = (id, label, path, icon, extra = {}) => ({ id, label, path, icon, ..
 const group = (id, label, icon, children, extra = {}) => ({ id, label, icon, children, ...extra });
 
 const L = {
+  archive: leaf('records-archive', 'School year records', '/dashboard/records', Archive, { aliases: ['Records', 'Past school years'] }),
   people: leaf('manage-users', 'People', '/dashboard/admin/users', UsersRound, { aliases: ['Manage Users', 'User Management'] }),
   admins: leaf('manage-admins', 'Admins', '/dashboard/admin/users?tab=admins', ShieldCheck, { aliases: ['Manage Admins', 'Organization Admins'] }),
   positions: leaf('manage-positions', 'Officer positions', '/dashboard/admin/positions', BadgeCheck, { aliases: ['Manage Positions', 'SBO positions'], also: ['/dashboard/admin/sbo-positions'] }),
@@ -94,7 +95,7 @@ const L = {
 const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.shop, L.myOrders, L.myReceipts, L.statement], { band: 'Me' });
 
 const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
-const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'AI Copilot', 'What to do today'] });
+const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'What to do today'] });
 
 const NAV_BY_ROLE = {
   ADMIN: [
@@ -107,7 +108,7 @@ const NAV_BY_ROLE = {
     group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
     group('store', 'Store', merchandisePillar.icon, [L.inventory, L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
-    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
+    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.archive, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
     myActivity(),
   ],
   SBO_OFFICER: [
@@ -120,6 +121,7 @@ const NAV_BY_ROLE = {
     group('store', 'Store', merchandisePillar.icon, [L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
     { id: 'clearance-signing', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances', aliases: ['Clearances'], band: 'Records' },
+    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'], band: 'Records' },
     myActivity(),
   ],
   DEPARTMENT_HEAD: [
@@ -128,7 +130,9 @@ const NAV_BY_ROLE = {
     { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+    { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
     { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
+    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'] },
     { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },
     { id: 'college-clearances', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances' },
     { id: 'college-announcements', label: 'Announcements', icon: Megaphone, path: '/dashboard/department-head/announcements', aliases: ['College announcements', 'New announcement'], also: ['/dashboard/announcements/view-announcements'] },
@@ -153,7 +157,8 @@ const NAV_BY_ROLE = {
     dashboard('SUPER_ADMIN'),
     askAi(),
     group('sao-organizations-group', 'Governance', Building2, [
-      leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'] }),
+      leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'], also: ['/dashboard/super-admin/org'] }),
+      leaf('sao-student-records', 'Student records', '/dashboard/super-admin/student-records', GraduationCap, { aliases: ['Students', 'EDP records'] }),
       leaf('sao-applications', 'Applications', '/dashboard/organization-applications', ClipboardCheck, { aliases: ['Organization applications'] }),
       leaf('sao-organizations', 'Organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Registrations and organizations'] }),
     ]),
@@ -174,10 +179,21 @@ const NAV_BY_ROLE = {
     ]),
     group('sao-setup', 'Setup and records', Settings, [
       leaf('sao-academic-years', 'Academic years', '/dashboard/super-admin/academic-years', CalendarDays, { aliases: ['Academic Years'] }),
+      leaf('sao-records', 'School year records', '/dashboard/records', Archive, { aliases: ['Records', 'Past school years'] }),
       leaf('sao-audit-logs', 'Audit trail', '/dashboard/super-admin/audit-logs', History),
     ]),
   ],
 };
+
+// Shown only to a student a Department Head allowed to apply, or who has an application to follow, so it
+// sits outside the rows above that docs/UX_FLOW.md section 3.2 counts. Sidebar.jsx adds it after Ask AI.
+export const APPLY_ORGANIZATION = leaf('apply-organization', 'Apply for an organization', '/dashboard/student/apply-organization', Building2, { also: ['/dashboard/student/organization-applications'], aliases: ['Start an organization', 'Register an organization'] });
+
+export function withApplicantAccess(items, canApply) {
+  if (!canApply) return items;
+  const at = items.findIndex((item) => item.id === 'ask-ai');
+  return [...items.slice(0, at + 1), APPLY_ORGANIZATION, ...items.slice(at + 1)];
+}
 
 // Every role shares the same footer: the account page and the page that ends the old orphan.
 export const footerNav = [
@@ -214,13 +230,52 @@ export function resolveItemPath(item) {
   return getVisibleChildren(item)[0]?.path || '/dashboard';
 }
 
-export function getNavForRole(role) {
-  return NAV_BY_ROLE[role] || [];
+// An officer's access is a list of org modules (account_profiles.modules, null meaning all). Each
+// module owns these pages; a page left out of this map is never hidden.
+const MODULE_BY_NAV_ID = {
+  'manage-users': 'members', 'manage-admins': 'members', 'manage-positions': 'members', 'manage-programs-sections': 'members', 'members-fingerprints': 'members',
+  'budget-allocation': 'finance', 'financial-ledger': 'finance', collections: 'finance', 'student-accounts': 'finance', 'transaction-history': 'finance', 'financial-insights': 'finance',
+  'manage-events': 'events', 'gov-venues': 'events', 'event-planner': 'events', 'check-in': 'events', 'activity-calendar': 'events',
+  'task-board': 'tasks', 'assigned-tasks': 'tasks', 'ai-delegation': 'tasks',
+  'manage-elections': 'elections', 'manage-candidates': 'elections', 'manage-voters': 'elections', 'election-results': 'elections',
+  'manage-inventory': 'merchandise', 'manage-orders': 'merchandise', 'claim-tokens': 'merchandise',
+  'manage-announcements': 'announcements',
+  'gov-compliance': 'compliance', 'submitted-files': 'compliance',
+};
+
+export function filterNavByModules(items, modules) {
+  if (!Array.isArray(modules)) return items;
+  const allowed = new Set(modules);
+  const visible = (item) => !MODULE_BY_NAV_ID[item.id] || allowed.has(MODULE_BY_NAV_ID[item.id]);
+
+  return items.flatMap((item) => {
+    if (!item.children) return visible(item) ? [item] : [];
+    const children = item.children.filter(visible);
+    return children.length > 0 ? [{ ...item, children }] : [];
+  });
+}
+
+// Only an officer's pages are narrowed by modules; an org head always has every module.
+export function getNavForRole(role, modules) {
+  const nav = NAV_BY_ROLE[role] || [];
+  return role === 'SBO_OFFICER' ? filterNavByModules(nav, modules) : nav;
+}
+
+// The sidebar a Department Head sees while working inside one organization's space.
+export function getOrgSpaceNav(organizationId) {
+  const base = `/dashboard/department-head/org/${organizationId}`;
+  return [
+    { id: 'org-overview', label: 'Overview', icon: Home, path: base, exact: true },
+    { id: 'org-people', label: 'People and access', icon: UsersRound, path: `${base}?tab=people` },
+    { id: 'org-events', label: 'Events', icon: CalendarDays, path: `${base}?tab=events` },
+    { id: 'org-finance', label: 'Finance', icon: financePillar.icon, path: `${base}?tab=finance` },
+    { id: 'org-documents', label: 'Documents', icon: FileText, path: `${base}?tab=documents` },
+  ];
 }
 
 // The clickable destinations of the sidebar: a group's children, or the row itself when it has none.
-export function getNavLeaves(role) {
-  return getNavForRole(role).flatMap((item) => (item.children ? item.children : [item]));
+export function getNavLeaves(role, modules) {
+  return getNavForRole(role, modules).flatMap((item) => (item.children ? item.children : [item]));
 }
 
 function splitTarget(target) {
@@ -266,10 +321,10 @@ export function findActiveNavId(items, pathname, search = '') {
 
 // Flattens the role's nav into individual pages for the command palette: leaf pages where a group
 // has children, the row itself otherwise, then the footer and the demoted pages that left the menu.
-export function getFlatPages(role) {
+export function getFlatPages(role, modules) {
   const pages = [];
 
-  getNavForRole(role).forEach((item) => {
+  getNavForRole(role, modules).forEach((item) => {
     const children = getVisibleChildren(item);
     if (children.length > 0) {
       children.forEach((child) => {

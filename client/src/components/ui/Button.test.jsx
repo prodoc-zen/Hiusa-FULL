@@ -25,6 +25,13 @@ describe('Button', () => {
     expect(button).not.toHaveClass('bg-brand-600');
   });
 
+  it('uses semibold text at 40px with a single press cue that honours reduced motion', () => {
+    render(<Button>Save changes</Button>);
+    const button = screen.getByRole('button', { name: 'Save changes' });
+    expect(button).toHaveClass('font-semibold', 'h-10', 'active:scale-[0.98]', 'motion-reduce:active:scale-100');
+    expect(button).not.toHaveClass('font-bold');
+  });
+
   it('renders as a router link when given a "to" prop', () => {
     render(
       <MemoryRouter>

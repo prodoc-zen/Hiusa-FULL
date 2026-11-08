@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { SHOTS, SAO, HEAD_CCS, apiLogin, apiUrl, bearer, injectSession, liveEnabled, minimalPdf, shot } from './support/live.js';
+import { SHOTS, SAO, HEAD_CCS, apiLogin, apiUrl, bearer, injectSession, liveEnabled, shot } from './support/live.js';
+import { allowToApply, approve, endorse, ensureOpenSemester, newStudent, submitApplication } from './support/pipeline.js';
 
 // Layout evidence for the screens changed by the SAO / college / organization
 // restructure. Every screen is opened at 1440x900 and 390x844 and checked for:
@@ -9,8 +10,8 @@ import { SHOTS, SAO, HEAD_CCS, apiLogin, apiUrl, bearer, injectSession, liveEnab
 // pass is written to the shots folder. Violations are collected and reported
 // together at the end of each role's walk.
 //
-// Fixture organizations (pending, returned, archived) are created through the API
-// if they are missing so the lifecycle tabs show real cards rather than empty states.
+// One archived organization is made through the application pipeline (a student applies, the dean
+// endorses, the SAO approves, then archives it) if it is missing, so the archived tab shows a real card.
 //
 // Set HIUSA_LIVE_E2E=1 to run it.
 
@@ -21,11 +22,7 @@ const VIEWPORTS = [
   { name: 'mobile', width: 390, height: 844 },
 ];
 
-const FIXTURES = [
-  { name: 'Visual Pending E2E', acronym: 'VISPEND', target: 'pending' },
-  { name: 'Visual Returned E2E', acronym: 'VISRET', target: 'returned' },
-  { name: 'Visual Archived E2E', acronym: 'VISARC', target: 'archived' },
-];
+const ARCHIVED = { name: 'Visual Archived E2E', acronym: 'VISARC' };
 
 const report = { screens: [], violations: [] };
 
@@ -37,75 +34,21 @@ async function findOrganization(request, token, acronym) {
 
 async function ensureFixtures(request) {
   const sao = await apiLogin(request, SAO);
-  const head = await apiLogin(request, HEAD_CCS);
-  let requirements = (await (await request.get(`${apiUrl}/college/organizations/requirements`, { headers: bearer(head.token) })).json()).requirements;
-  if (!requirements || requirements.length === 0) {
-    const ayRes = await request.get(`${apiUrl}/system/academic-years`, { headers: bearer(sao.token) });
-    const years = await ayRes.json();
-    const currentYear = years.find((y) => y.is_current) || years[0];
-    if (currentYear && currentYear.semesters && currentYear.semesters.length > 0) {
-      const semToActivate = currentYear.semesters.find((s) => s.status === 'active') || currentYear.semesters[0];
-      await request.patch(`${apiUrl}/system/academic-semesters/${semToActivate.id}/active`, { headers: bearer(sao.token) });
-      const legacyReqs = await request.get(`${apiUrl}/compliance/requirement-types`, {
-        headers: bearer(sao.token),
-        params: { per_page: 100, academic_year: currentYear.label },
-      });
-      const legacyList = (await legacyReqs.json()).data || [];
-      for (const type of legacyList) {
-        if (!type.academic_semester_id && type.is_active) {
-          await request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
-            headers: bearer(sao.token),
-            data: { is_active: false },
-          });
-        }
-      }
-      const reqListRes = await request.get(`${apiUrl}/compliance/requirement-types`, {
-        headers: bearer(sao.token),
-        params: { per_page: 100, category: 'organization', academic_year: currentYear.label },
-      });
-      const reqList = (await reqListRes.json()).data || [];
-      for (const type of reqList) {
-        if (type.academic_semester_id) {
-          await request.put(`${apiUrl}/compliance/requirement-types/${type.id}`, {
-            headers: bearer(sao.token),
-            data: { is_active: true, template_url: 'https://example.edu/format.pdf' },
-          });
-        }
-      }
-      const refreshed = await (await request.get(`${apiUrl}/college/organizations/requirements`, { headers: bearer(head.token) })).json();
-      requirements = refreshed.requirements;
-    }
+  let archived = await findOrganization(request, sao.token, ARCHIVED.acronym);
+  if (!archived) {
+    await ensureOpenSemester();
+    const student = await newStudent('Visual');
+    await allowToApply(student);
+    const application = await submitApplication(student, { name: ARCHIVED.name, acronym: ARCHIVED.acronym });
+    await endorse(application);
+    await approve(application);
+    archived = await findOrganization(request, sao.token, ARCHIVED.acronym);
+    expect(archived, 'the approved application created the organization').toBeTruthy();
+    const archive = await request.post(`${apiUrl}/system/organizations/${archived.id}/archive`, { headers: bearer(sao.token), data: { reason: 'Fixture for the layout evidence run' } });
+    expect(archive.status(), 'archive fixture').toBe(200);
   }
-  const ids = {};
-  for (const fixture of FIXTURES) {
-    let organization = await findOrganization(request, sao.token, fixture.acronym);
-    if (!organization) {
-      const multipart = { name: fixture.name, acronym: fixture.acronym, description: `Fixture for the layout evidence run (${fixture.target}).`, color: '#0F2F62' };
-      requirements.forEach((requirement) => {
-        multipart[`files[${requirement.id}]`] = { name: `${requirement.id}.pdf`, mimeType: 'application/pdf', buffer: minimalPdf(requirement.name) };
-      });
-      const created = await request.post(`${apiUrl}/college/organizations`, { headers: bearer(head.token), multipart });
-      expect(created.status(), `register ${fixture.acronym}: ${await created.text()}`).toBe(201);
-      organization = await findOrganization(request, sao.token, fixture.acronym);
-      if (fixture.target !== 'pending') {
-        const review = await request.patch(`${apiUrl}/system/organizations/${organization.id}/review`, {
-          headers: bearer(sao.token),
-          data: fixture.target === 'returned'
-            ? { decision: 'return', remarks: 'Please re-upload the Constitutional By-Laws with the adviser signature.', submitted_at: organization.submitted_at }
-            : { decision: 'approve', submitted_at: organization.submitted_at },
-        });
-        expect(review.status(), `review ${fixture.acronym}`).toBe(200);
-      }
-      if (fixture.target === 'archived') {
-        const archive = await request.post(`${apiUrl}/system/organizations/${organization.id}/archive`, { headers: bearer(sao.token), data: { reason: 'Fixture for the layout evidence run' } });
-        expect(archive.status(), 'archive fixture').toBe(200);
-      }
-    }
-    ids[fixture.acronym] = organization.id;
-  }
-  const anyActive = await findOrganization(request, sao.token, 'PSITS-CCS');
-  ids.PSITS = anyActive.id;
-  return ids;
+  const psits = await findOrganization(request, sao.token, 'PSITS-CCS');
+  return { PSITS: psits.id, VISARC: archived.id };
 }
 
 async function settle(page) {
@@ -202,7 +145,6 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
     { name: 'organizations-returned', path: '/dashboard/super-admin/organizations?status=returned' },
     { name: 'organizations-archived', path: '/dashboard/super-admin/organizations?status=archived' },
     { name: 'org-overview-active', path: orgPath(ids.PSITS) },
-    { name: 'org-overview-pending', path: orgPath(ids.VISPEND) },
     { name: 'org-overview-archived', path: orgPath(ids.VISARC) },
     { name: 'colleges', path: '/dashboard/super-admin/colleges' },
     { name: 'compliance-accreditation', path: '/dashboard/super-admin/compliance?tab=accreditation' },
@@ -242,12 +184,14 @@ test('Department Head screens at desktop and mobile', async ({ browser, request 
     { name: 'home', path: '/dashboard/department-head' },
     { name: 'organizations', path: '/dashboard/department-head/organizations' },
     {
-      name: 'organizations-register-form',
+      name: 'organizations-allow-student-modal',
       path: '/dashboard/department-head/organizations',
       after: async (page) => {
-        await page.getByRole('button', { name: 'Register an organization' }).click();
-        await expect(page.getByRole('dialog')).toBeVisible();
-        await expect(page.getByRole('dialog').locator('input[type=file]').first()).toBeVisible({ timeout: 15000 });
+        await page.getByRole('button', { name: 'Allow a student to apply' }).first().click();
+        const dialog = page.getByRole('dialog', { name: 'Allow a student to apply' });
+        await expect(dialog).toBeVisible();
+        await dialog.getByRole('combobox', { name: 'Student' }).fill('juan');
+        await expect(dialog.getByRole('option').first()).toBeVisible({ timeout: 15000 });
         await settle(page);
       },
     },

@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminHomePage from './AdminHomePage';
 
 const dashboardMock = vi.hoisted(() => ({ getAdminDashboard: vi.fn() }));
+const briefingMock = vi.hoisted(() => ({ getBriefing: vi.fn() }));
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../services/adminDashboardService', () => dashboardMock);
+vi.mock('../../../services/dashboardService', () => briefingMock);
 
 const payload = {
   counts: { pending_orders: 4, approval_requests: 2, pending_tasks: 7, new_announcements: 1 },
@@ -13,17 +16,22 @@ const payload = {
 };
 
 describe('AdminHomePage', () => {
-  beforeEach(() => { vi.clearAllMocks(); dashboardMock.getAdminDashboard.mockResolvedValue({ data: payload }); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dashboardMock.getAdminDashboard.mockResolvedValue({ data: payload });
+    briefingMock.getBriefing.mockResolvedValue({ data: { user: { first_name: 'Ana', role: 'ADMIN', organization: { id: 1, name: 'Computing Council' } }, summary: { attention_count: 0, headline: 'Nothing needs you today.' }, setup: null, attention: [], pillars: {}, insights: [] } });
+  });
 
   it('shows live operational counts, ledger movement, announcement preview, and destinations', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     expect(await screen.findByText('Enrollment Notice')).toBeInTheDocument();
-    expect(screen.getByText('Pending Orders').closest('a')).toHaveTextContent('4');
-    expect(screen.getByText('Approval Requests').closest('a')).toHaveTextContent('2');
+    expect(screen.getByText('Pending orders').closest('a')).toHaveTextContent('4');
+    expect(screen.getByText('Approval requests').closest('a')).toHaveTextContent('2');
     expect(screen.getByRole('img', { name: /monthly ledger income and expenses/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/dashboard/admin/users');
     expect(screen.getByRole('link', { name: 'Officer positions' })).toHaveAttribute('href', '/dashboard/admin/positions');
-    expect(screen.getByRole('link', { name: 'New announcement' })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(await screen.findByRole('link', { name: 'New announcement' })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(screen.getByRole('link', { name: 'Manage announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
     fireEvent.change(screen.getByLabelText('Financial status period'), { target: { value: '3' } });
     await waitFor(() => expect(dashboardMock.getAdminDashboard).toHaveBeenLastCalledWith(3));
   });
@@ -43,12 +51,29 @@ describe('AdminHomePage', () => {
 
     expect(await screen.findByText('Nothing has happened here yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Plan your first event' })).toHaveAttribute('href', '/dashboard/events/manage-events');
-    expect(screen.queryByText('Pending Orders')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pending orders')).not.toBeInTheDocument();
   });
 
   it('keeps the count tiles once there is anything to count', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
-    expect(await screen.findByText('Pending Orders')).toBeInTheDocument();
+    expect(await screen.findByText('Pending orders')).toBeInTheDocument();
     expect(screen.queryByText('Nothing has happened here yet')).not.toBeInTheDocument();
+  });
+
+  it('shows only the three newest announcements, without pictures, on a phone', async () => {
+    const post = (id) => ({ ...payload.announcements[0], id, title: `Notice ${id}`, image_url: `/img/${id}.png` });
+    dashboardMock.getAdminDashboard.mockResolvedValue({ data: { ...payload, announcements: [1, 2, 3, 4, 5].map(post) } });
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+
+    const items = (await screen.findAllByRole('heading', { level: 3 })).map((heading) => heading.closest('li'));
+    expect(items.map((item) => item.classList.contains('max-sm:hidden'))).toEqual([false, false, false, true, true]);
+    expect(items[0].querySelector('img')).toHaveClass('max-sm:hidden');
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+    await screen.findByText('Enrollment Notice');
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });

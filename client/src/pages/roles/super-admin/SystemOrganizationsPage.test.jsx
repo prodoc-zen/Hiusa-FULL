@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
 vi.mock('../../../services/authService', () => profileMocks);
+const peopleMocks = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => peopleMocks);
 const complianceMocks = vi.hoisted(() => ({ getComplianceDocuments: vi.fn() }));
 vi.mock('../../../services/complianceService', () => complianceMocks);
 const fileMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
@@ -28,6 +30,14 @@ function Probe() {
   return <p data-testid="search">{location.search}</p>;
 }
 const renderPage = (entry = '/dashboard/super-admin/organizations') => render(<MemoryRouter initialEntries={[entry]}><SystemOrganizationsPage /><Probe /></MemoryRouter>);
+// DataTable renders the same rows as a table and as a list of row blocks. The tests read the table layout.
+const tableView = () => document.querySelector('[data-view="table"]');
+const inTable = async () => {
+  await waitFor(() => expect(tableView()).not.toBeNull());
+  return within(tableView());
+};
+const actionsFor = async (name) => (await inTable()).findByRole('button', { name: `Actions for ${name}` });
+const rowText = async (text) => (await inTable()).findByText(text);
 const lastStatusParam = () => mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined).at(-1)[0].lifecycle_status;
 
 describe('SystemOrganizationsPage', () => {
@@ -42,49 +52,50 @@ describe('SystemOrganizationsPage', () => {
     profileMocks.inviteAccountProfile.mockResolvedValue({ data: { id: 9, organization_id: 3 } });
     profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
     mocks.createSystemAdmin.mockResolvedValue({ school_id: 78123456, role: 'ADMIN' });
+    peopleMocks.searchPeople.mockResolvedValue([{ school_id: 123, name: 'Ana Reyes', email: 'ana@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
-  it('creates an additional administrator from an active organization action', async () => {
+  it('adds an additional administrator by finding the person for an active organization', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ administrators_count: 1 })]));
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(await actionsFor('Main SBO'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
     expect(within(dialog).getByText('Main SBO')).toBeInTheDocument();
-    for (const [label, value] of [['School ID', '78123456'], ['First name', 'New'], ['Last name', 'Admin'], ['Email', 'new@example.test'], ['Initial password', 'Initial-Password-123!'], ['Confirm initial password', 'Initial-Password-123!']]) {
-      fireEvent.change(within(dialog).getByLabelText(new RegExp(`^${label}`)), { target: { value } });
-    }
-    fireEvent.submit(within(dialog).getByRole('button', { name: 'Create administrator' }).form);
-    await waitFor(() => expect(mocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 3, school_id: 78123456 })));
-    expect(await screen.findByText('Administrator account created.')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'ADMIN' }));
+    expect(await screen.findByText('Admin profile added to the organization.')).toBeInTheDocument();
   });
 
-  it('provides an admin invite link action instead of a manual add organization button', async () => {
+  it('has no manual add organization button and no admin invite link action', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
     expect(screen.queryByRole('button', { name: /Add unified organization/i })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy admin invite link' }));
-    expect(await screen.findByText('Admin invite link copied for Main SBO.')).toBeInTheDocument();
+    fireEvent.click(await actionsFor('Main SBO'));
+    expect(screen.queryByRole('menuitem', { name: 'Copy admin invite link' })).not.toBeInTheDocument();
   });
 
-  it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {
+  it('opens the add administrator dialog with the Admin role preselected for that organization', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add first Admin account' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Use existing user' }));
-    fireEvent.click(await screen.findByRole('radio', { name: /Ana Reyes/ }));
-    expect(screen.getByLabelText('Role in destination organization')).toHaveValue('ADMIN');
-    fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
+    fireEvent.click(await actionsFor('Main SBO'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add first administrator' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+    expect(within(dialog).getByLabelText('Role in this organization')).toHaveValue('ADMIN');
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
     await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'ADMIN' }));
   });
 
   it('loads only the totals and visible page until editing needs parent options', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
-    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(await rowText('Main SBO')).toBeInTheDocument();
     expect(mocks.getSystemAgency).toHaveBeenCalledWith({ summary: 1 });
     expect(mocks.getSystemColleges).not.toHaveBeenCalled();
     expect(mocks.getSystemOrganizations).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
     await waitFor(() => expect(mocks.getSystemOrganizations).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText('Loading parent organizations...')).not.toBeInTheDocument());
@@ -96,9 +107,9 @@ describe('SystemOrganizationsPage', () => {
       return pageOf([org()]);
     });
     renderPage('/dashboard/super-admin/organizations?status=active');
-    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(await rowText('Main SBO')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
     const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Unable to load parent organizations.');
@@ -110,10 +121,10 @@ describe('SystemOrganizationsPage', () => {
   it('lists organizations in a table and deletes through a three-dot action with typed confirmation', async () => {
     mocks.deleteSystemOrganization.mockResolvedValue(undefined);
     renderPage('/dashboard/super-admin/organizations?status=active');
-    await screen.findByText('Main SBO');
+    await rowText('Main SBO');
     expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Registration progress' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete organization' }));
     const dialog = screen.getByRole('dialog', { name: 'Permanently delete organization' });
     const confirm = within(dialog).getByRole('button', { name: 'Permanently delete organization' });
@@ -127,7 +138,7 @@ describe('SystemOrganizationsPage', () => {
   it('keeps deletion conflicts inside the confirmation dialog', async () => {
     mocks.deleteSystemOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'Move or delete the suborganizations first.' } } });
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    fireEvent.click(await actionsFor('Main SBO'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete organization' }));
     const dialog = screen.getByRole('dialog', { name: 'Permanently delete organization' });
     fireEvent.change(within(dialog).getByLabelText('Type the organization name to confirm'), { target: { value: 'Main SBO' } });
@@ -139,8 +150,8 @@ describe('SystemOrganizationsPage', () => {
   it('shows an archived college restriction while keeping the organization accessible for viewing', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ college_is_active: false })]));
     renderPage('/dashboard/super-admin/organizations?status=active');
-    expect(await screen.findByText(/College archived/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    expect(await (await inTable()).findByText(/College archived/)).toBeInTheDocument();
+    fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
     expect(screen.getByRole('menuitem', { name: 'Edit organization' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href');
     expect(screen.getByRole('menuitem', { name: 'Delete organization' })).toBeEnabled();
@@ -150,11 +161,11 @@ describe('SystemOrganizationsPage', () => {
     it('defaults to Active when only active and archived organizations exist and keeps ?status in the URL', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency(0, { returned: 0 }));
       renderPage();
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
       expect(lastStatusParam()).toBe('active');
       await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByRole('tabpanel', { name: 'Active' })).toContainElement(screen.getByText('Main SBO'));
+      expect(screen.getByRole('tabpanel', { name: 'Active' })).toContainElement(within(tableView()).getByText('Main SBO'));
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-controls', screen.getByRole('tabpanel').id);
     });
 
@@ -181,7 +192,7 @@ describe('SystemOrganizationsPage', () => {
       mocks.getSystemAgency.mockRejectedValue({ response: { status: 500, data: {} } });
       renderPage();
       await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
     });
 
     it('waits for the counts and never loads or shows another tab first', async () => {
@@ -200,14 +211,14 @@ describe('SystemOrganizationsPage', () => {
 
     it('does not consult the counts for the default when ?status is given', async () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      await screen.findByText('Main SBO');
+      await rowText('Main SBO');
       expect(lastStatusParam()).toBe('archived');
       expect(screen.getByRole('tab', { name: /^Archived/ })).toHaveAttribute('aria-selected', 'true');
     });
 
     it('labels the search field visibly', async () => {
       renderPage();
-      await screen.findByText('Main SBO');
+      await rowText('Main SBO');
       const input = screen.getByLabelText('Search organizations');
       expect(input.labels[0]).toHaveTextContent('Search organizations');
       expect(screen.queryByRole('button', { name: 'Search' })).not.toBeInTheDocument();
@@ -221,7 +232,7 @@ describe('SystemOrganizationsPage', () => {
         return Promise.resolve(pageOf([org()]));
       });
       renderPage();
-      await screen.findByText('Main SBO');
+      await rowText('Main SBO');
       const searchCalls = () => mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined).map(([params]) => params.search);
       const input = screen.getByLabelText('Search organizations');
       fireEvent.change(input, { target: { value: 's' } });
@@ -230,25 +241,25 @@ describe('SystemOrganizationsPage', () => {
       expect(searchCalls()).toEqual(['']);
       await waitFor(() => expect(searchCalls()).toEqual(['', 'slow']));
       fireEvent.change(input, { target: { value: 'fast' } });
-      expect(await screen.findByText('Fast Club')).toBeInTheDocument();
+      expect(await rowText('Fast Club')).toBeInTheDocument();
       releaseSlow();
       await new Promise((resolve) => { setTimeout(resolve, 20); });
-      expect(screen.getByText('Fast Club')).toBeInTheDocument();
-      expect(screen.queryByText('Slow Club')).not.toBeInTheDocument();
+      expect(within(tableView()).getByText('Fast Club')).toBeInTheDocument();
+      expect(within(tableView()).queryByText('Slow Club')).not.toBeInTheDocument();
       expect(searchCalls()).toEqual(['', 'slow', 'fast']);
     });
 
     it('defaults to Active while preserving the pending review tab', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency(2));
       renderPage();
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
       expect(lastStatusParam()).toBe('active');
       await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
     });
 
     it('honours ?status and switches tabs', async () => {
       renderPage('/dashboard/super-admin/organizations?status=returned');
-      await screen.findByText('Main SBO');
+      await rowText('Main SBO');
       expect(lastStatusParam()).toBe('returned');
       fireEvent.click(screen.getByRole('tab', { name: /^Archived/ }));
       await waitFor(() => expect(lastStatusParam()).toBe('archived'));
@@ -257,7 +268,7 @@ describe('SystemOrganizationsPage', () => {
 
     it('has no create flow', async () => {
       renderPage();
-      await screen.findByText('Main SBO');
+      await rowText('Main SBO');
       expect(screen.queryByRole('button', { name: /add organization|new organization/i })).not.toBeInTheDocument();
     });
   });
@@ -265,23 +276,24 @@ describe('SystemOrganizationsPage', () => {
   describe('active organizations', () => {
     it('opens searchable membership from the organization action menu', async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add existing user' }));
-      expect(screen.getByRole('dialog', { name: 'Add existing user' })).toBeInTheDocument();
-      fireEvent.click(await screen.findByRole('radio', { name: /Ana Reyes/ }));
-      fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
+      fireEvent.click(await actionsFor('Main SBO'));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add existing student' }));
+      const dialog = screen.getByRole('dialog', { name: 'Add an existing student' });
+      fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
+      fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
       await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'STUDENT' }));
       expect(await screen.findByRole('status')).toHaveTextContent('User added to the organization.');
     });
 
     it('adds users from the organization editor and preserves unsaved edits when returning', async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Changed name' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Add existing user' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add existing student' }));
       expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
-      expect(await screen.findByRole('radio', { name: /Ana Reyes/ })).toBeInTheDocument();
+      expect(await screen.findByRole('combobox', { name: 'Student' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(screen.getByRole('dialog', { name: 'Edit organization' })).toBeInTheDocument();
       expect(screen.getByLabelText('Organization name')).toHaveValue('Changed name');
@@ -289,20 +301,20 @@ describe('SystemOrganizationsPage', () => {
 
     it('opens profile management from the editor and preserves unsaved changes', async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Unsaved change' } });
       fireEvent.click(screen.getByRole('button', { name: 'Manage user profiles' }));
       expect(await screen.findByText('No profiles found in the organizations you manage.')).toBeInTheDocument();
       expect(profileMocks.getManagedAccountProfiles).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 3 }));
-      fireEvent.click(screen.getByRole('button', { name: 'Close modal' }));
+      fireEvent.click(screen.getByRole('button', { name: /^Close (modal|panel)$/ }));
       expect(screen.getByLabelText('Organization name')).toHaveValue('Unsaved change');
     });
 
     it('shows the college read only and never sends a college change', async () => {
       mocks.updateSystemOrganization.mockResolvedValue(org());
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
       expect(within(dialog).getByText('College of Arts')).toBeInTheDocument();
@@ -317,7 +329,7 @@ describe('SystemOrganizationsPage', () => {
     it('has no Active organization checkbox and never sends is_active', async () => {
       mocks.updateSystemOrganization.mockResolvedValue(org());
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
       expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
@@ -330,7 +342,7 @@ describe('SystemOrganizationsPage', () => {
     it('archives with an optional reason', async () => {
       mocks.archiveSystemOrganization.mockResolvedValue({});
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Archive organization' }));
       const dialog = screen.getByRole('dialog', { name: 'Archive organization' });
       fireEvent.change(within(dialog).getByLabelText('Reason (optional)'), { target: { value: 'Inactive for two terms' } });
@@ -342,7 +354,7 @@ describe('SystemOrganizationsPage', () => {
     it('archives without a reason', async () => {
       mocks.archiveSystemOrganization.mockResolvedValue({});
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Archive organization' }));
       fireEvent.click(within(screen.getByRole('dialog', { name: 'Archive organization' })).getByRole('button', { name: 'Archive organization' }));
       await waitFor(() => expect(mocks.archiveSystemOrganization).toHaveBeenCalledWith(3, {}));
@@ -356,7 +368,7 @@ describe('SystemOrganizationsPage', () => {
     });
     const openReview = async () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Robotics Club' }));
+      fireEvent.click(await actionsFor('Robotics Club'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Review registration' }));
       return screen.findByRole('dialog', { name: 'Review registration' });
     };
@@ -405,7 +417,7 @@ describe('SystemOrganizationsPage', () => {
       await waitFor(() => expect(mocks.getSystemOrganizations.mock.calls.length).toBeGreaterThan(before));
     });
 
-    it('keeps the drawer open after approval and hands over to Add first Admin account', async () => {
+    it('keeps the drawer open after approval and hands over to Add first administrator', async () => {
       mocks.reviewSystemOrganization.mockResolvedValue({});
       const drawer = await openReview();
       await within(drawer).findByText('Dean Reyes');
@@ -436,7 +448,7 @@ describe('SystemOrganizationsPage', () => {
 
     it('says on the card that the SAO reviews a pending registration', async () => {
       renderPage('/dashboard/super-admin/organizations?status=pending');
-      const card = (await screen.findByRole('button', { name: 'Actions for Robotics Club' })).closest('tr');
+      const card = (await actionsFor('Robotics Club')).closest('tr');
       expect(within(card).getByText('Review this registration')).toBeInTheDocument();
       expect(within(card).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
     });
@@ -514,28 +526,29 @@ describe('SystemOrganizationsPage', () => {
     it('lists organizations that need an administrator first with a link to provision one', async () => {
       mocks.getSystemOrganizations.mockResolvedValue(pageOf([staffed, waiting]));
       renderPage('/dashboard/super-admin/organizations?status=active');
-      await screen.findByText('Chess Club');
+      await rowText('Chess Club');
 
-      const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
+      const names = within(tableView()).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
       expect(names).toEqual(['Chess Club', 'Art Club']);
-      const card = screen.getByText('Chess Club').closest('tr');
+      const card = within(tableView()).getByText('Chess Club').closest('tr');
       expect(within(card).getByText('Add the first Admin account')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add first Admin account' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add first administrator' }));
       expect(await screen.findByRole('dialog', { name: 'Add administrator' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      const done = screen.getByText('Art Club').closest('tr');
-      expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
+      const done = within(tableView()).getByText('Art Club').closest('tr');
+      expect(within(done).queryByText('Add the first Admin account')).not.toBeInTheDocument();
+      expect(within(done).queryByText(/administrator can sign in/)).not.toBeInTheDocument();
       fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
-      expect(screen.queryByRole('menuitem', { name: 'Add first Admin account' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Add first administrator' })).not.toBeInTheDocument();
     });
   });
 
   it('shows returned remarks with open and delete actions', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ lifecycle_status: 'returned', is_active: false, review_remarks: 'Add the adviser signature.' })]));
     renderPage('/dashboard/super-admin/organizations?status=returned');
-    expect(await screen.findByText(/Add the adviser signature\./)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
+    expect(await (await inTable()).findByText(/Add the adviser signature\./)).toBeInTheDocument();
+    fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
     expect(screen.getByRole('menuitem', { name: 'Open organization' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Review|Archive|Restore/ })).not.toBeInTheDocument();
   });
@@ -548,23 +561,23 @@ describe('SystemOrganizationsPage', () => {
     it('is read-only with only Open and Restore', async () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
       expect(await screen.findByText('Archived organizations are read-only. Restore to make changes.')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
-      expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/3');
+      fireEvent.click(within(tableView()).getByRole('button', { name: 'Actions for Main SBO' }));
+      expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/org/3');
       expect(screen.getByRole('menuitem', { name: 'Restore organization' })).toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Edit|Archive|Review/ })).not.toBeInTheDocument();
     });
 
     it('is visibly muted and announced as read only', async () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      const badge = await screen.findByLabelText('Archived, read only');
+      const badge = await (await inTable()).findByLabelText('Archived, read only');
       expect(badge).toHaveTextContent('Archived');
-      expect(badge.closest('tr')).toHaveClass('bg-subtle');
+      expect(within(badge.closest('tr')).getByRole('heading', { level: 3 })).toHaveClass('text-ink-muted');
     });
 
     it('restores after confirmation', async () => {
       mocks.restoreSystemOrganization.mockResolvedValue({});
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Restore organization' }));
       fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
       await waitFor(() => expect(mocks.restoreSystemOrganization).toHaveBeenCalledWith(3));
@@ -574,7 +587,7 @@ describe('SystemOrganizationsPage', () => {
     it('shows the server message and reloads when restore conflicts', async () => {
       mocks.restoreSystemOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'Only an archived organization can be restored.' } } });
       renderPage('/dashboard/super-admin/organizations?status=archived');
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Restore organization' }));
       fireEvent.click(within(screen.getByRole('dialog', { name: 'Restore organization' })).getByRole('button', { name: 'Restore organization' }));
       expect(await screen.findByText('Only an archived organization can be restored.')).toBeInTheDocument();
@@ -585,13 +598,29 @@ describe('SystemOrganizationsPage', () => {
     mocks.getSystemOrganizations.mockRejectedValueOnce({ response: { status: 500, data: {} } });
     renderPage('/dashboard/super-admin/organizations?status=active');
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(await rowText('Main SBO')).toBeInTheDocument();
   });
 
   it('shows an empty state per tab', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
     renderPage('/dashboard/super-admin/organizations?status=archived');
     expect(await screen.findByText('No archived organizations.')).toBeInTheDocument();
+  });
+
+  it('shows no status badge on an active organization', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await rowText('Main SBO')).toBeInTheDocument();
+    expect(within(tableView()).getByText('Main SBO').closest('tr').querySelector('span.h-6')).toBeNull();
+  });
+
+  it('offers Clear beside the search and Clear filters when nothing matches', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await rowText('Main SBO')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
+    fireEvent.change(screen.getByLabelText('Search organizations'), { target: { value: 'zzz' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(screen.getByLabelText('Search organizations')).toHaveValue(''));
   });
 
   it('names who registers organizations when nothing is waiting for review', async () => {
@@ -605,7 +634,7 @@ describe('SystemOrganizationsPage', () => {
     it('shows the administrator the SAO just created without a skeleton and keeps the typed search', async () => {
       mocks.getSystemOrganizations.mockImplementation(async () => pageOf([org({ administrators: [] })]));
       renderPage('/dashboard/super-admin/organizations?status=active');
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText('Search organizations'), { target: { value: 'Mai' } });
 
@@ -616,19 +645,19 @@ describe('SystemOrganizationsPage', () => {
       let refresh;
       act(() => { refresh = refetchHook.current(); });
 
-      expect(screen.queryByRole('region', { name: 'Loading organizations' })).not.toBeInTheDocument();
-      expect(screen.getByText('Main SBO')).toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: 'Loading table' })).not.toBeInTheDocument();
+      expect(within(tableView()).getByText('Main SBO')).toBeInTheDocument();
       await act(async () => { release(); await refresh; });
 
-      expect(await screen.findByText('Chess SBO')).toBeInTheDocument();
+      expect(await rowText('Chess SBO')).toBeInTheDocument();
       expect(await screen.findByRole('tab', { name: 'Active (4)' })).toBeInTheDocument();
       expect(screen.getByLabelText('Search organizations')).toHaveValue('Mai');
-      expect(screen.queryByRole('region', { name: 'Loading organizations' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: 'Loading table' })).not.toBeInTheDocument();
     });
 
     it('discards a silent counts response that lands after the user moved to another tab', async () => {
       renderPage('/dashboard/super-admin/organizations?status=active');
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
 
       let release;
@@ -647,13 +676,13 @@ describe('SystemOrganizationsPage', () => {
 
     it('keeps the list and shows no error when the silent refresh fails', async () => {
       renderPage('/dashboard/super-admin/organizations?status=active');
-      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+      expect(await rowText('Main SBO')).toBeInTheDocument();
 
       mocks.getSystemOrganizations.mockRejectedValue(new Error('offline'));
       mocks.getSystemAgency.mockRejectedValue(new Error('offline'));
       await act(async () => { await refetchHook.current(); });
 
-      expect(screen.getByText('Main SBO')).toBeInTheDocument();
+      expect(within(tableView()).getByText('Main SBO')).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toBeInTheDocument();
       expect(screen.queryByText('Unable to load organizations.')).not.toBeInTheDocument();
     });

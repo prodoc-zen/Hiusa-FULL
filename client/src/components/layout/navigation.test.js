@@ -53,7 +53,7 @@ const SPEC = {
     { band: 'Community', label: 'Voting', children: [['Elections', '/dashboard/elections/manage-elections'], ['Results', '/dashboard/elections/election-results']] },
     { band: 'Community', label: 'Store', children: [['Inventory', '/dashboard/merchandise/manage-inventory'], ['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
-    { band: 'Records', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
+    { band: 'Records', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['School year records', '/dashboard/records'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
     { band: 'Me', label: 'My activity', children: MY_ACTIVITY_LEAVES },
   ],
   SBO_OFFICER: [
@@ -76,6 +76,7 @@ const SPEC = {
     { band: 'Community', label: 'Store', children: [['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
     { band: 'Records', label: 'Clearance signing', path: '/dashboard/clearances' },
+    { band: 'Records', label: 'Records', path: '/dashboard/records' },
     { band: 'Me', label: 'My activity', children: MY_ACTIVITY_LEAVES },
   ],
   DEPARTMENT_HEAD: [
@@ -84,7 +85,9 @@ const SPEC = {
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
+    { label: 'People', path: '/dashboard/department-head/people' },
     { label: 'College files', path: '/dashboard/department-head/documents' },
+    { label: 'Records', path: '/dashboard/records' },
     { label: 'College compliance', path: '/dashboard/department-head/compliance' },
     { label: 'Clearance signing', path: '/dashboard/clearances' },
     { label: 'Announcements', path: '/dashboard/department-head/announcements' },
@@ -109,6 +112,7 @@ const SPEC = {
       label: 'Governance',
       children: [
         ['Colleges', '/dashboard/super-admin/colleges'],
+        ['Student records', '/dashboard/super-admin/student-records'],
         ['Applications', '/dashboard/organization-applications'],
         ['Organizations', '/dashboard/super-admin/organizations?status=pending'],
       ],
@@ -125,7 +129,7 @@ const SPEC = {
     },
     { label: 'Files', children: [['Submitted files', '/dashboard/super-admin/documents'], ['Storage and limits', '/dashboard/super-admin/file-storage']] },
     { label: 'Updates', children: [['University announcements', '/dashboard/super-admin/announcements'], ['Notifications', '/dashboard/super-admin/notifications']] },
-    { label: 'Setup and records', children: [['Academic years', '/dashboard/super-admin/academic-years'], ['Audit trail', '/dashboard/super-admin/audit-logs']] },
+    { label: 'Setup and records', children: [['Academic years', '/dashboard/super-admin/academic-years'], ['School year records', '/dashboard/records'], ['Audit trail', '/dashboard/super-admin/audit-logs']] },
   ],
 };
 
@@ -145,11 +149,11 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it.each([
-    ['ADMIN', 11, 36],
-    ['SBO_OFFICER', 10, 25],
-    ['DEPARTMENT_HEAD', 12, 15],
+    ['ADMIN', 11, 37],
+    ['SBO_OFFICER', 11, 26],
+    ['DEPARTMENT_HEAD', 14, 17],
     ['STUDENT', 8, 12],
-    ['SUPER_ADMIN', 7, 16],
+    ['SUPER_ADMIN', 7, 18],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -172,7 +176,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it('opens a group on its first page', () => {
     const group = getNavForRole('SUPER_ADMIN').find((item) => item.label === 'Governance');
     expect(resolveItemPath(group)).toBe('/dashboard/super-admin/colleges');
-    expect(getVisibleChildren(group)).toHaveLength(3);
+    expect(getVisibleChildren(group)).toHaveLength(4);
   });
 
   it('names the SAO and the finance slot the same way everywhere', () => {
@@ -237,7 +241,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {
@@ -279,5 +283,11 @@ describe('active item', () => {
     expect(findActiveNavId(admin, '/dashboard/tasks/create-task')).toBe('task-board');
     expect(findActiveNavId(admin, '/dashboard/admin/sbo-positions')).toBe('manage-positions');
     expect(findActiveNavId(getNavLeaves('DEPARTMENT_HEAD'), '/dashboard/approvals')).toBe('approvals');
+  });
+});
+
+describe('SAO organization space in the sidebar', () => {
+  it('keeps Colleges current while the SAO is inside an organization', () => {
+    expect(findActiveNavId(getNavLeaves('SUPER_ADMIN'), '/dashboard/super-admin/org/7', '')).toBe('sao-colleges');
   });
 });

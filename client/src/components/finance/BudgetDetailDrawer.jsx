@@ -21,12 +21,12 @@ export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit
   return (
     <Drawer open title={formatDisplayText(budget.title)} description={context || undefined} onClose={onClose} width="max-w-xl">
       <div className="space-y-5">
-        <FlowStepper steps={lifecycle.steps} ariaLabel="Budget progress" />
+        <FlowStepper variant="full" steps={lifecycle.steps} ariaLabel="Budget progress" />
         <NextStep {...nextStep} />
         <dl className="grid grid-cols-1 gap-3 border-t border-line pt-4 text-sm sm:grid-cols-3">
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Allocated</dt><dd className="mt-0.5 font-bold tabular-nums text-ink">{peso(budget.allocated_amount)}</dd></div>
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Remaining</dt><dd className="mt-0.5 font-bold tabular-nums text-ink">{peso(budget.remaining_amount)}</dd></div>
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Warning at</dt><dd className="mt-0.5 font-bold tabular-nums text-ink">{peso(budget.warning_threshold)}</dd></div>
+          <div><dt className="text-xs font-semibold text-ink-muted-strong">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.allocated_amount)}</dd></div>
+          <div><dt className="text-xs font-semibold text-ink-muted-strong">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.remaining_amount)}</dd></div>
+          <div><dt className="text-xs font-semibold text-ink-muted-strong">Warning at</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.warning_threshold)}</dd></div>
         </dl>
       </div>
     </Drawer>

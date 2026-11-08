@@ -26,7 +26,7 @@ describe('OrganizationsHealthTable', () => {
     render(<MemoryRouter><OrganizationsHealthTable organizations={organizations} /></MemoryRouter>);
 
     expect(screen.getAllByText('Computer Science Society')).toHaveLength(2);
-    expect(screen.getAllByText('Pending Review')).toHaveLength(2);
+    expect(screen.getAllByText('Pending review')).toHaveLength(2);
   });
 
   it('surfaces a retryable error state', () => {

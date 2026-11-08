@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 const SIZES = {
   sm: 'h-9 px-3 text-xs',
-  md: 'h-11 px-4 text-sm',
+  md: 'h-10 px-4 text-sm',
   lg: 'h-12 px-5 text-base',
 };
 
@@ -41,7 +41,7 @@ const Button = forwardRef(function Button(
 ) {
   const isDisabled = disabled || loading;
   const iconSize = ICON_SIZE[size];
-  const classes = `relative inline-flex items-center justify-center rounded-control font-bold transition-[transform,background-color,color,border-color,opacity] duration-[120ms] ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
+  const classes = `relative inline-flex items-center justify-center rounded-control font-semibold transition-[background-color,transform] duration-150 ease-out active:scale-[0.98] motion-reduce:active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZES[size]} ${VARIANTS[variant]} ${className}`;
 
   const content = (
     <>
@@ -60,7 +60,7 @@ const Button = forwardRef(function Button(
 
   if (to && !isDisabled) {
     return (
-      <Link ref={ref} to={to} className={classes} {...rest}>
+      <Link ref={ref} to={to} data-variant={variant} className={classes} {...rest}>
         {content}
       </Link>
     );
@@ -72,6 +72,7 @@ const Button = forwardRef(function Button(
       type={type || 'button'}
       disabled={isDisabled}
       aria-busy={loading || undefined}
+      data-variant={variant}
       className={classes}
       {...rest}
     >

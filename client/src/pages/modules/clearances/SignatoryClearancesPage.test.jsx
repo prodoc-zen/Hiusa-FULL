@@ -76,7 +76,7 @@ describe('SignatoryClearancesPage', () => {
 
     render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     await screen.findAllByText('Maria Santos');
-    fireEvent.click(screen.getByRole('button', { name: /select all pending/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /select all pending/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear 2 selected' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear selected' }));
 

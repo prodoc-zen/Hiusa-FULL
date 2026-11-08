@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BellRing } from 'lucide-react';
 import { getNotificationPreferences, updateNotificationPreferences } from '../../services/profileService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
-import { Button } from '../ui';
+import { Button, Skeleton } from '../ui';
 
 const KINDS = {
   announcement: { label: 'Announcements', detail: 'New posts from your organization and the Student Affairs Office.' },
@@ -47,32 +46,27 @@ export default function NotificationPreferences() {
   }
 
   return (
-    <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm" aria-labelledby="notification-preferences-title">
-      <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
-          <BellRing size={19} aria-hidden="true" />
-        </div>
-        <div>
-          <h2 id="notification-preferences-title" className="text-base font-extrabold text-[#0F172A]">Notifications</h2>
-          <p className="mt-0.5 text-xs font-medium text-[#64748B]">Choose which updates appear in your notifications. Approvals, tasks, account and payment notices always show, because someone is waiting on them.</p>
-        </div>
+    <section className="rounded-card border border-line bg-surface" aria-labelledby="notification-preferences-title">
+      <div className="border-b border-line p-5 sm:p-6">
+        <h2 id="notification-preferences-title" className="text-base font-semibold text-ink">Notifications</h2>
+        <p className="mt-1 text-sm text-ink-muted">Choose which updates appear in your notifications. Approvals, tasks, account and payment notices always show, because someone is waiting on them.</p>
       </div>
       <div className="p-5 sm:p-6">
-        {state.status === 'loading' && <div className="h-32 animate-pulse rounded-lg bg-slate-100" role="status" aria-label="Loading notification preferences" />}
+        {state.status === 'loading' && <div className="space-y-3" role="status" aria-label="Loading notification preferences"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>}
         {state.status === 'error' && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p role="alert" className="text-sm font-semibold text-[#B91C1C]">Your notification preferences could not load.</p>
+            <p role="alert" className="text-sm font-medium text-danger-strong">Your notification preferences could not load.</p>
             <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
           </div>
         )}
         {state.status === 'ready' && (
-          <ul className="divide-y divide-[#E5EDF3]">
+          <ul className="divide-y divide-line-soft">
             {state.mutable.filter((kind) => KINDS[kind]).map((kind) => (
               <li key={kind}>
-                <label className="flex cursor-pointer items-start justify-between gap-4 py-3">
+                <label className="flex min-h-11 cursor-pointer items-start justify-between gap-4 py-3">
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[#0F172A]">{KINDS[kind].label}</span>
-                    <span className="mt-0.5 block text-xs font-medium leading-5 text-[#64748B]">{KINDS[kind].detail}</span>
+                    <span className="block text-sm font-medium text-ink">{KINDS[kind].label}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-ink-muted">{KINDS[kind].detail}</span>
                   </span>
                   <input
                     type="checkbox"

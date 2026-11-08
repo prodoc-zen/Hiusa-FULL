@@ -1,141 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import {
-  ArrowRight,
-  BarChart3,
-  Bot,
-  CheckCircle2,
-  Clock,
-  RefreshCw,
-  Send,
-  Sparkles,
-} from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Button, ErrorState, PageHeader, Skeleton, StatusBadge } from '../../../components/ui';
 import { askAiAssistant, getAiAssistantOverview } from '../../../services/askAiService';
 
-const STATUS_BADGE_STYLES = {
-  danger: 'bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]',
-  warning: 'bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]',
-  success: 'bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]',
-  info: 'bg-[#E0F2FE] text-[#0284C7] border-[#BAE6FD]',
-  primary: 'bg-[#EEF6FB] text-[#0F2F62] border-[#BAE6FD]',
-  neutral: 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]',
-};
-
-const BAR_FILL_STYLES = {
-  danger: 'bg-[#DC2626]',
-  warning: 'bg-[#D97706]',
-  success: 'bg-[#16A34A]',
-  info: 'bg-[#0B8ED0]',
-  primary: 'bg-[#0F2F62]',
-  neutral: 'bg-[#64748B]',
-};
-
 const HIGHLIGHT_TONE_STYLES = {
-  danger: 'text-[#DC2626]',
-  warning: 'text-[#D97706]',
-  success: 'text-[#16A34A]',
-  primary: 'text-[#0F2F62]',
-  info: 'text-[#0B8ED0]',
-  neutral: 'text-[#0F172A]',
+  danger: 'text-danger-strong',
+  warning: 'text-warning-strong',
+  success: 'text-success-strong',
+  primary: 'text-navy-800',
+  info: 'text-brand-700',
+  neutral: 'text-ink',
 };
 
-function formatRichText(text) {
-  if (!text) return null;
-  const parts = String(text).split(/(₱[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d+\b)/g);
-  return parts.map((part, index) => {
-    if (/^(₱[\d,]+(?:\.\d+)?|\d+(?:\.\d+)?%|\d+)$/.test(part)) {
-      return (
-        <strong
-          key={index}
-          className="rounded bg-white/80 px-1 py-0.5 font-semibold text-[#0F2F62] tabular-nums"
-        >
-          {part}
-        </strong>
-      );
-    }
-    return part;
-  });
+// The server names tones the old way; the badge knows info, not primary.
+const BADGE_TONES = { primary: 'info' };
+
+// The server writes counts as "3 item(s)". Show "3 items" or "1 item" instead.
+function plainText(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/(\d[\d,]*)((?:\s+[A-Za-z-]+){0,3}?)\s+([A-Za-z]+)\(s\)/g, (_match, count, middle, noun) => {
+      const singular = Number(count.replace(/,/g, '')) === 1;
+      return `${count}${middle} ${noun}${singular ? '' : 's'}`;
+    })
+    .replace(/\(s\)/g, 's');
 }
 
-function AiVisualCharts({ charts }) {
-  if (!Array.isArray(charts) || charts.length === 0) return null;
-
-  return (
-    <div
-      aria-label="Visual data graphs"
-      className="mt-4 grid gap-4 border-t border-[#DDE7EF] pt-4 lg:grid-cols-2"
-    >
-      {charts.map((chart) => {
-        const items = Array.isArray(chart.items) ? chart.items : [];
-        if (items.length === 0) return null;
-        const isDistribution = chart.type === 'distribution';
-
-        return (
-          <div key={chart.id || chart.title} className="rounded-lg bg-[#F8FAFC] p-3.5">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-[#0B8ED0]" aria-hidden="true" />
-                <h3 className="text-xs font-semibold text-[#0F172A]">{chart.title}</h3>
-              </div>
-              {chart.subtitle && (
-                <span className="text-[11px] text-[#475569]">{chart.subtitle}</span>
-              )}
-            </div>
-
-            {isDistribution && (
-              <div
-                aria-label={`${chart.title} stacked bar`}
-                className="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-[#E2E8F0]"
-              >
-                {items.map((item) => {
-                  const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
-                  const widthPct = Math.max(6, Number(item.share_percent ?? item.percent ?? 10));
-                  return (
-                    <div
-                      key={item.label}
-                      title={`${item.label}: ${item.display_value} (${widthPct}%)`}
-                      className={`h-full transition-all duration-300 ${fill}`}
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="space-y-2.5">
-              {items.map((item) => {
-                const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
-                const widthPct = Math.max(0, Math.min(100, Number(item.percent ?? 0)));
-                return (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex items-center gap-1.5 font-medium text-[#0F172A]">
-                        <span
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${fill}`}
-                          aria-hidden="true"
-                        />
-                        {item.label}
-                      </span>
-                      <span className="font-semibold text-[#0F2F62] tabular-nums">
-                        {item.display_value ?? item.value}
-                        {item.share_percent != null ? ` (${item.share_percent}%)` : ''}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${fill}`}
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+// Server titles arrive in Title Case. Keep acronyms, lowercase the rest.
+function sentenceCase(value) {
+  if (typeof value !== 'string') return value;
+  return plainText(value)
+    .split(' ')
+    .map((word, index) => {
+      if (index === 0) return word;
+      const letters = word.replace(/[^A-Za-z]/g, '');
+      if (letters.length > 1 && letters === letters.toUpperCase()) return word;
+      if (/[a-z][A-Z]/.test(word)) return word;
+      return word.charAt(0).toLowerCase() + word.slice(1);
+    })
+    .join(' ');
 }
 
 function FormattedBriefingBlock({ answer, formattedBlocks }) {
@@ -143,29 +46,25 @@ function FormattedBriefingBlock({ answer, formattedBlocks }) {
 
   return (
     <div className="mt-3.5 space-y-3">
-      <div className="rounded-lg bg-[#EEF6FB] px-4 py-3 text-sm leading-relaxed text-[#0F172A]">
-        {formatRichText(answer)}
-      </div>
+      <p className="max-w-[75ch] text-sm leading-relaxed text-ink">
+        {plainText(answer)}
+      </p>
 
       {recommended && (
-        <div className="flex flex-col justify-between gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 sm:flex-row sm:items-center">
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-[#0F2F62]">
+        <div className="flex flex-col justify-between gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 text-sm">
+            <span className="font-medium text-ink">
               Recommended next step:{' '}
             </span>
-            <span className="text-xs font-medium text-[#0F172A]">{recommended.title}</span>
+            <span className="text-ink">{plainText(recommended.title)}</span>
             {recommended.detail && (
-              <span className="ml-1.5 text-xs text-[#475569]">— {recommended.detail}</span>
+              <p className="mt-0.5 text-xs text-ink-muted-strong">{plainText(recommended.detail)}</p>
             )}
           </div>
           {recommended.href && (
-            <Link
-              to={recommended.href}
-              className="inline-flex shrink-0 items-center gap-1 self-start rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] sm:self-center"
-            >
-              <span>{recommended.action_label || 'Take action'}</span>
-              <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            </Link>
+            <Button to={recommended.href} variant="secondary" size="sm" className="shrink-0 self-start sm:self-center">
+              {recommended.action_label || 'Take action'}
+            </Button>
           )}
         </div>
       )}
@@ -178,47 +77,46 @@ function EvidenceSection({ section, onSelectFollowUp }) {
   const isStepsLayout = section.layout === 'steps';
 
   return (
-    <div className="border-t border-[#DDE7EF] pt-4 first:border-t-0 first:pt-0">
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-[#0F172A]">{section.title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{sentenceCase(section.title)}</h3>
         {section.description && (
-          <p className="text-xs text-[#475569]">{section.description}</p>
+          <p className="text-xs text-ink-muted-strong">{plainText(section.description)}</p>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3.5 py-2.5 text-xs text-[#475569]">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-[#16A34A]" aria-hidden="true" />
-          <span>{section.empty_message || 'No matching records require attention.'}</span>
-        </div>
+        <p className="text-sm text-ink-muted-strong">
+          {plainText(section.empty_message) || 'Nothing needs attention here.'}
+        </p>
       ) : isStepsLayout ? (
-        <ol aria-label={section.title} className="space-y-2.5">
+        <ol aria-label={sentenceCase(section.title)} className="divide-y divide-line-soft">
           {rows.map((row, idx) => (
             <li
               key={row.id || idx}
-              className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3.5 transition-colors hover:border-[#BAE6FD] hover:bg-[#F8FAFC]/60 sm:flex-row sm:items-start sm:justify-between"
+              className="flex flex-col gap-3 py-3 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
             >
               <div className="flex items-start gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0F2F62] text-xs font-bold text-white shadow-xs"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-semibold text-white"
                 >
                   {row.step || idx + 1}
                 </span>
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-[#0F172A]">
-                      {row.primary}
+                    <span className="text-sm font-medium text-ink">
+                      {plainText(row.primary)}
                     </span>
                     {row.meta && (
-                      <span className="inline-flex items-center rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-medium text-[#0F2F62]">
-                        {row.meta}
+                      <span className="text-xs text-ink-muted-strong tabular-nums">
+                        {plainText(row.meta)}
                       </span>
                     )}
                   </div>
                   {row.secondary && (
-                    <p className="text-xs leading-relaxed text-[#475569]">
-                      {row.secondary}
+                    <p className="text-xs leading-relaxed text-ink-muted-strong">
+                      {plainText(row.secondary)}
                     </p>
                   )}
                 </div>
@@ -226,220 +124,92 @@ function EvidenceSection({ section, onSelectFollowUp }) {
 
               <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
                 {row.href && (
-                  <Link
-                    to={row.href}
-                    className="inline-flex items-center gap-1 rounded-md bg-[#0F2F62] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#0B8ED0] active:scale-[0.98]"
-                  >
-                    <span>{row.action_label || 'Go to page'}</span>
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
+                  <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
+                    {row.action_label || 'Go to page'}
+                  </Button>
                 )}
                 {row.ask_question && onSelectFollowUp && (
-                  <button
-                    type="button"
-                    onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
-                    className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#EEF6FB]"
-                  >
-                    <span>Show steps</span>
-                    <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
-                  </button>
+                  <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
+                    Show steps
+                  </Button>
                 )}
               </div>
             </li>
           ))}
         </ol>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
-          <table className="w-full min-w-[540px] border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#DDE7EF] bg-[#F8FAFC] text-[#475569]">
-                <th scope="col" className="px-3.5 py-2 font-semibold">
-                  Record / Organization
-                </th>
-                <th scope="col" className="px-3.5 py-2 font-semibold">
-                  Details &amp; Breakdown
-                </th>
-                <th scope="col" className="px-3.5 py-2 font-semibold">
-                  Status
-                </th>
-                <th scope="col" className="px-3.5 py-2 font-semibold">
-                  Metric / Progress
-                </th>
-                <th scope="col" className="px-3.5 py-2 text-right font-semibold">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#DDE7EF] bg-white">
-              {rows.map((row) => {
-                const badgeStyle =
-                  STATUS_BADGE_STYLES[row.status_tone] || STATUS_BADGE_STYLES.neutral;
-                const barFill = BAR_FILL_STYLES[row.status_tone] || BAR_FILL_STYLES.info;
-                const hasProgress =
-                  row.progress_percent !== null &&
-                  row.progress_percent !== undefined &&
-                  !Number.isNaN(Number(row.progress_percent));
+        <table className="block w-full text-left text-sm sm:table">
+          <caption className="sr-only">{sentenceCase(section.title)}</caption>
+          <thead className="hidden bg-subtle sm:table-header-group">
+            <tr className="border-b border-line text-ink-muted">
+              <th scope="col" className="px-3 py-2 text-xs font-semibold">Record</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold">Details</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold">Status</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold">Count</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-semibold">Action</th>
+            </tr>
+          </thead>
+          <tbody className="block divide-y divide-line sm:table-row-group">
+            {rows.map((row) => {
+              const cell = 'flex items-center justify-between gap-3 px-3 py-1.5 before:text-xs before:text-ink-muted before:content-[attr(data-label)] sm:table-cell sm:py-2.5 sm:before:hidden';
 
-                return (
-                  <tr key={row.id} className="transition-colors hover:bg-[#F8FAFC]">
-                    <td className="px-3.5 py-2.5 align-middle font-medium text-[#0F172A]">
-                      {row.primary}
-                    </td>
-                    <td className="px-3.5 py-2.5 align-middle text-[#475569]">
-                      {row.secondary || '—'}
-                    </td>
-                    <td className="px-3.5 py-2.5 align-middle">
-                      {row.status ? (
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeStyle}`}
-                        >
-                          {row.status}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-3.5 py-2.5 align-middle">
-                      <div className="min-w-[110px] space-y-1">
-                        {row.meta && (
-                          <span className="block font-medium text-[#0F172A] tabular-nums">
-                            {row.meta}
-                          </span>
-                        )}
-                        {hasProgress && (
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                            <div
-                              className={`h-full rounded-full ${barFill}`}
-                              style={{
-                                width: `${Math.max(4, Math.min(100, Number(row.progress_percent)))}%`,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3.5 py-2.5 text-right align-middle">
-                      {row.href ? (
-                        <Link
-                          to={row.href}
-                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9] active:scale-[0.98]"
-                        >
-                          <span>{row.action_label || 'Open'}</span>
-                          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                        </Link>
-                      ) : row.ask_question && onSelectFollowUp ? (
-                        <button
-                          type="button"
-                          onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}
-                          className="inline-flex items-center gap-1 rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#DDEEF9]"
-                        >
-                          <span>Show steps</span>
-                          <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
-                        </button>
-                      ) : (
-                        <span className="text-[#94A3B8]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+              return (
+                <tr key={row.id} className="block py-2 hover:bg-subtle sm:table-row sm:py-0">
+                  <td data-label="Record" className={`${cell} font-medium text-ink`}>
+                    {plainText(row.primary)}
+                  </td>
+                  <td data-label="Details" className={`${cell} text-ink-muted-strong`}>
+                    {plainText(row.secondary) || ''}
+                  </td>
+                  <td data-label="Status" className={cell}>
+                    {row.status ? (
+                      <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
+                    ) : ''}
+                  </td>
+                  <td data-label="Count" className={`${cell} tabular-nums text-ink`}>
+                    {plainText(row.meta) || ''}
+                  </td>
+                  <td className={`${cell} sm:text-right`}>
+                    {row.href ? (
+                      <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
+                        {row.action_label || 'Open'}
+                      </Button>
+                    ) : row.ask_question && onSelectFollowUp ? (
+                      <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
+                        Show steps
+                      </Button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   );
 }
 
-function RagTelemetryStrip({ ragMetadata }) {
-  if (!ragMetadata) {
-    return null;
-  }
-
-  const concepts = Array.isArray(ragMetadata.matched_concepts)
-    ? ragMetadata.matched_concepts
-    : [];
-  const entities = Array.isArray(ragMetadata.matched_entities)
-    ? ragMetadata.matched_entities
-    : [];
-
-  return (
-    <div
-      aria-label="Semantic RAG retrieval telemetry"
-      className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-2 text-[11px] text-[#475569]"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded bg-[#0F2F62] px-2 py-0.5 font-semibold text-white">
-          <Sparkles className="h-3 w-3 text-[#38BDF8]" aria-hidden="true" />
-          <span>{ragMetadata.engine || 'Hybrid Semantic RAG'}</span>
-        </span>
-        <span className="tabular-nums">
-          Indexed <strong className="text-[#0F172A]">{ragMetadata.corpus_size ?? 0}</strong> records across{' '}
-          <strong className="text-[#0F172A]">{ragMetadata.domains_searched ?? 0}</strong> domains · Retrieved{' '}
-          <strong className="text-[#0F172A]">{ragMetadata.retrieved_count ?? 0}</strong> matches
-        </span>
-        {ragMetadata.top_confidence != null && (
-          <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 font-semibold text-[#166534] tabular-nums">
-            {ragMetadata.top_confidence}% semantic match
-          </span>
-        )}
-      </div>
-
-      {(concepts.length > 0 || entities.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {entities.slice(0, 3).map((entity) => (
-            <span
-              key={entity}
-              className="rounded-full bg-[#EEF6FB] px-2 py-0.5 font-medium text-[#0F2F62]"
-            >
-              Entity: {entity}
-            </span>
-          ))}
-          {concepts.slice(0, 2).map((concept) => (
-            <span
-              key={concept}
-              className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-medium text-[#334155]"
-            >
-              {concept}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
+function ResponseTurn({ turn, onSelectFollowUp }) {
   const highlights = Array.isArray(turn.highlights) ? turn.highlights : [];
-  const charts = Array.isArray(turn.charts) ? turn.charts : [];
   const sections = Array.isArray(turn.sections) ? turn.sections : [];
   const followUps = Array.isArray(turn.follow_ups) ? turn.follow_ups : [];
 
   return (
     <article
-      aria-label={turn.title || turn.question}
-      className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
+      aria-label={sentenceCase(turn.title) || turn.question}
+      className="rounded-card border border-line bg-surface p-4 sm:p-5"
     >
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#DDE7EF] pb-3.5">
-        <div>
-          <h2 className="text-base font-semibold text-[#0F172A]">
-            {turn.title || 'AI Operational Briefing'}
-          </h2>
-          {turn.question && (
-            <p className="mt-0.5 text-xs text-[#475569]">
-              Question: &ldquo;{turn.question}&rdquo;
-            </p>
-          )}
-        </div>
-        {isLatest && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-xs font-medium text-[#0F2F62]">
-            <Sparkles className="h-3.5 w-3.5 text-[#0B8ED0]" aria-hidden="true" />
-            Semantic RAG Live
-          </span>
+      <div className="border-b border-line pb-3.5">
+        <h2 className="text-base font-semibold text-ink">
+          {sentenceCase(turn.title) || 'Answer'}
+        </h2>
+        {turn.question && (
+          <p className="mt-0.5 text-xs text-ink-muted-strong">
+            Question: &ldquo;{turn.question}&rdquo;
+          </p>
         )}
       </div>
-
-      <RagTelemetryStrip ragMetadata={turn.rag_metadata} />
 
       <FormattedBriefingBlock
         answer={turn.answer}
@@ -447,14 +217,14 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
       />
 
       {highlights.length > 0 && (
-        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-[#DDE7EF] pt-3.5 sm:grid-cols-4">
+        <dl className="mt-3.5 flex flex-wrap gap-x-8 gap-y-3 border-t border-line pt-3.5">
           {highlights.map((item) => {
             const valueColor =
               HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
             return (
-              <div key={item.label} className="rounded-lg bg-[#F8FAFC] px-3 py-2">
-                <dt className="text-[11px] font-medium text-[#475569]">{item.label}</dt>
-                <dd className={`mt-0.5 text-base font-bold tabular-nums ${valueColor}`}>
+              <div key={item.label}>
+                <dt className="text-xs text-ink-muted-strong">{plainText(item.label)}</dt>
+                <dd className={`mt-0.5 text-base font-semibold tabular-nums ${valueColor}`}>
                   {item.value}
                 </dd>
               </div>
@@ -462,8 +232,6 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
           })}
         </dl>
       )}
-
-      <AiVisualCharts charts={charts} />
 
       {sections.length > 0 && (
         <div className="mt-4 space-y-4">
@@ -478,18 +246,18 @@ function ResponseTurn({ turn, onSelectFollowUp, isLatest }) {
       )}
 
       {followUps.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#DDE7EF] pt-3.5">
-          <span className="text-xs font-medium text-[#475569]">Ask next:</span>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
+          <span className="text-xs text-ink-muted-strong">Ask next:</span>
           {followUps.map((f) => (
-            <button
+            <Button
               key={f.question}
-              type="button"
+              variant="secondary"
+              size="sm"
+              className="max-sm:h-11"
               onClick={() => onSelectFollowUp(f.question, f.topic)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#EEF6FB] active:scale-[0.98]"
             >
-              <span>{f.label}</span>
-              <ArrowRight className="h-3 w-3 text-[#0B8ED0]" aria-hidden="true" />
-            </button>
+              {f.label}
+            </Button>
           ))}
         </div>
       )}
@@ -509,6 +277,7 @@ export default function AskAiPage() {
   const [turns, setTurns] = useState([]);
 
   const initialQueryHandledRef = useRef(false);
+  const inputRef = useRef(null);
 
   const runQuestion = useCallback(async (questionText, topic = null) => {
     const trimmed = (questionText || '').trim();
@@ -527,7 +296,7 @@ export default function AskAiPage() {
     } catch (err) {
       setAskError(
         err?.response?.data?.message ||
-          'Unable to process your question right now. Please try again.'
+          'Could not answer that question right now. Try again.'
       );
     } finally {
       setAsking(false);
@@ -541,7 +310,7 @@ export default function AskAiPage() {
       const response = await getAiAssistantOverview();
       setOverview(response.data);
     } catch {
-      setOverviewError('Could not load the AI Assistant briefing. Please try again.');
+      setOverviewError('Could not load your briefing. Try again.');
     } finally {
       setLoadingOverview(false);
     }
@@ -564,34 +333,31 @@ export default function AskAiPage() {
 
   const handleFormSubmit = (event) => {
     event.preventDefault();
-    if (!questionInput.trim() || asking) return;
+    if (asking) return;
+    if (!questionInput.trim()) {
+      inputRef.current?.focus();
+      return;
+    }
     runQuestion(questionInput, null);
   };
 
   if (loadingOverview) {
     return (
-      <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-xl bg-[#EEF6FB]" />
-        <div className="h-64 animate-pulse rounded-xl bg-[#EEF6FB]" />
+      <div className="space-y-5">
+        <PageHeader title="Ask AI" />
+        <div className="space-y-3" role="status" aria-label="Loading your briefing">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
       </div>
     );
   }
 
   if (overviewError) {
     return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-white p-4 text-sm text-[#0F172A]"
-      >
-        <span>{overviewError}</span>
-        <button
-          type="button"
-          onClick={loadOverview}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B8ED0] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0978B2]"
-        >
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-          Retry
-        </button>
+      <div className="space-y-5">
+        <PageHeader title="Ask AI" />
+        <ErrorState title="Could not load Ask AI" description={overviewError} onRetry={loadOverview} />
       </div>
     );
   }
@@ -606,12 +372,10 @@ export default function AskAiPage() {
     ? {
         id: 'daily-briefing',
         question: 'What should I do today?',
-        title: dailyBriefing.title || "Today's Action Plan",
+        title: dailyBriefing.title || "Today's plan",
         answer: dailyBriefing.summary,
         highlights: dailyBriefing.highlights || [],
         formatted_blocks: dailyBriefing.formatted_blocks || null,
-        charts: dailyBriefing.charts || [],
-        rag_metadata: dailyBriefing.rag_metadata || null,
         sections: dailyBriefing.sections || [],
         follow_ups: suggestedQuestions.slice(1, 4).map((q) => ({
           topic: q.topic,
@@ -623,36 +387,18 @@ export default function AskAiPage() {
 
   return (
     <div className="space-y-5">
-      <section
-        aria-label="Ask AI prompt bar"
-        className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]">
-              <Bot className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-[#0F172A]">
-                {overview?.role_label || 'Ask AI Assistant'}
-              </h1>
-              <p className="text-xs text-[#475569]">
-                Scope: <span className="font-medium text-[#0F172A]">{overview?.scope_label}</span> · Hybrid Semantic Search &amp; RAG over live records
-              </p>
-            </div>
-          </div>
-          {turns.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setTurns([])}
-              className="rounded-lg border border-[#DDE7EF] px-2.5 py-1 text-xs font-medium text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
-            >
-              Reset to today&apos;s plan
-            </button>
-          )}
-        </div>
+      <PageHeader
+        title="Ask AI"
+        description={overview?.scope_label ? `Showing records for ${overview.scope_label}.` : undefined}
+        actions={turns.length > 0 ? (
+          <Button variant="secondary" onClick={() => setTurns([])}>
+            Back to today&apos;s plan
+          </Button>
+        ) : undefined}
+      />
 
-        <form onSubmit={handleFormSubmit} className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+      <section aria-label="Ask AI prompt bar">
+        <form onSubmit={handleFormSubmit} className="flex gap-2">
           <label htmlFor="ask-ai-question-input" className="sr-only">
             Ask a question about your tasks, submissions, or organization records
           </label>
@@ -661,43 +407,39 @@ export default function AskAiPage() {
             type="text"
             value={questionInput}
             onChange={(e) => setQuestionInput(e.target.value)}
-            placeholder="Ask anything: officers, specific organizations, merchandise stock, ledger expenses, venues, compliance..."
+            ref={inputRef}
+            placeholder="Ask a question"
             disabled={asking}
-            className="min-h-[42px] flex-1 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3.5 py-2 text-base text-[#0F172A] placeholder:text-[#64748B] focus:border-[#0B8ED0] focus:bg-white focus:outline-none sm:text-sm"
+            className="h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-base text-ink placeholder:text-ink-soft focus:border-brand-600 sm:h-10 sm:text-sm"
           />
-          <button
-            type="submit"
-            disabled={asking || !questionInput.trim()}
-            className="inline-flex min-h-[42px] shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0978B2] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-            <span>{asking ? 'Analyzing...' : 'Ask AI'}</span>
-          </button>
+          <Button type="submit" loading={asking} className="shrink-0 max-sm:h-11">
+            Ask AI
+          </Button>
         </form>
 
         {askError && (
-          <p role="alert" className="mt-2.5 text-xs font-medium text-[#DC2626]">
+          <p role="alert" className="mt-2.5 text-sm font-medium text-danger-strong">
             {askError}
           </p>
         )}
 
         {suggestedQuestions.length > 0 && (
           <div className="mt-4">
-            <div className="mb-2 text-xs font-medium text-[#475569]">
-              Suggested questions for your role:
+            <div className="mb-2 text-xs text-ink-muted-strong">
+              Suggested questions
             </div>
             <div className="flex flex-wrap gap-2">
               {suggestedQuestions.map((item) => (
-                <button
+                <Button
                   key={item.id}
-                  type="button"
+                  variant="secondary"
+                  size="sm"
                   disabled={asking}
                   onClick={() => runQuestion(item.question, item.topic)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-1.5 text-left text-xs font-medium text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#EEF6FB] active:scale-[0.98] disabled:opacity-60"
+                  className="h-auto min-h-9 text-left max-sm:min-h-11"
                 >
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#0B8ED0]" aria-hidden="true" />
-                  <span>{item.label}</span>
-                </button>
+                  {item.label}
+                </Button>
               ))}
             </div>
           </div>
@@ -709,7 +451,6 @@ export default function AskAiPage() {
           <ResponseTurn
             key={`${turn.id || 'turn'}-${idx}`}
             turn={turn}
-            isLatest={idx === 0}
             onSelectFollowUp={(q, topic) => runQuestion(q, topic)}
           />
         ))}
@@ -717,7 +458,6 @@ export default function AskAiPage() {
         {defaultTurn && (
           <ResponseTurn
             turn={defaultTurn}
-            isLatest={turns.length === 0}
             onSelectFollowUp={(q, topic) => runQuestion(q, topic)}
           />
         )}
@@ -725,30 +465,28 @@ export default function AskAiPage() {
 
       {recentQueries.length > 0 && (
         <section
-          aria-label="Recent AI questions"
-          className="rounded-xl border border-[#DDE7EF] bg-white p-4 sm:p-5"
+          aria-label="Recent questions"
+          className="rounded-card border border-line bg-surface p-4 sm:p-5"
         >
-          <div className="mb-3 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#475569]" aria-hidden="true" />
-            <h2 className="text-sm font-semibold text-[#0F172A]">Recent Questions You Asked</h2>
-          </div>
-          <div className="divide-y divide-[#DDE7EF]">
+          <h2 className="mb-3 text-sm font-semibold text-ink">Recent questions</h2>
+          <div className="divide-y divide-line">
             {recentQueries.map((item) => (
               <div
                 key={item.id}
                 className="flex flex-col justify-between gap-2 py-2.5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
               >
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-[#0F172A]">{item.question}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-[#475569]">{item.answer}</p>
+                  <p className="text-sm font-medium text-ink">{item.question}</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted-strong">{plainText(item.answer)}</p>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => runQuestion(item.question, null)}
-                  className="shrink-0 self-start rounded-md bg-[#EEF6FB] px-2.5 py-1 text-xs font-medium text-[#0F2F62] hover:bg-[#DDEEF9] sm:self-center"
+                  className="shrink-0 self-start max-sm:h-11 sm:self-center"
                 >
                   Ask again
-                </button>
+                </Button>
               </div>
             ))}
           </div>

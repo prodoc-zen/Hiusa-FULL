@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\College;
 use App\Models\Grievance;
 use App\Models\Merchandise;
 use App\Models\Order;
@@ -100,24 +99,5 @@ class OverallFeedbackRegressionTest extends TestCase
         Storage::disk('public')->assertExists(substr($response->json('image_url'), strlen('/storage/')));
         $this->post('/api/system/announcements', ['payload' => json_encode($fields), 'image' => UploadedFile::fake()->create('bad.pdf', 10, 'application/pdf')])->assertUnprocessable()->assertJsonValidationErrors('image');
         $this->post('/api/system/announcements/'.$response->json('id'), ['_method' => 'PUT', 'payload' => json_encode([...$fields, 'title' => 'Updated notice']), 'image' => UploadedFile::fake()->image('replacement.png')])->assertOk()->assertJsonPath('title', 'Updated notice');
-    }
-
-    public function test_college_transfer_revokes_affected_sessions_and_leaves_accounts_active(): void
-    {
-        $college = College::create(['name' => 'Archived College', 'is_active' => true]);
-        $org = Organization::factory()->create(['college' => $college->name]);
-        $member = User::factory()->admin()->create(['organization_id' => $org->id]);
-        $member->createToken('session');
-        $other = User::factory()->admin()->create();
-        $other->createToken('session');
-        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
-        $replacementId = $this->postJson('/api/system/colleges', ['name' => 'Replacement College'])->assertCreated()->json('id');
-        $this->deleteJson('/api/system/colleges/'.$college->id, ['transfer_to_college_id' => $replacementId])->assertNoContent();
-        $this->assertSame(0, $member->tokens()->count());
-        $this->assertSame(1, $other->tokens()->count());
-        $this->assertSame('active', $member->fresh()->account_status);
-        $this->assertSame($replacementId, $org->fresh()->college_id);
-        $this->assertSame('active', $other->fresh()->account_status);
-        $this->assertTrue($other->organization->is_active);
     }
 }

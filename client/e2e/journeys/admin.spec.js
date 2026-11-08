@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { HEAD_CCS, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, shot, uiLogin } from '../support/live.js';
+import { newStudent } from '../support/pipeline.js';
 
 // ADMIN acceptance journeys from docs/UX_FLOW.md section 9. Each runs at 1440 and 390 px, starts at the
 // Admin home after a real sign-in, counts only mouse or tap actions (typing, selecting a value in a form
@@ -13,8 +14,8 @@ const RUN = Date.now().toString(36);
 
 // Organizations the seed leaves with an Admin and nothing else set up, so the first-run checklist is real.
 const SETUP_ADMINS = {
-  1440: { schoolId: 990032, password: 'Admin@123456' },
-  390: { schoolId: 990042, password: 'Admin@123456' },
+  1440: { schoolId: 990032, password: 'Admin@123456', college: 'CHS' },
+  390: { schoolId: 990042, password: 'Admin@123456', college: 'COE' },
 };
 
 // A failed test restarts the worker and drops its cached sign-ins; the login throttle then answers 429,
@@ -251,8 +252,10 @@ for (const viewport of VIEWPORTS) {
       await expect(queueButton.or(controls).first()).toBeVisible({ timeout: 60_000 });
       const preselected = await controls.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false);
       if (!preselected) await t.tap(queueButton, `pick ${ongoingTitle}`);
-      await page.getByLabel('Member', { exact: true }).fill(String(STUDENT.schoolId));
-      await t.tap(page.locator('main').getByText(new RegExp(String(STUDENT.schoolId))).first(), 'pick member');
+      const { user: attendee } = await apiAs(STUDENT);
+      const attendeeName = `${attendee.first_name} ${attendee.last_name}`;
+      await page.getByRole('combobox', { name: 'Member' }).fill(attendeeName);
+      await t.tap(page.getByRole('option', { name: new RegExp(attendeeName) }).first(), 'pick member');
       await t.tap(page.getByRole('button', { name: 'Confirm Check-In' }), 'Confirm Check-In');
       await expect(page.getByText('Check-in recorded.')).toBeVisible(LONG);
       console.log(`[admin A4 check-in @${width}] clicks=${t.summary()} preselected=${preselected}`);
@@ -286,6 +289,8 @@ for (const viewport of VIEWPORTS) {
       for (const member of ((await admin.get('/users?per_page=100')).body?.data ?? []).filter((u) => u.role === 'STUDENT')) await admin.delete(`/users/${member.school_id}`);
       for (const event of (await admin.get('/events?per_page=100')).body?.data ?? []) await admin.delete(`/events/${event.id}`);
       const home = '/dashboard/admin';
+      // The member to add is a student of the organization's college who signed up from the school records.
+      const student = await newStudent('Member', account.college);
 
       const t = tapper();
       await uiLogin(page, account);
@@ -308,17 +313,17 @@ for (const viewport of VIEWPORTS) {
       await page.goto(home);
       await homeReady(page);
       await t.tap(page.getByRole('link', { name: /Add members/ }), 'Add members');
-      await t.tap(page.getByRole('button', { name: /New User/ }), 'New User');
-      const member = page.getByRole('dialog', { name: 'Create User' });
-      await member.getByLabel(/^School ID/).fill(`2${String(Date.now()).slice(-6)}`);
-      await member.getByLabel(/^Email/).fill(`journey.${RUN}.${width}@hiusa.local`);
-      await member.getByLabel(/^First Name/).fill('Journey');
-      await member.getByLabel(/^Last Name/).fill('Member');
-      await member.getByLabel(/^Role/).selectOption('STUDENT');
-      await member.getByLabel(/^Course \/ Program/).selectOption({ index: 1 });
-      await member.getByLabel(/^Password/).fill('Journey@12345');
-      await member.getByLabel(/^Confirm Password/).fill('Journey@12345');
-      await t.tap(member.getByRole('button', { name: 'Create User' }), 'Create User');
+      await t.tap(page.getByRole('button', { name: 'Add existing student' }), 'Add existing student');
+      const member = page.getByRole('dialog', { name: 'Add an existing student' });
+      await expect(member.getByLabel(/school id/i)).toHaveCount(0);
+      await expect(member.getByLabel(/password/i)).toHaveCount(0);
+      const picker = member.getByRole('combobox', { name: 'Student' });
+      await picker.fill(student.firstName);
+      await expect(member.getByRole('option', { name: new RegExp(student.name) })).toBeVisible(LONG);
+      await picker.press('ArrowDown');
+      await picker.press('Enter');
+      await expect(member.getByRole('group', { name: 'Student' })).toContainText(student.name);
+      await t.tap(member.getByRole('button', { name: 'Add student' }), 'Add student');
       await expect(member).toBeHidden(LONG);
       steps.push(`members ${t.summary()}`);
       expect.soft(t.state.clicks, `members ${t.summary()}`).toBeLessThanOrEqual(3);

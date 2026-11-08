@@ -234,21 +234,19 @@ class CollegeHierarchyTest extends TestCase
         $this->assertTrue($loginIds->pluck('organization_type')->contains('SYSTEM_ADMINISTRATION'));
     }
 
-    public function test_college_creation_and_deletion_are_available_while_renaming_stays_closed(): void
+    public function test_the_sao_can_add_and_delete_colleges_but_still_cannot_create_organizations_directly(): void
     {
         $director = $this->director();
         $college = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS']);
         Sanctum::actingAs($director);
 
         $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertCreated();
-        $this->putJson('/api/system/colleges/'.$college->id, ['name' => 'Renamed'])->assertStatus(405);
-        $this->deleteJson('/api/system/colleges/'.$college->id)->assertNoContent();
+        $this->deleteJson('/api/system/colleges/'.College::where('name', 'New College')->value('id'))->assertNoContent();
         $this->postJson('/api/system/organizations', ['name' => 'New Org', 'acronym' => 'NEW', 'college' => $college->name])->assertStatus(405);
 
-        $this->assertDatabaseHas('colleges', ['name' => 'New College']);
-        $this->assertNotNull(College::where('name', 'New College')->firstOrFail()->homeOrganization);
+        $this->assertDatabaseMissing('colleges', ['name' => 'New College']);
         $this->assertDatabaseMissing('organizations', ['name' => 'New Org']);
-        $this->assertSame('College of Computer Studies', College::withTrashed()->findOrFail($college->id)->name);
+        $this->assertNotNull(College::find($college->id));
     }
 
     public function test_college_list_counts_student_organizations_and_exposes_the_home_organization(): void

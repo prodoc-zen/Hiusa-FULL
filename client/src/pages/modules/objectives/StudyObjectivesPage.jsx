@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardList, Printer } from 'lucide-react';
 import Button from '../../../components/ui/Button';
-import Card from '../../../components/ui/Card';
 import EmptyState from '../../../components/ui/EmptyState';
 import ErrorState from '../../../components/ui/ErrorState';
 import PageHeader from '../../../components/ui/PageHeader';
@@ -32,9 +31,9 @@ const PRINT_STYLES = `
   @page { size: A4; margin: 14mm; }
   @media print {
     aside, header:not(.objectives-page header) { display: none !important; }
-    div:has(main) { height: auto !important; max-height: none !important; overflow: visible !important; background: #fff !important; }
-    main { height: auto !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
-    body { background: #fff !important; }
+    div:has(main) { height: auto !important; max-height: none !important; overflow: visible !important; background: white !important; }
+    main { height: auto !important; overflow: visible !important; padding: 0 !important; background: white !important; }
+    body { background: white !important; }
     .objectives-page { padding: 0 !important; }
     .objectives-no-print { display: none !important; }
     .objectives-page > * { break-inside: avoid; }
@@ -83,11 +82,11 @@ export default function StudyObjectivesPage() {
   const grouped = groupObjectives(objectives);
 
   return (
-    <div className="objectives-page space-y-6">
+    <div className="objectives-page space-y-5">
       <style>{PRINT_STYLES}</style>
 
       <PageHeader
-        meta={!loading && !error && <span className="text-xs font-semibold text-ink-muted">{scopeSentence(data?.scope)}</span>}
+        meta={!loading && !error && <span className="text-xs text-ink-muted">{scopeSentence(data?.scope)}</span>}
         actions={
           <Button variant="secondary" leftIcon={Printer} onClick={() => window.print()} className="objectives-no-print">
             Print
@@ -96,7 +95,7 @@ export default function StudyObjectivesPage() {
       />
 
       {loading && (
-        <div className="space-y-6" role="status" aria-label="Loading study objectives">
+        <div className="space-y-5" role="status" aria-label="Loading study objectives">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -104,20 +103,16 @@ export default function StudyObjectivesPage() {
       )}
 
       {!loading && error && (
-        <Card>
-          <ErrorState title="Study objectives could not be loaded" description="Check your connection and try again." onRetry={load} />
-        </Card>
+        <ErrorState title="Study objectives could not be loaded" description="Check your connection and try again." onRetry={load} />
       )}
 
       {!loading && !error && objectives.length === 0 && (
-        <Card>
-          <EmptyState
-            kind="first-run"
-            icon={ClipboardList}
-            title="No objectives are configured yet"
-            description="The study team sets up the objectives catalog. Once it is in place, every objective appears here next to its live evidence."
-          />
-        </Card>
+        <EmptyState
+          kind="first-run"
+          icon={ClipboardList}
+          title="No objectives are configured yet"
+          description="Objectives appear here once the study team sets them up."
+        />
       )}
 
       {!loading && !error && objectives.length > 0 && (

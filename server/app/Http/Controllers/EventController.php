@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsurePeriodWritable;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
@@ -67,7 +68,7 @@ class EventController extends Controller
                 'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed'),
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ]);
-        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
@@ -234,8 +235,8 @@ class EventController extends Controller
 
     public function store(Request $request)
     {
-        $activeSemester = AcademicSemester::active();
-        if (AcademicSemester::exists() && ! $activeSemester) {
+        $semester = AcademicSemester::selected($request);
+        if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new events can be created.'], 409);
         }
         $data = $request->validate([
@@ -268,11 +269,11 @@ class EventController extends Controller
         } elseif (data_get($data, 'planning_details.venue_type') === 'off_campus' && blank($data['location'] ?? null)) {
             return response()->json(['message' => 'Enter the off-campus location.'], 422);
         }
-        if ($activeSemester && (
-            substr($data['start_time'], 0, 10) < $activeSemester->starts_on->toDateString()
-            || substr($data['end_time'], 0, 10) > $activeSemester->ends_on->toDateString()
+        if ($semester && (
+            substr($data['start_time'], 0, 10) < $semester->starts_on->toDateString()
+            || substr($data['end_time'], 0, 10) > $semester->ends_on->toDateString()
         )) {
-            return response()->json(['message' => 'Event dates must fall within the active academic semester.'], 422);
+            return response()->json(['message' => 'Event dates must fall within the academic semester.'], 422);
         }
 
         $proposedBudget = (float) data_get($data, 'planning_details.proposed_budget_amount', 0);
@@ -292,14 +293,14 @@ class EventController extends Controller
             $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('events', 'public'));
         }
 
-        $event = DB::transaction(function () use ($data, $request, $proposedBudget, $warningThreshold, $activeSemester) {
+        $event = DB::transaction(function () use ($data, $request, $proposedBudget, $warningThreshold, $semester) {
             $event = Event::create([
                 ...$data,
                 'requires_budget' => $data['requires_budget'] ?? false,
                 'status' => 'planning',
                 'created_by' => $request->user()->id,
                 'organization_id' => $request->user()->organization_id,
-                'academic_semester_id' => $activeSemester?->id,
+                'academic_semester_id' => $semester?->id,
             ]);
 
             $this->approvalChain->submitToHead($event, $request->user()->id);
@@ -343,8 +344,8 @@ class EventController extends Controller
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
-        if ($event->academic_semester_id && $event->academic_semester_id !== AcademicSemester::active()?->id) {
-            return response()->json(['message' => 'Historical semester events are read only.'], 409);
+        if (AcademicSemester::isClosed($event->academic_semester_id)) {
+            return response()->json(['message' => EnsurePeriodWritable::CLOSED], 409);
         }
 
         if ($event->created_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {

@@ -168,8 +168,8 @@ describe('UserActionDock', () => {
     const onSaved = vi.fn();
     const firstRender = render(<FingerprintEnrollmentModal user={student} onClose={vi.fn()} onSaved={onSaved} />);
 
-    expect(screen.getByRole('dialog', { name: 'Enroll Fingerprint' })).toBeInTheDocument();
-    const startButton = screen.getByRole('button', { name: 'Start 4-Scan Enrollment' });
+    expect(screen.getByRole('dialog', { name: 'Enroll fingerprint' })).toBeInTheDocument();
+    const startButton = screen.getByRole('button', { name: 'Start 4-scan enrollment' });
     expect(startButton).toBeDisabled();
     fireEvent.click(screen.getByRole('checkbox'));
     expect(startButton).toBeEnabled();
@@ -180,11 +180,11 @@ describe('UserActionDock', () => {
     firstRender.unmount();
 
     render(<FingerprintEnrollmentModal user={{ ...student, fingerprint_enrolled: true }} onClose={vi.fn()} onSaved={onSaved} />);
-    expect(screen.getByRole('dialog', { name: 'Re-enroll Fingerprint' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Re-enroll fingerprint' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
-    expect(screen.getByRole('dialog', { name: 'Remove Fingerprint Enrollment' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Remove fingerprint enrollment' })).toBeInTheDocument();
     expect(fingerprintMocks.removeFingerprint).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Fingerprint' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove fingerprint' }));
     await waitFor(() => expect(fingerprintMocks.removeFingerprint).toHaveBeenCalledWith(2400019));
   });
 });

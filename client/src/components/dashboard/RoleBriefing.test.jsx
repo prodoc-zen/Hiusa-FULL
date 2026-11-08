@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RoleBriefing from './RoleBriefing';
 import { getBriefing } from '../../services/dashboardService';
+import { setTrackerShown } from '../process/trackerPresence';
 
 vi.mock('../../services/dashboardService', () => ({ getBriefing: vi.fn() }));
 
@@ -27,6 +28,7 @@ describe('RoleBriefing', () => {
   beforeEach(() => {
     vi.mocked(getBriefing).mockReset();
     localStorage.clear();
+    setTrackerShown(false);
   });
 
   it('shows a briefing-shaped skeleton while loading', async () => {
@@ -45,6 +47,7 @@ describe('RoleBriefing', () => {
     expect(screen.getByText('Foundation Week budget')).toBeInTheDocument();
     expect(screen.getByText('Remaining budget')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /New announcement/ })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(screen.getByRole('link', { name: /New announcement/ })).not.toHaveClass('bg-brand-700');
     expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
     const indicators = screen.getByText('Organization indicators').closest('details');
     expect(indicators).not.toHaveAttribute('open');
@@ -58,6 +61,19 @@ describe('RoleBriefing', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(screen.getByText('One approval needs you today.')).toBeInTheDocument());
     expect(getBriefing).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the suggestions to an admin but not to a department head', async () => {
+    const insights = [{ engine: 'budget', title: 'Spending is ahead of plan', detail: 'Two budgets are close to their limit.', severity: 'medium', why: [] }];
+    vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { insights }));
+    const { unmount } = renderBriefing();
+    expect(await screen.findByRole('heading', { name: 'Suggestions from your records' })).toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { insights }));
+    renderBriefing();
+    expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Suggestions from your records' })).not.toBeInTheDocument();
   });
 
   describe('the setup card', () => {
@@ -130,12 +146,12 @@ describe('RoleBriefing', () => {
       ]);
     });
 
-    it('ADMIN: the one filled button is the first step, not a header action', async () => {
+    it('ADMIN: no briefing button is filled, because the process tracker owns the one on the page', async () => {
       const setup = withProgress([step('positions', 'Set up your officer positions'), step('members', 'Add your members')]);
       vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
       renderBriefing();
       const first = await screen.findByRole('link', { name: 'Add positions' });
-      expect(first).toHaveClass('bg-brand-700');
+      expect(first).not.toHaveClass('bg-brand-700');
       expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-brand-700');
       expect(screen.queryByRole('link', { name: /New announcement/ })).not.toBeInTheDocument();
     });
@@ -188,7 +204,6 @@ describe('RoleBriefing', () => {
       expect(within(card).getAllByRole('listitem').map((row) => row.querySelector('p').textContent)).toEqual(['Add your contact number', 'Enroll your fingerprint', 'Open My tasks']);
       expect(within(card).getByRole('link', { name: 'Add contact number' })).toHaveAttribute('href', '/dashboard/profile');
       expect(within(card).getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
-      expect(screen.getByText(/SBO Officer/)).toBeInTheDocument();
 
       const where = within(card).getByRole('button', { name: 'Where to go' });
       expect(where).toHaveAttribute('aria-expanded', 'false');
@@ -273,7 +288,6 @@ describe('RoleBriefing', () => {
         'Set the current academic year', 'Every college has a Department Head', 'Publish the accreditation requirements',
       ]);
       expect(within(card).getByRole('link', { name: 'Set the academic year' })).not.toHaveClass('bg-brand-700');
-      expect(screen.getByText(/· SAO ·/)).toBeInTheDocument();
     });
 
     it('SAO: with nothing in the inbox the setup card comes first and holds the one filled button', async () => {
@@ -298,6 +312,40 @@ describe('RoleBriefing', () => {
       renderBriefing();
       expect(await screen.findByRole('link', { name: 'Review financial reports' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=financial');
       expect(screen.queryByText('1 item needs your attention: 1 financial report.')).not.toBeInTheDocument();
+    });
+
+    describe('while the process tracker shows', () => {
+      const setup = withProgress([step('contact', 'Add your contact number'), step('academic-year', 'Set the current academic year'), step('positions', 'Set up your officer positions')]);
+
+      it.each(['SUPER_ADMIN', 'STUDENT'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing(role, { setup, organizations: [] }));
+        renderBriefing();
+
+        await screen.findByRole('heading', { name: role === 'SUPER_ADMIN' ? 'Review inbox' : 'Needs attention' });
+        expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+      });
+
+      it('brings the checklist back once the tracker has nothing to show', async () => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('STUDENT', { setup }));
+        renderBriefing();
+        await waitFor(() => expect(getBriefing).toHaveBeenCalled());
+        expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+
+        act(() => setTrackerShown(false));
+
+        expect(await screen.findByRole('heading', { name: 'Next for you' })).toBeInTheDocument();
+      });
+
+      it('ADMIN: keeps its checklist, which the tracker does not replace', async () => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
+        renderBriefing();
+
+        expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+      });
     });
 
     it('keeps organization indicators out of the SAO dashboard', async () => {

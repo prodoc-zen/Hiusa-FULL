@@ -8,15 +8,6 @@ export const STATUS_STYLES = {
   pending: { label: 'Pending', icon: Clock3, block: 'border-dashed border-warning bg-warning-tint text-warning-strong', row: 'border-warning/50' },
 };
 
-// Palette colours that are not status colours, so a venue never reads as approved, pending or a clash.
-const VENUE_COLORS = ['bg-brand-600', 'bg-accent', 'bg-navy-800', 'bg-ink-soft', 'bg-ink-muted'];
-
-export function venueColor(venueId) {
-  const key = Number(venueId);
-  const index = Number.isInteger(key) ? key : [...String(venueId)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return VENUE_COLORS[Math.abs(index) % VENUE_COLORS.length];
-}
-
 export function statusStyle(status) {
   return STATUS_STYLES[status] || STATUS_STYLES.pending;
 }
@@ -24,7 +15,7 @@ export function statusStyle(status) {
 // A word and an icon, so a clash never relies on colour alone.
 export function ConflictBadge({ className = '' }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border border-danger bg-danger-tint px-2 py-0.5 text-xs font-bold text-danger-strong ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded bg-danger-tint px-2 py-0.5 text-xs font-semibold text-danger-strong ${className}`}>
       <AlertTriangle size={12} aria-hidden="true" />Conflict
     </span>
   );

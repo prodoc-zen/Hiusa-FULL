@@ -102,7 +102,7 @@ function Section({ title, description, children }) {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h2 className="text-xl font-bold text-ink">{title}</h2>
+        <h2 className="text-xl font-semibold text-ink">{title}</h2>
         {description && <p className="mt-1 text-sm font-medium text-ink-muted">{description}</p>}
       </div>
       {children}
@@ -234,7 +234,7 @@ export default function UiKitPage() {
               value={tab}
               onChange={setTab}
             />
-            <p className="mt-4 text-sm font-medium text-ink-muted">Active tab: <span className="font-bold text-ink">{tab}</span></p>
+            <p className="mt-4 text-sm font-medium text-ink-muted">Active tab: <span className="font-semibold text-ink">{tab}</span></p>
             <div className="mt-5">
               <SegmentedControl
                 options={[{ value: 'week', label: 'This week' }, { value: 'month', label: 'This month' }, { value: 'year', label: 'This year' }]}
@@ -266,12 +266,12 @@ export default function UiKitPage() {
           </Card>
         </Section>
 
-        <Section title="Flow stepper" description="One lifecycle record, with state shown as icon, text and color. Horizontal from md, vertical below.">
+        <Section title="Flow stepper" description="One lifecycle record, with state shown as icon, text and color. Compact by default; the full list is horizontal from md, vertical below.">
           <Card title="Full, all five states">
-            <FlowStepper steps={STEPPER_STATES} ariaLabel="Event progress, every state" />
+            <FlowStepper variant="full" steps={STEPPER_STATES} ariaLabel="Event progress, every state" />
           </Card>
           <Card title="Full, fed by lifecycle.js (event, waiting on the Department Head)">
-            <FlowStepper steps={eventLifecycle(DEMO_EVENT, 'ADMIN').steps} ariaLabel="Event progress" />
+            <FlowStepper variant="full" steps={eventLifecycle(DEMO_EVENT, 'ADMIN').steps} ariaLabel="Event progress" />
           </Card>
           <Card title="Compact, for table rows">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -290,12 +290,11 @@ export default function UiKitPage() {
           <NextStep {...toNextStepProps(eventLifecycle(DEMO_EVENT, 'DEPARTMENT_HEAD'))} />
         </Section>
 
-        <Section title="Page header" description="Breadcrumb, one h1, purpose line, meta chips, stepper, next step and one primary action. These previews add h1s to the dev page only. A header that carries a next step with a button keeps its own actions secondary, so only one filled button shows.">
-          <Card title="List page: purpose, meta and the one primary button">
+        <Section title="Page header" description="Breadcrumb, one h1, meta chips, stepper, next step and one primary action. These previews add h1s to the dev page only. A header that carries a next step with a button keeps its own actions secondary, so only one filled button shows.">
+          <Card title="List page: meta and the one primary button">
             <PageHeader
               breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Events and tasks', to: '/dashboard/events/manage-events' }, { label: 'Events' }]}
               title="Events"
-              purpose="Plan, approve and run your organization's events."
               meta={<StatusBadge status="active" label="Needs approval" />}
               actions={<Button variant="secondary" leftIcon={Download}>Export</Button>}
               primary={<Button leftIcon={Plus}>New event</Button>}
@@ -305,7 +304,6 @@ export default function UiKitPage() {
             <PageHeader
               breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Events and tasks', to: '/dashboard/events/manage-events' }, { label: 'Events', to: '/dashboard/events/manage-events' }, { label: 'Founders Day' }]}
               title="Founders Day"
-              purpose="Plan, approve and run this event from one place."
               meta={<StatusBadge status="planning" />}
               actions={<Button variant="secondary" leftIcon={Download}>Export</Button>}
               stepper={<FlowStepper steps={eventLifecycle(DEMO_EVENT, 'ADMIN').steps} ariaLabel="Event progress" />}

@@ -38,7 +38,7 @@ export default function SegmentedControl({ options, value, onChange, className =
   return (
     <div role="radiogroup" className={`relative inline-flex items-center gap-0.5 rounded-control border border-line bg-subtle p-1 ${className}`}>
       <span
-        className="pointer-events-none absolute inset-y-1 rounded-[4px] bg-surface shadow-card transition-transform duration-[180ms] ease-out"
+        className="pointer-events-none absolute inset-y-1 rounded-[4px] border border-line bg-surface transition-transform duration-[180ms] ease-out"
         style={{ width: `${indicator.width}px`, transform: `translateX(${indicator.left}px)` }}
         aria-hidden="true"
       />
@@ -54,7 +54,7 @@ export default function SegmentedControl({ options, value, onChange, className =
             tabIndex={isActive ? 0 : -1}
             onClick={() => selectOption(index)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={`relative z-10 h-8 rounded-[4px] px-3 text-xs font-bold transition-colors duration-150 ${isActive ? 'text-ink' : 'text-ink-muted hover:text-ink'}`}
+            className={`relative z-10 h-8 rounded-[4px] px-3 text-xs font-medium pointer-coarse:h-11 transition-colors duration-150 ${isActive ? 'text-ink' : 'text-ink-muted hover:text-ink'}`}
           >
             {option.label}
           </button>

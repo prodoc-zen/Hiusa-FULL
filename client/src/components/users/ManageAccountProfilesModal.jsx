@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Modal from '../Modal';
 import ConfirmModal from '../ConfirmModal';
+import { Button, Drawer, Field, Input } from '../ui';
 import { deleteAccountProfile, getManagedAccountProfiles } from '../../services/authService';
 import { listMeta, unwrapList } from '../../services/pagination';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -58,23 +58,26 @@ export default function ManageAccountProfilesModal({ organization = null, user =
 
   const pendingSearch = search.trim() !== query;
   return <>
-    <Modal open={!target} title="Manage user profiles" description="Remove access to an organization. Deleting the final profile also deletes the user's login. Linked records can prevent final deletion." onClose={() => !busy && onClose()}>
-      {organization && <p className="mb-3 text-sm font-bold text-[#0F2F62]">{formatDisplayText(organization.name)}</p>}
-      {user && <p className="mb-3 text-sm font-bold text-[#0F2F62]">{formatDisplayText(`${user.first_name} ${user.last_name}`)} · {user.school_id}</p>}
-      <label className="block text-sm font-semibold text-[#0F172A]">Search profiles<input value={search} disabled={busy} onChange={(event) => setSearch(event.target.value)} placeholder="Name, school ID, or email" className="mt-1 min-h-11 w-full rounded-lg border border-[#DDE7EF] px-3 outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></label>
-      {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" disabled={busy} onClick={() => setRefresh((value) => value + 1)} className="min-h-11 font-bold underline">Retry</button></p>}
-      {(loading || pendingSearch) ? <p role="status" className="mt-3 text-sm text-[#64748B]">Loading profiles...</p> : <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
-        {!rows.length && !error && <p className="text-sm text-[#64748B]">No profiles found in the organizations you manage.</p>}
-        {rows.map((profile) => <article key={profile.id} className="rounded-lg border border-[#DDE7EF] p-3 text-sm">
-          <p className="break-words font-bold text-[#0F172A]">{formatDisplayText(`${profile.first_name} ${profile.last_name}`)} · {profile.school_id}</p>
-          <p className="mt-1 break-words text-[#64748B]">{formatDisplayText(profile.organization.name)} · {profile.role.replaceAll('_', ' ')} · {profile.account_status}</p>
-          <p className="mt-1 text-xs text-[#64748B]">{profile.is_primary ? 'Primary profile' : 'Additional profile'} · {profile.profiles_count} total {profile.profiles_count === 1 ? 'profile' : 'profiles'}</p>
-          {profile.deletion_block_reason && <p className="mt-2 text-xs text-[#64748B]">{profile.deletion_block_reason}</p>}
-          <button type="button" aria-label={`Delete profile for ${profile.school_id} in ${profile.organization.name}`} disabled={busy || Boolean(profile.deletion_block_reason)} onClick={() => setTarget(profile)} className="mt-2 min-h-11 rounded-lg border border-red-200 px-3 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Delete profile</button>
-        </article>)}
-      </div>}
-      {meta.lastPage > 1 && <nav aria-label="Profile pages" className="mt-4 flex items-center justify-between gap-2 text-sm"><button type="button" disabled={busy || loading || pendingSearch || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-50">Previous</button><span>Page {page} of {meta.lastPage}</span><button type="button" disabled={busy || loading || pendingSearch || page >= meta.lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-50">Next</button></nav>}
-    </Modal>
-    <ConfirmModal open={Boolean(target)} title="Delete organization profile" message={target?.profiles_count === 1 ? 'This is the final profile. Deleting it also permanently deletes the user account. Linked records will block deletion.' : 'Remove this organization profile and revoke its sessions. The user retains their other profiles and login.'} recordName={target ? `${target.first_name} ${target.last_name} — ${target.organization.name}` : ''} confirmationText={target ? String(target.school_id) : ''} confirmText="Delete profile" busy={busy} onCancel={() => !busy && setTarget(null)} onConfirm={remove} />
+    {/* The list steps aside while the delete confirmation is up, so only one dialog is ever open. */}
+    {!target && <Drawer open title="Manage user profiles" description="Remove access to an organization. Deleting the final profile also deletes the user's login. Linked records can prevent final deletion." onClose={() => !busy && onClose()}>
+      {organization && <p className="mb-3 text-sm font-semibold text-ink">{formatDisplayText(organization.name)}</p>}
+      {user && <p className="mb-3 text-sm font-semibold text-ink">{formatDisplayText(`${user.first_name} ${user.last_name}`)} · {user.school_id}</p>}
+      <Field label="Search profiles">
+        <Input value={search} disabled={busy} onChange={(event) => setSearch(event.target.value)} placeholder="Name, school ID, or email" />
+      </Field>
+      {error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error} <button type="button" disabled={busy} onClick={() => setRefresh((value) => value + 1)} className="min-h-11 rounded-control font-semibold underline underline-offset-2">Retry</button></p>}
+      {(loading || pendingSearch) ? <p role="status" className="mt-3 text-sm text-ink-muted">Loading profiles...</p> : <ul className="mt-4 divide-y divide-line-soft">
+        {!rows.length && !error && <li className="py-4 text-sm text-ink-muted">{query ? 'No profiles match your search.' : 'No profiles found in the organizations you manage.'}</li>}
+        {rows.map((profile) => <li key={profile.id} className="py-3 text-sm">
+          <p className="break-words font-semibold text-ink">{formatDisplayText(`${profile.first_name} ${profile.last_name}`)} · {profile.school_id}</p>
+          <p className="mt-1 break-words text-ink-muted">{formatDisplayText(profile.organization.name)} · {profile.role.replaceAll('_', ' ')}{profile.account_status !== 'active' ? ` · ${profile.account_status}` : ''}</p>
+          <p className="mt-1 text-xs text-ink-muted">{profile.is_primary ? 'Primary profile' : 'Additional profile'} · {profile.profiles_count} total {profile.profiles_count === 1 ? 'profile' : 'profiles'}</p>
+          {profile.deletion_block_reason && <p className="mt-2 text-xs text-ink-muted">{profile.deletion_block_reason}</p>}
+          <Button variant="secondary" className="mt-2 text-danger-strong" aria-label={`Delete profile for ${profile.school_id} in ${profile.organization.name}`} disabled={busy || Boolean(profile.deletion_block_reason)} onClick={() => setTarget(profile)}>Delete profile</Button>
+        </li>)}
+      </ul>}
+      {meta.lastPage > 1 && <nav aria-label="Profile pages" className="mt-4 flex items-center justify-between gap-2 text-sm"><Button variant="secondary" disabled={busy || loading || pendingSearch || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span className="tabular-nums">Page {page} of {meta.lastPage}</span><Button variant="secondary" disabled={busy || loading || pendingSearch || page >= meta.lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
+    </Drawer>}
+    <ConfirmModal open={Boolean(target)} title="Delete organization profile" message={target?.profiles_count === 1 ? 'This is the final profile. Deleting it also permanently deletes the user account. Linked records will block deletion.' : 'Remove this organization profile and revoke its sessions. The user retains their other profiles and login.'} recordName={target ? `${target.first_name} ${target.last_name}, ${target.organization.name}` : ''} confirmationText={target ? `${target.first_name} ${target.last_name}`.trim() : ''} confirmText="Delete profile" busy={busy} onCancel={() => !busy && setTarget(null)} onConfirm={remove} />
   </>;
 }

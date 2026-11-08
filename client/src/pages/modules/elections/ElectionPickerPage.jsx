@@ -2,34 +2,30 @@ import TableRowActions from '../../../components/TableRowActions';
 import { matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import notify from '../../../lib/notify';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarDays,
   Eye,
-  Clock3,
-  MapPin,
   PencilLine,
   Plus,
   Power,
   PowerOff,
-  Search,
   Trash2,
-  Upload,
   Vote,
 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Button from '../../../components/ui/Button';
+import DataTable from '../../../components/ui/DataTable';
+import Drawer from '../../../components/ui/Drawer';
 import EmptyState from '../../../components/ui/EmptyState';
-import FlowStepper from '../../../components/ui/FlowStepper';
+import Field from '../../../components/ui/Field';
+import Input from '../../../components/ui/Input';
 import PageHeader from '../../../components/ui/PageHeader';
+import StatusBadge from '../../../components/ui/StatusBadge';
 import { isReturned, withApprovalState } from '../../../components/elections/electionFlow';
 import { electionLifecycle } from '../../../lib/lifecycle';
+import { canViewElectionResults } from '../../../utils/electionAccess';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
-import PaginationControls from '../../../components/PaginationControls';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
@@ -37,21 +33,23 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 
-const statusStyles = {
-  pending_approval: 'border-amber-200 bg-amber-50 text-amber-700',
-  upcoming: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62]',
-  active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  closed: 'border-slate-200 bg-slate-100 text-slate-600',
+const statusTones = {
+  pending_approval: 'warning',
+  upcoming: 'info',
+  active: 'success',
+  closed: 'neutral',
 };
 
 const statusLabels = {
-  pending_approval: 'Pending Approval',
+  pending_approval: 'Pending approval',
   upcoming: 'Upcoming',
-  active: 'Live',
+  active: 'Open',
   closed: 'Closed',
 };
 
-const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'PIO'];
+const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'Public Information Officer'];
+
+const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
 
 const blankElection = () => ({
   title: '', room: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null, informativeLetterFile: null,
@@ -63,19 +61,6 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString('en-PH', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
   });
-}
-
-function formatTimeline(election) {
-  if (isReturned(election)) return 'Returned by the Department Head';
-  if (election.status === 'pending_approval') return 'Awaiting Department Head review';
-  const now = Date.now();
-  const start = new Date(election.start_time).getTime();
-  const end = new Date(election.end_time).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return 'Schedule unavailable';
-  const hours = Math.max(1, Math.ceil(((election.status === 'active' ? end - now : start - now) / 3_600_000)));
-  if (election.status === 'active') return `${hours} hour${hours === 1 ? '' : 's'} remaining`;
-  if (election.status === 'upcoming') return `Starts in ${hours} hour${hours === 1 ? '' : 's'}`;
-  return `Ended ${new Date(end).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`;
 }
 
 function getVotingPeriodError(startTime, endTime) {
@@ -92,6 +77,25 @@ function getElectionVoteCount(election) {
   return Number.isFinite(count) ? count : 0;
 }
 
+// The Hub passes the screen the Admin or officer came from. Only the Elections screen manages
+// elections; the others are a chooser for the screen they asked for.
+const MODE_HEADERS = {
+  candidates: { title: 'Choose an election', description: 'Pick the election whose candidates you want to manage.' },
+  partylists: { title: 'Choose an election', description: 'Pick the election whose party lists you want to manage.' },
+  voters: { title: 'Choose an election', description: 'Pick the election whose voters you want to review.' },
+  results: { title: 'Election results' },
+};
+
+function FileInput({ id, file, buttonLabel, className = '', ...props }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+      <input id={id} type="file" className="peer sr-only" {...props} />
+      <label htmlFor={id} className="inline-flex h-10 cursor-pointer items-center rounded-control border border-line bg-surface px-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-subtle peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600">{file ? 'Choose another file' : buttonLabel}</label>
+      <span className="min-w-0 truncate text-sm text-ink-muted">{file ? file.name : 'No file selected'}</span>
+    </div>
+  );
+}
+
 function ElectionArtworkField({ id, file, existingUrl = '', onChange, onRemove }) {
   const [preview, setPreview] = useState(existingUrl ? resolveAssetUrl(existingUrl) : '');
 
@@ -106,28 +110,22 @@ function ElectionArtworkField({ id, file, existingUrl = '', onChange, onRemove }
   }, [file, existingUrl]);
 
   return (
-    <div>
-      <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Election artwork</span>
-      <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
-        <div className="relative aspect-video overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#0F2F62]">
-          {preview ? <img src={preview} alt="Election artwork preview" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-white/75"><Vote size={36} /></div>}
-        </div>
-        <div>
-          <label htmlFor={id} className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD]">
-            <Upload size={16} /> {preview ? 'Replace image' : 'Choose image'}
-          </label>
-          <input id={id} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => onChange(event.target.files?.[0] || null)} />
-          <p className="mt-2 text-xs leading-5 text-[#64748B]">Use a wide JPG, PNG, or WebP image up to 5 MB. A 16:9 image works best.</p>
-          {preview && onRemove && <button type="button" onClick={onRemove} className="mt-1 text-xs font-bold text-red-600 hover:underline">Remove artwork</button>}
-        </div>
-      </div>
+    <div className="space-y-2">
+      {preview && <img src={preview} alt="Election artwork preview" className="aspect-video w-48 rounded-control border border-line object-cover" />}
+      <Field label="Election artwork" optional hint="A wide JPG, PNG or WebP image up to 5 MB. A 16:9 image works best.">
+        <FileInput id={id} file={file} buttonLabel="Choose image" accept="image/jpeg,image/png,image/webp" onChange={(event) => onChange(event.target.files?.[0] || null)} />
+      </Field>
+      {preview && onRemove && <button type="button" onClick={onRemove} className="rounded-control text-sm font-medium text-danger-strong underline underline-offset-2 hover:text-danger">Remove artwork</button>}
     </div>
   );
 }
 
 function ElectionFormFields({ form, setForm, editing = false }) {
+  const update = (patch) => setForm((current) => ({ ...current, ...patch }));
+  const updatePosition = (index, patch) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <ElectionArtworkField
         id={editing ? 'edit-election-artwork' : 'create-election-artwork'}
         file={form.imageFile}
@@ -135,69 +133,76 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         onChange={(imageFile) => setForm((current) => ({ ...current, imageFile, remove_image: false }))}
         onRemove={editing ? () => setForm((current) => ({ ...current, imageFile: null, image_url: '', remove_image: true })) : undefined}
       />
-      {!editing && <label className="block rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-        <span className="block text-[13px] font-semibold text-[#0F172A]">Informative letter (PDF) *</span>
-        <input type="file" accept="application/pdf,.pdf" required onChange={(event) => setForm((current) => ({ ...current, informativeLetterFile: event.target.files?.[0] || null }))} className="mt-2 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-lg file:border-0 file:bg-[#E6F6FD] file:px-3 file:py-2 file:font-semibold file:text-[#0F2F62]" />
-        <span className="mt-1 block text-xs text-[#64748B]">Attach the informative letter before submitting for approval. Maximum 10 MB.</span>
-      </label>}
-      <label className="block">
-        <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Election title *" />Election title *</span>
-        <input data-autofocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. HIUSA General Elections 2026" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-      </label>
-      <label className="block"><span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#0F172A]"><MapPin size={14} aria-hidden="true" /> Voting room (optional)</span><input value={form.room || ''} maxLength={120} onChange={(event) => setForm((current) => ({ ...current, room: event.target.value }))} placeholder="Online ballot or room name" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
+      {!editing && (
+        <Field label="Informative letter (PDF)" required hint="Attach it before submitting for approval. Maximum 10 MB.">
+          <FileInput file={form.informativeLetterFile} buttonLabel="Choose PDF" accept="application/pdf,.pdf" onChange={(event) => update({ informativeLetterFile: event.target.files?.[0] || null })} />
+        </Field>
+      )}
+      <Field label="Election title" required>
+        <Input data-autofocus value={form.title} onChange={(event) => update({ title: event.target.value })} placeholder="e.g. HIUSA General Elections 2026" />
+      </Field>
+      <Field label="Voting room" optional>
+        <Input value={form.room || ''} maxLength={120} onChange={(event) => update({ room: event.target.value })} placeholder="Online ballot or room name" />
+      </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting starts *" />Voting starts *</span>
-          <DateTimeInput type="datetime-local" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
-        </label>
-        <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting ends *" />Voting ends *</span>
-          <DateTimeInput type="datetime-local" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
-        </label>
+        <Field label="Voting starts" required>
+          <Input type="datetime-local" value={form.start_time} onChange={(event) => update({ start_time: event.target.value })} />
+        </Field>
+        <Field label="Voting ends" required hint="Times use this device's local timezone.">
+          <Input type="datetime-local" value={form.end_time} onChange={(event) => update({ end_time: event.target.value })} />
+        </Field>
       </div>
-      <p className="-mt-3 text-xs text-[#64748B]">Times use this device’s local timezone.</p>
 
       {!editing && (
-        <fieldset className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><legend className="text-[13px] font-bold text-[#0F172A]">Ballot positions *</legend><p className="mt-0.5 text-xs text-[#64748B]">Add every position voters will see.</p></div>
-            <button type="button" onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#0B8ED0]/30 bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Plus size={14} /> Add position</button>
-          </div>
-          <button type="button" onClick={() => setForm((current) => ({
-            ...current,
-            positions: [
-              ...current.positions.filter((position) => position.title.trim()),
-              ...EXECUTIVE_POSITIONS.filter((title) => !current.positions.some((position) => position.title.trim().toLowerCase() === title.toLowerCase())).map((title) => ({ title, max_winners: 1 })),
-            ],
-          }))} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] hover:border-[#0B8ED0] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><Plus size={14} /> Add executive positions</button>
-          <p className="mt-1 text-xs text-[#64748B]">President through PIO. You can still add or edit other positions below.</p>
-          <div className="mt-3 space-y-3">
+        <fieldset className="border-t border-line pt-4">
+          <legend className="text-[13px] font-medium text-ink">Ballot positions</legend>
+          <p className="mt-0.5 text-xs text-ink-muted">Add every position voters will see.</p>
+          <div className="mt-3 space-y-2">
             {form.positions.map((position, index) => (
-              <div key={`${index}-${form.positions.length}`} className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_110px_42px] sm:border-0 sm:bg-transparent sm:p-0">
-                <label><span className="mb-1 block text-[11px] font-bold text-[#64748B] sm:sr-only">Position title</span><input value={position.title} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} aria-label={`Position ${index + 1} title`} placeholder={index === 0 ? 'e.g. President' : 'Position title'} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-                <label><span className="mb-1 block text-[11px] font-bold text-[#64748B] sm:sr-only">Maximum winners</span><input type="number" min="1" max="20" value={position.max_winners} onChange={(event) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, max_winners: event.target.value } : item) }))} aria-label={`Position ${index + 1} maximum winners`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-                <button type="button" aria-label={`Remove position ${index + 1}`} disabled={form.positions.length === 1} onClick={() => setForm((current) => ({ ...current, positions: current.positions.filter((_, itemIndex) => itemIndex !== index) }))} className="grid h-10 w-full place-items-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-30 sm:w-10"><Trash2 size={14} /></button>
+              <div key={`${index}-${form.positions.length}`} className="grid grid-cols-[minmax(0,1fr)_5.5rem_2.75rem] items-center gap-2">
+                <Input value={position.title} maxLength={100} onChange={(event) => updatePosition(index, { title: event.target.value })} aria-label={`Position ${index + 1} title`} placeholder={index === 0 ? 'e.g. President' : 'Position title'} />
+                <Input type="number" min="1" max="20" value={position.max_winners} onChange={(event) => updatePosition(index, { max_winners: event.target.value })} aria-label={`Position ${index + 1} maximum winners`} />
+                <button type="button" aria-label={`Remove position ${index + 1}`} disabled={form.positions.length === 1} onClick={() => setForm((current) => ({ ...current, positions: current.positions.filter((_, itemIndex) => itemIndex !== index) }))} className="grid h-11 w-11 place-items-center rounded-control border border-line text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-danger-strong disabled:cursor-not-allowed disabled:opacity-40"><Trash2 size={16} aria-hidden="true" /></button>
               </div>
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="secondary" leftIcon={Plus} onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))}>Add position</Button>
+            <Button
+              variant="secondary"
+              leftIcon={Plus}
+              onClick={() => setForm((current) => ({
+                ...current,
+                positions: [
+                  ...current.positions.filter((position) => position.title.trim()),
+                  ...EXECUTIVE_POSITIONS.filter((title) => !current.positions.some((position) => position.title.trim().toLowerCase() === title.toLowerCase())).map((title) => ({ title, max_winners: 1 })),
+                ],
+              }))}
+            >
+              Add executive positions
+            </Button>
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">Adds President, Vice President, Secretary, Treasurer, Auditor, Business Manager and Public Information Officer.</p>
         </fieldset>
       )}
     </div>
   );
 }
 
-export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null }) {
+export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null, mode = 'manage' }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const canManageElections = currentUser?.role === 'ADMIN';
+  const managing = mode === 'manage';
+  const showingResults = mode === 'results';
   const [elections, setElections] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -209,13 +214,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const editRequestHandled = useRef(false);
-  const pageSize = 6;
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
 
   const loadElections = useCallback(async () => {
-    setLoading(true); setError('');
+    setLoading(true); setLoadError('');
     try { const data = await getElections({ academic_semester_id: selectedPeriodId || undefined }); setElections(Array.isArray(data) ? data : []); }
-    catch { setError('Unable to load elections.'); }
+    catch { setLoadError('Unable to load elections.'); }
     finally { setLoading(false); }
   }, [selectedPeriodId]);
 
@@ -229,12 +233,14 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     }
   }, [canManageElections, startCreate]);
 
+  const listedElections = useMemo(() => (showingResults ? elections.filter((election) => canViewElectionResults(election, currentUser?.role)) : elections), [elections, showingResults, currentUser?.role]);
+
   const filteredElections = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    return elections.filter((election) => matchesFilter(statusFilter, election.status) && (!query || String(election.title || '').toLowerCase().includes(query)));
-  }, [elections, searchTerm, statusFilter]);
-  useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
-  const pagedElections = filteredElections.slice((page - 1) * pageSize, page * pageSize);
+    return listedElections.filter((election) => matchesFilter(statusFilter, election.status) && (!query || String(election.title || '').toLowerCase().includes(query)));
+  }, [listedElections, searchTerm, statusFilter]);
+  const filtersActive = Boolean(searchTerm.trim()) || statusFilter !== 'all';
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter('all'); };
 
   const validateForm = (values, includePositions) => {
     const periodError = getVotingPeriodError(values.start_time, values.end_time);
@@ -296,12 +302,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
 
   const handleStatusChange = async (id, status) => {
     if (statusBusy.id) return;
-    setStatusBusy({ id, target: status }); setError('');
+    setStatusBusy({ id, target: status }); setActionError('');
     try {
       const updated = await updateElection(id, { status });
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
       setFeedback({ open: true, type: 'success', message: status === 'active' ? 'Election opened for voting.' : 'Election closed.' });
-    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election status.'); setError(message); notify.error(message); }
+    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election status.'); setActionError(message); notify.error(message); }
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
@@ -309,103 +315,153 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     if (!deleteTarget || deleting) return;
     setDeleting(true);
     try { await deleteElection(deleteTarget.id); setElections((current) => current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null); setFeedback({ open: true, type: 'success', message: 'Election deleted.' }); }
-    catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to delete election.'); setDeleteTarget(null); setError(message); notify.error(message); }
+    catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to delete election.'); setDeleteTarget(null); setActionError(message); notify.error(message); }
     finally { setDeleting(false); }
   };
 
-  return (
-    <div className="space-y-5">
-      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-      <PageHeader primary={canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        {academicPeriods.length > 0 && <label className="block px-4 pt-4 text-xs font-semibold text-[#0F172A] sm:px-5">Academic period
-          <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect>
-        </label>}
-        {viewingHistory && <p className="px-4 pt-3 text-xs font-medium text-[#64748B] sm:px-5">Completed semester elections are available for viewing only.</p>}
-        <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
-          <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-          <HiusaSelect filter aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></HiusaSelect>
+  const rowActions = (election) => {
+    const votes = getElectionVoteCount(election);
+    const returned = isReturned(election);
+    return [
+      election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
+      canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
+      canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
+      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
+      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'closed') },
+    ].filter(Boolean);
+  };
+  const hasRowActions = managing && elections.some((election) => rowActions(election).length > 0);
+
+  const columns = [
+    {
+      key: 'title',
+      header: 'Election',
+      render: (election) => {
+        const returned = isReturned(election);
+        const lifecycle = electionLifecycle(withApprovalState(election), currentUser?.role);
+        return (
+          <div className="min-w-0 text-left">
+            <button type="button" onClick={() => onSelect?.(election.id)} className="min-h-10 rounded-control text-left text-sm font-semibold text-brand-700 underline-offset-2 hover:text-brand-800 hover:underline">{formatDisplayText(election.title)}</button>
+            {managing && <p className="text-xs text-ink-muted">Next: {lifecycle.nextAction.title}</p>}
+            {returned && election.approval_remarks && <p className="text-xs text-danger-strong">Reason: {election.approval_remarks}</p>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (election) => {
+        const returned = isReturned(election);
+        return (
+          <StatusBadge tone={returned ? 'danger' : statusTones[election.status] || 'neutral'} label={returned ? 'Returned' : statusLabels[election.status] || election.status} />
+        );
+      },
+    },
+    {
+      key: 'period',
+      header: 'Voting period',
+      render: (election) => (
+        <div className="text-left text-xs text-ink-muted-strong">
+          <p>{formatDateTime(election.start_time)}</p>
+          <p>{formatDateTime(election.end_time)}</p>
+          <p>{election.room || 'Online ballot'}</p>
         </div>
-      </section>
+      ),
+    },
+  ];
+  const countColumns = {
+    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
+    candidates_count: { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
+    votes_count: { key: 'votes_count', header: 'Votes', align: 'right', render: (election) => getElectionVoteCount(election) },
+  };
+  const shownCounts = { manage: ['positions_count', 'candidates_count', 'votes_count'], candidates: ['candidates_count'], partylists: [], voters: ['votes_count'], results: ['votes_count'] }[mode] || [];
+  columns.push(...shownCounts.map((key) => countColumns[key]));
 
-      <section className="grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4" aria-label="Election summary">
-        {[
-          ['Total elections', elections.length],
-          ['Live voting', elections.filter((item) => item.status === 'active').length],
-          ['Awaiting approval', elections.filter((item) => item.status === 'pending_approval').length],
-          ['Closed', elections.filter((item) => item.status === 'closed').length],
-        ].map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-2 text-2xl font-black tabular-nums text-[#0F172A]">{loading ? '...' : value}</dd></dl>)}
-      </section>
-
-
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
-      {loading && <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading elections">{[1, 2, 3, 4].map((item) => <div key={item} className="h-96 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading elections...</span></div>}
-      {!loading && filteredElections.length === 0 && (
-        <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white">
-          {elections.length > 0 ? (
-            <EmptyState kind="filtered" title="No elections match" description="Try another search or status." onClearFilters={() => { setSearchTerm(''); setStatusFilter('all'); }} />
-          ) : canManageElections && !viewingHistory ? (
-            <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />
-          ) : canManageElections ? (
-            <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />
-          ) : currentUser?.role === 'STUDENT' ? (
-            <EmptyState icon={Vote} title="No election is currently open" description="Voting and live totals become available after the Admin finalizes and opens an election." />
-          ) : (
-            <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />
-          )}
-        </section>
+  const filters = (academicPeriods.length > 0 || listedElections.length > 0) && (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      {listedElections.length > 0 && <Input type="search" className="sm:max-w-xs" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} aria-label="Search elections" placeholder="Search elections" />}
+      {academicPeriods.length > 0 && (
+        <HiusaSelect filter className="w-full sm:w-64" aria-label="Academic period" value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+          <option value="">Active period</option>
+          {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label}, {period.number === 1 ? '1st' : '2nd'} semester, {period.status}</option>)}
+        </HiusaSelect>
       )}
-
-      {!loading && pagedElections.length > 0 && (
-        <section className="grid gap-4 lg:grid-cols-2">
-          {pagedElections.map((election) => {
-            const votes = getElectionVoteCount(election);
-            const returned = isReturned(election);
-            const lifecycle = electionLifecycle(withApprovalState(election), currentUser?.role);
-            return (
-              <article key={election.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm transition hover:border-[#0B8ED0]/40">
-                <div className="relative aspect-[16/7] overflow-hidden bg-[#0F2F62]">
-                  {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-white/70"><Vote size={46} /></div>}
-                  <div className="absolute inset-0 bg-[#0B1831]/20" />
-                  <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${returned ? 'border-red-200 bg-red-50 text-red-700' : statusStyles[election.status] || statusStyles.closed}`}>{election.status === 'active' && <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}{returned ? 'Returned' : statusLabels[election.status] || election.status}</span>
-                </div>
-                <div className="p-4 sm:p-5">
-                  <h2 className="text-xl font-black leading-tight text-[#0F172A]">{formatDisplayText(election.title)}</h2>
-                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]"><Clock3 size={13} /> {formatTimeline(election)}</p>
-                  <div className="mt-3">
-                    <FlowStepper variant="compact" steps={lifecycle.steps} ariaLabel={`Progress for ${formatDisplayText(election.title)}`} summary={lifecycle.nextAction.title} />
-                    <p className="mt-1 hidden text-xs font-semibold text-[#0F172A] sm:block">Next: {lifecycle.nextAction.title}</p>
-                    {returned && election.approval_remarks && <p className="mt-1 text-xs font-semibold text-red-700">Reason: {election.approval_remarks}</p>}
-                  </div>
-                  <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
-                  <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
-                  <div className="mt-4 flex items-center justify-between gap-2">
-                    {election.status === 'pending_approval' && !returned && <span className="text-xs font-semibold text-ink-muted">In review</span>}
-                    <TableRowActions subject={formatDisplayText(election.title)} actions={[
-                      { label: 'Open election', onClick: () => onSelect?.(election.id) },
-                      election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
-                      canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
-                      canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
-                      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
-                      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'closed') },
-                    ]} />
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
+      {listedElections.length > 0 && (
+        <HiusaSelect filter className="w-full sm:w-48" aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="all">All statuses</option>
+          <option value="pending_approval">Pending approval</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="active">Open</option>
+          <option value="closed">Closed</option>
+        </HiusaSelect>
       )}
+      {filtersActive && <button type="button" onClick={clearFilters} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+    </div>
+  );
 
-      {!loading && filteredElections.length > pageSize && <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm"><PaginationControls currentPage={page} totalItems={filteredElections.length} pageSize={pageSize} onPageChange={setPage} label="elections" /></div>}
+  let firstRunState;
+  if (showingResults) {
+    firstRunState = <EmptyState icon={Vote} title="No results yet" description="Totals appear once an election is open for voting." />;
+  } else if (!managing && canManageElections && !viewingHistory) {
+    firstRunState = <EmptyState icon={Vote} title="No elections yet" description="Create an election first." action={<Button variant="secondary" to="/dashboard/elections/manage-elections">Go to elections</Button>} />;
+  } else if (canManageElections && !viewingHistory) {
+    firstRunState = <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />;
+  } else if (canManageElections) {
+    firstRunState = <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />;
+  } else if (currentUser?.role === 'STUDENT') {
+    firstRunState = <EmptyState icon={Vote} title="No election is currently open" description="Voting and live totals become available after the Admin finalizes and opens an election." />;
+  } else {
+    firstRunState = <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />;
+  }
 
-      <Modal open={showCreate && canManageElections} title="Create election" description="Build the ballot and submit it for Department Head approval." onClose={() => !submitting && setShowCreate(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="create-election-form" disabled={submitting || !form.title.trim() || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit for approval'}</button></div>}>
-        <form id="create-election-form" onSubmit={handleCreate}><ElectionFormFields form={form} setForm={setForm} />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
-      </Modal>
-      <Modal open={showEdit && canManageElections} title="Edit election" description="Update election branding and schedule." onClose={() => !submitting && closeEdit()} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => closeEdit()} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Saving...' : 'Save changes'}</button></div>}>
-        <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
-      </Modal>
-      <ConfirmModal open={Boolean(deleteTarget)} title="Delete Election" message="This permanently removes the election setup, candidates, and approval request." recordName={deleteTarget?.title || ''} confirmText="Delete" variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />
+  // The create form has more than five fields and an upload, so it is a page, not a modal. The list
+  // and its Create election button are not rendered while it is open, which leaves one filled button.
+  if (showCreate && canManageElections) {
+    return (
+      <div className="space-y-4">
+        <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+        <PageHeader title="Create election" />
+        <form id="create-election-form" onSubmit={handleCreate} className="max-w-3xl space-y-4">
+          <ElectionFormFields form={form} setForm={setForm} />
+          {formError && <p role="alert" className={ALERT}>{formError}</p>}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+            <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={submitting}>Cancel</Button>
+            <Button type="submit" loading={submitting} disabled={!form.title.trim() || !form.start_time || !form.end_time}>Submit for approval</Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+      <PageHeader {...MODE_HEADERS[mode]} primary={managing && canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
+      {viewingHistory && <p className="text-sm text-ink-muted">Completed semester elections are available for viewing only.</p>}
+      {actionError && <p role="alert" className={ALERT}>{actionError}</p>}
+
+      <DataTable
+        caption="Elections"
+        columns={columns}
+        rows={filteredElections}
+        loading={loading}
+        error={loadError || null}
+        onRetry={loadElections}
+        filters={filters || null}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+        emptyState={listedElections.length > 0 ? <EmptyState kind="filtered" title="No elections match" description="Try another search or status." onClearFilters={clearFilters} /> : firstRunState}
+        actions={hasRowActions ? (election) => {
+          const actions = rowActions(election);
+          return actions.length > 0 ? <TableRowActions subject={formatDisplayText(election.title)} actions={actions} /> : null;
+        } : undefined}
+      />
+
+      <Drawer open={showEdit && canManageElections} title="Edit election" description="Update the artwork and schedule." onClose={() => !submitting && closeEdit()} width="max-w-xl" footer={<><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>Save changes</Button></>}>
+        <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
+      </Drawer>
+      <ConfirmModal open={Boolean(deleteTarget)} title="Delete election" message="This permanently removes the election setup, candidates, and approval request." recordName={deleteTarget?.title || ''} confirmText="Delete" variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />
     </div>
   );
 }

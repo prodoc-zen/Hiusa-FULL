@@ -31,14 +31,14 @@ export default function TableFilterBar({
               if (event.key === 'Enter') onSearchSubmit?.();
             }}
             placeholder={searchPlaceholder}
-            className="h-11 w-full rounded-control border border-line bg-surface pl-9 pr-10 text-sm text-ink outline-none transition-colors duration-150 focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
+            className="h-10 w-full rounded-control border border-line bg-surface pl-9 pr-10 text-sm font-normal text-ink placeholder:text-ink-soft transition-colors duration-150 focus:border-brand-600"
           />
           {searchValue && (
             <button
               type="button"
               aria-label="Clear search"
               onClick={() => onSearchChange?.('')}
-              className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-control text-ink-soft transition-colors duration-150 hover:bg-subtle hover:text-ink"
+              className="absolute right-0.5 top-0.5 grid h-9 w-9 place-items-center rounded-control text-ink-soft transition-colors duration-150 hover:bg-subtle hover:text-ink"
             >
               <X size={15} />
             </button>
@@ -51,11 +51,11 @@ export default function TableFilterBar({
               type="button"
               aria-expanded={expanded}
               onClick={() => setExpanded((current) => !current)}
-              className={`inline-flex h-11 items-center gap-2 rounded-control border px-4 text-sm font-bold transition-colors duration-150 ${expanded || hasActiveFilters ? 'border-brand-600 bg-brand-50 text-navy-800' : 'border-line bg-surface text-ink-muted hover:bg-subtle'}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-control border px-4 text-sm font-medium transition-colors duration-150 ${expanded || hasActiveFilters ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted hover:bg-subtle'}`}
             >
               <SlidersHorizontal size={16} />
               Filters
-              {hasActiveFilters && <span className="grid min-w-5 place-items-center rounded-full bg-navy-800 px-1.5 py-0.5 text-[10px] text-white">{activeFilters.length}</span>}
+              {hasActiveFilters && <span className="grid min-w-5 place-items-center rounded bg-navy-800 px-1.5 py-0.5 text-xs font-medium text-white">{activeFilters.length}</span>}
               <ChevronDown size={15} className={`transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} />
             </button>
           )}
@@ -63,7 +63,7 @@ export default function TableFilterBar({
         </div>
 
         {resultCount !== undefined && resultCount !== null && (
-          <p className="text-xs font-semibold tabular-nums text-ink-muted lg:ml-auto">
+          <p className="text-xs font-normal tabular-nums text-ink-muted lg:ml-auto">
             {resultCount} {resultLabel}
           </p>
         )}
@@ -71,12 +71,12 @@ export default function TableFilterBar({
 
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-3 py-2.5 sm:px-4">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">Active</span>
+          <span className="text-xs font-medium text-ink-muted">Active</span>
           {activeFilters.map((filter) => (
-            <span key={filter} className="max-w-full break-words rounded-full border border-brand-100 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-navy-800">{filter}</span>
+            <span key={filter} className="max-w-full break-words rounded bg-brand-600/10 px-2 py-1 text-xs font-medium text-ink">{filter}</span>
           ))}
           {onClear && (
-            <button type="button" onClick={onClear} className="min-h-8 px-2 text-xs font-bold text-brand-700 transition-colors duration-150 hover:text-navy-800 sm:ml-auto">
+            <button type="button" onClick={onClear} className="min-h-10 px-2 text-sm font-medium text-brand-700 underline underline-offset-2 transition-colors duration-150 hover:text-brand-800 sm:ml-auto">
               Clear all
             </button>
           )}

@@ -33,7 +33,7 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
 
   return (
     <section aria-label={title}>
-      {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+      {title && <h3 className="text-sm font-semibold text-ink">{title}</h3>}
       {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
 
       {total === 0 ? (
@@ -67,8 +67,8 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
               ))}
             </svg>
             <div className="absolute inset-0 grid place-content-center text-center">
-              <p className="text-2xl font-black tabular-nums text-ink">{format(centerValue ?? total)}</p>
-              {centerLabel && <p className="max-w-20 text-[10px] font-bold uppercase leading-4 tracking-wide text-ink-muted">{centerLabel}</p>}
+              <p className="text-2xl font-semibold tabular-nums text-ink">{format(centerValue ?? total)}</p>
+              {centerLabel && <p className="max-w-20 text-xs font-semibold leading-4 text-ink-muted">{centerLabel}</p>}
             </div>
             {activeSegment && (
               <div
@@ -76,7 +76,7 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
                 className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink shadow-card"
                 style={{ left: `${(activeSegment.tooltipX / 160) * 100}%`, top: `${(activeSegment.tooltipY / 160) * 100}%`, marginTop: '-10px' }}
               >
-                <p className="font-bold">{activeSegment.label}</p>
+                <p className="font-semibold">{activeSegment.label}</p>
                 <p className="tabular-nums">
                   {format(activeSegment.value)}
                   <span className="ml-1 text-ink-muted">({Math.round(activeSegment.percentage)}%)</span>
@@ -89,7 +89,7 @@ export default function Donut({ segments = [], centerValue, centerLabel, title, 
               <div key={segment.label} className="flex items-center gap-2.5">
                 <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: segment.color }} aria-hidden="true" />
                 <dt className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-muted" title={segment.label}>{segment.label}</dt>
-                <dd className="shrink-0 text-right text-sm font-black tabular-nums text-ink">
+                <dd className="shrink-0 text-right text-sm font-semibold tabular-nums text-ink">
                   {format(segment.value)}
                   <span className="ml-1.5 text-xs font-semibold text-ink-muted">{Math.round(segment.percentage)}%</span>
                 </dd>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { IconButton } from '../ui';
 import AuthField from './AuthField';
 
@@ -17,7 +17,6 @@ export default function PasswordField({ label, hint, ...fieldProps }) {
     <AuthField
       {...fieldProps}
       label={label}
-      icon={Lock}
       type={visible ? 'text' : 'password'}
       onKeyDown={trackCapsLock}
       onKeyUp={trackCapsLock}

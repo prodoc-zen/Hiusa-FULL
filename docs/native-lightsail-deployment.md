@@ -76,3 +76,7 @@ sudo mysql hiusa_db -e "SELECT COUNT(*) FROM users"
 The dump is owned by root with mode 600, so `zcat` needs `sudo` as well: without it `zcat` fails, `mysql` reads empty input and exits 0 having restored nothing. The last command must print a non-zero count.
 
 If a run stops after step 3, the queue and scheduler may still be stopped and the config cache may be missing: `sudo -u www-data /usr/local/bin/hiusa-artisan config:cache && sudo systemctl start hiusa-queue hiusa-scheduler` after fixing the cause, or run the script again.
+
+## Automatic deploys
+
+A push to `main` deploys by itself after the Tests workflow passes on that commit (`.github/workflows/deploy.yml`, which runs `scripts/deploy-lightsail.sh` on the server). Setup and what to do when a deploy stops: `docs/AUTO_DEPLOY.md`. The manual commands above still work and are what the script does.

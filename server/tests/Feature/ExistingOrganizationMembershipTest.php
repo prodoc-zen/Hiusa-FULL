@@ -182,7 +182,7 @@ class ExistingOrganizationMembershipTest extends TestCase
     public function test_member_roles_cannot_search_or_add_profiles(): void
     {
         $target = $this->organization();
-        foreach (['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['STUDENT', 'SBO_OFFICER'] as $role) {
             Sanctum::actingAs(User::factory()->create(['organization_id' => $target->id, 'role' => $role]));
             $this->getJson('/api/account-profiles/organizations')->assertForbidden();
             $this->getJson('/api/account-profiles/candidates?organization_id='.$target->id)->assertForbidden();

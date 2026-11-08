@@ -47,16 +47,26 @@ describe('Officer DashboardPage stat cards', () => {
     });
   });
 
-  it('reads Open Tasks from the pending+in_progress totals, not the loaded page length', async () => {
+  it('reads Open tasks from the pending+in_progress totals, not the loaded page length', async () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>);
 
-    await waitFor(() => expect(statValue('Open Tasks')).toBe('42'));
+    await waitFor(() => expect(statValue('Open tasks')).toBe('42'));
   });
 
-  it('reads Pending Orders from the server total, not the loaded page length', async () => {
+  it('reads Pending orders from the server total, not the loaded page length', async () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>);
 
-    await waitFor(() => expect(statValue('Pending Orders')).toBe('8'));
+    await waitFor(() => expect(statValue('Pending orders')).toBe('8'));
+  });
+
+  it('makes each tile a link to the list behind its number', async () => {
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    await waitFor(() => expect(statValue('Open tasks')).toBe('42'));
+    expect(screen.getByText('Open tasks').closest('a')).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
+    expect(screen.getByText('Pending orders').closest('a')).toHaveAttribute('href', '/dashboard/merchandise/manage-orders');
+    expect(screen.getByText('Upcoming events').closest('a')).toHaveAttribute('href', '/dashboard/events/activity-calendar');
+    expect(screen.queryByText('Completed tasks')).not.toBeInTheDocument();
   });
 
   it('names the first action when nothing has been assigned yet, instead of showing zeros', async () => {
@@ -68,15 +78,15 @@ describe('Officer DashboardPage stat cards', () => {
 
     expect(await screen.findByText('No work has been assigned to you yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
-    expect(screen.queryByText('Open Tasks')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Check-in' })).toBeInTheDocument();
+    expect(screen.queryByText('Open tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open My tasks' })).not.toHaveClass('bg-brand-700');
   });
 
   it('does not call a failed load an empty queue', async () => {
     taskMocks.getTasks.mockRejectedValue(new Error('offline'));
     render(<MemoryRouter><DashboardPage /></MemoryRouter>);
 
-    await waitFor(() => expect(statValue('Open Tasks')).toBe('0'));
+    await waitFor(() => expect(statValue('Open tasks')).toBe('0'));
     expect(screen.queryByText('No work has been assigned to you yet')).not.toBeInTheDocument();
   });
 });

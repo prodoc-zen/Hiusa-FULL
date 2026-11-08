@@ -21,7 +21,7 @@ function Where() {
   const { pathname, search } = useLocation();
   return <p data-testid="where">{pathname}{search}</p>;
 }
-const card = (label) => within(screen.getByText(label, { selector: 'p' }).closest('article'));
+const card = (label) => within(screen.getByText(label, { selector: 'p' }).closest('button'));
 
 describe('TasksPage', () => {
   beforeEach(() => {
@@ -45,9 +45,10 @@ describe('TasksPage', () => {
     render(<MemoryRouter><TasksPage /></MemoryRouter>);
     expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Event Brief').length).toBeGreaterThan(0);
-    expect(card('Total Tasks').getByText('2')).toBeInTheDocument();
-    expect(card('Standalone').getByText('1')).toBeInTheDocument();
-    expect(card('Event-Related').getByText('1')).toBeInTheDocument();
+    await waitFor(() => expect(card('Pending').getByText('1')).toBeInTheDocument());
+    expect(card('In progress').getByText('0')).toBeInTheDocument();
+    expect(card('Overdue').getByText('0')).toBeInTheDocument();
+    expect(screen.getByText('2 tasks')).toBeInTheDocument();
     expect(mocks.getUsers).not.toHaveBeenCalled();
   });
 
@@ -56,10 +57,10 @@ describe('TasksPage', () => {
       ? ({ pending: 90, in_progress: 20, completed: 10, overdue: 3 }[params.status] ?? (params.task_kind === 'standalone' ? 100 : 23))
       : 123)));
     render(<MemoryRouter><TasksPage /></MemoryRouter>);
-    await waitFor(() => expect(card('Total Tasks').getByText('123')).toBeInTheDocument());
-    expect(card('Standalone').getByText('100')).toBeInTheDocument();
-    expect(card('Event-Related').getByText('23')).toBeInTheDocument();
-    expect(card('Pending').getByText('90')).toBeInTheDocument();
+    await waitFor(() => expect(card('Pending').getByText('90')).toBeInTheDocument());
+    expect(card('In progress').getByText('20')).toBeInTheDocument();
+    expect(card('Overdue').getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('123 tasks')).toBeInTheDocument();
   });
 
   it('applies type and status filters to summaries as well as the board', async () => {
@@ -67,11 +68,11 @@ describe('TasksPage', () => {
     await screen.findAllByText('Monthly Records');
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     fireEvent.change(screen.getByLabelText('Filter tasks by type'), { target: { value: 'standalone' } });
-    await waitFor(() => expect(card('Total Tasks').getByText('1')).toBeInTheDocument());
-    expect(card('Event-Related').getByText('0')).toBeInTheDocument();
-    expect(card('Completed').getByText('0')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('1 task')).toBeInTheDocument());
+    expect(card('Pending').getByText('1')).toBeInTheDocument();
+    expect(card('Overdue').getByText('0')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Filter tasks by status'), { target: { value: 'completed' } });
-    await waitFor(() => expect(card('Total Tasks').getByText('0')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('0 tasks')).toBeInTheDocument());
     expect(card('Pending').getByText('0')).toBeInTheDocument();
     expect(await screen.findByText('No tasks match these filters')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
@@ -96,14 +97,14 @@ describe('TasksPage', () => {
     mocks.createTask.mockResolvedValue({ data: { id: 3, title: 'mIXED cASE tASK', assignee: officer } });
     render(<MemoryRouter><TasksPage initialTab="create" /></MemoryRouter>);
     await waitFor(() => expect(screen.queryByText('Officer positions must be configured first.')).not.toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText('Task Title *'), { target: { value: 'mIXED cASE tASK' } });
-    fireEvent.change(screen.getByLabelText('Deadline *'), { target: { value: '2026-10-10' } });
+    fireEvent.change(screen.getByLabelText(/^Task title/), { target: { value: 'mIXED cASE tASK' } });
+    fireEvent.change(screen.getByLabelText(/^Deadline/), { target: { value: '2026-10-10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Review officer recommendation' }));
     const choice = await screen.findByRole('button', { name: /Ana Reyes.*Secretary.*Recommended/ });
-    expect(screen.getByRole('button', { name: 'Create Task' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled();
     expect(mocks.createTask).not.toHaveBeenCalled();
     fireEvent.click(choice);
-    fireEvent.click(screen.getByRole('button', { name: 'Create Task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
     await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mIXED cASE tASK', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10' })));
   });
 
@@ -191,9 +192,9 @@ describe('TasksPage', () => {
     it('opens the new task form in place from the header button and records it in the query', async () => {
       renderAt('/dashboard/tasks/task-board');
       await screen.findAllByText('Monthly Records');
-      expect(screen.queryByRole('button', { name: 'Create Task' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create task' })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'New task' }));
-      expect(await screen.findByLabelText('Task Title *')).toBeInTheDocument();
+      expect(await screen.findByLabelText(/^Task title/)).toBeInTheDocument();
       expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/tasks/task-board?new=1');
       expect(screen.getByRole('heading', { level: 1, name: 'New task' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New task' })).not.toBeInTheDocument();
@@ -201,46 +202,90 @@ describe('TasksPage', () => {
 
     it('opens the form for ?new=1 and returns to the board with Back to tasks', async () => {
       renderAt('/dashboard/tasks/task-board?new=1');
-      expect(await screen.findByLabelText('Task Title *')).toBeInTheDocument();
+      expect(await screen.findByLabelText(/^Task title/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Back to tasks' }));
       await screen.findAllByText('Monthly Records');
       expect(screen.getByTestId('where')).toHaveTextContent(/^\/dashboard\/tasks\/task-board$/);
-      expect(screen.queryByLabelText('Task Title *')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Task title/)).not.toBeInTheDocument();
     });
 
     it('shows the progress view for ?view=progress and switches views through the query', async () => {
       renderAt('/dashboard/tasks/task-board?view=progress');
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: 'Progress' })).toBeChecked();
-      fireEvent.click(screen.getByRole('radio', { name: 'Board' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Task progress' })).toBeInTheDocument();
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to tasks' }));
       expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
       expect(screen.getByTestId('where')).toHaveTextContent(/^\/dashboard\/tasks\/task-board$/);
-      fireEvent.click(screen.getByRole('radio', { name: 'Progress' }));
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Officer progress' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
       expect(screen.getByTestId('where')).toHaveTextContent('?view=progress');
+    });
+
+    it('lists every task under its officer without collapsed sections or avatar initials', async () => {
+      renderAt('/dashboard/tasks/task-board?view=progress');
+      const section = await screen.findByRole('region', { name: 'Ana Reyes' });
+      expect(within(section).getByText('1 of 2 done')).toBeInTheDocument();
+      expect(within(section).getByText('Monthly Records')).toBeInTheDocument();
+      expect(within(section).getByText('Event Brief')).toBeInTheDocument();
+      expect(document.querySelector('details')).toBeNull();
+      expect(screen.queryByText('AR')).not.toBeInTheDocument();
+    });
+
+    it('drops the progress column from the board', async () => {
+      renderAt('/dashboard/tasks/task-board');
+      await screen.findAllByText('Monthly Records');
+      expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/% complete/)).not.toBeInTheDocument();
     });
 
     it('moves from the old progress route to the board route when the view changes', async () => {
       renderAt('/dashboard/tasks/task-progress', { initialTab: 'progress' });
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('radio', { name: 'Board' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to tasks' }));
       await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/dashboard\/tasks\/task-board$/));
     });
 
     it('keeps the AI delegation tab free of the new task button and view switch', async () => {
       renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
-      expect(await screen.findByRole('heading', { name: 'AI Task Suggestions' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Suggested officers' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New task' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('radio', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Officer progress' })).not.toBeInTheDocument();
+    });
+
+    it('explains the ranking in plain words and shows only the scores the server recorded', async () => {
+      const scored = { id: 5, title: 'sCORED tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: 82.5, role_score: 90, workload_score: 70 };
+      const unscored = { id: 6, title: 'pLAIN tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: null };
+      mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([scored, unscored])));
+      renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
+      expect(await screen.findByText('Scored Task')).toBeInTheDocument();
+      expect(screen.queryByText('Plain Task')).not.toBeInTheDocument();
+      expect(screen.getByText('Position')).toBeInTheDocument();
+      expect(screen.getByText('Workload')).toBeInTheDocument();
+      expect(screen.queryByText('Performance')).not.toBeInTheDocument();
+      expect(screen.queryByText('0.00')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Engine not reported/)).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'How officers are ranked' })).toBeInTheDocument();
+      expect(screen.getByText('The officer with the highest score is suggested. The Admin makes the final choice.')).toBeInTheDocument();
+      expect(screen.queryByText(/policy-eligible|weighted fit score/)).not.toBeInTheDocument();
+    });
+
+    it('sends an officer from the delegation page to their own tasks', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
+      expect(await screen.findByText('Your Admin assigns tasks')).toBeInTheDocument();
+      expect(screen.queryByText('How officers are ranked')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Go to my tasks' }));
+      expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/tasks/assigned-tasks');
     });
 
     it('does not offer the new task form or progress view to officers', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
       renderAt('/dashboard/tasks/assigned-tasks?new=1');
       expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
-      expect(screen.queryByLabelText('Task Title *')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Task title/)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New task' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('radio', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Officer progress' })).not.toBeInTheDocument();
     });
 
     it('writes ?record= when a task is opened and removes it when the details close', async () => {
@@ -303,7 +348,7 @@ describe('TasksPage', () => {
     it('shows the Admin a completed task as done', async () => {
       serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'completed' });
       const dialog = await openDetail(1);
-      expect(within(dialog).getByText('Completed', { selector: 'p.text-sm' })).toBeInTheDocument();
+      expect(within(dialog).getAllByText('Completed').length).toBeGreaterThan(0);
       expect(within(dialog).queryByRole('button', { name: /Start task|Mark done|Update status/ })).not.toBeInTheDocument();
     });
 
@@ -328,7 +373,7 @@ describe('TasksPage', () => {
         const dialog = await openDetail(1);
         expect(within(dialog).getByText('Mark it done when finished')).toBeInTheDocument();
         fireEvent.click(within(dialog).getByRole('button', { name: 'Mark done' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Confirm Completion' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Confirm completion' }));
         await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'completed', progress_note: 'Task marked as completed.', progress_percent: 100 }));
         expect(await within(screen.getByRole('dialog', { name: 'Task details' })).findByText('This task is finished.')).toBeInTheDocument();
       });
@@ -339,7 +384,7 @@ describe('TasksPage', () => {
         const dialog = await openDetail(1);
         expect(within(dialog).getByText(/Overdue since/)).toBeInTheDocument();
         fireEvent.click(within(dialog).getByRole('button', { name: 'Update status' }));
-        expect(await screen.findByRole('button', { name: 'Confirm Completion' })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Confirm completion' })).toBeInTheDocument();
       });
 
       it('explains why a blocked task cannot be started', async () => {
@@ -391,7 +436,7 @@ describe('TasksPage', () => {
       const action = await findRowAction('Complete');
       expect(screen.queryByRole('menuitem', { name: 'Start' })).not.toBeInTheDocument();
       fireEvent.click(action);
-      fireEvent.click(await screen.findByRole('button', { name: 'Confirm Completion' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm completion' }));
       await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'completed', progress_note: 'Task marked as completed.', progress_percent: 100 }));
     });
 
@@ -415,7 +460,7 @@ describe('TasksPage', () => {
       render(<MemoryRouter initialEntries={['/dashboard/tasks/task-board']}><TasksPage /><Where /></MemoryRouter>);
       expect(await screen.findByText('No tasks yet')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Create your first task' }));
-      expect(await screen.findByLabelText('Task Title *')).toBeInTheDocument();
+      expect(await screen.findByLabelText(/^Task title/)).toBeInTheDocument();
       expect(screen.getByTestId('where')).toHaveTextContent('?new=1');
     });
 

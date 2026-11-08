@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\Announcement;
 use App\Models\AnnouncementView;
@@ -208,6 +209,10 @@ class AnnouncementController extends Controller
             || ($user->role === 'DEPARTMENT_HEAD' && $request->boolean('managed'));
         if ($user->role === 'DEPARTMENT_HEAD' && $request->boolean('managed')) {
             $query->where('created_by', $user->school_id)->where('announcement_source', 'ORGANIZATION');
+        }
+
+        if ($canManageAnnouncements && ! $publishedOnly && $semester = AcademicSemester::selected($request)) {
+            $query->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id));
         }
 
         if ($publishedOnly || ! $canManageAnnouncements) {

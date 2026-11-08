@@ -1,9 +1,9 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Heart, Megaphone, Search } from 'lucide-react';
-import { EmptyState, PageHeader } from '../../../components/ui';
-import { getAnnouncements, setAnnouncementReaction } from '../../../services/announcementService';
+import { Megaphone, Search } from 'lucide-react';
+import { EmptyState, ErrorState, Input, PageHeader, SkeletonCard } from '../../../components/ui';
+import { getAnnouncements } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 import PaginationControls from '../../../components/PaginationControls';
 import { listMeta, unwrapList } from '../../../services/pagination';
@@ -17,23 +17,15 @@ function organizationName(announcement) {
   return announcement.organization?.name || 'HIUSA';
 }
 
-function AnnouncementCard({ announcement, onReaction }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  async function toggleReaction() {
-    if (busy) return;
-    setBusy(true); setError('');
-    try {
-      const result = await setAnnouncementReaction(announcement.id, !announcement.is_liked);
-      onReaction(announcement.id, result.data);
-    } catch { setError('Could not save your reaction. Try again.'); }
-    finally { setBusy(false); }
-  }
-  return <article className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-    <header className="border-b border-[#DDE7EF] px-4 py-3 sm:px-5"><p className="text-sm font-bold text-[#0F172A]">{organizationName(announcement)}</p><p className="text-xs text-[#64748B]">{new Date(announcement.published_at || announcement.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })}</p></header>
-    <div className="px-4 py-4 sm:px-5"><h2 className="text-lg font-bold text-[#0F172A]">{formatDisplayText(announcement.title)}</h2><RichTextBody value={announcement.body} className="mt-2 text-sm leading-6 text-[#0F172A]" /></div>
-    {announcement.image_url && <img src={resolveAssetUrl(announcement.image_url)} alt={formatDisplayText(announcement.title)} loading="lazy" className="max-h-[640px] w-full border-y border-[#DDE7EF] object-contain" />}
-    <footer className="px-4 py-3 sm:px-5"><button type="button" onClick={toggleReaction} disabled={busy} aria-pressed={Boolean(announcement.is_liked)} className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50 ${announcement.is_liked ? 'bg-red-50 text-red-700' : 'text-[#0F2F62] hover:bg-[#EEF6FB]'}`}><Heart size={18} fill={announcement.is_liked ? 'currentColor' : 'none'} /> {announcement.is_liked ? 'Liked' : 'Like'} <span aria-label={`${announcement.reactions_count || 0} reactions`}>{announcement.reactions_count || 0}</span></button>{error && <p role="alert" className="mt-2 text-xs text-red-700">{error}</p>}</footer>
+// The source shows only when the list mixes sources. A member of one organization would
+// otherwise read the same long name above every post.
+function AnnouncementCard({ announcement, showSource }) {
+  const posted = new Date(announcement.published_at || announcement.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' });
+  return <article className="rounded-card border border-line bg-surface px-4 py-4 sm:px-5">
+    <h2 className="text-base font-semibold text-ink sm:text-lg">{formatDisplayText(announcement.title)}</h2>
+    <p className="mt-0.5 text-xs text-ink-muted">{posted}{showSource ? ` · ${organizationName(announcement)}` : ''}</p>
+    <RichTextBody value={announcement.body} className="mt-3 max-w-[75ch] text-sm leading-6 text-ink" />
+    {announcement.image_url && <img src={resolveAssetUrl(announcement.image_url)} alt={formatDisplayText(announcement.title)} loading="lazy" className="mt-4 max-h-[480px] w-full rounded-control border border-line object-contain" />}
   </article>;
 }
 
@@ -64,17 +56,20 @@ export default function AnnouncementsFeedPage() {
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const updateReaction = (id, result) => setAnnouncements((current) => current.map((item) => item.id === id ? { ...item, ...result } : item));
+  const showSource = new Set(announcements.map(organizationName)).size > 1;
   const hasFilters = Boolean(search.trim()) || category !== 'all';
   const clearFilters = () => { setSearch(''); setCategory('all'); };
-  return <div className="space-y-6">
-    <PageHeader />
-    <div className="mx-auto w-full max-w-2xl space-y-4">
-    <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px]"><label className="relative"><span className="sr-only">Search announcements</span><Search size={16} className="absolute left-3 top-3.5 text-[#64748B]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search announcements" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-4 focus:ring-[#16C7F3]/15" /></label><HiusaSelect filter aria-label="Announcement category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm focus:border-[#0B8ED0] focus:outline-none"><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</HiusaSelect></div></section>
-    {loading && <div role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-8 text-center text-sm text-[#64748B]">Loading announcements...</div>}
-    {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Try again</button></div>}
-    {!loading && !error && announcements.length === 0 && <div className="rounded-lg border border-[#DDE7EF] bg-white">{hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Your officers post them here." />}</div>}
-    {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} onReaction={updateReaction} />)}
+  return <div className="space-y-5">
+    <PageHeader title="Announcements" />
+    <div className="space-y-4">
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_200px]">
+      <label className="relative"><span className="sr-only">Search announcements</span><Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-ink-muted" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search announcements" className="pl-9" /></label>
+      <HiusaSelect filter aria-label="Announcement category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</HiusaSelect>
+    </div>
+    {loading && <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>}
+    {error && <ErrorState title="Could not load announcements" description="Check your connection and try again." onRetry={load} />}
+    {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Your officers post them here." />)}
+    {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} showSource={showSource} />)}
     {!loading && !error && <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}
     </div>
   </div>;

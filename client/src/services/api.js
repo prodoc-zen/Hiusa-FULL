@@ -2,6 +2,8 @@ import axios from 'axios';
 import { createApiGetCache } from './apiCache';
 import { resolveRuntimeApiUrl } from '../utils/runtimeApiUrl';
 import { clearAuthSession } from '../utils/authSession';
+import { readSelectedPeriod } from '../utils/academicPeriodStore';
+import { readActiveSubAccount } from '../utils/subAccountStore';
 
 const api = axios.create({
   baseURL: resolveRuntimeApiUrl(import.meta.env.VITE_API_URL),
@@ -33,14 +35,19 @@ const SUBACCOUNT_SCOPED_PREFIXES = [
   '/announcements',
   '/approval-requests',
   '/clearances/periods/',
+  '/tasks',
+  '/orders',
+  '/merchandise',
+  '/attendance',
+  '/compliance',
+  '/organizations',
+  '/grievances',
 ];
 
 function withSubAccountScope(url, config = {}) {
   try {
-    const rawSub = sessionStorage.getItem('hiusa_active_subaccount');
-    if (!rawSub) return config;
-    const subAccount = JSON.parse(rawSub);
-    if (!subAccount?.id) return config;
+    const subAccount = readActiveSubAccount();
+    if (!subAccount) return config;
 
     const rawUser = localStorage.getItem('user');
     const user = rawUser ? JSON.parse(rawUser) : null;
@@ -100,6 +107,9 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
+  const period = readSelectedPeriod();
+  if (period) config.headers.set('X-Academic-Semester', String(period.id));
+
   return config;
 });
 
@@ -125,6 +135,17 @@ api.interceptors.response.use(
 
     if (status === 403) {
       error.isForbidden = true;
+
+      // The profile this sign-in was opened with no longer works, for example after an election
+      // handed its post to someone else. Signing in again picks a profile that does.
+      if (error.response.data?.error_code === 'PROFILE_UNAVAILABLE') {
+        clearApiCache();
+        clearAuthSession();
+        if (!['/', '/login'].includes(window.location.pathname)) {
+          window.location.assign('/login');
+        }
+        return Promise.reject(error);
+      }
 
       if (error.response.data?.error_code === 'PASSWORD_CHANGE_REQUIRED') {
         error.isPasswordChangeRequired = true;

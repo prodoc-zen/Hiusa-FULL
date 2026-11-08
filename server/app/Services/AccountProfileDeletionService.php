@@ -13,9 +13,15 @@ class AccountProfileDeletionService
 {
     public function organizationsFor(User $actor): Builder
     {
-        abort_unless(in_array($actor->role, ['SUPER_ADMIN', 'ADMIN'], true), 403);
+        abort_unless(in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'], true), 403);
         $query = Organization::where('organization_type', 'STUDENT_ORGANIZATION');
-        if ($actor->role !== 'SUPER_ADMIN') {
+        if ($actor->role === 'DEPARTMENT_HEAD') {
+            $isCollegeHead = Organization::whereKey($actor->organization_id)->where('organization_type', 'COLLEGE')->exists();
+            $query->whereIn('id', $isCollegeHead ? $actor->scopedOrganizationIds() : []);
+        } elseif ($actor->role !== 'SUPER_ADMIN') {
+            if (Organization::whereKey($actor->organization_id)->where('organization_type', 'COLLEGE')->exists()) {
+                return $query->whereIn('id', []);
+            }
             $college = Organization::whereKey($actor->organization_id)->value('college');
             $query->where('college', $college)->where(fn ($query) => $query
                 ->where('id', $actor->organization_id)->orWhere('parent_organization_id', $actor->organization_id));
@@ -32,8 +38,8 @@ class AccountProfileDeletionService
         if ($profile->role === 'SUPER_ADMIN' || $profile->user->getRawOriginal('role') === 'SUPER_ADMIN') {
             return 'The SAO account cannot be deleted.';
         }
-        if ($profile->role === 'ADMIN' && $actor->role !== 'SUPER_ADMIN') {
-            return 'Only SAO can delete an Admin profile.';
+        if ($profile->role === 'ADMIN' && ! in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
+            return 'Only the dean or SAO can change or remove an Admin profile.';
         }
 
         return null;
@@ -61,6 +67,7 @@ class AccountProfileDeletionService
                 $remaining = $profiles->where('id', '!=', $profile->id);
                 $isPrimary = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
                 if ($remaining->isEmpty()) {
+                    abort_if($actor->role === 'DEPARTMENT_HEAD', 422, 'This is the only profile on that account. Ask the SAO to remove the account.');
                     foreach (['events' => 'created_by', 'tasks' => 'created_by', 'orders' => 'student_id', 'approval_requests' => 'requested_by', 'candidates' => 'user_id', 'votes' => 'voter_id', 'venue_bookings' => 'requested_by', 'compliance_requirement_types' => 'created_by', 'organization_compliance_submissions' => 'submitted_by'] as $table => $column) {
                         abort_if(DB::table($table)->where($column, $user->school_id)->exists(), 409,
                             'This user has linked operational records. Deactivate the account instead of deleting its final profile.');

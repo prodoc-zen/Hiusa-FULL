@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Middleware\CacheApiResponse;
+use App\Http\Middleware\EnsureOrganizationModule;
 use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsurePasswordChanged;
+use App\Http\Middleware\EnsurePeriodWritable;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
@@ -51,8 +53,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
             'org.writable' => EnsureOrganizationWritable::class,
+            'org.module' => EnsureOrganizationModule::class,
             'account.profile' => UseAccountProfile::class,
             'password.changed' => EnsurePasswordChanged::class,
+            'period.writable' => EnsurePeriodWritable::class,
         ]);
 
         // Route model binding would otherwise answer 404 for a missing record

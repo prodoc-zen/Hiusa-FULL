@@ -49,6 +49,14 @@ describe('SAO submitted files', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('shows the All organizations link only inside an organization', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: /Computing Society/ });
+    expect(screen.queryByRole('button', { name: 'All organizations' })).not.toBeInTheDocument();
+    await openFolder();
+    expect(screen.getByRole('button', { name: 'All organizations' })).toBeInTheDocument();
+  });
+
   it('filters files, pages organizations, and opens protected documents', async () => {
     compliance.getComplianceDocuments.mockImplementation((params) => Promise.resolve(params.group === 'organization'
       ? page(folders, { total: 36, last_page: 2, per_page: 18, current_page: params.page })

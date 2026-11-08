@@ -1,0 +1,114 @@
+name: Deploy
+
+# Deploys main to the Lightsail host after the Tests workflow has passed on that exact commit. Nothing is
+# deployed from any other branch, and a red Tests run never deploys (a manual run checks for a green Tests run too). The server keeps MAIL_MAILER=log and
+# EDP_DRIVER=local; scripts/deploy-lightsail.sh refuses to run if either has changed.
+# One-time setup (deploy key, secrets, host key): docs/AUTO_DEPLOY.md.
+"on":
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+# Never two deploys at once, and never cancel one that is already changing the server.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Lightsail
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_SITE_URL: ${{ vars.DEPLOY_SITE_URL }}
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Check the deploy secrets exist
+        id: secrets
+        run: |
+          missing=""
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Deploy skipped. Missing secrets:$missing. See docs/AUTO_DEPLOY.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: A manual run still needs a green Tests run on this commit
+        if: steps.secrets.outputs.ready == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          passed=$(gh api "repos/${{ github.repository }}/actions/workflows/tests.yml/runs?head_sha=$TARGET_SHA&status=success&per_page=1" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::No successful Tests run for $TARGET_SHA. Wait for Tests to pass on it, then run Deploy again."
+            exit 1
+          fi
+
+      - name: Check out the tested commit
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+
+      - name: Only deploy a commit that is on main
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -e
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$TARGET_SHA" origin/main || { echo "::error::$TARGET_SHA is not on main."; exit 1; }
+          echo "$TARGET_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::Unexpected commit id."; exit 1; }
+
+      - name: Set up the ssh key
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -e
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run the deploy on the server
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -e
+          bash -n scripts/deploy-lightsail.sh
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              -o ServerAliveInterval=30 \
+              "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- $TARGET_SHA" < scripts/deploy-lightsail.sh
+
+      - name: Check the public site
+        if: steps.secrets.outputs.ready == 'true' && env.DEPLOY_SITE_URL != ''
+        run: |
+          set -e
+          site="${DEPLOY_SITE_URL%/}"
+          for i in $(seq 1 6); do
+            if curl -fsS --max-time 15 "$site/up" > /dev/null; then echo "Site answered at $site/up"; exit 0; fi
+            sleep 5
+          done
+          echo "::error::$site/up did not answer after the deploy."
+          exit 1
+
+      - name: Remove the ssh key
+        if: always() && steps.secrets.outputs.ready == 'true'
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts

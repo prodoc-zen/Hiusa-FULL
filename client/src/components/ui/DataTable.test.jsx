@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DataTable from './DataTable';
 
@@ -77,5 +77,71 @@ describe('DataTable', () => {
     const tableView = document.querySelector('[data-view="table"]');
     expect(tableView.className).not.toMatch(/overflow-x-(auto|scroll)/);
     expect(document.querySelector('thead').className).toMatch(/\bsticky\b/);
+  });
+
+  it('always renders a caption, falling back to a generic one, and can show it', () => {
+    const { rerender } = render(<DataTable columns={COLUMNS} rows={ROWS} />);
+    expect(document.querySelector('caption')).toHaveTextContent('Records');
+    expect(document.querySelector('caption').className).toMatch(/sr-only/);
+
+    rerender(<DataTable columns={COLUMNS} rows={ROWS} caption="Members" captionVisible />);
+    expect(document.querySelector('caption')).toHaveTextContent('Members');
+    expect(document.querySelector('caption').className).not.toMatch(/sr-only/);
+  });
+
+  it('right-aligns numeric columns in a fixed width with tabular figures, and drops uppercase headers', () => {
+    const columns = [{ key: 'name', header: 'Name' }, { key: 'amount', header: 'Amount', align: 'right' }];
+    render(<DataTable columns={columns} rows={[{ id: 1, name: 'Maria', amount: 1111 }]} />);
+    const tableView = document.querySelector('[data-view="table"]');
+    const amountHeader = within(tableView).getByText('Amount').closest('th');
+    expect(amountHeader).toHaveClass('text-right', 'w-28');
+    expect(within(tableView).getByText('1111')).toHaveClass('text-right', 'tabular-nums');
+    expect(within(tableView).getByText('Maria')).not.toHaveClass('text-right');
+    expect(amountHeader.className).not.toMatch(/uppercase|tracking-wide|font-bold/);
+    expect(within(tableView).getByText('Maria').className).toMatch(/font-normal/);
+    expect(within(tableView).getByText('Maria').className).toMatch(/py-2\.5/);
+  });
+
+  it('pages itself at 20 rows when the caller supplies no pagination', () => {
+    const rows = Array.from({ length: 45 }, (_, index) => ({ id: index + 1, name: `Person ${index + 1}`, role: 'Student' }));
+    render(<DataTable columns={COLUMNS} rows={rows} />);
+    const tableView = document.querySelector('[data-view="table"]');
+    expect(tableView.querySelectorAll('tbody tr')).toHaveLength(20);
+    expect(screen.getByText('Showing 1 to 20 of 45')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(tableView.querySelectorAll('tbody tr')).toHaveLength(20);
+    expect(screen.getByText('Showing 21 to 40 of 45')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(tableView.querySelectorAll('tbody tr')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('leaves rows alone when the caller supplies its own pagination, and does not page 20 rows', () => {
+    const rows = Array.from({ length: 30 }, (_, index) => ({ id: index + 1, name: `Person ${index + 1}`, role: 'Student' }));
+    const { rerender } = render(<DataTable columns={COLUMNS} rows={rows} pagination={<p>Custom pager</p>} />);
+    expect(document.querySelectorAll('[data-view="table"] tbody tr')).toHaveLength(30);
+    expect(screen.getByText('Custom pager')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+
+    rerender(<DataTable columns={COLUMNS} rows={rows.slice(0, 20)} />);
+    expect(document.querySelectorAll('[data-view="table"] tbody tr')).toHaveLength(20);
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+  });
+
+  it('shows a table-shaped, non-shimmering skeleton while loading', () => {
+    render(<DataTable columns={COLUMNS} rows={ROWS} loading />);
+    const skeleton = screen.getByRole('status', { name: 'Loading table' });
+    expect(skeleton.querySelectorAll('.skeleton-shimmer')).toHaveLength(0);
+    expect(skeleton.children).toHaveLength(6);
+  });
+
+  it('offers Clear filters on the none-match state when the caller wires onClearFilters', () => {
+    const onClearFilters = vi.fn();
+    render(<DataTable columns={COLUMNS} rows={[]} filtersActive onClearFilters={onClearFilters} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 });

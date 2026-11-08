@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Input, Select } from '../../../components/ui';
-import Modal from '../../../components/Modal';
+import { Button, Drawer, Field, Input, Select } from '../../../components/ui';
 import RichTextEditor from '../../../components/RichText';
 import { createClearancePeriod } from '../../../services/clearanceService';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
@@ -65,7 +64,7 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
       if (err.validationErrors) {
         setFieldErrors(err.validationErrors);
       } else {
-        notify.error(err.response?.data?.message || 'Could not open this clearance period. Please try again.');
+        notify.error(err.response?.data?.message || 'Could not open this clearance period. Try again.');
       }
     } finally {
       setSubmitting(false);
@@ -73,13 +72,11 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
   }
 
   return (
-    <Modal
+    <Drawer
       open={open}
       title="New clearance period"
-      description="Every active student gets a pending signature line for each required role you pick below."
+      description="Every active student gets a signature line for each role you pick."
       onClose={close}
-      closeOnBackdrop={!submitting}
-      closeOnEscape={!submitting}
       footer={(
         <>
           <Button variant="secondary" onClick={close} disabled={submitting}>Cancel</Button>
@@ -97,20 +94,20 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
           </Field>
         </div>
 
-        <Field label="Description" hint="Optional context shown to signatories.">
+        <Field label="Description" optional hint="Shown to signatories.">
           <RichTextEditor ariaLabel="Clearance period description" value={description} onChange={setDescription} rows={3} />
         </Field>
 
-        <Field label="Deadline" hint="Optional. Students see this on their checklist.">
+        <Field label="Deadline" optional hint="Students see this on their checklist.">
           <Input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
         </Field>
 
-        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]} hint="Organization admins or officers, the Department Head, and SAO can sign their own lines.">
+        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]} hint="Each role signs its own line.">
           <Select multiple value={roles} onChange={(event) => setRoles(Array.from(event.target.selectedOptions, (option) => option.value))}>
             {ROLE_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
           </Select>
         </Field>
       </form>
-    </Modal>
+    </Drawer>
   );
 }

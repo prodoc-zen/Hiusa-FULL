@@ -39,6 +39,7 @@ class OrganizationDeletionService
         'organization_compliance_submissions' => ['local' => ['file_path']],
         'event_requirement_files' => ['local' => ['path']],
         'organization_application_documents' => ['local' => ['file_path']],
+        'organization_application_review_files' => ['local' => ['file_path']],
         'users' => ['public' => ['photo_path']],
         'colleges' => ['public' => ['logo_url']],
     ];
@@ -83,7 +84,7 @@ class OrganizationDeletionService
                 $query = DB::table($table);
                 if ($table === 'candidates') {
                     $query->whereIn('election_id', $electionIds);
-                } elseif ($table === 'organization_application_documents') {
+                } elseif (in_array($table, ['organization_application_documents', 'organization_application_review_files'], true)) {
                     $query->whereIn('organization_application_id', $applicationIds);
                 } elseif (in_array($table, ['users', 'colleges'], true)) {
                     continue;

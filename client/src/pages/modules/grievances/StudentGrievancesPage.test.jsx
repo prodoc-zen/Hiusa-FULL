@@ -21,21 +21,28 @@ describe('StudentGrievancesPage', () => {
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
   });
 
-  it('shows a first-run empty state on the "My grievances" tab when there are none', async () => {
+  it('shows a first-run empty state on the "Filed grievances" tab when there are none', async () => {
     render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Filed grievances' }));
     expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
   });
 
   it('shows a retryable error state when loading fails', async () => {
     mocks.getGrievances.mockRejectedValue(new Error('network'));
     render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Filed grievances' }));
     expect(await screen.findByText('Failed to load your grievances.')).toBeInTheDocument();
 
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
+  });
+
+  it('offers a plain text box with no formatting toolbar or preview strip', () => {
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
+    expect(screen.getByLabelText(/tell us what happened/i).tagName).toBe('TEXTAREA');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preview')).not.toBeInTheDocument();
   });
 
   it('hides the anonymity toggle when addressed directly to SAO, since the org never sees it', () => {
@@ -77,7 +84,7 @@ describe('StudentGrievancesPage', () => {
       is_anonymous: false,
     }));
 
-    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('My grievances');
+    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('Filed grievances');
     expect(await screen.findByText('Harassment Near the Guard Post')).toBeInTheDocument();
     expect(screen.getByText('Critical urgency')).toBeInTheDocument();
     expect(screen.getByText('ai-service')).toBeInTheDocument();
@@ -91,7 +98,7 @@ describe('StudentGrievancesPage', () => {
     async function openDeleteDialog() {
       mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
       render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
-      fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+      fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
       fireEvent.click(await screen.findByRole('button', { name: 'Delete grievance Broken Lock' }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete this grievance?' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete grievance' }));
@@ -100,7 +107,7 @@ describe('StudentGrievancesPage', () => {
     it('offers delete only while the grievance is still submitted', async () => {
       mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
       render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
-      fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+      fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
       await screen.findByText('Broken Lock');
       expect(screen.getAllByRole('button', { name: /Delete grievance/ })).toHaveLength(1);
       expect(screen.queryByRole('button', { name: 'Delete grievance Noisy Lab' })).not.toBeInTheDocument();

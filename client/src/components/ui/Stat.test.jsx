@@ -17,4 +17,10 @@ describe('Stat', () => {
     render(<Stat label="Budget balance" value="₱1,000" delta="-30%" deltaDirection="down" deltaTone="negative" />);
     expect(screen.getByText('-30%')).toHaveClass('text-danger-strong');
   });
+
+  it('shows the value in semibold, not extrabold', () => {
+    render(<Stat label="Open tasks" value="6" />);
+    expect(screen.getByText('6')).toHaveClass('font-semibold', 'tabular-nums');
+    expect(screen.getByText('6').className).not.toMatch(/extrabold/);
+  });
 });

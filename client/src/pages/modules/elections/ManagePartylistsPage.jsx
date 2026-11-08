@@ -1,32 +1,57 @@
 import TableRowActions from '../../../components/TableRowActions';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Flag, ImagePlus, Edit2, Trash2, Search, CirclePlus, ArrowLeft } from 'lucide-react';
+import { Edit2, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
+import Button from '../../../components/ui/Button';
+import DataTable from '../../../components/ui/DataTable';
+import Drawer from '../../../components/ui/Drawer';
+import EmptyState from '../../../components/ui/EmptyState';
+import Field from '../../../components/ui/Field';
+import Input from '../../../components/ui/Input';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-const CARD_ACCENTS = ['#0B8ED0', '#16A34A', '#0F2F62', '#0878B7'];
+const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
+const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 
-function getInitials(name) {
-  return String(name || '')
-    .split(' ')
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+function partylistImageError(file) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Party banner must be a JPEG, PNG, or WebP image.';
+  if (file.size > 5 * 1024 * 1024) return 'Party banner must be 5 MB or smaller.';
+  return '';
+}
+
+function PartylistFields({ values, onChange, bannerPreview, onBannerChange }) {
+  return (
+    <div className="space-y-4">
+      <Field label="Party list name" required>
+        <Input data-autofocus value={values.name} onChange={(event) => onChange({ ...values, name: event.target.value })} placeholder="e.g. Alab" />
+      </Field>
+      <Field label="Acronym" optional>
+        <Input value={values.acronym || ''} maxLength={30} onChange={(event) => onChange({ ...values, acronym: event.target.value.toUpperCase() })} placeholder="e.g. ALAB" />
+      </Field>
+      <Field label="Description" optional hint="Shown on candidate pages and election records.">
+        <RichTextEditor value={values.description || ''} maxLength={2000} onChange={(description) => onChange({ ...values, description })} rows={3} placeholder="Mission or tagline" />
+      </Field>
+      <div className="space-y-2">
+        {bannerPreview && <img src={bannerPreview} alt="Banner preview" className="h-16 w-32 rounded-control border border-line object-cover" />}
+        <Field label="Party banner" optional hint="JPEG, PNG or WebP, up to 5 MB.">
+          <input type="file" accept="image/jpeg,image/png,image/webp" className={FILE_INPUT} onChange={onBannerChange} />
+        </Field>
+      </div>
+    </div>
+  );
 }
 
 export default function ManagePartylistsPage() {
   const { election, refreshElection } = useOutletContext();
   const [partylistRows, setPartylistRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', acronym: '', description: '' });
   const [bannerFile, setBannerFile] = useState(null);
@@ -34,7 +59,6 @@ export default function ManagePartylistsPage() {
   const [editing, setEditing] = useState(null);
   const [editBannerFile, setEditBannerFile] = useState(null);
   const [editBannerPreview, setEditBannerPreview] = useState(null);
-  const [editTab, setEditTab] = useState('general');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [workingId, setWorkingId] = useState(null);
@@ -46,6 +70,7 @@ export default function ManagePartylistsPage() {
 
     async function load() {
       setLoading(true);
+      setLoadError('');
       try {
         const partylistData = await getPartylists();
         if (!cancelled) {
@@ -55,7 +80,7 @@ export default function ManagePartylistsPage() {
       } catch {
         if (!cancelled) {
           setPartylistRows([]);
-          setError('Unable to load partylists. Please try again.');
+          setLoadError('Party lists did not load.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -69,20 +94,19 @@ export default function ManagePartylistsPage() {
     return () => {
       cancelled = true;
     };
-  }, [election?.id]);
+  }, [election?.id, retryKey]);
 
   if (!election) {
-    return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
+    return <EmptyState title="Election not found" description="Go back and choose an election." />;
   }
 
   const candidates = election.candidates || [];
-  const electionPositions = election.positions || [];
   const resolvePositionTitle = (candidate) => {
     if (candidate?.position?.title) {
       return candidate.position.title;
     }
 
-    const match = electionPositions.find((position) => position.id === candidate?.position_id);
+    const match = (election.positions || []).find((position) => position.id === candidate?.position_id);
     return match?.title || 'Unassigned';
   };
   const filteredPartylists = partylistRows.filter((partylist) => {
@@ -96,6 +120,31 @@ export default function ManagePartylistsPage() {
     const description = String(partylist.description || '').toLowerCase();
     return name.includes(query) || acronym.includes(query) || description.includes(query);
   });
+  const canEdit = election.status !== 'closed' && !election.finalized_at;
+  const drawerOpen = showAdd || Boolean(editing);
+
+  const getPartylistCandidates = (partylistId) =>
+    candidates.filter((candidate) => candidate.partylist_id === partylistId);
+  const candidateName = (candidate) => `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() || 'Unknown candidate';
+
+  const resetAdd = () => {
+    setForm({ name: '', acronym: '', description: '' });
+    setBannerFile(null);
+    setBannerPreview(null);
+    setShowAdd(false);
+  };
+
+  const closeDrawer = () => {
+    if (workingId) return;
+    setError('');
+    if (editing) {
+      setEditBannerFile(null);
+      setEditBannerPreview(null);
+      setEditing(null);
+    } else {
+      setShowAdd(false);
+    }
+  };
 
   const handleAdd = async (event) => {
     event.preventDefault();
@@ -105,13 +154,10 @@ export default function ManagePartylistsPage() {
     try {
       const created = await createPartylist({ ...form, bannerFile: bannerFile || null });
       setPartylistRows((current) => [...current, created]);
-      setForm({ name: '', acronym: '', description: '' });
-      setBannerFile(null);
-      setBannerPreview(null);
-      setShowAdd(false);
-      setFeedback({ open: true, type: 'success', message: 'Partylist registered.' });
+      resetAdd();
+      setFeedback({ open: true, type: 'success', message: 'Party list registered.' });
     } catch (createError) {
-      setError(createError?.response?.data?.message || 'Unable to add partylist.');
+      setError(createError?.response?.data?.message || 'Unable to add party list.');
     } finally {
       setWorkingId(null);
     }
@@ -136,9 +182,9 @@ export default function ManagePartylistsPage() {
       setEditBannerFile(null);
       setEditBannerPreview(null);
       setEditing(null);
-      setFeedback({ open: true, type: 'success', message: 'Partylist updated.' });
+      setFeedback({ open: true, type: 'success', message: 'Party list updated.' });
     } catch (updateError) {
-      setError(updateError?.response?.data?.message || 'Unable to update partylist.');
+      setError(updateError?.response?.data?.message || 'Unable to update party list.');
     } finally {
       setWorkingId(null);
     }
@@ -158,407 +204,145 @@ export default function ManagePartylistsPage() {
       setDeleteTarget(null);
     } catch (deleteError) {
       setDeleteTarget(null);
-      setError(deleteError?.response?.data?.message || 'Unable to delete partylist.');
+      setError(deleteError?.response?.data?.message || 'Unable to delete party list.');
     } finally {
       setWorkingId(null);
     }
   };
 
-  const getPartylistCandidates = (partylistId) =>
-    candidates.filter((candidate) => candidate.partylist_id === partylistId);
+  const bannerChange = (setFile, setPreview) => (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const imageError = partylistImageError(file);
+    if (imageError) { setError(imageError); event.target.value = ''; return; }
+    setError('');
+    setFile(file);
+    setPreview(URL.createObjectURL(file));
+  };
+
+  const openAdd = () => { setError(''); setShowAdd(true); };
+  const openEdit = (partylist) => {
+    setError('');
+    setEditBannerFile(null);
+    setEditBannerPreview(partylist.banner_url ? resolveAssetUrl(partylist.banner_url) : null);
+    setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' });
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      header: 'Party list',
+      render: (partylist) => {
+        const members = getPartylistCandidates(partylist.id);
+        return (
+          <div className="min-w-0 text-left">
+            <p className="font-medium">
+              {formatDisplayText(partylist.name)}
+              {partylist.acronym && <span className="ml-2 text-xs font-normal text-ink-muted">{partylist.acronym}</span>}
+            </p>
+            {members.length > 0 && (
+              <details>
+                <summary className="min-h-10 cursor-pointer text-sm font-medium leading-10 text-brand-700 hover:text-brand-800">View candidates</summary>
+                <ul className="mb-2 space-y-1 text-sm">
+                  {members.map((candidate) => (
+                    <li key={candidate.id}>
+                      <span className="font-medium">{formatDisplayText(candidateName(candidate))}</span>
+                      <span className="text-ink-muted">, {formatDisplayText(resolvePositionTitle(candidate))}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      render: (partylist) => (partylist.description
+        ? <RichTextBody value={partylist.description} className="line-clamp-2 max-w-prose text-left text-sm text-ink-muted-strong" />
+        : null),
+    },
+    { key: 'candidates', header: 'Candidates', align: 'right', render: (partylist) => getPartylistCandidates(partylist.id).length },
+  ];
+
+  const registerButton = <Button leftIcon={Plus} onClick={openAdd}>Register party list</Button>;
+  const filtersActive = Boolean(searchTerm.trim());
+  const clearFilters = () => setSearchTerm('');
+
+  const filters = partylistRows.length > 0 && (
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <Field label="Search party lists" className="w-full sm:w-72">
+        <Input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Name or acronym" />
+      </Field>
+      {canEdit && registerButton}
+    </div>
+  );
+
+  const emptyState = partylistRows.length > 0
+    ? <EmptyState kind="filtered" title="No party lists match" description="Try another name or acronym." onClearFilters={clearFilters} />
+    : (
+      <EmptyState
+        title="No party lists yet"
+        description={canEdit ? 'Register a party list so candidates can run under it.' : 'No party lists are registered for this election.'}
+        action={canEdit ? registerButton : undefined}
+      />
+    );
 
   return (
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section aria-label="Party roster search and actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-[#0F172A]">{formatDisplayText(election.title)}</p>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <div className="relative w-full sm:w-72">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search party roster"
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm font-medium text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0]"
-              />
-            </div>
-            {election.status !== 'closed' && !election.finalized_at && (
-              <button
-                type="button"
-                onClick={() => setShowAdd(true)}
-                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62]"
-              >
-                <CirclePlus size={15} />
-                Register New Party
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
+      {error && !drawerOpen && <p role="alert" className={ALERT}>{error}</p>}
 
-      <div className="flex items-center justify-between px-1">
-        <p className="text-xs font-semibold text-[#64748B]">
-          {filteredPartylists.length} roster{filteredPartylists.length !== 1 ? 's' : ''} shown
-        </p>
-        <p className="text-xs font-semibold text-[#94A3B8]">
-          {partylistRows.length} total partylist{partylistRows.length !== 1 ? 's' : ''}
-        </p>
-      </div>
+      <DataTable
+        caption={`Party lists for ${formatDisplayText(election.title)}`}
+        columns={columns}
+        rows={filteredPartylists}
+        loading={loading}
+        error={loadError || null}
+        onRetry={() => setRetryKey((key) => key + 1)}
+        filters={filters || null}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+        emptyState={emptyState}
+        actions={canEdit ? (partylist) => (
+          <TableRowActions subject={formatDisplayText(partylist.name)} actions={[
+            { label: 'Edit', icon: Edit2, onClick: () => openEdit(partylist) },
+            { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === partylist.id, onClick: () => setDeleteTarget(partylist) },
+          ]} />
+        ) : undefined}
+      />
 
-      <Modal
-        open={showAdd}
-        title="Register Partylist"
-        description="Add a new party roster for the current election."
-        onClose={() => workingId !== 'add' && setShowAdd(false)}
-        closeOnBackdrop={workingId !== 'add'}
-        closeOnEscape={workingId !== 'add'}
-        maxWidth="max-w-2xl"
+      <Drawer
+        open={drawerOpen}
+        title={editing ? 'Edit party list' : 'Register party list'}
+        onClose={closeDrawer}
+        width="max-w-xl"
         footer={(
           <>
-            <button type="button" onClick={() => setShowAdd(false)} disabled={workingId === 'add'} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="add-partylist-form" disabled={workingId === 'add' || !form.name.trim()} className="h-10 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-40">{workingId === 'add' ? 'Registering...' : 'Register Partylist'}</button>
+            <Button variant="secondary" onClick={closeDrawer} disabled={Boolean(workingId)}>Cancel</Button>
+            {editing
+              ? <Button type="submit" form="partylist-form" loading={workingId === editing.id} disabled={!editing.name?.trim()}>Save changes</Button>
+              : <Button type="submit" form="partylist-form" loading={workingId === 'add'} disabled={!form.name.trim()}>Register party list</Button>}
           </>
         )}
       >
-          <form id="add-partylist-form" onSubmit={handleAdd} className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Partylist Name *" />Partylist Name *</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Alab" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Acronym" />Acronym</label>
-                <input value={form.acronym} maxLength={30} onChange={(e) => setForm({ ...form, acronym: e.target.value.toUpperCase() })} placeholder="e.g. ALAB" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0]" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>
-                <RichTextEditor ariaLabel="Party description" value={form.description} maxLength={2000} onChange={(description) => setForm({ ...form, description })} rows={3} placeholder="Party description or tagline..." />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party Banner" />Party Banner</label>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
-                  {bannerPreview
-                    ? <img src={bannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
-                    : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0F2F62]" /></div>
-                  }
-                  <div>
-                    <p className="text-[13px] font-medium text-slate-500">{bannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                    <p className="text-[11px] text-slate-500">JPEG, PNG or WebP (max 5MB)</p>
-                  </div>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
-                    onChange={(e) => {
-                      const f = e.target.files[0];
-                      if (!f) return;
-                      const imageError = partylistImageError(f);
-                      if (imageError) { setError(imageError); e.target.value = ''; return; }
-                      setError('');
-                      setBannerFile(f);
-                      setBannerPreview(URL.createObjectURL(f));
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {error}
-              </div>
-            )}
-          </form>
-      </Modal>
-
-      <Modal
-        open={Boolean(editing)}
-        onClose={() => workingId !== editing?.id && setEditing(null)}
-        closeOnBackdrop={workingId !== editing?.id}
-        closeOnEscape={workingId !== editing?.id}
-        maxWidth="max-w-6xl"
-      >
-        {editing && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="border-b border-[#DDE7EF] px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setEditing(null)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#64748B] hover:text-[#0F172A]"
-                >
-                  <ArrowLeft size={13} />
-                  Manage Party Lists
-                </button>
-                <h3 className="mt-2 text-[30px] leading-tight font-black text-[#0F172A]">
-                  {formatDisplayText(editing.name) || 'Edit Partylist'}
-                </h3>
-                <p className="mt-1 text-xs font-medium text-[#64748B]">Edit list</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditing(null)}
-                  disabled={workingId === editing.id}
-                  className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD] disabled:opacity-50"
-                >
-                  Discard Draft
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => handleUpdate(event)}
-                  disabled={workingId === editing.id || !editing.name?.trim()}
-                  className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40"
-                >
-                  {workingId === editing.id ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-4 border-b border-[#DDE7EF]">
-              <button
-                type="button"
-                onClick={() => setEditTab('general')}
-                className={`pb-2 text-xs font-bold uppercase tracking-wide ${editTab === 'general' ? 'border-b-2 border-[#0B8ED0] text-[#0F172A]' : 'text-[#64748B]'}`}
-              >
-                General Information
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditTab('roster')}
-                className={`pb-2 text-xs font-bold uppercase tracking-wide ${editTab === 'roster' ? 'border-b-2 border-[#0B8ED0] text-[#0F172A]' : 'text-[#64748B]'}`}
-              >
-                Roster Management
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditTab('docs')}
-                className={`pb-2 text-xs font-bold uppercase tracking-wide ${editTab === 'docs' ? 'border-b-2 border-[#0B8ED0] text-[#0F172A]' : 'text-[#64748B]'}`}
-              >
-                Platform & Documents
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 p-5">
-            <div className="space-y-4">
-              {editTab === 'general' && (
-                <form onSubmit={handleUpdate} className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-                  <h4 className="text-lg font-bold text-[#0F172A]">Party Identity</h4>
-                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Official Party Name" />Official Party Name</label>
-                      <input
-                        value={editing.name}
-                        onChange={(event) => setEditing({ ...editing, name: event.target.value })}
-                        className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Acronym / Abbreviation" />Acronym / Abbreviation</label>
-                      <input
-                        value={editing.acronym || ''}
-                        maxLength={30}
-                        onChange={(event) => setEditing({ ...editing, acronym: event.target.value.toUpperCase() })}
-                        className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Mission Statement" />Mission Statement</label>
-                      <RichTextEditor
-                        value={editing.description || ''}
-                        maxLength={2000}
-                        onChange={(description) => setEditing({ ...editing, description })}
-                        rows={4}
-                        ariaLabel="Mission statement"
-                      />
-                      <p className="mt-1 text-xs text-[#94A3B8]">
-                        This statement appears in candidate pages and election records.
-                      </p>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party Banner" />Party Banner</label>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
-                        {editBannerPreview
-                          ? <img src={resolveAssetUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
-                          : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0F2F62]" /></div>
-                        }
-                        <div>
-                          <p className="text-[13px] font-medium text-slate-500">{editBannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                          <p className="text-[11px] text-slate-500">JPEG, PNG or WebP (max 5MB)</p>
-                        </div>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
-                          onChange={(e) => {
-                            const f = e.target.files[0];
-                            if (!f) return;
-                            const imageError = partylistImageError(f);
-                            if (imageError) { setError(imageError); e.target.value = ''; return; }
-                            setError('');
-                            setEditBannerFile(f);
-                            setEditBannerPreview(URL.createObjectURL(f));
-                          }}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  {error && (
-                    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                      {error}
-                    </div>
-                  )}
-                </form>
-              )}
-
-              {editTab === 'roster' && (
-                <div className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-lg font-bold text-[#0F172A]">Roster Overview</h4>
-                    <span className="text-xs font-semibold text-[#64748B]">
-                      {getPartylistCandidates(editing.id).length} candidate{getPartylistCandidates(editing.id).length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {getPartylistCandidates(editing.id).map((candidate) => {
-                      const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() || 'Unknown Candidate';
-                      const position = candidate.position?.title || 'Unassigned';
-
-                      return (
-                        <div key={candidate.id} className="flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2">
-                          <span className="text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</span>
-                          <span className="text-xs font-medium text-[#64748B]">{position}</span>
-                        </div>
-                      );
-                    })}
-                    {getPartylistCandidates(editing.id).length === 0 && (
-                      <p className="text-sm font-medium text-[#94A3B8]">No candidates currently assigned.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {editTab === 'docs' && (
-                <div className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-                  <h4 className="text-lg font-bold text-[#0F172A]">Platform & Documents</h4>
-                  <p className="mt-2 text-sm text-[#64748B]">
-                    Document upload is managed in the current release outside this editor. Save identity and roster updates here first.
-                  </p>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </section>
-        )}
-      </Modal>
-
-      {error && !showAdd && !editing && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2" role="status" aria-label="Loading partylists">
-          {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-64 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />
-          ))}
-          <span className="sr-only">Loading partylists...</span>
-        </div>
-      ) : partylistRows.length === 0 ? (
-        <div className="rounded-lg border border-[#DDE7EF] bg-white p-10 text-center">
-          <Flag size={36} className="mx-auto mb-3 text-[#DDE7EF]" />
-          <p className="text-sm text-[#64748B]">No partylists registered for this election.</p>
-        </div>
-      ) : filteredPartylists.length === 0 ? (
-        <div className="rounded-lg border border-[#DDE7EF] bg-white p-10 text-center">
-          <Search size={30} className="mx-auto mb-3 text-[#DDE7EF]" />
-          <p className="text-sm text-[#64748B]">No partylist matches your search.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          {filteredPartylists.map((partylist, index) => {
-            const partylistCandidates = candidates.filter((candidate) => candidate.partylist_id === partylist.id);
-            const featured = partylistCandidates.slice(0, 2);
-            const slate = partylistCandidates.slice(2);
-
-            return (
-              <article key={partylist.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-                {partylist.banner_url
-                  ? <img src={resolveAssetUrl(partylist.banner_url)} alt={`${formatDisplayText(partylist.name)} banner`} className="h-24 w-full object-cover" />
-                  : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
-                }
-                <div className="space-y-4 p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="truncate text-lg font-extrabold text-[#0F172A]">{formatDisplayText(partylist.name)}</h3>
-                        {partylist.acronym && <span className="rounded-md bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">{partylist.acronym}</span>}
-                      </div>
-                      <RichTextBody value={partylist.description || 'No party description provided yet.'} className="mt-1 text-sm text-[#64748B]" />
-                    </div>
-                    {election.status !== 'closed' && !election.finalized_at && (
-                      <TableRowActions subject={formatDisplayText(partylist.name)} actions={[
-                          { label: 'Edit', icon: Edit2, onClick: () => { setEditTab('general'); setEditBannerFile(null); setEditBannerPreview(partylist.banner_url || null); setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' }); } },
-                          { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === partylist.id, onClick: () => setDeleteTarget(partylist) },
-                        ]} />
-                    )}
-                  </div>
-
-                  <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-                    {featured.length === 0 ? (
-                      <p className="text-sm font-medium text-[#94A3B8]">No assigned candidates yet.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {featured.map((candidate) => {
-                          const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() || 'Unknown Candidate';
-                          const position = resolvePositionTitle(candidate);
-                          return (
-                            <div key={candidate.id} className="text-center">
-                              {candidate.image_url
-                                ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
-                                : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
-                              }
-                              <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</p>
-                              <span className="mt-1 inline-flex rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">
-                                {position}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <details className="border-t border-[#DDE7EF] pt-3">
-                    <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-[#0878B7]">
-                      View complete slate ({partylistCandidates.length} candidate{partylistCandidates.length !== 1 ? 's' : ''})
-                    </summary>
-                    {slate.length > 0 && (
-                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {slate.map((candidate) => {
-                          const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() || 'Unknown Candidate';
-                          const position = resolvePositionTitle(candidate);
-
-                          return (
-                            <div key={candidate.id} className="flex items-center justify-between gap-2 rounded-md bg-[#F8FBFD] px-2.5 py-2">
-                              <span className="truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</span>
-                              <span className="text-xs font-medium text-[#64748B]">{position}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </details>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+        <form id="partylist-form" onSubmit={editing ? handleUpdate : handleAdd} className="space-y-4">
+          {editing ? (
+            <PartylistFields values={editing} onChange={setEditing} bannerPreview={editBannerPreview} onBannerChange={bannerChange(setEditBannerFile, setEditBannerPreview)} />
+          ) : (
+            <PartylistFields values={form} onChange={setForm} bannerPreview={bannerPreview} onBannerChange={bannerChange(setBannerFile, setBannerPreview)} />
+          )}
+          {error && <p role="alert" className={ALERT}>{error}</p>}
+        </form>
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title="Remove Partylist"
-        message="This will remove the partylist record from the election workspace."
+        title="Remove party list"
+        message="This will remove the party list from the election workspace."
         recordName={deleteTarget?.name}
         confirmText="Remove"
         busy={Boolean(deleteTarget && workingId === deleteTarget.id)}
@@ -567,10 +351,4 @@ export default function ManagePartylistsPage() {
       />
     </div>
   );
-}
-
-function partylistImageError(file) {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Party banner must be a JPEG, PNG, or WebP image.';
-  if (file.size > 5 * 1024 * 1024) return 'Party banner must be 5 MB or smaller.';
-  return '';
 }

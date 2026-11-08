@@ -147,11 +147,15 @@ class AccountProfileDeletionTest extends TestCase
         $child->update(['is_active' => false]);
         $this->getJson('/api/account-profiles?organization_id='.$child->id)->assertOk()->assertJsonPath('total', 1);
         $this->deleteJson('/api/account-profiles/'.$extra->id)->assertOk();
-        foreach (['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['STUDENT', 'SBO_OFFICER'] as $role) {
             $actor = User::factory()->create(['role' => $role, 'organization_id' => $user->organization_id]);
             Sanctum::actingAs($actor);
             $this->getJson('/api/account-profiles')->assertForbidden();
             $this->deleteJson('/api/account-profiles/'.$user->accountProfiles()->firstOrFail()->id)->assertForbidden();
         }
+        $strayHead = User::factory()->departmentHead()->create(['organization_id' => $user->organization_id]);
+        Sanctum::actingAs($strayHead);
+        $this->getJson('/api/account-profiles')->assertOk()->assertJsonPath('total', 0);
+        $this->deleteJson('/api/account-profiles/'.$user->accountProfiles()->firstOrFail()->id)->assertNotFound();
     }
 }

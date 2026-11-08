@@ -1,15 +1,8 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useState } from 'react';
-import { CalendarCheck2, Clock3 } from 'lucide-react';
 import PaginationControls from '../PaginationControls';
+import { Button, EmptyState, ErrorState, SkeletonText, StatusBadge } from '../ui';
 import { getPersonalAttendance } from '../../services/eventService';
-
-const statusStyle = {
-  present: 'bg-emerald-50 text-emerald-700',
-  late: 'bg-amber-50 text-amber-700',
-  excused: 'bg-sky-50 text-sky-700',
-  absent: 'bg-red-50 text-red-700',
-};
 
 function dateTime(value) {
   return value ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded';
@@ -39,21 +32,21 @@ export default function PersonalAttendanceSummary() {
   const pagination = data?.pagination;
 
   return (
-    <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm" aria-label="Personal attendance summary">
+    <section className="rounded-card border border-line bg-surface p-5" aria-label="Personal attendance summary">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="flex items-center gap-2 text-lg font-bold text-[#0F172A]"><CalendarCheck2 size={19} className="text-[#0878B7]" /> My attendance</h2><p className="mt-1 text-xs text-[#64748B]">Based on recorded attendance only. Excused records are excluded from the rate.</p></div>
-        <button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="min-h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]">Refresh</button>
+        <div><h2 className="text-base font-semibold text-ink">My attendance</h2><p className="mt-1 text-sm text-ink-muted">Based on recorded attendance only. Excused records are excluded from the rate.</p></div>
+        <Button variant="secondary" size="sm" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Refresh</Button>
       </div>
-      {loading ? <p className="mt-5 text-sm text-[#64748B]" role="status">Loading attendance...</p> : error ? <p className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p> : <>
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          {[['Events attended', summary?.attended ?? 0], ['Missed events', summary?.missed ?? 0], ['Attendance rate', summary?.rate === null ? '—' : `${summary?.rate ?? 0}%`]].map(([label, value]) => <dl key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><dt className="text-xs font-semibold text-[#64748B]">{label}</dt><dd className="mt-1 text-2xl font-black text-[#0F172A]">{value}</dd></dl>)}
-        </div>
-        {(data?.records || []).length === 0 ? <p className="mt-5 rounded-lg border border-dashed border-[#DDE7EF] p-6 text-center text-sm text-[#64748B]">No attendance has been recorded for your events yet.</p> : <div className="mt-4 space-y-2">
-          {data.records.map((record) => <article key={record.id} className="rounded-lg border border-[#DDE7EF] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-[#0F172A]">{formatDisplayText(record.event?.title)}</h3><p className="mt-1 text-xs text-[#64748B]">{dateTime(record.event?.start_time)}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${statusStyle[record.status] || 'bg-slate-100 text-slate-700'}`}>{record.status}</span></div>
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#64748B]"><span className="inline-flex items-center gap-1"><Clock3 size={13} /> In: {record.status === 'absent' ? 'Not recorded' : time(record.check_in_time)}</span><span>Out: {time(record.check_out_time)}</span>{record.status !== 'absent' && record.method && <span>Method: {record.method.replaceAll('_', ' ')}</span>}</div>
-          </article>)}
-        </div>}
+      {loading ? <SkeletonText lines={3} className="mt-5" /> : error ? <ErrorState title="Attendance did not load" description={error} onRetry={() => { setLoading(true); setReload((value) => value + 1); }} /> : <>
+        <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          {[['Events attended', summary?.attended ?? 0], ['Missed events', summary?.missed ?? 0], ['Attendance rate', summary?.rate === null ? '' : `${summary?.rate ?? 0}%`]].map(([label, value]) => <div key={label} className="flex gap-1.5"><dt className="text-ink-muted">{label}</dt><dd className="font-semibold tabular-nums text-ink">{value}</dd></div>)}
+        </dl>
+        {(data?.records || []).length === 0 ? <EmptyState title="No attendance yet" description="Attendance appears here once an organizer checks you in to an event." /> : <ul className="mt-4 divide-y divide-line-soft border-t border-line">
+          {data.records.map((record) => <li key={record.id} className="py-3">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-semibold text-ink">{formatDisplayText(record.event?.title)}</h3><p className="mt-0.5 text-xs text-ink-muted">{dateTime(record.event?.start_time)}</p></div>{record.status === 'present' ? <span className="text-xs text-ink-muted">Present</span> : <StatusBadge status={record.status} />}</div>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-muted"><span>In: {record.status === 'absent' ? 'Not recorded' : time(record.check_in_time)}</span><span>Out: {time(record.check_out_time)}</span>{record.status !== 'absent' && record.method && <span>Method: {record.method.replaceAll('_', ' ')}</span>}</div>
+          </li>)}
+        </ul>}
         {pagination && <PaginationControls currentPage={pagination.current_page} totalItems={pagination.total} pageSize={pagination.per_page} onPageChange={(value) => { setLoading(true); setPage(value); }} label="attendance records" />}
       </>}
     </section>

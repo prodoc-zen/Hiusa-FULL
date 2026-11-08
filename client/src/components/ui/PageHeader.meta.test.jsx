@@ -12,19 +12,16 @@ function renderAt(path, props, role = 'ADMIN') {
 describe('PageHeader falls back to pageMeta', () => {
   beforeEach(() => localStorage.clear());
 
-  it('derives the breadcrumb for the current route when none is passed', () => {
+  it('prints no breadcrumb of its own unless the page passes one', () => {
     renderAt('/dashboard/finance/financial-ledger', { title: 'Ledger' });
-    const nav = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/dashboard/admin');
-    expect(within(nav).getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/dashboard/finance/budget-allocation');
-    expect(within(nav).queryByRole('link', { name: 'Ledger' })).not.toBeInTheDocument();
-    expect(within(nav).getByText('Ledger')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('heading', { level: 1, name: 'Ledger' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
   });
 
-  it('takes the title and purpose from pageMeta when the page passes neither', () => {
+  it('takes the title from pageMeta but adds no lead line when the page passes neither', () => {
     renderAt('/dashboard/events/check-in', {});
     expect(screen.getByRole('heading', { level: 1, name: 'Check-in' })).toBeInTheDocument();
-    expect(screen.getByText('Verify participants and manage event attendance.')).toBeInTheDocument();
+    expect(screen.queryByText('Verify participants and manage event attendance.')).not.toBeInTheDocument();
   });
 
   it('keeps the page title and description when it passes its own', () => {

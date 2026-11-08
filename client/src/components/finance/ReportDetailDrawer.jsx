@@ -48,11 +48,11 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
   return (
     <Drawer open title={formatDisplayText(report.title)} description={[documentName, generated && `Generated ${generated}`].filter(Boolean).join(' · ')} onClose={onClose} width="max-w-xl">
       <div className="space-y-5">
-        <FlowStepper steps={lifecycle.steps} ariaLabel="Financial report progress" />
+        <FlowStepper variant="full" steps={lifecycle.steps} ariaLabel="Financial report progress" />
         <NextStep {...nextStep} />
         {report.summary_text && <p className="border-t border-line pt-4 text-sm font-medium text-ink-muted-strong">{report.summary_text}</p>}
         <div className="border-t border-line pt-4">
-          <h3 className="text-sm font-bold text-ink">Submitted supporting files</h3>
+          <h3 className="text-sm font-semibold text-ink">Submitted supporting files</h3>
           {fileError && <p role="alert" className="mt-2 text-sm font-medium text-danger-strong">{fileError}</p>}
           {documents.length ? <DataTable
             caption={`Supporting files for ${formatDisplayText(report.title)}`}

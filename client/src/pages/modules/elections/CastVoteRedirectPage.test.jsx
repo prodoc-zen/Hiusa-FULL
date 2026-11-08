@@ -92,6 +92,21 @@ describe('CastVoteRedirectPage', () => {
     expect(await screen.findByText('Election 1')).toBeInTheDocument();
   });
 
+  it('writes the voting period as plain dates with both ends and no minute count', async () => {
+    getElections.mockResolvedValue([{ id: 1, title: 'Fall Election', status: 'active', finalized_at: '2026-11-01T00:00:00Z', start_time: '2026-11-07T11:00:00Z', end_time: '2026-11-15T11:00:00Z', results_visible: false }]);
+    getElectionDetails.mockResolvedValue({});
+    renderPage();
+    expect(await screen.findByText('Nov 7 to Nov 15, 2026, 7:00 PM')).toBeInTheDocument();
+    expect(screen.queryByText(/minutes/)).not.toBeInTheDocument();
+  });
+
+  it('gives each end its own time when voting opens and closes at different times', async () => {
+    getElections.mockResolvedValue([{ id: 1, title: 'Fall Election', status: 'active', finalized_at: '2026-11-01T00:00:00Z', start_time: '2026-11-07T00:00:00Z', end_time: '2026-11-15T09:30:00Z', results_visible: false }]);
+    getElectionDetails.mockResolvedValue({});
+    renderPage();
+    expect(await screen.findByText('Nov 7, 8:00 AM to Nov 15, 2026, 5:30 PM')).toBeInTheDocument();
+  });
+
   it('names what to expect when no election is open', async () => {
     getElections.mockResolvedValue([]);
     renderPage();

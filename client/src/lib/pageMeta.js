@@ -1,8 +1,9 @@
 import { ROLE_HOME_PATHS, getNavForRole, resolveItemPath } from '../components/layout/navigation';
 
 // The single source of truth for what each dashboard route is called: its title, a one-line purpose
-// (120 characters at most), the sidebar group it belongs to and the parent pages between the group and
-// the page. PageHeader and the layout's default header read it; the TopBar no longer prints a title.
+// (120 characters at most, plain words, never shown as a lead line), the sidebar group it belongs to
+// and the parent pages between the group and the page. PageHeader and the layout's default header read
+// the title and crumbs; the TopBar prints no title.
 // `group` is the label of a row in the role's sidebar (see navigation.js), so the breadcrumb can link
 // it. `byRole` overrides any field for one role, because a few paths serve several roles under
 // different names (Calendar for an officer, Events for a student). Every route in client/src/App.jsx
@@ -13,10 +14,10 @@ const FINANCE_VIEW_ONLY = { SBO_OFFICER: { group: 'Finance (view only)' } };
 const ELECTIONS_STEP = { ADMIN: { parents: [{ label: 'Elections', to: '/dashboard/elections/manage-elections' }] } };
 
 const PAGE_META = {
-  '/dashboard': { title: 'Dashboard', purpose: 'Start with what needs your attention today.', isHome: true },
-  '/dashboard/ask-ai': { title: 'Ask AI', purpose: 'Ask questions about what needs action today, missing submissions, and live records.' },
+  '/dashboard': { title: 'Dashboard', purpose: 'What needs your attention today.', isHome: true },
+  '/dashboard/ask-ai': { title: 'Ask AI', purpose: 'Ask about what needs action today.' },
 
-  '/dashboard/super-admin': { title: 'Dashboard', purpose: 'Review reports, administer organizations, and publish university notices.', isHome: true },
+  '/dashboard/super-admin': { title: 'Dashboard', purpose: 'What needs the SAO today.', isHome: true },
   '/dashboard/organization-applications': {
     title: 'Organization applications',
     purpose: 'Review verified applications from your college or decide endorsed applications.',
@@ -30,6 +31,13 @@ const PAGE_META = {
     group: 'Governance',
     parents: [{ label: 'Organizations', to: '/dashboard/super-admin/organizations' }],
   },
+  '/dashboard/super-admin/org/:orgId': {
+    title: 'Organization',
+    purpose: 'See everything one student organization does, including its transactions.',
+    group: 'Governance',
+    parents: [{ label: 'Colleges', to: '/dashboard/super-admin/colleges' }],
+  },
+  '/dashboard/super-admin/student-records': { title: 'Student records', purpose: 'Load the school records students are matched against when they sign up.', group: 'Governance' },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Governance' },
   '/dashboard/super-admin/admins': {
     title: 'Administrator accounts',
@@ -46,21 +54,30 @@ const PAGE_META = {
   '/dashboard/super-admin/venues': { title: 'Venues', purpose: 'See who has each venue and when, and decide booking requests with conflicts in view.', group: 'Reviews' },
   '/dashboard/super-admin/grievances': { title: 'Grievances', purpose: 'Review every confidential grievance university-wide and set its status.', group: 'Reviews' },
   '/dashboard/super-admin/clearances': { title: 'Clearances', purpose: 'Open a clearance period and track how many students have completed every signature.', group: 'Reviews' },
-  '/dashboard/super-admin/announcements': { title: 'University announcements', purpose: 'Publish official notices across HIUSA.', group: 'Updates' },
+  '/dashboard/super-admin/announcements': { title: 'University announcements', purpose: 'Publish notices for the whole university.', group: 'Updates' },
   '/dashboard/super-admin/notifications': { title: 'Notifications', purpose: 'SAO approval activity and system notices.', group: 'Updates' },
   '/dashboard/super-admin/academic-years': { title: 'Academic years', purpose: 'Set the university-wide academic year and semester that registrations and clearances follow.', group: 'Setup and records' },
   '/dashboard/super-admin/audit-logs': { title: 'Audit trail', purpose: 'Trace who changed a record, what changed, and when.', group: 'Setup and records' },
 
-  '/dashboard/admin': { title: 'Dashboard', purpose: 'See what needs attention and how far your organization has set up HIUSA.', isHome: true },
-  '/dashboard/officer': { title: 'Dashboard', purpose: 'Start with deadlines, then check events, funds, and merchandise queues.', isHome: true },
-  '/dashboard/department-head': { title: 'Dashboard', purpose: 'Review approvals, elections, events, and announcements.', isHome: true },
-  '/dashboard/student': { title: 'Dashboard', purpose: 'Official updates, events, and elections from your organization.', isHome: true },
+  '/dashboard/admin': { title: 'Dashboard', purpose: 'What needs attention in your organization.', isHome: true },
+  '/dashboard/officer': { title: 'Dashboard', purpose: 'Deadlines, events and orders that need you.', isHome: true },
+  '/dashboard/department-head': { title: 'Dashboard', purpose: 'What needs your review today.', isHome: true },
+  '/dashboard/student': { title: 'Dashboard', purpose: 'Announcements, events and elections.', isHome: true },
+  '/dashboard/student/apply-organization': { title: 'Apply for an organization', purpose: 'Send an application to start a student organization and follow it here.' },
+  '/dashboard/student/organization-applications/:applicationId': {
+    title: 'Your application',
+    purpose: 'See where your application is and what the reviewers noted.',
+    parents: [{ label: 'Apply for an organization', to: '/dashboard/student/apply-organization' }],
+  },
 
   '/dashboard/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
+  '/dashboard/department-head/org/:orgId': { title: 'Organization', purpose: 'Work inside one student organization of your college.', group: 'Organizations', parents: [] },
   '/dashboard/department-head/organizations': { title: 'Organizations', purpose: 'Review the student organizations in your college.' },
+  '/dashboard/department-head/people': { title: 'People', purpose: 'See the students, office staff and organization leaders in your college.' },
   '/dashboard/department-head/documents': { title: 'College files', purpose: 'Search organization folders and open submitted files from your college.' },
   '/dashboard/department-head/compliance': { title: 'College compliance', purpose: 'Track organization requirements and send reminders to members and college reviewers.' },
+  '/dashboard/records': { title: 'Records', purpose: 'Look back at a past school year: officers, files, events and elections, as they were.', group: 'Records', byRole: { DEPARTMENT_HEAD: { group: null }, SBO_OFFICER: { group: null }, SUPER_ADMIN: { group: 'Setup and records' } } },
   '/dashboard/submitted-files': { title: 'Submitted files', purpose: 'View documents submitted by your organization or college.', group: 'Records', byRole: { DEPARTMENT_HEAD: { group: null } } },
   '/dashboard/approval-requests/new': { title: 'New request', purpose: 'Choose a request type to begin the approval process.', byRole: { ADMIN: { group: 'Approvals' } } },
   '/dashboard/approval-requests/new/announcement': {

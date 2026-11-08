@@ -136,8 +136,9 @@ for (const viewport of WIDTHS) {
       await expect(attendanceCount).toHaveText(/^\d+$/);
       const before = Number(await attendanceCount.textContent());
 
-      await page.locator('#attendance-member-search').fill(String(member.school_id));
-      await flow.tap(page.getByRole('button', { name: new RegExp(`${member.school_id} · `) }));
+      const memberName = `${member.first_name} ${member.last_name}`;
+      await page.getByRole('combobox', { name: 'Member' }).fill(memberName);
+      await flow.tap(page.getByRole('option', { name: new RegExp(escapeRegExp(memberName)) }).first());
       await flow.tap(page.getByRole('button', { name: /Confirm Check-In/ }));
 
       await finish(page, flow, {

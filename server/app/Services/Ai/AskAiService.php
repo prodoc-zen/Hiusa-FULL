@@ -3046,7 +3046,7 @@ class AskAiService
                 ),
                 'status' => $stock <= 0 ? 'Out of stock' : ($isLow ? 'Low stock' : 'In stock'),
                 'status_tone' => $stock <= 0 ? 'danger' : ($isLow ? 'warning' : 'success'),
-                'meta' => "₱".number_format((float) $item->price, 2)." · {$stock} in stock",
+                'meta' => '₱'.number_format((float) $item->price, 2)." · {$stock} in stock",
                 'progress_percent' => min(100, (int) round(($stock / max(20, $threshold * 3)) * 100)),
                 'href' => $this->routeAccess->hrefFor($role, $role === 'STUDENT' ? '/dashboard/merchandise' : '/dashboard/merchandise/manage-orders'),
                 'action_label' => 'Open store',

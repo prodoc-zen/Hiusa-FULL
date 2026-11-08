@@ -30,7 +30,7 @@ describe('SaoGrievancesPage', () => {
 
   it('shows an empty state with no filters applied', async () => {
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
   it('shows a retryable error state for the main table', async () => {
@@ -50,6 +50,19 @@ describe('SaoGrievancesPage', () => {
     const rows = await screen.findAllByRole('row');
     // rows[0] is the header row; the table body should lead with Critical.
     expect(within(rows[1]).getByText('Critical Concern')).toBeTruthy();
+  });
+
+  it('shows no badge on default states and one word for a closed grievance', async () => {
+    const closed = { ...LOW, id: 3, title: 'Closed concern', status: 'resolved', urgency: 'Medium' };
+    mocks.getGrievances.mockImplementation((params) => (params?.per_page === 50
+      ? Promise.resolve(envelope([closed, LOW], 2))
+      : Promise.resolve(envelope([]))));
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    const closedRow = (await screen.findAllByText('Closed Concern')).map((node) => node.closest('tr')).find(Boolean);
+    expect(within(closedRow).getAllByText('Resolved')).toHaveLength(1);
+    expect(within(closedRow).getByText('Medium').className).not.toMatch(/rounded/);
+    expect(within(closedRow).queryByRole('button', { name: 'View details' })).not.toBeInTheDocument();
   });
 
   it('renders the status and urgency summary strip from the count queries', async () => {

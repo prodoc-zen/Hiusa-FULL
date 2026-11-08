@@ -1,7 +1,8 @@
 import { cloneElement, isValidElement, useId } from 'react';
-import FieldIcon from '../FieldIcon.jsx';
 
-export default function Field({ label, hint, error, required, children, className = '' }) {
+// `optional` appends the "(optional)" suffix to the label. Required fields carry no asterisk; the
+// control still gets required and aria-required.
+export default function Field({ label, hint, error, required, optional, children, className = '' }) {
   const generatedId = useId();
   const childProps = isValidElement(children) ? children.props : {};
   const controlId = childProps.id || generatedId;
@@ -25,14 +26,13 @@ export default function Field({ label, hint, error, required, children, classNam
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={controlId} className="text-[13px] font-semibold text-ink">
-        <FieldIcon label={label} />
+      <label htmlFor={controlId} className="text-[13px] font-medium text-ink">
         {label}
-        {required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
+        {optional && !required && <span className="ml-1 font-normal text-ink-muted">(optional)</span>}
       </label>
       {control}
       {hint && !error && (
-        <p id={hintId} className="text-xs font-medium text-ink-muted">{hint}</p>
+        <p id={hintId} className="text-xs text-ink-muted">{hint}</p>
       )}
       {error && (
         <p id={errorId} role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>
