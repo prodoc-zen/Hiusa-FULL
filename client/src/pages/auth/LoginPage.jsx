@@ -108,6 +108,10 @@ export default function LoginPage() {
           Sign in
         </Button>
       </form>
+
+      <p className="mt-6 text-sm font-medium text-ink-muted">
+        New student? <Link to="/sign-up" className="font-bold text-brand-700 hover:text-navy-950">Create your account</Link>
+      </p>
     </AuthLayout>
   );
 }

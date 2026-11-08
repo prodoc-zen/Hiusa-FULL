@@ -123,6 +123,26 @@ Oversight, pick what time allows:
 
 Say: SAO is the fifth actor the dean asked for (PAPER_SCOPE_ADDENDUM section 2.1).
 
+## 7a. Student sign-up (2 minutes, optional, any browser)
+
+The school records seeded by `StudentRegistrySeeder` hold every demo student. The ones below have no account yet, so a new student can sign up live. Nobody types a name, program or organization: only school ID and birth date, then email and password.
+
+| School ID | Birth date | Student | College | Program |
+|---|---|---|---|---|
+| 2500101 | 2007-03-14 | Hannah Reyes | CCS | BS Information Technology, 1st Year |
+| 2500102 | 2006-11-02 | Kyle Lim | CCS | BS Computer Science, 1st Year |
+| 2400210 | 2005-07-21 | Bianca Ocampo | CBE | BS Accountancy, 2nd Year |
+| 2300215 | 2004-01-09 | Joaquin Mercado | CTE | Bachelor of Secondary Education, 3rd Year |
+| 2200320 | 2003-09-30 | Patricia Soriano | CHS | BS Nursing, 4th Year |
+| 2400330 | 2005-05-17 | Renzo Abella | COE | BS Civil Engineering, 2nd Year |
+
+1. Open `/login`, click "Create your account" under the form. Type school ID `2500101` and birth date `2007-03-14`, click "Find my record". See: "We found you", then the name, college and program.
+2. Type an email and a password (twice), click "Create account". See: the student dashboard. The student sits on the college, not on a student organization, until the dean grants access.
+3. Show a mismatch: school ID `2500102` with any other birth date. See: "We couldn't match that school ID and birth date with the school records." Five wrong tries lock that school ID for 15 minutes.
+4. As the SAO, open Student records in the sidebar to show the same list with "Signed up" and "Not yet", and the CSV upload (school_id, first_name, last_name, birth_date, college_code, program, year_level, section).
+
+Reset: reseed, or delete the new user and set `claimed_at` to null on its `student_registry` row.
+
 ## 8. Prerequisites and reset notes per journey
 
 Host prep (do before 60 minutes out, while no semester exists, as the matching accounts):

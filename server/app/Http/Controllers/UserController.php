@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
+use App\Services\Edp\StudentSignup;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
@@ -668,52 +669,39 @@ class UserController extends Controller
         return response()->json(['message' => 'Organization profile removed successfully.', ...$result]);
     }
 
-    public function register(Request $request)
+    public function registerLookup(Request $request, StudentSignup $signup)
     {
-        $validatedData = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)->where('organization_type', 'STUDENT_ORGANIZATION')],
-            'school_id' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:99999999',
-                Rule::unique('users', 'school_id'),
-            ],
-            'first_name' => 'required|string|max:60',
-            'last_name' => 'required|string|max:60',
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:100',
-                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
-            ],
-            'password' => 'required|string|min:8|confirmed',
-            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
-            'role' => 'sometimes|in:STUDENT',
-            'notification_preferences' => ['nullable', 'array'],
-            'department' => ['nullable', 'string', 'max:120'],
-            'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'string', 'max:30'],
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $user = User::create([
-            'organization_id' => $validatedData['organization_id'],
-            'school_id' => $validatedData['school_id'],
-            'first_name' => $validatedData['first_name'],
-            'last_name' => $validatedData['last_name'],
-            'email' => $validatedData['email'],
-            'contact_number' => $validatedData['contact_number'] ?? null,
-            'password_hash' => $validatedData['password'],
-            'must_change_password' => false,
-            'role' => $validatedData['role'] ?? 'STUDENT',
-            'account_status' => 'active',
-            'is_member' => true,
-            'notification_preferences' => $validatedData['notification_preferences'] ?? null,
-        ]);
+        ['record' => $record, 'college' => $college] = $signup->match($data['school_id'], $data['birth_date']);
 
         return response()->json([
-            'user' => $user,
+            'name' => trim($record->firstName.' '.$record->lastName),
+            'college' => $college->name,
+            'program' => $record->program,
+            'year_level' => $record->yearLevel,
+            'section' => $record->section,
+        ]);
+    }
+
+    public function register(Request $request, StudentSignup $signup)
+    {
+        $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
+            'email' => ['required', 'string', 'email', 'max:100', Rule::unique('users', 'email')],
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $signup->register($data['school_id'], $data['birth_date'], $data['email'], $data['password'], $request);
+
+        return response()->json([
+            'user' => $user->fresh(),
             'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
             'session_expires_in_seconds' => config('sanctum.expiration') * 60,

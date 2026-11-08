@@ -9,6 +9,10 @@ export const register = (data) => {
   return api.post('/register', data);
 };
 
+export const lookupStudentRecord = (data) => {
+  return api.post('/register/lookup', data);
+};
+
 export const logout = () => {
   return api.post('/logout').finally(() => {
     clearAuthSession();

@@ -154,6 +154,7 @@ const NAV_BY_ROLE = {
     askAi(),
     group('sao-organizations-group', 'Governance', Building2, [
       leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'] }),
+      leaf('sao-student-records', 'Student records', '/dashboard/super-admin/student-records', GraduationCap, { aliases: ['Students', 'EDP records'] }),
       leaf('sao-applications', 'Applications', '/dashboard/organization-applications', ClipboardCheck, { aliases: ['Organization applications'] }),
       leaf('sao-organizations', 'Organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Registrations and organizations'] }),
     ]),

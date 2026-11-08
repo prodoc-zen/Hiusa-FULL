@@ -7,6 +7,7 @@ import LoggedInRoute from './LoggedInRoute';
 import SessionExpiry from './components/auth/SessionExpiry';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const StudentSignUpPage = lazy(() => import('./pages/auth/StudentSignUpPage'));
 const LandingPage = lazy(() => import('./pages/auth/LandingPage'));
 const RegisterOrganizationPage = lazy(() => import('./pages/auth/RegisterOrganizationPage'));
 const RequestApplicationEditLinkPage = lazy(() => import('./pages/auth/RequestApplicationEditLinkPage'));
@@ -22,6 +23,7 @@ const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdm
 const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin/SaoOrganizationOverviewPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
+const StudentRecordsPage = lazy(() => import('./pages/roles/super-admin/StudentRecordsPage'));
 const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
@@ -220,6 +222,7 @@ function App() {
       {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/sign-up" element={<StudentSignUpPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
@@ -238,6 +241,7 @@ function App() {
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
           <Route path="super-admin/organizations/:organizationId" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoOrganizationOverviewPage /></ProtectedRoute>} />
           <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />
+          <Route path="super-admin/student-records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><StudentRecordsPage /></ProtectedRoute>} />
           <Route path="super-admin/users" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoUsersPage /></ProtectedRoute>} />
           <Route path="super-admin/documents" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoDocumentsPage /></ProtectedRoute>} />
           <Route path="department-head/documents" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><SaoDocumentsPage role="DEPARTMENT_HEAD" /></ProtectedRoute>} />

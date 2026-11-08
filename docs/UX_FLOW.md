@@ -279,10 +279,10 @@ Format: group (band): children in order, each `Label  route`.
 - Updates (single link): Announcements `/dashboard/announcements/view-announcements`
 - Support: My clearance `/dashboard/my-clearance`; My grievances `/dashboard/my-grievances`
 
-**SUPER_ADMIN (SAO)** (7 rows, 15 leaves)
+**SUPER_ADMIN (SAO)** (7 rows, 17 leaves)
 - Dashboard `/dashboard/super-admin` (the inbox: attention list is a queue count per review area, each deep linked)
 - University users `/dashboard/super-admin/users` (university-wide account and clearance directory)
-- Organizations: Organization applications `/dashboard/organization-applications`; Registrations and organizations `/dashboard/super-admin/organizations?status=pending`; Colleges `/dashboard/super-admin/colleges`
+- Organizations: Organization applications `/dashboard/organization-applications`; Registrations and organizations `/dashboard/super-admin/organizations?status=pending`; Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against)
 - Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
 - Files: Submitted files `/dashboard/super-admin/documents` (organization folders); Storage and limits `/dashboard/super-admin/file-storage`
 - Updates: University announcements `/dashboard/super-admin/announcements`; Notifications `/dashboard/super-admin/notifications`
