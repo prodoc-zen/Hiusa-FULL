@@ -10,7 +10,7 @@ import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import { useApplicantAccess } from '../../hooks/useApplicantAccess';
 import { readUserModules } from '../../utils/userModules';
-import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, resolveItemPath, withApplicantAccess } from './navigation';
+import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, navRoleFor, resolveItemPath, withApplicantAccess } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
@@ -174,10 +174,11 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const modules = useMemo(() => readUserModules(), []);
   const { visible: canApply } = useApplicantAccess(role);
   const showApply = role === 'STUDENT' && canApply;
-  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(role, modules), showApply)), [orgSpace, role, modules, showApply]);
+  const navRole = navRoleFor(user) || role;
+  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(navRole, modules), showApply)), [orgSpace, navRole, modules, showApply]);
   const activeId = useMemo(
-    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(role, modules), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
-    [orgSpace, nav, role, modules, showApply, location.pathname, location.search],
+    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(navRole, modules), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
+    [orgSpace, nav, navRole, modules, showApply, location.pathname, location.search],
   );
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 

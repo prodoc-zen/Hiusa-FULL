@@ -1,11 +1,15 @@
+// Times are shown in Manila time whatever the browser's clock says, so a request made at 3:51 AM
+// in Manila does not read 7:51 PM the day before.
+const MANILA = 'Asia/Manila';
+
 export function formatDate(iso) {
   if (!iso) return '-';
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: MANILA });
 }
 
 export function formatDateTime(iso) {
   if (!iso) return '-';
-  return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: MANILA });
 }
 
 export function fullName(person) {
@@ -25,7 +29,7 @@ export function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'election') {
-    return `${formatDate(summary.start_time)} - ${formatDate(summary.end_time)} | Requested status: ${summary.target_status || 'upcoming'}`;
+    return `Voting ${formatDateTime(summary.start_time)} to ${formatDateTime(summary.end_time)}`;
   }
 
   if (entityType === 'announcement') {

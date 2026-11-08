@@ -68,6 +68,15 @@ describe('OrganizationApplicationsPage', () => {
     expect(screen.getByRole('tab', { name: 'Not approved (0)' })).toBeInTheDocument();
   });
 
+  it('opens office staff on the same list as the dean, at the dean stage', async () => {
+    renderPage('ADMIN');
+
+    await screen.findAllByText('Chess Club');
+    expect(mocks.getOrganizationApplications).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending_dean' }));
+    expect(screen.getByRole('tab', { name: 'To review (1)' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'With the SAO (2)' })).toBeInTheDocument();
+  });
+
   it('opens the SAO on the applications the dean endorsed', async () => {
     mocks.getOrganizationApplications.mockResolvedValue(page([row({ status: 'pending_sao' })]));
     renderPage('SUPER_ADMIN');

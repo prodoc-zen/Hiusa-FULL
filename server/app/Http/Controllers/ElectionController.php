@@ -17,7 +17,6 @@ use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -187,9 +186,13 @@ class ElectionController extends Controller
             'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
         ]);
-        if ($semester && (Carbon::parse($data['start_time'])->toDateString() < $semester->starts_on->toDateString()
-            || Carbon::parse($data['end_time'])->toDateString() > $semester->ends_on->toDateString())) {
-            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in.']]);
+        // The client sends UTC instants. Stored and compared as Manila wall-clock time, or every
+        // window lands 8 hours early and a 9 AM vote opens at 1 AM.
+        $data['start_time'] = $this->localTime($data['start_time']);
+        $data['end_time'] = $this->localTime($data['end_time']);
+        if ($semester && ($data['start_time']->toDateString() < $semester->starts_on->toDateString()
+            || $data['end_time']->toDateString() > $semester->ends_on->toDateString())) {
+            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in ('.$semester->starts_on->format('M j, Y').' to '.$semester->ends_on->format('M j, Y').').']]);
         }
 
         $imageUrl = $request->hasFile('image') ? $this->storeElectionImage($request) : null;
@@ -327,8 +330,13 @@ class ElectionController extends Controller
         $requestedFields = array_keys($data);
         $oldValues = $this->auditableElectionValues($election);
 
-        $endTime = isset($data['end_time']) ? \Carbon\Carbon::parse($data['end_time']) : $election->end_time;
-        $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $election->start_time;
+        foreach (['start_time', 'end_time'] as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = $this->localTime($data[$field]);
+            }
+        }
+        $endTime = $data['end_time'] ?? $election->end_time;
+        $startTime = $data['start_time'] ?? $election->start_time;
         if ($endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
@@ -456,8 +464,8 @@ class ElectionController extends Controller
 
     private function votingPeriodStatusMessage(Election $election, $startTime = null, $endTime = null): ?string
     {
-        $start = $startTime ? Carbon::parse($startTime) : $election->start_time;
-        $end = $endTime ? Carbon::parse($endTime) : $election->end_time;
+        $start = $startTime ? $this->localTime($startTime) : $election->start_time;
+        $end = $endTime ? $this->localTime($endTime) : $election->end_time;
         $now = now();
 
         if ($end->lte($start)) {
