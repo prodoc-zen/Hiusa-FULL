@@ -169,7 +169,7 @@ function OrganizationList({ organizations, selectedId, onSelect, search, onSearc
           description="Organizations show up here once they are registered."
         />
       ) : (
-        <ul className="max-h-[60vh] overflow-y-auto">
+        <ul className="max-h-64 overflow-y-auto lg:max-h-[60vh]">
           {organizations.map((organization) => (
             <li key={organization.id} className="border-b border-line-soft last:border-b-0">
               <button

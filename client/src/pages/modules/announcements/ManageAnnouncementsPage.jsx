@@ -1,5 +1,6 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Megaphone, Pencil, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { AnnouncementStageChip, announcementStage } from './announcementShared.jsx';
@@ -58,7 +59,7 @@ function exportAnnouncements(items) {
   const rows = items.map((item) => [item.id, item.title, item.target_role, item.category, item.approval_status, item.is_published ? 'Yes' : 'No', item.views_count || 0, item.creator?.school_id, creatorName(item), item.creator?.role, item.created_at, item.published_at, item.reviewer ? `${item.reviewer.first_name} ${item.reviewer.last_name}` : '', item.review_remarks, item.body]);
   const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = `announcements-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+  const link = document.createElement('a'); link.href = url; link.download = `announcements-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
 function getCurrentRole() {

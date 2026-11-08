@@ -1,6 +1,7 @@
 import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -1611,7 +1612,7 @@ export default function MerchandisePage({ initialTab }) {
         user.school_id, `${user.first_name || ''} ${user.last_name || ''}`.trim(), user.email, user.role, user.department, user.program, user.year_level, user.section,
         order?.id ? `ORD-${order.id}` : '', order?.merchandise?.name, order?.quantity, order?.unit_price ?? order?.merchandise?.price, order?.total_price, order?.payment_method, order?.status, order?.created_at,
       ]));
-      downloadExcelXml(`merchandise-${analyticsModal.group}-${new Date().toISOString().slice(0, 10)}.xls`, ['School ID', 'Name', 'Email', 'Role', 'Department', 'Program', 'Year', 'Section', 'Order', 'Item', 'Quantity', 'Unit price', 'Total', 'Mode of payment', 'Status', 'Ordered'], rows);
+      downloadExcelXml(`merchandise-${analyticsModal.group}-${manilaDateStamp()}.xls`, ['School ID', 'Name', 'Email', 'Role', 'Department', 'Program', 'Year', 'Section', 'Order', 'Item', 'Quantity', 'Unit price', 'Total', 'Mode of payment', 'Status', 'Ordered'], rows);
       showFeedback('success', 'Excel file exported.');
     } catch {
       showFeedback('error', 'Could not export the selected users.');
@@ -1627,7 +1628,7 @@ export default function MerchandisePage({ initialTab }) {
       const url = URL.createObjectURL(response.data);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `merchandise-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.download = `merchandise-orders-${manilaDateStamp()}.csv`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();

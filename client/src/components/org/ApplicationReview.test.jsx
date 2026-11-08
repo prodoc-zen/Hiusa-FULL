@@ -43,7 +43,14 @@ function renderReview(role = 'DEPARTMENT_HEAD') {
   render(<MemoryRouter><ApplicationReview applicationId={8} viewerRole={role} /></MemoryRouter>);
 }
 
-const mark = (requirement, value) => fireEvent.change(screen.getByLabelText(`Review of ${requirement}`), { target: { value } });
+// A row that needs nothing is one line; the reviewer opens it to mark it.
+const openRow = (requirement) => {
+  if (!screen.queryByLabelText(`Review of ${requirement}`)) fireEvent.click(screen.getByRole('button', { name: new RegExp(`^(Review|Change) ${requirement}$`) }));
+};
+const mark = (requirement, value) => {
+  openRow(requirement);
+  fireEvent.change(screen.getByLabelText(`Review of ${requirement}`), { target: { value } });
+};
 const acceptAll = () => { mark('Constitution', 'ok'); mark('Officer list', 'ok'); };
 
 describe('ApplicationReview', () => {
@@ -84,6 +91,7 @@ describe('ApplicationReview', () => {
     renderReview();
     await screen.findByText('Ana Cruz');
 
+    openRow('Constitution');
     expect(screen.getByLabelText('Review of Constitution')).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
     expect(screen.getByText('Endorse turns on when every requirement is Accepted.')).toBeInTheDocument();
@@ -221,6 +229,7 @@ describe('ApplicationReview', () => {
     }) });
 
     const file = new File(['pdf'], 'marked-up.pdf', { type: 'application/pdf' });
+    openRow('Constitution');
     fireEvent.change(screen.getByLabelText('Attach a file to Constitution'), { target: { files: [file] } });
 
     await waitFor(() => expect(mocks.attachReviewFile).toHaveBeenCalledWith(8, file, 1));
@@ -345,5 +354,108 @@ describe('ApplicationReview', () => {
     await screen.findByText('Ana Cruz');
 
     expect(screen.queryByRole('button', { name: 'Add a comment' })).not.toBeInTheDocument();
+  });
+
+  it('shows each requirement that needs nothing as one row with a status word and a file link, and no controls', async () => {
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    const rows = within(screen.getByRole('region', { name: 'Requirements' })).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      expect(within(row).getByText('Not checked')).toBeInTheDocument();
+      expect(within(row).getAllByRole('button')).toHaveLength(2);
+    });
+    expect(screen.queryByLabelText(/^Review of /)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Attach a file to (Constitution|Officer list)$/)).not.toBeInTheDocument();
+  });
+
+  it('opens one row at a time for review, and closes it when another is opened', async () => {
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Constitution' }));
+    expect(screen.getByLabelText('Review of Constitution')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Review of Officer list')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Officer list' }));
+    expect(screen.getByLabelText('Review of Officer list')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Review of Constitution')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Officer list' }));
+    expect(screen.queryByLabelText(/^Review of /)).not.toBeInTheDocument();
+  });
+
+  it('keeps a row open while it is marked Needs changes, and an Accepted row closes to one line', async () => {
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    mark('Constitution', 'needs_changes');
+    mark('Officer list', 'ok');
+    expect(screen.getByLabelText('Note for the applicant')).toBeInTheDocument();
+    expect(screen.getByLabelText('Review of Constitution')).toHaveValue('needs_changes');
+    expect(screen.getByLabelText('Review of Officer list')).toHaveValue('ok');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Officer list' }));
+    expect(screen.queryByLabelText('Review of Officer list')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Requirements' })).getAllByText('Accepted', { selector: 'span' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Change Officer list' }));
+    expect(screen.getByLabelText('Review of Officer list')).toHaveValue('ok');
+  });
+
+  it('opens a requirement with no file attached, so the reviewer sees the controls without asking', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      requirements: [
+        { id: 1, name: 'Constitution', document: null, reviews: [], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/x' }, reviews: [], review_files: [] },
+      ],
+    }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getByText('No file attached.')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByLabelText('Review of Constitution')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Review of Officer list')).not.toBeInTheDocument();
+  });
+
+  it('opens a requirement the other reviewer flagged, and keeps an accepted one to one line', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      status: 'pending_sao',
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [{ stage: 'dean', stage_label: 'Department Head', status: 'needs_changes', note: 'Sign it.' }], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/y' }, reviews: [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: 'Complete.' }], review_files: [] },
+      ],
+    }) });
+    renderReview('SUPER_ADMIN');
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getByLabelText('Review of Constitution')).toBeInTheDocument();
+    expect(screen.getByText(/Sign it\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Complete\./)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Review of Officer list')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review Officer list' }));
+    expect(screen.getByText(/Complete\./)).toBeInTheDocument();
+    expect(screen.getByLabelText('Review of Officer list')).toBeInTheDocument();
+  });
+
+  it('collapses a read-only accepted row and shows its note only on request', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      status: 'pending_sao',
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: 'Complete.' }], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/y' }, reviews: [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: null }], review_files: [] },
+      ],
+    }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getAllByText('Accepted')).toHaveLength(2);
+    expect(screen.queryByText(/Complete\./)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Details Officer list' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Details Constitution' }));
+    expect(screen.getByText(/Complete\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide details Constitution' }));
+    expect(screen.queryByText(/Complete\./)).not.toBeInTheDocument();
   });
 });

@@ -25,6 +25,23 @@ const MARKS = [
 
 const REVIEW_WORD = { ok: 'Accepted', needs_changes: 'Needs changes', missing: 'Missing' };
 
+// The one word on a collapsed requirement row. A problem outranks an acceptance, so a row that any
+// reviewer flagged never reads as Accepted.
+function worstStatus(reviews) {
+  if (reviews.some((review) => review.status === 'needs_changes')) return 'needs_changes';
+  if (reviews.some((review) => review.status === 'missing')) return 'missing';
+  if (reviews.length > 0 && reviews.every((review) => review.status === 'ok')) return 'ok';
+  return '';
+}
+
+function RowStatus({ state }) {
+  return state
+    ? <StatusBadge status={state} label={REVIEW_WORD[state]} />
+    : <StatusBadge status="pending" tone="neutral" label="Not checked" />;
+}
+
+const LINK_BUTTON = 'inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
+
 const STATUS_LINE = {
   pending_dean: 'With the Department Head for review.',
   pending_sao: 'Endorsed by the Department Head. With the SAO for a decision.',
@@ -92,6 +109,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const waiting = stage === 'dean' ? 'pending_dean' : 'pending_sao';
   const [state, setState] = useState({ loading: true, error: null, application: null });
   const [marks, setMarks] = useState({});
+  const [openId, setOpenId] = useState(null);
   const [notes, setNotes] = useState({});
   const [remarks, setRemarks] = useState('');
   const [busy, setBusy] = useState('');
@@ -108,6 +126,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
 
   useEffect(() => {
     setMarks({});
+    setOpenId(null);
     setNotes({});
     setRemarks('');
     setProblem('');
@@ -237,38 +256,58 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
               {requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
                 const priorReviews = requirement.reviews.filter((review) => !actionable || review.stage !== stage);
+                // One word per row: what the reviewer is marking now, else what the record says.
+                const state = actionable && mark ? mark : (requirement.document ? worstStatus(priorReviews) : 'missing');
+                const needsAction = state === 'needs_changes' || state === 'missing' || priorReviews.some((review) => review.status !== 'ok');
+                const hasDetail = priorReviews.some((review) => review.note) || requirement.review_files.length > 0;
+                const open = openId === requirement.id;
+                const expanded = open || needsAction;
+                // A row that needs nothing stays one line. The reviewer can open any row to change it.
+                const toggle = !needsAction && (actionable || hasDetail);
+                const toggleLabel = actionable ? (open ? 'Close' : (mark ? 'Change' : 'Review')) : (open ? 'Hide details' : 'Details');
                 return (
-                  <li key={requirement.id} className="space-y-2 py-4 first:pt-0">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">{requirement.name}</p>
-                        {requirement.document ? <FileLink url={requirement.document.open_url}>{requirement.document.name}</FileLink> : <p className="text-sm text-danger-strong">No file attached.</p>}
+                  <li key={requirement.id} className="py-3 first:pt-0">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-3">
+                        <p className="min-w-0 break-words text-sm font-semibold text-ink">{requirement.name}</p>
+                        <RowStatus state={state} />
                       </div>
-                      {actionable && (
-                        <div className="sm:w-44 sm:shrink-0">
-                          <Select aria-label={`Review of ${requirement.name}`} value={mark} onChange={(event) => setMarks((current) => ({ ...current, [requirement.id]: event.target.value }))}>
-                            {MARKS.map(([value, label]) => <option key={value || 'none'} value={value}>{label}</option>)}
-                          </Select>
-                        </div>
-                      )}
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-4 sm:justify-end">
+                        {requirement.document ? <FileLink url={requirement.document.open_url}>{requirement.document.name}</FileLink> : <p className="text-sm text-danger-strong">No file attached.</p>}
+                        {toggle && (
+                          <button type="button" aria-expanded={open} aria-label={`${toggleLabel} ${requirement.name}`} onClick={() => setOpenId(open ? null : requirement.id)} className={LINK_BUTTON}>{toggleLabel}</button>
+                        )}
+                      </div>
                     </div>
 
-                    {priorReviews.map((review) => (
-                      <p key={review.stage} className="text-sm text-ink">
-                        <span className="font-medium">{review.stage_label}:</span> {review.status === 'ok' ? 'Accepted' : (REVIEW_WORD[review.status] || review.status)}{review.note ? `. ${review.note}` : '.'}
-                      </p>
-                    ))}
+                    {expanded && (
+                      <div className="mt-2 space-y-2">
+                        {actionable && (
+                          <div className="sm:w-44">
+                            <Select aria-label={`Review of ${requirement.name}`} value={mark} onChange={(event) => { setOpenId(requirement.id); setMarks((current) => ({ ...current, [requirement.id]: event.target.value })); }}>
+                              {MARKS.map(([value, label]) => <option key={value || 'none'} value={value}>{label}</option>)}
+                            </Select>
+                          </div>
+                        )}
 
-                    {actionable && mark === 'needs_changes' && (
-                      <Field label="Note for the applicant">
-                        <Textarea rows={2} maxLength={1000} value={notes[requirement.id] || ''} onChange={(event) => setNotes((current) => ({ ...current, [requirement.id]: event.target.value }))} />
-                      </Field>
+                        {priorReviews.map((review) => (
+                          <p key={review.stage} className="text-sm text-ink">
+                            <span className="font-medium">{review.stage_label}:</span> {review.status === 'ok' ? 'Accepted' : (REVIEW_WORD[review.status] || review.status)}{review.note ? `. ${review.note}` : '.'}
+                          </p>
+                        ))}
+
+                        {actionable && mark === 'needs_changes' && (
+                          <Field label="Note for the applicant">
+                            <Textarea rows={2} maxLength={1000} value={notes[requirement.id] || ''} onChange={(event) => setNotes((current) => ({ ...current, [requirement.id]: event.target.value }))} />
+                          </Field>
+                        )}
+
+                        {requirement.review_files.map((file) => (
+                          <ReviewFileRow key={file.id} file={file} removable={actionable && file.stage === stage} busy={Boolean(busy)} onRemove={removeFile} />
+                        ))}
+                        {actionable && <AttachButton label={`Attach a file to ${requirement.name}`} busy={busy === 'attach'} onFile={(file) => attach(file, requirement.id)} />}
+                      </div>
                     )}
-
-                    {requirement.review_files.map((file) => (
-                      <ReviewFileRow key={file.id} file={file} removable={actionable && file.stage === stage} busy={Boolean(busy)} onRemove={removeFile} />
-                    ))}
-                    {actionable && <AttachButton label={`Attach a file to ${requirement.name}`} busy={busy === 'attach'} onFile={(file) => attach(file, requirement.id)} />}
                   </li>
                 );
               })}

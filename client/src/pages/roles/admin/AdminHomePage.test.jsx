@@ -60,6 +60,16 @@ describe('AdminHomePage', () => {
     expect(screen.queryByText('Nothing has happened here yet')).not.toBeInTheDocument();
   });
 
+  it('shows only the three newest announcements, without pictures, on a phone', async () => {
+    const post = (id) => ({ ...payload.announcements[0], id, title: `Notice ${id}`, image_url: `/img/${id}.png` });
+    dashboardMock.getAdminDashboard.mockResolvedValue({ data: { ...payload, announcements: [1, 2, 3, 4, 5].map(post) } });
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+
+    const items = (await screen.findAllByRole('heading', { level: 3 })).map((heading) => heading.closest('li'));
+    expect(items.map((item) => item.classList.contains('max-sm:hidden'))).toEqual([false, false, false, true, true]);
+    expect(items[0].querySelector('img')).toHaveClass('max-sm:hidden');
+  });
+
   it('opens with the process tracker above everything else', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     await screen.findByText('Enrollment Notice');

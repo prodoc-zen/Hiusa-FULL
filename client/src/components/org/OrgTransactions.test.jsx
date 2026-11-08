@@ -39,6 +39,31 @@ describe('OrgTransactions', () => {
     expect(screen.queryByRole('button', { name: /delete|edit|add/i })).not.toBeInTheDocument();
   });
 
+  it('gives each transaction one two-line block for phones, with the amount on the right and the direction in words', async () => {
+    render(<OrgTransactions organizationId={12} />);
+
+    const list = await screen.findByRole('list', { name: 'Organization transactions' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    const [expense, income] = items;
+    expect(expense.querySelectorAll('p')).toHaveLength(4);
+    expect(within(expense).getByText('Booth rental')).toBeInTheDocument();
+    expect(within(expense).getByText('₱1,200.00').closest('div')).toHaveClass('text-right');
+    expect(within(expense).getByText('expense')).toBeInTheDocument();
+    expect(within(income).getByText('income')).toBeInTheDocument();
+    expect(list).toHaveClass('md:hidden');
+    expect(within(list).queryByText('Ana Reyes')).not.toBeInTheDocument();
+  });
+
+  it('shows the pager once, outside both the table and the phone list', async () => {
+    mocks.getOrganizationTransactions.mockResolvedValue(page(rows, { meta: { last_page: 2, total: 30 } }));
+    render(<OrgTransactions organizationId={12} />);
+    const table = await screen.findByRole('table', { name: 'Organization transactions' });
+
+    expect(screen.getAllByText(/Showing/)).toHaveLength(1);
+    expect(table.closest('div[data-view="table"]').textContent).not.toMatch(/Showing/);
+  });
+
   it('filters by type and goes back to the first page', async () => {
     mocks.getOrganizationTransactions.mockResolvedValue(page(rows, { meta: { last_page: 2, total: 30 } }));
     render(<OrgTransactions organizationId={12} />);

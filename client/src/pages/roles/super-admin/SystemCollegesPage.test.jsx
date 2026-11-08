@@ -232,6 +232,24 @@ describe('SystemCollegesPage', () => {
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
   });
 
+  it('makes each college name the tap target that opens its details, with the head and the organizations table only on larger screens', async () => {
+    show(agency());
+    mocks.getSystemColleges.mockResolvedValue(collegeList(agency()).map((college) => (college.id === 1 ? { ...college, department_head: { school_id: 5001, name: 'Maria Cruz', email: 'maria@example.edu', account_status: 'active' } } : college)));
+    renderPage();
+    const heading = await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
+    const card = heading.closest('article');
+    expect(within(card).getByText('Department Head').closest('div.border-t')).toHaveClass('max-md:hidden');
+    expect(within(card).getByRole('table').closest('div.border-t')).toHaveClass('max-md:hidden');
+    expect(within(card).getByRole('button', { name: 'Organizations of College of Computing' }).closest('header')).toHaveClass('max-md:hidden');
+
+    fireEvent.click(within(heading).getByRole('button', { name: 'College of Computing' }));
+    const drawer = await screen.findByRole('dialog', { name: 'College of Computing' });
+    expect(within(drawer).getByText('Department Head')).toBeInTheDocument();
+    expect(within(drawer).getByText('Maria Cruz')).toBeInTheDocument();
+    expect(within(drawer).getByText('maria@example.edu')).toBeInTheDocument();
+    expect(within(drawer).getByRole('table')).toBeInTheDocument();
+  });
+
   it('labels the search field with visible text', async () => {
     renderPage();
     await screen.findByText('College of Arts');

@@ -37,10 +37,10 @@ function FinancialMovement({ rows }) {
 
   return (
     <div className="mt-4 min-w-0" role="img" aria-label="Monthly ledger income and expenses">
-      <div className="flex h-56 min-w-0 items-end gap-1 border-b border-line pb-2 sm:gap-3">
+      <div className="flex h-40 min-w-0 items-end gap-1 border-b border-line pb-2 sm:h-56 sm:gap-3">
         {rows.map((row) => (
           <div key={row.month} className="flex min-w-0 flex-1 flex-col items-center">
-            <div className="flex h-44 w-full items-end justify-center gap-0.5 sm:gap-2">
+            <div className="flex h-28 w-full items-end justify-center gap-0.5 sm:h-44 sm:gap-2">
               <div title={`${row.month} income ${money(row.income)}`} className="w-2 max-w-[40%] rounded-t bg-success sm:w-7" style={{ height: `${Math.max(Number(row.income) ? 4 : 0, Number(row.income) / largest * 100)}%` }} />
               <div title={`${row.month} expenses ${money(row.expense)}`} className="w-2 max-w-[40%] rounded-t bg-danger sm:w-7" style={{ height: `${Math.max(Number(row.expense) ? 4 : 0, Number(row.expense) / largest * 100)}%` }} />
             </div>
@@ -101,16 +101,16 @@ export default function AdminHomePage() {
           />
         </section>
       ) : (
-        <section className="grid gap-3 sm:grid-cols-3" aria-label="Administration summary">
+        <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Administration summary">
           {cards.map(([key, label, to]) => (
-            <Stat key={key} label={label} to={to} value={loading || error ? '-' : Number(data?.counts?.[key] ?? 0).toLocaleString()} />
+            <Stat key={key} className="p-3! sm:p-4!" label={label} to={to} value={loading || error ? '-' : Number(data?.counts?.[key] ?? 0).toLocaleString()} />
           ))}
         </section>
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
-          <section className="rounded-card border border-line bg-surface p-5">
+          <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-base font-semibold text-ink">Financial status</h2>
               <Field label="Period">
@@ -122,7 +122,7 @@ export default function AdminHomePage() {
               </Field>
             </div>
             {loading
-              ? <div role="status" className="mt-4"><Skeleton className="h-56 w-full" /><span className="sr-only">Loading financial status</span></div>
+              ? <div role="status" className="mt-4"><Skeleton className="h-40 w-full sm:h-56" /><span className="sr-only">Loading financial status</span></div>
               : error
                 ? <p className="py-8 text-sm text-ink-muted">Financial data is unavailable.</p>
                 : <FinancialMovement rows={data?.movement || []} />}
@@ -130,11 +130,11 @@ export default function AdminHomePage() {
           </section>
 
           <section className="rounded-card border border-line bg-surface">
-            <h2 className="border-b border-line px-5 py-3 text-base font-semibold text-ink">Manage</h2>
-            <ul className="grid sm:grid-cols-2">
+            <h2 className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">Manage</h2>
+            <ul className="grid grid-cols-2">
               {tools.map(([label, to]) => (
                 <li key={to} className="border-b border-line-soft">
-                  <NavLink to={to} className="flex min-h-12 items-center justify-between gap-3 px-5 py-3 text-sm font-medium text-ink hover:bg-subtle">
+                  <NavLink to={to} className="flex min-h-12 items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-ink hover:bg-subtle sm:gap-3 sm:px-5">
                     {label}
                     <ArrowRight size={15} className="shrink-0 text-ink-soft" aria-hidden="true" />
                   </NavLink>
@@ -144,7 +144,7 @@ export default function AdminHomePage() {
           </section>
         </div>
 
-        <aside className="self-start rounded-card border border-line bg-surface p-5" aria-label="Announcements">
+        <aside className="self-start rounded-card border border-line bg-surface p-4 sm:p-5" aria-label="Announcements">
           <h2 className="text-base font-semibold text-ink">Announcements</h2>
           {loading ? (
             <div role="status" className="mt-4 space-y-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading announcements</span></div>
@@ -152,14 +152,14 @@ export default function AdminHomePage() {
             <p className="py-6 text-sm text-ink-muted">Announcements are unavailable.</p>
           ) : data?.announcements?.length ? (
             <ul className="mt-2 divide-y divide-line-soft">
-              {data.announcements.map((post) => (
-                <li key={post.id} className="py-4 first:pt-2">
+              {data.announcements.map((post, index) => (
+                <li key={post.id} className={`py-3 first:pt-2 sm:py-4 ${index >= 3 ? 'max-sm:hidden' : ''}`}>
                   <p className="truncate text-xs font-medium text-ink-muted">
                     {[formatDisplayText(post.source_organization?.name) || 'HIUSA', post.creator && `${post.creator.first_name} ${post.creator.last_name}`, post.published_at && new Date(post.published_at).toLocaleDateString()].filter(Boolean).join(' · ')}
                   </p>
                   <h3 className="mt-1 text-sm font-semibold text-ink">{formatDisplayText(post.title)}</h3>
-                  <p className="mt-1 line-clamp-3 text-sm leading-5 text-ink-muted-strong">{post.body}</p>
-                  {post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover" />}
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-muted-strong sm:line-clamp-3">{post.body}</p>
+                  {post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover max-sm:hidden" />}
                 </li>
               ))}
             </ul>

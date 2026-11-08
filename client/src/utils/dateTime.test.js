@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from './dateTime';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, manilaDateStamp, replaceIsoDateTimes } from './dateTime';
 
 describe('date and time formatting', () => {
   it('shows ISO timestamps as readable dates without machine suffixes', () => {
@@ -22,5 +22,23 @@ describe('date and time formatting', () => {
     const localValue = isoToLocalDateTimeInput('2026-09-01T08:00:00.000Z');
 
     expect(localDateTimeToIso(localValue)).toBe('2026-09-01T08:00:00.000Z');
+  });
+});
+
+describe('manilaDateStamp', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns the Manila day when UTC is still the previous evening', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-08T17:30:00Z'));
+
+    expect(manilaDateStamp()).toBe('2026-11-09');
+  });
+
+  it('returns the same day when Manila has not rolled over yet', () => {
+    expect(manilaDateStamp(new Date('2026-11-09T15:59:00Z'))).toBe('2026-11-09');
+    expect(manilaDateStamp(new Date('2026-11-09T16:00:00Z'))).toBe('2026-11-10');
   });
 });

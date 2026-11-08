@@ -74,7 +74,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
   }, [needsReview]);
 
   return (
-    <article aria-labelledby={`college-${college.id}`} className="overflow-hidden rounded-card border border-line bg-surface">
+    <article aria-labelledby={`college-${college.id}`} className="relative overflow-hidden rounded-card border border-line bg-surface">
       <div className="p-4">
         <div className="flex items-start gap-3">
           {college.logo_url && (
@@ -83,11 +83,13 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h2 id={`college-${college.id}`} className="break-words text-base font-semibold text-ink">{name}</h2>
+            <h2 id={`college-${college.id}`} className="text-base font-semibold text-ink">
+              <button type="button" onClick={() => onView(college)} className="break-words rounded-control text-left hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']">{name}</button>
+            </h2>
             <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}</p>
-            {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted" />}
+            {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted max-md:hidden" />}
           </div>
-          <div className="-mr-2 -mt-1 shrink-0">
+          <div className="relative z-10 -mr-2 -mt-1 shrink-0">
             <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
             <TableRowActions subject={name} actions={[
               { label: `View ${name}`, icon: Eye, onClick: () => onView(college) },
@@ -103,7 +105,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             ]} />
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 max-md:hidden">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-ink-muted">Department Head</p>
             {head ? (
@@ -127,7 +129,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
           </div>
         </div>
       </div>
-      <header className="border-t border-line px-4 pt-1">
+      <header className="border-t border-line px-4 pt-1 max-md:hidden">
         {agencyUnavailable ? (
           <p className="py-3 text-sm text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
         ) : college.organizations_count ? (
@@ -148,7 +150,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
         ) : <p className="py-3 text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>}
       </header>
       {!agencyUnavailable && college.organizations_count > 0 && expanded && (
-        <div id={panelId} className="border-t border-line">
+        <div id={panelId} className="border-t border-line max-md:hidden">
           <OrganizationsTable rows={college.organizations} caption={`Organizations of ${college.name}`} showAdmins={showAdmins} />
         </div>
       )}
@@ -372,7 +374,7 @@ export default function SystemCollegesPage() {
       <Drawer open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} width="max-w-3xl" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
         {viewing && (
           <div className="space-y-4">
-            <div className="grid gap-3 border-y border-line py-3 sm:grid-cols-3">
+            <div className="grid gap-3 border-y border-line py-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-semibold text-ink-muted">Code</p>
                 <p className="mt-0.5 text-sm font-semibold text-ink">{viewing.code || 'No code'}</p>
@@ -384,6 +386,11 @@ export default function SystemCollegesPage() {
               <div>
                 <p className="text-xs font-semibold text-ink-muted">Organizations</p>
                 <p className="mt-0.5 text-sm font-semibold text-ink">{viewing.organizations_count || 0}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-ink-muted">Department Head</p>
+                <p className="mt-0.5 break-words text-sm font-semibold text-ink">{viewing.department_head ? formatDisplayText(viewing.department_head.name) : 'None yet'}</p>
+                {viewing.department_head?.email && <p className="break-all text-xs text-ink-muted">{viewing.department_head.email}</p>}
               </div>
             </div>
             {(viewing.organizations || []).length > 0 ? (
