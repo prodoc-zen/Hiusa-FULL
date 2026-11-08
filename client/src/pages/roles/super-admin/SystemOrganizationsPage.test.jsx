@@ -59,12 +59,11 @@ describe('SystemOrganizationsPage', () => {
     expect(await screen.findByText('Administrator account created.')).toBeInTheDocument();
   });
 
-  it('provides an admin invite link action instead of a manual add organization button', async () => {
+  it('has no manual add organization button and no admin invite link action', async () => {
     renderPage('/dashboard/super-admin/organizations?status=active');
     expect(screen.queryByRole('button', { name: /Add unified organization/i })).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy admin invite link' }));
-    expect(await screen.findByText('Admin invite link copied for Main SBO.')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Copy admin invite link' })).not.toBeInTheDocument();
   });
 
   it('lets SAO choose an existing login with the Admin role preselected for that organization', async () => {

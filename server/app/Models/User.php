@@ -86,7 +86,7 @@ class User extends Authenticatable
 
     protected $with = ['organization:id,name,slug,college,college_id,organization_type,acronym,parent_organization_id,is_university_wide'];
 
-    protected $appends = ['id', 'photo_url'];
+    protected $appends = ['id', 'photo_url', 'modules'];
 
     protected $hidden = [
         'password_hash',
@@ -133,6 +133,17 @@ class User extends Authenticatable
     public function getPositionTitleAttribute($value): ?string
     {
         return $this->activeAccountProfile?->position_title ?? $value;
+    }
+
+    public function activeProfile(): ?AccountProfile
+    {
+        return $this->activeAccountProfile;
+    }
+
+    /** The org areas the active profile is limited to; null means every area for the role. */
+    public function getModulesAttribute(): ?array
+    {
+        return $this->activeAccountProfile?->modules;
     }
 
     public function getActiveProfileIdAttribute(): ?int
