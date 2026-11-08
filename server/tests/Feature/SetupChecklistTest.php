@@ -74,6 +74,25 @@ class SetupChecklistTest extends TestCase
         $this->assertSame(6, $setup['total']);
     }
 
+    public function test_a_student_added_from_another_home_organization_counts_as_a_member(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->create(['role' => 'STUDENT', 'organization_id' => Organization::factory()->create()->id]);
+        DB::table('account_profiles')->insert([
+            'user_school_id' => $student->school_id,
+            'organization_id' => $organization->id,
+            'role' => 'STUDENT',
+            'account_status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $steps = $this->steps($this->checklistFor($admin));
+
+        $this->assertTrue($steps['members']['done']);
+    }
+
     public function test_the_sao_checklist_counts_organizations_without_an_administrator(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);

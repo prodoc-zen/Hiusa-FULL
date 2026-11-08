@@ -336,6 +336,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
               <Button
                 key={key}
                 size="sm"
+                className="h-11 sm:h-9"
                 variant={venueFilter === key ? 'primary' : 'secondary'}
                 onClick={() => setVenueFilter(key)}
               >

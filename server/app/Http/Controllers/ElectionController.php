@@ -75,6 +75,17 @@ class ElectionController extends Controller
         }
     }
 
+    private function memberViewOnly(?User $user): bool
+    {
+        if ($user?->role === 'STUDENT') {
+            return true;
+        }
+
+        $profile = $user?->role === 'SBO_OFFICER' ? $user->activeProfile() : null;
+
+        return $profile !== null && ! $profile->allowsModule('elections');
+    }
+
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
@@ -88,7 +99,7 @@ class ElectionController extends Controller
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
-        if ($request->user()?->role === 'STUDENT') {
+        if ($this->memberViewOnly($request->user())) {
             $query->where(function ($studentQuery) {
                 $studentQuery
                     ->where(function ($openQuery) {
@@ -131,7 +142,7 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($user?->role === 'STUDENT') {
+        if ($this->memberViewOnly($user)) {
             if (! $election->finalized_at || ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible))) {
                 return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }

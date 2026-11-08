@@ -164,7 +164,7 @@ export default function DashboardLayout() {
                       dismissWelcome();
                       setTourOpen(true);
                     }}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0878B7] px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#0B1831] active:scale-[0.98]"
+                    className="inline-flex h-11 items-center gap-1.5 rounded-xl bg-[#0878B7] px-3.5 text-xs font-bold sm:h-9 text-white shadow-xs transition hover:bg-[#0B1831] active:scale-[0.98]"
                   >
                     <Sparkles size={14} aria-hidden="true" />
                     <span>Start 2-Min Tour</span>
@@ -173,7 +173,7 @@ export default function DashboardLayout() {
                     type="button"
                     onClick={dismissWelcome}
                     aria-label="Dismiss welcome guide"
-                    className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98]"
+                    className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-slate-500 sm:h-9 sm:w-9 transition hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98]"
                   >
                     <X size={15} aria-hidden="true" />
                   </button>

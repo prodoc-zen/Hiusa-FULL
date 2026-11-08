@@ -11,7 +11,7 @@ set -Eeuo pipefail
 
 APP_DIR="${HIUSA_APP_DIR:-/var/www/hiusa}"
 BACKUP_DIR="${HIUSA_BACKUP_DIR:-/var/backups/hiusa}"
-ARTISAN=(sudo -u www-data /usr/local/bin/hiusa-artisan)
+read -r -a ARTISAN <<< "${HIUSA_ARTISAN:-sudo -u www-data /usr/local/bin/hiusa-artisan}"
 BACKGROUND_UNITS=(hiusa-queue hiusa-scheduler)
 ALL_UNITS=(nginx mysql php8.3-fpm hiusa-ai hiusa-fingerprint hiusa-queue hiusa-scheduler)
 
@@ -34,13 +34,31 @@ if [[ "${HIUSA_DEPLOY_GUARD_ONLY:-}" == 1 ]]; then
     exit 0
 fi
 
+# Prints the value, or the word "missing" when the running code has no such config key.
 config_value() {
-    (cd "$APP_DIR/server" && "${ARTISAN[@]}" config:show "$1" --no-ansi) | awk 'NF { v = $NF } END { print v }'
+    local out
+    out="$(cd "$APP_DIR/server" && "${ARTISAN[@]}" config:show "$1" --no-ansi 2>&1)" || true
+    if grep -q 'does not exist' <<<"$out"; then
+        echo missing
+        return 0
+    fi
+    awk 'NF { v = $NF } END { print v }' <<<"$out"
 }
 
+# Code from before the EDP integration has no services.edp key at all, so it makes no outside call: that reads as
+# local. The check after the caches are rebuilt runs against the new code and covers the merged key.
 check_quiet_mode() {
-    assert_quiet_mode "$(config_value mail.default)" "$(config_value services.edp.driver)"
+    local mail edp
+    mail="$(config_value mail.default)"
+    edp="$(config_value services.edp.driver)"
+    [[ "$edp" == missing ]] && edp=local
+    assert_quiet_mode "$mail" "$edp"
 }
+
+if [[ "${HIUSA_DEPLOY_CHECK_ONLY:-}" == 1 ]]; then
+    check_quiet_mode
+    exit 0
+fi
 
 # Plain globals on purpose: the EXIT trap reads them after main() has been left through exit.
 merged=0

@@ -35,7 +35,7 @@ class EnsureOrganizationModule
     private const PARTICIPATION_ROUTES = [
         'GET' => [
             'api/elections', 'api/elections/{id}', 'api/elections/{id}/candidates', 'api/elections/{id}/results',
-            'api/announcements', 'api/merchandise', 'api/merchandise/gcash-settings', 'api/tasks',
+            'api/merchandise', 'api/merchandise/gcash-settings', 'api/tasks',
         ],
         'POST' => ['api/elections/{id}/vote', 'api/orders', 'api/orders/{id}/payment', 'api/announcements/{id}/view'],
         'PUT' => ['api/announcements/{id}/reaction'],
@@ -76,6 +76,10 @@ class EnsureOrganizationModule
     {
         if ($request->method() === 'GET' && $uri === 'api/orders') {
             return $request->boolean('mine');
+        }
+
+        if ($request->method() === 'GET' && $uri === 'api/announcements') {
+            return $request->boolean('published_only');
         }
 
         return in_array($uri, self::PARTICIPATION_ROUTES[$request->method()] ?? [], true);
