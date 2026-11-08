@@ -723,11 +723,18 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'identifier' => ['required_without:school_id', 'nullable', 'string', 'max:100'],
+            'school_id' => ['nullable'],
             'password' => 'required|string',
         ]);
 
-        $failureKey = 'login-failures:'.$request->school_id;
+        $identifier = User::normalizeIdentifier($request->input('identifier', $request->input('school_id')));
+
+        if ($identifier === null) {
+            throw ValidationException::withMessages(['identifier' => ['Enter your email or school ID.']]);
+        }
+
+        $failureKey = 'login-failures:'.$identifier;
 
         if (RateLimiter::tooManyAttempts($failureKey, self::LOGIN_FAILURE_LIMIT)) {
             return response()->json([
@@ -735,7 +742,7 @@ class UserController extends Controller
             ], 429, ['Retry-After' => RateLimiter::availableIn($failureKey)]);
         }
 
-        $user = User::where('school_id', $request->school_id)->first();
+        $user = User::findByIdentifier($identifier);
 
         $passwordMatches = Hash::check($request->password, $user?->password_hash ?? self::DUMMY_PASSWORD_HASH);
 
@@ -743,7 +750,7 @@ class UserController extends Controller
             RateLimiter::hit($failureKey, self::LOGIN_FAILURE_WINDOW_SECONDS);
 
             throw ValidationException::withMessages([
-                'school_id' => ['The provided credentials are incorrect.'],
+                'identifier' => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -794,16 +801,19 @@ class UserController extends Controller
     public function requestPasswordReset(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => ['nullable', 'required_without:organization_id', 'integer', 'min:1', 'max:99999999'],
-            'organization_id' => ['nullable', 'required_without:school_id', 'integer', 'min:1'],
-            'email' => ['required', 'email'],
+            'identifier' => ['nullable', 'required_without_all:school_id,organization_id', 'string', 'max:100'],
+            'school_id' => ['nullable', 'integer', 'min:1', 'max:99999999'],
+            'organization_id' => ['nullable', 'integer', 'min:1'],
+            'email' => ['nullable', 'required_without:identifier', 'email'],
         ]);
 
-        $user = User::query()
-            ->when(isset($validated['school_id']), fn ($query) => $query->where('school_id', $validated['school_id']))
-            ->when(isset($validated['organization_id']), fn ($query) => $query->where('organization_id', $validated['organization_id']))
-            ->where('email', $validated['email'])
-            ->first();
+        $user = isset($validated['identifier'])
+            ? User::findByIdentifier(User::normalizeIdentifier($validated['identifier']))
+            : User::query()
+                ->when(isset($validated['school_id']), fn ($query) => $query->where('school_id', $validated['school_id']))
+                ->when(isset($validated['organization_id']), fn ($query) => $query->where('organization_id', $validated['organization_id']))
+                ->where('email', $validated['email'])
+                ->first();
 
         // Non-enumerating: an unknown email, a disabled account, and an active
         // account all return the identical body, so an unauthenticated caller

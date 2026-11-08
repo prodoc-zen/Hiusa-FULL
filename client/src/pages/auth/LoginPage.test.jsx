@@ -33,23 +33,44 @@ describe('LoginPage', () => {
     });
   });
 
-  it('signs every account in with a school ID instead of an email address', async () => {
+  it('has one field that takes an email or a school ID', async () => {
     renderPage();
 
-    const schoolIdInput = screen.getByPlaceholderText('Enter your school ID or ID number');
-    expect(schoolIdInput).toHaveAttribute('inputmode', 'numeric');
-    expect(screen.queryByPlaceholderText('Enter your email address')).not.toBeInTheDocument();
+    const field = screen.getByLabelText('Email or school ID');
+    expect(field).toHaveAttribute('type', 'text');
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
 
-    fireEvent.change(schoolIdInput, { target: { value: 'ID-2100142' } });
-    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'Demo@12345' } });
+    fireEvent.change(field, { target: { value: ' Dean.Reyes@School.edu ' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(authMocks.login).toHaveBeenCalledWith({
-      school_id: '2100142',
-      password: 'Demo@12345',
+      identifier: 'Dean.Reyes@School.edu',
+      password: 'a-strong-passphrase',
     }));
     expect(await screen.findByText('Student dashboard')).toBeInTheDocument();
     expect(Number(localStorage.getItem('auth_expires_at'))).toBeGreaterThan(Date.now());
+  });
+
+  it('still signs a student in with a school ID typed as is', async () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => expect(authMocks.login).toHaveBeenCalledWith({ identifier: '2100142', password: 'a-strong-passphrase' }));
+  });
+
+  it('shows one plain message when the details do not match', async () => {
+    authMocks.login.mockRejectedValue({ response: { status: 422, data: { errors: { identifier: ['The provided credentials are incorrect.'] } } } });
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: 'nobody@school.edu' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'wrong-wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The provided credentials are incorrect.');
   });
 
   it('sends a user who must change a default password to the change password page instead of the dashboard', async () => {
@@ -61,7 +82,7 @@ describe('LoginPage', () => {
     });
     renderPage();
 
-    fireEvent.change(screen.getByPlaceholderText('Enter your school ID or ID number'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: '0142-uclm' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 

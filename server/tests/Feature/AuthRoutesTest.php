@@ -125,19 +125,58 @@ class AuthRoutesTest extends TestCase
             ->assertJsonMissing(['password_hash']);
     }
 
-    public function test_email_cannot_be_used_in_place_of_school_id_for_login(): void
+    public function test_a_person_can_sign_in_with_their_email_in_any_case(): void
     {
-        $user = User::factory()->create([
-            'email' => 'email-login-is-disabled@example.com',
+        $user = User::factory()->departmentHead()->create([
+            'email' => 'dean.reyes@example.edu',
             'password_hash' => 'password123',
         ]);
 
-        $this->postJson('/api/login', [
-            'organization_id' => $user->organization_id,
-            'email' => $user->email,
-            'password' => 'password123',
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['school_id']);
+        foreach (['dean.reyes@example.edu', '  Dean.Reyes@Example.EDU '] as $identifier) {
+            $this->postJson('/api/login', ['identifier' => $identifier, 'password' => 'password123'])
+                ->assertOk()
+                ->assertJsonPath('user.school_id', $user->school_id)
+                ->assertJsonMissing(['password_hash']);
+        }
+    }
+
+    public function test_a_person_can_sign_in_with_the_identifier_field_holding_a_school_id(): void
+    {
+        $user = User::factory()->create(['school_id' => 2100142, 'password_hash' => 'password123']);
+
+        $this->postJson('/api/login', ['identifier' => 'ID-2100142', 'password' => 'password123'])
+            ->assertOk()
+            ->assertJsonPath('user.school_id', $user->school_id);
+    }
+
+    public function test_email_and_school_id_failures_share_one_generic_error_and_never_say_which_was_wrong(): void
+    {
+        $user = User::factory()->create(['email' => 'real@example.edu', 'password_hash' => 'password123']);
+
+        foreach (['real@example.edu', (string) $user->school_id] as $identifier) {
+            $this->postJson('/api/login', ['identifier' => $identifier, 'password' => 'wrong-password'])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.identifier.0', 'The provided credentials are incorrect.');
+        }
+
+        $this->postJson('/api/login', ['identifier' => 'nobody@example.edu', 'password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.identifier.0', 'The provided credentials are incorrect.');
+        $this->postJson('/api/login', ['identifier' => 'real@example.edu'])->assertUnprocessable()->assertJsonValidationErrors(['password']);
+        $this->postJson('/api/login', ['password' => 'password123'])->assertUnprocessable()->assertJsonValidationErrors(['identifier']);
+    }
+
+    public function test_the_failure_counter_follows_the_normalized_identifier(): void
+    {
+        $user = User::factory()->create(['email' => 'lockme@example.edu', 'password_hash' => 'password123']);
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/login', ['identifier' => $attempt % 2 ? ' LockMe@Example.edu' : 'lockme@example.edu', 'password' => 'wrong-password'])
+                ->assertUnprocessable();
+        }
+
+        $this->postJson('/api/login', ['identifier' => 'LOCKME@example.edu', 'password' => 'password123'])
+            ->assertStatus(429);
     }
 
     public function test_inactive_user_cannot_login(): void
@@ -193,7 +232,7 @@ class AuthRoutesTest extends TestCase
 
             $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'wrong-password'])
                 ->assertUnprocessable()
-                ->assertJsonValidationErrors(['school_id']);
+                ->assertJsonValidationErrors(['identifier']);
         }
     }
 
@@ -205,6 +244,37 @@ class AuthRoutesTest extends TestCase
             'school_id' => $user->school_id,
             'password' => 'password123',
         ])->assertOk()->assertJsonPath('user.organization_id', $user->organization_id);
+    }
+
+    public function test_recovery_takes_one_field_that_is_an_email_or_a_school_id(): void
+    {
+        Mail::fake();
+        config(['app.frontend_url' => 'https://hiusa.example.test']);
+        $user = User::factory()->departmentHead()->create(['email' => 'dean@example.edu', 'school_id' => 95000001]);
+
+        foreach (['Dean@Example.edu', '95000001'] as $identifier) {
+            $this->postJson('/api/password/forgot', ['identifier' => $identifier])
+                ->assertOk()
+                ->assertJsonStructure(['message']);
+        }
+
+        Mail::assertQueued(PasswordResetMail::class, 2);
+        Mail::assertQueued(PasswordResetMail::class, fn ($mail) => $mail->hasTo('dean@example.edu'));
+    }
+
+    public function test_recovery_for_an_unknown_identifier_looks_identical_and_sends_nothing(): void
+    {
+        Mail::fake();
+        $known = User::factory()->create(['email' => 'known@example.edu']);
+
+        $found = $this->postJson('/api/password/forgot', ['identifier' => 'known@example.edu'])->assertOk();
+        $missing = $this->postJson('/api/password/forgot', ['identifier' => 'missing@example.edu'])->assertOk();
+        $badId = $this->postJson('/api/password/forgot', ['identifier' => '12345678'])->assertOk();
+
+        $this->assertSame($found->json(), $missing->json());
+        $this->assertSame($found->json(), $badId->json());
+        Mail::assertQueued(PasswordResetMail::class, 1);
+        $this->postJson('/api/password/forgot', [])->assertUnprocessable();
     }
 
     public function test_user_can_recover_account_and_set_new_password(): void

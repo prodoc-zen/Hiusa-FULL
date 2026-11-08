@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Hash } from 'lucide-react';
+import { ArrowRight, UserRound } from 'lucide-react';
 import AuthLayout from '../../components/auth/AuthLayout';
 import AuthField from '../../components/auth/AuthField';
 import PasswordField from '../../components/auth/PasswordField';
@@ -18,7 +18,7 @@ const ROLE_REDIRECTS = {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [schoolId, setSchoolId] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const credentials = {
-      school_id: schoolId.trim(),
+      identifier: identifier.trim(),
       password,
     };
 
@@ -52,11 +52,11 @@ export default function LoginPage() {
       } else if (status === 422) {
         const msgs = err.response?.data?.errors;
         const first = msgs ? Object.values(msgs).flat()[0] : null;
-        setError(first || 'Enter your school ID and password to continue.');
+        setError(first || 'Enter your email or school ID and your password to continue.');
       } else if (status === 429) {
         setError(err.response?.data?.message || 'Too many attempts. Wait a moment, then try again.');
       } else {
-        setError('That school ID and password did not match. Check both and try again, or reset your password.');
+        setError('That email or school ID and password did not match. Check both and try again, or reset your password.');
       }
     } finally {
       setLoading(false);
@@ -67,20 +67,19 @@ export default function LoginPage() {
     <AuthLayout>
       <Link to="/" className="mb-4 inline-flex min-h-11 items-center text-sm font-bold text-brand-700 hover:text-navy-950">← Back to HIUSA home</Link>
       <h1 className="text-[28px] font-extrabold leading-tight text-ink">Sign in to HIUSA</h1>
-      <p className="mt-1.5 text-sm font-medium text-ink-muted">Use your school ID to open your organization workspace.</p>
+      <p className="mt-1.5 text-sm font-medium text-ink-muted">Use your email or school ID to open your workspace.</p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
         <AuthField
-          label="School ID / ID Number"
-          icon={Hash}
+          label="Email or school ID"
+          icon={UserRound}
           type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={8}
           autoComplete="username"
-          value={schoolId}
-          onChange={(event) => setSchoolId(event.target.value.replace(/\D/g, '').slice(0, 8))}
-          placeholder="Enter your school ID or ID number"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
+          placeholder="you@school.edu or 2100142"
           required
         />
 

@@ -37,6 +37,7 @@ use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\PeopleSearchController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
@@ -81,6 +82,7 @@ Route::post('/department-head-invitations/{token}/accept', [DepartmentHeadInvita
 Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
+    Route::get('/people/search', [PeopleSearchController::class, 'search'])->middleware(['throttle:people-search', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);

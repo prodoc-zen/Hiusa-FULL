@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\FingerprintMatcher;
+use App\Models\User;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
 use App\Support\DatabaseStatementTimeout;
@@ -75,9 +76,9 @@ class AppServiceProvider extends ServiceProvider
             $limits = [Limit::perMinute(config('performance.rate_limits.login_per_minute'))
                 ->by($request->ip())->response($tooManyRequests)];
 
-            if ($request->filled('school_id')) {
+            if ($identifier = User::normalizeIdentifier($request->input('identifier', $request->input('school_id')))) {
                 $limits[] = Limit::perMinute(max(3, (int) ceil(config('performance.rate_limits.login_per_minute') / 2)))
-                    ->by('account:'.$request->input('school_id'))
+                    ->by('account:'.$identifier)
                     ->response($tooManyRequests);
             }
 
@@ -87,6 +88,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('password', function (Request $request) use ($tooManyRequests) {
             $limits = [Limit::perMinute(config('performance.rate_limits.password_per_minute'))
                 ->by($request->ip())->response($tooManyRequests)];
+
+            if ($identifier = User::normalizeIdentifier($request->input('identifier'))) {
+                $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
+                    ->by('recovery:'.$identifier)
+                    ->response($tooManyRequests);
+            }
 
             if ($request->filled(['organization_id', 'email'])) {
                 $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
@@ -114,6 +121,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api-read', fn (Request $request) => Limit::perMinute(
             config('performance.rate_limits.read_per_minute'),
         )->by($authenticatedKey($request))->response($tooManyRequests));
+
+        RateLimiter::for('people-search', fn (Request $request) => Limit::perMinute(
+            config('performance.rate_limits.people_search_per_minute'),
+        )->by('people:'.$authenticatedKey($request))->response($tooManyRequests));
 
         RateLimiter::for('api-write', fn (Request $request) => Limit::perMinute(
             config('performance.rate_limits.write_per_minute'),
