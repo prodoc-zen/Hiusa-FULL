@@ -57,7 +57,7 @@ class AuthTimingOracleTest extends TestCase
 
         $this->postJson('/api/login', ['school_id' => 66666666, 'password' => 'whatever-password'])
             ->assertStatus(422)
-            ->assertJsonPath('errors.school_id.0', 'The provided credentials are incorrect.');
+            ->assertJsonPath('errors.identifier.0', 'The provided credentials are incorrect.');
 
         $this->assertSame(1, $hasher->checks);
     }

@@ -159,6 +159,39 @@ class User extends Authenticatable
         return array_values(array_intersect(Notification::MUTABLE_TYPES, (array) data_get($this->notification_preferences, 'muted', [])));
     }
 
+    /** One key for the same person however they typed it: an email in lower case, or the school ID as digits. */
+    public static function normalizeIdentifier(mixed $identifier): ?string
+    {
+        if (! is_string($identifier) && ! is_int($identifier)) {
+            return null;
+        }
+
+        $identifier = trim((string) $identifier);
+
+        if (mb_strlen($identifier) > 100) {
+            return null;
+        }
+
+        if (str_contains($identifier, '@')) {
+            return mb_strtolower($identifier);
+        }
+
+        $digits = preg_replace('/\D/', '', $identifier);
+
+        return $digits === '' ? null : $digits;
+    }
+
+    public static function findByIdentifier(?string $normalized): ?self
+    {
+        if ($normalized === null) {
+            return null;
+        }
+
+        return str_contains($normalized, '@')
+            ? static::where('email', $normalized)->first()
+            : (strlen($normalized) <= 8 ? static::find((int) $normalized) : null);
+    }
+
     public function accountProfiles(): HasMany
     {
         return $this->hasMany(AccountProfile::class, 'user_school_id', 'school_id');
