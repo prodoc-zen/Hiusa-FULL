@@ -151,6 +151,7 @@ class AnnouncementController extends Controller
             'managed' => ['nullable', 'boolean'],
         ]);
 
+        $readableOrgIds = $this->readableOrganizationIds($request);
         $query = Announcement::with([
             'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
@@ -158,8 +159,8 @@ class AnnouncementController extends Controller
             'organization:id,name,acronym',
         ])->withCount('reactions')
             ->withExists(['reactions as is_liked' => fn ($reactions) => $reactions->where('user_id', $user->school_id)])
-            ->where(function ($scope) use ($user) {
-                $scope->whereIn('organization_id', $user->scopedOrganizationIds())
+            ->where(function ($scope) use ($user, $readableOrgIds) {
+                $scope->whereIn('organization_id', $readableOrgIds)
                     ->orWhere(function ($global) use ($user) {
                         $global->whereIn('announcement_source', ['SAO', 'COMPLIANCE'])
                             ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));

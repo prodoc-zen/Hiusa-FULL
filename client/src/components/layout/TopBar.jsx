@@ -8,6 +8,7 @@ import { Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
 import { ROLE_LABELS } from './navigation';
 import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
+import { clearApiCache } from '../../services/api';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { getActiveAcademicPeriod, getAcademicPeriods } from '../../services/systemAdministrationService';
 import { getCollegeOrganizations } from '../../services/collegeOrganizationService';
@@ -174,10 +175,12 @@ export default function TopBar({ onMenuToggle }) {
     setSubAccountDropdownOpen(false);
     if (org) {
       sessionStorage.setItem('hiusa_active_subaccount', JSON.stringify(org));
+      clearApiCache();
       window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: org }));
       notify.success(`Sub-Account: ${org.name}`);
     } else {
       sessionStorage.removeItem('hiusa_active_subaccount');
+      clearApiCache();
       window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: null }));
       notify.info("Returned to Dean's Office (Master View)");
     }

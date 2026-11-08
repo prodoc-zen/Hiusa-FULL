@@ -163,7 +163,7 @@ class ClearanceController extends Controller
             ->distinct();
 
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $studentIdsQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
+            $studentIdsQuery->whereIn('organization_id', $this->readableOrganizationIds($request));
         }
 
         if (! empty($filters['q'])) {

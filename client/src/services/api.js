@@ -19,13 +19,65 @@ const apiGetCache = createApiGetCache({
     ? configuredCacheTtl
     : 5_000,
 });
+const SUBACCOUNT_SCOPED_PREFIXES = [
+  '/budgets',
+  '/transactions',
+  '/financial-dashboard',
+  '/collections',
+  '/cash-advances',
+  '/invoices',
+  '/financial-reports',
+  '/forecasts',
+  '/events',
+  '/elections',
+  '/announcements',
+  '/approval-requests',
+  '/clearances/periods/',
+];
+
+function withSubAccountScope(url, config = {}) {
+  try {
+    const rawSub = sessionStorage.getItem('hiusa_active_subaccount');
+    if (!rawSub) return config;
+    const subAccount = JSON.parse(rawSub);
+    if (!subAccount?.id) return config;
+
+    const rawUser = localStorage.getItem('user');
+    const user = rawUser ? JSON.parse(rawUser) : null;
+    if (user?.role !== 'DEPARTMENT_HEAD') return config;
+
+    const path = String(url || '');
+    if (path.includes('organization_id=') || config?.params?.organization_id != null) {
+      return config;
+    }
+
+    const isScopedEndpoint = SUBACCOUNT_SCOPED_PREFIXES.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}?`) || path.startsWith(`${prefix}/`)
+    );
+    if (!isScopedEndpoint) return config;
+
+    return {
+      ...config,
+      params: {
+        ...(config.params || {}),
+        organization_id: Number(subAccount.id),
+      },
+    };
+  } catch {
+    return config;
+  }
+}
+
 const networkGet = api.get.bind(api);
 
-api.get = (url, config = {}) => apiGetCache.get(
-  url,
-  config,
-  () => networkGet(url, config),
-);
+api.get = (url, config = {}) => {
+  const scopedConfig = withSubAccountScope(url, config);
+  return apiGetCache.get(
+    url,
+    scopedConfig,
+    () => networkGet(url, scopedConfig),
+  );
+};
 
 export function clearApiCache() {
   apiGetCache.clear();

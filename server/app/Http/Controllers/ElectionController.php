@@ -77,10 +77,11 @@ class ElectionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
-        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds());
+        $readableOrgIds = $this->readableOrganizationIds($request);
+        $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
-            ->whereIn('organization_id', $request->user()->scopedOrganizationIds());
+            ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
         if ($selectedSemesterId) {
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
