@@ -161,7 +161,35 @@ const emptyEventForm = () => ({
 
 const attendanceYearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
-function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', academicStructure = null, academicStructureError = '' }) {
+// The reader client talks to a local agent, so the page only reaches for it once the operator asks.
+// A machine that has connected before reconnects on load.
+const READER_FLAG = 'hiusa_fingerprint_reader';
+
+function BiometricCheckIn(props) {
+  const [readerOn, setReaderOn] = useState(() => {
+    try { return localStorage.getItem(READER_FLAG) === 'on'; } catch { return false; }
+  });
+
+  if (readerOn) return <FingerprintScanPanel {...props} />;
+
+  function connect() {
+    try { localStorage.setItem(READER_FLAG, 'on'); } catch {}
+    setReaderOn(true);
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <h4 className="text-sm font-semibold text-ink">Fingerprint check-in / checkout</h4>
+      <p className="mt-1 text-sm text-ink-muted">Scan, verify the matched Student, then confirm check-in or checkout.</p>
+      <p className="mt-4 text-sm text-ink-muted-strong">Connect the reader to this computer, then start scanning.</p>
+      <div className="mt-auto pt-4">
+        <Button variant="secondary" leftIcon={Fingerprint} onClick={connect}>Connect reader</Button>
+      </div>
+    </div>
+  );
+}
+
+function FingerprintScanPanel({ eventId, onRecorded, users = [], department = '', academicStructure = null, academicStructureError = '' }) {
   const reader = useFingerprintReader();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -281,7 +309,7 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
       <fieldset disabled={busy || Boolean(pendingConfirmation)} className="mt-4 border-t border-line pt-4 disabled:opacity-60">
         <legend className="sr-only">Narrow fingerprint candidates</legend>
         <p className="text-sm text-ink-muted-strong"><span className="font-semibold text-ink">Required scope:</span> active Students in {department || 'this organization’s configured department'} only.</p>
-        <p className="mt-3 text-xs font-semibold text-ink-muted">Optional candidate filters</p>
+        <p className="mt-3 text-xs font-semibold text-ink-muted">Year level (optional)</p>
         {academicStructureError && <p role="alert" className="mt-2 rounded-control border border-warning/40 bg-warning-tint px-3 py-2 text-xs font-medium text-warning-strong">{academicStructureError}</p>}
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {attendanceYearLevels.map((yearLevel) => (
@@ -291,13 +319,13 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
           ))}
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Program">
+          <Field label="Program" optional>
             <HiusaSelect filter aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }}>
               <option value="">All programs</option>
               {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
             </HiusaSelect>
           </Field>
-          <Field label="Section">
+          <Field label="Section" optional>
             <HiusaSelect filter aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }}>
               <option value="">All sections</option>
               {sectionOptions.map((section) => <option key={section} value={section}>{section}</option>)}
@@ -1695,7 +1723,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               {/* Left panel - event list */}
               <div className={`xl:block ${selectedAttEventId ? 'hidden' : 'block'}`}>
                 <h2 className="text-sm font-semibold text-ink">Events</h2>
-                <p className="mt-0.5 text-xs text-ink-muted">Select where attendance is being recorded.</p>
                 <ul className="mt-3 divide-y divide-line-soft border-t border-line">
                   {attendanceEvents.map((evt) => (
                     <li key={evt.id}>

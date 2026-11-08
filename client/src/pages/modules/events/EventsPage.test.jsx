@@ -34,6 +34,7 @@ vi.mock('../../../services/eventService', () => ({
 
 const userMocks = vi.hoisted(() => ({ getUsers: vi.fn(), getAcademicStructure: vi.fn() }));
 const fingerprintMocks = vi.hoisted(() => ({
+  useReader: vi.fn(),
   identifyAttendanceFingerprint: vi.fn(),
   confirmFingerprintAttendance: vi.fn(),
   reader: {
@@ -57,7 +58,7 @@ vi.mock('../../../services/userService', () => ({
 }));
 
 vi.mock('../../../hooks/useFingerprintReader', () => ({
-  useFingerprintReader: () => fingerprintMocks.reader,
+  useFingerprintReader: () => { fingerprintMocks.useReader(); return fingerprintMocks.reader; },
 }));
 
 vi.mock('../../../services/fingerprintService', () => ({
@@ -69,6 +70,7 @@ describe('EventsPage approval-request launch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    localStorage.removeItem('hiusa_fingerprint_reader');
     eventMocks.getEvents.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
     eventMocks.getPersonalAttendance.mockResolvedValue({ data: { summary: { attended: 0, missed: 0, rate: null }, records: [], pagination: { current_page: 1, per_page: 10, total: 0 } } });
     eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
@@ -191,6 +193,9 @@ describe('EventsPage approval-request launch', () => {
     expect(await screen.findByText('Door controls')).toBeInTheDocument();
     expect(screen.getByText('Fingerprint check-in / checkout')).toBeInTheDocument();
     expect(screen.getByText(/scan, verify the matched student/i)).toBeInTheDocument();
+    expect(fingerprintMocks.useReader).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Connect reader' }));
+    expect(fingerprintMocks.useReader).toHaveBeenCalled();
     expect(screen.getByText(/required scope:/i)).toBeInTheDocument();
     expect(screen.getByText('Manual check-in')).toBeInTheDocument();
     expect(screen.getByText('Attendance log')).toBeInTheDocument();
@@ -250,6 +255,7 @@ describe('EventsPage approval-request launch', () => {
     render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for General Assembly' }));
     await screen.findByText('Door controls');
+    fireEvent.click(screen.getByRole('button', { name: 'Connect reader' }));
     await screen.findByRole('option', { name: 'BSIT' });
     fireEvent.click(screen.getByLabelText('4th Year'));
     fireEvent.change(screen.getByLabelText('Fingerprint program filter'), { target: { value: 'BSIT' } });
