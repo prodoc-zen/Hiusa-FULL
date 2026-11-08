@@ -495,6 +495,36 @@ function inspectorFor(role, route) {
   return null;
 }
 
+// Records opens on the current period. Switch it to the closed school year the audit seeded so the read-only state is
+// what gets measured, and for the roles that pick an organization open the first one so its sections render too.
+async function prepareRecords(page, role, result) {
+  const year = page.getByLabel('School year');
+  if (!(await year.isVisible().catch(() => false))) {
+    result.checks['records-period'] = 'the school year picker did not render';
+    return;
+  }
+  const options = await year.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, selected: node.selected })));
+  const closed = options.find((option) => !option.selected);
+  if (!closed) {
+    result.checks['records-period'] = 'only one school year is listed, so no closed period could be opened';
+    return;
+  }
+  await year.selectOption(closed.value);
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(400);
+  if (role === 'SUPER_ADMIN' || role === 'DEPARTMENT_HEAD') {
+    const first = page.locator('ul[class*="max-h-"] button').first();
+    if (await first.isVisible().catch(() => false)) {
+      await first.click();
+      await page.waitForLoadState('networkidle').catch(() => {});
+      await page.waitForTimeout(400);
+    }
+  }
+  if (!(await page.getByText('Read only', { exact: true }).first().isVisible().catch(() => false))) {
+    result.checks['records-read-only'] = 'the closed period does not show the Read only badge';
+  }
+}
+
 async function auditRoute(context, viewport, role, route, filledPath, roleRoutes, inspect = null) {
   const page = await context.newPage();
   const consoleErrors = [];
