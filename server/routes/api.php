@@ -191,7 +191,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
-    Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD,SUPER_ADMIN']);
+    Route::get('/college/organizations/{organization}/space/transactions', [OrgSpaceController::class, 'transactions'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD,SUPER_ADMIN']);
     Route::get('/college/people', [CollegePeopleController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/staff', [CollegeOrganizationController::class, 'staff'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff/invitations', [DepartmentHeadInvitationController::class, 'inviteStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
