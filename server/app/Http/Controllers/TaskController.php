@@ -61,7 +61,7 @@ class TaskController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('deadline', 'asc')
             ->orderBy('id');
-        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
@@ -107,7 +107,8 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
-        if (AcademicSemester::exists() && ! AcademicSemester::active()) {
+        $semester = AcademicSemester::selected($request);
+        if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new tasks can be created.'], 409);
         }
         $data = $request->validate($this->rules());
@@ -155,6 +156,7 @@ class TaskController extends Controller
 
         $task = Task::create([
             ...$data,
+            'academic_semester_id' => empty($data['event_id']) ? $semester?->id : null,
             'created_by' => $request->user()->id,
             'organization_id' => $request->user()->organization_id,
         ]);
@@ -433,7 +435,7 @@ class TaskController extends Controller
         if (! empty($data['event_id'])) {
             return Event::where('organization_id', $request->user()->organization_id)
                 ->where('id', $data['event_id'])
-                ->when(AcademicSemester::active(), fn ($event, $semester) => $event->where('academic_semester_id', $semester->id))
+                ->when(AcademicSemester::selected($request), fn ($event, $semester) => $event->where('academic_semester_id', $semester->id))
                 ->exists();
         }
 

@@ -57,8 +57,9 @@ class ComplianceController extends Controller
         if ($request->user()->role === 'ADMIN') {
             // ADMIN only needs what it must act on: active requirements for
             // the current academic year, never past years or retired types.
-            $query->where('is_active', true)->where('academic_year', $this->accreditation->currentAcademicYear())
-                ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id));
+            $selected = AcademicSemester::selected($request);
+            $query->where('is_active', true)->where('academic_year', $selected?->academicYear->label ?? $this->accreditation->currentAcademicYear())
+                ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id));
         } else {
             $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
         }
@@ -80,7 +81,7 @@ class ComplianceController extends Controller
         ]);
 
         $samples = app(RequirementSampleService::class);
-        $activeSemester = AcademicSemester::active();
+        $activeSemester = AcademicSemester::selected($request);
         $this->assertUniqueRequirementName($data['name'], $data['academic_year'], $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester->id : null, $data['category'] ?? ($data['name'] === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization'));
         $requirementType = $samples->save(new ComplianceRequirementType, [
             ...$data,
@@ -127,7 +128,7 @@ class ComplianceController extends Controller
 
     public function updateRequirementType(Request $request, ComplianceRequirementType $requirementType)
     {
-        if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirementType->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $data = $request->validate([
@@ -185,7 +186,7 @@ class ComplianceController extends Controller
     {
         $deleted = DB::transaction(function () use ($request, $requirementType) {
             $locked = ComplianceRequirementType::whereKey($requirementType->id)->lockForUpdate()->firstOrFail();
-            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
+            abort_if(AcademicSemester::isClosed($locked->academic_semester_id), 409, 'Completed semester requirements are read only.');
             if ($locked->submissions()->exists() || OrganizationApplicationDocument::where('requirement_type_id', $locked->id)->exists()) {
                 return false;
             }
@@ -217,7 +218,7 @@ class ComplianceController extends Controller
 
     public function uploadRequirementTemplate(Request $request, ComplianceRequirementType $requirementType)
     {
-        if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirementType->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $extensions = implode(',', ComplianceRequirementType::SUPPORTED_EXTENSIONS);
@@ -228,7 +229,7 @@ class ComplianceController extends Controller
 
     public function setRequirementTemplateLink(Request $request, ComplianceRequirementType $requirementType)
     {
-        if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirementType->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
@@ -238,7 +239,7 @@ class ComplianceController extends Controller
 
     public function removeRequirementTemplate(ComplianceRequirementType $requirementType)
     {
-        if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirementType->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
 
@@ -258,9 +259,10 @@ class ComplianceController extends Controller
 
     public function requirementTemplate(Request $request, ComplianceRequirementType $requirementType)
     {
+        $selected = AcademicSemester::selected($request);
         if ($request->user()->role !== 'SUPER_ADMIN'
-            && (! $requirementType->is_active || $requirementType->academic_year !== $this->accreditation->currentAcademicYear()
-                || ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id))) {
+            && (! $requirementType->is_active || $requirementType->academic_year !== ($selected?->academicYear->label ?? $this->accreditation->currentAcademicYear())
+                || ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== $selected?->id))) {
             abort(404);
         }
 
@@ -334,10 +336,11 @@ class ComplianceController extends Controller
                 ->get();
         }
 
-        $academicYear = $filters['academic_year'] ?? $this->accreditation->currentAcademicYear();
+        $selected = AcademicSemester::selected($request);
+        $academicYear = $filters['academic_year'] ?? $selected?->academicYear->label ?? $this->accreditation->currentAcademicYear();
         $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
             ->where('category', $filters['category'] ?? 'organization')
-            ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
+            ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id))->get();
 
         $organizationIds = $organizations->pluck('id');
         $submissions = OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)
@@ -431,7 +434,7 @@ class ComplianceController extends Controller
         ]);
         $requirement = ComplianceRequirementType::findOrFail($data['requirement_type_id']);
         $request->validate(['document' => $requirement->uploadRules()]);
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
 
@@ -541,7 +544,7 @@ class ComplianceController extends Controller
     {
         $this->writableSubmissionOrganization($request, $submission);
         $requirement = $submission->requirementType;
-        abort_unless($requirement && $requirement->is_active && (! $requirement->academic_semester_id || $requirement->academic_semester_id === AcademicSemester::active()?->id), 409, 'This requirement is no longer open.');
+        abort_unless($requirement && $requirement->is_active && ! AcademicSemester::isClosed($requirement->academic_semester_id), 409, 'This requirement is no longer open.');
         $data = $request->validate(['document' => ['required', ...$requirement->uploadRules()], 'submitted_at' => ['required', 'date']]);
 
         $newPath = null;
@@ -551,7 +554,7 @@ class ComplianceController extends Controller
                 $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
                 abort_unless($locked->submitted_at?->equalTo($data['submitted_at']), 409, 'This file changed since you opened it. Refresh the list.');
                 $requirement = $locked->requirementType;
-                abort_unless($requirement && $requirement->is_active && (! $requirement->academic_semester_id || $requirement->academic_semester_id === AcademicSemester::active()?->id), 409, 'This requirement is no longer open.');
+                abort_unless($requirement && $requirement->is_active && ! AcademicSemester::isClosed($requirement->academic_semester_id), 409, 'This requirement is no longer open.');
                 $file = $request->file('document');
                 $storagePolicy->assertUpload([$file], $locked->organization_id, $locked->file_size);
                 $newPath = $file->store('compliance-submissions/'.$locked->organization_id, 'local');
@@ -667,7 +670,7 @@ class ComplianceController extends Controller
             if (! $locked || $locked->status !== 'submitted') {
                 return ['error' => 'not_pending'];
             }
-            if ($locked->requirementType?->academic_semester_id && $locked->requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+            if (AcademicSemester::isClosed($locked->requirementType?->academic_semester_id)) {
                 return ['error' => 'historical'];
             }
 

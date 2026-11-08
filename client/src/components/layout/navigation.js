@@ -1,5 +1,5 @@
 import {
-  BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
+  Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
   TicketCheck, User, Users, UsersRound, Vote, WalletCards,
@@ -39,6 +39,7 @@ const leaf = (id, label, path, icon, extra = {}) => ({ id, label, path, icon, ..
 const group = (id, label, icon, children, extra = {}) => ({ id, label, icon, children, ...extra });
 
 const L = {
+  archive: leaf('records-archive', 'School year records', '/dashboard/records', Archive, { aliases: ['Records', 'Past school years'] }),
   people: leaf('manage-users', 'People', '/dashboard/admin/users', UsersRound, { aliases: ['Manage Users', 'User Management'] }),
   admins: leaf('manage-admins', 'Admins', '/dashboard/admin/users?tab=admins', ShieldCheck, { aliases: ['Manage Admins', 'Organization Admins'] }),
   positions: leaf('manage-positions', 'Officer positions', '/dashboard/admin/positions', BadgeCheck, { aliases: ['Manage Positions', 'SBO positions'], also: ['/dashboard/admin/sbo-positions'] }),
@@ -107,7 +108,7 @@ const NAV_BY_ROLE = {
     group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
     group('store', 'Store', merchandisePillar.icon, [L.inventory, L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
-    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
+    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.archive, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
     myActivity(),
   ],
   SBO_OFFICER: [
@@ -120,6 +121,7 @@ const NAV_BY_ROLE = {
     group('store', 'Store', merchandisePillar.icon, [L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
     { id: 'clearance-signing', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances', aliases: ['Clearances'], band: 'Records' },
+    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'], band: 'Records' },
     myActivity(),
   ],
   DEPARTMENT_HEAD: [
@@ -129,6 +131,7 @@ const NAV_BY_ROLE = {
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
     { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
+    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'] },
     { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },
     { id: 'college-clearances', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances' },
     { id: 'college-announcements', label: 'Announcements', icon: Megaphone, path: '/dashboard/department-head/announcements', aliases: ['College announcements', 'New announcement'], also: ['/dashboard/announcements/view-announcements'] },
@@ -174,6 +177,7 @@ const NAV_BY_ROLE = {
     ]),
     group('sao-setup', 'Setup and records', Settings, [
       leaf('sao-academic-years', 'Academic years', '/dashboard/super-admin/academic-years', CalendarDays, { aliases: ['Academic Years'] }),
+      leaf('sao-records', 'School year records', '/dashboard/records', Archive, { aliases: ['Records', 'Past school years'] }),
       leaf('sao-audit-logs', 'Audit trail', '/dashboard/super-admin/audit-logs', History),
     ]),
   ],

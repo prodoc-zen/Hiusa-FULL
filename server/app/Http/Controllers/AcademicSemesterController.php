@@ -14,6 +14,7 @@ use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
 use App\Services\Compliance\RegistrationRequirementCatalog;
+use App\Services\Records\SemesterSnapshotService;
 use App\Services\RequirementSampleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +150,8 @@ class AcademicSemesterController extends Controller
                     && ($currentYear->semesters()->count() !== 2 || $currentYear->semesters()->where('status', 'upcoming')->exists())) {
                     throw ValidationException::withMessages(['semester' => ['Complete both semesters in the current academic year before starting a new year.']]);
                 }
+                $snapshots = app(SemesterSnapshotService::class);
+                AcademicSemester::where('status', 'active')->get()->each(fn (AcademicSemester $closing) => $snapshots->snapshot($closing));
                 AcademicSemester::where('status', 'active')->update(['status' => 'completed']);
                 if ($currentYear && $currentYear->id !== $semester->academic_year_id) {
                     $currentYear->update(['closed_at' => now()]);
@@ -173,6 +176,7 @@ class AcademicSemesterController extends Controller
             if ($semester->status !== 'active') {
                 throw ValidationException::withMessages(['semester' => ['Only the active semester can be closed.']]);
             }
+            app(SemesterSnapshotService::class)->snapshot($semester);
             $semester->update(['status' => 'completed']);
             $this->audit($request, 'academic_semester_closed', $semester);
         });
