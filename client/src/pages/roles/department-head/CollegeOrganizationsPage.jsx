@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Building2, CalendarClock, Eye, Pencil, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
@@ -20,6 +20,7 @@ import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
 import RequirementSample from '../../../components/requirements/RequirementSample';
 import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../../utils/requirementFiles';
+import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
 async function viewRegistrationFile(submissionId) {
   try {
@@ -691,22 +692,8 @@ export default function CollegeOrganizationsPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const [subAccountId, setSubAccountId] = useState(() => {
-    try {
-      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
-      return sub?.id ? Number(sub.id) : null;
-    } catch {
-      return null;
-    }
-  });
-  useEffect(() => {
-    const onSubAccountSwitched = (event) => {
-      const org = event?.detail;
-      setSubAccountId(org?.id ? Number(org.id) : null);
-    };
-    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-  }, []);
+  const { subAccountId, enter: enterOrganizationSpace } = useActiveSubAccount();
+  const navigate = useNavigate();
   const scopedOrganizations = useMemo(() => (subAccountId ? state.organizations.filter((organization) => Number(organization.id) === subAccountId) : state.organizations), [state.organizations, subAccountId]);
   const counts = useMemo(() => scopedOrganizations.reduce((totals, organization) => ({ ...totals, [organization.lifecycle_status]: (totals[organization.lifecycle_status] || 0) + 1 }), {}), [scopedOrganizations]);
   const rows = useMemo(() => (tab === 'all' ? scopedOrganizations : scopedOrganizations.filter((organization) => organization.lifecycle_status === tab)), [scopedOrganizations, tab]);
@@ -821,13 +808,11 @@ export default function CollegeOrganizationsPage() {
                   <TableRowActions subject={organization.name} actions={[
                     { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
                     {
-                      label: 'Oversee Sub-Account',
+                      label: 'Open organization space',
                       icon: Building2,
                       onClick: () => {
-                        sessionStorage.setItem('hiusa_active_subaccount', JSON.stringify(organization));
-                        window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: organization }));
-                        notify.success(`Switched context to ${organization.name}`);
-                        openDetails(organization);
+                        enterOrganizationSpace(organization);
+                        navigate(`/dashboard/department-head/org/${organization.id}`);
                       },
                     },
                     organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },

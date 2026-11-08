@@ -1,23 +1,26 @@
 import { formatDisplayText } from '../../utils/displayText.js';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Building2, Check, ChevronDown, Compass, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User, X } from 'lucide-react';
+import { Bell, Check, ChevronDown, Compass, History, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
 import { ROLE_LABELS } from './navigation';
-import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
+import { logout } from '../../services/authService';
 import { clearApiCache } from '../../services/api';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { getActiveAcademicPeriod, getAcademicPeriods } from '../../services/systemAdministrationService';
-import { getCollegeOrganizations } from '../../services/collegeOrganizationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
 import { notificationAppearance } from '../../utils/notificationTone';
 import { organizationLabel } from '../../utils/collegeIdentity';
+import { PERIOD_EVENT, PERIOD_RESET_EVENT, readSelectedPeriod, writeSelectedPeriod } from '../../utils/academicPeriodStore';
+import useActiveSubAccount from '../../hooks/useActiveSubAccount';
+import useWorkspaces from '../../hooks/useWorkspaces';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
@@ -45,11 +48,6 @@ function timeAgo(dateStr) {
 
 export default function TopBar({ onMenuToggle }) {
   const [profileOpen, setProfileOpen] = useState(false);
-  const [accountProfiles, setAccountProfiles] = useState([]);
-  const [activeProfileId, setActiveProfileId] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState('');
-  const [switchingProfile, setSwitchingProfile] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -59,18 +57,6 @@ export default function TopBar({ onMenuToggle }) {
   const [availablePeriods, setAvailablePeriods] = useState([]);
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
   const periodRef = useRef(null);
-  const [subAccountDropdownOpen, setSubAccountDropdownOpen] = useState(false);
-  const [collegeOrganizations, setCollegeOrganizations] = useState([]);
-  const [activeSubAccount, setActiveSubAccount] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem('hiusa_active_subaccount');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [subAccountSearch, setSubAccountSearch] = useState('');
-  const subAccountRef = useRef(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -85,15 +71,22 @@ export default function TopBar({ onMenuToggle }) {
   useEffect(() => {
     getActiveAcademicPeriod().then((p) => {
       setActiveAcademicPeriod(p);
-      const stored = sessionStorage.getItem('hiusa_selected_academic_period');
-      if (stored) {
-        try { setViewingPeriod(JSON.parse(stored)); } catch {}
-      }
+      const stored = readSelectedPeriod();
+      if (stored) setViewingPeriod(stored);
     }).catch(() => setActiveAcademicPeriod(null));
 
     if (typeof getAcademicPeriods === 'function') {
       getAcademicPeriods().then((list) => {
-        setAvailablePeriods(Array.isArray(list) ? list : (list?.data || []));
+        const periods = Array.isArray(list) ? list : (list?.data || []);
+        setAvailablePeriods(periods);
+        const stored = readSelectedPeriod();
+        const known = periods.find((period) => period.id === stored?.id);
+        if (stored && periods.length > 0 && (!known || known.status === 'completed')) {
+          writeSelectedPeriod(null);
+          setViewingPeriod(null);
+          clearApiCache();
+          window.dispatchEvent(new CustomEvent(PERIOD_RESET_EVENT));
+        }
       }).catch(() => setAvailablePeriods([]));
     }
   }, []);
@@ -131,68 +124,40 @@ export default function TopBar({ onMenuToggle }) {
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = organizationLabel(user);
-  const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active && profile.organization.college_is_active !== false);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
-
-  useEffect(() => {
-    if (role === 'DEPARTMENT_HEAD' && typeof getCollegeOrganizations === 'function') {
-      getCollegeOrganizations()
-        .then((res) => {
-          const list = unwrapList(res?.data);
-          setCollegeOrganizations(list);
-        })
-        .catch(() => {});
-    }
-  }, [role]);
-
-  useEffect(() => {
-    const handleSubaccountChange = (e) => {
-      setActiveSubAccount(e.detail || null);
-    };
-    window.addEventListener('hiusa-subaccount-switched', handleSubaccountChange);
-    return () => window.removeEventListener('hiusa-subaccount-switched', handleSubaccountChange);
-  }, []);
+  const hasRecords = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER'].includes(role);
+  const { subAccount } = useActiveSubAccount();
+  const workspaces = useWorkspaces({ enabled: role !== 'SUPER_ADMIN', activeSubAccount: subAccount });
+  const accountProfiles = workspaces.profiles;
+  const activeProfileId = workspaces.activeProfileId;
+  const profileLoading = workspaces.loading;
+  const profileError = workspaces.error || workspaces.switchError;
+  const switchingProfile = workspaces.switching;
+  const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active && profile.organization.college_is_active !== false);
 
   useEffect(() => {
     const handleReset = () => {
       setViewingPeriod(activeAcademicPeriod);
-      sessionStorage.removeItem('hiusa_selected_academic_period');
+      writeSelectedPeriod(null);
+      clearApiCache();
     };
-    window.addEventListener('hiusa-reset-academic-period', handleReset);
-    return () => window.removeEventListener('hiusa-reset-academic-period', handleReset);
+    window.addEventListener(PERIOD_RESET_EVENT, handleReset);
+    return () => window.removeEventListener(PERIOD_RESET_EVENT, handleReset);
   }, [activeAcademicPeriod]);
 
   const handleSelectPeriod = (period) => {
-    setViewingPeriod(period);
     setPeriodDropdownOpen(false);
-    sessionStorage.setItem('hiusa_selected_academic_period', JSON.stringify(period));
-    window.dispatchEvent(new CustomEvent('hiusa-period-switched', { detail: period }));
-    notify.info(`Switched view to AY ${period.academic_year?.label} · ${period.number === 1 ? '1st' : '2nd'} Sem`);
-  };
-
-  const handleSelectSubAccount = (org) => {
-    setActiveSubAccount(org);
-    setSubAccountDropdownOpen(false);
-    if (org) {
-      sessionStorage.setItem('hiusa_active_subaccount', JSON.stringify(org));
-      clearApiCache();
-      window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: org }));
-      notify.success(`Sub-Account: ${org.name}`);
-    } else {
-      sessionStorage.removeItem('hiusa_active_subaccount');
-      clearApiCache();
-      window.dispatchEvent(new CustomEvent('hiusa-subaccount-switched', { detail: null }));
-      notify.info("Returned to Dean's Office (Master View)");
+    if (period.status === 'completed') {
+      navigate('/dashboard/records');
+      return;
     }
+    const isLive = period.id === activeAcademicPeriod?.id;
+    setViewingPeriod(isLive ? null : period);
+    writeSelectedPeriod(isLive ? null : period);
+    clearApiCache();
+    window.dispatchEvent(new CustomEvent(PERIOD_EVENT, { detail: isLive ? null : period }));
+    notify.info(`Switched to AY ${period.academic_year?.label} · ${period.number === 1 ? '1st' : '2nd'} Sem`);
   };
-
-  const filteredSubAccounts = useMemo(() => {
-    if (!subAccountSearch.trim()) return collegeOrganizations;
-    const term = subAccountSearch.toLowerCase();
-    return collegeOrganizations.filter(
-      (org) => org.name?.toLowerCase().includes(term) || org.acronym?.toLowerCase().includes(term)
-    );
-  }, [collegeOrganizations, subAccountSearch]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -279,32 +244,9 @@ export default function TopBar({ onMenuToggle }) {
     }
   }
 
-  async function loadAccountProfiles() {
-    setProfileLoading(true);
-    try {
-      const response = await getAccountProfiles();
-      setAccountProfiles(response.data.profiles || []);
-      setActiveProfileId(response.data.active_profile_id);
-      setProfileError('');
-    } catch {
-      setProfileError('Could not load your profiles.');
-    } finally {
-      setProfileLoading(false);
-    }
-  }
-
-  async function handleSwitchProfile(profile) {
-    if (switchingProfile || profile.id === activeProfileId) return;
-    setSwitchingProfile(true);
-    try {
-      const response = await switchAccountProfile(profile.id);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      const destinations = { SUPER_ADMIN: '/dashboard/super-admin', ADMIN: '/dashboard/admin', SBO_OFFICER: '/dashboard/officer', DEPARTMENT_HEAD: '/dashboard/department-head', STUDENT: '/dashboard/student' };
-      window.location.assign(destinations[response.data.user.role] || '/dashboard');
-    } catch {
-      setProfileError('Could not switch profile. Try again.');
-      setSwitchingProfile(false);
-    }
+  function handleSwitchProfile(profile) {
+    if (profile.id === (activeProfileId ?? user?.active_profile_id)) return;
+    workspaces.switchProfile(profile);
   }
 
   useEffect(() => {
@@ -313,7 +255,6 @@ export default function TopBar({ onMenuToggle }) {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
       if (cartRef.current && !cartRef.current.contains(e.target)) setCartOpen(false);
       if (periodRef.current && !periodRef.current.contains(e.target)) setPeriodDropdownOpen(false);
-      if (subAccountRef.current && !subAccountRef.current.contains(e.target)) setSubAccountDropdownOpen(false);
     }
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
@@ -408,8 +349,8 @@ export default function TopBar({ onMenuToggle }) {
                       className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-[#DDE7EF] bg-white p-2 shadow-xl shadow-slate-200/60"
                     >
                       <div className="border-b border-[#DDE7EF] px-2.5 pb-2 pt-1">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">School Year &amp; Semester</p>
-                        <p className="mt-0.5 text-xs font-medium text-slate-600">Switch context to prepare upcoming periods in advance.</p>
+                        <p className="text-xs font-bold text-[#0F172A]">School year and semester</p>
+                        <p className="mt-0.5 text-xs font-medium text-slate-600">Pick an upcoming semester to plan ahead. Closed semesters are in Records.</p>
                       </div>
                       <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
                         {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : [])).map((p) => {
@@ -428,7 +369,7 @@ export default function TopBar({ onMenuToggle }) {
                               <div>
                                 <p className="font-semibold text-[#0F172A]">AY {p.academic_year?.label} · {p.number === 1 ? '1st' : '2nd'} Semester</p>
                                 <p className="text-[10px] text-slate-500">
-                                  {isLive ? '🟢 Live University Period' : isUpcoming ? '🟡 Advance Planning' : '⚪ Completed Archive'}
+                                  {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : 'Closed, open in Records'}
                                 </p>
                               </div>
                               {isSelected && <Check size={14} className="text-[#0878B7]" />}
@@ -436,127 +377,22 @@ export default function TopBar({ onMenuToggle }) {
                           );
                         })}
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {role === 'DEPARTMENT_HEAD' && (
-                <div className="relative" ref={subAccountRef} data-tour="topbar-subaccount">
-                  <button
-                    type="button"
-                    onClick={() => setSubAccountDropdownOpen((open) => !open)}
-                    aria-expanded={subAccountDropdownOpen}
-                    aria-haspopup="listbox"
-                    aria-label="Sub-Account Context Switcher"
-                    className={`inline-flex max-w-[110px] min-[420px]:max-w-[150px] sm:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
-                      activeSubAccount
-                        ? 'border-[#0878B7]/50 bg-[#EEF6FB] text-[#0878B7] hover:bg-brand-100'
-                        : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0878B7]/40 hover:bg-white'
-                    }`}
-                  >
-                    <Building2 size={13} className={activeSubAccount ? 'text-[#0878B7]' : 'text-slate-500'} />
-                    <span className="truncate max-w-[90px] min-[420px]:max-w-[130px] sm:max-w-[180px]">
-                      {activeSubAccount ? activeSubAccount.acronym || activeSubAccount.name : 'Dean’s Office'}
-                    </span>
-                    {activeSubAccount ? (
-                      <span className="hidden min-[420px]:inline rounded bg-[#0878B7] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-                        Sub-Account
-                      </span>
-                    ) : (
-                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-700">
-                        Master
-                      </span>
-                    )}
-                    <ChevronDown size={13} className={`text-slate-500 transition-transform duration-150 ${subAccountDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {subAccountDropdownOpen && (
-                    <div
-                      role="listbox"
-                      aria-label="Sub-Account Organizations"
-                      className="absolute left-0 top-full z-50 mt-1.5 w-80 rounded-xl border border-[#DDE7EF] bg-white p-2 shadow-xl shadow-slate-200/60"
-                    >
-                      <div className="border-b border-[#DDE7EF] px-2.5 pb-2 pt-1">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">GHL Sub-Account Switcher</p>
-                        <p className="mt-0.5 text-xs font-medium text-slate-600">Switch into any student organization to oversee in supervisor mode.</p>
-                        <div className="mt-2">
-                          <input
-                            type="text"
-                            placeholder="Search organizations…"
-                            value={subAccountSearch}
-                            onChange={(e) => setSubAccountSearch(e.target.value)}
-                            className="w-full rounded-lg border border-[#DDE7EF] px-2.5 py-1 text-xs text-[#0F172A] placeholder-slate-400 focus:border-[#0878B7] focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
+                      {hasRecords && (
                         <button
                           type="button"
-                          onClick={() => handleSelectSubAccount(null)}
-                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
-                            !activeSubAccount ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
-                          }`}
+                          onClick={() => { setPeriodDropdownOpen(false); navigate('/dashboard/records'); }}
+                          className="mt-1 flex min-h-11 w-full items-center gap-2 border-t border-[#DDE7EF] px-2.5 pt-2 text-left text-xs font-semibold text-[#0878B7] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="grid h-6 w-6 place-items-center rounded bg-[#0F2F62] text-[10px] font-bold text-white">
-                              HQ
-                            </span>
-                            <div>
-                              <p className="font-semibold text-[#0F172A]">Dean’s Office (Master View)</p>
-                              <p className="text-[10px] text-slate-500">Full college oversight</p>
-                            </div>
-                          </div>
-                          {!activeSubAccount && <Check size={14} className="text-[#0878B7]" />}
+                          <History size={14} aria-hidden="true" />
+                          Open records
                         </button>
-
-                        <div className="my-1 border-t border-[#DDE7EF] px-2.5 pt-1">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Student Organizations ({collegeOrganizations.length})
-                          </p>
-                        </div>
-
-                        {filteredSubAccounts.map((org) => {
-                          const isSelected = activeSubAccount?.id === org.id;
-                          return (
-                            <button
-                              key={org.id}
-                              type="button"
-                              onClick={() => handleSelectSubAccount(org)}
-                              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
-                                isSelected ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-brand-50 text-[10px] font-bold text-[#0878B7]">
-                                  {(org.acronym || org.name || '?').slice(0, 2).toUpperCase()}
-                                </span>
-                                <div className="min-w-0 truncate">
-                                  <p className="truncate font-semibold text-[#0F172A]">{formatDisplayText(org.name)}</p>
-                                  <p className="text-[10px] text-slate-500">{org.acronym || 'Student Org'} · {org.members_count ?? 0} members</p>
-                                </div>
-                              </div>
-                              {isSelected && <Check size={14} className="shrink-0 text-[#0878B7]" />}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              {activeSubAccount && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectSubAccount(null)}
-                  title="Exit Sub-Account Mode and return to Dean's Office"
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] sm:text-[11px] font-bold text-amber-900 transition hover:bg-amber-200 active:scale-95"
-  >
-  <span className="hidden sm:inline">Exit {activeSubAccount.acronym || 'Sub-Account'}</span><span className="inline sm:hidden">Exit</span>
-  <X size={11} aria-hidden="true" />
-                </button>
-              )}
+              <WorkspaceSwitcher workspaces={workspaces} role={role} onProfileChange={handleSwitchProfile} />
               <button
                 type="button"
                 data-tour="topbar-tour-btn"
@@ -769,7 +605,7 @@ export default function TopBar({ onMenuToggle }) {
             aria-controls="topbar-profile-panel"
             onClick={() => {
               setProfileOpen(!profileOpen);
-              if (!profileOpen) loadAccountProfiles();
+              if (!profileOpen && !workspaces.error && !workspaces.loading) workspaces.reload({ quiet: true });
               setNotifOpen(false);
               setCartOpen(false);
             }}
@@ -804,7 +640,7 @@ export default function TopBar({ onMenuToggle }) {
                   <h2 className="text-xs font-bold text-[#0F172A]">Profiles</h2>
                   {availableProfiles.length > 1 && <span className="text-xs text-slate-600">Switch profile</span>}
                 </div>
-                {profileLoading ? <p role="status" className="px-2 py-3 text-xs text-slate-600">Loading profiles…</p> : profileError ? <div className="px-2 py-2"><p role="alert" className="text-xs text-red-700">{profileError}</p><button type="button" onClick={loadAccountProfiles} className="mt-2 min-h-11 text-xs font-semibold text-[#0878B7] underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Try again</button></div> : availableProfiles.length === 0 ? <p className="px-2 py-3 text-xs text-slate-600">No active profiles available.</p> : <div className="space-y-1">
+                {profileLoading ? <p role="status" className="px-2 py-3 text-xs text-slate-600">Loading profiles…</p> : profileError ? <div className="px-2 py-2"><p role="alert" className="text-xs text-red-700">{profileError}</p><button type="button" onClick={() => workspaces.reload()} className="mt-2 min-h-11 text-xs font-semibold text-[#0878B7] underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Try again</button></div> : availableProfiles.length === 0 ? <p className="px-2 py-3 text-xs text-slate-600">No active profiles available.</p> : <div className="space-y-1">
                   {availableProfiles.map((profile) => {
                     const current = profile.id === (activeProfileId ?? user?.active_profile_id);
                     return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-default ${current ? 'bg-[#EEF6FB]' : 'hover:bg-[#F8FBFD] active:bg-[#EEF6FB]'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>

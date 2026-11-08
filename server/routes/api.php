@@ -37,6 +37,7 @@ use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrgSpaceController;
 use App\Http\Controllers\PeopleSearchController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\SboPositionController;
@@ -183,6 +184,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations/requirements', [CollegeOrganizationController::class, 'requirements'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::put('/college/organizations/{organization}', [CollegeOrganizationController::class, 'update'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::delete('/college/organizations/{organization}', [CollegeOrganizationController::class, 'destroy'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
