@@ -139,14 +139,21 @@ describe('OrgSpacePage', () => {
     expect(screen.getByText('No approved budget yet')).toBeInTheDocument();
   });
 
-  it('goes back to the college and closes the space', async () => {
+  it('leaves going back to the college to the sidebar and the Viewing strip', async () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Computing Society' });
     await waitFor(() => expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).not.toBeNull());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to my college' }));
+    expect(screen.queryByRole('button', { name: /back to (my college|mine)/i })).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByText('College home')).toBeInTheDocument();
-    expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
+  it('offers the same sections as a select on a phone, where the tab row does not fit', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Computing Society' });
+
+    const section = screen.getByRole('combobox', { name: 'Section' });
+    fireEvent.change(section, { target: { value: 'transactions' } });
+
+    expect(screen.getByTestId('where')).toHaveTextContent('?tab=transactions');
   });
 });

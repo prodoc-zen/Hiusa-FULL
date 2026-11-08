@@ -1,17 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BarChart3, CheckCircle2 } from 'lucide-react';
 import { Button, ErrorState, PageHeader, Skeleton, StatusBadge } from '../../../components/ui';
 import { askAiAssistant, getAiAssistantOverview } from '../../../services/askAiService';
-
-const BAR_FILL_STYLES = {
-  danger: 'bg-danger',
-  warning: 'bg-warning-strong',
-  success: 'bg-success',
-  info: 'bg-brand-600',
-  primary: 'bg-navy-800',
-  neutral: 'bg-ink-muted',
-};
 
 const HIGHLIGHT_TONE_STYLES = {
   danger: 'text-danger-strong',
@@ -25,100 +15,30 @@ const HIGHLIGHT_TONE_STYLES = {
 // The server names tones the old way; the badge knows info, not primary.
 const BADGE_TONES = { primary: 'info' };
 
-function formatRichText(text) {
-  if (!text) return null;
-  const parts = String(text).split(/(₱[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d+\b)/g);
-  return parts.map((part, index) => {
-    if (/^(₱[\d,]+(?:\.\d+)?|\d+(?:\.\d+)?%|\d+)$/.test(part)) {
-      return (
-        <strong key={index} className="font-semibold text-ink tabular-nums">
-          {part}
-        </strong>
-      );
-    }
-    return part;
-  });
+// The server writes counts as "3 item(s)". Show "3 items" or "1 item" instead.
+function plainText(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/(\d[\d,]*)((?:\s+[A-Za-z-]+){0,3}?)\s+([A-Za-z]+)\(s\)/g, (_match, count, middle, noun) => {
+      const singular = Number(count.replace(/,/g, '')) === 1;
+      return `${count}${middle} ${noun}${singular ? '' : 's'}`;
+    })
+    .replace(/\(s\)/g, 's');
 }
 
-function AiVisualCharts({ charts }) {
-  if (!Array.isArray(charts) || charts.length === 0) return null;
-
-  return (
-    <div
-      aria-label="Visual data graphs"
-      className="mt-4 grid gap-4 border-t border-line pt-4 lg:grid-cols-2"
-    >
-      {charts.map((chart) => {
-        const items = Array.isArray(chart.items) ? chart.items : [];
-        if (items.length === 0) return null;
-        const isDistribution = chart.type === 'distribution';
-
-        return (
-          <div key={chart.id || chart.title}>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-ink-muted" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-ink">{chart.title}</h3>
-              </div>
-              {chart.subtitle && (
-                <span className="text-xs text-ink-muted-strong">{chart.subtitle}</span>
-              )}
-            </div>
-
-            {isDistribution && (
-              <div
-                aria-label={`${chart.title} stacked bar`}
-                className="mb-3 flex h-3 w-full overflow-hidden rounded bg-line-soft"
-              >
-                {items.map((item) => {
-                  const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
-                  const widthPct = Math.max(6, Number(item.share_percent ?? item.percent ?? 10));
-                  return (
-                    <div
-                      key={item.label}
-                      title={`${item.label}: ${item.display_value} (${widthPct}%)`}
-                      className={`h-full ${fill}`}
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="space-y-2.5">
-              {items.map((item) => {
-                const fill = BAR_FILL_STYLES[item.tone] || BAR_FILL_STYLES.primary;
-                const widthPct = Math.max(0, Math.min(100, Number(item.percent ?? 0)));
-                return (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex items-center gap-1.5 text-ink">
-                        <span
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${fill}`}
-                          aria-hidden="true"
-                        />
-                        {item.label}
-                      </span>
-                      <span className="font-medium text-ink tabular-nums">
-                        {item.display_value ?? item.value}
-                        {item.share_percent != null ? ` (${item.share_percent}%)` : ''}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded bg-line-soft">
-                      <div
-                        className={`h-full rounded ${fill}`}
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+// Server titles arrive in Title Case. Keep acronyms, lowercase the rest.
+function sentenceCase(value) {
+  if (typeof value !== 'string') return value;
+  return plainText(value)
+    .split(' ')
+    .map((word, index) => {
+      if (index === 0) return word;
+      const letters = word.replace(/[^A-Za-z]/g, '');
+      if (letters.length > 1 && letters === letters.toUpperCase()) return word;
+      if (/[a-z][A-Z]/.test(word)) return word;
+      return word.charAt(0).toLowerCase() + word.slice(1);
+    })
+    .join(' ');
 }
 
 function FormattedBriefingBlock({ answer, formattedBlocks }) {
@@ -127,7 +47,7 @@ function FormattedBriefingBlock({ answer, formattedBlocks }) {
   return (
     <div className="mt-3.5 space-y-3">
       <p className="max-w-[75ch] text-sm leading-relaxed text-ink">
-        {formatRichText(answer)}
+        {plainText(answer)}
       </p>
 
       {recommended && (
@@ -136,9 +56,9 @@ function FormattedBriefingBlock({ answer, formattedBlocks }) {
             <span className="font-medium text-ink">
               Recommended next step:{' '}
             </span>
-            <span className="text-ink">{recommended.title}</span>
+            <span className="text-ink">{plainText(recommended.title)}</span>
             {recommended.detail && (
-              <p className="mt-0.5 text-xs text-ink-muted-strong">{recommended.detail}</p>
+              <p className="mt-0.5 text-xs text-ink-muted-strong">{plainText(recommended.detail)}</p>
             )}
           </div>
           {recommended.href && (
@@ -159,19 +79,18 @@ function EvidenceSection({ section, onSelectFollowUp }) {
   return (
     <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink">{section.title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{sentenceCase(section.title)}</h3>
         {section.description && (
-          <p className="text-xs text-ink-muted-strong">{section.description}</p>
+          <p className="text-xs text-ink-muted-strong">{plainText(section.description)}</p>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-ink-muted-strong">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-          <span>{section.empty_message || 'No matching records require attention.'}</span>
+        <p className="text-sm text-ink-muted-strong">
+          {plainText(section.empty_message) || 'Nothing needs attention here.'}
         </p>
       ) : isStepsLayout ? (
-        <ol aria-label={section.title} className="divide-y divide-line-soft">
+        <ol aria-label={sentenceCase(section.title)} className="divide-y divide-line-soft">
           {rows.map((row, idx) => (
             <li
               key={row.id || idx}
@@ -187,17 +106,17 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-ink">
-                      {row.primary}
+                      {plainText(row.primary)}
                     </span>
                     {row.meta && (
                       <span className="text-xs text-ink-muted-strong tabular-nums">
-                        {row.meta}
+                        {plainText(row.meta)}
                       </span>
                     )}
                   </div>
                   {row.secondary && (
                     <p className="text-xs leading-relaxed text-ink-muted-strong">
-                      {row.secondary}
+                      {plainText(row.secondary)}
                     </p>
                   )}
                 </div>
@@ -205,12 +124,12 @@ function EvidenceSection({ section, onSelectFollowUp }) {
 
               <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
                 {row.href && (
-                  <Button to={row.href} variant="secondary" size="sm">
+                  <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
                     {row.action_label || 'Go to page'}
                   </Button>
                 )}
                 {row.ask_question && onSelectFollowUp && (
-                  <Button variant="secondary" size="sm" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
+                  <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
                     Show steps
                   </Button>
                 )}
@@ -220,64 +139,43 @@ function EvidenceSection({ section, onSelectFollowUp }) {
         </ol>
       ) : (
         <table className="block w-full text-left text-sm sm:table">
-          <caption className="sr-only">{section.title}</caption>
+          <caption className="sr-only">{sentenceCase(section.title)}</caption>
           <thead className="hidden bg-subtle sm:table-header-group">
             <tr className="border-b border-line text-ink-muted">
               <th scope="col" className="px-3 py-2 text-xs font-semibold">Record</th>
               <th scope="col" className="px-3 py-2 text-xs font-semibold">Details</th>
               <th scope="col" className="px-3 py-2 text-xs font-semibold">Status</th>
-              <th scope="col" className="px-3 py-2 text-xs font-semibold">Progress</th>
+              <th scope="col" className="px-3 py-2 text-xs font-semibold">Count</th>
               <th scope="col" className="px-3 py-2 text-right text-xs font-semibold">Action</th>
             </tr>
           </thead>
           <tbody className="block divide-y divide-line sm:table-row-group">
             {rows.map((row) => {
-              const barFill = BAR_FILL_STYLES[row.status_tone] || BAR_FILL_STYLES.info;
-              const hasProgress =
-                row.progress_percent !== null &&
-                row.progress_percent !== undefined &&
-                !Number.isNaN(Number(row.progress_percent));
               const cell = 'flex items-center justify-between gap-3 px-3 py-1.5 before:text-xs before:text-ink-muted before:content-[attr(data-label)] sm:table-cell sm:py-2.5 sm:before:hidden';
 
               return (
                 <tr key={row.id} className="block py-2 hover:bg-subtle sm:table-row sm:py-0">
                   <td data-label="Record" className={`${cell} font-medium text-ink`}>
-                    {row.primary}
+                    {plainText(row.primary)}
                   </td>
                   <td data-label="Details" className={`${cell} text-ink-muted-strong`}>
-                    {row.secondary || ''}
+                    {plainText(row.secondary) || ''}
                   </td>
                   <td data-label="Status" className={cell}>
                     {row.status ? (
-                      <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={row.status} />
+                      <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
                     ) : ''}
                   </td>
-                  <td data-label="Progress" className={cell}>
-                    <div className="min-w-[110px] space-y-1">
-                      {row.meta && (
-                        <span className="block text-ink tabular-nums">
-                          {row.meta}
-                        </span>
-                      )}
-                      {hasProgress && (
-                        <div className="h-1.5 w-full overflow-hidden rounded bg-line-soft">
-                          <div
-                            className={`h-full rounded ${barFill}`}
-                            style={{
-                              width: `${Math.max(4, Math.min(100, Number(row.progress_percent)))}%`,
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                  <td data-label="Count" className={`${cell} tabular-nums text-ink`}>
+                    {plainText(row.meta) || ''}
                   </td>
                   <td className={`${cell} sm:text-right`}>
                     {row.href ? (
-                      <Button to={row.href} variant="secondary" size="sm">
+                      <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
                         {row.action_label || 'Open'}
                       </Button>
                     ) : row.ask_question && onSelectFollowUp ? (
-                      <Button variant="secondary" size="sm" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
+                      <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
                         Show steps
                       </Button>
                     ) : null}
@@ -294,18 +192,17 @@ function EvidenceSection({ section, onSelectFollowUp }) {
 
 function ResponseTurn({ turn, onSelectFollowUp }) {
   const highlights = Array.isArray(turn.highlights) ? turn.highlights : [];
-  const charts = Array.isArray(turn.charts) ? turn.charts : [];
   const sections = Array.isArray(turn.sections) ? turn.sections : [];
   const followUps = Array.isArray(turn.follow_ups) ? turn.follow_ups : [];
 
   return (
     <article
-      aria-label={turn.title || turn.question}
+      aria-label={sentenceCase(turn.title) || turn.question}
       className="rounded-card border border-line bg-surface p-4 sm:p-5"
     >
       <div className="border-b border-line pb-3.5">
         <h2 className="text-base font-semibold text-ink">
-          {turn.title || 'Briefing'}
+          {sentenceCase(turn.title) || 'Answer'}
         </h2>
         {turn.question && (
           <p className="mt-0.5 text-xs text-ink-muted-strong">
@@ -326,7 +223,7 @@ function ResponseTurn({ turn, onSelectFollowUp }) {
               HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
             return (
               <div key={item.label}>
-                <dt className="text-xs text-ink-muted-strong">{item.label}</dt>
+                <dt className="text-xs text-ink-muted-strong">{plainText(item.label)}</dt>
                 <dd className={`mt-0.5 text-base font-semibold tabular-nums ${valueColor}`}>
                   {item.value}
                 </dd>
@@ -335,8 +232,6 @@ function ResponseTurn({ turn, onSelectFollowUp }) {
           })}
         </dl>
       )}
-
-      <AiVisualCharts charts={charts} />
 
       {sections.length > 0 && (
         <div className="mt-4 space-y-4">
@@ -358,6 +253,7 @@ function ResponseTurn({ turn, onSelectFollowUp }) {
               key={f.question}
               variant="secondary"
               size="sm"
+              className="max-sm:h-11"
               onClick={() => onSelectFollowUp(f.question, f.topic)}
             >
               {f.label}
@@ -381,6 +277,7 @@ export default function AskAiPage() {
   const [turns, setTurns] = useState([]);
 
   const initialQueryHandledRef = useRef(false);
+  const inputRef = useRef(null);
 
   const runQuestion = useCallback(async (questionText, topic = null) => {
     const trimmed = (questionText || '').trim();
@@ -436,7 +333,11 @@ export default function AskAiPage() {
 
   const handleFormSubmit = (event) => {
     event.preventDefault();
-    if (!questionInput.trim() || asking) return;
+    if (asking) return;
+    if (!questionInput.trim()) {
+      inputRef.current?.focus();
+      return;
+    }
     runQuestion(questionInput, null);
   };
 
@@ -471,11 +372,10 @@ export default function AskAiPage() {
     ? {
         id: 'daily-briefing',
         question: 'What should I do today?',
-        title: dailyBriefing.title || "Today's action plan",
+        title: dailyBriefing.title || "Today's plan",
         answer: dailyBriefing.summary,
         highlights: dailyBriefing.highlights || [],
         formatted_blocks: dailyBriefing.formatted_blocks || null,
-        charts: dailyBriefing.charts || [],
         sections: dailyBriefing.sections || [],
         follow_ups: suggestedQuestions.slice(1, 4).map((q) => ({
           topic: q.topic,
@@ -489,7 +389,7 @@ export default function AskAiPage() {
     <div className="space-y-5">
       <PageHeader
         title="Ask AI"
-        description={overview?.scope_label ? `Answers come from live records for ${overview.scope_label}.` : undefined}
+        description={overview?.scope_label ? `Showing records for ${overview.scope_label}.` : undefined}
         actions={turns.length > 0 ? (
           <Button variant="secondary" onClick={() => setTurns([])}>
             Back to today&apos;s plan
@@ -498,7 +398,7 @@ export default function AskAiPage() {
       />
 
       <section aria-label="Ask AI prompt bar">
-        <form onSubmit={handleFormSubmit} className="flex flex-col gap-2.5 sm:flex-row">
+        <form onSubmit={handleFormSubmit} className="flex gap-2">
           <label htmlFor="ask-ai-question-input" className="sr-only">
             Ask a question about your tasks, submissions, or organization records
           </label>
@@ -507,11 +407,12 @@ export default function AskAiPage() {
             type="text"
             value={questionInput}
             onChange={(e) => setQuestionInput(e.target.value)}
-            placeholder="Ask about officers, organizations, merchandise, expenses, venues or compliance"
+            ref={inputRef}
+            placeholder="Ask a question"
             disabled={asking}
-            className="h-10 flex-1 rounded-control border border-line bg-surface px-3 text-base text-ink placeholder:text-ink-soft focus:border-brand-600 sm:text-sm"
+            className="h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-base text-ink placeholder:text-ink-soft focus:border-brand-600 sm:h-10 sm:text-sm"
           />
-          <Button type="submit" loading={asking} disabled={!questionInput.trim()}>
+          <Button type="submit" loading={asking} className="shrink-0 max-sm:h-11">
             Ask AI
           </Button>
         </form>
@@ -535,7 +436,7 @@ export default function AskAiPage() {
                   size="sm"
                   disabled={asking}
                   onClick={() => runQuestion(item.question, item.topic)}
-                  className="h-auto min-h-9 text-left"
+                  className="h-auto min-h-9 text-left max-sm:min-h-11"
                 >
                   {item.label}
                 </Button>
@@ -576,13 +477,13 @@ export default function AskAiPage() {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink">{item.question}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted-strong">{item.answer}</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted-strong">{plainText(item.answer)}</p>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => runQuestion(item.question, null)}
-                  className="shrink-0 self-start sm:self-center"
+                  className="shrink-0 self-start max-sm:h-11 sm:self-center"
                 >
                   Ask again
                 </Button>

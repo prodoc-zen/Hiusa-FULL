@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { FileText, Paperclip } from 'lucide-react';
-import { Card, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Card, EmptyState, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
 import ApplicationForm from '../../../components/org/ApplicationForm';
 import { APPLICATION_LABELS, applicantStatusLine } from '../../../components/org/applicationStatus';
 import notify from '../../../lib/notify';
@@ -97,7 +97,12 @@ export default function MyOrganizationApplicationPage() {
           </Card>
 
           <Card title="Requirements" bodyClassName="p-0">
-            <ul className="divide-y divide-line-soft">
+            {application.requirements.length === 0 && (
+              <div className="px-5">
+                <EmptyState title="Nothing to submit yet" description="No requirements are listed for this application." />
+              </div>
+            )}
+            {application.requirements.length > 0 && <ul className="divide-y divide-line-soft">
               {application.requirements.map((requirement) => (
                 <li key={requirement.id} className="space-y-2 px-5 py-4">
                   <p className="text-sm font-semibold text-ink">{requirement.name}</p>
@@ -115,7 +120,7 @@ export default function MyOrganizationApplicationPage() {
                   ))}
                 </li>
               ))}
-            </ul>
+            </ul>}
           </Card>
 
           {generalFiles.length > 0 && (

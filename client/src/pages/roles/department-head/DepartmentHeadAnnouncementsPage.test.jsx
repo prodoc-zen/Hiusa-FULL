@@ -78,4 +78,19 @@ describe('Department Head announcements', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('option', { name: org.name })).toBeInTheDocument();
   });
+  it('says the college has not written any, points to the feed, and keeps the feed link in the header', async () => {
+    announcements.getAnnouncements.mockResolvedValue(pageOf([]));
+    renderPage();
+    expect(await screen.findByText('You have not written any announcements')).toBeInTheDocument();
+    expect(screen.getByText('Announcements from the organizations in your college are in the feed.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View announcement feed' })).toHaveAttribute('href', '/dashboard/announcements/view-announcements');
+    expect(screen.queryByText('No announcements yet')).not.toBeInTheDocument();
+  });
+  it('marks only a draft, beside its title, and leaves a published row unmarked', async () => {
+    announcements.getAnnouncements.mockResolvedValue(pageOf([post, { ...post, id: 12, title: 'Enrollment', is_published: true }]));
+    renderPage();
+    await screen.findAllByText('Enrollment');
+    expect(screen.getAllByText('Draft')).toHaveLength(2);
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+  });
 });

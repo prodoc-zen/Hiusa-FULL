@@ -137,6 +137,18 @@ describe('CollegeOrganizationsPage', () => {
     expect(screen.getAllByText('Archived by the SAO. Read only.').length).toBeGreaterThan(0);
   });
 
+  it('puts the status beside the name instead of in empty Status and Submitted columns', async () => {
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    const table = screen.getAllByRole('table')[0];
+    expect(within(table).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Submitted' })).not.toBeInTheDocument();
+    const chess = within(table).getAllByRole('row').find((row) => within(row).queryByText('Chess Club'));
+    expect(within(chess).getByText('Pending review')).toBeInTheDocument();
+    expect(within(chess).getByText(/CHESS · Submitted/)).toBeInTheDocument();
+  });
+
   it('filters by lifecycle status with the tabs', async () => {
     renderPage();
     await screen.findAllByText('Robotics Society');

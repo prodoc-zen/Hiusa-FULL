@@ -89,17 +89,22 @@ export default function ManageSboPositionsPage() {
     } finally { setBusy(false); }
   };
 
+  // Responsibilities and the inactive flag sit under the title so a row has no empty cells; the account
+  // role gets a column only while the list holds more than one role.
+  const mixedRoles = new Set(filtered.map((position) => position.role)).size > 1;
   const columns = [
-    { key: 'title', header: 'Position', render: (position) => <span className="font-medium">{formatDisplayText(position.title)}</span> },
-    { key: 'role', header: 'Account role', render: (position) => ROLE_LABELS[position.role] || position.role },
     {
-      key: 'description',
-      header: 'Responsibilities',
-      className: 'max-w-md text-ink-muted-strong',
-      render: (position) => (position.description ? <RichTextBody value={position.description} /> : null),
+      key: 'title',
+      header: 'Position',
+      render: (position) => (
+        <>
+          <span className="font-medium">{formatDisplayText(position.title)}</span>
+          {!position.is_active && <span className="ml-2 align-middle"><StatusBadge tone="neutral" label="Inactive" /></span>}
+          {position.description && <RichTextBody as="span" value={position.description} className="mt-0.5 line-clamp-2 block max-w-md text-xs text-ink-muted-strong" />}
+        </>
+      ),
     },
-    // The default state (active) carries no badge.
-    { key: 'status', header: 'Status', render: (position) => (position.is_active ? null : <StatusBadge tone="neutral" label="Inactive" />) },
+    ...(mixedRoles ? [{ key: 'role', header: 'Account role', render: (position) => ROLE_LABELS[position.role] || position.role }] : []),
   ];
 
   const filters = (

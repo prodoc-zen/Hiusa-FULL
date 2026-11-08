@@ -2,8 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonStat, SkeletonTable, Stat, StatusBadge, Textarea } from '../../../components/ui';
-import Modal from '../../../components/Modal';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonStat, SkeletonTable, Stat, StatusBadge, Textarea } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
@@ -49,7 +48,7 @@ function mergeColleges(colleges, agency) {
 function OrganizationsSummary({ college, awaitingAdministrator }) {
   const counts = college.by_lifecycle_status || {};
   return (
-    <p className="text-xs font-semibold text-ink-muted">
+    <p className="pb-3 pl-7 text-xs font-semibold text-ink-muted">
       <Count value={college.organizations_count} /> {college.organizations_count === 1 ? 'organization' : 'organizations'} · <Count value={counts.pending || 0} /> pending · <Count value={counts.active || 0} /> active · <Count value={counts.returned || 0} /> returned · <Count value={counts.archived || 0} /> archived{hasAdministratorCount(college) && <> · <Count value={college.administrators_count} /> {college.administrators_count === 1 ? 'administrator' : 'administrators'}</>}{awaitingAdministrator > 0 && <> · <Count value={awaitingAdministrator} /> awaiting administrator</>}
     </p>
   );
@@ -78,29 +77,31 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
     <article aria-labelledby={`college-${college.id}`} className="overflow-hidden rounded-card border border-line bg-surface">
       <div className="p-4">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-control bg-page text-ink-muted">
-            {college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}
-          </span>
+          {college.logo_url && (
+            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-control bg-page">
+              <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <h2 id={`college-${college.id}`} className="break-words text-base font-semibold text-ink">{name}</h2>
             <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}</p>
             {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted" />}
           </div>
-        </div>
-        <div className="mt-3 flex justify-end">
-          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
-          <TableRowActions subject={name} actions={[
-            { label: `View ${name}`, icon: Eye, onClick: () => onView(college) },
-            { label: `Edit ${name}`, icon: Pencil, onClick: () => onEdit(college) },
-            { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
-            college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
-            college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
-            { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
-            { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
-            college.can_delete === false
-              ? { label: 'Delete college (has organizations or people)', icon: Trash2, danger: true, disabled: true }
-              : { label: 'Delete college', icon: Trash2, danger: true, onClick: () => onDelete(college) },
-          ]} />
+          <div className="-mr-2 -mt-1 shrink-0">
+            <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
+            <TableRowActions subject={name} actions={[
+              { label: `View ${name}`, icon: Eye, onClick: () => onView(college) },
+              { label: `Edit ${name}`, icon: Pencil, onClick: () => onEdit(college) },
+              { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
+              college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
+              college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
+              { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
+              { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
+              college.can_delete === false
+                ? { label: 'Delete college (has organizations or people)', icon: Trash2, danger: true, disabled: true }
+                : { label: 'Delete college', icon: Trash2, danger: true, onClick: () => onDelete(college) },
+            ]} />
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
           <div className="min-w-0">
@@ -114,10 +115,10 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
                 <p className="mt-0.5 break-all text-xs font-medium text-ink-muted">{head.email}</p>
               </>
             ) : (
-              <div className="mt-1 flex items-center gap-2">
-                <p className="text-sm font-medium text-ink-muted">No Department Head yet</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p className="text-sm text-ink-muted">No Department Head yet</p>
                 {college.is_active && (
-                  <Button size="xs" variant="secondary" onClick={() => onInvite(college)}>
+                  <Button size="sm" variant="secondary" className="max-md:min-h-[42px]" onClick={() => onInvite(college)}>
                     Invite Department Head
                   </Button>
                 )}
@@ -126,9 +127,9 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
           </div>
         </div>
       </div>
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line px-4 py-1">
+      <header className="border-t border-line px-4 pt-1">
         {agencyUnavailable ? (
-          <p className="py-3 text-sm font-medium text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
+          <p className="py-3 text-sm text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
         ) : college.organizations_count ? (
           <>
             <button
@@ -144,7 +145,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             </button>
             <OrganizationsSummary college={college} awaitingAdministrator={awaitingAdministrator} />
           </>
-        ) : <p className="py-3 text-sm font-medium text-ink-muted">{NO_ORGANIZATIONS}</p>}
+        ) : <p className="py-3 text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>}
       </header>
       {!agencyUnavailable && college.organizations_count > 0 && expanded && (
         <div id={panelId} className="border-t border-line">
@@ -322,36 +323,37 @@ export default function SystemCollegesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        actions={<Button variant="secondary" leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>}
         primary={<Button leftIcon={Plus} disabled={loading} onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddError(''); setAddFieldErrors({}); setAdding(true); }}>Add college</Button>}
       />
       {error && !loading ? <ErrorState description={error} onRetry={() => load()} /> : (
         <>
           {loading ? (
-            <div className="grid gap-4 sm:grid-cols-3" aria-busy="true"><SkeletonStat /><SkeletonStat /><SkeletonStat /></div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4" aria-busy="true"><SkeletonStat /><SkeletonStat /><SkeletonStat /></div>
           ) : agencyUnavailable ? (
             <ErrorState title="Agency overview unavailable" description={agencyError} onRetry={() => load()} className="rounded-card border border-line bg-surface" />
           ) : (
-            <section aria-label="Agency totals" className="grid gap-4 sm:grid-cols-3">
-              <Stat label="Pending reviews" value={byStatus.pending || 0} to={PENDING_REVIEW_PATH} />
-              <Stat label="Organizations" value={totals.organizations ?? 0} to="/dashboard/super-admin/organizations?status=active" />
-              <Stat label="Archived" value={byStatus.archived || 0} to="/dashboard/super-admin/organizations?status=archived" />
+            <section aria-label="Agency totals" className="grid grid-cols-3 gap-2 sm:gap-4">
+              <Stat className="p-3! sm:p-4!" label="Pending reviews" value={byStatus.pending || 0} to={PENDING_REVIEW_PATH} />
+              <Stat className="p-3! sm:p-4!" label="Organizations" value={totals.organizations ?? 0} to="/dashboard/super-admin/organizations?status=active" />
+              <Stat className="p-3! sm:p-4!" label="Archived" value={byStatus.archived || 0} to="/dashboard/super-admin/organizations?status=archived" />
             </section>
           )}
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Search colleges" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
-            {term && <button type="button" onClick={() => setSearch('')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+            <Field label="Search colleges" className="w-full sm:max-w-md sm:flex-1"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
+            {term && <button type="button" onClick={() => setSearch('')} className="min-h-11 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+            <Button variant="secondary" leftIcon={UserPlus} disabled={loading || invitable.length === 0} onClick={() => setInviting({ collegeId: '' })}>Invite Department Head</Button>
+            {!loading && colleges.length > 0 && invitable.length === 0 && <p className="self-center text-xs text-ink-muted">Every college has a Department Head.</p>}
           </div>
-          {uploadError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
-          {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+          {uploadError && <p role="alert" className="rounded-card border border-danger-strong/20 bg-danger-tint px-4 py-3 text-sm font-medium text-danger-strong">{uploadError}</p>}
+          {notice && <p role="status" className="rounded-card border border-success-strong/20 bg-success-tint px-4 py-3 text-sm font-medium text-success-strong">{notice}</p>}
           {loading ? (
             <section aria-label="Loading colleges"><SkeletonTable columns={4} rows={4} /></section>
           ) : visible.length ? (
             <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onDelete={(item) => { setDeleteError(''); setDeleteTarget(item); }} />)}</section>
           ) : (
             colleges.length
-              ? <EmptyState kind="filtered" icon={Building2} title="No colleges match" description="No college has that name or code." onClearFilters={() => setSearch('')} />
-              : <EmptyState kind="first-run" icon={Building2} title="No colleges yet" description="Add a college, then invite its Department Head." />
+              ? <EmptyState kind="filtered" title="No colleges match" description="No college has that name or code." onClearFilters={() => setSearch('')} />
+              : <EmptyState kind="first-run" title="No colleges yet" description="Add a college, then invite its Department Head." />
           )}
           {!loading && unassigned.length > 0 && (
             <section aria-labelledby="unassigned-organizations" className="overflow-hidden rounded-card border border-line bg-surface">
@@ -367,7 +369,7 @@ export default function SystemCollegesPage() {
       <ConfirmModal open={Boolean(archiveTarget)} title={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} message={archiveTarget?.is_active ? `Archive ${archiveTarget.name}? All college and organization profiles will be blocked from signing in. SAO can still view their files. Existing organization statuses are preserved.` : `Restore ${archiveTarget?.name}? Previously active organizations and accounts regain access. Individually archived organizations stay archived.`} confirmText={archiveTarget?.is_active ? 'Archive college' : 'Restore college'} error={lifecycleError} busy={lifecycleBusy} onCancel={() => setArchiveTarget(null)} onConfirm={changeLifecycle} />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete college" message={`Delete ${deleteTarget?.name}? This cannot be undone. If it has organizations or people, archive it instead.`} confirmText="Delete college" error={deleteError} busy={deleteBusy} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
       {inviting && <InviteDepartmentHeadModal colleges={invitable} initialCollegeId={inviting.collegeId} onClose={() => setInviting(null)} onCreated={(message) => { setUploadError(''); setNotice(message); }} />}
-      <Modal open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} size="lg" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
+      <Drawer open={Boolean(viewing)} title={viewing ? formatDisplayText(viewing.name) : 'College details'} width="max-w-3xl" onClose={() => setViewing(null)} footer={<Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>}>
         {viewing && (
           <div className="space-y-4">
             <div className="grid gap-3 border-y border-line py-3 sm:grid-cols-3">
@@ -393,23 +395,23 @@ export default function SystemCollegesPage() {
             )}
           </div>
         )}
-      </Modal>
-      <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
+      </Drawer>
+      <Drawer open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
         <form id="add-college-form" onSubmit={addCollege} className="space-y-4">
           <Field label="College name" required error={addFieldErrors.name?.[0]}><Input required maxLength={255} value={addForm.name} onChange={(event) => setAddForm((form) => ({ ...form, name: event.target.value }))} /></Field>
           <Field label="Code" optional error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
           <Field label="Color" optional error={addFieldErrors.color?.[0]}><input type="color" value={addForm.color || DEFAULT_COLLEGE_COLOR} onChange={(event) => setAddForm((form) => ({ ...form, color: event.target.value.toUpperCase() }))} className="h-10 w-20 cursor-pointer rounded-control border border-line bg-surface p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" /></Field>
           {addError && <p role="alert" className="text-sm text-danger-strong">{addError}</p>}
         </form>
-      </Modal>
-      <Modal open={Boolean(editing)} title="Edit college" onClose={editBusy ? undefined : () => setEditing(null)} footer={<><Button variant="secondary" disabled={editBusy} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" form="edit-college-form" loading={editBusy}>Save changes</Button></>}>
+      </Drawer>
+      <Drawer open={Boolean(editing)} title="Edit college" onClose={editBusy ? undefined : () => setEditing(null)} footer={<><Button variant="secondary" disabled={editBusy} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" form="edit-college-form" loading={editBusy}>Save changes</Button></>}>
         <form id="edit-college-form" onSubmit={saveEditCollege} className="space-y-4">
           <Field label="College name" required error={editFieldErrors.name?.[0]}><Input required maxLength={255} value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} /></Field>
           <Field label="Code" optional error={editFieldErrors.code?.[0]}><Input maxLength={50} value={editForm.code} onChange={(event) => setEditForm((form) => ({ ...form, code: event.target.value }))} /></Field>
           <Field label="Description" optional error={editFieldErrors.description?.[0]}><Textarea maxLength={3000} rows={3} value={editForm.description} onChange={(event) => setEditForm((form) => ({ ...form, description: event.target.value }))} /></Field>
           {editError && <p role="alert" className="text-sm text-danger-strong">{editError}</p>}
         </form>
-      </Modal>
+      </Drawer>
       {managing?.department_head && <ManageDepartmentHeadModal college={managing} head={managing.department_head} onClose={() => setManaging(null)} onChanged={(user, message) => headChanged(managing.id, user, message)} />}
     </div>
   );

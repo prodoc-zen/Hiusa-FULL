@@ -67,15 +67,15 @@ describe('SaoNotificationsPage header', () => {
   it('says what lands here when there are no notifications', async () => {
     mocks.getNotifications.mockResolvedValue({ data: { data: [] } });
     renderAt('/dashboard/super-admin/notifications', <SaoNotificationsPage />);
-    expect(await screen.findByText('No SAO notifications yet')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mark all as read' })).toBeDisabled();
+    expect(await screen.findByText('No notifications yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument();
   });
 });
 
 describe('GlobalAnnouncementsPage header', () => {
   it('shows a first-run state with the single Create official notice button', async () => {
     renderAt('/dashboard/super-admin/announcements', <GlobalAnnouncementsPage />);
-    expect(await screen.findByText('No official announcements yet')).toBeInTheDocument();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Create official notice' })).toHaveLength(1);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
@@ -85,7 +85,7 @@ describe('GlobalAnnouncementsPage header', () => {
     renderAt('/dashboard/super-admin/announcements', <GlobalAnnouncementsPage />);
     expect(await screen.findByText(/enrollment reminder/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Create official notice' })).toHaveLength(1);
-    expect(screen.queryByText('No official announcements yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No announcements yet')).not.toBeInTheDocument();
   });
 });
 
@@ -116,7 +116,7 @@ describe('GeneralAuditLogPage header', () => {
   it('offers to clear filters when a filter leaves nothing', async () => {
     renderAt('/dashboard/super-admin/audit-logs', <GeneralAuditLogPage />);
     await screen.findByText('No audit activity yet');
-    fireEvent.change(screen.getByPlaceholderText('Search actor, action, module, or record ID'), { target: { value: 'budget' } });
+    fireEvent.change(screen.getByPlaceholderText('Search actor, module or record'), { target: { value: 'budget' } });
     expect(await screen.findByText('No audit activity matches these filters')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' }).at(-1));
     await waitFor(() => expect(screen.getByText('No audit activity yet')).toBeInTheDocument());

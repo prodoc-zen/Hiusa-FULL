@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ImagePlus } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import RichTextEditor from '../../../components/RichText';
-import { Button, Field, Input, Select, Textarea } from '../../../components/ui';
+import { Button, Field, Input, PageHeader, Select, Textarea } from '../../../components/ui';
+import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../../lib/pageMeta';
 
 const AUDIENCE_OPTIONS = [
   { label: 'All Members', value: 'all' },
@@ -39,6 +41,7 @@ function ConfirmModal({ open, title, message, confirmText, onCancel, onConfirm, 
 }
 
 const MANAGE_PATH = '/dashboard/announcements/manage-announcements';
+const REQUEST_PATH = '/dashboard/approval-requests/new/announcement';
 
 // The server publishes an Admin's announcement at once and holds an Officer's for the Admin to approve.
 function sendsForApproval() {
@@ -51,6 +54,7 @@ function sendsForApproval() {
 
 export default function CreateAnnouncementPage() {
   const forApproval = sendsForApproval();
+  const { pathname } = useLocation();
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('all');
   const [category, setCategory] = useState('general');
@@ -65,6 +69,7 @@ export default function CreateAnnouncementPage() {
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
+  const [showMissing, setShowMissing] = useState(false);
   const [posted, setPosted] = useState(false);
   const [lastPublishState, setLastPublishState] = useState(true);
   const [confirmState, setConfirmState] = useState({ open: false, isPublished: true });
@@ -77,6 +82,15 @@ export default function CreateAnnouncementPage() {
       .finally(() => { if (!cancelled) setQuotaLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  // The buttons stay usable. A click on an incomplete form shows what is missing beside each field.
+  function askConfirm(isPublished) {
+    if (!title.trim() || !body.trim()) {
+      setShowMissing(true);
+      return;
+    }
+    setConfirmState({ open: true, isPublished });
+  }
 
   async function handleSubmit(isPublished) {
     if (!title.trim() || !body.trim()) return;
@@ -119,7 +133,13 @@ export default function CreateAnnouncementPage() {
     }
   }
 
-  const incomplete = !title.trim() || !body.trim();
+  // An Admin who opens the request route still publishes at once, so only an Officer sees "request".
+  const onRequestRoute = pathname === REQUEST_PATH;
+  const meta = getPageMeta(pathname, getStoredRole());
+  const pageTitle = (onRequestRoute && !forApproval) || !meta.matched ? 'New announcement' : meta.title;
+  const crumbs = getBreadcrumbs(pathname, getStoredRole()).map((crumb, index, all) => (index === all.length - 1 ? { label: pageTitle } : crumb));
+  const titleMissing = showMissing && !title.trim();
+  const bodyMissing = showMissing && !body.trim();
 
   if (posted) {
     const audienceLabel = AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label;
@@ -148,28 +168,41 @@ export default function CreateAnnouncementPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
+      <PageHeader title={pageTitle} breadcrumbs={crumbs} />
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="min-w-0 space-y-5 rounded-card border border-line bg-surface p-4 sm:p-5 lg:p-6">
-          <Field label="Title" required>
+        <section className="min-w-0 space-y-5 rounded-card border border-line bg-surface p-4 sm:p-5 lg:row-span-2 lg:p-6">
+          <Field label="Title" required error={titleMissing ? 'Enter a title.' : undefined}>
             <Input
               id="announcement-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="e.g. General Assembly, Second Semester"
+              placeholder="General Assembly"
               maxLength={255}
             />
           </Field>
 
-          <Field label="Instructions for AI draft" optional hint={quotaLoading ? 'Checking daily limit...' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}>
-            <Textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Example: Formal tone. Assembly is on September 30 at 2:00 PM. Ask students to bring their ID." />
-          </Field>
+          <div>
+            <label htmlFor="announcement-content" className="mb-1.5 block text-[13px] font-medium text-ink">Content</label>
+            <RichTextEditor
+              id="announcement-content"
+              value={body}
+              onChange={setBody}
+              placeholder="Write your announcement here"
+              rows={6}
+              className="sm:min-h-64"
+            />
+            {bodyMissing && <p role="alert" className="mt-1.5 text-xs font-semibold text-danger-strong">Write the announcement text.</p>}
+            <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{body.length.toLocaleString()} characters</p>
+          </div>
 
-          <div className="border-t border-line pt-5">
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor="announcement-content" className="block text-[13px] font-medium text-ink">Content</label>
+          <details className="border-t border-line pt-3">
+            <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium text-brand-700">Draft the text with AI</summary>
+            <div className="mt-3 space-y-3">
+              <Field label="Instructions for AI draft" optional hint={quotaLoading ? 'Checking daily limit...' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}>
+                <Textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Formal tone. Assembly is on September 30 at 2:00 PM. Bring your ID." />
+              </Field>
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={handleGenerateDraft}
                 disabled={generating || !title.trim() || generationQuota.remaining < 1}
                 className="w-full sm:w-auto"
@@ -177,18 +210,10 @@ export default function CreateAnnouncementPage() {
                 {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate draft'}
               </Button>
             </div>
-            <RichTextEditor
-              id="announcement-content"
-              value={body}
-              onChange={setBody}
-              placeholder="Write your announcement here"
-              rows={12}
-            />
-            <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{body.length.toLocaleString()} characters</p>
-          </div>
+          </details>
         </section>
 
-        <aside className="rounded-card border border-line bg-surface p-4 sm:p-5 lg:sticky lg:top-5">
+        <section className="rounded-card border border-line bg-surface p-4 sm:p-5 lg:col-start-2 lg:row-start-1">
           <h2 className="text-sm font-semibold text-ink">Publishing settings</h2>
           <div className="mt-4 space-y-4">
             <Field label="Audience">
@@ -210,23 +235,22 @@ export default function CreateAnnouncementPage() {
               <input id="announcement-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
             </div>
             <div className="space-y-1 border-t border-line pt-3">
-              <label className="flex min-h-10 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Pin to the top<span className="block text-xs font-normal text-ink-muted">Keeps this update ahead of regular posts.</span></span></label>
-              <label className="flex min-h-10 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Mark as important<span className="block text-xs font-normal text-ink-muted">Adds an Important label.</span></span></label>
+              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Pin to the top<span className="block text-xs font-normal text-ink-muted">Keeps this update ahead of regular posts.</span></span></label>
+              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Mark as important<span className="block text-xs font-normal text-ink-muted">Adds an Important label.</span></span></label>
             </div>
           </div>
+        </section>
 
-          <div className="mt-5 border-t border-line pt-4">
-            <p className="text-xs leading-5 text-ink-muted">{forApproval ? 'Title and content are required. The Admin approves it before members see it.' : 'Title and content are required. You can save a draft without notifying members.'}</p>
-            {incomplete && <p className="mt-2 text-xs text-ink-muted">Add a title and content to continue.</p>}
-            {error && <p role="alert" className="mt-3 text-sm font-medium text-danger-strong">{error}</p>}
-            <div className="mt-4 flex flex-col gap-2.5">
-              <Button disabled={submitting || incomplete} onClick={() => setConfirmState({ open: true, isPublished: true })} className="w-full">
-                {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish now'}
-              </Button>
-              {!forApproval && <Button variant="secondary" disabled={submitting || incomplete} onClick={() => setConfirmState({ open: true, isPublished: false })} className="w-full">Save draft</Button>}
-            </div>
+        <div className="sticky bottom-0 z-10 -mx-1 border-t border-line bg-page px-1 py-3 lg:static lg:col-start-2 lg:row-start-2 lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
+          <p className="mb-2 hidden text-xs text-ink-muted lg:block">{forApproval ? 'The Admin approves it before members see it.' : 'A saved draft does not notify members.'}</p>
+          {error && <p role="alert" className="mb-2 text-sm font-medium text-danger-strong">{error}</p>}
+          <div className="flex gap-2 lg:flex-col [&>*]:flex-1">
+            <Button disabled={submitting} onClick={() => askConfirm(true)}>
+              {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish now'}
+            </Button>
+            {!forApproval && <Button variant="secondary" disabled={submitting} onClick={() => askConfirm(false)}>Save draft</Button>}
           </div>
-        </aside>
+        </div>
       </div>
 
       <ConfirmModal

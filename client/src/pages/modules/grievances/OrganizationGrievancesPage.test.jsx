@@ -1,4 +1,3 @@
-import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -37,7 +36,8 @@ describe('OrganizationGrievancesPage', () => {
     mocks.getGrievances.mockResolvedValue(envelope([{ ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Repaired.' }]));
     mocks.deleteGrievance.mockResolvedValue({});
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    fireEvent.click(await findRowAction('View details'));
+    const [rowTitle] = await screen.findAllByText('Unsafe Stairwell');
+    fireEvent.click(rowTitle);
     fireEvent.click(screen.getByRole('button', { name: 'Delete closed grievance' }));
     const confirm = screen.getByRole('dialog', { name: 'Delete closed grievance?' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete closed grievance' }));
@@ -62,7 +62,7 @@ describe('OrganizationGrievancesPage', () => {
     expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
-  it('never renders an identity for an anonymous filer, showing a dignified confidential badge instead', async () => {
+  it('never renders an identity for an anonymous filer, showing a plain confidential label instead', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([ANONYMOUS_GRIEVANCE]));
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
     const [titleElement] = await screen.findAllByText('Unsafe Stairwell');

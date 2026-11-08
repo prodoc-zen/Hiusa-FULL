@@ -24,6 +24,10 @@ function studentName(row) {
   return row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : `Student ${row.student_id}`;
 }
 
+function periodTitle(row) {
+  return formatDisplayText(row.clearance_period?.title || row.clearancePeriod?.title || '');
+}
+
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
@@ -141,22 +145,61 @@ export default function SignatoryClearancesPage() {
     }
   }
 
+  // One period and one role usually cover the whole queue, so those columns appear only when they tell rows apart.
+  const periodTitles = [...new Set(visibleRows.map((row) => periodTitle(row)).filter(Boolean))];
+  const showPeriod = periodTitles.length > 1;
+  const showRole = new Set(visibleRows.map((row) => row.required_role)).size > 1;
+
   const columns = [
-    { key: 'selection', header: 'Select', render: (row) => row.status === 'pending' ? <label className="inline-flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" aria-label={`Select ${row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : row.student_id} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-brand-700" /></label> : null },
     {
       key: 'student',
       header: 'Student',
+      className: 'whitespace-nowrap',
       render: (row) => (
-        <div>
-          <button type="button" onClick={() => { setPinned(row); setRecordId(row.id); }} className="text-left font-medium text-ink hover:text-brand-700">{studentName(row)}</button>
-          <p className="text-xs text-ink-muted">{row.student_id}</p>
+        <div className="flex items-center gap-1">
+          {row.status === 'pending' ? (
+            <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
+              <input type="checkbox" aria-label={`Select ${studentName(row)} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-brand-700" />
+            </label>
+          ) : selectablePendingIds.length > 0 && <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 md:block" />}
+          <div className="text-left">
+            <button type="button" onClick={() => { setPinned(row); setRecordId(row.id); }} className="font-medium text-ink hover:text-brand-700">{studentName(row)}</button>
+            <p className="text-xs text-ink-muted">{row.student_id}</p>
+          </div>
         </div>
       ),
     },
-    { key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) },
-    { key: 'period', header: 'Period', render: (row) => row.clearance_period?.title || row.clearancePeriod?.title || '' },
-    { key: 'remarks', header: 'Remarks', render: (row) => row.remarks || (row.status === 'pending' ? `Waiting for ${humanizeRole(row.required_role)} signature` : '') },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} /> },
+    ...(showRole ? [{ key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) }] : []),
+    ...(showPeriod ? [{ key: 'period', header: 'Period', render: (row) => periodTitle(row) }] : []),
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          {row.status !== 'pending' && <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} />}
+          {(row.remarks || row.status === 'pending') && (
+            <p className={`text-xs ${row.status === 'held' ? 'text-ink' : 'text-ink-muted'}`}>{row.remarks || `Waiting for ${humanizeRole(row.required_role)} signature`}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end">
+          <SignAction
+            showStatus={false}
+            signatureId={row.id}
+            status={row.status}
+            remarks={row.remarks}
+            roleLabel={humanizeRole(row.required_role)}
+            onSign={(nextStatus, remarks) => sign(row, nextStatus, remarks)}
+          />
+        </div>
+      ),
+    },
   ];
 
   async function sign(row, nextStatus, remarks) {
@@ -180,18 +223,6 @@ export default function SignatoryClearancesPage() {
           error={error}
           onRetry={load}
           filtersActive={Boolean(periodId || status || search)}
-          actions={(row) => (
-            <div className="flex items-center justify-end gap-2">
-              <SignAction
-                showStatus={false}
-                signatureId={row.id}
-                status={row.status}
-                remarks={row.remarks}
-                roleLabel={humanizeRole(row.required_role)}
-                onSign={(nextStatus, remarks) => sign(row, nextStatus, remarks)}
-              />
-            </div>
-          )}
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
               <div className="w-full sm:w-56">
@@ -212,14 +243,15 @@ export default function SignatoryClearancesPage() {
                 <button type="button" onClick={() => { setPeriodId(''); setStatus(''); setSearch(''); }} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
               )}
               {selectablePendingIds.length > 0 && (
-                <button type="button" onClick={toggleAll} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">
-                  {allSelected ? 'Clear selection' : `Select all pending (${selectablePendingIds.length})`}
-                </button>
+                <label className="inline-flex min-h-[42px] items-center gap-2 text-sm text-ink">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 accent-brand-700" />
+                  Select all pending ({selectablePendingIds.length})
+                </label>
               )}
               {selectedIds.size > 0 && (
                 <Button size="sm" onClick={() => setBulkOpen(true)}>Clear {selectedIds.size} selected</Button>
               )}
-              <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} in queue</p>
+              <p className="w-full text-xs tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} in queue{!showPeriod && periodTitles[0] ? ` for ${periodTitles[0]}` : ''}</p>
             </div>
           )}
           emptyState={periodId || status || search ? (
@@ -229,14 +261,14 @@ export default function SignatoryClearancesPage() {
               kind="first-run"
               icon={ClipboardCheck}
               title="Nothing waiting on your signature"
-              description={role === 'DEPARTMENT_HEAD' ? 'The SAO opens a clearance period each semester. Students from your college who need your Department Head signature appear here.' : "The SAO opens a clearance period each semester. Your organization's students who need your signature appear here when it does."}
+              description={role === 'DEPARTMENT_HEAD' ? 'The SAO opens a clearance period each semester, and students from your college appear here.' : 'The SAO opens a clearance period each semester, and students who need your signature appear here.'}
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="signatures" />}
         />
       </Card>
 
-      <Drawer open={Boolean(selected)} title={selected ? studentName(selected) : undefined} description={selected ? `${selected.clearance_period?.title || selected.clearancePeriod?.title || 'Clearance'} · ${humanizeRole(selected.required_role)}` : undefined} onClose={() => setRecordId(null)}>
+      <Drawer open={Boolean(selected)} title={selected ? studentName(selected) : undefined} description={selected ? `${periodTitle(selected) || 'Clearance'} · ${humanizeRole(selected.required_role)}` : undefined} onClose={() => setRecordId(null)}>
         {selected && <SignatureDetail row={selected} role={role} onSign={(nextStatus, remarks) => sign(selected, nextStatus, remarks)} />}
       </Drawer>
 

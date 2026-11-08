@@ -1,8 +1,7 @@
-import HiusaSelect from '../../../components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarRange, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, Select, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
@@ -177,38 +176,41 @@ export default function AcademicYearsPage() {
   }
 
   const columns = [
-    { key: 'label', header: 'Academic year', render: (year) => <span className="font-bold text-ink">{year.label}</span> },
+    { key: 'label', header: 'Academic year', render: (year) => <span className="font-medium text-ink">{year.label}</span> },
     { key: 'dates', header: 'Dates', render: (year) => `${manilaDate(year.starts_on, 'long')} to ${manilaDate(year.ends_on, 'long')}` },
-    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="success" label="Current" /> : <span className="text-xs font-medium text-ink-muted">{year.closed_at ? 'Completed' : 'Not current'}</span>) },
+    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="success" label="Current" /> : (year.closed_at ? <span className="text-sm text-ink-muted">Completed</span> : null)) },
   ];
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-6 pb-8">
       <PageHeader primary={years.items.length > 0 && <Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>} />
 
       {current && (
-        <Card title={`${current.label} is the current year`} description={`${manilaDate(current.starts_on, 'long')} to ${manilaDate(current.ends_on, 'long')}`}>
-          <p className="text-sm font-semibold text-ink">At the start of each year</p>
-          <ul className="mt-2 divide-y divide-line-soft">
+        <section aria-label="Current academic year">
+          <h2 className="text-base font-semibold text-ink">{`${current.label} is the current year`}</h2>
+          <p className="mt-1 text-sm text-ink-muted">{`${manilaDate(current.starts_on, 'long')} to ${manilaDate(current.ends_on, 'long')}`}</p>
+          <p className="mt-4 text-xs font-medium text-ink-muted">At the start of each year</p>
+          <ul className="mt-1 divide-y divide-line-soft border-y border-line-soft">
             {YEAR_START_STEPS.map((step) => (
               <li key={step.to}>
-                <Link to={step.to} className="-mx-2 flex items-center justify-between gap-3 rounded-control px-2 py-2.5 text-sm font-medium text-ink transition-colors duration-150 hover:bg-subtle">
+                <Link to={step.to} className="flex min-h-11 items-center rounded-control px-1 text-sm font-medium text-brand-700 transition-colors duration-150 hover:bg-subtle hover:underline">
                   {step.label}
-                  <ChevronRight size={16} className="shrink-0 text-ink-soft" aria-hidden="true" />
                 </Link>
               </li>
             ))}
           </ul>
-        </Card>
+        </section>
       )}
 
-      <Card title="Calendar" description="Exactly one year is current at a time.">
+      <Card title="Calendar">
         <DataTable
+          caption="Academic years"
           columns={columns}
           rows={years.items}
           loading={years.loading}
           error={years.error}
           onRetry={load}
+          stickyHeader={false}
           actions={(year) => (
             <TableRowActions subject={year.label} actions={[
               !year.is_current && !year.closed_at && { label: 'Make current', onClick: () => setCurrentTarget(year) },
@@ -220,69 +222,72 @@ export default function AcademicYearsPage() {
           emptyState={(
             <EmptyState
               kind="first-run"
-              icon={CalendarRange}
               title="No academic year set"
               description="Add the current academic year. Until then, accreditation follows the newest set of requirements."
               action={<Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>}
             />
           )}
         />
-      </Card>
 
-      <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
-        <p className="mb-4 text-sm text-ink-muted">New semester requirements start active by default. Toggle off any requirement that is not needed in Requirement settings.</p>
-        {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
-            {(year.semesters || []).length < 2 && (
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={Plus}
-                onClick={() => {
-                  setSemesterYear(year);
-                  setSemesterErrors({});
-                  setSemesterForm({
-                    ...EMPTY_SEMESTER,
-                    number: year.semesters?.some((item) => item.number === 1) ? '2' : '1',
-                  });
-                }}
-              >
-                Add semester
-              </Button>
-            )}
+        {years.items.length > 0 && (
+          <div className="mt-6 border-t border-line pt-5">
+            <h2 className="text-base font-semibold text-ink">Semesters</h2>
+            <p className="mt-1 text-sm text-ink-muted">Activating a semester completes the one that is active.</p>
+            {years.items.map((year) => <div key={year.id} className="mt-4 first:mt-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-ink">AY {year.label}</h3>
+                {(year.semesters || []).length < 2 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    leftIcon={Plus}
+                    className="max-md:min-h-[42px]"
+                    onClick={() => {
+                      setSemesterYear(year);
+                      setSemesterErrors({});
+                      setSemesterForm({
+                        ...EMPTY_SEMESTER,
+                        number: year.semesters?.some((item) => item.number === 1) ? '2' : '1',
+                      });
+                    }}
+                  >
+                    Add semester
+                  </Button>
+                )}
+              </div>
+              <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-ink">{semester.number === 1 ? '1st' : '2nd'} semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span></div>
+                <div className="flex items-center gap-2">
+                  <StatusToggleSwitch
+                    checked={semester.status === 'active'}
+                    disabled={busy || semester.status === 'completed'}
+                    label={`Toggle active status for ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                    activeText="Active"
+                    inactiveText={semester.status === 'completed' ? 'Completed' : 'Inactive'}
+                    onChange={(next) => changeSemester(semester, next ? 'activate' : 'close')}
+                  />
+                  {semester.status !== 'active' && (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                      title={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester`}
+                      disabled={busy}
+                      onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-control border border-line text-danger-strong transition-colors duration-150 hover:bg-danger-tint disabled:opacity-50 sm:h-9 sm:w-9"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>)}{!year.semesters?.length && <p className="py-2.5 text-sm text-ink-muted">No semesters added.</p>}</div>
+            </div>)}
           </div>
-          <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><StatusBadge status={semester.status} /></div>
-            <div className="flex items-center gap-2">
-              <StatusToggleSwitch
-                checked={semester.status === 'active'}
-                disabled={busy || semester.status === 'completed'}
-                label={`Toggle active status for ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
-                activeText="Active"
-                inactiveText={semester.status === 'completed' ? 'Completed' : 'Inactive'}
-                onChange={(next) => changeSemester(semester, next ? 'activate' : 'close')}
-              />
-              {semester.status !== 'active' && (
-                <button
-                  type="button"
-                  aria-label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
-                  title={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester`}
-                  disabled={busy}
-                  onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-soft text-danger-strong transition hover:bg-danger-tint disabled:opacity-50"
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
-        </div>)}
+        )}
       </Card>
 
       <Modal open={Boolean(semesterYear)} title={`Add semester to AY ${semesterYear?.label || ''}`} onClose={busy ? undefined : () => setSemesterYear(null)} maxWidth="max-w-lg" footer={<><Button variant="secondary" disabled={busy} onClick={() => setSemesterYear(null)}>Cancel</Button><Button loading={busy} disabled={!semesterForm.starts_on || !semesterForm.ends_on} onClick={saveSemester}>Add semester</Button></>}>
         <div className="space-y-4">
-          <Field label="Semester" required error={semesterErrors.number?.[0]}><HiusaSelect value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))} className="h-11 w-full rounded-lg border border-line-soft bg-white px-3"><option value="1">1st Semester</option><option value="2">2nd Semester</option></HiusaSelect></Field>
+          <Field label="Semester" required error={semesterErrors.number?.[0]}><Select value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))}><option value="1">1st semester</option><option value="2">2nd semester</option></Select></Field>
           <Field label="Starts on" required error={semesterErrors.starts_on?.[0]}><Input type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm((current) => ({ ...current, starts_on: event.target.value }))} /></Field>
           <Field label="Ends on" required error={semesterErrors.ends_on?.[0]}><Input type="date" value={semesterForm.ends_on} onChange={(event) => setSemesterForm((current) => ({ ...current, ends_on: event.target.value }))} /></Field>
         </div>
@@ -345,7 +350,7 @@ export default function AcademicYearsPage() {
         open={Boolean(semesterDeleteTarget)}
         title="Delete semester"
         message="The semester is removed from the calendar. This cannot be undone. A semester that already has events, tasks or requirements attached cannot be deleted."
-        recordName={semesterDeleteTarget ? `${semesterDeleteTarget.number === 1 ? '1st' : '2nd'} Semester, AY ${semesterDeleteTarget.yearLabel}` : undefined}
+        recordName={semesterDeleteTarget ? `${semesterDeleteTarget.number === 1 ? '1st' : '2nd'} semester, AY ${semesterDeleteTarget.yearLabel}` : undefined}
         confirmText="Delete semester"
         busy={busy}
         error={semesterDeleteError && (

@@ -63,7 +63,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
           {loading && <SkeletonTable rows={5} columns={4} className="mx-4" />}
           {!loading && error && <ErrorState description={error} onRetry={load} />}
           {!loading && !error && students.length === 0 && (
-            <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student. None are on this one yet.'} />
+            <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student.'} />
           )}
 
           {!loading && !error && students.length > 0 && <div className="border-y border-line">

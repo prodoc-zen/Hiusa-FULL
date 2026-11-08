@@ -1,5 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
-import { formatDisplayText } from '../../../utils/displayText.js';
+import { ROLE_LABELS, formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, Plus, Search } from 'lucide-react';
@@ -43,9 +43,9 @@ const SUBMITTED_STATUS_TABS = [
 const NEW_REQUEST_PATH = '/dashboard/approval-requests/new';
 
 const REVIEW_EMPTY = {
-  SUPER_ADMIN: 'Review university-wide organization requests and the financial reports and events routed to SAO.',
-  DEPARTMENT_HEAD: 'Events, budgets, elections and financial reports from the organizations in your college appear here. The organization Admin sends them.',
-  ADMIN: 'Announcements your officers submit and student payments that need a check appear here for your decision. Officers send them from their own pages.',
+  SUPER_ADMIN: 'Nothing from the colleges needs your decision right now.',
+  DEPARTMENT_HEAD: 'Nothing from the organizations in your college needs your decision right now.',
+  ADMIN: 'Nothing from your officers or students needs your decision right now.',
 };
 
 function downloadCsv(rows, organizationNames) {
@@ -100,6 +100,10 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
   const link = entityLink(request, role);
   const typeLabel = ENTITY_LABEL[request.entity_type] || request.entity_type;
   const summary = summaryLine(request.entity_type, request.summary);
+  const requesterRole = request.requester?.role ? (ROLE_LABELS[request.requester.role] ?? formatDisplayText(request.requester.role)) : null;
+  const requesterDetail = [requesterRole, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ');
+  // The Review button already says what to do, so a request this viewer decides gets no second line saying "Review this ...".
+  const showStage = info.kind === 'lifecycle' ? !canAct : request.status === 'pending';
 
   return (
     <li className="flex flex-col gap-3 p-4 lg:flex-row lg:items-start lg:justify-between">
@@ -111,12 +115,12 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
         <p className="mt-1 text-xs text-ink-muted-strong">{[typeLabel, organizationName].filter(Boolean).join(' · ')}</p>
         {summary && <p className="mt-1 text-xs text-ink-muted-strong">{summary}</p>}
         <p className="mt-1 text-xs text-ink-muted-strong">
-          Requested by {request.requester ? `${formatDisplayText(request.requester.first_name)} ${formatDisplayText(request.requester.last_name)}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
+          Requested by {request.requester ? `${formatDisplayText(request.requester.first_name)} ${formatDisplayText(request.requester.last_name)}` : 'Unknown'} · {formatDateTime(request.requested_at)}
         </p>
-        <p className="mt-1 text-xs text-ink-muted-strong">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
+        {requesterDetail && <p className="mt-1 text-xs text-ink-muted-strong">{requesterDetail}</p>}
         <div className="mt-3 max-w-md">
           {info.kind === 'lifecycle' && <FlowStepper variant="compact" steps={info.steps} ariaLabel={`${typeLabel} progress for ${formatDisplayText(request.title)}`} />}
-          {(info.kind === 'lifecycle' || request.status === 'pending') && (
+          {showStage && (
             <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-medium text-ink">
               {info.kind === 'chip' ? <StatusBadge label={info.stageText} tone={info.tone} /> : <span>{info.stageText}</span>}
               {info.waitingOn && <span className="font-normal text-ink-muted-strong">Waiting on {info.waitingOn}</span>}
@@ -134,7 +138,7 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
           {canAct ? 'Review' : 'Details'}
         </Button>
         {link && (
-          <Button variant="secondary" to={link.to} aria-label={`${link.label}: ${formatDisplayText(request.title)}`}>
+          <Button variant="ghost" to={link.to} aria-label={`${link.label}: ${formatDisplayText(request.title)}`}>
             {link.label}
           </Button>
         )}
@@ -328,7 +332,7 @@ export default function DepartmentHeadApprovalsPage() {
 
   function renderEmpty() {
     if (forbidden) {
-      return <EmptyState kind="restricted" title="Approvals are for the Admin and the Department Head" description="Only they can decide requests. Ask the person who sent the request to follow it under Submitted by me." />;
+      return <EmptyState kind="restricted" title="Approvals are for the Admin and the Department Head" description="Only they can decide requests." />;
     }
 
     if (filtersActive) {
@@ -344,7 +348,7 @@ export default function DepartmentHeadApprovalsPage() {
       return (
         <EmptyState
           title="Nothing submitted yet"
-          description="Events, budgets, elections, announcements and reports your organization sends for approval are tracked here, with the stage each one is at and who it is waiting on."
+          description="Requests your organization sends for approval show here, with who each one is waiting on."
           action={<Button variant="secondary" to={NEW_REQUEST_PATH}>Start a new request</Button>}
         />
       );
@@ -358,11 +362,11 @@ export default function DepartmentHeadApprovalsPage() {
   }
 
   const headerPrimary = isAdmin || isOfficer ? <Button to={NEW_REQUEST_PATH} leftIcon={Plus}>New request</Button> : undefined;
-  const headerActions = (
-    <Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>
+  const headerActions = meta.total > 0 ? (
+    <Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={exporting}>
       {exporting ? 'Exporting...' : 'Export CSV'}
     </Button>
-  );
+  ) : undefined;
   const listLabel = tab === 'submitted' ? 'Requests submitted by my organization' : 'Requests to review';
 
   return (
@@ -381,32 +385,31 @@ export default function DepartmentHeadApprovalsPage() {
       )}
 
       <div id="approvals-panel" role={isAdmin ? 'tabpanel' : undefined} aria-label={isAdmin ? listLabel : undefined} className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {statusTabs.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={statusFilter === option.value}
-              onClick={() => { setStatusFilter(option.value); setPage(1); }}
-              className={`min-h-11 rounded-control border px-4 text-sm font-medium transition-colors duration-150 sm:min-h-10 ${
-                statusFilter === option.value
-                  ? 'border-brand-600 bg-brand-600/10 text-brand-800'
-                  : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'
-              }`}
-            >
-              {option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label}
-            </button>
-          ))}
-        </div>
+        {!isAdmin && (
+          <Tabs
+            value={statusFilter}
+            onChange={(next) => { setStatusFilter(next); setPage(1); }}
+            tabs={statusTabs.map((option) => ({
+              key: option.value,
+              label: option.value === 'pending' && tab === 'review' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : option.label,
+              panelId: 'approvals-panel',
+            }))}
+          />
+        )}
 
-        <div className={`grid grid-cols-1 items-center gap-3 md:grid-cols-2 ${(isDepartmentHead || isSao) ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
+        <div className={`grid grid-cols-1 items-center gap-3 md:grid-cols-2 ${(isDepartmentHead || isSao || isAdmin) ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
           <label className="relative min-w-0 xl:col-span-2">
             <Search size={15} className="pointer-events-none absolute left-3 top-3 text-ink-muted" aria-hidden="true" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks" aria-label="Search requests" className="pl-9" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester or remarks" aria-label="Search requests" className="pl-9" />
           </label>
           <HiusaSelect filter aria-label="Request type" value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)}>
             <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </HiusaSelect>
+          {isAdmin && (
+            <HiusaSelect aria-label="Status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>
+              {statusTabs.map((option) => <option key={option.value} value={option.value}>{option.value === 'pending' && tab === 'review' ? 'Pending' : option.label}</option>)}
+            </HiusaSelect>
+          )}
           {(isDepartmentHead || isSao) && (
             <HiusaSelect filter aria-label="Organization" value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value)}>
               <option value="all">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}

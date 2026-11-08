@@ -107,24 +107,20 @@ describe('VenueWeekCalendar', () => {
     expect(region).toHaveAttribute('tabindex', '0');
   });
 
-  it('gives each venue its own colour so two venues at the same hour are told apart', () => {
+  it('tells two venues at the same hour apart by naming the venue, with no colour stripe', () => {
     renderWeek();
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
-    const swatch = (name) => monday.getByRole('button', { name }).querySelector('[data-venue-swatch]');
-    const hall = swatch(/Main Hall/);
-    const gym = swatch(/Gym/);
-    expect(hall.className).toMatch(/bg-/);
-    expect(gym.className).toMatch(/bg-/);
-    expect(hall.className).not.toEqual(gym.className);
-    const sameVenue = within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ })).getByRole('button', { name: /Main Hall/ }).querySelector('[data-venue-swatch]');
-    expect(sameVenue.className).toEqual(hall.className);
+    const hall = monday.getByRole('button', { name: /Main Hall/ });
+    const gym = monday.getByRole('button', { name: /Gym/ });
+    expect(within(hall).getByText('Main Hall')).toBeInTheDocument();
+    expect(within(gym).getByText('Gym')).toBeInTheDocument();
+    expect(hall.querySelector('[data-venue-swatch]')).toBeNull();
+    expect(gym.querySelector('[data-venue-swatch]')).toBeNull();
   });
 
-  it('keeps the status pattern on the block and leaves out the venue colour for a single venue', () => {
+  it('keeps the status pattern on the block for a single venue', () => {
     renderWeek({ showVenue: false, slots: [slots[1]] });
-    const block = screen.getByRole('button', { name: /Pending booking/ });
-    expect(block).toHaveClass('border-dashed');
-    expect(block.querySelector('[data-venue-swatch]')).toBeNull();
+    expect(screen.getByRole('button', { name: /Pending booking/ })).toHaveClass('border-dashed');
   });
 
   it('widens a day column with its lanes and lets block text wrap so a narrow block keeps its time and the word Conflict', () => {
@@ -141,5 +137,36 @@ describe('VenueWeekCalendar', () => {
   it('hides the venue name once a single venue is chosen', () => {
     renderWeek({ showVenue: false, slots: [slots[0]] });
     expect(screen.queryByText('Main Hall')).not.toBeInTheDocument();
+  });
+
+  describe('on a phone', () => {
+    beforeEach(() => {
+      vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    });
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('lists the week day by day so nothing scrolls sideways', () => {
+      renderWeek();
+      expect(screen.queryByTestId('week-grid')).not.toBeInTheDocument();
+      const list = within(screen.getByTestId('week-list'));
+      expect(list.getAllByRole('heading', { level: 3 })).toHaveLength(7);
+      expect(list.getByRole('heading', { name: /Monday, October 5/ })).toBeInTheDocument();
+      expect(list.getByRole('heading', { name: /Sunday, October 11/ })).toBeInTheDocument();
+      expect(list.getByText('Nursing Council')).toBeInTheDocument();
+      expect(list.getAllByText('Nothing booked.')).toHaveLength(5);
+    });
+
+    it('names the venue in each row and reports the tapped booking', () => {
+      const { onSelect } = renderWeek();
+      expect(within(screen.getByTestId('week-list')).getAllByText('Main Hall')).toHaveLength(2);
+      fireEvent.click(screen.getByRole('button', { name: /Nursing Council/ }));
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
+    });
+
+    it('marks a conflicting booking with the word Conflict', () => {
+      renderWeek({ conflictIds: new Set([2]) });
+      expect(within(screen.getByTestId('week-list')).getByText('Conflict')).toBeInTheDocument();
+    });
   });
 });

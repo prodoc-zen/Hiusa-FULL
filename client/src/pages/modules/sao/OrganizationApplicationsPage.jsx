@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Card, DataTable, EmptyState, Input, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Input, PageHeader, StatusBadge } from '../../../components/ui';
+import ResponsiveTabs from './ResponsiveTabs';
 import PaginationControls from '../../../components/PaginationControls';
 import ApplicationReview from '../../../components/org/ApplicationReview';
 import { APPLICATION_LABELS } from '../../../components/org/applicationStatus';
@@ -107,7 +108,7 @@ export default function OrganizationApplicationsPage() {
     <div className="space-y-5 pb-8">
       <PageHeader />
       <Card bodyClassName="p-0">
-        <div className="px-4 pt-2"><Tabs tabs={tabItems} value={status} onChange={changeStatus} /></div>
+        <div className="px-4 pt-2 max-sm:pb-2"><ResponsiveTabs label="Application status" tabs={tabItems} value={status} onChange={changeStatus} /></div>
         <div role="tabpanel" id={PANEL_ID} aria-label={APPLICATION_LABELS[status]}>
           <DataTable
             stickyHeader={false}

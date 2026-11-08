@@ -176,6 +176,58 @@ describe('ElectionPickerPage empty states', () => {
   });
 });
 
+describe('ElectionPickerPage by screen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+  });
+
+  it('is a plain chooser on the candidates screen, with no create button', async () => {
+    electionMocks.getElections.mockResolvedValue([upcoming]);
+    render(<ElectionPickerPage onSelect={vi.fn()} mode="candidates" />);
+    expect(await screen.findByRole('heading', { name: 'Choose an election' })).toBeInTheDocument();
+    expect(screen.getByText('Pick the election whose candidates you want to manage.')).toBeInTheDocument();
+    await screen.findAllByText('HIUSA General Election 2026');
+    expect(screen.queryByRole('button', { name: /Create/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Next:/)).not.toBeInTheDocument();
+  });
+
+  it('lists only elections with results on the results screen', async () => {
+    const closed = { ...upcoming, id: 8, title: 'Closed Election', status: 'closed', votes_count: 12 };
+    electionMocks.getElections.mockResolvedValue([upcoming, closed]);
+    render(<ElectionPickerPage onSelect={vi.fn()} mode="results" />);
+    expect(await screen.findByRole('heading', { name: 'Election results' })).toBeInTheDocument();
+    expect((await screen.findAllByText('Closed Election')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('HIUSA General Election 2026')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create/ })).not.toBeInTheDocument();
+  });
+
+  it('says there are no results yet instead of offering to create an election', async () => {
+    electionMocks.getElections.mockResolvedValue([upcoming]);
+    render(<ElectionPickerPage onSelect={vi.fn()} mode="results" />);
+    expect(await screen.findByText('No results yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create/ })).not.toBeInTheDocument();
+  });
+
+  it('shows no hours countdown and calls an open election Open', async () => {
+    const soon = new Date(Date.now() + 168 * 3_600_000).toISOString();
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'active', finalized_at: '2026-10-01T00:00:00Z', end_time: soon }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Open')).toBeInTheDocument();
+    expect(within(row).queryByText(/hours? remaining/)).not.toBeInTheDocument();
+  });
+
+  it('uses a styled file chooser that names the chosen file', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    const letter = await screen.findByLabelText(/Informative letter/);
+    expect(screen.getAllByText('No file selected').length).toBe(2);
+    fireEvent.change(letter, { target: { files: [new File(['x'], 'letter.pdf', { type: 'application/pdf' })] } });
+    expect(await screen.findByText('letter.pdf')).toBeInTheDocument();
+    expect(screen.queryByText(/PIO/)).not.toBeInTheDocument();
+  });
+});
+
 describe('ElectionPickerPage delete rules', () => {
   beforeEach(() => {
     vi.clearAllMocks();

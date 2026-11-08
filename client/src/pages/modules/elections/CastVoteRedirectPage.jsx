@@ -13,8 +13,28 @@ import { getElectionDetails, getElections } from '../../../services/electionServ
 const STATE_TONES = { open: 'success', voted: 'info', upcoming: 'warning', closed: 'neutral' };
 const STATE_ORDER = { open: 0, upcoming: 1, voted: 2, closed: 3 };
 
+const MANILA = 'Asia/Manila';
+
+function formatPart(value, options) {
+  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: MANILA }).format(new Date(value));
+}
+
+const formatDay = (value, withYear) => formatPart(value, { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
+const formatTime = (value) => formatPart(value, { hour: 'numeric', minute: '2-digit' });
+
 function formatWhen(value) {
-  return new Date(value).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `${formatDay(value)}, ${formatTime(value)}`;
+}
+
+// "Nov 7 to Nov 15, 2026, 7:00 PM" when voting opens and closes at the same time of day, otherwise
+// each end carries its own time. Same-day elections read "Nov 7, 2026, 7:00 AM to 5:00 PM".
+function formatSchedule(startValue, endValue) {
+  if (Number.isNaN(new Date(startValue).getTime()) || Number.isNaN(new Date(endValue).getTime())) return 'Schedule not set';
+  const sameDay = formatDay(startValue, true) === formatDay(endValue, true);
+  const sameTime = formatTime(startValue) === formatTime(endValue);
+  if (sameDay) return `${formatDay(startValue, true)}, ${formatTime(startValue)} to ${formatTime(endValue)}`;
+  if (sameTime) return `${formatDay(startValue)} to ${formatDay(endValue, true)}, ${formatTime(startValue)}`;
+  return `${formatWhen(startValue)} to ${formatDay(endValue, true)}, ${formatTime(endValue)}`;
 }
 
 function ElectionResultsLine({ election, role }) {
@@ -91,9 +111,6 @@ export default function CastVoteRedirectPage() {
       {!loading && !error && cards.length > 0 && (
         <section aria-label="Elections you can vote in" className="space-y-3">
           {cards.map(({ election, state }) => {
-            const start = new Date(election.start_time);
-            const end = new Date(election.end_time);
-            const durationMinutes = Math.max(0, Math.round((end - start) / 60000));
             return (
               <article key={election.id} className="rounded-card border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -101,8 +118,7 @@ export default function CastVoteRedirectPage() {
                   <StatusBadge label={state.label} tone={STATE_TONES[state.key]} />
                 </div>
                 <dl className="mt-2 space-y-1 text-sm text-ink-muted">
-                  <div className="flex gap-2"><dt className="sr-only">Date</dt><dd>{start.toLocaleDateString()}</dd></div>
-                  <div className="flex gap-2"><dt className="sr-only">Time and duration</dt><dd>{start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} to {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}, {durationMinutes} minutes</dd></div>
+                  <div className="flex gap-2"><dt className="sr-only">Voting period</dt><dd>{formatSchedule(election.start_time, election.end_time)}</dd></div>
                   <div className="flex gap-2"><dt className="sr-only">Room</dt><dd>{election.room || 'Online ballot'}</dd></div>
                 </dl>
                 <WhatNext election={election} state={state} />

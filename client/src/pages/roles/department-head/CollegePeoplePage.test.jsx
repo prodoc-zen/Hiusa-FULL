@@ -60,6 +60,18 @@ describe('College people page', () => {
     expect(people.getCollegePeople).toHaveBeenCalledTimes(2);
   });
 
+  it('prints a year level once, and has no Account column for a status the badge already says', async () => {
+    people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(key === 'students' ? [{ ...student, year_level: '4th Year' }, { ...unclaimed, year_level: '1' }] : byTab[key])));
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+
+    expect(screen.getAllByText('BSIT · 4th Year').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Year 4th Year/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('BSIT · Year 1').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: 'Account' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Account')).not.toBeInTheDocument();
+  });
+
   it('shows the error when a tab other than the first fails to load', async () => {
     renderPage();
     await screen.findAllByText('Ana Alvarez');
@@ -72,7 +84,7 @@ describe('College people page', () => {
     people.getCollegePeople.mockResolvedValue(pageOf([]));
     renderPage();
     expect(await screen.findByText('No students yet')).toBeInTheDocument();
-    tab('Organization leaders');
+    tab('Leaders');
     expect(await screen.findByText('No organization leaders yet')).toBeInTheDocument();
   });
 
@@ -103,7 +115,7 @@ describe('College people page', () => {
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
     expect(filled().map((button) => button.textContent)).toEqual(['Add staff']);
-    tab('Organization leaders');
+    tab('Leaders');
     await screen.findAllByText('Pia Perez');
     expect(filled()).toHaveLength(0);
   });
@@ -111,7 +123,7 @@ describe('College people page', () => {
   it('lists organization leaders with their organization and access', async () => {
     renderPage();
     await screen.findAllByText('Ana Alvarez');
-    tab('Organization leaders');
+    tab('Leaders');
     expect((await screen.findAllByText('Pia Perez')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
     expect(screen.getAllByText('President').length).toBeGreaterThan(0);

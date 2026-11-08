@@ -100,6 +100,27 @@ describe('ApplyOrganizationPage', () => {
     expect(screen.queryByText('You cannot apply yet')).not.toBeInTheDocument();
   });
 
+  it('says an applicant with earlier applications cannot apply for another yet', async () => {
+    mocks.getMyOrganizationApplications.mockResolvedValue(open({
+      can_apply: false,
+      applications: [{ id: 77, name: 'Chess Club', acronym: 'CHESS', status: 'returned', submitted_at: null }],
+    }));
+    renderPage();
+
+    expect(await screen.findByText('You cannot apply for another organization yet. Ask your Department Head to allow you.')).toBeInTheDocument();
+  });
+
+  it('keeps the earlier applications above the form when the student may apply again', async () => {
+    mocks.getMyOrganizationApplications.mockResolvedValue(open({
+      applications: [{ id: 77, name: 'Chess Club', acronym: 'CHESS', status: 'approved', submitted_at: null }],
+    }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Apply for another organization' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Chess Club/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Send application' })).toHaveLength(1);
+  });
+
   it('refuses a file of the wrong type before anything is sent', async () => {
     renderPage();
     await screen.findByLabelText(/Organization name/);

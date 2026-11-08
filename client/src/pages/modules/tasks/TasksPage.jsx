@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import RichTextEditor, { RichTextBody } from '../../../components/RichText';
+import { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { getTasks, createTask, deleteTask, previewTaskRecommendation, updateTask, updateTaskStatus } from '../../../services/taskService';
-import { Button, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, NextStep, PageHeader, SegmentedControl, Select, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { Button, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, NextStep, PageHeader, Select, SkeletonTable, StatusBadge, Textarea } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -51,12 +51,21 @@ function getDelegationDetail(source) {
   return { rankings, evaluations, weights, eligibilityRules, taskArea, engine, recommendedOfficerId };
 }
 
+// Weights arrive keyed "role"; on screen that reads as "position", as in the score breakdown.
 function formatWeightLabel(key) {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = key === 'role' ? 'position' : key.replace(/_/g, ' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function capitalize(s) {
-  return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
+  if (!s) return '-';
+  const text = String(s).replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// A score only counts as a reason when the server recorded it; a missing score is not zero.
+function hasScore(value) {
+  return value != null && value !== '' && Number.isFinite(Number(value));
 }
 
 function formatDate(d) {
@@ -418,7 +427,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     return acc;
   }, {});
   const scoredAssignments = allTasks
-    .filter((task) => task.assignee && Number.isFinite(Number(task.final_score)))
+    .filter((task) => task.assignee && hasScore(task.final_score))
     .sort((a, b) => Number(b.final_score) - Number(a.final_score))
     .slice(0, 5);
   const activeTaskFilters = [
@@ -473,7 +482,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     <Field label="Academic period" className="max-w-xs">
       <Select filter value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); closeDetails(); setPage(1); }}>
         <option value="">Active period</option>
-        {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
+        {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} semester · {period.status}</option>)}
       </Select>
     </Field>
   );
@@ -483,12 +492,8 @@ export default function TasksPage({ initialTab = 'board' }) {
       <PageHeader
         title={viewTitle ?? undefined}
         breadcrumbs={headerBreadcrumbs}
-        meta={canManageTasks && (activeTab === 'board' || activeTab === 'progress') ? (
-          <div role="group" aria-label="Task view">
-            <SegmentedControl options={[{ value: 'board', label: 'Board' }, { value: 'progress', label: 'Progress' }]} value={activeTab} onChange={showView} />
-          </div>
-        ) : undefined}
-        actions={activeTab === 'create' ? <Button variant="secondary" onClick={() => showView('board')}>Back to tasks</Button> : undefined}
+        actions={activeTab === 'create' || activeTab === 'progress' ? <Button variant="secondary" onClick={() => showView('board')}>Back to tasks</Button>
+          : activeTab === 'board' && canManageTasks ? <Button variant="secondary" onClick={() => showView('progress')}>Officer progress</Button> : undefined}
         primary={canManageTasks && !viewingHistory && (activeTab === 'board' || activeTab === 'progress') ? <Button leftIcon={Plus} onClick={() => showView('create')}>New task</Button> : undefined}
       />
       {periodSelect}
@@ -526,7 +531,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <Input type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value, assigned_to: '' }); setPreview(null); }} placeholder="e.g. Prepare election materials" />
             </Field>
             <Field label="Description" optional>
-              <RichTextEditor rows={5} value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="Describe the expected result, required materials, and completion criteria" />
+              <Textarea rows={4} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Expected result, materials and when it counts as done" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Assigned category" optional>
@@ -552,7 +557,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
               </Field>
               <Field label="Initial status">
-                <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="pending">Pending</option><option value="in_progress">In Progress</option></Select>
+                <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="pending">Pending</option><option value="in_progress">In progress</option></Select>
               </Field>
             </div>
             <div className="border-t border-line pt-5">
@@ -626,12 +631,11 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-ink">{formatDisplayText(t.title)}</h3><TaskStatus task={t} /></div>
                 {taskStepper(t)}
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-ink-muted">Assignee</dt><dd className="break-words font-medium text-ink">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}</dd></div><div><dt className="text-ink-muted">Deadline</dt><dd className="font-medium text-ink">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-ink-muted">Related event</dt><dd className="break-words font-medium text-ink">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
-                <div className="mt-3 h-1.5 overflow-hidden rounded bg-line" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded bg-brand-700" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs tabular-nums text-ink-muted">{t.progress_percent || 0}% complete</p>
                 <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)}>Reopen</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
               </li>)}
             </ul>
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[960px] text-left">
+              <table className="w-full min-w-[820px] text-left">
                 <caption className="sr-only">Tasks</caption>
                 <thead>
                   <tr>
@@ -639,7 +643,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <th scope="col" className="px-4 py-2.5">Assignee</th>
                     <th scope="col" className="px-4 py-2.5">Related event</th>
                     <th scope="col" className="px-4 py-2.5">Deadline</th>
-                    <th scope="col" className="px-4 py-2.5 text-right">Progress</th>
                     <th scope="col" className="px-4 py-2.5">Status</th>
                     <th scope="col" className="px-4 py-2.5 text-right">Actions</th>
                   </tr>
@@ -651,7 +654,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="px-4 py-2.5 text-ink">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}<p className="text-xs text-ink-muted">{formatDisplayText(t.assignee?.position_title) || t.assignee?.role?.replaceAll('_', ' ') || ''}</p></td>
                       <td className="px-4 py-2.5 text-ink">{formatDisplayText(t.event?.title) || ''}</td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-ink">{formatDate(t.deadline)}</td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink">{t.progress_percent || 0}%</td>
                       <td className="px-4 py-2.5">
                         <TaskStatus task={t} />
                         <div className="w-44">{taskStepper(t)}</div>
@@ -691,8 +693,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
       {activeTab === 'progress' && (
         <section>
-          <h2 className="text-base font-semibold text-ink">Officer Workload</h2>
-          <p className="mb-4 text-sm text-ink-muted">Completed and total tasks for each officer.</p>
+          <h2 className="mb-4 text-base font-semibold text-ink">Workload by officer</h2>
           {loading || !totalsLoaded ? (
             <SkeletonTable rows={3} columns={3} />
           ) : Object.keys(workloadByAssignee).length === 0 ? (
@@ -702,44 +703,42 @@ export default function TasksPage({ initialTab = 'board' }) {
               action={viewingHistory ? undefined : <Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
             />
           ) : (
-            <ul className="divide-y divide-line border-t border-line">
+            <div className="divide-y divide-line border-t border-line">
               {Object.values(workloadByAssignee).map((entry) => (
-                <li key={entry.user.school_id ?? entry.user.id} className="flex items-start gap-4 py-4">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">
-                    {entry.user.first_name?.[0]}{entry.user.last_name?.[0]}
+                <section key={entry.user.school_id ?? entry.user.id} className="py-4" aria-label={`${formatDisplayText(entry.user.first_name)} ${formatDisplayText(entry.user.last_name)}`}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-ink">{formatDisplayText(entry.user.first_name)} {formatDisplayText(entry.user.last_name)}</h3>
+                    <p className="text-sm tabular-nums text-ink-muted">{entry.completed} of {entry.total} done</p>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-ink">
-                        {formatDisplayText(entry.user.first_name)} {formatDisplayText(entry.user.last_name)}
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums text-ink">{entry.completed}/{entry.total}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded bg-line">
-                      <div
-                        className="h-full rounded bg-brand-600"
-                        style={{ width: `${entry.total > 0 ? (entry.completed / entry.total) * 100 : 0}%` }}
-                      />
-                    </div>
-                    <details className="mt-3 text-xs">
-                      <summary className="min-h-11 cursor-pointer py-2 font-medium text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-600">Show {entry.total} task{entry.total === 1 ? '' : 's'} and progress</summary>
-                      <ul className="pt-1">
-                        {entry.tasks.map((task) => <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft py-2"><span className="min-w-0 font-medium text-ink">{formatDisplayText(task.title)}</span><span className="tabular-nums text-ink-muted">{capitalize(task.status)} · {Number(task.progress_percent || 0)}%</span><Button variant="secondary" size="sm" onClick={() => openTaskDetails(task)}>View details</Button></li>)}
-                      </ul>
-                    </details>
-                  </div>
-                </li>
+                  <ul className="mt-2">
+                    {entry.tasks.map((task) => (
+                      <li key={task.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line-soft py-2 text-sm first:border-t-0">
+                        <span className="min-w-0 flex-1 font-medium text-ink">{formatDisplayText(task.title)}</span>
+                        <span className="tabular-nums text-ink-muted">{capitalize(task.status)}{task.status === 'in_progress' ? ` · ${Number(task.progress_percent || 0)}%` : ''}</span>
+                        <Button variant="secondary" size="sm" onClick={() => openTaskDetails(task)}>View details</Button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       )}
 
-      {activeTab === 'ai' && (
+      {activeTab === 'ai' && !canManageTasks && (
+        <EmptyState
+          title="Your Admin assigns tasks"
+          description="The Admin picks an officer when a task is created. Your own tasks are on My tasks."
+          action={<Button variant="secondary" onClick={() => navigate('/dashboard/tasks/assigned-tasks')}>Go to my tasks</Button>}
+        />
+      )}
+
+      {activeTab === 'ai' && canManageTasks && (
         <section className="grid gap-8 xl:grid-cols-[1.2fr_1fr]">
           <div>
-            <h2 className="text-base font-semibold text-ink">AI Task Suggestions</h2>
-            <p className="mb-4 text-sm text-ink-muted">How well each officer fits a task.</p>
+            <h2 className="text-base font-semibold text-ink">Suggested officers</h2>
+            <p className="mb-4 text-sm text-ink-muted">Recent tasks and the officer who fit best.</p>
 
             {activeDelegation?.rankings?.length > 0 && (
               <div className="mb-5">
@@ -759,7 +758,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   <div className="mt-3">
                     {activeDelegation.taskArea && (
                       <>
-                        <p className="text-xs text-ink-muted-strong">Inferred task area: <span className="text-ink">{activeDelegation.taskArea}</span></p>
+                        <p className="text-xs text-ink-muted-strong">Task area: <span className="text-ink">{activeDelegation.taskArea}</span></p>
                         {(activeDelegation.evaluations || []).some((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible') && (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {(activeDelegation.evaluations || []).filter((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible').map((ev) => (
@@ -809,7 +808,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             )}
 
             {scoredAssignments.length === 0 ? (
-              <EmptyState title="No suggestions yet" description="Create a task to see the officer recommendation and its score breakdown." />
+              <EmptyState title="No suggestions yet" description="Suggestions and their scores appear here after you create a task." />
             ) : (
               <ul className="divide-y divide-line border-t border-line">
                 {scoredAssignments.map((task) => (
@@ -822,10 +821,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <EngineBadge engine={(task.id === activeDelegation?.taskId ? activeDelegation.engine : null) || getDelegationDetail(task)?.engine || null} />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-ink-muted sm:grid-cols-4">
-                      <span>Role <strong className="block font-semibold tabular-nums text-ink">{Number(task.role_score).toFixed(2)}</strong></span>
-                      <span>Workload <strong className="block font-semibold tabular-nums text-ink">{Number(task.workload_score).toFixed(2)}</strong></span>
-                      <span>Performance <strong className="block font-semibold tabular-nums text-ink">{Number(task.performance_score).toFixed(2)}</strong></span>
-                      {task.recency_score != null && <span>Recency <strong className="block font-semibold tabular-nums text-ink">{Number(task.recency_score).toFixed(2)}</strong></span>}
+                      {[['Position', task.role_score], ['Workload', task.workload_score], ['Performance', task.performance_score], ['Recency', task.recency_score]]
+                        .filter(([, score]) => hasScore(score))
+                        .map(([label, score]) => <span key={label}>{label} <strong className="block font-semibold tabular-nums text-ink">{Number(score).toFixed(2)}</strong></span>)}
                     </div>
                     {task.ai_recommendation_note && <p className="mt-3 text-xs text-ink-muted">{task.ai_recommendation_note}</p>}
                   </li>
@@ -835,17 +833,17 @@ export default function TasksPage({ initialTab = 'board' }) {
           </div>
 
           <div>
-            <h3 className="text-base font-semibold text-ink">How officers are ranked</h3>
+            <h2 className="text-base font-semibold text-ink">How officers are ranked</h2>
             <ul className="mt-3 space-y-2">
               {(activeDelegation?.weights
                 ? [
-                  'Filters candidates to active, policy-eligible SBO Officers',
-                  ...Object.entries(activeDelegation.weights).map(([key, value]) => `Weighs ${formatWeightLabel(key)} at ${(Number(value) * 100).toFixed(0)}%`),
+                  'Only active officers with an assigned position are considered.',
+                  ...Object.entries(activeDelegation.weights).map(([key, value]) => `${formatWeightLabel(key)} counts for ${(Number(value) * 100).toFixed(0)}% of the score.`),
                 ]
                 : [
-                  'Filters candidates to active, policy-eligible SBO Officers',
-                  'Scores by position fit, current workload, and completed-versus-overdue performance',
-                  'Recommends the officer with the highest weighted fit score',
+                  'Only active officers with an assigned position are considered.',
+                  'Each officer is scored on position fit, current workload, and past completed and overdue tasks.',
+                  'The officer with the highest score is suggested. The Admin makes the final choice.',
                 ]
               ).map((item, i) => (
                 <li key={i} className="text-sm text-ink-muted-strong">{item}</li>
@@ -900,7 +898,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <div><dt className="text-xs text-ink-muted">Category</dt><dd className="mt-0.5 font-medium text-ink">{capitalize(selectedTask.category || 'coordination')}</dd></div>
               <div><dt className="text-xs text-ink-muted">Required position</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.preferred_role || 'Any eligible position'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Progress</dt><dd className="mt-0.5 font-medium tabular-nums text-ink">{selectedTask.progress_percent || 0}%</dd></div>
-              <div><dt className="text-xs text-ink-muted">Academic period</dt><dd className="mt-0.5 font-medium text-ink">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} Semester` : ''}</dd></div>
+              <div><dt className="text-xs text-ink-muted">Academic period</dt><dd className="mt-0.5 font-medium text-ink">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} semester` : ''}</dd></div>
               <div><dt className="text-xs text-ink-muted">Created</dt><dd className="mt-0.5 font-medium text-ink">{formatDate(selectedTask.created_at)}</dd></div>
               {selectedTask.completed_at && <div><dt className="text-xs text-ink-muted">Completed</dt><dd className="mt-0.5 font-medium text-ink">{formatDate(selectedTask.completed_at)}</dd></div>}
             </dl>
@@ -931,8 +929,8 @@ export default function TasksPage({ initialTab = 'board' }) {
             {canManageTasks && !viewingHistory && selectedTask.status === 'completed' && (
               <section className="border-t border-line pt-4">
                 <h3 className="text-sm font-semibold text-ink">Reopen task</h3>
-                <p className="mt-1 text-sm text-ink-muted">Reset this completed task to Not Started and clear its completion progress.</p>
-                <Button variant="secondary" className="mt-3" onClick={() => handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0)}>Set to Not Started</Button>
+                <p className="mt-1 text-sm text-ink-muted">Reset this completed task to not started and clear its completion progress.</p>
+                <Button variant="secondary" className="mt-3" onClick={() => handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0)}>Set to not started</Button>
               </section>
             )}
 
@@ -976,9 +974,9 @@ export default function TasksPage({ initialTab = 'board' }) {
               <Input data-autofocus value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} />
             </Field>
             <Field label="Description" optional className="sm:col-span-2">
-              <RichTextEditor rows={4} value={editForm.description} onChange={(description) => setEditForm({ ...editForm, description })} />
+              <Textarea rows={4} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} />
             </Field>
-            <Field label="Task type">
+            <Field label="Task type" optional>
               <Select value={editForm.task_kind} onChange={(event) => setEditForm({ ...editForm, task_kind: event.target.value, event_id: '' })}>
                 <option value="standalone">Standalone task</option>
                 <option value="event_related">Event-related task</option>

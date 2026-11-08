@@ -102,7 +102,7 @@ describe('SystemAdminsPage', () => {
     expect(serviceMocks.getSystemAdmins).toHaveBeenCalledWith(expect.objectContaining({ page: 2, per_page: 100 }));
     expect(serviceMocks.getSystemOrganizations).toHaveBeenCalledWith(expect.objectContaining({ page: 2, per_page: 100 }));
     expect(within(screen.getByLabelText('Filter by organization')).getByRole('option', { name: 'FAR: Far Club' })).toBeInTheDocument();
-    expect(screen.getByText('Total Admins').nextSibling).toHaveTextContent('2');
+    expect(screen.getByText(/^2 administrators, 2 active/)).toBeInTheDocument();
   });
 
   it('labels the last column Actions because it holds a menu, and lists each admin as a card on phones', async () => {
@@ -276,7 +276,7 @@ describe('SystemAdminsPage', () => {
       expect(screen.getByLabelText('Search administrators')).toHaveValue('Reyes');
       expect(screen.getByRole('dialog', { name: 'Edit administrator' })).toBeInTheDocument();
       expect(within(screen.getByRole('dialog', { name: 'Edit administrator' })).getByLabelText(/First name/i)).toHaveValue('Anita');
-      expect(screen.getByText('Total Admins').nextSibling).toHaveTextContent('2');
+      expect(screen.getByText(/^2 administrators, 2 active/)).toBeInTheDocument();
     });
 
     it('walks every page when it refreshes silently', async () => {

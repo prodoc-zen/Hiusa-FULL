@@ -62,17 +62,22 @@ describe('VenueCalendar', () => {
     expect(screen.getByText('October 2026')).toBeInTheDocument();
   });
 
-  it('lists a colour legend entry per venue in the week view, only while every venue is shown', () => {
+  it('keeps the legend to status words and leaves out venue colours', () => {
     renderCalendar();
-    const legend = within(screen.getByRole('list', { name: 'Venue colours' }));
-    expect(legend.getByText('Main Hall')).toBeInTheDocument();
-    expect(legend.getByText('Gym')).toBeInTheDocument();
-    expect(legend.queryByText('Old Annex')).not.toBeInTheDocument();
+    const legend = within(screen.getByLabelText('Legend'));
+    expect(legend.getByText('Approved')).toBeInTheDocument();
+    expect(legend.getByText('Pending')).toBeInTheDocument();
+    expect(legend.getByText('Conflict')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Venue colours' })).not.toBeInTheDocument();
   });
 
-  it('drops the venue legend once one venue is chosen', () => {
-    renderCalendar({ venueId: '8' });
-    expect(screen.queryByRole('list', { name: 'Venue colours' })).not.toBeInTheDocument();
+  it('puts the view, the stepper, the date and the venue in one toolbar row', () => {
+    renderCalendar();
+    const row = screen.getByRole('radiogroup').parentElement;
+    expect(row).toHaveClass('flex', 'flex-wrap');
+    ['Previous week', 'Today', 'Next week'].forEach((name) => expect(within(row).getByRole('button', { name })).toBeInTheDocument());
+    expect(within(row).getByLabelText('Jump to date')).toBeInTheDocument();
+    expect(within(row).getByRole('combobox', { name: 'Venue to show' })).toBeInTheDocument();
   });
 
   it('reports the chosen venue', () => {
@@ -199,6 +204,19 @@ describe('VenueCalendar', () => {
     it('scrolls inside its own labelled region', () => {
       renderMonth();
       expect(screen.getByRole('region', { name: /Month of bookings/ })).toHaveClass('overflow-x-auto', 'max-w-full');
+    });
+
+    it('shows a booking count per day on a phone and opens the day from it', () => {
+      vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+      try {
+        const { onChange } = renderMonth();
+        expect(screen.queryByRole('button', { name: /Approved booking/ })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Open Thursday, October 15, 5 bookings' }));
+        expect(onChange).toHaveBeenLastCalledWith({ view: 'day', anchor: '2026-10-15' });
+        expect(screen.getByRole('button', { name: 'Open Wednesday, October 7, 2 bookings' })).toBeInTheDocument();
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 });

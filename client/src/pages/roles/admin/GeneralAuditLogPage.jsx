@@ -155,10 +155,10 @@ export default function GeneralAuditLogPage() {
   ];
 
   const filterRow = (
-    <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end">
-      <div className="relative min-w-0 flex-1 lg:max-w-xs">
+    <div className="mb-4 grid grid-cols-2 gap-3 lg:flex lg:items-end">
+      <div className="relative col-span-2 min-w-0 lg:max-w-sm lg:flex-1">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
-        <Input aria-label="Search audit log" value={filters.search} onChange={(event) => update('search', event.target.value)} placeholder="Search actor, action, module, or record ID" className="pl-9" />
+        <Input aria-label="Search audit log" value={filters.search} onChange={(event) => update('search', event.target.value)} placeholder="Search actor, module or record" className="pl-9" />
       </div>
       <Select aria-label="Module" value={filters.module} onChange={(event) => update("module", event.target.value)} className="lg:w-44">
         <option value="">All modules</option>
@@ -168,14 +168,14 @@ export default function GeneralAuditLogPage() {
         <option value="">All actions</option>
         {ACTION_CATEGORY_OPTIONS.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
       </Select>
-      <Field label="From" className="lg:w-40">
-        <Input type="date" value={filters.from} onChange={(event) => update("from", event.target.value)} />
+      <Field label="From date" className="lg:w-40">
+        <Input type="date" aria-label="From date" value={filters.from} onChange={(event) => update("from", event.target.value)} />
       </Field>
-      <Field label="To" className="lg:w-40">
-        <Input type="date" value={filters.to} onChange={(event) => update("to", event.target.value)} />
+      <Field label="To date" className="lg:w-40">
+        <Input type="date" aria-label="To date" value={filters.to} onChange={(event) => update("to", event.target.value)} />
       </Field>
       {filtersActive && (
-        <button type="button" onClick={clearAuditFilters} className="min-h-11 self-start rounded-control px-1 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 lg:self-auto">Clear</button>
+        <button type="button" onClick={clearAuditFilters} className="col-span-2 min-h-11 self-start rounded-control px-1 text-left text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 lg:col-span-1 lg:self-auto">Clear</button>
       )}
     </div>
   );
@@ -183,7 +183,7 @@ export default function GeneralAuditLogPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        primary={<Button leftIcon={Download} onClick={handleExport} disabled={exporting || meta.total === 0}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>}
+        actions={<Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={exporting || meta.total === 0}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>}
       />
       <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
         <DataTable

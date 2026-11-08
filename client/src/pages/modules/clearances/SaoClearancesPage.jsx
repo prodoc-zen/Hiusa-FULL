@@ -125,7 +125,7 @@ export default function SaoClearancesPage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <p className="text-base font-semibold text-ink">{formatDisplayText(period.title)}</p>
-                    <p className="text-xs font-medium text-ink-muted">{period.academic_year} · Deadline {period.deadline_at ? manilaDate(period.deadline_at) : 'not set'}</p>
+                    <p className="text-xs text-ink-muted">{period.academic_year} · Deadline {period.deadline_at ? manilaDate(period.deadline_at) : 'not set'}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {period.required_roles.map((role) => <StatusBadge key={role} tone="neutral" label={humanizeRole(role)} />)}
                     </div>
@@ -134,7 +134,7 @@ export default function SaoClearancesPage() {
                     {stats ? (
                       <Meter value={stats.cleared} limit={stats.total} label="Students fully cleared" format={(value) => `${value}`} tone={stats.total > 0 && stats.cleared === stats.total ? 'success' : 'neutral'} />
                     ) : (
-                      <p className="text-xs font-medium text-ink-muted">Calculating progress</p>
+                      <p className="text-xs text-ink-muted">Calculating progress</p>
                     )}
                   </div>
                   <TableRowActions subject={formatDisplayText(period.title)} actions={[

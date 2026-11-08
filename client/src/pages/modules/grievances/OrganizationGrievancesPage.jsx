@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Card, DataTable, EmptyState, PageHeader, Select } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
@@ -8,8 +8,7 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import TableRowActions from '../../../components/TableRowActions';
-import { grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import { StatusCell, UrgencyCell } from './GrievanceCells';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUS_OPTIONS = [
@@ -77,29 +76,20 @@ export default function OrganizationGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => open(row)} className="text-left font-medium text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
           <span className="block text-xs font-normal text-ink-muted">{row.category}</span>
         </button>
       ),
     },
-    { key: 'urgency', header: 'Urgency', render: (row) => <StatusBadge tone={urgencyTone(row.urgency)} label={row.urgency} /> },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (row) => (
-        <div className="flex flex-col items-start gap-1">
-          <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
-          <span className="text-xs text-ink-muted-strong">{grievanceStageText(row)}</span>
-        </div>
-      ),
-    },
+    { key: 'urgency', header: 'Urgency', render: (row) => <UrgencyCell urgency={row.urgency} /> },
+    { key: 'status', header: 'Status', render: (row) => <StatusCell grievance={row} /> },
     {
       key: 'filer',
       header: 'Filed by',
       render: (row) => ('submitted_by' in row
         ? <span className="text-ink-muted">{row.submitter ? `${formatDisplayText(row.submitter.first_name)} ${formatDisplayText(row.submitter.last_name)}` : `Student ${row.submitted_by}`}</span>
-        : <StatusBadge tone="info" label="Confidential" />),
+        : <span className="text-ink-muted">Confidential</span>),
     },
     { key: 'created_at', header: 'Filed', render: (row) => <span className="text-ink-muted">{relativeTime(row.created_at)}</span> },
   ];
@@ -112,7 +102,7 @@ export default function OrganizationGrievancesPage() {
         <DataTable
           columns={columns}
           rows={rows}
-          actions={(row) => <TableRowActions subject={formatDisplayText(row.title)} actions={[{ label: 'View details', onClick: () => open(row) }]} />}
+          caption="Grievances addressed to your organization"
           loading={loading}
           error={error}
           onRetry={load}
@@ -130,7 +120,7 @@ export default function OrganizationGrievancesPage() {
                 </Select>
               </div>
               {filtersActive && (
-                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
               )}
               <p className="w-full text-xs tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>

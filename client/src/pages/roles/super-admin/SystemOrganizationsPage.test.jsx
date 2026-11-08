@@ -537,7 +537,8 @@ describe('SystemOrganizationsPage', () => {
       expect(await screen.findByRole('dialog', { name: 'Add administrator' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       const done = within(tableView()).getByText('Art Club').closest('tr');
-      expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(within(done).queryByText('Add the first Admin account')).not.toBeInTheDocument();
+      expect(within(done).queryByText(/administrator can sign in/)).not.toBeInTheDocument();
       fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
       expect(screen.queryByRole('menuitem', { name: 'Add first administrator' })).not.toBeInTheDocument();
     });

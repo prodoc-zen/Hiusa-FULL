@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Card, DataTable, EmptyState, PageHeader, Select } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
@@ -8,7 +8,8 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import { grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
+import { StatusCell, UrgencyCell } from './GrievanceCells';
+import { urgencyRank } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUSES = ['submitted', 'under_review', 'resolved', 'dismissed'];
@@ -101,23 +102,14 @@ export default function SaoGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => open(row)} className="text-left font-medium text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
           <span className="block text-xs font-normal text-ink-muted">{row.category} · {row.organization_id ? (formatDisplayText(row.organization?.name) || 'Organization') : 'Student Affairs Office'}</span>
         </button>
       ),
     },
-    { key: 'urgency', header: 'Urgency', sortable: true, render: (row) => <StatusBadge tone={urgencyTone(row.urgency)} label={row.urgency} /> },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (row) => (
-        <div className="flex flex-col items-start gap-1">
-          <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
-          <span className="text-xs text-ink-muted-strong">{grievanceStageText(row)}</span>
-        </div>
-      ),
-    },
+    { key: 'urgency', header: 'Urgency', sortable: true, render: (row) => <UrgencyCell urgency={row.urgency} /> },
+    { key: 'status', header: 'Status', render: (row) => <StatusCell grievance={row} /> },
     {
       key: 'filer',
       header: 'Filed by',
@@ -154,7 +146,7 @@ export default function SaoGrievancesPage() {
         <DataTable
           columns={columns}
           rows={sortedRows}
-          actions={(row) => <Button size="sm" variant="secondary" onClick={() => open(row)}>View details</Button>}
+          caption="Grievances, most urgent first"
           loading={loading}
           error={error}
           onRetry={load}
@@ -174,7 +166,7 @@ export default function SaoGrievancesPage() {
                 </Select>
               </div>
               {filtersActive && (
-                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
               )}
               <p className="w-full text-xs tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>

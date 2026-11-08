@@ -19,12 +19,17 @@ function getStoredUser() {
 
 function roleLabel(role) {
   return {
+    SUPER_ADMIN: 'Administrator',
     ADMIN: 'Admin',
     SBO_OFFICER: 'SBO Officer',
     STUDENT: 'Student',
     DEPARTMENT_HEAD: 'Department Head',
   }[role] || role || 'User';
 }
+
+// Each section is a heading column beside its content; they stack on narrow screens.
+const SECTION = 'grid gap-4 p-5 sm:p-6 lg:grid-cols-[14rem_1fr] lg:gap-8';
+const SECTION_TITLE = 'text-base font-semibold text-ink';
 
 // Field hands its id and aria props to its one child, so the eye button lives inside this wrapper.
 function PasswordInput({ visible, onToggle, toggleLabel, ...props }) {
@@ -63,7 +68,8 @@ export default function SettingsPage() {
   }, []);
 
   const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'User';
-  const organizationName = currentUser.organization?.name || currentUser.organization?.acronym || 'Selected organization';
+  const organizationName = currentUser.organization?.name || currentUser.organization?.acronym || '';
+  const roleTitle = currentUser.position_title ? formatDisplayText(currentUser.position_title) : roleLabel(currentUser.role);
   const schoolId = currentUser.school_id ? visibleSchoolId(currentUser.school_id) : (currentUser.id || 'N/A');
   const profileDirty = profileForm.first_name !== (currentUser.first_name || '')
     || profileForm.last_name !== (currentUser.last_name || '')
@@ -171,41 +177,39 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
-      <section className="rounded-card border border-line bg-surface p-5 sm:p-6" aria-labelledby="account-summary-title">
-        <h2 id="account-summary-title" className="text-base font-semibold text-ink">Your account</h2>
-        <dl className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-          <div className="min-w-0">
-            <dt className="text-xs text-ink-muted">Name</dt>
-            <dd className="mt-0.5 break-words font-medium text-ink">{fullName}</dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-xs text-ink-muted">Role</dt>
-            <dd className="mt-0.5 font-medium text-ink">{roleLabel(currentUser.role)}{currentUser.position_title ? `, ${formatDisplayText(currentUser.position_title)}` : ''}</dd>
-          </div>
-          {schoolId && (
+      <div className="divide-y divide-line rounded-card border border-line bg-surface">
+        <section className={SECTION} aria-labelledby="account-summary-title">
+          <h2 id="account-summary-title" className={SECTION_TITLE}>Your account</h2>
+          <dl className="grid max-w-xl gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
             <div className="min-w-0">
-              <dt className="text-xs text-ink-muted">School ID</dt>
-              <dd className="mt-0.5 break-words font-medium text-ink">{schoolId}</dd>
+              <dt className="text-xs text-ink-muted">Name</dt>
+              <dd className="mt-0.5 break-words font-medium text-ink">{fullName}</dd>
             </div>
-          )}
-          <div className="min-w-0">
-            <dt className="text-xs text-ink-muted">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'}</dt>
-            <dd className="mt-0.5 break-words font-medium text-ink">{organizationName}</dd>
-          </div>
-        </dl>
-      </section>
+            <div className="min-w-0">
+              <dt className="text-xs text-ink-muted">Role</dt>
+              <dd className="mt-0.5 break-words font-medium text-ink">{roleTitle}</dd>
+            </div>
+            {schoolId && (
+              <div className="min-w-0">
+                <dt className="text-xs text-ink-muted">School ID</dt>
+                <dd className="mt-0.5 break-words font-medium text-ink">{schoolId}</dd>
+              </div>
+            )}
+            {organizationName && (
+              <div className="min-w-0">
+                <dt className="text-xs text-ink-muted">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'}</dt>
+                <dd className="mt-0.5 break-words font-medium text-ink">{organizationName}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
 
-      <section className="rounded-card border border-line bg-surface" aria-labelledby="personal-information-title">
-        <div className="border-b border-line p-5 sm:p-6">
-          <h2 id="personal-information-title" className="text-base font-semibold text-ink">Personal information</h2>
-          <p className="mt-1 text-sm text-ink-muted">Your name and email show across your profiles.</p>
-        </div>
-
-        <form onSubmit={handleProfileSave} noValidate>
-          <div className="space-y-4 p-5 sm:p-6">
+        <section className={SECTION} aria-labelledby="personal-information-title">
+          <h2 id="personal-information-title" className={SECTION_TITLE}>Personal information</h2>
+          <form onSubmit={handleProfileSave} noValidate className="max-w-xl space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="First name" required>
                 <Input type="text" autoComplete="given-name" value={profileForm.first_name} onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })} />
@@ -221,24 +225,17 @@ export default function SettingsPage() {
               <Input type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={profileForm.contact_number} onChange={(event) => setProfileForm({ ...profileForm, contact_number: event.target.value })} placeholder="e.g. 0917 123 4567" />
             </Field>
             {profileError && <p role="alert" className="text-sm font-medium text-danger-strong">{profileError}</p>}
-          </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button variant="secondary" onClick={resetProfileForm} disabled={!profileDirty || profileSaving}>Discard changes</Button>
+              <Button type="submit" disabled={!profileDirty} loading={profileSaving}>Save profile</Button>
+            </div>
+          </form>
+        </section>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-line px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-            <Button variant="secondary" onClick={resetProfileForm} disabled={!profileDirty || profileSaving}>Discard changes</Button>
-            <Button type="submit" disabled={!profileDirty} loading={profileSaving}>Save profile</Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="rounded-card border border-line bg-surface" aria-labelledby="password-security-title">
-        <div className="border-b border-line p-5 sm:p-6">
-          <h2 id="password-security-title" className="text-base font-semibold text-ink">Password and security</h2>
-          <p className="mt-1 text-sm text-ink-muted">Enter your current password before choosing a new one.</p>
-        </div>
-
-        <form onSubmit={handlePasswordSave} noValidate>
-          <div className="space-y-4 p-5 sm:p-6">
-            <Field label="Current password" className="max-w-xl">
+        <section className={SECTION} aria-labelledby="password-security-title">
+          <h2 id="password-security-title" className={SECTION_TITLE}>Password and security</h2>
+          <form onSubmit={handlePasswordSave} noValidate className="max-w-xl space-y-4">
+            <Field label="Current password">
               <PasswordInput autoComplete="current-password" value={pwForm.current_password} onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })} visible={passwordVisibility.current} onToggle={() => togglePasswordVisibility('current')} toggleLabel={passwordVisibility.current ? 'Hide current password' : 'Show current password'} />
             </Field>
 
@@ -257,14 +254,14 @@ export default function SettingsPage() {
             </div>
 
             {pwError && <p role="alert" className="text-sm font-medium text-danger-strong">{pwError}</p>}
-          </div>
 
-          <div className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="text-xs text-ink-muted">Updating your password signs your other devices out. This one stays signed in.</p>
-            <Button type="submit" variant="secondary" loading={pwSaving}>Update password</Button>
-          </div>
-        </form>
-      </section>
+            <div className="space-y-2">
+              <Button type="submit" variant="secondary" loading={pwSaving}>Update password</Button>
+              <p className="text-xs text-ink-muted">Updating your password signs your other devices out. This one stays signed in.</p>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <NotificationPreferences />
 

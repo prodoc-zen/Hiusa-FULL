@@ -43,13 +43,37 @@ describe('CreateAnnouncementPage', () => {
     expect(screen.getByLabelText('Category')).toBeInTheDocument();
     expect(screen.getByText('Publishing settings')).toBeInTheDocument();
     expect(await screen.findByText('17 of 20 drafts left today')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Publish now' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish now' })).toBeEnabled();
+
+    // An incomplete form says what is missing beside each field and opens no dialog.
+    fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
+    expect(screen.getByText('Enter a title.')).toBeInTheDocument();
+    expect(screen.getByText('Write the announcement text.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Add a title and content to continue/)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
     fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
 
-    expect(screen.getByRole('button', { name: 'Publish now' })).toBeEnabled();
+    expect(screen.queryByText('Enter a title.')).not.toBeInTheDocument();
     expect(screen.getByText('24 characters')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('words the request route as a request for an Officer and as a new announcement for an Admin', () => {
+    signInAs('SBO_OFFICER');
+    const view = render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/announcement']}><CreateAnnouncementPage /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Announcement request' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
+    expect(screen.queryByText(/Publish now|without notifying/)).not.toBeInTheDocument();
+    view.unmount();
+    signInAs('ADMIN');
+    render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/announcement']}><CreateAnnouncementPage /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1, name: 'New announcement' })).toBeInTheDocument();
+    expect(screen.queryByText('Announcement request')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit for approval' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish now' })).toBeInTheDocument();
   });
 
   it('tells an Officer the announcement goes to the Admin for approval before members see it', async () => {

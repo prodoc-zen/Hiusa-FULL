@@ -24,6 +24,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { isReturned, withApprovalState } from '../../../components/elections/electionFlow';
 import { electionLifecycle } from '../../../lib/lifecycle';
+import { canViewElectionResults } from '../../../utils/electionAccess';
 import FeedbackToast from '../../../components/FeedbackToast';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
@@ -42,13 +43,12 @@ const statusTones = {
 const statusLabels = {
   pending_approval: 'Pending approval',
   upcoming: 'Upcoming',
-  active: 'Live',
+  active: 'Open',
   closed: 'Closed',
 };
 
-const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'PIO'];
+const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'Public Information Officer'];
 
-const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
 
 const blankElection = () => ({
@@ -63,17 +63,6 @@ function formatDateTime(value) {
   });
 }
 
-function formatTimeline(election) {
-  const now = Date.now();
-  const start = new Date(election.start_time).getTime();
-  const end = new Date(election.end_time).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return 'Schedule unavailable';
-  const hours = Math.max(1, Math.ceil(((election.status === 'active' ? end - now : start - now) / 3_600_000)));
-  if (election.status === 'active') return `${hours} hour${hours === 1 ? '' : 's'} remaining`;
-  if (election.status === 'upcoming') return `Starts in ${hours} hour${hours === 1 ? '' : 's'}`;
-  return `Ended ${new Date(end).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`;
-}
-
 function getVotingPeriodError(startTime, endTime) {
   if (!startTime || !endTime) return 'Set both the voting start and end time.';
   const start = new Date(startTime).getTime();
@@ -86,6 +75,25 @@ function getVotingPeriodError(startTime, endTime) {
 function getElectionVoteCount(election) {
   const count = Number(election?.votes_count ?? election?.votes?.length ?? 0);
   return Number.isFinite(count) ? count : 0;
+}
+
+// The Hub passes the screen the Admin or officer came from. Only the Elections screen manages
+// elections; the others are a chooser for the screen they asked for.
+const MODE_HEADERS = {
+  candidates: { title: 'Choose an election', description: 'Pick the election whose candidates you want to manage.' },
+  partylists: { title: 'Choose an election', description: 'Pick the election whose party lists you want to manage.' },
+  voters: { title: 'Choose an election', description: 'Pick the election whose voters you want to review.' },
+  results: { title: 'Election results' },
+};
+
+function FileInput({ id, file, buttonLabel, className = '', ...props }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+      <input id={id} type="file" className="peer sr-only" {...props} />
+      <label htmlFor={id} className="inline-flex h-10 cursor-pointer items-center rounded-control border border-line bg-surface px-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-subtle peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600">{file ? 'Choose another file' : buttonLabel}</label>
+      <span className="min-w-0 truncate text-sm text-ink-muted">{file ? file.name : 'No file selected'}</span>
+    </div>
+  );
 }
 
 function ElectionArtworkField({ id, file, existingUrl = '', onChange, onRemove }) {
@@ -105,7 +113,7 @@ function ElectionArtworkField({ id, file, existingUrl = '', onChange, onRemove }
     <div className="space-y-2">
       {preview && <img src={preview} alt="Election artwork preview" className="aspect-video w-48 rounded-control border border-line object-cover" />}
       <Field label="Election artwork" optional hint="A wide JPG, PNG or WebP image up to 5 MB. A 16:9 image works best.">
-        <input id={id} type="file" accept="image/jpeg,image/png,image/webp" className={FILE_INPUT} onChange={(event) => onChange(event.target.files?.[0] || null)} />
+        <FileInput id={id} file={file} buttonLabel="Choose image" accept="image/jpeg,image/png,image/webp" onChange={(event) => onChange(event.target.files?.[0] || null)} />
       </Field>
       {preview && onRemove && <button type="button" onClick={onRemove} className="rounded-control text-sm font-medium text-danger-strong underline underline-offset-2 hover:text-danger">Remove artwork</button>}
     </div>
@@ -127,7 +135,7 @@ function ElectionFormFields({ form, setForm, editing = false }) {
       />
       {!editing && (
         <Field label="Informative letter (PDF)" required hint="Attach it before submitting for approval. Maximum 10 MB.">
-          <input type="file" accept="application/pdf,.pdf" onChange={(event) => update({ informativeLetterFile: event.target.files?.[0] || null })} className={FILE_INPUT} />
+          <FileInput file={form.informativeLetterFile} buttonLabel="Choose PDF" accept="application/pdf,.pdf" onChange={(event) => update({ informativeLetterFile: event.target.files?.[0] || null })} />
         </Field>
       )}
       <Field label="Election title" required>
@@ -174,17 +182,19 @@ function ElectionFormFields({ form, setForm, editing = false }) {
               Add executive positions
             </Button>
           </div>
-          <p className="mt-1 text-xs text-ink-muted">President through PIO. You can still add or edit other positions above.</p>
+          <p className="mt-1 text-xs text-ink-muted">Adds President, Vice President, Secretary, Treasurer, Auditor, Business Manager and Public Information Officer.</p>
         </fieldset>
       )}
     </div>
   );
 }
 
-export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null }) {
+export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null, mode = 'manage' }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const canManageElections = currentUser?.role === 'ADMIN';
+  const managing = mode === 'manage';
+  const showingResults = mode === 'results';
   const [elections, setElections] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -223,10 +233,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     }
   }, [canManageElections, startCreate]);
 
+  const listedElections = useMemo(() => (showingResults ? elections.filter((election) => canViewElectionResults(election, currentUser?.role)) : elections), [elections, showingResults, currentUser?.role]);
+
   const filteredElections = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    return elections.filter((election) => matchesFilter(statusFilter, election.status) && (!query || String(election.title || '').toLowerCase().includes(query)));
-  }, [elections, searchTerm, statusFilter]);
+    return listedElections.filter((election) => matchesFilter(statusFilter, election.status) && (!query || String(election.title || '').toLowerCase().includes(query)));
+  }, [listedElections, searchTerm, statusFilter]);
   const filtersActive = Boolean(searchTerm.trim()) || statusFilter !== 'all';
   const clearFilters = () => { setSearchTerm(''); setStatusFilter('all'); };
 
@@ -318,7 +330,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'closed') },
     ].filter(Boolean);
   };
-  const hasRowActions = elections.some((election) => rowActions(election).length > 0);
+  const hasRowActions = managing && elections.some((election) => rowActions(election).length > 0);
 
   const columns = [
     {
@@ -330,7 +342,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
         return (
           <div className="min-w-0 text-left">
             <button type="button" onClick={() => onSelect?.(election.id)} className="min-h-10 rounded-control text-left text-sm font-semibold text-brand-700 underline-offset-2 hover:text-brand-800 hover:underline">{formatDisplayText(election.title)}</button>
-            <p className="text-xs text-ink-muted">Next: {lifecycle.nextAction.title}</p>
+            {managing && <p className="text-xs text-ink-muted">Next: {lifecycle.nextAction.title}</p>}
             {returned && election.approval_remarks && <p className="text-xs text-danger-strong">Reason: {election.approval_remarks}</p>}
           </div>
         );
@@ -342,10 +354,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       render: (election) => {
         const returned = isReturned(election);
         return (
-          <div className="flex flex-col items-start gap-1">
-            <StatusBadge tone={returned ? 'danger' : statusTones[election.status] || 'neutral'} label={returned ? 'Returned' : statusLabels[election.status] || election.status} />
-            {election.status !== 'pending_approval' && <span className="text-xs text-ink-muted">{formatTimeline(election)}</span>}
-          </div>
+          <StatusBadge tone={returned ? 'danger' : statusTones[election.status] || 'neutral'} label={returned ? 'Returned' : statusLabels[election.status] || election.status} />
         );
       },
     },
@@ -360,43 +369,43 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
         </div>
       ),
     },
-    { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
-    { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
-    { key: 'votes_count', header: 'Votes', align: 'right', render: (election) => getElectionVoteCount(election) },
   ];
+  const countColumns = {
+    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
+    candidates_count: { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
+    votes_count: { key: 'votes_count', header: 'Votes', align: 'right', render: (election) => getElectionVoteCount(election) },
+  };
+  const shownCounts = { manage: ['positions_count', 'candidates_count', 'votes_count'], candidates: ['candidates_count'], partylists: [], voters: ['votes_count'], results: ['votes_count'] }[mode] || [];
+  columns.push(...shownCounts.map((key) => countColumns[key]));
 
-  const filters = (academicPeriods.length > 0 || elections.length > 0) && (
-    <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_16rem_12rem_auto] lg:items-end">
-      {elections.length > 0 && (
-        <Field label="Search elections">
-          <Input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Election title" />
-        </Field>
-      )}
+  const filters = (academicPeriods.length > 0 || listedElections.length > 0) && (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      {listedElections.length > 0 && <Input type="search" className="sm:max-w-xs" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} aria-label="Search elections" placeholder="Search elections" />}
       {academicPeriods.length > 0 && (
-        <Field label="Academic period">
-          <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            <option value="">Active period</option>
-            {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label}, {period.number === 1 ? '1st' : '2nd'} semester, {period.status}</option>)}
-          </HiusaSelect>
-        </Field>
+        <HiusaSelect filter className="w-full sm:w-64" aria-label="Academic period" value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+          <option value="">Active period</option>
+          {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label}, {period.number === 1 ? '1st' : '2nd'} semester, {period.status}</option>)}
+        </HiusaSelect>
       )}
-      {elections.length > 0 && (
-        <Field label="Status">
-          <HiusaSelect filter value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="all">All statuses</option>
-            <option value="pending_approval">Pending approval</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="active">Live</option>
-            <option value="closed">Closed</option>
-          </HiusaSelect>
-        </Field>
+      {listedElections.length > 0 && (
+        <HiusaSelect filter className="w-full sm:w-48" aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="all">All statuses</option>
+          <option value="pending_approval">Pending approval</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="active">Open</option>
+          <option value="closed">Closed</option>
+        </HiusaSelect>
       )}
-      {filtersActive && <button type="button" onClick={clearFilters} className="min-h-10 self-end rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+      {filtersActive && <button type="button" onClick={clearFilters} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
     </div>
   );
 
   let firstRunState;
-  if (canManageElections && !viewingHistory) {
+  if (showingResults) {
+    firstRunState = <EmptyState icon={Vote} title="No results yet" description="Totals appear once an election is open for voting." />;
+  } else if (!managing && canManageElections && !viewingHistory) {
+    firstRunState = <EmptyState icon={Vote} title="No elections yet" description="Create an election first." action={<Button variant="secondary" to="/dashboard/elections/manage-elections">Go to elections</Button>} />;
+  } else if (canManageElections && !viewingHistory) {
     firstRunState = <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />;
   } else if (canManageElections) {
     firstRunState = <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />;
@@ -428,7 +437,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   return (
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-      <PageHeader primary={canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
+      <PageHeader {...MODE_HEADERS[mode]} primary={managing && canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
       {viewingHistory && <p className="text-sm text-ink-muted">Completed semester elections are available for viewing only.</p>}
       {actionError && <p role="alert" className={ALERT}>{actionError}</p>}
 
@@ -442,7 +451,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
         filters={filters || null}
         filtersActive={filtersActive}
         onClearFilters={clearFilters}
-        emptyState={elections.length > 0 ? <EmptyState kind="filtered" title="No elections match" description="Try another search or status." onClearFilters={clearFilters} /> : firstRunState}
+        emptyState={listedElections.length > 0 ? <EmptyState kind="filtered" title="No elections match" description="Try another search or status." onClearFilters={clearFilters} /> : firstRunState}
         actions={hasRowActions ? (election) => {
           const actions = rowActions(election);
           return actions.length > 0 ? <TableRowActions subject={formatDisplayText(election.title)} actions={actions} /> : null;

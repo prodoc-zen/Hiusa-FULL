@@ -262,9 +262,13 @@ export default function RecordsPage({ role = getStoredRole() }) {
     return (
       <div className="flex flex-col gap-6">
         {header}
-        <Card>
-          <EmptyState title="No school year records yet" description="Records appear here once a semester has started." />
-        </Card>
+        <EmptyState
+          title="No school year records yet"
+          description={role === 'SUPER_ADMIN'
+            ? 'Start a semester under Academic years and its records will show here.'
+            : 'Records show here after the university administrator starts a semester.'}
+          action={role === 'SUPER_ADMIN' ? <Button to="/dashboard/super-admin/academic-years">Open academic years</Button> : null}
+        />
       </div>
     );
   }
@@ -300,7 +304,7 @@ export default function RecordsPage({ role = getStoredRole() }) {
           {organization ? (
             <OrganizationRecords organization={organization} onOpen={openFile} />
           ) : (
-            <Card><EmptyState title="Choose an organization" description="Pick one from the list to see its records for this period." /></Card>
+            <EmptyState title="Choose an organization" description="Pick one from the list to see its records for this period." />
           )}
         </div>
       </div>

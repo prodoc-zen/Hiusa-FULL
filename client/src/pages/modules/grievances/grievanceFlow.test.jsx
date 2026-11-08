@@ -66,7 +66,7 @@ describe('grievance lists and details', () => {
 
   it('prints the same stage sentence on the student row and the SAO row', async () => {
     const student = renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     expect(await screen.findByText('Waiting for SAO to review')).toBeInTheDocument();
     student.unmount();
 
@@ -77,7 +77,7 @@ describe('grievance lists and details', () => {
 
   it('shows the student one step per stage with the current one marked', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     const stepper = await screen.findByRole('progressbar', { name: 'Progress of Noisy Lab' });
     expect(stepper).toHaveAttribute('aria-valuemax', '3');
     expect(stepper).toHaveAttribute('aria-valuetext', expect.stringContaining('Under review'));
@@ -86,7 +86,7 @@ describe('grievance lists and details', () => {
   it('opens the student on their own list with the named grievance when ?record= is set', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([TO_ORG, TO_SAO]));
     renderAt('/dashboard/my-grievances?record=2', <StudentGrievancesPage />);
-    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('My grievances');
+    expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('Filed grievances');
     await waitFor(() => expect(document.getElementById('grievance-2')).not.toBeNull());
     expect(mocks.notifyError).not.toHaveBeenCalled();
   });
@@ -99,7 +99,7 @@ describe('grievance lists and details', () => {
   it('gives the student a first-run state with the button to file one', async () => {
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Filed grievances' }));
     expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
     expect(screen.getByText('File one here and follow its status on this page.')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button', { name: 'File a grievance' });
@@ -110,7 +110,7 @@ describe('grievance lists and details', () => {
 
   it('puts the one primary File a grievance button in the header once there are rows', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
-    fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     await screen.findByText('Noisy Lab');
     expect(screen.getAllByRole('button', { name: 'File a grievance' })).toHaveLength(1);
   });

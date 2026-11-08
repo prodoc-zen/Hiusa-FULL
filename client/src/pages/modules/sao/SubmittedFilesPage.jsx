@@ -110,11 +110,11 @@ export default function SubmittedFilesPage({ role }) {
         <div>
           <table className={TABLE}>
             <caption className="sr-only">Submitted files and their review status</caption>
-            <thead className={THEAD}><tr><th scope="col" className={TH}>File</th><th scope="col" className={TH}>Organization</th><th scope="col" className={TH}>Type</th><th scope="col" className={TH}>Submitted</th><th scope="col" className={TH}>Status</th><th scope="col" className={`${TH} text-right`}>Actions</th></tr></thead>
+            <thead className={THEAD}><tr><th scope="col" className={TH}>File</th>{!canManage && <th scope="col" className={TH}>Organization</th>}<th scope="col" className={TH}>Type</th><th scope="col" className={TH}>Submitted</th><th scope="col" className={TH}>Status</th><th scope="col" className={`${TH} text-right`}>Actions</th></tr></thead>
             <tbody className={TBODY}>
               {state.rows.map((row) => <tr key={`${row.source}-${row.id}`} className={TR}>
-                <td data-label="File" className={`${TD} max-w-xs`}><div><span className="block break-words font-medium text-ink">{row.file_name}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></div></td>
-                <td data-label="Organization" className={`${TD} text-ink-muted-strong`}>{row.organization?.name}</td>
+                <td data-label="File" className={`${TD} md:max-w-md`}><div><span className="block break-words font-medium text-ink">{row.file_name}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></div></td>
+                {!canManage && <td data-label="Organization" className={`${TD} text-ink-muted-strong`}>{row.organization?.name}</td>}
                 <td data-label="Type" className={`${TD} text-ink-muted-strong`}>{LABELS[row.family] || row.family}</td>
                 <td data-label="Submitted" className={`${TD} text-ink-muted-strong`}>{row.submitted_at ? manilaDate(row.submitted_at, 'long') : ''}</td>
                 <td data-label="Status" className={TD}><StatusBadge status={row.status} /></td>

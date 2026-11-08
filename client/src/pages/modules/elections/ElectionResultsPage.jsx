@@ -100,7 +100,7 @@ export default function ElectionResultsPage() {
         <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Live totals. They update while voting is open, and winners are declared after closing.'}</p>
         <dl className="flex gap-8">
           <div><dt className="text-xs text-ink-muted">Ballots</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.voters}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Selections</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>
+          <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>
         </dl>
       </div>
 

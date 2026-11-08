@@ -7,6 +7,16 @@ import CastVoteRedirectPage from './CastVoteRedirectPage';
 import { getElectionDetails } from '../../../services/electionService';
 import useRecordParam from '../../../lib/useRecordParam';
 
+// The picker is the same list for every election screen, so it is told which screen the user asked
+// for. Only the Elections screen manages elections.
+function pickerMode(pathname) {
+  if (pathname.endsWith('/manage-candidates')) return 'candidates';
+  if (pathname.endsWith('/manage-partylists')) return 'partylists';
+  if (pathname.endsWith('/manage-voters')) return 'voters';
+  if (pathname.endsWith('/election-results')) return 'results';
+  return 'manage';
+}
+
 export default function ElectionsHub({ startCreateElection = false }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -134,7 +144,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
   }
 
   if (!activeElection) {
-    return <ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} editElectionId={editElectionId} onEditClosed={handleEditClosed} />;
+    return <ElectionPickerPage mode={pickerMode(location.pathname)} onSelect={handleSelect} startCreate={startCreateElection} editElectionId={editElectionId} onEditClosed={handleEditClosed} />;
   }
 
   return (

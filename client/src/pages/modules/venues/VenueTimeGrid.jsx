@@ -1,6 +1,6 @@
 import { CLOSE_HOUR, OPEN_HOUR } from './VenueAvailabilityTimeline';
 import {
-  ConflictBadge, HOUR_PX, describe, hourLabel, layoutColumn, shortRange, spanOf, statusStyle, venueColor,
+  ConflictBadge, HOUR_PX, describe, hourLabel, layoutColumn, shortRange, spanOf, statusStyle,
 } from './calendarParts';
 
 // One time-blocked column per entry in `columns`: a day in the week view, a venue lane in the day view.
@@ -52,10 +52,9 @@ export default function VenueTimeGrid({ columns, conflictIds, showVenue, onSelec
                   type="button"
                   aria-label={describe(slot, conflict)}
                   onClick={() => onSelect(slot)}
-                  className={`absolute overflow-hidden rounded border text-left text-xs leading-4 outline-none focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${showVenue ? 'pl-2.5 pr-1' : 'px-1.5'} ${status.block}`}
+                  className={`absolute overflow-hidden rounded border text-left text-xs leading-4 outline-none focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent px-1.5 ${status.block}`}
                   style={{ top: `${(start - openHour) * HOUR_PX}px`, height: `${Math.max((end - start) * HOUR_PX, 22) - 2}px`, left: `calc(${(lane / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
                 >
-                  {showVenue && <span data-venue-swatch className={`absolute inset-y-0 left-0 w-1.5 ${venueColor(slot.venue_id)}`} aria-hidden="true" />}
                   <span className="flex items-start gap-1 break-words font-semibold"><StatusIcon size={12} className="mt-1 shrink-0" aria-hidden="true" /><span className="min-w-0">{status.label}, {shortRange(slot.start_time, slot.end_time).replace(/ /g, ' ')}</span></span>
                   {conflict && <ConflictBadge className="my-0.5" />}
                   <span className="block break-words font-semibold">{slot.reserved_by}</span>

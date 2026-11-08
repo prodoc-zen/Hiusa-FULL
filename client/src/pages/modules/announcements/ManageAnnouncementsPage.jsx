@@ -1,12 +1,10 @@
 import HiusaSelect from '../../../components/ui/Select';
-import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Megaphone, Pencil, Plus, Send, Trash2 } from 'lucide-react';
-import { AnnouncementStageChip, Badge, announcementStage } from './announcementShared.jsx';
-import { Button, Drawer, EmptyState, ErrorState, Field, Input, NextStep, PageHeader, Skeleton } from '../../../components/ui';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Megaphone, Pencil, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { AnnouncementStageChip, announcementStage } from './announcementShared.jsx';
+import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, Input, NextStep, PageHeader } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
-import TableFilterBar from '../../../components/TableFilterBar';
 import TableRowActions from '../../../components/TableRowActions';
 import {
   getAnnouncements,
@@ -16,7 +14,6 @@ import {
 } from '../../../services/announcementService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
-import { resolveAssetUrl } from '../../../utils/assetUrl';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
@@ -95,7 +92,6 @@ export default function ManageAnnouncementsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [details, setDetails] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
@@ -146,11 +142,7 @@ export default function ManageAnnouncementsPage() {
 
   useEffect(() => { setPage(1); }, [categoryFilter, statusFilter, search]);
 
-  const activeAnnouncementFilters = [
-    search.trim() && `Search: ${search.trim()}`,
-    categoryFilter !== 'all' && `Category: ${filterLabel(categoryFilter, (value) => CATEGORY_LABEL[value] || value)}`,
-    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter, (value) => value === 'draft' ? 'Unpublished or draft' : 'Published')}`,
-  ].filter(Boolean);
+  const hasFilters = Boolean(search.trim()) || categoryFilter !== 'all' || statusFilter !== 'all';
 
   const clearAnnouncementFilters = () => {
     setSearch('');
@@ -188,6 +180,7 @@ export default function ManageAnnouncementsPage() {
 
   function openEdit(announcement) {
     setActionError('');
+    setDetails(null);
     setEditing(announcement);
     setEditForm({
       title: announcement.title || '',
@@ -213,7 +206,12 @@ export default function ManageAnnouncementsPage() {
   }
 
   function askPublish(announcement) {
+    setDetails(null);
     setConfirmState({ open: true, title: announcement.is_published ? 'Unpublish announcement' : 'Publish announcement', message: `${announcement.is_published ? 'Unpublish' : 'Publish'} ${announcement.title}?`, confirmText: announcement.is_published ? 'Unpublish' : 'Publish', action: async () => handleToggle(announcement.id), busy: false });
+  }
+
+  function canModify(announcement) {
+    return announcement.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(announcement.created_by) === Number(currentUserId));
   }
 
   function nextStepFor(announcement, canModify) {
@@ -243,22 +241,20 @@ export default function ManageAnnouncementsPage() {
 
   const header = (
     <PageHeader
-      purpose={currentRole === 'SBO_OFFICER' ? 'Post updates for your organization. Each one goes to the Admin for approval before it is published.' : undefined}
-      meta={currentRole === 'SBO_OFFICER' ? <Badge color="yellow">Needs Admin approval</Badge> : undefined}
+      purpose={currentRole === 'SBO_OFFICER' ? 'Each announcement goes to the Admin for approval before it is published.' : undefined}
+      actions={<Button variant="secondary" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>}
       primary={<Button to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
     />
   );
 
-  if (loading) {
-    return (
-      <div className="space-y-5">
-        {header}
-        <div className="space-y-3 rounded-card border border-line bg-surface p-5" role="status" aria-label="Loading announcements">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
-        </div>
-      </div>
-    );
-  }
+  const filters = (
+    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <label className="relative min-w-0 sm:max-w-sm sm:flex-1"><span className="sr-only">Search announcements</span><Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-ink-muted" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, content, or author" className="pl-9" /></label>
+      <HiusaSelect filter aria-label="Category" className="sm:w-48" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
+      <HiusaSelect filter aria-label="Publication state" className="sm:w-48" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All states</option><option value="published">Published</option><option value="draft">Not published</option></HiusaSelect>
+      {hasFilters && items.length > 0 && <button type="button" onClick={clearAnnouncementFilters} className="inline-flex min-h-10 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+    </div>
+  );
 
   if (error) {
     return (
@@ -269,84 +265,58 @@ export default function ManageAnnouncementsPage() {
     );
   }
 
+  const columns = [
+    {
+      key: 'title',
+      header: 'Title',
+      render: (a) => (
+        <div className="min-w-0">
+          <button type="button" onClick={() => setDetails(a)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button>
+          {announcementStage(a).key !== 'published' && <div className="mt-0.5"><AnnouncementStageChip announcement={a} /></div>}
+        </div>
+      ),
+    },
+    { key: 'audience', header: 'Audience', render: (a) => ROLE_LABEL[a.target_role] || a.target_role },
+    { key: 'date', header: 'Date', render: (a) => new Date(a.published_at || a.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' }) },
+  ];
+
+  const emptyState = hasFilters
+    ? <EmptyState kind="filtered" title="No announcements match these filters" onClearFilters={clearAnnouncementFilters} />
+    : (
+      <EmptyState
+        icon={Megaphone}
+        title="No announcements yet"
+        description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
+        action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
+      />
+    );
+
   return (
     <div className="space-y-5">
       {header}
-      <div className="rounded-card border border-line bg-surface">
-        {actionError && !confirmState.open && !editing && <p role="alert" className="m-4 text-sm font-medium text-danger-strong">{actionError}</p>}
-        {actionMessage && <p role="status" className="m-4 text-sm font-medium text-success-strong">{actionMessage}</p>}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
-          <h2 className="text-base font-semibold text-ink">Announcement list</h2>
-          <Button variant="secondary" size="sm" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-        </div>
-        <div className="mt-3">
-          <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2">
-            <HiusaSelect filter aria-label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
-            <HiusaSelect filter aria-label="Publication state" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished or draft</option></HiusaSelect>
-          </TableFilterBar>
-        </div>
-        {items.length === 0 ? (activeAnnouncementFilters.length > 0
-          ? <EmptyState className="px-5" kind="filtered" title="No announcements match these filters" onClearFilters={clearAnnouncementFilters} />
-          : <EmptyState
-            className="px-5"
-            icon={Megaphone}
-            title="No announcements yet"
-            description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
-            action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
-          />) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm sm:min-w-[580px]">
-              <caption className="sr-only">Announcements</caption>
-              <thead className="bg-subtle"><tr><th scope="col" className="px-2 py-2.5 text-xs font-semibold text-ink-muted sm:px-4">Title</th><th scope="col" className="px-2 py-2.5 text-xs font-semibold text-ink-muted sm:px-4">Status</th><th scope="col" className="hidden px-4 py-2.5 text-xs font-semibold text-ink-muted sm:table-cell">Audience</th><th scope="col" className="hidden px-4 py-2.5 text-right text-xs font-semibold text-ink-muted sm:table-cell">Views</th><th scope="col" className="px-2 py-2.5 text-right text-xs font-semibold text-ink-muted sm:px-4">Actions</th></tr></thead>
-              <tbody className="divide-y divide-line">{items.map((a) => {
-                const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
-                const canPublish = canModify && currentRole === 'ADMIN';
-                const isExpanded = expandedId === a.id;
-                return (
-                  <Fragment key={a.id}>
-                    <tr className="hover:bg-subtle">
-                      <td className="px-2 py-2.5 sm:px-4"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button></td>
-                      <td className="px-2 py-2.5 sm:px-4"><AnnouncementStageChip announcement={a} /></td>
-                      <td className="hidden px-4 py-2.5 text-ink-muted sm:table-cell">{ROLE_LABEL[a.target_role] || a.target_role}</td>
-                      <td className="hidden px-4 py-2.5 text-right tabular-nums text-ink-muted sm:table-cell">{a.views_count || 0}</td>
-                      <td className="px-2 py-2.5 sm:px-4">
-                        <TableRowActions subject={a.title} label="Announcement actions" actions={[
-                          { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
-                          canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
-                          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve and publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
-                          canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
-                        ]} />
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr id={`announcement-details-${a.id}`}>
-                        <td colSpan={5} className="bg-subtle px-4 py-5">
-                          <NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" />
-                          <article className="mx-auto max-w-2xl">
-                            <header className="border-b border-line pb-3">
-                              <p className="text-sm font-semibold text-ink">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p>
-                              <p className="text-xs text-ink-muted">Published {formatDateTime(a.published_at)}</p>
-                            </header>
-                            <div className="py-3">
-                              <h3 className="text-lg font-semibold text-ink">{formatDisplayText(a.title)}</h3>
-                              <RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-ink" />
-                              {a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}
-                            </div>
-                            <dl className="grid gap-2 border-t border-line pt-3 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="text-ink-muted">{label}</dt><dd className="mt-1 text-ink">{value || '-'}</dd></div>)}</dl>
-                          </article>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}</tbody>
-            </table>
-          </div>
-        )}
-        <div className="px-4 pb-4 sm:px-5">
-          <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
-        </div>
-      </div>
+      {actionError && !confirmState.open && !editing && <p role="alert" className="text-sm font-medium text-danger-strong">{actionError}</p>}
+      {actionMessage && <p role="status" className="text-sm font-medium text-success-strong">{actionMessage}</p>}
+      <DataTable
+        caption={`${meta.total} ${meta.total === 1 ? 'announcement' : 'announcements'}`}
+        captionVisible
+        stickyHeader={false}
+        loading={loading}
+        filters={filters}
+        columns={columns}
+        rows={items}
+        emptyState={emptyState}
+        actions={(a) => {
+          const modify = canModify(a);
+          const publish = modify && currentRole === 'ADMIN';
+          const available = [
+            modify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
+            publish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve and publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
+            modify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
+          ].filter(Boolean);
+          return available.length ? <TableRowActions subject={a.title} label="Announcement actions" actions={available} /> : null;
+        }}
+        pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}
+      />
 
       <ConfirmModal
         open={confirmState.open}
@@ -410,6 +380,7 @@ export default function ManageAnnouncementsPage() {
       >
         {details && (
           <div className="space-y-5">
+            <NextStep {...nextStepFor(details, canModify(details))} />
             <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">{[
               ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Stage', announcementStage(details).label], ['Publication', details.is_published ? 'Published' : 'Draft'],
               ['Unique views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],

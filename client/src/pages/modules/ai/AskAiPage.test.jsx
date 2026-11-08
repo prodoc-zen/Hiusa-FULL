@@ -142,6 +142,9 @@ describe('AskAiPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Ask AI' })).toBeInTheDocument();
     expect(screen.getByText(/Audit submitted compliance and accreditation files/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 university-wide items awaiting SAO action/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Prioritized SAO queues for today' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ask a question')).toBeInTheDocument();
 
     fireEvent.click(
       screen.getAllByRole('button', { name: /Who hasn't submitted requirements\?/i })[0]
@@ -155,9 +158,14 @@ describe('AskAiPage', () => {
     });
 
     expect(
-      await screen.findByRole('heading', { name: 'Organizations With Missing or Returned Submissions' })
+      await screen.findByRole('heading', { name: 'Organizations with missing or returned submissions' })
     ).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Key Metrics Comparison' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Key Metrics Comparison' })).not.toBeInTheDocument();
+    expect(screen.getByText('Orgs missing compliance')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Out of 4 student organizations in scope, 1 organization still have/i)
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\(s\)/);
     expect(screen.getByText(/Recommended next step:/i)).toBeInTheDocument();
     expect(screen.getAllByText('Supreme Student Council (SSC)').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Not submitted: Constitution & By-Laws/i).length).toBeGreaterThan(0);

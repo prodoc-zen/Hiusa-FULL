@@ -165,12 +165,12 @@ describe('SaoOrganizationOverviewPage', () => {
       expect(screen.getByText(/Add the first Admin account so the organization can sign in/)).toBeInTheDocument();
     });
 
-    it('shows a complete stepper and the administrator state once an administrator exists', async () => {
+    it('drops the progress block once an administrator exists, because nothing is left to do', async () => {
       renderPage();
-      const view = await progress();
+      await screen.findByRole('heading', { level: 1, name: 'Computing Society' });
 
-      expect(within(stage(view)).getAllByText(/^Done:/)).toHaveLength(4);
-      expect(view.getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Registration progress' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/administrator can sign in/)).not.toBeInTheDocument();
     });
 
     it('shows the stepper without a callout for an archived organization', async () => {

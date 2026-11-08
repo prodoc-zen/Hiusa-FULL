@@ -35,7 +35,7 @@ const DEFAULT_ORDER = ['active', 'pending', 'returned', 'archived'];
 const FALLBACK_STATUS = 'active';
 const EMPTY_COPY = {
   pending: 'No organizations are waiting for review.',
-  active: 'No active student organizations match this view.',
+  active: 'No active organizations yet.',
   returned: 'No organizations are returned to their Department Head.',
   archived: 'No archived organizations.',
 };
@@ -191,7 +191,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         {loading && <p role="status" className="mt-2 text-sm text-ink-muted">Loading registration details...</p>}
         {!loading && loadError && <ErrorState className="py-6" description={loadError} onRetry={loadDetails} />}
         {!loading && !loadError && !documents.length && <p className="mt-2 text-sm font-medium text-ink-muted">No registration documents were submitted.</p>}
-        {fileError && <p role="alert" className="mt-2 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{fileError}</p>}
+        {fileError && <p role="alert" className="mt-2 rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{fileError}</p>}
         {!loading && !loadError && documents.length > 0 && (
           <ul className="mt-2 divide-y divide-line-soft">
             {documents.map((document) => (
@@ -222,7 +222,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onS
         <Field label="Remarks (required to return)" error={remarksError} hint="Shown to the Department Head when you return the registration.">
           <Textarea ref={remarksRef} rows={4} maxLength={3000} value={remarks} onChange={(event) => { setRemarks(event.target.value); setRemarksError(''); }} disabled={Boolean(submitting)} />
         </Field>
-        {submitError && <p role="alert" className="mt-3 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{submitError}</p>}
+        {submitError && <p role="alert" className="mt-3 rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{submitError}</p>}
       </div>}
     </Drawer>
   );
@@ -248,7 +248,7 @@ function ArchiveModal({ organization, busy, error, onCancel, onConfirm }) {
       <Field label="Reason (optional)">
         <Textarea rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} />
       </Field>
-      {error && <p role="alert" className="mt-3 rounded-control bg-red-50 p-3 text-sm text-danger-strong">{error}</p>}
+      {error && <p role="alert" className="mt-3 rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{error}</p>}
     </Modal>
   );
 }
@@ -488,6 +488,10 @@ export default function SystemOrganizationsPage() {
   const parents = parentItems.filter((organization) => !organization.parent_organization_id && organization.is_active);
   const tabs = STATUS_TABS.map((tab) => ({ ...tab, label: counts ? `${tab.label} (${counts[tab.key] || 0})` : tab.label }));
   const editingBase = form ? items.find((item) => item.id === form.id) : null;
+  const showsProgress = (org) => {
+    const lifecycle = org.lifecycle_status || status;
+    return lifecycle === 'pending' || lifecycle === 'returned' || needsAdministrator({ ...org, lifecycle_status: lifecycle });
+  };
   const columns = [
     {
       key: 'organization',
@@ -508,10 +512,11 @@ export default function SystemOrganizationsPage() {
         );
       },
     },
-    {
+    ...(items.some(showsProgress) ? [{
       key: 'progress',
       header: 'Registration progress',
       render: (org) => {
+        if (!showsProgress(org)) return null;
         const lifecycle = org.lifecycle_status || status;
         return (
           <div className="text-left">
@@ -521,7 +526,7 @@ export default function SystemOrganizationsPage() {
           </div>
         );
       },
-    },
+    }] : []),
     { key: 'members', header: 'Members', align: 'right', render: (org) => org.users_count || 0 },
     { key: 'admins', header: 'Admins', align: 'right', render: (org) => org.administrators_count ?? org.administrators?.length ?? 0 },
   ];
@@ -531,7 +536,7 @@ export default function SystemOrganizationsPage() {
     return (
       <div className="flex flex-wrap items-center justify-end gap-2">
         {lifecycle === 'pending' && (
-          <Button variant="secondary" size="sm" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
+          <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
         )}
         <TableRowActions subject={name} label="Organization actions" actions={[
           { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
@@ -551,12 +556,16 @@ export default function SystemOrganizationsPage() {
 
   return (
     <div className="space-y-6">
-      {status && <Tabs tabs={tabs} value={status} onChange={selectStatus} />}
+      {status && <div className="hidden sm:block"><Tabs tabs={tabs} value={status} onChange={selectStatus} /></div>}
       <div {...(status ? { role: 'tabpanel', id: PANEL_ID, 'aria-label': STATUS_TABS.find((tab) => tab.key === status).label } : {})} className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field>{search && <button type="button" onClick={() => setSearch('')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}</div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Field label="Search organizations" className="sm:w-full sm:max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field>
+        {status && <Field label="Status" className="sm:hidden"><Select value={status} onChange={(event) => selectStatus(event.target.value)}>{tabs.map((tab) => <option key={tab.key} value={tab.key}>{tab.label}</option>)}</Select></Field>}
+        {search && <button type="button" onClick={() => setSearch('')} className="inline-flex min-h-11 items-center self-start rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-end">Clear</button>}
+      </div>
       {status === 'archived' && <p role="note" className="text-sm text-ink-muted-strong">Archived organizations are read-only. Restore to make changes.</p>}
-      {actionError && <p role="alert" className="rounded-control bg-red-50 p-3 text-sm text-danger-strong">{actionError}</p>}
-      {notice && <p role="status" className="rounded-control bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+      {actionError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{actionError}</p>}
+      {notice && <p role="status" className="rounded-control bg-success-tint p-3 text-sm font-medium text-success-strong">{notice}</p>}
       <DataTable
         caption="Student organizations, registration progress, membership, and actions"
         columns={columns}
@@ -568,7 +577,9 @@ export default function SystemOrganizationsPage() {
         stickyHeader={false}
         actions={rowActions}
         actionsHeader="Actions"
-        emptyState={<EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} onClearFilters={() => setSearch('')} />}
+        emptyState={debouncedSearch.trim()
+          ? <EmptyState kind="filtered" description="Try a different search term." onClearFilters={() => setSearch('')} />
+          : <EmptyState kind="first-run" title={EMPTY_COPY[status]} description={EMPTY_HINT[status]} />}
       />
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs text-ink-muted"><Button variant="secondary" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span>Page {page} of {lastPage}</span><Button variant="secondary" size="sm" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </div>
@@ -586,7 +597,7 @@ export default function SystemOrganizationsPage() {
           )}
         >
           <form id="edit-organization-form" onSubmit={save} className="space-y-4">
-            {error && <p role="alert" className="rounded-control bg-red-50 p-3 text-sm text-danger-strong">{error}</p>}
+            {error && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{error}</p>}
             <Field label="Organization name" required><Input value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
             <Field label="Organization code" required><Input value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} /></Field>
             <Field label="Main organization">
