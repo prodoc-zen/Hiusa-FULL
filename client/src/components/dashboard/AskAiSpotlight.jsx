@@ -162,20 +162,20 @@ const PROMPTS_BY_ROLE = {
 };
 
 const BAR_FILL_STYLES = {
-  danger: 'bg-[#DC2626]',
-  warning: 'bg-[#D97706]',
-  success: 'bg-[#16A34A]',
-  info: 'bg-[#0B8ED0]',
-  primary: 'bg-[#0F2F62]',
-  neutral: 'bg-[#64748B]',
+  danger: 'bg-danger',
+  warning: 'bg-warning-strong',
+  success: 'bg-success',
+  info: 'bg-brand-600',
+  primary: 'bg-navy-800',
+  neutral: 'bg-ink-muted',
 };
 
 const STATUS_BADGE_STYLES = {
-  danger: 'bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]',
-  warning: 'bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]',
-  success: 'bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]',
-  info: 'bg-[#E0F2FE] text-[#0284C7] border-[#BAE6FD]',
-  neutral: 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]',
+  danger: 'bg-danger-tint text-danger border-danger/30',
+  warning: 'bg-warning-tint text-warning-strong border-warning/30',
+  success: 'bg-success-tint text-success border-success/30',
+  info: 'bg-brand-50 text-brand-700 border-brand-100',
+  neutral: 'bg-subtle text-ink-muted-strong border-line-soft',
 };
 
 export default function AskAiSpotlight({ role = 'STUDENT' }) {
@@ -221,16 +221,16 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
     <section
       aria-label="Ask AI assistant"
       data-tour="ask-ai-spotlight"
-      className="rounded-xl border border-[#DDE7EF] bg-white p-4"
+      className="rounded-card border border-line bg-white p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-page text-brand-600">
             <Bot className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[#0F172A]">Ask AI Assistant</h2>
-            <p className="text-xs text-[#475569]">
+            <h2 className="text-sm font-semibold text-ink">Ask AI Assistant</h2>
+            <p className="text-xs text-ink-muted-strong">
               Check what needs action today, who hasn&apos;t submitted requirements, or view formatted graphs and rows.
             </p>
           </div>
@@ -239,14 +239,14 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
-            className="inline-flex items-center gap-1 rounded-lg border border-[#DDE7EF] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD]"
+            className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-800 transition-colors hover:border-brand-600 hover:bg-subtle"
           >
-            <Sparkles className="h-3.5 w-3.5 text-[#0878B7]" aria-hidden="true" />
+            <Sparkles className="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />
             <span>Interactive Role Tour</span>
           </button>
           <Link
             to="/dashboard/ask-ai"
-            className="inline-flex items-center gap-1 rounded-lg bg-[#EEF6FB] px-2.5 py-1.5 text-xs font-medium text-[#0F2F62] transition-colors hover:bg-[#DDEEF9]"
+            className="inline-flex items-center gap-1 rounded-lg bg-page px-2.5 py-1.5 text-xs font-medium text-navy-800 transition-colors hover:bg-brand-50"
           >
             <span>Open Ask AI</span>
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -265,12 +265,12 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
           onChange={(e) => setQuery(e.target.value)}
           disabled={asking}
           placeholder="Ask e.g. What should I do today? or Who hasn't submitted requirements?"
-          className="min-h-[38px] flex-1 rounded-lg border border-[#DDE7EF] bg-[#F8FAFC] px-3 py-1.5 text-base text-[#0F172A] placeholder:text-[#64748B] focus:border-[#0B8ED0] focus:bg-white focus:outline-none sm:text-xs"
+          className="min-h-[38px] flex-1 rounded-lg border border-line bg-subtle px-3 py-1.5 text-base text-ink placeholder:text-ink-muted focus:border-brand-600 focus:bg-white focus:outline-none sm:text-xs"
         />
         <button
           type="submit"
           disabled={asking || !query.trim()}
-          className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#0B8ED0] px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0978B2] active:scale-[0.98] disabled:opacity-60"
+          className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
         >
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{asking ? 'Analyzing...' : 'Ask AI'}</span>
@@ -284,7 +284,7 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
             type="button"
             disabled={asking}
             onClick={() => executeInlineAsk(item.question, item.topic)}
-            className="inline-flex items-center gap-1 rounded-full border border-[#DDE7EF] bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-medium text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#EEF6FB] active:scale-[0.98] disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-full border border-line bg-subtle px-2.5 py-1 text-xs font-medium text-navy-800 transition-colors hover:border-brand-600 hover:bg-page active:scale-[0.98] disabled:opacity-60"
           >
             <span>{item.label}</span>
           </button>
@@ -292,37 +292,37 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
       </div>
 
       {error && (
-        <p role="alert" className="mt-2.5 text-xs font-medium text-[#DC2626]">
+        <p role="alert" className="mt-2.5 text-xs font-medium text-danger">
           {error}
         </p>
       )}
 
       {result && (
-        <div className="mt-3.5 space-y-3 border-t border-[#DDE7EF] pt-3.5">
+        <div className="mt-3.5 space-y-3 border-t border-line pt-3.5">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="text-xs font-semibold text-[#0F172A]">{result.title}</h3>
-              <p className="text-[11px] text-[#475569]">&ldquo;{result.question}&rdquo;</p>
+              <h3 className="text-xs font-semibold text-ink">{result.title}</h3>
+              <p className="text-xs text-ink-muted-strong">&ldquo;{result.question}&rdquo;</p>
             </div>
             <button
               type="button"
               onClick={() => setResult(null)}
               aria-label="Close AI preview"
-              className="rounded p-1 text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+              className="rounded p-1 text-ink-muted-strong hover:bg-subtle hover:text-ink"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
 
-          <div className="rounded-lg bg-[#EEF6FB] px-3.5 py-2.5 text-xs leading-relaxed text-[#0F172A]">
+          <div className="rounded-lg bg-page px-3.5 py-2.5 text-xs leading-relaxed text-ink">
             {result.answer}
           </div>
 
           {primaryChart && Array.isArray(primaryChart.items) && primaryChart.items.length > 0 && (
-            <div className="rounded-lg bg-[#F8FAFC] p-3">
+            <div className="rounded-lg bg-subtle p-3">
               <div className="mb-2 flex items-center gap-1.5">
-                <BarChart3 className="h-3.5 w-3.5 text-[#0B8ED0]" aria-hidden="true" />
-                <span className="text-[11px] font-semibold text-[#0F172A]">
+                <BarChart3 className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
+                <span className="text-xs font-semibold text-ink">
                   {primaryChart.title}
                 </span>
               </div>
@@ -332,13 +332,13 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                   const widthPct = Math.max(0, Math.min(100, Number(item.percent ?? 0)));
                   return (
                     <div key={item.label} className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-medium text-[#0F172A]">{item.label}</span>
-                        <span className="font-semibold text-[#0F2F62] tabular-nums">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-ink">{item.label}</span>
+                        <span className="font-semibold text-navy-800 tabular-nums">
                           {item.display_value ?? item.value}
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
                         <div
                           className={`h-full rounded-full ${fill}`}
                           style={{ width: `${widthPct}%` }}
@@ -354,8 +354,8 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
           {primarySection && (
             <div>
               {previewRows.length === 0 ? (
-                <div className="flex items-center gap-1.5 rounded-lg bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-[#16A34A]" aria-hidden="true" />
+                <div className="flex items-center gap-1.5 rounded-lg bg-subtle px-3 py-2 text-xs text-ink-muted-strong">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
                   <span>{primarySection.empty_message || 'No items require action.'}</span>
                 </div>
               ) : primarySection.layout === 'steps' ? (
@@ -363,30 +363,30 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                   {previewRows.map((row, idx) => (
                     <li
                       key={row.id || idx}
-                      className="flex items-start justify-between gap-3 rounded-lg border border-[#DDE7EF] bg-white p-2.5 text-xs"
+                      className="flex items-start justify-between gap-3 rounded-lg border border-line bg-white p-2.5 text-xs"
                     >
                       <div className="flex items-start gap-2.5">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0F2F62] text-[10px] font-bold text-white">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-bold text-white">
                           {row.step || idx + 1}
                         </span>
                         <div>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-semibold text-[#0F172A]">{row.primary}</span>
+                            <span className="font-semibold text-ink">{row.primary}</span>
                             {row.meta && (
-                              <span className="rounded bg-[#EEF6FB] px-1.5 py-0.5 text-[10px] font-medium text-[#0F2F62]">
+                              <span className="rounded bg-page px-1.5 py-0.5 text-xs font-medium text-navy-800">
                                 {row.meta}
                               </span>
                             )}
                           </div>
                           {row.secondary && (
-                            <p className="mt-0.5 text-[#475569]">{row.secondary}</p>
+                            <p className="mt-0.5 text-ink-muted-strong">{row.secondary}</p>
                           )}
                         </div>
                       </div>
                       {row.href && (
                         <Link
                           to={row.href}
-                          className="inline-flex shrink-0 items-center gap-1 font-medium text-[#0878B7] hover:underline"
+                          className="inline-flex shrink-0 items-center gap-1 font-medium text-brand-700 hover:underline"
                         >
                           <span>{row.action_label || 'Go'}</span>
                           <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -396,10 +396,10 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                   ))}
                 </ol>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-[#DDE7EF]">
+                <div className="overflow-x-auto rounded-lg border border-line">
                   <table className="w-full min-w-[460px] border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-[#DDE7EF] bg-[#F8FAFC] text-[#475569]">
+                      <tr className="border-b border-line bg-subtle text-ink-muted-strong">
                         <th scope="col" className="px-3 py-1.5 font-semibold">
                           Record
                         </th>
@@ -414,18 +414,18 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#DDE7EF] bg-white">
+                    <tbody className="divide-y divide-line bg-white">
                       {previewRows.map((row) => {
                         const badgeStyle =
                           STATUS_BADGE_STYLES[row.status_tone] || STATUS_BADGE_STYLES.neutral;
                         return (
                           <tr key={row.id}>
-                            <td className="px-3 py-2 font-medium text-[#0F172A]">{row.primary}</td>
-                            <td className="px-3 py-2 text-[#475569]">{row.secondary}</td>
+                            <td className="px-3 py-2 font-medium text-ink">{row.primary}</td>
+                            <td className="px-3 py-2 text-ink-muted-strong">{row.secondary}</td>
                             <td className="px-3 py-2">
                               {row.status && (
                                 <span
-                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${badgeStyle}`}
+                                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${badgeStyle}`}
                                 >
                                   {row.status}
                                 </span>
@@ -435,7 +435,7 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                               {row.href && (
                                 <Link
                                   to={row.href}
-                                  className="inline-flex items-center gap-1 font-medium text-[#0878B7] hover:underline"
+                                  className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
                                 >
                                   <span>{row.action_label || 'Open'}</span>
                                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -455,7 +455,7 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
           <div className="flex justify-end">
             <Link
               to={`/dashboard/ask-ai?q=${encodeURIComponent(result.question)}`}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#0878B7] hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
             >
               <span>View full breakdown in Ask AI</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

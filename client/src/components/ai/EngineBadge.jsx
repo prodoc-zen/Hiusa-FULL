@@ -8,10 +8,10 @@ const ENGINE_LABELS = {
 export default function EngineBadge({ engine, className = '' }) {
   const isPython = engine === 'python-fastapi';
   const label = engine ? (ENGINE_LABELS[engine] || engine) : 'Engine not reported';
-  const tone = engine ? (isPython ? 'bg-[#E6F6FD] text-[#0F2F62]' : 'bg-slate-100 text-slate-600') : 'bg-slate-100 text-slate-500';
+  const tone = engine ? (isPython ? 'bg-brand-50 text-navy-800' : 'bg-slate-100 text-slate-600') : 'bg-slate-100 text-slate-500';
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${tone} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${tone} ${className}`}>
       {isPython ? <Server size={12} /> : <Cpu size={12} />}
       {label}
     </span>

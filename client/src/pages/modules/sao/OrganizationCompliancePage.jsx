@@ -250,7 +250,7 @@ export default function OrganizationCompliancePage() {
           {uploadTarget && <RequirementSample requirement={uploadTarget} onOpen={viewSample} />}
           {uploadTarget?.status === 'returned' && (uploadTarget.remarks || uploadTarget.submission?.remarks) && (
             <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">Why this was returned</p>
+              <p className="text-xs font-bold text-danger-strong">Why this was returned</p>
               <p className="mt-1 text-sm font-medium text-danger-strong">{uploadTarget.remarks || uploadTarget.submission.remarks}</p>
             </div>
           )}

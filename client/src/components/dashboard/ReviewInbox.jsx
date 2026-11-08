@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 function Row({ area }) {
   const body = (
     <>
-      <span className="min-w-12 text-xl font-extrabold tabular-nums text-ink">{area.count}{area.truncated ? '+' : ''}</span>
+      <span className="min-w-12 text-xl font-semibold tabular-nums text-ink">{area.count}{area.truncated ? '+' : ''}</span>
       <span className="min-w-0 flex-1 text-sm font-bold text-ink">{area.label}</span>
       {area.href && <ChevronRight size={16} className="shrink-0 text-ink-soft" aria-hidden="true" />}
     </>

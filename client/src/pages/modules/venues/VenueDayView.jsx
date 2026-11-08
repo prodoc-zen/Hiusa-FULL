@@ -33,7 +33,7 @@ export default function VenueDayView({ day, slots, venues, venueId, conflictIds,
 
   return (
     <div>
-      <p className={`mb-2 text-xs font-bold uppercase ${day === todayInManila() ? 'text-brand-700' : 'text-ink-muted'}`}>{label}{day === todayInManila() ? ' (today)' : ''}</p>
+      <p className={`mb-2 text-xs font-bold ${day === todayInManila() ? 'text-brand-700' : 'text-ink-muted'}`}>{label}{day === todayInManila() ? ' (today)' : ''}</p>
 
       <div className="hidden max-w-full overflow-x-auto rounded-control border border-line md:block" data-testid="day-grid">
         {columns.length ? (

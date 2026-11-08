@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ChevronDown, Circle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getProcessStatus } from '../../services/processService';
 import { useRefetchOnReturn } from '../../hooks/useRefetchOnReturn';
-import { Button, FlowStepper, SkeletonCard } from '../ui';
+import { Button, FlowStepper, NextStep, SkeletonCard } from '../ui';
 
 const FLOW_STATE = { done: 'done', current: 'current', todo: 'upcoming' };
+
+const STATE_WORD = { done: 'Done', current: 'Current step', upcoming: 'Upcoming' };
+
+const STEP_ICON = {
+  done: { icon: Check, className: 'bg-success text-white' },
+  current: { icon: ArrowRight, className: 'bg-brand-700 text-white' },
+  upcoming: { icon: Circle, className: 'border border-line bg-surface text-ink-soft' },
+};
 
 function countNote(step) {
   if (step.note) return step.note;
@@ -17,28 +26,56 @@ function toFlowSteps(steps) {
   return steps.map((step) => ({ key: step.key, label: step.label, state: FLOW_STATE[step.state] ?? 'upcoming', note: countNote(step) }));
 }
 
-function NextAction({ steps }) {
+// One short row of steps. A step already visited links to where it was done when the server sends
+// that place as `path`; the step still to do links nowhere, because its one action sits in NextAction.
+function Steps({ steps, ariaLabel }) {
+  return (
+    <ol aria-label={ariaLabel} className="flex flex-col gap-2 md:flex-row md:flex-wrap md:gap-x-6">
+      {steps.map((step) => {
+        const state = FLOW_STATE[step.state] ?? 'upcoming';
+        const { icon: Icon, className } = STEP_ICON[state];
+        // A written note on the current step is said once, in the next-step row below.
+        const note = state === 'current' && step.note ? undefined : countNote(step);
+        const label = (
+          <>
+            <span className="sr-only">{STATE_WORD[state]}: </span>
+            {step.label}
+          </>
+        );
+        return (
+          <li key={step.key} aria-current={state === 'current' ? 'step' : undefined} className="flex min-w-0 items-center gap-2 text-sm">
+            <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${className}`}><Icon size={12} strokeWidth={state === 'upcoming' ? 2 : 2.5} /></span>
+            {state === 'done' && step.path
+              ? <Link to={step.path} className="inline-flex min-h-11 items-center text-ink underline underline-offset-2 hover:text-brand-700 md:min-h-0">{label}</Link>
+              : <span className={state === 'current' ? 'font-semibold text-ink' : state === 'done' ? 'text-ink' : 'text-ink-muted-strong'}>{label}</span>}
+            {note && <span className="text-xs text-ink-muted-strong">{note}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// One row that says who acts next: a button when this person can act, plain text when someone
+// else holds the current step.
+function NextAction({ steps, className = '' }) {
   const current = steps.find((step) => step.state === 'current');
   if (!current) return null;
-  return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="min-w-0 text-sm font-semibold text-ink">
-        <span className="text-ink-muted-strong">{current.action ? 'Next: ' : 'Waiting on: '}</span>{current.label}
-      </p>
-      {current.action && <Button variant="secondary" to={current.action.path} className="shrink-0">{current.action.label}</Button>}
-    </div>
-  );
+  if (!current.action) {
+    return <NextStep tone="waiting" title={`Waiting on: ${current.label}`} body={current.note} className={className} />;
+  }
+  return <NextStep title={`Next for you: ${current.label}`} body={current.note} primary={{ label: current.action.label, to: current.action.path }} className={className} />;
 }
 
 function CollegeRows({ colleges }) {
   return (
-    <ul className="mt-3 divide-y divide-line-soft rounded-control border border-line">
+    <ul className="mt-3 divide-y divide-line-soft border-y border-line">
       {colleges.map((college) => {
         const current = college.steps.find((step) => step.state === 'current');
         return (
           <li key={college.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 sm:w-1/2">
-              <p className="truncate text-sm font-bold text-ink">{college.name}</p>
+              <p className="truncate text-sm font-medium text-ink">{college.name}</p>
               <FlowStepper variant="compact" steps={toFlowSteps(college.steps)} ariaLabel={`${college.name} setup progress`} className="mt-1.5" />
             </div>
             {current?.action && <Button variant="ghost" size="sm" to={current.action.path} className="shrink-0 self-start sm:self-auto">{current.action.label}</Button>}
@@ -60,10 +97,10 @@ function CollegeList({ colleges }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={listId}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-control px-2 text-sm font-bold text-brand-700 transition-colors duration-150 hover:bg-subtle"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-control px-2 text-sm font-medium text-brand-700 transition-colors duration-150 hover:bg-subtle"
       >
         {open ? 'Hide colleges' : 'Show each college'}
-        <span className="font-semibold text-ink-muted-strong">{finished} of {colleges.length} finished</span>
+        <span className="font-normal text-ink-muted-strong">{finished} of {colleges.length} finished</span>
         <ChevronDown size={16} aria-hidden="true" className={`transition-transform duration-150 ease-out ${open ? 'rotate-180' : ''}`} />
       </button>
       <div id={listId} hidden={!open}>{open && <CollegeRows colleges={colleges} />}</div>
@@ -102,8 +139,8 @@ export default function ProcessTracker({ className = '' }) {
   if (loading && !data) return <SkeletonCard className={className} />;
   if (error) {
     return (
-      <div role="alert" className={`flex flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between ${className}`}>
-        <p className="text-sm font-semibold text-ink">Your place in the process could not load.</p>
+      <div role="alert" className={`flex flex-col gap-3 rounded-card border border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${className}`}>
+        <p className="text-sm font-medium text-ink">Your place in the process could not load.</p>
         <Button variant="secondary" onClick={() => load()}>Try again</Button>
       </div>
     );
@@ -111,7 +148,7 @@ export default function ProcessTracker({ className = '' }) {
   if (!data || !data.steps?.length) return null;
   if (data.complete) {
     return (
-      <p role="status" className={`flex items-center gap-2 text-sm font-semibold text-ink-muted-strong ${className}`}>
+      <p role="status" className={`flex items-center gap-2 text-sm text-ink-muted-strong ${className}`}>
         <CheckCircle2 size={16} aria-hidden="true" className="text-success-strong" />
         Setup complete
       </p>
@@ -120,12 +157,12 @@ export default function ProcessTracker({ className = '' }) {
 
   const position = data.steps.findIndex((step) => step.state === 'current') + 1;
   return (
-    <section aria-label="Where you are in the process" className={`rounded-card border border-line bg-surface p-4 shadow-card sm:p-5 ${className}`}>
+    <section aria-label="Where you are in the process" className={`space-y-3 ${className}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 className="text-base font-bold text-ink">{data.title}</h2>
-        {position > 0 && <p className="text-xs font-semibold text-ink-muted-strong">Step {position} of {data.steps.length}</p>}
+        <h2 className="text-base font-semibold text-ink">{data.title}</h2>
+        {position > 0 && <p className="text-xs text-ink-muted-strong">Step {position} of {data.steps.length}</p>}
       </div>
-      <FlowStepper steps={toFlowSteps(data.steps)} ariaLabel={data.title} className="mt-4" />
+      <Steps steps={data.steps} ariaLabel={data.title} />
       <NextAction steps={data.steps} />
       {data.colleges?.length > 0 && <CollegeList colleges={data.colleges} />}
     </section>

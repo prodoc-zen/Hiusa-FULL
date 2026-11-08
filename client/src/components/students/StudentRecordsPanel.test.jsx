@@ -49,6 +49,26 @@ describe('StudentRecordsPanel', () => {
     expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student' });
   });
 
+  it('leaves empty values blank instead of writing None', async () => {
+    mocks.getStudentRegistry.mockResolvedValue(list([entry({ program: null, year_level: null, section: null })]));
+    render(<StudentRecordsPanel collegeId={4} />);
+
+    expect((await screen.findAllByText('Hannah Reyes')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('None')).not.toBeInTheDocument();
+  });
+
+  it('clears the search and the account filter from one Clear link', async () => {
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'claimed' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
+
+    expect(screen.getByLabelText('Account')).toHaveValue('');
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'student' }));
+  });
+
   it('switches to the employee records, which show a position instead of a program', async () => {
     mocks.getStudentRegistry.mockImplementation(({ record_type: type }) => Promise.resolve(type === 'employee'
       ? list([entry({ id: 9, school_id: 7100101, name: 'Marites Dizon', record_type: 'employee', position: 'Department Secretary', program: null, year_level: null, section: null })])

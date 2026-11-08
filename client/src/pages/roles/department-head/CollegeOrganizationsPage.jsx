@@ -64,27 +64,16 @@ function CollegeHeader({ overview, onManageStaff }) {
   const logo = overview?.college?.logo_url;
 
   return (
-    <section aria-label="Your college" className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 shadow-xs">
-      <div className="flex items-center gap-4 min-w-0">
-      <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand-50 text-brand-700" style={overview?.college?.color ? { borderLeft: `4px solid ${overview.college.color}` } : undefined}>
-        {logo ? <img src={resolveAssetUrl(logo)} alt="" className="h-full w-full object-cover" /> : <Building2 size={24} aria-hidden="true" />}
-      </span>
-      <div className="min-w-0">
-        <h2 className="break-words text-lg font-bold text-ink">{formatDisplayText(name)}</h2>
-        {headName && <p className="text-sm font-medium text-ink-muted">Department Head: {headName}</p>}
-      </div>
+    <section aria-label="Your college" className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-4">
+      <div className="flex min-w-0 items-center gap-3">
+        {logo && <img src={resolveAssetUrl(logo)} alt="" className="h-10 w-10 shrink-0 rounded-control object-cover" />}
+        <div className="min-w-0">
+          <h2 className="break-words text-base font-semibold text-ink">{formatDisplayText(name)}</h2>
+          {headName && <p className="text-sm text-ink-muted">Department Head: {headName}</p>}
+        </div>
       </div>
       {onManageStaff && (
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={Users}
-          onClick={onManageStaff}
-          data-tour="dean-staff-btn"
-          className="active:scale-[0.98] transition-transform duration-100 ease-out"
-        >
-          Dean’s Office Staff &amp; Secretary
-        </Button>
+        <Button variant="secondary" leftIcon={Users} onClick={onManageStaff}>Office staff</Button>
       )}
     </section>
   );
@@ -149,12 +138,12 @@ function CollegeStaffModal({ open, onClose }) {
         position_title: positionTitle.trim(),
         role: 'ADMIN',
       });
-      notify.success(`${person.name} assigned as ${positionTitle.trim()}.`);
+      notify.success(`${person.name} was added as ${positionTitle.trim()}.`);
       closeForm();
       setPositionTitle('Department Secretary');
       load();
     } catch (err) {
-      setFormError(getApiErrorMessage(err, 'Could not assign staff member.'));
+      setFormError(getApiErrorMessage(err, 'Could not add this person.'));
     } finally {
       setSubmitting(false);
     }
@@ -165,11 +154,11 @@ function CollegeStaffModal({ open, onClose }) {
     setRemoveBusy(true);
     try {
       await removeCollegeStaff(removeTarget.school_id);
-      notify.success(`${removeTarget.name} removed from college staff.`);
+      notify.success(`${removeTarget.name} was removed from the college office.`);
       setRemoveTarget(null);
       load();
     } catch (err) {
-      notify.error(getApiErrorMessage(err, 'Could not remove staff member.'));
+      notify.error(getApiErrorMessage(err, 'Could not remove this person.'));
     } finally {
       setRemoveBusy(false);
     }
@@ -178,8 +167,8 @@ function CollegeStaffModal({ open, onClose }) {
   return (
     <Modal
       open={open}
-      title="Dean’s Office Staff & Delegation"
-      description="Delegate operational authority to department secretaries and assistants to help oversee student organizations and process approvals."
+      title="Office staff"
+      description="People who can review applications for your college."
       onClose={onClose}
       maxWidth="max-w-[680px]"
       footer={
@@ -191,23 +180,16 @@ function CollegeStaffModal({ open, onClose }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
-            <h3 className="text-sm font-bold text-ink">Office Delegates ({staff.length})</h3>
-            <p className="text-xs text-ink-muted">Authorized staff with administrative management permissions</p>
+            <h3 className="text-sm font-semibold text-ink">In the office ({staff.length})</h3>
           </div>
           {!adding && (
-            <Button size="sm" leftIcon={Plus} onClick={() => setAdding(true)} className="active:scale-[0.98] transition-transform">
-              Add Delegate / Secretary
-            </Button>
+            <Button variant="secondary" size="sm" leftIcon={Plus} onClick={() => setAdding(true)}>Add staff</Button>
           )}
         </div>
 
         {adding && (
-          <form onSubmit={handleCreateStaff} className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#0878B7]">New Delegate Information</h4>
-              <button type="button" onClick={closeForm} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
-            </div>
-            {formError && <p role="alert" className="rounded-md border border-danger/30 bg-danger-tint p-2 text-xs font-semibold text-danger-strong">{formError}</p>}
+          <form onSubmit={handleCreateStaff} className="space-y-3 rounded-control border border-line p-4">
+            {formError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-2 text-sm font-medium text-danger-strong">{formError}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <PersonPicker
@@ -220,14 +202,14 @@ function CollegeStaffModal({ open, onClose }) {
                 />
               </div>
               <div className="sm:col-span-2">
-                <Field label="Position Title">
+                <Field label="Position">
                   <Input required value={positionTitle} onChange={(e) => setPositionTitle(e.target.value)} placeholder="e.g. Department Secretary" />
                 </Field>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" size="sm" type="button" onClick={closeForm}>Cancel</Button>
-              <Button size="sm" type="submit" loading={submitting} disabled={!person}>Assign Delegate</Button>
+              <Button size="sm" type="submit" loading={submitting} disabled={!person}>Add to office staff</Button>
             </div>
           </form>
         )}
@@ -240,35 +222,18 @@ function CollegeStaffModal({ open, onClose }) {
         ) : error ? (
           <ErrorState description={error} onRetry={load} />
         ) : staff.length === 0 ? (
-          <p className="py-6 text-center text-xs text-ink-muted">No additional office staff assigned yet.</p>
+          <p className="py-6 text-sm text-ink-muted">No other office staff yet.</p>
         ) : (
-          <ul className="divide-y divide-line-soft rounded-lg border border-line bg-surface">
+          <ul className="divide-y divide-line-soft rounded-control border border-line bg-surface">
             {staff.map((member) => (
               <li key={member.school_id} className="flex items-center justify-between gap-3 p-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-[#0878B7]">
-                    {member.first_name?.[0] || 'S'}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">{member.name}</p>
-                    <p className="text-xs text-ink-muted">{[member.position_title, visibleSchoolId(member.school_id)].filter(Boolean).join(' · ')}</p>
-                  </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">{member.name}</p>
+                  <p className="text-xs text-ink-muted">{[member.is_lead_head ? 'Department Head' : member.position_title, visibleSchoolId(member.school_id)].filter(Boolean).join(' · ')}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${member.is_lead_head ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0878B7]'}`}>
-                    {member.is_lead_head ? 'Lead Head' : 'Delegate'}
-                  </span>
-                  {!member.is_lead_head && (
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      onClick={() => setRemoveTarget(member)}
-                      className="text-danger hover:bg-danger-tint"
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
+                {!member.is_lead_head && (
+                  <Button variant="secondary" size="sm" onClick={() => setRemoveTarget(member)} aria-label={`Remove ${member.name}`}>Remove</Button>
+                )}
               </li>
             ))}
           </ul>
@@ -277,9 +242,9 @@ function CollegeStaffModal({ open, onClose }) {
 
       <ConfirmModal
         open={Boolean(removeTarget)}
-        title="Remove Office Delegate?"
-        message={`Are you sure you want to remove ${removeTarget?.name} as ${removeTarget?.position_title}? They will no longer have access to Dean's office management.`}
-        confirmText="Remove Delegate"
+        title="Remove from the office?"
+        message={`${removeTarget?.name} will lose office access. Their account stays, and you can add them again later.`}
+        confirmText="Remove"
         variant="danger"
         busy={removeBusy}
         onCancel={() => setRemoveTarget(null)}
@@ -297,10 +262,12 @@ function OrganizationDetails({ organization, onClose }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />
-        {organization.submitted_at && <span className="text-xs font-medium text-ink-muted">Submitted {manilaDate(organization.submitted_at, 'long')}</span>}
-      </div>
+      {(organization.lifecycle_status !== 'active' || organization.submitted_at) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {organization.lifecycle_status !== 'active' && <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />}
+          {organization.submitted_at && <span className="text-xs text-ink-muted">Submitted {manilaDate(organization.submitted_at, 'long')}</span>}
+        </div>
+      )}
       <RegistrationStepper organization={organization} viewerRole="DEPARTMENT_HEAD" />
       {organization.lifecycle_status === 'pending' && <p className="text-sm font-semibold text-ink-muted">Waiting for the SAO to decide.</p>}
       {organization.lifecycle_status === 'returned' && (
@@ -311,15 +278,15 @@ function OrganizationDetails({ organization, onClose }) {
       )}
       {organization.lifecycle_status === 'archived' && <p className="text-sm font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
       <div>
-        <h3 className="text-base font-bold text-ink">Leadership</h3>
+        <h3 className="text-base font-semibold text-ink">Leadership</h3>
         {leadership.length === 0 ? (
           <p className="mt-2 text-sm font-medium text-ink-muted">No Admin or SBO Officer is assigned yet.</p>
         ) : (
           <ul className="mt-2 divide-y divide-line-soft">
             {leadership.map((leader) => (
               <li key={`${leader.role}-${leader.name}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span className="text-sm font-semibold text-ink">{leader.name}</span>
-                <span className="text-xs font-medium text-ink-muted">{leader.position_title ? `${LEADER_ROLE[leader.role]}, ${leader.position_title}` : LEADER_ROLE[leader.role]}</span>
+                <span className="text-sm font-medium text-ink">{leader.name}</span>
+                <span className="text-xs text-ink-muted">{leader.position_title ? `${LEADER_ROLE[leader.role]}, ${leader.position_title}` : LEADER_ROLE[leader.role]}</span>
               </li>
             ))}
           </ul>
@@ -327,18 +294,19 @@ function OrganizationDetails({ organization, onClose }) {
         <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
           {[['Admins', 'admin'], ['SBO Officers', 'sbo_officer'], ['Students', 'student']].map(([label, key]) => (
             <div key={key} className="rounded-control bg-subtle p-2">
-              <dd className="text-lg font-black tabular-nums text-ink">{roleCount(organization, key)}</dd>
-              <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
+              <dd className="text-lg font-semibold tabular-nums text-ink">{roleCount(organization, key)}</dd>
+              <dt className="text-xs font-medium text-ink-muted">{label}</dt>
             </div>
           ))}
         </dl>
       </div>
       <div>
-        <h3 className="text-base font-bold text-ink">Requirement checklist</h3>
+        <h3 className="text-base font-semibold text-ink">Requirement checklist</h3>
         {checklist.length === 0 ? (
           <p className="mt-2 text-sm font-medium text-ink-muted">No registration documents are on file.</p>
         ) : (
           <DataTable
+            caption="Requirement checklist"
             rows={checklist}
             rowKey={(item) => item.requirement_type_id}
             columns={[
@@ -442,29 +410,28 @@ export default function CollegeOrganizationsPage() {
         <div className="flex min-w-0 items-start gap-2.5">
           <span className={organization.lifecycle_status === 'archived' ? 'grayscale' : ''}><OrgMark name={organization.name} acronym={organization.acronym} size="sm" /></span>
           <div className="min-w-0 text-left">
-            <p className={`break-words font-semibold ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
-            <p className="text-xs font-medium text-ink-muted">{organization.acronym}</p>
-            {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm font-semibold text-danger-strong"><span className="block text-xs font-bold uppercase tracking-wide">SAO remarks</span>{organization.review_remarks}</p>}
-            {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
+            <p className={`break-words font-medium ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
+            <p className="text-xs text-ink-muted">{organization.acronym}</p>
+            {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm text-danger-strong"><span className="block text-xs font-semibold">SAO remarks</span>{organization.review_remarks}</p>}
+            {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs text-ink-muted">Archived by the SAO. Read only.</p>}
           </div>
         </div>
       ),
     },
-    { key: 'status', header: 'Status', render: (organization) => { const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge; } },
+    { key: 'status', header: 'Status', render: (organization) => { if (organization.lifecycle_status === 'active') return null; const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge; } },
     { key: 'admins', header: 'Admins', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'admin')}</span> },
     { key: 'officers', header: 'SBO Officers', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'sbo_officer')}</span> },
     { key: 'students', header: 'Students', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'student')}</span> },
-    { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : '-'}</span> },
+    { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : ''}</span> },
   ];
 
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        description="The student organizations of your college. A new one starts when you allow a student to apply; you then review their application."
         primary={state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
       />
       <CollegeHeader overview={overview} onManageStaff={() => setStaffModalOpen(true)} />
-      {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
+      {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-medium text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
         <div className="px-4 pt-2"><Tabs tabs={tabs} value={tab} onChange={changeTab} /></div>
@@ -479,7 +446,7 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState icon={Building2} title="No organizations yet" description="Pick a student of your college to apply. Their application comes to you for review." action={<Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
+              ? <EmptyState icon={Building2} title="No organizations yet" description="Allow a student to apply. Their application comes to you for review." action={<Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2">

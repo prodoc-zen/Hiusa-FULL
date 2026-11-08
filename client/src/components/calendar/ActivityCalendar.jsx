@@ -8,11 +8,11 @@ const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MAX_VISIBLE_PER_DAY = 2;
 
 const STATUS_STYLE = {
-  planning: { label: 'Pending Approval', dot: '#F59E0B', text: 'text-[#B45309]', bg: 'bg-[#F59E0B]/10' },
-  approved: { label: 'Approved', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0878B7]/10' },
-  ongoing: { label: 'Ongoing', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0878B7]/10' },
-  completed: { label: 'Completed', dot: '#16A34A', text: 'text-[#15803D]', bg: 'bg-[#16A34A]/10' },
-  cancelled: { label: 'Cancelled', dot: '#DC2626', text: 'text-[#B91C1C]', bg: 'bg-[#DC2626]/10' },
+  planning: { label: 'Pending Approval', dot: '#F59E0B', text: 'text-warning-strong', bg: 'bg-warning/10' },
+  approved: { label: 'Approved', dot: '#0B8ED0', text: 'text-brand-700', bg: 'bg-brand-700/10' },
+  ongoing: { label: 'Ongoing', dot: '#0B8ED0', text: 'text-brand-700', bg: 'bg-brand-700/10' },
+  completed: { label: 'Completed', dot: '#16A34A', text: 'text-success-strong', bg: 'bg-success/10' },
+  cancelled: { label: 'Cancelled', dot: '#DC2626', text: 'text-danger-strong', bg: 'bg-danger/10' },
 };
 
 function styleFor(status) {
@@ -110,7 +110,7 @@ function EventChip({ event, onSelect }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onSelect(event); }}
-      className={`flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[10px] font-bold leading-tight transition hover:brightness-95 ${style.bg} ${style.text} ${event.isContinuation ? 'opacity-70' : ''}`}
+      className={`flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-bold leading-tight transition hover:brightness-95 ${style.bg} ${style.text} ${event.isContinuation ? 'opacity-70' : ''}`}
       aria-label={`${label}, ${style.label}${event.isMultiDay ? `, ${shortDate(event.start_time)} to ${shortDate(event.end_time)}` : ''}`}
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
@@ -124,8 +124,8 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
   const dayEvents = eventsByDate[iso] || [];
   const label = new Date(`${iso}T00:00:00`).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   return (
-    <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-[#0F172A]">{label}</h3>
+    <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <h3 className="text-sm font-bold text-ink">{label}</h3>
       {dayEvents.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">No events scheduled on this day.</p>
       ) : (
@@ -137,11 +137,11 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                 <button
                   type="button"
                   onClick={() => onSelectEvent(event)}
-                  className="flex w-full flex-col gap-1 rounded-lg border border-[#DDE7EF] p-3 text-left transition hover:border-[#0B8ED0]/30 hover:bg-[#F8FBFD] sm:flex-row sm:items-center sm:justify-between"
+                  className="flex w-full flex-col gap-1 rounded-lg border border-line p-3 text-left transition hover:border-brand-600/30 hover:bg-subtle sm:flex-row sm:items-center sm:justify-between"
                 >
                   {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-md object-cover" />}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-[#0F172A]">{formatDisplayText(event.title)}</p>
+                    <p className="truncate font-bold text-ink">{formatDisplayText(event.title)}</p>
                     {event.description && <RichTextBody value={event.description} className="mt-1 line-clamp-2 text-xs text-slate-600" />}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
                       <span className="flex items-center gap-1"><Clock size={12} className="text-slate-500" />
@@ -150,7 +150,7 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                       {event.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-500" />{event.location}</span>}
                     </div>
                   </div>
-                  <span className={`shrink-0 self-start rounded-full px-2.5 py-1 text-[11px] font-bold sm:self-center ${style.bg} ${style.text}`}>
+                  <span className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold sm:self-center ${style.bg} ${style.text}`}>
                     {style.label}
                   </span>
                 </button>
@@ -212,7 +212,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   if (loading) {
     return (
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="mb-4 h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
         <div className="grid grid-cols-7 gap-2">
           {Array.from({ length: 35 }).map((_, i) => (
@@ -225,15 +225,15 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-[#0F172A]">{monthLabel}</h2>
+          <h2 className="text-lg font-bold text-ink">{monthLabel}</h2>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={goPrev}
               aria-label="Previous month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
+              className="grid h-11 w-10 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle hover:text-brand-700"
             >
               <ChevronLeft size={16} />
             </button>
@@ -241,7 +241,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goToday}
               aria-label="Go to today"
-              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-[13px] font-bold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
+              className="h-11 rounded-lg border border-line px-3 text-[13px] font-bold text-slate-600 transition hover:bg-subtle hover:text-brand-700"
             >
               Today
             </button>
@@ -249,7 +249,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goNext}
               aria-label="Next month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
+              className="grid h-11 w-10 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle hover:text-brand-700"
             >
               <ChevronRight size={16} />
             </button>
@@ -257,7 +257,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         </div>
 
         {monthDaysWithEvents.length === 0 && (
-          <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-[#DDE7EF] py-8 text-center">
+          <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-line py-8 text-center">
             <CalendarDays size={32} className="text-slate-200" />
             <p className="text-sm text-slate-500">No events scheduled for {monthLabel}.</p>
           </div>
@@ -267,7 +267,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         <div className="mt-4 hidden sm:block" role="grid" aria-label={`Calendar for ${monthLabel}`}>
           <div className="grid grid-cols-7 gap-1.5" role="row">
             {WEEKDAY_LABELS.map((label) => (
-              <div key={label} role="columnheader" className="px-1 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <div key={label} role="columnheader" className="px-1 py-1 text-center text-xs font-bold text-slate-500">
                 {label}
               </div>
             ))}
@@ -286,8 +286,8 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       key={day.iso}
                       role="gridcell"
                       className={`min-h-[92px] rounded-lg border p-1.5 transition lg:min-h-[104px] ${
-                        isSelected ? 'border-[#0B8ED0] ring-2 ring-[#16C7F3]/25' : dayEvents.length ? 'border-[#0B8ED0]/35' : 'border-[#DDE7EF]'
-                      } ${dayEvents.length ? 'bg-[#EEF6FB]' : day.inMonth ? 'bg-white' : 'bg-[#F8FBFD]'}`}
+                        isSelected ? 'border-brand-600 ring-2 ring-accent/25' : dayEvents.length ? 'border-brand-600/35' : 'border-line'
+                      } ${dayEvents.length ? 'bg-page' : day.inMonth ? 'bg-white' : 'bg-subtle'}`}
                     >
                       <button
                         type="button"
@@ -297,12 +297,12 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       >
                         <span
                           className={`grid h-6 w-6 place-items-center rounded-full text-[12px] font-bold ${
-                            isToday ? 'bg-[#0878B7] text-white' : dayEvents.length ? 'bg-white text-[#0F2F62] ring-1 ring-[#0B8ED0]/30' : day.inMonth ? 'text-[#0F172A]' : 'text-slate-300'
+                            isToday ? 'bg-brand-700 text-white' : dayEvents.length ? 'bg-white text-navy-800 ring-1 ring-brand-600/30' : day.inMonth ? 'text-ink' : 'text-slate-300'
                           }`}
                         >
                           {day.date.getDate()}
                         </span>
-                        {dayEvents.length > 0 && <span className="rounded-full bg-[#0F2F62] px-1.5 py-0.5 text-[10px] font-bold text-white" aria-hidden="true">{dayEvents.length}</span>}
+                        {dayEvents.length > 0 && <span className="rounded-full bg-navy-800 px-1.5 py-0.5 text-xs font-bold text-white" aria-hidden="true">{dayEvents.length}</span>}
                       </button>
                       <div className="mt-1 space-y-1">
                         {visible.map((event) => (
@@ -312,7 +312,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                           <button
                             type="button"
                             onClick={() => selectDay(day.iso)}
-                            className="w-full rounded-md px-1.5 py-0.5 text-left text-[10px] font-bold text-[#0878B7] hover:underline"
+                            className="w-full rounded-md px-1.5 py-0.5 text-left text-xs font-bold text-brand-700 hover:underline"
                           >
                             +{overflow} more
                           </button>
@@ -329,15 +329,15 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         {/* Mobile agenda list */}
         <div className="mt-4 space-y-3 sm:hidden">
           {monthDaysWithEvents.map((day) => (
-            <div key={day.iso} className="rounded-lg border border-[#0B8ED0]/30 bg-[#EEF6FB] p-3">
+            <div key={day.iso} className="rounded-lg border border-brand-600/30 bg-page p-3">
               <div className="mb-2 flex items-center gap-2">
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-[#0878B7] text-white' : 'bg-[#F8FBFD] text-[#0F172A]'}`}>
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-brand-700 text-white' : 'bg-subtle text-ink'}`}>
                   {day.date.getDate()}
                 </span>
-                <p className="text-[13px] font-bold text-[#0F172A]">
+                <p className="text-[13px] font-bold text-ink">
                   {day.date.toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </p>
-                <span className="ml-auto rounded-full bg-[#0F2F62] px-2 py-0.5 text-[10px] font-bold text-white">{eventsByDate[day.iso]?.length} events</span>
+                <span className="ml-auto rounded-full bg-navy-800 px-2 py-0.5 text-xs font-bold text-white">{eventsByDate[day.iso]?.length} events</span>
               </div>
               <div className="space-y-1.5">
                 {(eventsByDate[day.iso] || []).map((event) => {
@@ -347,19 +347,19 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       key={event.id}
                       type="button"
                       onClick={() => onSelectEvent(event)}
-                      className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] px-3 py-2 text-left transition hover:bg-[#F8FBFD] ${event.isContinuation ? 'opacity-70' : ''}`}
+                      className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-left transition hover:bg-subtle ${event.isContinuation ? 'opacity-70' : ''}`}
                     >
                       {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />}
                       <div className="min-w-0">
-                        <p className="truncate text-[13px] font-bold text-[#0F172A]">
+                        <p className="truncate text-[13px] font-bold text-ink">
                           {event.isContinuation ? `${formatDisplayText(event.title)} - day ${event.dayIndex} of ${event.dayTotal}` : formatDisplayText(event.title)}
                         </p>
-                        <p className="text-[11px] font-medium text-slate-500">
+                        <p className="text-xs font-medium text-slate-500">
                           {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}
                           {event.location ? ` - ${event.location}` : ''}
                         </p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${style.bg} ${style.text}`}>{style.label}</span>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${style.bg} ${style.text}`}>{style.label}</span>
                     </button>
                   );
                 })}

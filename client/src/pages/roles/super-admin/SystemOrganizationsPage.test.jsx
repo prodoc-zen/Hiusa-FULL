@@ -598,6 +598,22 @@ describe('SystemOrganizationsPage', () => {
     expect(await screen.findByText('No archived organizations.')).toBeInTheDocument();
   });
 
+  it('shows no status badge on an active organization', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(within(screen.getByText('Main SBO').closest('tr')).getAllByRole('cell')[0]).toBeEmptyDOMElement();
+  });
+
+  it('offers Clear beside the search and Clear filters when nothing matches', async () => {
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
+    fireEvent.change(screen.getByLabelText('Search organizations'), { target: { value: 'zzz' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(screen.getByLabelText('Search organizations')).toHaveValue(''));
+  });
+
   it('names who registers organizations when nothing is waiting for review', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
     renderPage('/dashboard/super-admin/organizations?status=pending');

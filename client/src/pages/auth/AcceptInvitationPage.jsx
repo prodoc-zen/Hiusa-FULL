@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import AuthField from '../../components/auth/AuthField';
+import ErrorSummary from '../../components/auth/ErrorSummary';
 import PasswordField from '../../components/auth/PasswordField';
 import { Button, ErrorState, Skeleton } from '../../components/ui';
 import { acceptDepartmentHeadInvitation, getDepartmentHeadInvitation } from '../../services/systemAdministrationService';
@@ -13,6 +14,22 @@ import { formatDisplayText } from '../../utils/displayText.js';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPTY = { first_name: '', last_name: '', email: '', password: '', password_confirmation: '' };
 const FIELD_KEYS = Object.keys(EMPTY);
+const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
+
+// The link only carries the role and the college, so the inviter is named by role: the Student
+// Affairs Office invites deans, a dean invites office staff.
+function inviter(invitation, college) {
+  if (invitation?.role === 'COLLEGE_STAFF') return `the Department Head of ${college}`;
+  return 'the Student Affairs Office';
+}
+
+const INVALID_COPY = {
+  expired: { title: 'This invitation link has expired', description: 'Ask the office that sent it for a new one.' },
+  used: { title: 'This invitation link was already used', description: 'Sign in with the account you made.' },
+  incomplete: { title: 'This invitation link is incomplete', description: 'Open the link exactly as it was sent, or ask the office that sent it for a new one.' },
+};
+
+const invalidKind = (cause) => (/already used/i.test(cause?.response?.data?.message || '') ? 'used' : 'expired');
 
 const ROLE_HOME = {
   DEPARTMENT_HEAD: '/dashboard/department-head',
@@ -43,9 +60,9 @@ function InviteSkeleton() {
     <div role="status" aria-label="Loading invitation" aria-busy="true" className="space-y-4">
       <Skeleton className="h-8 w-4/5" />
       <Skeleton className="h-4 w-3/5" />
-      <Skeleton className="h-11 w-full" />
-      <Skeleton className="h-11 w-full" />
-      <Skeleton className="h-11 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
     </div>
   );
 }
@@ -56,13 +73,15 @@ export default function AcceptInvitationPage() {
   const navigate = useNavigate();
 
   const [state, setState] = useState(token ? 'loading' : 'invalid');
-  const [loadError, setLoadError] = useState(token ? '' : 'This link is missing its code. Open the link exactly as it was sent to you.');
+  const [loadError, setLoadError] = useState('');
+  const [invalidReason, setInvalidReason] = useState(token ? 'expired' : 'incomplete');
   const [invite, setInvite] = useState(null);
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [submits, setSubmits] = useState(0);
 
   useEffect(() => {
     if (!token) return undefined;
@@ -76,7 +95,8 @@ export default function AcceptInvitationPage() {
       })
       .catch((cause) => {
         if (!current) return;
-        setLoadError(getApiErrorMessage(cause, 'This link does not work. Ask for a new one.'));
+        setLoadError(getApiErrorMessage(cause, 'The invitation could not be loaded. Try again.'));
+        setInvalidReason(invalidKind(cause));
         setState(cause.response?.status >= 500 || !cause.response ? 'failed' : 'invalid');
       });
     return () => { current = false; };
@@ -92,7 +112,10 @@ export default function AcceptInvitationPage() {
     const found = validate(values, Boolean(record));
     setErrors(found);
     setFormError('');
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length) {
+      setSubmits((count) => count + 1);
+      return;
+    }
 
     setSubmitting(true);
     const email = values.email.trim().toLowerCase();
@@ -116,10 +139,11 @@ export default function AcceptInvitationPage() {
       const fieldErrors = cause.response?.data?.errors || {};
       const mapped = Object.fromEntries(Object.entries(fieldErrors).filter(([key]) => FIELD_KEYS.includes(key)).map(([key, messages]) => [key, [].concat(messages)[0]]));
       setErrors(mapped);
+      setSubmits((count) => count + 1);
       if (!Object.keys(mapped).length) {
         const status = cause.response?.status;
         if (status === 404 || status === 410) {
-          setLoadError(getApiErrorMessage(cause, 'This link does not work. Ask for a new one.'));
+          setInvalidReason(invalidKind(cause));
           setState('invalid');
         } else {
           setFormError(getApiErrorMessage(cause, 'We could not create your account. Try again.'));
@@ -130,6 +154,10 @@ export default function AcceptInvitationPage() {
   }
 
   const record = invite?.invitation?.record || null;
+  const summaryItems = [
+    ...FIELD_KEYS.filter((key) => errors[key]).map((key) => ({ fieldId: FIELD_IDS[key], message: errors[key] })),
+    ...(formError ? [{ message: formError }] : []),
+  ];
   const college = invite?.college?.name ? formatDisplayText(invite.college.name) : 'your college';
 
   return (
@@ -138,24 +166,28 @@ export default function AcceptInvitationPage() {
 
       {state === 'invalid' && (
         <div>
-          <ErrorState title="This link does not work" description={loadError} className="px-0 py-4" />
-          <p className="mt-2 text-center text-sm font-medium text-ink-muted">
-            Already made your account? <Link to="/login" className="font-bold text-brand-700 hover:text-navy-950">Sign in</Link>
-          </p>
+          <ErrorState title={INVALID_COPY[invalidReason].title} description={INVALID_COPY[invalidReason].description} className="py-0" />
+          {invalidReason === 'used' && (
+            <p className="mt-4 text-sm">
+              <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
+            </p>
+          )}
         </div>
       )}
 
-      {state === 'failed' && <ErrorState title="We could not open this link" description={loadError} onRetry={() => setAttempt((count) => count + 1)} className="px-0 py-4" />}
+      {state === 'failed' && <ErrorState title="We could not open this invitation" description={loadError} onRetry={() => setAttempt((count) => count + 1)} className="py-0" />}
 
       {state === 'ready' && (
         <>
-          <h1 className="text-[26px] font-extrabold leading-tight text-ink">{headline(invite.invitation, college)}</h1>
-          <p className="mt-1.5 text-sm font-medium text-ink-muted">
-            {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? `Your role: ${invite.invitation.position_title}. ` : ''}
-            {record ? 'Your name and ID number come from the school records. Choose your email and password to create your account.' : 'Fill in your details to create your account.'} You will sign in with your email.
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">{headline(invite.invitation, college)}</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            Invited by {inviter(invite.invitation, college)}.
+            {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? ` Your role: ${invite.invitation.position_title}.` : ''}
+            {record ? ' Your name and ID number come from the school records.' : ''}
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+            <ErrorSummary items={summaryItems} attempt={submits} />
             {record ? (
               <>
                 <AuthField label="Name" value={`${record.first_name} ${record.last_name}`} readOnly />
@@ -163,23 +195,19 @@ export default function AcceptInvitationPage() {
               </>
             ) : (
               <>
-                <AuthField label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
-                <AuthField label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
+                <AuthField id={FIELD_IDS.first_name} label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
+                <AuthField id={FIELD_IDS.last_name} label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
               </>
             )}
-            <AuthField label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
-            <PasswordField label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
-            <PasswordField label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
-
-            {formError && (
-              <p role="alert" className="rounded-control border border-danger-strong/20 bg-danger-tint px-3 py-2.5 text-xs font-semibold text-danger-strong">{formError}</p>
-            )}
+            <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
+            <PasswordField id={FIELD_IDS.password} label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
+            <PasswordField id={FIELD_IDS.password_confirmation} label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
 
             <Button type="submit" loading={submitting} className="w-full">Create account</Button>
           </form>
 
-          <p className="mt-5 text-center text-sm font-medium text-ink-muted">
-            Already have an account? <Link to="/login" className="font-bold text-brand-700 hover:text-navy-950">Sign in</Link>
+          <p className="mt-4 border-t border-line pt-4 text-sm text-ink-muted">
+            Already have an account? <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
           </p>
         </>
       )}

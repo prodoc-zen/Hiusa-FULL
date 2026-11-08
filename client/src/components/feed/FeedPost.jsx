@@ -31,7 +31,7 @@ function PostMedia({ url, title }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) return null;
   return (
-    <div className="border-y border-[#DDE7EF] bg-[#EEF6FB]">
+    <div className="border-y border-line bg-page">
       <img
         src={resolveAssetUrl(url)}
         alt={title}
@@ -44,9 +44,9 @@ function PostMedia({ url, title }) {
 }
 
 function typeMeta(type) {
-  if (type === 'event') return { label: 'Event update', Icon: CalendarDays, color: 'text-[#0F2F62] bg-[#E6F6FD]' };
-  if (type === 'election') return { label: 'Election update', Icon: Vote, color: 'text-[#0F2F62] bg-[#EEF6FB]' };
-  return { label: 'Announcement', Icon: Megaphone, color: 'text-[#0F2F62] bg-[#EEF6FB]' };
+  if (type === 'event') return { label: 'Event update', Icon: CalendarDays, color: 'text-navy-800 bg-brand-50' };
+  if (type === 'election') return { label: 'Election update', Icon: Vote, color: 'text-navy-800 bg-page' };
+  return { label: 'Announcement', Icon: Megaphone, color: 'text-navy-800 bg-page' };
 }
 
 export default function FeedPost({ item, organization }) {
@@ -58,18 +58,18 @@ export default function FeedPost({ item, organization }) {
   const electionClosed = item.type === 'election' && post.status === 'closed';
 
   return (
-    <article className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+    <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
       <header className="flex items-start gap-3 p-4 sm:p-5">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#DDE7EF] bg-white">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line bg-white">
           <img src={logo} alt="" className="h-8 w-8 object-contain" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="truncate text-sm font-black text-[#0F172A] sm:text-[15px]">{orgName}</h2>
-            {item.is_pinned && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700"><Pin size={10} /> Pinned</span>}
-            {post.is_important && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">Important</span>}
+            <h2 className="truncate text-sm font-semibold text-ink sm:text-[15px]">{orgName}</h2>
+            {item.is_pinned && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700"><Pin size={10} /> Pinned</span>}
+            {post.is_important && <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">Important</span>}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-[#64748B]">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
             <span>{formatRelativeTime(publishedAt)}</span><span aria-hidden="true">·</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${color}`}><Icon size={11} /> {label}</span>
           </div>
@@ -77,18 +77,18 @@ export default function FeedPost({ item, organization }) {
       </header>
 
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-        <h3 className="text-lg font-black leading-7 text-[#0F172A] sm:text-xl">{formatDisplayText(post.title)}</h3>
-        {body && <RichTextBody value={body} className="mt-2 text-sm leading-6 text-[#0F172A] sm:text-[15px]" />}
+        <h3 className="text-lg font-semibold leading-7 text-ink sm:text-xl">{formatDisplayText(post.title)}</h3>
+        {body && <RichTextBody value={body} className="mt-2 text-sm leading-6 text-ink sm:text-[15px]" />}
         {item.type === 'event' && (
-          <div className="mt-4 space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-semibold text-[#64748B]">
-            <p className="flex items-start gap-2"><Clock3 size={15} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(post.start_time)}</p>
-            {post.location && <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0 text-[#0878B7]" /> {post.location}</p>}
+          <div className="mt-4 space-y-2 rounded-lg border border-line bg-subtle p-3 text-xs font-semibold text-ink-muted">
+            <p className="flex items-start gap-2"><Clock3 size={15} className="mt-0.5 shrink-0 text-brand-700" /> {formatDateTime(post.start_time)}</p>
+            {post.location && <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0 text-brand-700" /> {post.location}</p>}
           </div>
         )}
         {item.type === 'election' && (
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-center">
-            <div><p className="text-lg font-black text-[#0F172A]">{post.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div>
-            <div><p className="text-lg font-black text-[#0F172A]">{post.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div>
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-line bg-subtle p-3 text-center">
+            <div><p className="text-lg font-semibold text-ink">{post.positions_count ?? 0}</p><p className="text-xs font-bold text-ink-muted">Positions</p></div>
+            <div><p className="text-lg font-semibold text-ink">{post.candidates_count ?? 0}</p><p className="text-xs font-bold text-ink-muted">Candidates</p></div>
           </div>
         )}
       </div>
@@ -97,21 +97,21 @@ export default function FeedPost({ item, organization }) {
 
       <footer className="p-3 sm:px-5 sm:py-4">
         {item.type === 'announcement' && (
-          <Link to="/dashboard/announcements/view-announcements" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
+          <Link to="/dashboard/announcements/view-announcements" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-sm font-bold text-brand-700 hover:bg-subtle sm:w-auto sm:px-5">
             <Megaphone size={15} /> View announcements
           </Link>
         )}
         {item.type === 'event' && (
-          <Link to="/dashboard/events/activity-calendar" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
+          <Link to="/dashboard/events/activity-calendar" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-sm font-bold text-brand-700 hover:bg-subtle sm:w-auto sm:px-5">
             <CalendarDays size={15} /> View activity calendar
           </Link>
         )}
         {item.type === 'election' && (post.has_voted ? (
-          <span className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-5 text-sm font-bold text-emerald-700 sm:w-auto"><CheckCircle2 size={16} /> Vote submitted</span>
+          <span className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-success-tint px-5 text-sm font-bold text-success-strong sm:w-auto"><CheckCircle2 size={16} /> Vote submitted</span>
         ) : electionClosed ? (
-          <Link to="/dashboard/elections/election-results" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto"><Vote size={15} /> View results</Link>
+          <Link to="/dashboard/elections/election-results" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line px-5 text-sm font-bold text-brand-700 hover:bg-subtle sm:w-auto"><Vote size={15} /> View results</Link>
         ) : (
-          <Link to={`/elections/${post.id}/vote`} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] sm:w-auto"><ShieldCheck size={16} /> Enter secure voting</Link>
+          <Link to={`/elections/${post.id}/vote`} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 sm:w-auto"><ShieldCheck size={16} /> Enter secure voting</Link>
         ))}
       </footer>
     </article>

@@ -82,7 +82,7 @@ export default function AccessibleOverlay({
       aria-label={labelledBy ? undefined : label}
       aria-labelledby={labelledBy}
       tabIndex={-1}
-      className={`${baseClassName} backdrop-blur-sm ${className || ''}`}
+      className={`${baseClassName} ${className || ''}`}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onCloseRef.current?.();

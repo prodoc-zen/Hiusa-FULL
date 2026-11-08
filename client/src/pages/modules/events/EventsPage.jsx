@@ -64,10 +64,10 @@ import useRecordParam from '../../../lib/useRecordParam';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
-  upcoming: 'bg-[#E6F6FD] text-[#0F2F62]',
-  approved: 'bg-[#E6F6FD] text-[#0F2F62]',
-  ongoing: 'bg-[#E6F6FD] text-[#0F2F62]',
-  completed: 'bg-emerald-50 text-emerald-700',
+  upcoming: 'bg-brand-50 text-navy-800',
+  approved: 'bg-brand-50 text-navy-800',
+  ongoing: 'bg-brand-50 text-navy-800',
+  completed: 'bg-success-tint text-success-strong',
   cancelled: 'bg-red-50 text-red-700',
 };
 
@@ -77,23 +77,23 @@ const statusLabel = {
 
 const taskStatusBadge = {
   pending: 'bg-slate-100 text-slate-500',
-  in_progress: 'bg-[#E6F6FD] text-[#0F2F62]',
-  completed: 'bg-emerald-50 text-emerald-700',
+  in_progress: 'bg-brand-50 text-navy-800',
+  completed: 'bg-success-tint text-success-strong',
   overdue: 'bg-red-50 text-red-700',
   blocked: 'bg-amber-50 text-amber-700',
-  ready: 'bg-[#E6F6FD] text-[#0F2F62]',
+  ready: 'bg-brand-50 text-navy-800',
 };
 
 const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
-  approved: 'bg-emerald-50 text-emerald-700',
+  approved: 'bg-success-tint text-success-strong',
   rejected: 'bg-red-50 text-red-700',
 };
 
 const attendanceStatusBadge = {
-  present: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  present: 'border-success/30 bg-success-tint text-success-strong',
   late: 'border-amber-200 bg-amber-50 text-amber-700',
-  excused: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62]',
+  excused: 'border-line bg-brand-50 text-navy-800',
   absent: 'border-red-200 bg-red-50 text-red-700',
 };
 
@@ -266,51 +266,51 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
 
   return (
     <>
-    <div className="flex h-full flex-col rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:p-5">
+    <div className="flex h-full flex-col rounded-lg border border-line bg-subtle p-4 sm:p-5">
       <div className="mb-4 flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#0878B7] text-white"><Fingerprint size={19} /></span>
-        <div><p className="text-[13px] font-bold text-[#0F172A]">Fingerprint check-in / checkout</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Scan, verify the matched Student, then confirm check-in or checkout.</p></div>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-700 text-white"><Fingerprint size={19} /></span>
+        <div><p className="text-[13px] font-bold text-ink">Fingerprint check-in / checkout</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Scan, verify the matched Student, then confirm check-in or checkout.</p></div>
       </div>
       <ScannerStatus reader={reader} />
-      <fieldset disabled={busy || Boolean(pendingConfirmation)} className="mt-4 border-t border-[#DDE7EF] pt-4 disabled:opacity-60">
+      <fieldset disabled={busy || Boolean(pendingConfirmation)} className="mt-4 border-t border-line pt-4 disabled:opacity-60">
         <legend className="sr-only">Narrow fingerprint candidates</legend>
-        <div className="flex items-start gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 py-2.5">
-          <UserCheck size={15} className="mt-0.5 shrink-0 text-[#0878B7]" />
-          <p className="text-[11px] font-semibold leading-4 text-slate-600"><span className="font-bold text-[#0F172A]">Required scope:</span> active Students in {department || 'this organization’s configured department'} only.</p>
+        <div className="flex items-start gap-2 rounded-lg border border-line bg-white px-3 py-2.5">
+          <UserCheck size={15} className="mt-0.5 shrink-0 text-brand-700" />
+          <p className="text-xs font-semibold leading-4 text-slate-600"><span className="font-bold text-ink">Required scope:</span> active Students in {department || 'this organization’s configured department'} only.</p>
         </div>
-        <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional candidate filters</p>
-        {academicStructureError && <p role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">{academicStructureError}</p>}
+        <p className="mt-3 text-xs font-bold text-slate-500">Optional candidate filters</p>
+        {academicStructureError && <p role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{academicStructureError}</p>}
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {attendanceYearLevels.map((yearLevel) => (
-            <label key={yearLevel} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-[11px] font-bold transition ${selectedYearLevels.includes(yearLevel) ? 'border-[#0B8ED0] bg-[#E6F6FD] text-[#0F2F62]' : 'border-[#DDE7EF] bg-white text-slate-600'}`}>
-              <input type="checkbox" checked={selectedYearLevels.includes(yearLevel)} onChange={() => toggleYearLevel(yearLevel)} className="h-4 w-4 accent-[#0B8ED0]" /> {yearLevel}
+            <label key={yearLevel} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-bold transition ${selectedYearLevels.includes(yearLevel) ? 'border-brand-600 bg-brand-50 text-navy-800' : 'border-line bg-white text-slate-600'}`}>
+              <input type="checkbox" checked={selectedYearLevels.includes(yearLevel)} onChange={() => toggleYearLevel(yearLevel)} className="h-4 w-4 accent-brand-600" /> {yearLevel}
             </label>
           ))}
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <label className="text-[11px] font-bold text-slate-600">Program
-            <HiusaSelect filter aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+          <label className="text-xs font-bold text-slate-600">Program
+            <HiusaSelect filter aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-ink outline-none focus:border-brand-600">
               <option value="">All programs</option>
               {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
             </HiusaSelect>
           </label>
-          <label className="text-[11px] font-bold text-slate-600">Section
-            <HiusaSelect filter aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+          <label className="text-xs font-bold text-slate-600">Section
+            <HiusaSelect filter aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-ink outline-none focus:border-brand-600">
               <option value="">All sections</option>
               {sectionOptions.map((section) => <option key={section} value={section}>{section}</option>)}
             </HiusaSelect>
           </label>
         </div>
       </fieldset>
-      {result && <div className={`mt-3 rounded-lg border px-3 py-2.5 text-xs font-semibold ${result.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : result.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-        {result.user && <p className="mb-0.5 font-black">{formatDisplayText(result.user.first_name)} {formatDisplayText(result.user.last_name)} · {result.user.school_id}</p>}
+      {result && <div className={`mt-3 rounded-lg border px-3 py-2.5 text-xs font-semibold ${result.type === 'success' ? 'border-success/30 bg-success-tint text-success-strong' : result.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        {result.user && <p className="mb-0.5 font-semibold">{formatDisplayText(result.user.first_name)} {formatDisplayText(result.user.last_name)} · {result.user.school_id}</p>}
         <p>{result.message}</p>
       </div>}
       <div className="mt-auto flex flex-wrap gap-2 pt-4">
-        <button type="button" onClick={scan} disabled={!reader.connected || busy || Boolean(pendingConfirmation)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" onClick={scan} disabled={!reader.connected || busy || Boolean(pendingConfirmation)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-[13px] font-bold text-white transition hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
           <Fingerprint size={16} /> {busy ? 'Scanning and identifying...' : 'Scan Fingerprint'}
         </button>
-        {busy && !pendingConfirmation && <button type="button" onClick={reader.cancelCapture} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-[13px] font-bold text-slate-600">Cancel</button>}
+        {busy && !pendingConfirmation && <button type="button" onClick={reader.cancelCapture} className="h-11 rounded-lg border border-line bg-white px-4 text-[13px] font-bold text-slate-600">Cancel</button>}
       </div>
     </div>
 
@@ -323,19 +323,19 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
       closeOnEscape={!busy}
       maxWidth="max-w-md"
       footer={pendingConfirmation ? <>
-        <button type="button" onClick={rejectCandidate} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">No, Scan Again</button>
-        <button type="button" data-autofocus onClick={confirm} disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><CheckCircle2 size={16} /> {busy ? 'Confirming...' : `Confirm ${confirmationAction}`}</button>
+        <button type="button" onClick={rejectCandidate} disabled={busy} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">No, Scan Again</button>
+        <button type="button" data-autofocus onClick={confirm} disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50"><CheckCircle2 size={16} /> {busy ? 'Confirming...' : `Confirm ${confirmationAction}`}</button>
       </> : null}
     >
       {pendingConfirmation && (
         <div className="space-y-4">
           <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">{pendingConfirmation.user?.first_name?.[0]}{pendingConfirmation.user?.last_name?.[0]}</span>
-            <div className="min-w-0"><p className="text-sm font-black text-[#0F172A]">Is this the correct Student?</p><p className="mt-1 truncate text-base font-black text-[#0F172A]">{formatDisplayText(pendingConfirmation.user?.first_name)} {formatDisplayText(pendingConfirmation.user?.last_name)}</p><p className="text-xs font-semibold leading-5 text-slate-500">School ID {pendingConfirmation.user?.school_id} · {[pendingConfirmation.user?.program, pendingConfirmation.user?.year_level, pendingConfirmation.user?.section].filter(Boolean).join(' · ') || 'Academic profile unavailable'}</p></div>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">{pendingConfirmation.user?.first_name?.[0]}{pendingConfirmation.user?.last_name?.[0]}</span>
+            <div className="min-w-0"><p className="text-sm font-semibold text-ink">Is this the correct Student?</p><p className="mt-1 truncate text-base font-semibold text-ink">{formatDisplayText(pendingConfirmation.user?.first_name)} {formatDisplayText(pendingConfirmation.user?.last_name)}</p><p className="text-xs font-semibold leading-5 text-slate-500">School ID {pendingConfirmation.user?.school_id} · {[pendingConfirmation.user?.program, pendingConfirmation.user?.year_level, pendingConfirmation.user?.section].filter(Boolean).join(' · ') || 'Academic profile unavailable'}</p></div>
           </div>
-          <div className="grid grid-cols-2 gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-[11px]">
-            <div><p className="font-bold uppercase tracking-wide text-slate-500">Action</p><p className="mt-1 font-black text-[#0878B7]">{pendingConfirmation.action === 'check_out' ? 'Check out' : 'Check in'}</p></div>
-            <div><p className="font-bold uppercase tracking-wide text-slate-500">Match score</p><p className="mt-1 font-black text-[#0F172A]">{Number(pendingConfirmation.match?.score ?? 0).toFixed(1)} <span className="font-semibold text-slate-500">/ required {Number(pendingConfirmation.match?.threshold ?? 60).toFixed(0)}</span></p></div>
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-line bg-subtle p-4 text-xs">
+            <div><p className="font-bold text-slate-500">Action</p><p className="mt-1 font-semibold text-brand-700">{pendingConfirmation.action === 'check_out' ? 'Check out' : 'Check in'}</p></div>
+            <div><p className="font-bold text-slate-500">Match score</p><p className="mt-1 font-semibold text-ink">{Number(pendingConfirmation.match?.score ?? 0).toFixed(1)} <span className="font-semibold text-slate-500">/ required {Number(pendingConfirmation.match?.threshold ?? 60).toFixed(0)}</span></p></div>
           </div>
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold leading-5 text-amber-800">Only confirm when the Student’s face and School ID match the person at the reader.</p>
         </div>
@@ -1149,14 +1149,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         primary={activeTab === 'events' && canCreateEvents && !viewingHistory ? <Button leftIcon={Plus} onClick={openCreateForm}>New event</Button> : undefined}
       />
 
-      {activeTab === 'events' && <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
+      {activeTab === 'events' && <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Events', value: events.length, helper: 'This academic year', icon: Calendar },
           { label: 'Upcoming', value: upcoming, helper: 'Scheduled', icon: Clock },
           { label: 'Completed', value: completed, helper: 'Successfully held', icon: CheckCircle2 },
           { label: 'Total Tasks', value: tasks.length, helper: 'Across all events', icon: Users },
         ].map((stat) => (
-          <dl key={stat.label} className="flex items-start justify-between gap-4 bg-white p-4 sm:p-5"><div><dt className="text-xs font-semibold text-slate-500">{stat.label}</dt><dd className="mt-2 text-2xl font-black tabular-nums text-[#0F172A]">{stat.value}</dd><p className="mt-1 text-xs font-medium text-slate-500">{stat.helper}</p></div><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><stat.icon size={19} /></span></dl>
+          <dl key={stat.label} className="flex items-start justify-between gap-4 bg-white p-4 sm:p-5"><div><dt className="text-xs font-semibold text-slate-500">{stat.label}</dt><dd className="mt-2 text-2xl font-semibold tabular-nums text-ink">{stat.value}</dd><p className="mt-1 text-xs font-medium text-slate-500">{stat.helper}</p></div><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800"><stat.icon size={19} /></span></dl>
         ))}
       </section>}
 
@@ -1171,18 +1171,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
           {academicPeriods.length > 0 ? <label className="block w-full max-w-sm text-xs font-semibold text-slate-700">Academic period
-            <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">
+            <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm">
               <option value="">Active period</option>
               {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
             </HiusaSelect>
           </label> : <span />}
-          <div role="group" aria-label="Switch events view" className="flex h-11 w-fit shrink-0 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1">
+          <div role="group" aria-label="Switch events view" className="flex h-11 w-fit shrink-0 items-center rounded-lg border border-line bg-subtle p-1">
             <button
               type="button"
               aria-label="List view"
               aria-pressed={eventsView === 'list'}
               onClick={() => changeEventsView('list')}
-              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'list' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
+              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'list' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'}`}
             >
               <List size={15} /> <span className="hidden sm:inline">List</span>
             </button>
@@ -1191,16 +1191,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               aria-label="Calendar view"
               aria-pressed={eventsView === 'calendar'}
               onClick={() => changeEventsView('calendar')}
-              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'calendar' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
+              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'calendar' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'}`}
             >
               <Calendar size={15} /> <span className="hidden sm:inline">Calendar</span>
             </button>
           </div>
           </div>
-          {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
+          {viewingHistory && <p className="rounded-lg border border-line bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
 
           {eventsView === 'list' && (
-            <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
               <TableFilterBar
                 searchValue={search}
                 onSearchChange={setSearch}
@@ -1211,9 +1211,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 resultLabel={eventTotal === 1 ? 'event' : 'events'}
                 secondaryClassName="grid gap-3 sm:grid-cols-3"
               >
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Status<HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort by<HiusaSelect value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></label>
+                <label className="text-xs font-bold text-slate-500">Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600" /></label>
+                <label className="text-xs font-bold text-slate-500">Status<HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
+                <label className="text-xs font-bold text-slate-500">Sort by<HiusaSelect value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></label>
               </TableFilterBar>
             </div>
           )}
@@ -1225,7 +1225,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               onSelectEvent={openEventDetails}
             />
           ) : (
-            <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="rounded-lg border border-line bg-white shadow-sm">
               {eventListLoading ? (
                 <div className="space-y-2 p-5">
                   {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
@@ -1234,7 +1234,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 eventListEmptyState()
               ) : (
                 <>
-                <div className="divide-y divide-[#DDE7EF] lg:hidden">
+                <div className="divide-y divide-line lg:hidden">
                   {pagedEvents.map((evt) => {
                     const budgetStatus = getEventBudgetStatus(evt);
                     return (
@@ -1245,26 +1245,26 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <button
                                 type="button"
                                 onClick={() => openEventDetails(evt)}
-                                className="text-left font-black text-[#0F172A] transition hover:text-[#0878B7] focus:outline-none focus:underline"
+                                className="text-left font-semibold text-ink transition hover:text-brand-700 focus:outline-none focus:underline"
                               >
                                 {formatDisplayText(evt.title)}
                               </button>
                             </h3>
                             <RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" />
                           </div>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{eventStatusText(evt)}</span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{eventStatusText(evt)}</span>
                         </div>
                         {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-3" />}
                         <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
-                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Schedule</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{formatDateTime(evt.start_time)}<span className="block font-normal text-slate-500">Ends {formatDateTime(evt.end_time)}</span></dd></div>
-                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Venue</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{evt.location || 'Not specified'}</dd></div>
-                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Operations</dt><dd className="mt-1 font-semibold text-slate-700">{evt.present_count || 0} present / late · {evt.tasks_count || 0} tasks</dd></div>
-                          {canCreateEvents && <div><dt className="font-bold uppercase tracking-wide text-slate-500">Budget</dt><dd className="mt-1"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${budgetStatus.tone}`}>{budgetStatus.label}</span></dd></div>}
+                          <div><dt className="font-bold text-slate-500">Schedule</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{formatDateTime(evt.start_time)}<span className="block font-normal text-slate-500">Ends {formatDateTime(evt.end_time)}</span></dd></div>
+                          <div><dt className="font-bold text-slate-500">Venue</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{evt.location || 'Not specified'}</dd></div>
+                          <div><dt className="font-bold text-slate-500">Operations</dt><dd className="mt-1 font-semibold text-slate-700">{evt.present_count || 0} present / late · {evt.tasks_count || 0} tasks</dd></div>
+                          {canCreateEvents && <div><dt className="font-bold text-slate-500">Budget</dt><dd className="mt-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${budgetStatus.tone}`}>{budgetStatus.label}</span></dd></div>}
                         </dl>
                         {isReturned(evt) && evt.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-5 text-red-700">Returned: {evt.approval_remarks}</p>}
-                        <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
-                          <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
-                          {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
+                        <div className="mt-4 flex gap-2 border-t border-line pt-3">
+                          <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-line text-xs font-bold text-brand-700"><Eye size={15} /> View details</button>
+                          {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-brand-700 text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
                           {canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
                           {canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && <button type="button" onClick={() => { setCancelError(null); setEventToCancel(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Ban size={15} /> Cancel event</button>}
                         </div>
@@ -1274,7 +1274,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
                 <div className="hidden overflow-x-auto lg:block">
                   <table className="w-full min-w-[1280px] text-left">
-                    <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <thead className="bg-subtle text-xs font-bold text-slate-500">
                       <tr>
                         <th className="px-5 py-3">Event</th>
                         <th className="px-5 py-3">Organizer</th>
@@ -1287,26 +1287,26 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <th className="px-5 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#DDE7EF] text-sm">
+                    <tbody className="divide-y divide-line text-sm">
                       {pagedEvents.map((evt) => (
-                        <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
+                        <tr key={evt.id} className="transition hover:bg-subtle">
                           <td className="max-w-[260px] px-5 py-4">
                             <button
                               type="button"
                               onClick={() => openEventDetails(evt)}
-                              className="text-left font-bold text-[#0F172A] transition hover:text-[#0878B7] focus:outline-none focus:underline"
+                              className="text-left font-bold text-ink transition hover:text-brand-700 focus:outline-none focus:underline"
                             >
                               {formatDisplayText(evt.title)}
                             </button>
-                            <RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" />
+                            <RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs text-slate-500" />
                           </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : '-'}<p className="text-[10px] text-[#0878B7]">{formatDisplayText(evt.creator?.position_title) || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
+                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : '-'}<p className="text-xs text-brand-700">{formatDisplayText(evt.creator?.position_title) || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
                               <Clock size={13} className="text-slate-500" />
                               {formatDateTime(evt.start_time)}
                             </div>
-                            <p className="mt-1 text-[10px] text-slate-500">Ends {formatDateTime(evt.end_time)}</p>
+                            <p className="mt-1 text-xs text-slate-500">Ends {formatDateTime(evt.end_time)}</p>
                           </td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
@@ -1314,14 +1314,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               {evt.location || '-'}
                             </div>
                           </td>
-                          <td className="px-5 py-4 text-xs"><p className="font-bold text-[#0F172A]">{evt.present_count || 0} present/late</p><p className="text-[10px] text-slate-500">{evt.attendance_records_count || 0} total records</p></td>
-                          <td className="px-5 py-4 text-xs"><p className="font-bold text-[#0F172A]">{evt.tasks_count || 0} linked</p><p className="text-[10px] text-slate-500">Workflow tasks</p></td>
+                          <td className="px-5 py-4 text-xs"><p className="font-bold text-ink">{evt.present_count || 0} present/late</p><p className="text-xs text-slate-500">{evt.attendance_records_count || 0} total records</p></td>
+                          <td className="px-5 py-4 text-xs"><p className="font-bold text-ink">{evt.tasks_count || 0} linked</p><p className="text-xs text-slate-500">Workflow tasks</p></td>
                           <td className="px-5 py-4">
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
                               {eventStatusText(evt)}
                             </span>
                             {isReturned(evt) && evt.approval_remarks && (
-                              <p className="mt-1 max-w-[220px] text-[11px] text-red-600">
+                              <p className="mt-1 max-w-[220px] text-xs text-red-600">
                                 <span className="font-semibold">Returned:</span> {evt.approval_remarks}
                               </p>
                             )}
@@ -1334,7 +1334,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${budgetStatus.tone}`}>
                                   {budgetStatus.label}
                                 </span>
-                                {evt.budgets?.length > 0 && <p className="mt-1 text-[11px] text-slate-500">{evt.budgets.length} linked</p>}
+                                {evt.budgets?.length > 0 && <p className="mt-1 text-xs text-slate-500">{evt.budgets.length} linked</p>}
                               </td>
                             );
                           })()}
@@ -1370,7 +1370,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       {activeTab === 'tasks' && (
         <section className="space-y-4">
           {!loading && events.length === 0 ? (
-            <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="rounded-lg border border-line bg-white shadow-sm">
               <EmptyState
                 icon={CalendarPlus}
                 title="No event to plan yet"
@@ -1379,43 +1379,43 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               />
             </div>
           ) : (
-          <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
+          <div className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+            <div className="border-b border-line p-4 sm:p-5">
               <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><List size={19} /></div>
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800"><List size={19} /></div>
                 <div>
                   <p className="max-w-3xl text-sm leading-6 text-slate-500">Choose an event and describe what needs to happen. The AI will suggest a plan, due dates, and officers. You review everything before any task is created.</p>
                 </div>
               </div>
 
-              <div aria-label="Steps for creating an event to-do list" className="mt-5 grid overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] md:grid-cols-3">
+              <div aria-label="Steps for creating an event to-do list" className="mt-5 grid overflow-hidden rounded-lg border border-line bg-subtle md:grid-cols-3">
                 {[
                   ['1', 'Choose an event', 'The event date, location, budget, and saved notes are included.'],
                   ['2', 'Describe what is needed', 'Mention setup, supplies, publicity, safety, reports, or special concerns.'],
                   ['3', 'Review and assign', 'Check every task and officer before saving the list.'],
                 ].map(([step, title, detail], index) => (
-                  <div key={title} className={`flex gap-3 p-4 ${index ? 'border-t border-[#DDE7EF] md:border-l md:border-t-0' : ''}`}>
-                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">{step}</span>
-                    <div><p className="text-xs font-black text-[#0F172A]">{title}</p><p className="mt-1 text-[11px] leading-5 text-slate-500">{detail}</p></div>
+                  <div key={title} className={`flex gap-3 p-4 ${index ? 'border-t border-line md:border-l md:border-t-0' : ''}`}>
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">{step}</span>
+                    <div><p className="text-xs font-semibold text-ink">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p></div>
                   </div>
                 ))}
               </div>
 
               <form className="mt-5 grid gap-4 lg:grid-cols-[260px_1fr]" onSubmit={handleGeneratePlan}>
                 <div>
-                  <label htmlFor="planning-event" className="text-xs font-bold text-[#0F172A]">Event</label>
-                  <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                  <label htmlFor="planning-event" className="text-xs font-bold text-ink">Event</label>
+                  <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-accent/20">
                     <option value="">Choose an event</option>
                     {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
                   </HiusaSelect>
-                  {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
+                  {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-brand-700" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
                 </div>
                 <div>
-                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]">Optional planning context</label>
-                  <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Add priorities or constraints. The planner will also recommend the practical work the event needs." className="mt-1.5 w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" />
+                  <label htmlFor="planning-needs" className="text-xs font-bold text-ink">Optional planning context</label>
+                  <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Add priorities or constraints. The planner will also recommend the practical work the event needs." className="mt-1.5 w-full resize-none rounded-lg border border-line px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:ring-2 focus:ring-accent/20" />
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-[11px] leading-5 text-slate-500">The draft can recommend operational tasks. Missing names, prices, and approvals stay marked for review instead of being guessed.</p>
-                    <button type="submit" disabled={planSubmitting || !planForm.event_id} className="h-11 shrink-0 rounded-lg bg-[#0878B7] px-5 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{planSubmitting ? 'Creating your to-do list…' : 'Draft Editable To-do List'}</button>
+                    <p className="text-xs leading-5 text-slate-500">The draft can recommend operational tasks. Missing names, prices, and approvals stay marked for review instead of being guessed.</p>
+                    <button type="submit" disabled={planSubmitting || !planForm.event_id} className="h-11 shrink-0 rounded-lg bg-brand-700 px-5 text-[13px] font-bold text-white transition hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{planSubmitting ? 'Creating your to-do list…' : 'Draft Editable To-do List'}</button>
                   </div>
                 </div>
               </form>
@@ -1425,23 +1425,23 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               {workflowHistoryError && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">{workflowHistoryError}</p>}
 
               {workflowHistory.length > 0 && (
-                <div className="mt-4 border-t border-[#DDE7EF] pt-4">
-                  <p className="text-xs font-bold text-[#0F172A]">Previous drafts</p>
+                <div className="mt-4 border-t border-line pt-4">
+                  <p className="text-xs font-bold text-ink">Previous drafts</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {workflowHistory.map((output) => (
-                      <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${output.id === workflowOutputId ? 'border-[#0B8ED0] bg-[#E6F6FD] text-[#0F2F62]' : 'border-[#DDE7EF] bg-white text-slate-600 hover:border-[#DDE7EF] hover:bg-[#F8FBFD]'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
+                      <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${output.id === workflowOutputId ? 'border-brand-600 bg-brand-50 text-navy-800' : 'border-line bg-white text-slate-600 hover:border-line hover:bg-subtle'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
 
-            {planResult && !workflowDraft && <div className="m-4 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm leading-6 text-slate-700 sm:m-5">{replaceIsoDateTimes(planResult)}</div>}
+            {planResult && !workflowDraft && <div className="m-4 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-subtle p-4 text-sm leading-6 text-slate-700 sm:m-5">{replaceIsoDateTimes(planResult)}</div>}
 
             {workflowDraft && (
-              <div className="bg-[#F8FBFD] p-4 sm:p-5">
+              <div className="bg-subtle p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div><p className="text-xs font-black uppercase tracking-wider text-[#0878B7]">Ready for your review</p><h3 className="mt-1 text-base font-bold text-[#0F172A]">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
+                  <div><p className="text-xs font-semibold text-brand-700">Ready for your review</p><h3 className="mt-1 text-base font-bold text-ink">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
                   <span className="w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Nothing saved yet</span>
                 </div>
 
@@ -1453,13 +1453,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     ['Setup and coordination', workflowDraft.logistics],
                     ['Possible problems', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
                   ].map(([heading, items]) => (
-                    <article key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-4"><h4 className="text-xs font-black text-[#0F172A]">{heading}</h4>{items?.length ? <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-2 text-xs text-slate-500">Nothing listed.</p>}</article>
+                    <article key={heading} className="rounded-lg border border-line bg-white p-4"><h4 className="text-xs font-semibold text-ink">{heading}</h4>{items?.length ? <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-2 text-xs text-slate-500">Nothing listed.</p>}</article>
                   ))}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <div><h3 className="text-sm font-bold text-[#0F172A]">To-do items</h3><p className="mt-0.5 text-xs text-slate-500">Review the order, due dates, and assigned officers.</p></div>
-                  <button type="button" onClick={addWorkflowTask} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-[#0B8ED0] bg-white px-3 text-xs font-bold text-[#0878B7] transition hover:bg-[#F8FBFD]"><Plus size={15} /> Add to-do</button>
+                  <div><h3 className="text-sm font-bold text-ink">To-do items</h3><p className="mt-0.5 text-xs text-slate-500">Review the order, due dates, and assigned officers.</p></div>
+                  <button type="button" onClick={addWorkflowTask} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-brand-600 bg-white px-3 text-xs font-bold text-brand-700 transition hover:bg-subtle"><Plus size={15} /> Add to-do</button>
                 </div>
 
                 <div className="mt-3 space-y-4">
@@ -1467,28 +1467,28 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
                     const dueDateHint = task.phase === 'pre_event' ? `Choose a time before ${formatDateTime(selectedPlanningEvent?.start_time)}.` : task.phase === 'event_day' ? `Choose a time between ${formatDateTime(selectedPlanningEvent?.start_time)} and ${formatDateTime(selectedPlanningEvent?.end_time)}.` : `Choose a time after ${formatDateTime(selectedPlanningEvent?.end_time)}, within 30 days.`;
                     return (
-                      <article key={task.key} className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
-                        <div className="flex items-start justify-between gap-3 border-b border-[#DDE7EF] pb-3">
-                          <div className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#E6F6FD] text-xs font-black text-[#0F2F62]">{index + 1}</span><div><p className="text-sm font-bold text-[#0F172A]">To-do {index + 1}</p><p className="mt-0.5 text-[11px] text-slate-500">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div></div>
+                      <article key={task.key} className="rounded-lg border border-line bg-white p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+                          <div className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-semibold text-navy-800">{index + 1}</span><div><p className="text-sm font-bold text-ink">To-do {index + 1}</p><p className="mt-0.5 text-xs text-slate-500">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div></div>
                           <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"><X size={15} /></button>
                         </div>
 
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]">Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
-                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]">Due date and time</label><DateTimeInput id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]">What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
-                          <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]">When should it happen?</label><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></div>
-                          <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]">Importance</label><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></div>
-                          <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]">Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
-                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]">This can start after</label><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]">Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
+                          <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-ink">Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm font-semibold outline-none focus:border-brand-600 focus:ring-2 focus:ring-accent/20" /></div>
+                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-ink">Due date and time</label><DateTimeInput id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-accent/20" /><p className="mt-1 text-xs leading-5 text-slate-500">{dueDateHint}</p></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-ink">What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
+                          <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-ink">When should it happen?</label><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></div>
+                          <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-ink">Importance</label><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></div>
+                          <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-ink">Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" /></div>
+                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-ink">This can start after</label><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-ink">Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-brand-600 px-3 text-xs font-bold text-brand-700 disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-xs font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
                         </div>
 
                         {selectedOfficer && (
-                          <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#0F172A]">Why {formatDisplayText(selectedOfficer.name)} was suggested</p><span className="rounded-full bg-[#0878B7] px-2.5 py-1 text-[11px] font-bold text-white">{scoreLabel(selectedOfficer.final_score)} overall match</span></div>
-                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label} className="rounded-md border border-[#DDE7EF] bg-white px-3 py-2"><p className="text-[10px] font-semibold text-slate-500">{label}</p><p className="mt-0.5 text-xs font-black text-[#0F172A]">{scoreLabel(value)}</p></div>)}</div>
-                            {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-[11px] leading-5 text-slate-600">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
+                          <div className="mt-4 rounded-lg border border-line bg-subtle p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-ink">Why {formatDisplayText(selectedOfficer.name)} was suggested</p><span className="rounded-full bg-brand-700 px-2.5 py-1 text-xs font-bold text-white">{scoreLabel(selectedOfficer.final_score)} overall match</span></div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label} className="rounded-md border border-line bg-white px-3 py-2"><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-0.5 text-xs font-semibold text-ink">{scoreLabel(value)}</p></div>)}</div>
+                            {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-xs leading-5 text-slate-600">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
                           </div>
                         )}
                       </article>
@@ -1496,18 +1496,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   })}
                 </div>
 
-                <div className="mt-5 flex flex-col gap-3 border-t border-[#DDE7EF] pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs leading-5 text-slate-500">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-11 rounded-lg border border-red-200 bg-white px-4 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50">Remove Draft</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} onClick={confirmWorkflow} className="h-11 rounded-lg bg-[#0878B7] px-5 text-xs font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:opacity-50">{workflowAction ? 'Saving and assigning…' : 'Save and Assign Tasks'}</button></div>
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-11 rounded-lg border border-red-200 bg-white px-4 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50">Remove Draft</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} onClick={confirmWorkflow} className="h-11 rounded-lg bg-brand-700 px-5 text-xs font-bold text-white transition hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:opacity-50">{workflowAction ? 'Saving and assigning…' : 'Save and Assign Tasks'}</button></div>
                 </div>
               </div>
             )}
           </div>
           )}
 
-          <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Assigned Event Tasks</h2>
+          <div className="rounded-lg border border-line bg-white shadow-sm">
+          <div className="border-b border-line p-4 sm:p-5">
+            <h2 className="text-lg font-bold text-ink">Assigned Event Tasks</h2>
             <p className="mt-1 text-sm text-slate-500">See who is responsible, when each task is due, and whether it can begin.</p>
           </div>
           {loading ? (
@@ -1519,7 +1519,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] text-left">
-                <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <thead className="bg-subtle text-xs font-bold text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Task</th>
                     <th className="px-5 py-3">Assigned Officer</th>
@@ -1528,10 +1528,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <th className="px-5 py-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#DDE7EF] text-sm">
+                <tbody className="divide-y divide-line text-sm">
                   {pagedEventTasks.map((t) => (
-                    <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{formatDisplayText(t.title)}</td>
+                    <tr key={t.id} className="transition hover:bg-subtle">
+                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-ink">{formatDisplayText(t.title)}</td>
                       <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
                         {t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}
                       </td>
@@ -1565,23 +1565,23 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         <section aria-label="Event check-in" className="space-y-4">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <p className="text-sm font-semibold text-slate-600">{attendanceEvents.length} events open for check-in</p>
-          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-slate-600">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-bold text-[#0878B7] underline underline-offset-2 hover:text-[#0F2F62]">Go to Events</Link></p>}
+          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-slate-600">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-bold text-brand-700 underline underline-offset-2 hover:text-navy-800">Go to Events</Link></p>}
           {loading ? (
-            <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-5">
+            <div className="space-y-2 rounded-lg border border-line bg-white p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : attendanceEvents.length === 0 ? (
-            <div className="rounded-lg border border-[#DDE7EF] bg-white px-5 py-14 text-center shadow-sm">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><CalendarCheck2 size={24} /></span>
-              <h3 className="mt-4 text-base font-bold text-[#0F172A]">No events ready for check-in</h3>
+            <div className="rounded-lg border border-line bg-white px-5 py-14 text-center shadow-sm">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-page text-navy-800"><CalendarCheck2 size={24} /></span>
+              <h3 className="mt-4 text-base font-bold text-ink">No events ready for check-in</h3>
               <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{canManageAttendance ? 'Approved and ongoing events will appear here. Completed events remain available from Event Operations.' : 'An event appears here only while its approved check-in window is open.'}</p>
             </div>
           ) : (
-            <div className="grid min-h-[560px] overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm xl:grid-cols-[310px_minmax(0,1fr)]">
+            <div className="grid min-h-[560px] overflow-hidden rounded-lg border border-line bg-white shadow-sm xl:grid-cols-[310px_minmax(0,1fr)]">
               {/* Left panel - event list */}
-              <div className={`border-[#DDE7EF] bg-[#F8FBFD] xl:flex xl:min-h-[560px] xl:flex-col xl:border-r ${selectedAttEventId ? 'hidden' : 'flex min-h-[440px] flex-col'}`}>
-                <div className="border-b border-[#DDE7EF] bg-white px-4 py-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0878B7]">Event queue</p>
+              <div className={`border-line bg-subtle xl:flex xl:min-h-[560px] xl:flex-col xl:border-r ${selectedAttEventId ? 'hidden' : 'flex min-h-[440px] flex-col'}`}>
+                <div className="border-b border-line bg-white px-4 py-4">
+                  <p className="text-xs font-bold tracking-[0.14em] text-brand-700">Event queue</p>
                   <p className="mt-1 text-xs font-medium text-slate-500">Select where attendance is being recorded.</p>
                 </div>
                 <div className="flex-1 space-y-2 overflow-y-auto p-3">
@@ -1591,15 +1591,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       type="button"
                       aria-label={`Open attendance for ${formatDisplayText(evt.title)}`}
                       onClick={() => handleSelectAttEvent(evt.id)}
-                      className={`group flex w-full items-start gap-3 rounded-lg border px-3.5 py-3.5 text-left transition focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/40 ${selectedAttEventId === evt.id ? 'border-[#0B8ED0] bg-[#EEF6FB] shadow-sm' : 'border-transparent bg-white hover:border-[#DDE7EF]'}`}
+                      className={`group flex w-full items-start gap-3 rounded-lg border px-3.5 py-3.5 text-left transition focus:outline-none focus:ring-2 focus:ring-accent/40 ${selectedAttEventId === evt.id ? 'border-brand-600 bg-page shadow-sm' : 'border-transparent bg-white hover:border-line'}`}
                     >
-                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${evt.status === 'ongoing' ? 'bg-emerald-500 ring-4 ring-emerald-100' : evt.status === 'completed' ? 'bg-slate-400' : 'bg-[#0878B7]'}`} />
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${evt.status === 'ongoing' ? 'bg-success ring-4 ring-success/30' : evt.status === 'completed' ? 'bg-slate-400' : 'bg-brand-700'}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-bold text-[#0F172A]">{formatDisplayText(evt.title)}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><Clock size={12} /> {formatDateTime(evt.start_time)}</p>
-                        {evt.location && <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] font-medium text-slate-500"><MapPin size={12} /> {evt.location}</p>}
+                        <p className="truncate text-[13px] font-bold text-ink">{formatDisplayText(evt.title)}</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-500"><Clock size={12} /> {formatDateTime(evt.start_time)}</p>
+                        {evt.location && <p className="mt-1 flex items-center gap-1.5 truncate text-xs font-medium text-slate-500"><MapPin size={12} /> {evt.location}</p>}
                       </div>
-                      <ChevronRight size={16} className={`mt-1 shrink-0 transition ${selectedAttEventId === evt.id ? 'text-[#0878B7]' : 'text-slate-300 group-hover:text-[#0878B7]'}`} />
+                      <ChevronRight size={16} className={`mt-1 shrink-0 transition ${selectedAttEventId === evt.id ? 'text-brand-700' : 'text-slate-300 group-hover:text-brand-700'}`} />
                     </button>
                   ))}
                 </div>
@@ -1610,8 +1610,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 {!selectedAttEventId ? (
                   <div className="flex flex-1 items-center justify-center p-10 text-center">
                     <div>
-                      <span className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><UserRoundCheck size={26} /></span>
-                      <p className="mt-4 text-sm font-bold text-[#0F172A]">Choose an event to begin</p>
+                      <span className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-page text-navy-800"><UserRoundCheck size={26} /></span>
+                      <p className="mt-4 text-sm font-bold text-ink">Choose an event to begin</p>
                       <p className="mt-1 text-xs text-slate-500">Live controls and attendance records will appear here.</p>
                     </div>
                   </div>
@@ -1622,11 +1622,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 ) : (
                   <>
                     {/* Mobile back button */}
-                    <div className="flex items-center border-b border-[#DDE7EF] p-4 xl:hidden">
+                    <div className="flex items-center border-b border-line p-4 xl:hidden">
                       <button
                         type="button"
                         onClick={() => setSelectedAttEventId(null)}
-                        className="flex items-center gap-1.5 text-[13px] font-bold text-[#0878B7]"
+                        className="flex items-center gap-1.5 text-[13px] font-bold text-brand-700"
                       >
                         <ChevronLeft size={16} />
                         All Events
@@ -1634,35 +1634,35 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     </div>
 
                     {/* Event command header */}
-                    <div className="border-b border-[#DDE7EF] px-4 py-5 sm:px-6">
+                    <div className="border-b border-line px-4 py-5 sm:px-6">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadge[attendanceEvent?.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[attendanceEvent?.status] || capitalize(attendanceEvent?.status)}</span>
-                            {attendanceEvent?.status === 'ongoing' && <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live now</span>}
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[attendanceEvent?.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[attendanceEvent?.status] || capitalize(attendanceEvent?.status)}</span>
+                            {attendanceEvent?.status === 'ongoing' && <span className="inline-flex items-center gap-1.5 text-xs font-bold text-success-strong"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Live now</span>}
                           </div>
-                          <h3 className="mt-2 truncate text-lg font-black text-[#0F172A] sm:text-xl">{formatDisplayText(attendanceEvent?.title) ?? '-'}</h3>
+                          <h3 className="mt-2 truncate text-lg font-semibold text-ink sm:text-xl">{formatDisplayText(attendanceEvent?.title) ?? '-'}</h3>
                           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
-                            <span className="inline-flex items-center gap-1.5"><Clock size={13} className="text-[#0878B7]" />{formatDateTime(attendanceEvent?.start_time)}</span>
-                            {attendanceEvent?.location && <span className="inline-flex items-center gap-1.5"><MapPin size={13} className="text-[#0878B7]" />{attendanceEvent.location}</span>}
+                            <span className="inline-flex items-center gap-1.5"><Clock size={13} className="text-brand-700" />{formatDateTime(attendanceEvent?.start_time)}</span>
+                            {attendanceEvent?.location && <span className="inline-flex items-center gap-1.5"><MapPin size={13} className="text-brand-700" />{attendanceEvent.location}</span>}
                           </div>
                         </div>
-                        <button type="button" onClick={() => setAttendanceReload((value) => value + 1)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-[#DDE7EF] hover:bg-[#F8FBFD] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/40">
+                        <button type="button" onClick={() => setAttendanceReload((value) => value + 1)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-line hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-accent/40">
                           <Clock size={14} /> Refresh live data
                         </button>
                       </div>
 
-                      <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] lg:grid-cols-4">
+                      <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-line bg-subtle lg:grid-cols-4">
                         {[
                           ['Currently inside', currentlyInside, 'Not checked out'],
                           ['Attendance records', attendanceCount, 'Total arrivals'],
                           ['Late', attendanceData?.summary?.late ?? 0, 'After start'],
                           ['Check-in rate', attendanceRate === null ? 'Not available' : `${attendanceRate}%`, expectedAttendance > 0 ? `of ${expectedAttendance} expected` : 'No target set'],
                         ].map(([label, value, helper], index) => (
-                          <div key={label} className={`px-4 py-3.5 ${index % 2 ? 'border-l border-[#DDE7EF]' : ''} ${index > 1 ? 'border-t border-[#DDE7EF] lg:border-t-0' : ''} ${index > 0 ? 'lg:border-l' : ''}`}>
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-                            <p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p>
-                            <p className="mt-0.5 text-[10px] font-medium text-slate-500">{helper}</p>
+                          <div key={label} className={`px-4 py-3.5 ${index % 2 ? 'border-l border-line' : ''} ${index > 1 ? 'border-t border-line lg:border-t-0' : ''} ${index > 0 ? 'lg:border-l' : ''}`}>
+                            <p className="text-xs font-bold text-slate-500">{label}</p>
+                            <p className="mt-1 text-xl font-semibold text-ink">{value}</p>
+                            <p className="mt-0.5 text-xs font-medium text-slate-500">{helper}</p>
                           </div>
                         ))}
                       </div>
@@ -1670,10 +1670,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
-                      <div className="border-b border-[#DDE7EF] px-4 py-5 sm:px-6">
+                      <div className="border-b border-line px-4 py-5 sm:px-6">
                         <div className="mb-4">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0878B7]">Door controls</p>
-                          <h4 className="mt-1 text-base font-bold text-[#0F172A]">Record an arrival</h4>
+                          <p className="text-xs font-bold tracking-[0.14em] text-brand-700">Door controls</p>
+                          <h4 className="mt-1 text-base font-bold text-ink">Record an arrival</h4>
                           <p className="mt-1 text-xs leading-5 text-slate-500">Use the fingerprint reader for the fastest entry, or look up a member for a manual record.</p>
                         </div>
                         <div className="grid items-stretch gap-4 lg:grid-cols-2">
@@ -1685,10 +1685,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             department={attendanceAcademicStructure?.department || currentUser.department || currentUser.organization?.college || allUsers.find((user) => user.department)?.department || ''}
                             onRecorded={async () => setAttendanceReload((value) => value + 1)}
                           />
-                          <div className="relative flex flex-col rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
+                          <div className="relative flex flex-col rounded-lg border border-line bg-white p-4 sm:p-5">
                             <div className="mb-4 flex items-start gap-3">
-                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><Search size={18} /></span>
-                              <div><p className="text-[13px] font-bold text-[#0F172A]">Manual check-in</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Find the member by name, then confirm their attendance status.</p></div>
+                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-page text-navy-800"><Search size={18} /></span>
+                              <div><p className="text-[13px] font-bold text-ink">Manual check-in</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Find the member by name, then confirm their attendance status.</p></div>
                             </div>
                             <PersonPicker
                               label="Member"
@@ -1706,25 +1706,25 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               }}
                               disabled={checkInSubmitting}
                             />
-                            <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-[#0F172A]">Attendance status</label>
-                            <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} className="mt-1.5 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                            <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-ink">Attendance status</label>
+                            <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} className="mt-1.5 h-11 rounded-lg border border-line bg-white px-3 text-[13px] font-semibold text-ink outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-accent/20">
                               <option value="present">Present</option>
                               <option value="late">Late</option>
                               <option value="excused">Excused</option>
                               <option value="absent">Absent</option>
                             </HiusaSelect>
                             {checkInError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
-                            {checkInSuccess && <p role="status" className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
-                            <button type="button" onClick={handleCheckIn} disabled={!checkInPerson || checkInSubmitting} className="mt-auto flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+                            {checkInSuccess && <p role="status" className="mt-2 text-xs font-semibold text-success-strong">{checkInSuccess}</p>}
+                            <button type="button" onClick={handleCheckIn} disabled={!checkInPerson || checkInSubmitting} className="mt-auto flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-[13px] font-bold text-white transition hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
                               <UserCheck size={15} /> {checkInSubmitting ? 'Recording...' : 'Confirm Check-In'}
                             </button>
                           </div>
                         </div>
                       </div>
                     ) : canManageAttendance ? (
-                      <div className="flex items-start gap-3 border-b border-[#DDE7EF] bg-slate-50 px-5 py-4 text-sm font-medium text-slate-600">
+                      <div className="flex items-start gap-3 border-b border-line bg-slate-50 px-5 py-4 text-sm font-medium text-slate-600">
                         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-500"><CheckCircle2 size={18} /></span>
-                        <div><p className="font-bold text-[#0F172A]">Check-in is closed</p><p className="mt-0.5 text-xs leading-5">This event no longer accepts attendance records. The final register remains available below.</p></div>
+                        <div><p className="font-bold text-ink">Check-in is closed</p><p className="mt-0.5 text-xs leading-5">This event no longer accepts attendance records. The final register remains available below.</p></div>
                       </div>
                     ) : null}
 
@@ -1732,41 +1732,41 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {(attendanceData?.records?.length ?? 0) === 0 ? (
                       <div className="px-5 py-12 text-center">
                         <span className="mx-auto grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-500"><Users size={21} /></span>
-                        <p className="mt-3 text-sm font-bold text-[#0F172A]">No attendance records yet</p>
+                        <p className="mt-3 text-sm font-bold text-ink">No attendance records yet</p>
                         <p className="mt-1 text-xs text-slate-500">New arrivals will appear here after check-in.</p>
                       </div>
                     ) : (
                       <div>
-                        <div className="border-b border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:p-5">
+                        <div className="border-b border-line bg-subtle p-4 sm:p-5">
                           <div className="mb-3 flex items-center justify-between gap-3">
-                            <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0878B7]">Attendance log</p><p className="mt-1 text-xs font-medium text-slate-500">Search, review, and export recorded arrivals.</p></div>
-                            <span className="shrink-0 rounded-full border border-[#DDE7EF] bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">{attendanceMeta.total} matching</span>
+                            <div><p className="text-xs font-bold tracking-[0.14em] text-brand-700">Attendance log</p><p className="mt-1 text-xs font-medium text-slate-500">Search, review, and export recorded arrivals.</p></div>
+                            <span className="shrink-0 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-bold text-slate-600">{attendanceMeta.total} matching</span>
                           </div>
                           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_auto]">
-                            <label className="relative"><span className="sr-only">Search attendance</span><Search size={14} className="absolute left-3 top-3 text-slate-500" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile" className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></label>
-                            <HiusaSelect filter aria-label="Filter attendance status" value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</HiusaSelect>
-                            {canManageAttendance && <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0] bg-white px-3 text-xs font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={14} /> Export CSV</button>}
+                            <label className="relative"><span className="sr-only">Search attendance</span><Search size={14} className="absolute left-3 top-3 text-slate-500" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile" className="h-10 w-full rounded-lg border border-line bg-white pl-8 pr-3 text-xs outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-accent/20" /></label>
+                            <HiusaSelect filter aria-label="Filter attendance status" value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-line bg-white px-3 text-xs font-semibold outline-none focus:border-brand-600"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</HiusaSelect>
+                            {canManageAttendance && <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-brand-600 bg-white px-3 text-xs font-bold text-brand-700 transition hover:bg-subtle disabled:opacity-50"><Download size={14} /> Export CSV</button>}
                           </div>
                         </div>
-                        <div className="divide-y divide-[#DDE7EF] lg:hidden">
+                        <div className="divide-y divide-line lg:hidden">
                           {pagedAttendanceRecords.map((rec) => (
                             <article key={rec.id} className="p-4">
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0"><p className="truncate text-[13px] font-bold text-[#0F172A]">{rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : '-'}</p><p className="mt-0.5 text-[11px] font-medium text-slate-500">School ID {rec.user?.school_id ?? '-'}</p></div>
-                                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
+                                <div className="min-w-0"><p className="truncate text-[13px] font-bold text-ink">{rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : '-'}</p><p className="mt-0.5 text-xs font-medium text-slate-500">School ID {rec.user?.school_id ?? '-'}</p></div>
+                                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
                               </div>
-                              <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg bg-[#F8FBFD] p-3 text-[11px]">
-                                <div><p className="font-bold uppercase tracking-wide text-slate-500">Check-in</p><p className="mt-1 font-semibold text-slate-700">{formatDateTime(rec.check_in_time)}</p></div>
-                                <div><p className="font-bold uppercase tracking-wide text-slate-500">Method</p><p className="mt-1 font-semibold text-slate-700">{capitalize(rec.method)}</p></div>
+                              <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg bg-subtle p-3 text-xs">
+                                <div><p className="font-bold text-slate-500">Check-in</p><p className="mt-1 font-semibold text-slate-700">{formatDateTime(rec.check_in_time)}</p></div>
+                                <div><p className="font-bold text-slate-500">Method</p><p className="mt-1 font-semibold text-slate-700">{capitalize(rec.method)}</p></div>
                               </div>
-                              <p className="mt-3 text-[11px] leading-5 text-slate-500">{[rec.user?.program, rec.user?.major, rec.user?.year_level, rec.user?.section].filter(Boolean).join(' · ') || 'No academic profile provided'}</p>
+                              <p className="mt-3 text-xs leading-5 text-slate-500">{[rec.user?.program, rec.user?.major, rec.user?.year_level, rec.user?.section].filter(Boolean).join(' · ') || 'No academic profile provided'}</p>
                             </article>
                           ))}
                           {!filteredAttendanceRecords.length && <p className="px-5 py-10 text-center text-sm text-slate-500">No attendance records match the filters.</p>}
                         </div>
                         <div className="hidden overflow-x-auto lg:block">
                         <table className="w-full min-w-[980px] text-left">
-                          <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                          <thead className="bg-subtle text-xs font-bold text-slate-500">
                             <tr>
                               <th className="px-5 py-3">Member</th>
                               <th className="px-5 py-3">School ID</th>
@@ -1777,24 +1777,24 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <th className="px-5 py-3">Recorded By</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#DDE7EF] text-sm">
+                          <tbody className="divide-y divide-line text-sm">
                             {pagedAttendanceRecords.map((rec) => (
-                              <tr key={rec.id} className="transition hover:bg-[#F8FBFD]">
-                                <td className="px-5 py-3.5 font-bold text-[#0F172A]">
+                              <tr key={rec.id} className="transition hover:bg-subtle">
+                                <td className="px-5 py-3.5 font-bold text-ink">
                                   {rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : '-'}
                                 </td>
                                 <td className="px-5 py-3.5 font-medium text-slate-600">{rec.user?.school_id ?? '-'}</td>
                                 <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold text-slate-700">{[rec.user?.program, rec.user?.major].filter(Boolean).join(' · ') || '-'}</p><p>{[rec.user?.year_level, rec.user?.section, rec.user?.department].filter(Boolean).join(' · ') || '-'}</p></td>
                                 <td className="px-5 py-3.5">
-                                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${rec.method === 'biometric' ? 'bg-[#E6F6FD] text-[#0F2F62]' : 'bg-emerald-50 text-emerald-700'}`}>
+                                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${rec.method === 'biometric' ? 'bg-brand-50 text-navy-800' : 'bg-success-tint text-success-strong'}`}>
                                     {capitalize(rec.method)}
                                   </span>
                                 </td>
                                 <td className="px-5 py-3.5">
-                                  <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
+                                  <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
                                 </td>
-                                <td className="px-5 py-3.5 text-xs font-medium text-slate-600"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-[10px] text-slate-500">Out: {formatDateTime(rec.check_out_time)}</p></td>
-                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : '-'}</p><p className="text-[10px]">{formatDisplayText(rec.recorder?.position_title) || rec.recorder?.role || '-'}</p></td>
+                                <td className="px-5 py-3.5 text-xs font-medium text-slate-600"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-xs text-slate-500">Out: {formatDateTime(rec.check_out_time)}</p></td>
+                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : '-'}</p><p className="text-xs">{formatDisplayText(rec.recorder?.position_title) || rec.recorder?.role || '-'}</p></td>
                               </tr>
                             ))}
                             {!filteredAttendanceRecords.length && <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">No attendance records match the filters.</td></tr>}
@@ -1813,15 +1813,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       )}
 
       {selectedEvent && (
-        <AccessibleOverlay label="Event details" onClose={closeEventDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Event details" onClose={closeEventDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6">
             {selectedEvent.image_url && <img src={resolveAssetUrl(selectedEvent.image_url)} alt="" className="mb-5 max-h-72 w-full rounded-lg object-cover" />}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{eventStatusText(selectedEvent)}</span>
-                <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{formatDisplayText(selectedEvent.title) || 'Loading event'}</h2>
+                <h2 className="mt-3 text-xl font-semibold text-ink">{formatDisplayText(selectedEvent.title) || 'Loading event'}</h2>
               </div>
-              <button type="button" aria-label="Close event details" onClick={closeEventDetails} className="grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <button type="button" aria-label="Close event details" onClick={closeEventDetails} className="grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-subtle"><X size={18} /></button>
             </div>
             {selectedFlow && !detailsLoading && (
               <EventFlowPanel flow={selectedFlow}>
@@ -1832,20 +1832,20 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div className="mt-5 h-28 animate-pulse rounded-lg bg-slate-100" />
             ) : (
               <div className="mt-5 space-y-3 text-sm text-slate-600">
-                <p className="flex items-start gap-2"><Clock size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Schedule:</strong> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</span></p>
-                <p className="flex items-start gap-2"><MapPin size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Location:</strong> {selectedEvent.location || 'Not specified'}</span></p>
-                <p className="flex items-start gap-2"><Calendar size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Event type:</strong> {selectedEvent.planning_details?.event_type || 'Not specified'}</span></p>
-                <p className="flex items-start gap-2"><Users size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Expected participants:</strong> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</span></p>
-                <div><span className="font-bold text-[#0F172A]">Description:</span><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></div>
-                <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
+                <p className="flex items-start gap-2"><Clock size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden="true" /><span><strong className="text-ink">Schedule:</strong> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</span></p>
+                <p className="flex items-start gap-2"><MapPin size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden="true" /><span><strong className="text-ink">Location:</strong> {selectedEvent.location || 'Not specified'}</span></p>
+                <p className="flex items-start gap-2"><Calendar size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden="true" /><span><strong className="text-ink">Event type:</strong> {selectedEvent.planning_details?.event_type || 'Not specified'}</span></p>
+                <p className="flex items-start gap-2"><Users size={16} className="mt-0.5 shrink-0 text-brand-700" aria-hidden="true" /><span><strong className="text-ink">Expected participants:</strong> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</span></p>
+                <div><span className="font-bold text-ink">Description:</span><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></div>
+                <div className="grid gap-3 rounded-lg border border-line bg-subtle p-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Preparation progress</p>
-                    <p className="mt-1 font-bold text-[#0F172A]">{selectedEvent.tasks_count ? `${Math.round((selectedEvent.completed_tasks_count || 0) / selectedEvent.tasks_count * 100)}%` : 'No linked tasks'}</p>
+                    <p className="text-xs font-bold text-slate-500">Preparation progress</p>
+                    <p className="mt-1 font-bold text-ink">{selectedEvent.tasks_count ? `${Math.round((selectedEvent.completed_tasks_count || 0) / selectedEvent.tasks_count * 100)}%` : 'No linked tasks'}</p>
                     <p className="mt-1 text-xs text-slate-500">{selectedEvent.completed_tasks_count || 0} of {selectedEvent.tasks_count || 0} event tasks completed</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Attendance Summary</p>
-                    <p className="mt-1 font-bold text-[#0F172A]">{selectedEvent.attendance_records_count ?? 0} recorded</p>
+                    <p className="text-xs font-bold text-slate-500">Attendance Summary</p>
+                    <p className="mt-1 font-bold text-ink">{selectedEvent.attendance_records_count ?? 0} recorded</p>
                     {selectedEvent.attendance_summary && (
                       <p className="mt-1 text-xs text-slate-500">
                         Present {selectedEvent.attendance_summary.present ?? 0} · Late {selectedEvent.attendance_summary.late ?? 0} · Excused {selectedEvent.attendance_summary.excused ?? 0} · Absent {selectedEvent.attendance_summary.absent ?? 0}
@@ -1853,13 +1853,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Approval stage</p>
-                    <p className="mt-1 font-bold text-[#0F172A]">{stageText(selectedEvent) || capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
+                    <p className="text-xs font-bold text-slate-500">Approval stage</p>
+                    <p className="mt-1 font-bold text-ink">{stageText(selectedEvent) || capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
                   </div>
                 </div>
                 {(selectedEvent.planning_details?.requirements || selectedEvent.planning_details?.resources || selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
-                  <div className="space-y-2 rounded-lg border border-[#DDE7EF] p-4">
-                    <p className="font-bold text-[#0F172A]">Planning Details</p>
+                  <div className="space-y-2 rounded-lg border border-line p-4">
+                    <p className="font-bold text-ink">Planning Details</p>
                     {selectedEvent.planning_details?.requirements && <p className="whitespace-pre-wrap"><span className="font-semibold">Requirements:</span> {selectedEvent.planning_details.requirements}</p>}
                     {selectedEvent.planning_details?.resources && <p className="whitespace-pre-wrap"><span className="font-semibold">Resources:</span> {selectedEvent.planning_details.resources}</p>}
                     {selectedEvent.planning_details?.budget_notes && <p className="whitespace-pre-wrap"><span className="font-semibold">Budget requirements:</span> {selectedEvent.planning_details.budget_notes}</p>}
@@ -1868,13 +1868,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   </div>
                 )}
                 {canCreateEvents && (
-                  <div className="rounded-lg border border-[#DDE7EF] p-4">
+                  <div className="rounded-lg border border-line p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="flex items-center gap-2 font-bold text-[#0F172A]"><Wallet size={16} /> Linked Budget Status</p>
+                        <p className="flex items-center gap-2 font-bold text-ink"><Wallet size={16} /> Linked Budget Status</p>
                         <p className="mt-1 text-xs text-slate-500">Only budgets explicitly linked to this event are included.</p>
                       </div>
-                      <button type="button" onClick={() => navigate(selectedEvent.budgets?.length === 1 ? `/dashboard/finance/budget-allocation?record=${selectedEvent.budgets[0].id}` : `/dashboard/finance/budget-allocation?event=${selectedEvent.id}`)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]">
+                      <button type="button" onClick={() => navigate(selectedEvent.budgets?.length === 1 ? `/dashboard/finance/budget-allocation?record=${selectedEvent.budgets[0].id}` : `/dashboard/finance/budget-allocation?event=${selectedEvent.id}`)} className="min-h-11 rounded-lg border border-line px-3 text-xs font-bold text-brand-700 hover:bg-subtle">
                         Manage Budgets
                       </button>
                     </div>
@@ -1886,15 +1886,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           ['Income', selectedEvent.financial_summary.income],
                           ['Remaining', selectedEvent.financial_summary.remaining_budget],
                         ].map(([label, value]) => (
-                          <div key={label} className="rounded-lg bg-[#F8FBFD] p-2.5">
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-                            <p className="mt-1 text-xs font-black text-[#0F172A]">{formatCurrency(value)}</p>
+                          <div key={label} className="rounded-lg bg-subtle p-2.5">
+                            <p className="text-xs font-bold text-slate-500">{label}</p>
+                            <p className="mt-1 text-xs font-semibold text-ink">{formatCurrency(value)}</p>
                           </div>
                         ))}
                         <p className="col-span-2 text-xs text-slate-500 sm:col-span-4">Cash advances are not counted here.</p>
-                        <div className="col-span-2 rounded-lg bg-[#F8FBFD] p-2.5 sm:col-span-4">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Financial Risk / Latest Organization Forecast</p>
-                          <p className="mt-1 text-xs font-bold text-[#0F172A]">Risk: {capitalize(selectedEvent.financial_summary.risk)}</p>
+                        <div className="col-span-2 rounded-lg bg-subtle p-2.5 sm:col-span-4">
+                          <p className="text-xs font-bold text-slate-500">Financial Risk / Latest Organization Forecast</p>
+                          <p className="mt-1 text-xs font-bold text-ink">Risk: {capitalize(selectedEvent.financial_summary.risk)}</p>
                           {selectedEvent.financial_summary.latest_forecast ? (
                             <p className="mt-1 text-xs text-slate-500">{selectedEvent.financial_summary.latest_forecast.forecast_period}: projected income {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_income)}, expense {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_expense)}, balance {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_balance)}</p>
                           ) : <p className="mt-1 text-xs text-slate-500">No OLS forecast has been generated yet.</p>}
@@ -1904,10 +1904,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {selectedEvent.budgets?.length ? (
                       <div className="mt-3 space-y-2">
                         {selectedEvent.budgets.map((budget) => (
-                          <div key={budget.id} className="rounded-lg bg-[#F8FBFD] p-3">
+                          <div key={budget.id} className="rounded-lg bg-subtle p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-bold text-[#0F172A]">{formatDisplayText(budget.title)}</p>
-                              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${budgetStatusBadge[budget.approval_status] || budgetStatusBadge.pending}`}>
+                              <p className="font-bold text-ink">{formatDisplayText(budget.title)}</p>
+                              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${budgetStatusBadge[budget.approval_status] || budgetStatusBadge.pending}`}>
                                 {capitalize(budget.approval_status || 'pending')}
                               </span>
                             </div>
@@ -1925,12 +1925,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   </div>
                 )}
                 {canCreateEvents && (allowedStatusTransitions[selectedEvent.status]?.length ?? 0) > 0 && (
-                  <div className="rounded-lg border border-[#DDE7EF] p-4">
-                    <p className="font-bold text-[#0F172A]">Update Event Status</p>
+                  <div className="rounded-lg border border-line p-4">
+                    <p className="font-bold text-ink">Update Event Status</p>
                     <p className="mt-1 text-xs text-slate-500">Approval can only be granted through the approval workflow.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {allowedStatusTransitions[selectedEvent.status].map((status) => (
-                        <button key={status} type="button" disabled={statusUpdating} onClick={() => handleStatusUpdate(status)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD] disabled:opacity-50">
+                        <button key={status} type="button" disabled={statusUpdating} onClick={() => handleStatusUpdate(status)} className="min-h-11 rounded-lg border border-line px-3 text-xs font-bold text-brand-700 hover:bg-subtle disabled:opacity-50">
                           {statusUpdating ? 'Updating...' : `Mark ${capitalize(status)}`}
                         </button>
                       ))}
@@ -1951,15 +1951,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       )}
 
       {showForm && (
-        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'New event'} onClose={() => { setShowForm(false); setEditingEventId(null); setAttachedFileErrors({}); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'New event'} onClose={() => { setShowForm(false); setEditingEventId(null); setAttachedFileErrors({}); }} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">{editingEventId ? 'Edit event' : 'New event'}</h2>
-              <button type="button" aria-label="Close event form" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-ink">{editingEventId ? 'Edit event' : 'New event'}</h2>
+              <button type="button" aria-label="Close event form" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-subtle"><X size={18} /></button>
             </div>
             <form className="space-y-4" onSubmit={handleSaveEvent}>
               <div className="space-y-1.5">
-                <label htmlFor="event-title" className="text-[13px] font-semibold text-[#0F172A]">Event Name *</label>
+                <label htmlFor="event-title" className="text-[13px] font-semibold text-ink">Event Name *</label>
                 <input
                   id="event-title"
                   type="text"
@@ -1967,70 +1967,70 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   maxLength={255}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Annual General Assembly"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                 />
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-type" className="text-[13px] font-semibold text-[#0F172A]">Event Type</label>
-                  <input id="event-type" type="text" maxLength={100} value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} placeholder="e.g. General Assembly" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  <label htmlFor="event-type" className="text-[13px] font-semibold text-ink">Event Type</label>
+                  <input id="event-type" type="text" maxLength={100} value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} placeholder="e.g. General Assembly" className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-participants" className="text-[13px] font-semibold text-[#0F172A]">Expected Participants</label>
-                  <input id="event-participants" type="number" min="1" max="1000000" value={form.expected_participants} onChange={(e) => setForm({ ...form, expected_participants: e.target.value })} placeholder="e.g. 250" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  <label htmlFor="event-participants" className="text-[13px] font-semibold text-ink">Expected Participants</label>
+                  <input id="event-participants" type="number" min="1" max="1000000" value={form.expected_participants} onChange={(e) => setForm({ ...form, expected_participants: e.target.value })} placeholder="e.g. 250" className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-start-date" className="text-[13px] font-semibold text-[#0F172A]">Start Date *</label>
+                  <label htmlFor="event-start-date" className="text-[13px] font-semibold text-ink">Start Date *</label>
                   <DateTimeInput
                     id="event-start-date"
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-start-time" className="text-[13px] font-semibold text-[#0F172A]">Start Time *</label>
+                  <label htmlFor="event-start-time" className="text-[13px] font-semibold text-ink">Start Time *</label>
                   <DateTimeInput
                     id="event-start-time"
                     type="time"
                     value={form.startTime}
                     onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-end-date" className="text-[13px] font-semibold text-[#0F172A]">End Date</label>
+                  <label htmlFor="event-end-date" className="text-[13px] font-semibold text-ink">End Date</label>
                   <DateTimeInput
                     id="event-end-date"
                     type="date"
                     value={form.endDate}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-end-time" className="text-[13px] font-semibold text-[#0F172A]">End Time</label>
+                  <label htmlFor="event-end-time" className="text-[13px] font-semibold text-ink">End Time</label>
                   <DateTimeInput
                     id="event-end-time"
                     type="time"
                     value={form.endTime}
                     onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-[#0F172A]">Venue type</label>
-                <HiusaSelect id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></HiusaSelect>
-                {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-[#0F172A]">SAO venue</label><HiusaSelect id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}</HiusaSelect></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-[#0F172A]">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></>}
+                <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-ink">Venue type</label>
+                <HiusaSelect id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></HiusaSelect>
+                {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-ink">SAO venue</label><HiusaSelect id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}</HiusaSelect></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-ink">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" /></>}
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label>
+                <label htmlFor="event-description" className="text-[13px] font-semibold text-ink">Description</label>
                 <RichTextEditor
                   id="event-description"
                   rows={3}
@@ -2040,87 +2040,87 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-requirements" className="text-[13px] font-semibold text-[#0F172A]">Planning Requirements</label>
-                <textarea id="event-requirements" rows={2} value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="Program, safety, registration, approvals, accessibility..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <label htmlFor="event-requirements" className="text-[13px] font-semibold text-ink">Planning Requirements</label>
+                <textarea id="event-requirements" rows={2} value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="Program, safety, registration, approvals, accessibility..." className="w-full resize-none rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-resources" className="text-[13px] font-semibold text-[#0F172A]">Available / Required Resources</label>
-                <textarea id="event-resources" rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Rooms, equipment, volunteers, suppliers, materials..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <label htmlFor="event-resources" className="text-[13px] font-semibold text-ink">Available / Required Resources</label>
+                <textarea id="event-resources" rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Rooms, equipment, volunteers, suppliers, materials..." className="w-full resize-none rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-image" className="text-[13px] font-semibold text-[#0F172A]">Event poster <span className="font-normal text-slate-500">(optional)</span></label>
-                <label htmlFor="event-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ImagePlus size={18} /></span>
-                  <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#0F172A]">{form.imageFile?.name || (editingEventId ? 'Choose a replacement poster' : 'Choose an image')}</span><span className="block text-[10px] text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
+                <label htmlFor="event-image" className="text-[13px] font-semibold text-ink">Event poster <span className="font-normal text-slate-500">(optional)</span></label>
+                <label htmlFor="event-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line bg-subtle p-3 hover:border-brand-600">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-page text-navy-800"><ImagePlus size={18} /></span>
+                  <span className="min-w-0"><span className="block truncate text-xs font-bold text-ink">{form.imageFile?.name || (editingEventId ? 'Choose a replacement poster' : 'Choose an image')}</span><span className="block text-xs text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
                 </label>
                 <input id="event-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setForm({ ...form, imageFile: event.target.files?.[0] || null })} />
               </div>
-              <label className="flex items-center gap-2 text-[13px] font-semibold text-[#0F172A]">
+              <label className="flex items-center gap-2 text-[13px] font-semibold text-ink">
                 <input
                   type="checkbox"
                   checked={form.requires_budget}
                   onChange={(e) => setForm({ ...form, requires_budget: e.target.checked })}
-                  className="h-4 w-4 rounded border-[#DDE7EF]"
+                  className="h-4 w-4 rounded border-line"
                 />
                 Requires budget allocation
               </label>
               {form.requires_budget && (
-                <div className="grid grid-cols-1 gap-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 rounded-lg border border-line bg-subtle p-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label htmlFor="event-proposed-budget" className="text-[13px] font-semibold text-[#0F172A]">Proposed Budget</label>
-                    <input id="event-proposed-budget" type="number" min="0.01" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.proposed_budget_amount} onChange={(e) => setForm({ ...form, proposed_budget_amount: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
+                    <label htmlFor="event-proposed-budget" className="text-[13px] font-semibold text-ink">Proposed Budget</label>
+                    <input id="event-proposed-budget" type="number" min="0.01" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.proposed_budget_amount} onChange={(e) => setForm({ ...form, proposed_budget_amount: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600 disabled:bg-slate-100" />
                   </div>
                   <div className="space-y-1.5">
-                    <label htmlFor="event-budget-threshold" className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold</label>
-                    <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
+                    <label htmlFor="event-budget-threshold" className="text-[13px] font-semibold text-ink">Warning Threshold</label>
+                    <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600 disabled:bg-slate-100" />
                   </div>
-                  <p className="text-xs font-medium text-[#0878B7] sm:col-span-2">
+                  <p className="text-xs font-medium text-brand-700 sm:col-span-2">
                     {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget with its own approval request for the Department Head.'}
                   </p>
                 </div>
               )}
               <div className="space-y-1.5">
-                <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
+                <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-ink">Budget Requirements / Notes</label>
                 <textarea
                   id="event-budget-notes"
                   rows={2}
                   value={form.budget_notes}
                   onChange={(e) => setForm({ ...form, budget_notes: e.target.value })}
                   placeholder="Expected expenses or funding notes..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 resize-none"
                 />
               </div>
               {form.requires_budget && !form.proposed_budget_amount && (
-                <p className="rounded-lg bg-[#EEF6FB] p-3 text-xs font-medium text-[#0F2F62]">
+                <p className="rounded-lg bg-page p-3 text-xs font-medium text-navy-800">
                   These notes describe the event's funding needs. The actual allocation is proposed and linked to this event in Finance → Budget Allocation.
                 </p>
               )}
               <div className="space-y-1.5">
-                <label htmlFor="event-vendor-deadlines" className="text-[13px] font-semibold text-[#0F172A]">Vendor Deadlines</label>
+                <label htmlFor="event-vendor-deadlines" className="text-[13px] font-semibold text-ink">Vendor Deadlines</label>
                 <textarea
                   id="event-vendor-deadlines"
                   rows={2}
                   value={form.vendor_deadlines}
                   onChange={(e) => setForm({ ...form, vendor_deadlines: e.target.value })}
                   placeholder="Supplier, payment, or delivery deadlines..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 resize-none"
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-logistics-checklist" className="text-[13px] font-semibold text-[#0F172A]">Logistics Checklist</label>
+                <label htmlFor="event-logistics-checklist" className="text-[13px] font-semibold text-ink">Logistics Checklist</label>
                 <textarea
                   id="event-logistics-checklist"
                   rows={2}
                   value={form.logistics_checklist}
                   onChange={(e) => setForm({ ...form, logistics_checklist: e.target.value })}
                   placeholder="Venue setup, materials, registration, documentation..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 resize-none"
                 />
               </div>
               {!editingEventId && activeEventRequirements.length > 0 && (
-                <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+                <div className="space-y-3 rounded-lg border border-line bg-subtle p-4">
                   <div>
-                    <h3 className="text-[13px] font-bold text-[#0F172A]">Required Event Letters & Documents ({form.venue_type === 'on_campus' ? 'On-Campus' : 'Off-Campus'} SAO Checklist)</h3>
+                    <h3 className="text-[13px] font-bold text-ink">Required Event Letters & Documents ({form.venue_type === 'on_campus' ? 'On-Campus' : 'Off-Campus'} SAO Checklist)</h3>
                     <p className="text-xs text-slate-500">Attach letters and required documents now so they submit together with your event proposal.</p>
                   </div>
                   <div className="space-y-2.5">
@@ -2128,18 +2128,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       const attachedFile = attachedEventFiles[req.id];
                       const fileErr = attachedFileErrors[req.id];
                       return (
-                        <div key={req.id} className="rounded-md border border-[#DDE7EF] bg-white p-3">
+                        <div key={req.id} className="rounded-md border border-line bg-white p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div>
-                              <span className="text-xs font-bold text-[#0F172A]">{req.name}</span>
-                              {req.is_optional && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(Optional)</span>}
-                              {req.description && <p className="text-[11px] text-slate-500">{req.description}</p>}
+                              <span className="text-xs font-bold text-ink">{req.name}</span>
+                              {req.is_optional && <span className="ml-1.5 text-xs font-semibold text-slate-400">(Optional)</span>}
+                              {req.description && <p className="text-xs text-slate-500">{req.description}</p>}
                             </div>
                             {(req.template_url || req.template_original_name) && (
                               <button
                                 type="button"
                                 onClick={() => handleViewEventSample(req)}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0878B7] hover:underline cursor-pointer"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline cursor-pointer"
                               >
                                 <FileText size={12} aria-hidden="true" />
                                 <span>Sample template</span>
@@ -2147,11 +2147,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             )}
                           </div>
                           {attachedFile ? (
-                            <div className="mt-2 flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-3 py-1.5 text-xs">
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-line bg-page px-3 py-1.5 text-xs">
                               <div className="flex items-center gap-2 min-w-0">
-                                <FileText size={14} className="text-[#0878B7] shrink-0" />
-                                <span className="font-semibold text-[#0F2F62] truncate">{attachedFile.name}</span>
-                                <span className="text-[11px] text-slate-500 shrink-0">({(attachedFile.size / 1024).toFixed(0)} KB)</span>
+                                <FileText size={14} className="text-brand-700 shrink-0" />
+                                <span className="font-semibold text-navy-800 truncate">{attachedFile.name}</span>
+                                <span className="text-xs text-slate-500 shrink-0">({(attachedFile.size / 1024).toFixed(0)} KB)</span>
                               </div>
                               <button
                                 type="button"
@@ -2171,9 +2171,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                   const file = e.target.files?.[0];
                                   handleEventFileChange(req, file);
                                 }}
-                                className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-[#0878B7] hover:file:bg-[#DDE7EF]"
+                                className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-page file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-line"
                               />
-                              <p className="mt-1 text-[10px] text-slate-400">
+                              <p className="mt-1 text-xs text-slate-400">
                                 Allowed: {req.allowed_extensions ? req.allowed_extensions.map((ext) => `.${ext}`).join(', ') : '.pdf'} · Max {(req.max_file_size_kb || 10240) >= 1024 ? `${Math.round((req.max_file_size_kb || 10240) / 1024)}MB` : `${req.max_file_size_kb || 10240}KB`}
                               </p>
                             </div>
@@ -2187,11 +2187,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               )}
               {formError && <p className="text-xs text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Cancel</button>
                 <button
                   type="submit"
                   disabled={formSubmitting || !form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || (form.requires_budget && !form.budget_notes.trim())}
-                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
+                  className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-50"
                 >
                   {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Submit proposal'}
                 </button>

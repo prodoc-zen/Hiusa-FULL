@@ -128,16 +128,16 @@ export default function CashAdvancesSection({ onLedgerChange }) {
   }
 
   return (
-    <section aria-labelledby="cash-advances-title" className="rounded-lg border border-[#DDE7EF] bg-white">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5">
+    <section aria-labelledby="cash-advances-title" className="rounded-lg border border-line bg-white">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line p-4 sm:p-5">
         <div>
-          <h2 id="cash-advances-title" className="text-base font-bold text-[#0F172A]">Cash advances</h2>
+          <h2 id="cash-advances-title" className="text-base font-bold text-ink">Cash advances</h2>
           <p className="mt-1 text-xs text-slate-600">An advance moves cash in the ledger (released out, repaid back in) but is not counted as income or expense in reports and forecasts. A different admin approves every request.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold text-slate-600">
             <span className="block">Status</span>
-            <HiusaSelect filter value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A]">
+            <HiusaSelect filter value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-line bg-white px-3 text-sm text-ink">
               {STATUS_FILTERS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
             </HiusaSelect>
           </label>
@@ -152,7 +152,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
       )}
       {state.error && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
-          <p role="alert" className="text-sm font-semibold text-[#B91C1C]">{state.error}</p>
+          <p role="alert" className="text-sm font-semibold text-danger-strong">{state.error}</p>
           <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
         </div>
       )}
@@ -168,17 +168,17 @@ export default function CashAdvancesSection({ onLedgerChange }) {
         )
       )}
       {state.rows.length > 0 && (
-        <ul className="divide-y divide-[#DDE7EF]">
+        <ul className="divide-y divide-line">
           {state.rows.map((advance) => (
             <li key={advance.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="line-clamp-2 break-words text-sm font-bold text-[#0F172A]">{advance.purpose}</h3>
+                  <h3 className="line-clamp-2 break-words text-sm font-bold text-ink">{advance.purpose}</h3>
                   <StatusBadge status={advance.status} />
                 </div>
                 <p className="mt-1 text-xs font-medium text-slate-600">{advance.reference} · requested by {borrowerName(advance)} · {formatDateTime(advance.created_at)}</p>
                 <p className="mt-1 text-xs font-medium text-slate-600">
-                  {peso(advance.amount)} advanced · {peso(advance.amount_repaid)} repaid · <span className="font-semibold text-[#0F172A]">{peso(advance.remaining_balance)} outstanding</span>
+                  {peso(advance.amount)} advanced · {peso(advance.amount_repaid)} repaid · <span className="font-semibold text-ink">{peso(advance.remaining_balance)} outstanding</span>
                 </p>
               </div>
               <div className="shrink-0">{rowAction(advance)}</div>
@@ -203,7 +203,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
 
       {repayTarget && (
         <Dialog label="Record repayment" onClose={() => setRepayTarget(null)} onSubmit={submitRepayment} submitLabel="Record repayment" busy={busy === 'repay'} error={formError}>
-          <p className="text-sm text-slate-600">{repayTarget.reference} · {borrowerName(repayTarget)} · <span className="font-semibold text-[#0F172A]">{peso(repayTarget.remaining_balance)} outstanding</span></p>
+          <p className="text-sm text-slate-600">{repayTarget.reference} · {borrowerName(repayTarget)} · <span className="font-semibold text-ink">{peso(repayTarget.remaining_balance)} outstanding</span></p>
           <Field label="Amount repaid (PHP)" required>
             <Input type="number" min="0.01" step="0.01" max={repayTarget.remaining_balance} inputMode="decimal" value={repayment.amount} onChange={(event) => setRepayment({ ...repayment, amount: event.target.value })} />
           </Field>

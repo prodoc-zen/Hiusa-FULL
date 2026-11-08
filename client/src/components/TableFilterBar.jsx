@@ -55,7 +55,7 @@ export default function TableFilterBar({
             >
               <SlidersHorizontal size={16} />
               Filters
-              {hasActiveFilters && <span className="grid min-w-5 place-items-center rounded-full bg-navy-800 px-1.5 py-0.5 text-[10px] text-white">{activeFilters.length}</span>}
+              {hasActiveFilters && <span className="grid min-w-5 place-items-center rounded-full bg-navy-800 px-1.5 py-0.5 text-xs text-white">{activeFilters.length}</span>}
               <ChevronDown size={15} className={`transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} />
             </button>
           )}
@@ -71,7 +71,7 @@ export default function TableFilterBar({
 
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-3 py-2.5 sm:px-4">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">Active</span>
+          <span className="text-xs font-bold text-ink-soft">Active</span>
           {activeFilters.map((filter) => (
             <span key={filter} className="max-w-full break-words rounded-full border border-brand-100 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-navy-800">{filter}</span>
           ))}

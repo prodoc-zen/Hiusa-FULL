@@ -145,7 +145,7 @@ export default function GeneralAuditLogPage() {
   return (
     <div className="space-y-5">
       <PageHeader />
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
         <TableFilterBar
           searchValue={filters.search}
           onSearchChange={(value) => update('search', value)}
@@ -155,13 +155,13 @@ export default function GeneralAuditLogPage() {
           resultCount={meta.total}
           resultLabel={meta.total === 1 ? 'entry' : 'entries'}
           secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          actions={<button type="button" onClick={handleExport} disabled={exporting || meta.total === 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={16} aria-hidden="true" />{exporting ? 'Exporting...' : 'Export CSV'}</button>}
+          actions={<button type="button" onClick={handleExport} disabled={exporting || meta.total === 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-bold text-brand-700 transition hover:bg-subtle disabled:opacity-50"><Download size={16} aria-hidden="true" />{exporting ? 'Exporting...' : 'Export CSV'}</button>}
         >
           <HiusaSelect filter
             aria-label="Module"
             value={filters.module}
             onChange={(event) => update("module", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="">All modules</option>
             {moduleOptions.map((module) => (
@@ -174,7 +174,7 @@ export default function GeneralAuditLogPage() {
             aria-label="Action category"
             value={filters.category}
             onChange={(event) => update("category", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="">All actions</option>
             {ACTION_CATEGORY_OPTIONS.map((category) => (
@@ -185,7 +185,7 @@ export default function GeneralAuditLogPage() {
             aria-label="Actor role"
             value={filters.role}
             onChange={(event) => update("role", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="">All actor roles</option>
             {Object.entries(ROLE_LABELS).map(
@@ -198,7 +198,7 @@ export default function GeneralAuditLogPage() {
             aria-label="Actor department"
             value={filters.department}
             onChange={(event) => update("department", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="">All departments</option>
             {departments.map((value) => (
@@ -209,36 +209,36 @@ export default function GeneralAuditLogPage() {
             aria-label="Actor program"
             value={filters.program}
             onChange={(event) => update("program", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="">All programs</option>
             {programs.map((value) => (
               <option key={value}>{value}</option>
             ))}
           </HiusaSelect>
-          <label className="text-[10px] font-bold uppercase text-slate-500">
+          <label className="text-xs font-bold text-slate-500">
             From
             <DateTimeInput
               type="date"
               value={filters.from}
               onChange={(event) => update("from", event.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-xs"
+              className="mt-1 h-10 w-full rounded-lg border border-line px-2 text-xs"
             />
           </label>
-          <label className="text-[10px] font-bold uppercase text-slate-500">
+          <label className="text-xs font-bold text-slate-500">
             To
             <DateTimeInput
               type="date"
               value={filters.to}
               onChange={(event) => update("to", event.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-xs"
+              className="mt-1 h-10 w-full rounded-lg border border-line px-2 text-xs"
             />
           </label>
           <HiusaSelect
             aria-label="Sort audit logs"
             value={filters.sort}
             onChange={(event) => update("sort", event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
+            className="h-11 rounded-lg border border-line px-3 text-sm"
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -255,7 +255,7 @@ export default function GeneralAuditLogPage() {
           {error}
         </p>
       )}
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
         {loading ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 6 }, (_, index) => (
@@ -274,19 +274,19 @@ export default function GeneralAuditLogPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-xs">
-              <thead className="bg-[#F8FBFD] text-[#64748B]"><tr>
+              <thead className="bg-subtle text-ink-muted"><tr>
                 {['Time', 'Actor', 'Role', ...(isSao ? ['Organization'] : []), 'Module', 'Action', 'Affected record', 'Record ID', 'Actions'].map((heading) => <th key={heading} scope="col" className={`px-3 py-3 font-bold ${heading === 'Actions' ? 'text-right' : ''}`}>{heading}</th>)}
               </tr></thead>
-              <tbody className="divide-y divide-[#DDE7EF]">
-                {logs.map((log) => <tr key={log.id} className="align-top hover:bg-[#F8FBFD]">
-                  <td className="whitespace-nowrap px-3 py-3 text-[#64748B]">{log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : 'Unknown'}</td>
-                  <td className="px-3 py-3 font-semibold text-[#0F172A]">{formatDisplayText(log.actor?.name) || 'System'}</td>
-                  <td className="px-3 py-3 text-[#64748B]">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${formatDisplayText(log.actor.position_title)}` : ''}</td>
-                  {isSao && <td className="px-3 py-3 text-[#0F172A]">{formatDisplayText(log.organization?.name) || '-'}</td>}
+              <tbody className="divide-y divide-line">
+                {logs.map((log) => <tr key={log.id} className="align-top hover:bg-subtle">
+                  <td className="whitespace-nowrap px-3 py-3 text-ink-muted">{log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : 'Unknown'}</td>
+                  <td className="px-3 py-3 font-semibold text-ink">{formatDisplayText(log.actor?.name) || 'System'}</td>
+                  <td className="px-3 py-3 text-ink-muted">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${formatDisplayText(log.actor.position_title)}` : ''}</td>
+                  {isSao && <td className="px-3 py-3 text-ink">{formatDisplayText(log.organization?.name) || '-'}</td>}
                   <td className="px-3 py-3">{log.module_label || humanizeIdentifier(log.module)}</td>
                   <td className="px-3 py-3">{log.action_category_label || humanizeIdentifier(log.action_category)}</td>
-                  <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || formatDisplayText(log.affected_user?.name) || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>
-                  <td className="px-3 py-3 font-mono text-[#64748B]">{log.record_id ?? '-'}</td>
+                  <td className="max-w-64 px-3 py-3"><p className="font-semibold text-ink">{log.subject || formatDisplayText(log.affected_user?.name) || '-'}</p><p className="mt-1 line-clamp-2 text-ink-muted">{log.description}</p></td>
+                  <td className="px-3 py-3 font-mono text-ink-muted">{log.record_id ?? '-'}</td>
                   <td className="px-3 py-3 text-right"><div className="flex justify-end"><TableRowActions subject={`Audit record ${log.id}`} label="Audit actions" actions={[{ label: 'View details', icon: Eye, onClick: () => { setSelectedLog(log); setChangesPage(1); } }]} /></div></td>
                 </tr>)}
               </tbody>
@@ -303,14 +303,14 @@ export default function GeneralAuditLogPage() {
       </section>
 
       {selectedLog && (
-        <AccessibleOverlay label="Audit record details" onClose={() => setSelectedLog(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+        <AccessibleOverlay label="Audit record details" onClose={() => setSelectedLog(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/55 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5">
             <div className="flex justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase text-[#0878B7]">
+                <p className="text-xs font-bold text-brand-700">
                   Audit record LOG-{selectedLog.id}
                 </p>
-                <h2 className="mt-1 text-xl font-black text-[#0F172A]">
+                <h2 className="mt-1 text-xl font-semibold text-ink">
                   {selectedLog.description}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
@@ -322,7 +322,7 @@ export default function GeneralAuditLogPage() {
                 type="button"
                 aria-label="Close audit details"
                 onClick={() => setSelectedLog(null)}
-                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[#F8FBFD]"
+                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-subtle"
               >
                 <X size={18} />
               </button>
@@ -362,9 +362,9 @@ export default function GeneralAuditLogPage() {
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"
+                  className="rounded-lg border border-line bg-subtle p-3"
                 >
-                  <p className="text-[10px] font-bold uppercase text-slate-500">
+                  <p className="text-xs font-bold text-slate-500">
                     {label}
                   </p>
                   <p className="mt-1 break-words text-sm font-semibold">
@@ -378,14 +378,14 @@ export default function GeneralAuditLogPage() {
               {selectedLog.changes?.length ? (
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full min-w-[560px] text-left text-xs">
-                    <thead className="bg-[#F8FBFD]">
+                    <thead className="bg-subtle">
                       <tr>
                         <th className="px-3 py-2">Field</th>
                         <th className="px-3 py-2">Before</th>
                         <th className="px-3 py-2">After</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#DDE7EF]">
+                    <tbody className="divide-y divide-line">
                       {selectedLog.changes
                         .slice((changesPage - 1) * 10, changesPage * 10)
                         .map((change) => (
@@ -396,7 +396,7 @@ export default function GeneralAuditLogPage() {
                           <td className="px-3 py-2 text-slate-500">
                             {change.from === null || change.from === undefined ? "-" : displayAuditValue(change.from)}
                           </td>
-                          <td className="px-3 py-2 text-[#0F172A]">
+                          <td className="px-3 py-2 text-ink">
                             {displayAuditValue(change.to)}
                           </td>
                         </tr>

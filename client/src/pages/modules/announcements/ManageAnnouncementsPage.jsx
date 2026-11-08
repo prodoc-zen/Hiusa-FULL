@@ -35,16 +35,16 @@ function ConfirmModal({ open, title, message, confirmText, busy, error, onCancel
   if (!open) return null;
 
   return (
-    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-[#0F172A]">{title}</h3>
+    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div className="w-full max-w-md rounded-lg border border-line bg-white p-6">
+        <h3 className="text-lg font-bold text-ink">{title}</h3>
         <p className="mt-2 text-sm text-slate-600">{message}</p>
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={busy}>
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle" disabled={busy}>
             Cancel
           </button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50" disabled={busy}>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50" disabled={busy}>
             {busy ? 'Processing...' : confirmText}
           </button>
         </div>
@@ -275,7 +275,7 @@ export default function ManageAnnouncementsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+        <div className="space-y-3 rounded-lg border border-line bg-white p-5 shadow-sm">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
           ))}
@@ -299,33 +299,33 @@ export default function ManageAnnouncementsPage() {
   return (
     <div className="space-y-6">
     {header}
-    <div className="rounded-lg border border-[#DDE7EF] bg-white p-5">
+    <div className="rounded-lg border border-line bg-white p-5">
       {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
-      {actionMessage && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionMessage}</p>}
-      <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
+      {actionMessage && <p role="status" className="mb-4 rounded-lg border border-success/30 bg-success-tint p-3 text-sm text-success-strong">{actionMessage}</p>}
+      <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
         {[
           ['Matching records', summary.total], ['Published', summary.published], ['Waiting for approval', summary.pending], ['Recorded views', summary.views],
-        ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}
+        ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-xs font-bold text-slate-500">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{value}</dd></dl>)}
       </div>
-      <section className="mb-4 rounded-lg border border-[#DDE7EF] p-4" aria-label="Announcement interactions">
-        <h2 className="text-sm font-bold text-[#0F172A]">Announcement interactions</h2>
-        <p className="mt-1 text-xs text-[#64748B]">Views and reactions for announcements on this page.</p>
-        {items.length === 0 ? <p className="mt-4 text-sm text-[#64748B]">No interaction data for the current selection.</p> : <div className="mt-4 space-y-3">{items.slice(0, 8).map((item) => {
+      <section className="mb-4 rounded-lg border border-line p-4" aria-label="Announcement interactions">
+        <h2 className="text-sm font-bold text-ink">Announcement interactions</h2>
+        <p className="mt-1 text-xs text-ink-muted">Views and reactions for announcements on this page.</p>
+        {items.length === 0 ? <p className="mt-4 text-sm text-ink-muted">No interaction data for the current selection.</p> : <div className="mt-4 space-y-3">{items.slice(0, 8).map((item) => {
           const views = Number(item.views_count || 0);
           const reactions = Number(item.reactions_count || 0);
           const maximum = Math.max(1, ...items.slice(0, 8).map((row) => Math.max(Number(row.views_count || 0), Number(row.reactions_count || 0))));
-          return <div key={item.id} className="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"><p className="truncate text-xs font-semibold text-[#0F172A]" title={formatDisplayText(item.title)}>{formatDisplayText(item.title)}</p><div className="space-y-1"><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Views</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0B8ED0]" style={{ width: `${views / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{views}</span></div><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Likes</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0F2F62]" style={{ width: `${reactions / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{reactions}</span></div></div></div>;
+          return <div key={item.id} className="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"><p className="truncate text-xs font-semibold text-ink" title={formatDisplayText(item.title)}>{formatDisplayText(item.title)}</p><div className="space-y-1"><div className="flex items-center gap-2"><span className="w-14 text-xs text-slate-500">Views</span><div className="h-3 flex-1 rounded bg-page"><div className="h-full rounded bg-brand-600" style={{ width: `${views / maximum * 100}%` }} /></div><span className="w-8 text-right text-xs font-semibold tabular-nums">{views}</span></div><div className="flex items-center gap-2"><span className="w-14 text-xs text-slate-500">Likes</span><div className="h-3 flex-1 rounded bg-page"><div className="h-full rounded bg-navy-800" style={{ width: `${reactions / maximum * 100}%` }} /></div><span className="w-8 text-right text-xs font-semibold tabular-nums">{reactions}</span></div></div></div>;
         })}</div>}
       </section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4"><h2 className="text-base font-semibold text-ink">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-4 text-xs font-bold text-navy-800 disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
       <div className="-mx-5 mb-4">
         <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <HiusaSelect filter value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
-          <HiusaSelect filter value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</HiusaSelect>
-          <HiusaSelect filter value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></HiusaSelect>
-          <DateTimeInput type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-          <DateTimeInput type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-          <HiusaSelect value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></HiusaSelect>
+          <HiusaSelect filter value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
+          <HiusaSelect filter value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</HiusaSelect>
+          <HiusaSelect filter value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></HiusaSelect>
+          <DateTimeInput type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs" />
+          <DateTimeInput type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs" />
+          <HiusaSelect value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></HiusaSelect>
         </TableFilterBar>
       </div>
       {items.length === 0 ? (activeAnnouncementFilters.length > 0
@@ -335,16 +335,16 @@ export default function ManageAnnouncementsPage() {
           title="No announcements yet"
           description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
           action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
-        />) : <div className="overflow-x-auto"><table className="w-full text-left text-sm sm:min-w-[580px]"><thead className="bg-[#F8FBFD]"><tr><th className="px-2 py-3 sm:px-4">Title</th><th className="px-2 py-3 sm:px-4">Status</th><th className="hidden px-4 py-3 sm:table-cell">Audience</th><th className="px-2 py-3 text-right sm:px-4">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{items.map((a) => {
+        />) : <div className="overflow-x-auto"><table className="w-full text-left text-sm sm:min-w-[580px]"><thead className="bg-subtle"><tr><th className="px-2 py-3 sm:px-4">Title</th><th className="px-2 py-3 sm:px-4">Status</th><th className="hidden px-4 py-3 sm:table-cell">Audience</th><th className="px-2 py-3 text-right sm:px-4">Actions</th></tr></thead><tbody className="divide-y divide-line">{items.map((a) => {
         const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
         const canPublish = canModify && currentRole === 'ADMIN';
         const isExpanded = expandedId === a.id;
-        return <Fragment key={a.id}><tr className="hover:bg-[#F8FBFD]"><td className="px-2 py-3 sm:px-4"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-[#0F172A] hover:text-[#0878B7]">{formatDisplayText(a.title)}</button></td><td className="px-2 py-3 sm:px-4"><AnnouncementStageChip announcement={a} /></td><td className="hidden px-4 py-3 text-[#64748B] sm:table-cell">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-2 py-3 sm:px-4"><TableRowActions subject={a.title} label="Announcement actions" actions={[
+        return <Fragment key={a.id}><tr className="hover:bg-subtle"><td className="px-2 py-3 sm:px-4"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button></td><td className="px-2 py-3 sm:px-4"><AnnouncementStageChip announcement={a} /></td><td className="hidden px-4 py-3 text-ink-muted sm:table-cell">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-2 py-3 sm:px-4"><TableRowActions subject={a.title} label="Announcement actions" actions={[
           { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
           canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
           canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve & publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
           canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
-        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-[#F8FBFD] px-4 py-5"><NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" /><article className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white"><header className="border-b border-[#DDE7EF] p-4"><p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p><p className="text-xs text-[#64748B]">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-black text-[#0F172A]">{formatDisplayText(a.title)}</h3><RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-[#0F172A]" />{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-[#DDE7EF] p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-[#64748B]">{label}</dt><dd className="mt-1 text-[#0F172A]">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
+        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-subtle px-4 py-5"><NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" /><article className="mx-auto max-w-2xl rounded-lg border border-line bg-white"><header className="border-b border-line p-4"><p className="text-sm font-bold text-ink">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p><p className="text-xs text-ink-muted">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-semibold text-ink">{formatDisplayText(a.title)}</h3><RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-ink" />{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-line p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-ink-muted">{label}</dt><dd className="mt-1 text-ink">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
       })}</tbody></table></div>}
       <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
 
@@ -371,40 +371,40 @@ export default function ManageAnnouncementsPage() {
       />
 
       {editing && (
-        <AccessibleOverlay label="Edit announcement" onClose={() => setEditing(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <form onSubmit={handleEdit} className="w-full max-w-2xl rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Edit announcement" onClose={() => setEditing(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <form onSubmit={handleEdit} className="w-full max-w-2xl rounded-lg border border-line bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#0F172A]">Edit Announcement</h3>
-              <button type="button" onClick={() => setEditing(null)} className="rounded p-1 text-slate-500 hover:bg-red-50">Close</button>
+              <h3 className="text-lg font-bold text-ink">Edit Announcement</h3>
+              <button type="button" onClick={() => setEditing(null)} className="rounded p-1 text-ink-muted hover:bg-danger-tint">Close</button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Title" />
-              <HiusaSelect value={editForm.target_role} onChange={(e) => setEditForm({ ...editForm, target_role: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm" placeholder="Title" />
+              <HiusaSelect value={editForm.target_role} onChange={(e) => setEditForm({ ...editForm, target_role: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm">
                 {Object.entries(ROLE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </HiusaSelect>
-              <HiusaSelect value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm sm:col-span-2">
+              <HiusaSelect value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm sm:col-span-2">
                 {CATEGORY_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </HiusaSelect>
               <div className="sm:col-span-2"><RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} rows={8} placeholder="Announcement content" /></div>
             </div>
             {actionError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setEditing(null)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-              <button type="submit" disabled={!editForm.title.trim() || !editForm.body.trim()} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">Save Record</button>
+              <button type="button" onClick={() => setEditing(null)} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Cancel</button>
+              <button type="submit" disabled={!editForm.title.trim() || !editForm.body.trim()} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">Save Record</button>
             </div>
           </form>
         </AccessibleOverlay>
       )}
       {details && (
-        <AccessibleOverlay label="Announcement details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Announcement #{details.id}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{formatDisplayText(details.title)}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
+        <AccessibleOverlay label="Announcement details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-white p-6" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold text-brand-700">Announcement #{details.id}</p><h3 className="mt-1 text-xl font-semibold text-ink">{formatDisplayText(details.title)}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
               ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Stage', announcementStage(details).label], ['Publication', details.is_published ? 'Published' : 'Draft'],
               ['Unique Views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
-            ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value ?? '-'}</p></div>)}</div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Author</p><p className="mt-2 text-sm font-bold text-[#0F172A]">{creatorName(details)}</p><p className="mt-1 text-xs text-slate-500">{[details.creator?.school_id, details.creator?.email, details.creator?.role, details.creator?.position_title, details.creator?.department, details.creator?.program, details.creator?.year_level, details.creator?.section].filter(Boolean).join(' · ') || '-'}</p></div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review trail</p><p className="mt-2 text-sm font-bold text-[#0F172A]">{details.reviewer ? `${formatDisplayText(details.reviewer.first_name)} ${formatDisplayText(details.reviewer.last_name)}` : 'Not reviewed'}</p><p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{details.review_remarks || 'No review remarks.'}</p></div></div>
-            <div className="mt-4 rounded-lg border border-[#DDE7EF] p-5"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Full announcement</p><RichTextBody value={details.body} className="mt-3 text-sm leading-7 text-slate-700" /></div>
+            ].map(([label, value]) => <div key={label} className="rounded-lg border border-line bg-subtle p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-ink">{value ?? '-'}</p></div>)}</div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-line p-4"><p className="text-xs font-bold text-slate-500">Author</p><p className="mt-2 text-sm font-bold text-ink">{creatorName(details)}</p><p className="mt-1 text-xs text-slate-500">{[details.creator?.school_id, details.creator?.email, details.creator?.role, details.creator?.position_title, details.creator?.department, details.creator?.program, details.creator?.year_level, details.creator?.section].filter(Boolean).join(' · ') || '-'}</p></div><div className="rounded-lg border border-line p-4"><p className="text-xs font-bold text-slate-500">Review trail</p><p className="mt-2 text-sm font-bold text-ink">{details.reviewer ? `${formatDisplayText(details.reviewer.first_name)} ${formatDisplayText(details.reviewer.last_name)}` : 'Not reviewed'}</p><p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{details.review_remarks || 'No review remarks.'}</p></div></div>
+            <div className="mt-4 rounded-lg border border-line p-5"><p className="text-xs font-bold text-slate-500">Full announcement</p><RichTextBody value={details.body} className="mt-3 text-sm leading-7 text-slate-700" /></div>
           </div>
         </AccessibleOverlay>
       )}

@@ -78,7 +78,7 @@ const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
 
 const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
-  approved: 'bg-emerald-50 text-emerald-700',
+  approved: 'bg-success-tint text-success-strong',
   rejected: 'bg-red-50 text-red-700',
 };
 
@@ -89,7 +89,7 @@ const allocationStatusLabel = {
 };
 
 const allocationStatusTone = {
-  within_limit: 'bg-emerald-50 text-emerald-700',
+  within_limit: 'bg-success-tint text-success-strong',
   reduce_allocation: 'bg-amber-50 text-amber-700',
   no_funds: 'bg-red-50 text-red-700',
 };
@@ -147,10 +147,10 @@ function AccountSummary({ debt, clearances }) {
   return (
     <div role="region" aria-label="Account summary" className="grid gap-4 border-b border-line p-4 sm:grid-cols-2 sm:p-5">
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Outstanding balance</p>
+        <p className="text-xs font-bold text-ink-muted">Outstanding balance</p>
         {balanceKnown ? (
           <>
-            <p className={`mt-1 text-2xl font-extrabold tabular-nums ${owing ? 'text-danger-strong' : 'text-ink'}`}>{fmt(total)}</p>
+            <p className={`mt-1 text-2xl font-semibold tabular-nums ${owing ? 'text-danger-strong' : 'text-ink'}`}>{fmt(total)}</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">{breakdown || 'Nothing owed'}</p>
           </>
         ) : (
@@ -158,7 +158,7 @@ function AccountSummary({ debt, clearances }) {
         )}
       </div>
       <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Clearance</p>
+        <p className="text-xs font-bold text-ink-muted">Clearance</p>
         <div className="mt-1 flex items-center gap-2">
           <Icon size={20} className={onHold || unconfirmed ? 'text-warning-strong' : 'text-success-strong'} aria-hidden="true" />
           {unconfirmed ? (
@@ -264,7 +264,7 @@ function reportTable(rows, title) {
   const headers = Object.keys(rows[0] || {});
   const heading = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
   const body = rows.map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header])}</td>`).join('')}</tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#64748B;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #DDE7EF;padding:8px;text-align:left}th{background:#EEF6FB}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' }))} Philippine time</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Poppins,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#64748B;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #DDE7EF;padding:8px;text-align:left}th{background:#EEF6FB}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' }))} Philippine time</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
 async function downloadExcel(rows, filename, title) {
@@ -1056,20 +1056,20 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       <PageHeader primary={headerPrimary} />
 
       {canReadFinance && !canManageLedger && OVERSIGHT_TABS.includes(activeTab) && (
-        <p className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm font-medium text-slate-600">
-          <Eye size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
+        <p className="flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-600">
+          <Eye size={16} className="shrink-0 text-brand-700" aria-hidden="true" />
           View only. You can review and export these records; the organization admin records and changes them.
         </p>
       )}
 
       {isDepartmentHead && OVERSIGHT_TABS.includes(activeTab) && (
         <div className="max-w-sm">
-          <label htmlFor="finance-organization" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Organization</label>
+          <label htmlFor="finance-organization" className="mb-1.5 block text-[13px] font-semibold text-ink">Organization</label>
           <HiusaSelect filter
             id="finance-organization"
             value={organizationFilter}
             onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, search, event.target.value); }}
-            className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-medium text-[#0F172A] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+            className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
           >
             <option value="">All organizations</option>
             {collegeOrganizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
@@ -1078,18 +1078,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {canViewTransactions && !error && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (
-        <div className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-right">
+        <div className="rounded-lg border border-line bg-white px-4 py-3 text-right">
           <p className="text-xs font-medium text-slate-600">Ledger net balance</p>
-          <p className="mt-0.5 text-xl font-bold tabular-nums text-[#0F2F62]" aria-live="polite">{loading ? 'Loading…' : fmt(summary.net_balance)}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums text-navy-800" aria-live="polite">{loading ? 'Loading…' : fmt(summary.net_balance)}</p>
         </div>
       )}
 
       {activeTab === 'transactions' && canViewTransactions && !loading && !error && (
         <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Income</dt><dd className="mt-2 text-xl font-bold tabular-nums text-emerald-700">{fmt(summary.total_income)}</dd></div>
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Expenses</dt><dd className="mt-2 text-xl font-bold tabular-nums text-[#0F172A]">{fmt(summary.total_expense)}</dd></div>
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Net balance</dt><dd className="mt-2 text-xl font-bold tabular-nums text-[#0F2F62]">{fmt(summary.net_balance)}</dd></div>
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Ledger entries</dt><dd className="mt-2 text-xl font-bold tabular-nums text-[#0F2F62]">{txMeta.total}</dd></div>
+          <div className="rounded-lg border border-line bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Income</dt><dd className="mt-2 text-xl font-bold tabular-nums text-success-strong">{fmt(summary.total_income)}</dd></div>
+          <div className="rounded-lg border border-line bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Expenses</dt><dd className="mt-2 text-xl font-bold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
+          <div className="rounded-lg border border-line bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Net balance</dt><dd className="mt-2 text-xl font-bold tabular-nums text-navy-800">{fmt(summary.net_balance)}</dd></div>
+          <div className="rounded-lg border border-line bg-white p-4"><dt className="text-xs font-semibold text-slate-600">Ledger entries</dt><dd className="mt-2 text-xl font-bold tabular-nums text-navy-800">{txMeta.total}</dd></div>
         </dl>
       )}
 
@@ -1101,10 +1101,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'transactions' && (
-        <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <section className="overflow-hidden rounded-lg border border-line bg-white">
+          <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Ledger</h2>
+              <h2 className="text-base font-bold text-ink">Ledger</h2>
               <p className="mt-0.5 text-xs text-slate-600">Income and expenses, with their source and receipt</p>
             </div>
           </div>
@@ -1123,11 +1123,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
           >
-            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); const next = { ...txFilters, academic_semester_id: id, from: '', to: '' }; setTxFilters(next); load(1, next); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
+            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); const next = { ...txFilters, academic_semester_id: id, from: '', to: '' }; setTxFilters(next); load(1, next); }} className="h-10 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
             <HiusaSelect filter
               value={txFilters.type}
               onChange={(e) => { const next = { ...txFilters, type: e.target.value }; setTxFilters(next); load(1, next); }}
-              className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
+              className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"
               aria-label="Filter by transaction type"
             >
               <option value="">All types</option>
@@ -1137,7 +1137,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <HiusaSelect filter
               value={txFilters.event_id}
               onChange={(e) => { const next = { ...txFilters, event_id: e.target.value }; setTxFilters(next); load(1, next); }}
-              className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
+              className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"
               aria-label="Filter by event"
             >
               <option value="">All events</option>
@@ -1147,18 +1147,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               type="date"
               value={txFilters.from}
               onChange={(e) => { const next = { ...txFilters, from: e.target.value }; setTxFilters(next); load(1, next); }}
-              className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
+              className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"
               aria-label="Filter from date"
             />
             <DateTimeInput
               type="date"
               value={txFilters.to}
               onChange={(e) => { const next = { ...txFilters, to: e.target.value }; setTxFilters(next); load(1, next); }}
-              className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
+              className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600"
               aria-label="Filter to date"
             />
             <div className="flex gap-2">
-              <button type="button" onClick={() => load(1, txFilters)} className="h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]">Apply</button>
+              <button type="button" onClick={() => load(1, txFilters)} className="h-10 rounded-lg bg-brand-700 px-4 text-xs font-bold text-white hover:bg-navy-800">Apply</button>
             </div>
           </TableFilterBar>
 
@@ -1184,19 +1184,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             )
           ) : (
             <div>
-              <ul className="divide-y divide-[#DDE7EF] md:hidden" aria-label="Transactions">
+              <ul className="divide-y divide-line md:hidden" aria-label="Transactions">
                 {filtered.map((tx) => {
                   const sources = ledgerSource(tx);
                   const receipt = receiptLabel(tx);
                   const lockNote = ledgerLockNote(tx);
                   return <li key={tx.id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0"><p className="text-sm font-semibold text-[#0F172A]">{tx.description}</p><p className="mt-1 text-xs text-slate-600">{formatLedgerDate(tx.transaction_date)} · {tx.category}</p></div>
-                      <span className={`shrink-0 text-sm font-bold tabular-nums ${tx.type === 'income' ? 'text-emerald-700' : 'text-[#0F172A]'}`}>{tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)}</span>
+                      <div className="min-w-0"><p className="text-sm font-semibold text-ink">{tx.description}</p><p className="mt-1 text-xs text-slate-600">{formatLedgerDate(tx.transaction_date)} · {tx.category}</p></div>
+                      <span className={`shrink-0 text-sm font-bold tabular-nums ${tx.type === 'income' ? 'text-success-strong' : 'text-ink'}`}>{tx.type === 'income' ? '+' : '−'}{fmt(tx.amount)}</span>
                     </div>
                     <div className="mt-3 space-y-1 text-xs text-slate-600">
                       <p>{sources.length ? sources.join(' · ') : 'General ledger'}</p>
-                      {receipt && <p className="font-medium text-[#0878B7]">{receipt}</p>}
+                      {receipt && <p className="font-medium text-brand-700">{receipt}</p>}
                       <p>Payer: {personName(tx.payer, 'No payer linked')}</p>
                       <p>Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                     </div>
@@ -1210,7 +1210,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </ul>
               <div className="hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <thead className="bg-subtle text-xs font-bold text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Description</th>
@@ -1222,21 +1222,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {canManageLedger && <th className="px-4 py-3 text-right">Actions</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#DDE7EF] text-sm">
+                <tbody className="divide-y divide-line text-sm">
                   {filtered.map((tx) => {
                     const sources = ledgerSource(tx);
                     const receipt = receiptLabel(tx);
                     const lockNote = ledgerLockNote(tx);
                     return (
-                    <tr key={tx.id} className="transition hover:bg-[#F8FBFD]">
+                    <tr key={tx.id} className="transition hover:bg-subtle">
                       <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-[#0F172A]">{tx.description}</p>
-                        {receipt && <p className="mt-0.5 text-xs font-medium text-[#0878B7]">{receipt}</p>}
-                        <p className="mt-0.5 text-[11px] text-slate-500 2xl:hidden">
+                        <p className="font-semibold text-ink">{tx.description}</p>
+                        {receipt && <p className="mt-0.5 text-xs font-medium text-brand-700">{receipt}</p>}
+                        <p className="mt-0.5 text-xs text-slate-500 2xl:hidden">
                           {sources.length ? sources.join(' · ') : 'General ledger'} · Payer: {personName(tx.payer, 'No payer linked')} · Recorded by: {personName(tx.recorder, 'Unknown recorder')}
                         </p>
-                        {canManageLedger && lockNote && <p className="mt-0.5 text-[11px] font-medium text-slate-500">{lockNote}</p>}
+                        {canManageLedger && lockNote && <p className="mt-0.5 text-xs font-medium text-slate-500">{lockNote}</p>}
                       </td>
                       <td className="hidden px-4 py-3 2xl:table-cell">
                         {sources.length ? sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate font-semibold text-slate-700">{source}</p>) : <span className="text-xs text-slate-500">General ledger</span>}
@@ -1246,14 +1246,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <p className="mt-1 text-slate-500">Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-block whitespace-nowrap rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
+                        <span className="inline-block whitespace-nowrap rounded-full border border-line bg-subtle px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tx.type === 'income' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tx.type === 'income' ? 'bg-success-tint text-success-strong' : 'bg-slate-100 text-slate-600'}`}>
                           {tx.type === 'income' ? 'Income' : 'Expense'}
                         </span>
                       </td>
-                      <td className={`whitespace-nowrap px-4 py-3 text-right font-black tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : 'text-[#0F172A]'}`}>
+                      <td className={`whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums ${tx.type === 'income' ? 'text-success-strong' : 'text-ink'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                       </td>
                       {canManageLedger && (
@@ -1278,7 +1278,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           )}
 
           {txMeta.total > txMeta.per_page && (
-            <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
+            <div className="flex items-center justify-between border-t border-line px-5 py-3">
               <p className="text-xs font-medium text-slate-500">
                 Showing <span className="font-bold text-slate-600">{txFrom}-{txTo}</span> of <span className="font-bold text-slate-600">{txMeta.total}</span>
               </p>
@@ -1288,11 +1288,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   aria-label="Previous transaction page"
                   onClick={() => load(txMeta.current_page - 1)}
                   disabled={txMeta.current_page === 1}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft size={14} />
                 </button>
-                <span className="px-2 text-[13px] font-bold tabular-nums text-[#0F172A]">
+                <span className="px-2 text-[13px] font-bold tabular-nums text-ink">
                   {txMeta.current_page} / {txMeta.last_page}
                 </span>
                 <button
@@ -1300,7 +1300,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   aria-label="Next transaction page"
                   onClick={() => load(txMeta.current_page + 1)}
                   disabled={txMeta.current_page === txMeta.last_page}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronRight size={14} />
                 </button>
@@ -1311,14 +1311,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'budgets' && (
-        <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="overflow-hidden rounded-lg border border-line bg-white">
+          <div className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Budgets</h2>
+              <h2 className="text-base font-bold text-ink">Budgets</h2>
               <p className="mt-0.5 text-xs text-slate-600">Review allocations, where each budget is in approval, and the funds left to spend</p>
             </div>
           </div>
-          {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('budget')}</div>}
+          {recordMissing && <div className="border-b border-line p-4">{missingRecordNotice('budget')}</div>}
 
           {loading ? (
             <div className="space-y-2 p-5">
@@ -1339,7 +1339,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               />
             )
           ) : (
-            <div className="divide-y divide-[#DDE7EF]">
+            <div className="divide-y divide-line">
               {budgets.map((b) => {
                 const lifecycle = b.submission_status ? budgetLifecycle(b, currentUserRole) : null;
                 const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
@@ -1347,26 +1347,26 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <div key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-bold text-[#0F172A]">{formatDisplayText(b.title)}</p>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${budgetStatusBadge[b.approval_status] || 'bg-slate-100 text-slate-500'}`}>
+                      <p className="font-bold text-ink">{formatDisplayText(b.title)}</p>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${budgetStatusBadge[b.approval_status] || 'bg-slate-100 text-slate-500'}`}>
                         {b.approval_status || 'pending'}
                       </span>
                     </div>
                     {lifecycle && <FlowStepper variant="compact" ariaLabel={`Budget progress for ${formatDisplayText(b.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-2 max-w-sm" />}
                     {b.event && <p className="mt-1 text-xs text-slate-600">{formatDisplayText(b.event.title)}</p>}
-                    {b.financial_semester && <p className="mt-1 text-xs font-semibold text-[#0F2F62]">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
+                    {b.financial_semester && <p className="mt-1 text-xs font-semibold text-navy-800">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
                     <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
-                      <div><dt className="text-slate-600">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</dd></div>
-                      <div><dt className="text-slate-600">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.remaining_amount)}</dd></div>
-                      <div><dt className="text-slate-600">Warning at</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.warning_threshold)}</dd></div>
+                      <div><dt className="text-slate-600">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.allocated_amount)}</dd></div>
+                      <div><dt className="text-slate-600">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.remaining_amount)}</dd></div>
+                      <div><dt className="text-slate-600">Warning at</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.warning_threshold)}</dd></div>
                     </dl>
                     {b.overspending_risk && (
-                      <p className={`mt-2 text-xs font-bold capitalize ${b.overspending_risk === 'high' ? 'text-red-600' : b.overspending_risk === 'medium' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <p className={`mt-2 text-xs font-bold capitalize ${b.overspending_risk === 'high' ? 'text-red-600' : b.overspending_risk === 'medium' ? 'text-amber-600' : 'text-success-strong'}`}>
                         {b.overspending_risk} overspending risk
                       </p>
                     )}
                     {b.recommended_allocation != null && (
-                      <p className="mt-1 text-xs font-semibold text-[#0878B7]">
+                      <p className="mt-1 text-xs font-semibold text-brand-700">
                         AI recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
                       </p>
                     )}
@@ -1378,27 +1378,27 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </div>
                     )}
                     {adviceDetail?.advice && (
-                      <div className="mt-3 max-w-3xl rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+                      <div className="mt-3 max-w-3xl rounded-lg border border-line bg-subtle p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <EngineBadge engine={adviceDetail.engine} />
                           {adviceDetail.advice.allocation_status && (
-                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${allocationStatusTone[adviceDetail.advice.allocation_status] || 'bg-slate-100 text-slate-600'}`}>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${allocationStatusTone[adviceDetail.advice.allocation_status] || 'bg-slate-100 text-slate-600'}`}>
                               {allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status}
                             </span>
                           )}
                           {adviceDetail.advice.xai_model && (
-                            <span className="text-[11px] font-semibold text-slate-500">Explained by {adviceDetail.advice.xai_model}</span>
+                            <span className="text-xs font-semibold text-slate-500">Explained by {adviceDetail.advice.xai_model}</span>
                           )}
                           {adviceDetail.advice.xai_status === 'unavailable' && (
-                            <span className="text-[11px] font-semibold text-amber-700">AI explanation unavailable. The displayed figures and advice are deterministic; use AI Advice to retry.</span>
+                            <span className="text-xs font-semibold text-amber-700">AI explanation unavailable. The displayed figures and advice are deterministic; use AI Advice to retry.</span>
                           )}
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                           {adviceDetail.advice.reserve_amount != null && (
-                            <span className="text-slate-500">Reserve <strong className="block text-[#0F172A]">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
+                            <span className="text-slate-500">Reserve <strong className="block text-ink">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
                           )}
                           {adviceDetail.advice.expense_to_income_ratio != null && (
-                            <span className="text-slate-500">Expense/income ratio <strong className="block text-[#0F172A]">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
+                            <span className="text-slate-500">Expense/income ratio <strong className="block text-ink">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
                           )}
                         </div>
                         <RulesDisclosure
@@ -1428,10 +1428,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'forecasting' && (
         <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
+          <div className="rounded-lg border border-line bg-white p-4 sm:p-5">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">Forecast</h2>
+                <h2 className="text-lg font-bold text-ink">Forecast</h2>
                 <p className="text-sm font-medium text-slate-500">OLS projections based on monthly transaction history</p>
               </div>
             </div>
@@ -1466,47 +1466,47 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   const incomeR2 = f.model_details?.income?.r_squared;
                   const expenseR2 = f.model_details?.expense?.r_squared;
                   return (
-                    <div key={f.id} className="rounded-lg border border-[#DDE7EF] p-4">
-                      <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">Forecast for {f.forecast_period}</span><span className="text-sm font-bold tabular-nums text-[#0F172A]">Balance {fmt(f.predicted_balance)}</span></div>
+                    <div key={f.id} className="rounded-lg border border-line p-4">
+                      <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">Forecast for {f.forecast_period}</span><span className="text-sm font-bold tabular-nums text-ink">Balance {fmt(f.predicted_balance)}</span></div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                        <span className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(f.predicted_income)}</strong></span>
-                        <span className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(f.predicted_balance)}</strong></span>
-                        <span className="text-slate-500">Safe spend <strong className="block text-[#0878B7]">{fmt(f.safe_spending_limit)}</strong></span>
-                        <span className="text-slate-500">Risk <strong className="block capitalize text-[#0F172A]">{f.model_details?.risk || 'Not set'}</strong></span>
+                        <span className="text-slate-500">Income <strong className="block text-success-strong">{fmt(f.predicted_income)}</strong></span>
+                        <span className="text-slate-500">Balance <strong className="block text-ink">{fmt(f.predicted_balance)}</strong></span>
+                        <span className="text-slate-500">Safe spend <strong className="block text-brand-700">{fmt(f.safe_spending_limit)}</strong></span>
+                        <span className="text-slate-500">Risk <strong className="block capitalize text-ink">{f.model_details?.risk || 'Not set'}</strong></span>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EngineBadge engine={f.model_details?.engine} />
                         {Number.isFinite(Number(sampleMonths)) && (
-                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">{sampleMonths} sample month{Number(sampleMonths) === 1 ? '' : 's'}</span>
+                          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs font-bold text-slate-600">{sampleMonths} sample month{Number(sampleMonths) === 1 ? '' : 's'}</span>
                         )}
                         {Number.isFinite(Number(populatedMonths)) && (
-                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">{populatedMonths} with recorded transactions</span>
+                          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs font-bold text-slate-600">{populatedMonths} with recorded transactions</span>
                         )}
                         {Number.isFinite(Number(incomeR2)) && (
-                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Income fit R² {Number(incomeR2).toFixed(2)}</span>
+                          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs font-bold text-slate-600">Income fit R² {Number(incomeR2).toFixed(2)}</span>
                         )}
                         {Number.isFinite(Number(expenseR2)) && (
-                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Expense fit R² {Number(expenseR2).toFixed(2)}</span>
+                          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs font-bold text-slate-600">Expense fit R² {Number(expenseR2).toFixed(2)}</span>
                         )}
                         {reliability.quality && (
-                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold capitalize text-slate-600">Fit quality: {String(reliability.quality).replace(/_/g, ' ')}</span>
+                          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs font-bold capitalize text-slate-600">Fit quality: {String(reliability.quality).replace(/_/g, ' ')}</span>
                         )}
                       </div>
                       {!reliability.isReliable && (
-                        <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-[11px] font-semibold text-amber-700">
+                        <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-700">
                           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                           {reliability.reason || 'Weak confidence in this projection. Treat the figures as directional only.'}
                         </p>
                       )}
                       {clampNotice && (
-                        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2.5 text-[11px] font-semibold text-red-700">
+                        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700">
                           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                           {clampNotice}
                         </p>
                       )}
                       {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
-                      {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-[11px] font-semibold text-amber-700">AI explanation was unavailable. The OLS forecast and deterministic risk calculations completed normally; generate again to retry the explanation.</p>}
-                      {canDeleteForecast && <div className="mt-3 border-t border-[#DDE7EF] pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, onClick: () => askDelete('forecast', f) }]} /></div>}
+                      {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI explanation was unavailable. The OLS forecast and deterministic risk calculations completed normally; generate again to retry the explanation.</p>}
+                      {canDeleteForecast && <div className="mt-3 border-t border-line pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, onClick: () => askDelete('forecast', f) }]} /></div>}
                     </div>
                   );
                 })}
@@ -1514,22 +1514,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             )}
           </div>
 
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
-            <h3 className="text-base font-bold text-[#0F172A]">Summary by Category</h3>
+          <div className="rounded-lg border border-line bg-white p-4 sm:p-5">
+            <h3 className="text-base font-bold text-ink">Summary by Category</h3>
             <div className="mt-4 space-y-3">
               {(summary.by_category || []).length === 0 ? (
                 <p className="text-sm text-slate-500">No category data available.</p>
               ) : (
                 (summary.by_category || []).map((cat) => (
-                  <div key={cat.category + cat.type} className="rounded-lg bg-[#F8FBFD] p-3.5">
+                  <div key={cat.category + cat.type} className="rounded-lg bg-subtle p-3.5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-[13px] font-bold text-[#0F172A]">{cat.category}</span>
-                        <span className={`ml-2 text-[11px] font-bold ${cat.type === 'income' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        <span className="text-[13px] font-bold text-ink">{cat.category}</span>
+                        <span className={`ml-2 text-xs font-bold ${cat.type === 'income' ? 'text-success-strong' : 'text-slate-500'}`}>
                           {cat.type}
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold tabular-nums text-[#0878B7]">{fmt(cat.total)}</span>
+                      <span className="text-[13px] font-bold tabular-nums text-brand-700">{fmt(cat.total)}</span>
                     </div>
                   </div>
                 ))
@@ -1541,33 +1541,33 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'reports' && (
         <div className="space-y-5">
-          {currentUserRole === 'ADMIN' && <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
+          {currentUserRole === 'ADMIN' && <section className="rounded-lg border border-line bg-white p-4 sm:p-5">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Prepare a report</h2>
+              <h2 className="text-base font-bold text-ink">Prepare a report</h2>
               <p className="mt-0.5 text-sm text-slate-600">Choose the document and period, then add the required signatories.</p>
             </div>
-            <details className="mt-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] open:bg-white">
-              <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one here</summary>
-              <form onSubmit={handleCreateSemester} className="border-t border-[#DDE7EF] p-4">
+            <details className="mt-5 rounded-lg border border-line bg-subtle open:bg-white">
+              <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-navy-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Need a new semester? Add one here</summary>
+              <form onSubmit={handleCreateSemester} className="border-t border-line p-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="text-xs font-bold text-slate-600">Semester name<input required value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600">Start date<DateTimeInput required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600">End date<DateTimeInput required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm disabled:bg-slate-100" /></label>
-                <div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> End today</label><button disabled={semesterSaving} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{semesterSaving ? 'Saving…' : 'Add'}</button></div>
+                <label className="text-xs font-bold text-slate-600">Semester name<input required value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm" /></label>
+                <label className="text-xs font-bold text-slate-600">Start date<DateTimeInput required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm" /></label>
+                <label className="text-xs font-bold text-slate-600">End date<DateTimeInput required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm disabled:bg-slate-100" /></label>
+                <div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> End today</label><button disabled={semesterSaving} className="min-h-11 rounded-lg bg-brand-700 px-4 text-xs font-bold text-white disabled:opacity-50">{semesterSaving ? 'Saving…' : 'Add'}</button></div>
               </div>
               </form>
             </details>
             <form onSubmit={handleGenerateReport} className="mt-4 space-y-4">
               <fieldset>
-                <legend className="text-xs font-bold text-[#0F172A]">Document</legend>
+                <legend className="text-xs font-bold text-ink">Document</legend>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   {[
                     { value: 'financial_report', title: 'Financial Report', text: 'Detailed inflow and cash-outflow ledger with opening and closing balances.' },
                     { value: 'income_statement', title: 'Income Statement', text: 'Category totals, net income, and a formal submission letter.' },
                   ].map((option) => (
-                    <label key={option.value} className={`min-h-20 cursor-pointer rounded-lg border p-3 transition focus-within:ring-2 focus-within:ring-[#16C7F3] ${reportForm.document_type === option.value ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] bg-white hover:bg-[#F8FBFD]'}`}>
+                    <label key={option.value} className={`min-h-20 cursor-pointer rounded-lg border p-3 transition focus-within:ring-2 focus-within:ring-accent ${reportForm.document_type === option.value ? 'border-brand-600 bg-page' : 'border-line bg-white hover:bg-subtle'}`}>
                       <input type="radio" name="document_type" value={option.value} checked={reportForm.document_type === option.value} onChange={(event) => setReportForm({ ...reportForm, document_type: event.target.value })} className="sr-only" />
-                      <span className="block text-sm font-bold text-[#0F172A]">{option.title}</span>
+                      <span className="block text-sm font-bold text-ink">{option.title}</span>
                       <span className="mt-1 block text-xs leading-5 text-slate-500">{option.text}</span>
                     </label>
                   ))}
@@ -1576,7 +1576,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold text-slate-600">Covered period
-                  <HiusaSelect value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                  <HiusaSelect value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-accent/20">
                     <option value="semester">Semester</option>
                     <option value="event">One event</option>
                     <option value="monthly">This month</option>
@@ -1584,21 +1584,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </HiusaSelect>
                 </label>
                 {reportForm.report_type === 'semester' ? <label className="text-xs font-bold text-slate-600">Semester
-                  <HiusaSelect required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
+                  <HiusaSelect required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
                 </label> : null}
                 {reportForm.report_type === 'event' && <label className="text-xs font-bold text-slate-600">Event
-                  <HiusaSelect required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                  <HiusaSelect required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-accent/20">
                     <option value="">Select event</option>
                     {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
                   </HiusaSelect>
                 </label>}
                 {reportForm.report_type === 'custom' && <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Start date<DateTimeInput type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
-                  <label className="text-xs font-bold text-slate-600">End date<DateTimeInput type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
+                  <label className="text-xs font-bold text-slate-600">Start date<DateTimeInput type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-accent/30" /></label>
+                  <label className="text-xs font-bold text-slate-600">End date<DateTimeInput type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-accent/30" /></label>
                 </div>}
               </div>
 
-              <div className="border-t border-[#DDE7EF] pt-4">
+              <div className="border-t border-line pt-4">
                 <label className="block max-w-xl text-xs font-bold text-slate-600">Letterhead image
                   <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={(event) => {
                     const file = event.target.files?.[0] || null;
@@ -1608,27 +1608,27 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       return;
                     }
                     setReportForm({ ...reportForm, letterhead: file });
-                  }} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#EEF6FB] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#0F2F62]" />
+                  }} className="mt-1 block min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-navy-800" />
                 </label>
                 <p className="mt-1 text-xs text-slate-500">PNG or JPG, up to 5 MB. The PDF repeats it at the top of every page.</p>
               </div>
 
               {reportForm.document_type === 'income_statement' && (
-                <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Letter date<DateTimeInput type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
-                  <label className="text-xs font-bold text-slate-600">Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
+                <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Letter date<DateTimeInput type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" /></label>
+                  <label className="text-xs font-bold text-slate-600">Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
                   <div className="text-xs font-bold text-slate-600 sm:col-span-2"><label htmlFor="income-letter-body">Letter body</label><RichTextEditor id="income-letter-body" value={reportForm.letter_body} onChange={(letter_body) => setReportForm({ ...reportForm, letter_body })} rows={4} maxLength={2000} placeholder="Leave blank to use a factual period and balance summary." /></div>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Thank you." /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" placeholder="Defaults to Thank you." /></label>
                 </div>
               )}
 
-              <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[['treasurer', 'Treasurer'], ['president', 'President'], ['adviser', 'Adviser'], ['sbo_adviser', 'SBO Adviser']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input required value={reportForm[key]} onChange={(event) => setReportForm({ ...reportForm, [key]: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder={`${label} full name`} /></label>)}
+              <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[['treasurer', 'Treasurer'], ['president', 'President'], ['adviser', 'Adviser'], ['sbo_adviser', 'SBO Adviser']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input required value={reportForm[key]} onChange={(event) => setReportForm({ ...reportForm, [key]: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" placeholder={`${label} full name`} /></label>)}
               </div>
 
               <div className="flex justify-end">
-                <button type="submit" disabled={reportGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16C7F3] disabled:opacity-50 sm:w-auto">
+                <button type="submit" disabled={reportGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 sm:w-auto">
                   <FileText size={16} />
                   {reportGenerating ? 'Generating PDF data...' : `Generate ${reportForm.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}`}
                 </button>
@@ -1636,23 +1636,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </form>
 
             {generatedReport && (
-              <div className="mt-5 border-t border-[#DDE7EF] pt-5">
+              <div className="mt-5 border-t border-line pt-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="font-bold text-[#0F172A]">{formatDisplayText(generatedReport.report.title)}</h3>
+                    <h3 className="font-bold text-ink">{formatDisplayText(generatedReport.report.title)}</h3>
                     <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{generatedReport.report.summary_text}</p>
                     {generatedReport.ai_summary_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI summary was unavailable. This report was saved with backend-calculated totals and a deterministic summary; generate it again to retry.</p>}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
-                    <button type="button" disabled={reportPdfDownloading === generatedReport.report.id} onClick={() => exportGeneratedReport('pdf')} className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 disabled:opacity-50"><FileText size={14} />{reportPdfDownloading === generatedReport.report.id ? 'Preparing...' : 'Download PDF'}</button>
-                    <button type="button" disabled={reportPdfDownloading === generatedReport.report.id} onClick={() => handlePreviewReportPdf(generatedReport.report)} className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 disabled:opacity-50"><Eye size={14} />Preview / print</button>
+                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex min-h-11 items-center gap-2 rounded-lg bg-brand-700 px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
+                    <button type="button" disabled={reportPdfDownloading === generatedReport.report.id} onClick={() => exportGeneratedReport('pdf')} className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-xs font-bold text-slate-600 disabled:opacity-50"><FileText size={14} />{reportPdfDownloading === generatedReport.report.id ? 'Preparing...' : 'Download PDF'}</button>
+                    <button type="button" disabled={reportPdfDownloading === generatedReport.report.id} onClick={() => handlePreviewReportPdf(generatedReport.report)} className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-xs font-bold text-slate-600 disabled:opacity-50"><Eye size={14} />Preview / print</button>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-                  <p className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(generatedReport.totals.income)}</strong></p>
+                  <p className="text-slate-500">Income <strong className="block text-success-strong">{fmt(generatedReport.totals.income)}</strong></p>
                   <p className="text-slate-500">Expenses <strong className="block text-red-600">{fmt(generatedReport.totals.expense)}</strong></p>
-                  <p className="text-slate-500">{generatedReport.report.document_type === 'income_statement' ? 'Net income' : 'Closing balance'} <strong className="block text-[#0F172A]">{fmt(generatedReport.report.document_type === 'income_statement' ? generatedReport.totals.balance : generatedReport.totals.closing_balance)}</strong></p>
+                  <p className="text-slate-500">{generatedReport.report.document_type === 'income_statement' ? 'Net income' : 'Closing balance'} <strong className="block text-ink">{fmt(generatedReport.report.document_type === 'income_statement' ? generatedReport.totals.balance : generatedReport.totals.closing_balance)}</strong></p>
                 </div>
                 {(generatedReport.cash_advances?.released > 0 || generatedReport.cash_advances?.repayments > 0) && <p className="mt-3 text-xs text-slate-600">Cash advances released: <strong>{fmt(generatedReport.cash_advances.released)}</strong> · Cash advance repayments: <strong>{fmt(generatedReport.cash_advances.repayments)}</strong>. Money lent out and returned is not income or expense.</p>}
                 {generatedReport.custody && <p className="mt-3 text-xs text-slate-600">Verified collections: <strong>{fmt(generatedReport.custody.verified_collections)}</strong> · Recorded remittances: <strong>{fmt(generatedReport.custody.recorded_remittances)}</strong>. Remittances do not add ledger income.</p>}
@@ -1669,17 +1669,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             { key: 'log',      title: 'Full Transaction Log', desc: 'Complete ledger of all recorded transactions',   period: 'All time' },
             { key: 'category', title: 'Category Breakdown',   desc: 'Spending totals grouped by category and type',   period: 'All time' },
           ].map((report) => (
-            <div key={report.key} className="rounded-lg border border-[#DDE7EF] bg-white p-5 transition hover:border-[#0B8ED0]">
-              <span className="mb-3 inline-block rounded-full bg-[#E6F6FD] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">
+            <div key={report.key} className="rounded-lg border border-line bg-white p-5 transition hover:border-brand-600">
+              <span className="mb-3 inline-block rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-navy-800">
                 {report.period}
               </span>
-              <h3 className="text-base font-bold text-[#0F172A]">{formatDisplayText(report.title)}</h3>
+              <h3 className="text-base font-bold text-ink">{formatDisplayText(report.title)}</h3>
               <p className="mt-1 text-sm font-medium text-slate-500">{report.desc}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => handleExport(report.key, 'excel')}
-                  className="flex items-center gap-2 rounded-lg bg-[#0878B7] px-4 py-2 text-[13px] font-bold text-white transition hover:bg-[#0F2F62]"
+                  className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-navy-800"
                 >
                   <FileSpreadsheet size={15} />
                   Export Excel
@@ -1687,7 +1687,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <button
                   type="button"
                   onClick={() => handleExport(report.key, 'pdf')}
-                  className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 py-2 text-[13px] font-bold text-slate-600 transition hover:bg-[#F8FBFD]"
+                  className="flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-[13px] font-bold text-slate-600 transition hover:bg-subtle"
                 >
                   <FileText size={15} />
                   Print / Save PDF
@@ -1697,18 +1697,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           ))}
           </section>
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white">
-            <div className="border-b border-[#DDE7EF] p-5">
-              <h2 className="text-lg font-bold text-[#0F172A]">Financial reports</h2>
+          <section className="rounded-lg border border-line bg-white">
+            <div className="border-b border-line p-5">
+              <h2 className="text-lg font-bold text-ink">Financial reports</h2>
               <p className="mt-1 text-xs text-slate-600">Each saved report moves from draft to the Department Head, then the SAO.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-                <HiusaSelect filter aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</HiusaSelect>
-                <HiusaSelect filter aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></HiusaSelect>
-                <HiusaSelect filter aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
+                <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm" />
+                <HiusaSelect filter aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
               </div>
             </div>
-            {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('report')}</div>}
+            {recordMissing && <div className="border-b border-line p-4">{missingRecordNotice('report')}</div>}
             {reports.length === 0 ? (
               currentUserRole === 'ADMIN' ? (
                 <EmptyState
@@ -1722,19 +1722,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             ) : visibleReports.length === 0 ? (
               <EmptyState kind="filtered" title="No saved reports match these filters" description="Try a different search or clear the filters." onClearFilters={reportFiltersActive ? clearReportFilters : undefined} />
             ) : (
-              <div className="divide-y divide-[#DDE7EF]">
+              <div className="divide-y divide-line">
                 {visibleReports.map((report) => {
                   const lifecycle = financialReportLifecycle(withDraftDefault(report), currentUserRole);
                   return (
                   <div key={report.id} className="p-5">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="font-bold text-[#0F172A]">{formatDisplayText(report.title)}</p>
+                      <p className="font-bold text-ink">{formatDisplayText(report.title)}</p>
                       <span className="text-xs text-slate-500">{String(report.generated_at || '').slice(0, 10)}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{report.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}</span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>
+                      <span className="rounded-full bg-page px-2.5 py-1 text-xs font-bold text-navy-800">{report.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>
                     </div>
                     <FlowStepper variant="compact" ariaLabel={`Report progress for ${formatDisplayText(report.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-3 max-w-sm" />
                     <p className="mt-1 text-xs font-semibold text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
@@ -1759,9 +1759,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'receipts' && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="border-b border-[#DDE7EF] p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Personal Receipts</h2>
+        <section className="rounded-lg border border-line bg-white">
+          <div className="border-b border-line p-5">
+            <h2 className="text-lg font-bold text-ink">Personal Receipts</h2>
           </div>
           {loading ? (
             <div className="space-y-2 p-5">
@@ -1772,23 +1772,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           ) : (
             <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
               {personalReceipts.map((receipt) => (
-                <article key={receipt.id} className="flex min-w-0 flex-col rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-4">
-                  <div className="flex items-center gap-2 border-b border-dashed border-[#DDE7EF] pb-3 text-[#0F2F62]"><ReceiptText size={19} aria-hidden="true" /><span className="text-xs font-black uppercase">Receipt</span></div>
+                <article key={receipt.id} className="flex min-w-0 flex-col rounded-lg border border-line bg-warning-tint p-4">
+                  <div className="flex items-center gap-2 border-b border-dashed border-line pb-3 text-navy-800"><ReceiptText size={19} aria-hidden="true" /><span className="text-xs font-semibold">Receipt</span></div>
                   <div className="min-w-0">
-                    <p className="mt-3 break-words font-bold text-[#0F172A]">{receipt.description}</p>
+                    <p className="mt-3 break-words font-bold text-ink">{receipt.description}</p>
                     <p className="mt-1 text-xs text-slate-500">
                       {formatLedgerDate(receipt.transaction_date)} - {formatDisplayText(receipt.event?.title) || formatDisplayText(receipt.budget?.title) || receipt.category}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[#0878B7]">
+                    <p className="mt-1 text-xs font-semibold text-brand-700">
                       {receiptLabel(receipt) || `Receipt #${receipt.id}`}
                     </p>
                   </div>
-                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#DDE7EF] pt-3">
-                    <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(receipt.amount)}</p>
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-line pt-3">
+                    <p className="text-sm font-semibold tabular-nums text-ink">{fmt(receipt.amount)}</p>
                     <button
                       type="button"
                       onClick={() => setSelectedReceipt(receipt)}
-                      className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
+                      className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-xs font-bold text-slate-600 hover:bg-subtle"
                     >
                       <Eye size={14} />
                       View Receipt
@@ -1809,11 +1809,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         maxWidth="max-w-3xl"
         footer={selectedReceipt ? (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={() => setSelectedReceipt(null)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Close</button>
+            <button type="button" onClick={() => setSelectedReceipt(null)} className="min-h-11 rounded-lg border border-line px-4 text-sm font-bold text-ink-muted hover:bg-subtle">Close</button>
             {selectedReceipt.receipt_file_url && (
-              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Download size={15} /> Open receipt file</a>
+              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-brand-600/30 px-4 text-sm font-bold text-brand-700 hover:bg-subtle"><Download size={15} /> Open receipt file</a>
             )}
-            <button type="button" onClick={() => printReceiptElement(document.querySelector('[data-finance-receipt] [data-receipt-document]'))} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><Printer size={15} /> Print receipt</button>
+            <button type="button" onClick={() => printReceiptElement(document.querySelector('[data-finance-receipt] [data-receipt-document]'))} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800"><Printer size={15} /> Print receipt</button>
           </div>
         ) : null}
       >
@@ -1821,9 +1821,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       </Modal>
 
       {activeTab === 'invoices' && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Statement of Account & Financial Clearance</h2>
+        <section className="rounded-lg border border-line bg-white">
+          <div className="border-b border-line p-4 sm:p-5">
+            <h2 className="text-lg font-bold text-ink">Statement of Account & Financial Clearance</h2>
             <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
           </div>
           {currentUserRole === 'STUDENT' && !loading && !error && <AccountSummary debt={studentDebt} clearances={clearances} />}
@@ -1841,26 +1841,26 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {showForm && (
-        <AccessibleOverlay label={editingTransaction ? 'Edit transaction' : 'Record transaction'} onClose={() => { setShowForm(false); setEditingTransaction(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label={editingTransaction ? 'Edit transaction' : 'Record transaction'} onClose={() => { setShowForm(false); setEditingTransaction(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">{editingTransaction ? 'Edit Transaction' : 'Record Transaction'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-ink">{editingTransaction ? 'Edit Transaction' : 'Record Transaction'}</h2>
+              <button onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-subtle"><X size={18} /></button>
             </div>
             <form className="space-y-4" onSubmit={handleCreate}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Description *</label>
+                <label className="text-[13px] font-semibold text-ink">Description *</label>
                 <input
                   type="text"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="e.g. Event supplies purchase"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Amount (₱) *</label>
+                  <label className="text-[13px] font-semibold text-ink">Amount (₱) *</label>
                   <input
                     type="number"
                     min="0.01"
@@ -1868,15 +1868,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Type *</label>
+                  <label className="text-[13px] font-semibold text-ink">Type *</label>
                   <HiusaSelect
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
@@ -1885,11 +1885,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Category</label>
+                  <label className="text-[13px] font-semibold text-ink">Category</label>
                   <HiusaSelect
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   >
                     {['Operations', 'Events', 'Elections', 'Merchandise', 'General'].map((c) => (
                       <option key={c}>{c}</option>
@@ -1897,18 +1897,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </HiusaSelect>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Date *</label>
+                  <label className="text-[13px] font-semibold text-ink">Date *</label>
                   <DateTimeInput
                     type="date"
                     value={form.transaction_date}
                     onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Linked Budget</label>
+                  <label className="text-[13px] font-semibold text-ink">Linked Budget</label>
                   <HiusaSelect
                     value={form.budget_id}
                     onChange={(e) => {
@@ -1916,7 +1916,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       const linkedBudget = budgets.find((budget) => String(budget.id) === String(budgetId));
                       setForm({ ...form, budget_id: budgetId, event_id: linkedBudget?.event_id || form.event_id });
                     }}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   >
                     <option value="">No linked budget</option>
                     {budgets.map((budget) => (
@@ -1927,11 +1927,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </HiusaSelect>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Linked Event</label>
+                  <label className="text-[13px] font-semibold text-ink">Linked Event</label>
                   <HiusaSelect
                     value={form.event_id}
                     onChange={(e) => setForm({ ...form, event_id: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   >
                     <option value="">No linked event</option>
                     {events.map((event) => (
@@ -1941,22 +1941,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Receipt Reference</label>
+                <label className="text-[13px] font-semibold text-ink">Receipt Reference</label>
                 <input
                   type="text"
                   value={form.receipt_reference}
                   onChange={(e) => setForm({ ...form, receipt_reference: e.target.value })}
                   placeholder="GCash reference, OR number, or payment note"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                 />
               </div>
               {formError && <p className="text-xs text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Cancel</button>
                 <button
                   type="submit"
                   disabled={formSubmitting || !form.description || !form.amount || !form.transaction_date}
-                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
+                  className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-50"
                 >
                   {formSubmitting ? 'Saving...' : editingTransaction ? 'Update Transaction' : 'Save Transaction'}
                 </button>
@@ -1967,11 +1967,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {showBudgetForm && (
-        <AccessibleOverlay label={editingBudget ? 'Edit budget' : 'Propose budget'} onClose={closeBudgetForm} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label={editingBudget ? 'Edit budget' : 'Propose budget'} onClose={closeBudgetForm} className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">{editingBudget ? 'Edit budget' : 'Propose budget'}</h2>
-              <button type="button" aria-label="Close budget form" onClick={closeBudgetForm} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-ink">{editingBudget ? 'Edit budget' : 'Propose budget'}</h2>
+              <button type="button" aria-label="Close budget form" onClick={closeBudgetForm} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-subtle"><X size={18} /></button>
             </div>
             <p className="mb-4 text-xs font-medium text-slate-500">
               {editingBudget
@@ -1980,18 +1980,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </p>
             <form className="space-y-4" onSubmit={handleCreateBudget}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Title *</label>
+                <label className="text-[13px] font-semibold text-ink">Title *</label>
                 <input
                   type="text"
                   value={budgetForm.title}
                   onChange={(e) => setBudgetForm({ ...budgetForm, title: e.target.value })}
                   placeholder="e.g. Sports Fest 2026 Budget"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Allocated Amount (₱) *</label>
+                  <label className="text-[13px] font-semibold text-ink">Allocated Amount (₱) *</label>
                   <input
                     type="number"
                     min="0"
@@ -1999,11 +1999,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     value={budgetForm.allocated_amount}
                     onChange={(e) => setBudgetForm({ ...budgetForm, allocated_amount: e.target.value })}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold (₱) *</label>
+                  <label className="text-[13px] font-semibold text-ink">Warning Threshold (₱) *</label>
                   <input
                     type="number"
                     min="0"
@@ -2011,16 +2011,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     value={budgetForm.warning_threshold}
                     onChange={(e) => setBudgetForm({ ...budgetForm, warning_threshold: e.target.value })}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Linked Event (optional)</label>
+                <label className="text-[13px] font-semibold text-ink">Linked Event (optional)</label>
                 <HiusaSelect
                   value={budgetForm.event_id}
                   onChange={(e) => setBudgetForm({ ...budgetForm, event_id: e.target.value })}
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
                 >
                   <option value="">No linked event</option>
                   {events.map((ev) => (
@@ -2029,20 +2029,20 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </HiusaSelect>
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="budget-semester" className="text-[13px] font-semibold text-[#0F172A]">Financial semester (optional)</label>
-                <HiusaSelect id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">
+                <label htmlFor="budget-semester" className="text-[13px] font-semibold text-ink">Financial semester (optional)</label>
+                <HiusaSelect id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-brand-600">
                   <option value="">No semester</option>
                   {semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)}</option>)}
                 </HiusaSelect>
-                <button type="button" onClick={() => { closeBudgetForm(); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
+                <button type="button" onClick={() => { closeBudgetForm(); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-brand-700 underline hover:text-navy-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Need a new semester? Add one in Financial Reports</button>
               </div>
               {budgetFormError && <p className="text-xs text-red-600">{budgetFormError}</p>}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeBudgetForm} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button type="button" onClick={closeBudgetForm} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Cancel</button>
                 <button
                   type="submit"
                   disabled={budgetFormSubmitting || !budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === ''}
-                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
+                  className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-50"
                 >
                   {budgetFormSubmitting ? 'Submitting...' : editingBudget ? 'Resubmit for Approval' : 'Submit for Approval'}
                 </button>

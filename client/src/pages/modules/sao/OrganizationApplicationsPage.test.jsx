@@ -78,14 +78,27 @@ describe('OrganizationApplicationsPage', () => {
     expect(screen.getByRole('tab', { name: 'With the Department Head (1)' })).toBeInTheDocument();
   });
 
-  it('shows the applicant by name with the school ID only as small text', async () => {
+  it('shows the applicant by name with the school ID only as small text, and no badge on the review list', async () => {
     renderPage();
 
     const table = (await screen.findAllByRole('table'))[0];
     expect(within(table).getByText('Ana Cruz')).toBeInTheDocument();
     expect(within(table).getByText('President · ID 20260042')).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: /school id/i })).not.toBeInTheDocument();
-    expect(within(table).getByText('With the Department Head')).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+    expect(within(table).queryByText('With the Department Head')).not.toBeInTheDocument();
+  });
+
+  it('shows the status where it tells rows apart, on the other tabs', async () => {
+    renderPage();
+    await screen.findAllByText('Chess Club');
+    mocks.getOrganizationApplications.mockResolvedValue(page([row({ status: 'pending_sao' })]));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'With the SAO (2)' }));
+
+    const table = (await screen.findAllByRole('table'))[0];
+    await waitFor(() => expect(within(table).getByText('With the SAO')).toBeInTheDocument());
+    expect(within(table).getByRole('link', { name: 'View application of Chess Club' })).toBeInTheDocument();
   });
 
   it('switches status with the tabs and asks for that status', async () => {
@@ -118,35 +131,42 @@ describe('OrganizationApplicationsPage', () => {
     mocks.getOrganizationApplications.mockResolvedValue(page([], { pending_dean: 0 }));
     renderPage();
 
-    expect(await screen.findByText('Nothing waiting for you')).toBeInTheDocument();
+    expect(await screen.findByText('No applications to review')).toBeInTheDocument();
     expect(screen.getByText('Applications show here once a student you allowed to apply sends one.')).toBeInTheDocument();
   });
 
-  it('opens an application in the review drawer and keeps it addressable with ?record', async () => {
+  it('opens an application as its own page and keeps it addressable with ?record', async () => {
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Open application of Chess Club' }))[0]);
+    const link = (await screen.findAllByRole('link', { name: 'Review application of Chess Club' }))[0];
+    expect(link).toHaveAttribute('href', '/dashboard/organization-applications?record=8');
+    fireEvent.click(link);
 
-    expect(await screen.findByRole('button', { name: 'Endorse to SAO' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Chess Club' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Endorse' })).toBeInTheDocument();
     expect(mocks.getOrganizationApplication).toHaveBeenCalledWith('8');
     expect(screen.getByTestId('location')).toHaveTextContent('?record=8');
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
-  it('opens straight to the drawer from a notification link', async () => {
+  it('opens straight to the page from a notification link', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderPage('SUPER_ADMIN', '/dashboard/organization-applications?record=8');
 
     expect(await screen.findByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(mocks.getOrganizationApplications).not.toHaveBeenCalled();
   });
 
-  it('closes the drawer and refreshes the list after a decision', async () => {
+  it('stays on the page after a decision, as a summary, and the list is fresh when you go back', async () => {
     mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Open application of Chess Club' }))[0]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Endorse to SAO' }));
+    fireEvent.click((await screen.findAllByRole('link', { name: 'Review application of Chess Club' }))[0]);
+    const select = await screen.findByLabelText('Review of Constitution');
+    fireEvent.change(select, { target: { value: 'ok' } });
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));
 
     await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, expect.objectContaining({ action: 'endorse' })));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Endorse to SAO' })).not.toBeInTheDocument());
-    await waitFor(() => expect(mocks.getOrganizationApplications).toHaveBeenCalledTimes(2));
-    expect(screen.getByTestId('location')).not.toHaveTextContent('record=');
+    expect(await screen.findByRole('region', { name: 'Summary' })).toBeInTheDocument();
+    expect(mocks.getOrganizationApplications).toHaveBeenCalledTimes(1);
   });
 });

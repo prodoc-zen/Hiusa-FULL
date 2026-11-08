@@ -64,8 +64,8 @@ describe('ApplyOrganizationPage', () => {
     mocks.getMyOrganizationApplications.mockResolvedValue(open({ can_apply: false, college: null, requirements: [], academic_semester: null }));
     renderPage();
 
-    expect(await screen.findByText("You can't apply yet")).toBeInTheDocument();
-    expect(screen.getByText(/Ask them to use Allow a student to apply/)).toBeInTheDocument();
+    expect(await screen.findByText('You cannot apply yet')).toBeInTheDocument();
+    expect(screen.getByText('Ask your Department Head to allow you.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send application' })).not.toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('ApplyOrganizationPage', () => {
     const link = await screen.findByRole('link', { name: /Chess Club/ });
     expect(link).toHaveAttribute('href', '/dashboard/student/organization-applications/77');
     expect(within(link).getByText('Returned')).toBeInTheDocument();
-    expect(screen.queryByText("You can't apply yet")).not.toBeInTheDocument();
+    expect(screen.queryByText('You cannot apply yet')).not.toBeInTheDocument();
   });
 
   it('refuses a file of the wrong type before anything is sent', async () => {

@@ -38,7 +38,7 @@ export function registrationView(organization, viewerRole) {
 export function RegistrationStepper({ organization, viewerRole, variant = 'full', className = '' }) {
   const { lifecycle } = registrationView(organization, viewerRole);
   const steps = organization.is_university_wide ? lifecycle.steps.map((step) => step.key === 'registered' ? { ...step, label: 'College endorsement', actor: null, state: 'skipped', note: 'Not required for a unified organization' } : step) : lifecycle.steps;
-  return <div className={className}><FlowStepper steps={steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} />{variant === 'full' && <p className="mt-3 text-xs text-ink-muted-strong">{organization.is_university_wide ? 'SAO approves unified organizations directly and adds the first Admin account.' : 'After Department Head endorsement and SAO approval, the first Admin account can access the organization.'} Initial setup means adding positions, members, and the first event.</p>}</div>;
+  return <div className={className}><FlowStepper steps={steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} />{variant === 'full' && organization.is_university_wide && <p className="mt-3 text-xs text-ink-muted-strong">SAO approves unified organizations directly and adds the first Admin account.</p>}</div>;
 }
 
 const LINE_TONE = {
@@ -54,7 +54,7 @@ export function RegistrationRowStatus({ organization, viewerRole, className = ''
   const { nextStep } = registrationView(organization, viewerRole);
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <p className={`text-xs font-semibold ${LINE_TONE[nextStep.tone] ?? 'text-ink'}`}>{nextStep.title}</p>
+      <p className={`text-xs font-medium ${LINE_TONE[nextStep.tone] ?? 'text-ink'}`}>{nextStep.title}</p>
       <RegistrationStepper organization={organization} viewerRole={viewerRole} variant="compact" />
     </div>
   );

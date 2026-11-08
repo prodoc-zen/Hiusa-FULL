@@ -306,7 +306,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             return (
               <g key={value}>
                 <line x1={PAD.left} x2={svgWidth - PAD.right} y1={lineY} y2={lineY} stroke={GRID_LINE} />
-                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="text-[10px]" fill={TEXT_MUTED}>
+                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="text-xs" fill={TEXT_MUTED}>
                   {formatY(value)}
                 </text>
               </g>
@@ -322,7 +322,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             const raw = xRawByKey.get(key);
             const label = truncateLabel(formatX(raw), 10);
             return (
-              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="text-[10px]" fill={TEXT_MUTED}>
+              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="text-xs" fill={TEXT_MUTED}>
                 {label}
                 <title>{formatX(raw)}</title>
               </text>
@@ -386,7 +386,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
               data-end-label={label.key}
               x={label.x}
               y={label.y + 4}
-              className="text-[10px] font-bold"
+              className="text-xs font-bold"
               fill={label.color}
             >
               {label.text}

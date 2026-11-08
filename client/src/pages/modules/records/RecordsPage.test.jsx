@@ -94,6 +94,27 @@ describe('Records page', () => {
     await waitFor(() => expect(records.getRecords).toHaveBeenLastCalledWith({ academic_year_id: 1 }));
   });
 
+  it('collapses a record type with nothing in it to one muted line and keeps the others captioned', async () => {
+    records.getRecords.mockResolvedValue(payload({ organization: detail }));
+    renderPage();
+
+    const empty = await screen.findByRole('region', { name: 'Event files' });
+    expect(empty.querySelector('h3')).toBeNull();
+    expect(empty.querySelector('ul')).toBeNull();
+    expect(within(empty).getByText('No event files in this period.')).toHaveClass('text-ink-muted');
+    expect(screen.getByRole('heading', { level: 3, name: /Officers/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Compliance files/ })).toBeInTheDocument();
+  });
+
+  it('shows no badge for an organization in its default active state', async () => {
+    records.getRecords.mockResolvedValue(payload({ organization: detail }));
+    renderPage();
+
+    await screen.findByRole('region', { name: /Officers/ });
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+  });
+
   it('does not badge the current period as read only', async () => {
     records.getRecords.mockResolvedValue(payload({ semester: current }));
     renderPage();

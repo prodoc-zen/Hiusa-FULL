@@ -47,32 +47,32 @@ export default function NotificationPreferences() {
   }
 
   return (
-    <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm" aria-labelledby="notification-preferences-title">
-      <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+    <section className="rounded-lg border border-line bg-white shadow-sm" aria-labelledby="notification-preferences-title">
+      <div className="flex items-start gap-3 border-b border-line p-5 sm:p-6">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800">
           <BellRing size={19} aria-hidden="true" />
         </div>
         <div>
-          <h2 id="notification-preferences-title" className="text-base font-extrabold text-[#0F172A]">Notifications</h2>
-          <p className="mt-0.5 text-xs font-medium text-[#64748B]">Choose which updates appear in your notifications. Approvals, tasks, account and payment notices always show, because someone is waiting on them.</p>
+          <h2 id="notification-preferences-title" className="text-base font-semibold text-ink">Notifications</h2>
+          <p className="mt-0.5 text-xs font-medium text-ink-muted">Choose which updates appear in your notifications. Approvals, tasks, account and payment notices always show, because someone is waiting on them.</p>
         </div>
       </div>
       <div className="p-5 sm:p-6">
         {state.status === 'loading' && <div className="h-32 animate-pulse rounded-lg bg-slate-100" role="status" aria-label="Loading notification preferences" />}
         {state.status === 'error' && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p role="alert" className="text-sm font-semibold text-[#B91C1C]">Your notification preferences could not load.</p>
+            <p role="alert" className="text-sm font-semibold text-danger-strong">Your notification preferences could not load.</p>
             <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
           </div>
         )}
         {state.status === 'ready' && (
-          <ul className="divide-y divide-[#E5EDF3]">
+          <ul className="divide-y divide-line-soft">
             {state.mutable.filter((kind) => KINDS[kind]).map((kind) => (
               <li key={kind}>
                 <label className="flex cursor-pointer items-start justify-between gap-4 py-3">
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[#0F172A]">{KINDS[kind].label}</span>
-                    <span className="mt-0.5 block text-xs font-medium leading-5 text-[#64748B]">{KINDS[kind].detail}</span>
+                    <span className="block text-sm font-semibold text-ink">{KINDS[kind].label}</span>
+                    <span className="mt-0.5 block text-xs font-medium leading-5 text-ink-muted">{KINDS[kind].detail}</span>
                   </span>
                   <input
                     type="checkbox"

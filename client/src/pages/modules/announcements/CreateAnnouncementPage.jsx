@@ -26,15 +26,15 @@ function ConfirmModal({ open, title, message, confirmText, onCancel, onConfirm, 
   if (!open) return null;
 
   return (
-    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-[#0F172A]">{title}</h3>
+    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div className="w-full max-w-md rounded-lg border border-line bg-white p-6">
+        <h3 className="text-lg font-bold text-ink">{title}</h3>
         <p className="mt-2 text-sm text-slate-600">{message}</p>
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={busy}>
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle" disabled={busy}>
             Cancel
           </button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50" disabled={busy}>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50" disabled={busy}>
             {busy ? 'Processing...' : confirmText}
           </button>
         </div>
@@ -127,11 +127,11 @@ export default function CreateAnnouncementPage() {
 
   if (posted) {
     return (
-      <div className="mx-auto max-w-xl rounded-lg border border-[#DDE7EF] bg-white p-6 text-center shadow-sm sm:p-8">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <CheckCircle size={32} className="text-emerald-500" />
+      <div className="mx-auto max-w-xl rounded-lg border border-line bg-white p-6 text-center shadow-sm sm:p-8">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success-tint">
+          <CheckCircle size={32} className="text-success-strong" />
         </div>
-        <h2 className="mb-2 text-lg font-extrabold text-[#0F172A]">{forApproval ? 'Sent to your Admin for approval' : lastPublishState ? 'Announcement Posted!' : 'Draft Saved!'}</h2>
+        <h2 className="mb-2 text-lg font-semibold text-ink">{forApproval ? 'Sent to your Admin for approval' : lastPublishState ? 'Announcement Posted!' : 'Draft Saved!'}</h2>
         <p className="mb-6 text-sm text-slate-500">
           {forApproval
             ? <>It goes to <strong>{AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label}</strong> once the Admin approves it.</>
@@ -140,18 +140,18 @@ export default function CreateAnnouncementPage() {
               : 'You can publish this draft anytime from Manage Announcements.'}
         </p>
         <div className="flex flex-col gap-2">
-          <Link to={MANAGE_PATH} className="inline-flex items-center justify-center rounded-lg bg-[#0878B7] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0F2F62]">
+          <Link to={MANAGE_PATH} className="inline-flex items-center justify-center rounded-lg bg-brand-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-navy-800">
             View in Announcements
           </Link>
           <button
             onClick={() => { setTitle(''); setBody(''); setAiInstructions(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
-            className="rounded-lg border border-[#DDE7EF] px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-[#F8FBFD]"
+            className="rounded-lg border border-line px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-subtle"
           >
             Create Another
           </button>
           <button
             onClick={() => navigate(-1)}
-            className="rounded-lg border border-[#DDE7EF] px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-[#F8FBFD]"
+            className="rounded-lg border border-line px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-subtle"
           >
             Go Back
           </button>
@@ -163,37 +163,37 @@ export default function CreateAnnouncementPage() {
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="min-w-0 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
+        <section className="min-w-0 rounded-lg border border-line bg-white p-4 shadow-sm sm:p-5 lg:p-6">
           <div>
-            <label htmlFor="announcement-title" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Title <span className="text-red-500">*</span></label>
+            <label htmlFor="announcement-title" className="mb-1.5 block text-[13px] font-semibold text-ink">Title <span className="text-red-500">*</span></label>
             <input
               id="announcement-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="e.g. General Assembly - Second Semester"
               maxLength={255}
-              className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+              className="h-11 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
             />
           </div>
 
           <div className="mt-5">
-            <div className="mb-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+            <div className="mb-4 rounded-lg border border-line bg-subtle p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div><label htmlFor="announcement-ai-instructions" className="block text-[13px] font-semibold text-[#0F172A]">Instructions for AI draft <span className="font-medium text-slate-500">(optional)</span></label><p className="mt-0.5 text-xs leading-5 text-slate-500">Add known dates, venue, tone, required action, or facts the draft must include. This stays separate from the editable announcement.</p></div>
-                <p className="shrink-0 text-xs font-bold text-[#0878B7]">{quotaLoading ? 'Checking daily limit…' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}</p>
+                <div><label htmlFor="announcement-ai-instructions" className="block text-[13px] font-semibold text-ink">Instructions for AI draft <span className="font-medium text-slate-500">(optional)</span></label><p className="mt-0.5 text-xs leading-5 text-slate-500">Add known dates, venue, tone, required action, or facts the draft must include. This stays separate from the editable announcement.</p></div>
+                <p className="shrink-0 text-xs font-bold text-brand-700">{quotaLoading ? 'Checking daily limit…' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}</p>
               </div>
-              <textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Example: Formal tone. Assembly is on September 30 at 2:00 PM. Ask students to bring their ID." className="mt-3 w-full resize-y rounded-lg border border-[#DDE7EF] bg-white p-3 text-sm leading-6 text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              <textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Example: Formal tone. Assembly is on September 30 at 2:00 PM. Ask students to bring their ID." className="mt-3 w-full resize-y rounded-lg border border-line bg-white p-3 text-sm leading-6 text-slate-700 outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
             </div>
             <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label htmlFor="announcement-content" className="block text-[13px] font-semibold text-[#0F172A]">Content <span className="text-red-500">*</span></label>
+                <label htmlFor="announcement-content" className="block text-[13px] font-semibold text-ink">Content <span className="text-red-500">*</span></label>
                 <p className="mt-0.5 text-xs text-slate-500">Use clear, concise language. Plain text formatting is preserved.</p>
               </div>
               <button
                 type="button"
                 onClick={handleGenerateDraft}
                 disabled={generating || !title.trim() || generationQuota.remaining < 1}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-3 text-xs font-bold text-[#0F2F62] transition hover:bg-[#E6F6FD] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line bg-page px-3 text-xs font-bold text-navy-800 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 <Bot size={15} />
                 {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate Draft'}
@@ -206,52 +206,52 @@ export default function CreateAnnouncementPage() {
               placeholder="Write your announcement content here..."
               rows={12}
             />
-            <p className="mt-1.5 text-right text-[11px] font-medium text-slate-500">{body.length.toLocaleString()} characters</p>
+            <p className="mt-1.5 text-right text-xs font-medium text-slate-500">{body.length.toLocaleString()} characters</p>
           </div>
         </section>
 
         <aside className="space-y-4 lg:sticky lg:top-5">
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-sm font-bold text-[#0F172A]">Publishing settings</h2>
+          <section className="rounded-lg border border-line bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-sm font-bold text-ink">Publishing settings</h2>
             <div className="mt-4 space-y-4">
               <div>
-                <label htmlFor="announcement-audience" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Audience</label>
-                <HiusaSelect id="announcement-audience" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <label htmlFor="announcement-audience" className="mb-1.5 block text-[13px] font-semibold text-ink">Audience</label>
+                <HiusaSelect id="announcement-audience" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} className="h-11 w-full rounded-lg border border-line px-3 text-sm text-slate-700 outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15">
                   {AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </HiusaSelect>
               </div>
               <div>
-                <label htmlFor="announcement-category" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Category</label>
-                <HiusaSelect id="announcement-category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <label htmlFor="announcement-category" className="mb-1.5 block text-[13px] font-semibold text-ink">Category</label>
+                <HiusaSelect id="announcement-category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 w-full rounded-lg border border-line px-3 text-sm text-slate-700 outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15">
                   {CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </HiusaSelect>
               </div>
               <div>
-                <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Poster or image <span className="font-medium text-slate-500">(optional)</span></label>
-                <label htmlFor="announcement-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ImagePlus size={18} /></span>
-                  <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#0F172A]">{imageFile?.name || 'Choose an image'}</span><span className="mt-0.5 block text-[10px] text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
+                <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-semibold text-ink">Poster or image <span className="font-medium text-slate-500">(optional)</span></label>
+                <label htmlFor="announcement-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line bg-subtle p-3 hover:border-brand-600">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-page text-navy-800"><ImagePlus size={18} /></span>
+                  <span className="min-w-0"><span className="block truncate text-xs font-bold text-ink">{imageFile?.name || 'Choose an image'}</span><span className="mt-0.5 block text-xs text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
                 </label>
                 <input id="announcement-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
               </div>
-              <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span>Pin to the top<span className="mt-0.5 block font-normal text-slate-500">Keeps this update ahead of regular posts.</span></span></label>
-                <label className="flex cursor-pointer items-start gap-2.5 border-t border-[#DDE7EF] pt-2 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span>Mark as important<span className="mt-0.5 block font-normal text-slate-500">Adds a clear priority badge for students.</span></span></label>
+              <div className="space-y-2 rounded-lg border border-line bg-subtle p-3">
+                <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-line" /><span>Pin to the top<span className="mt-0.5 block font-normal text-slate-500">Keeps this update ahead of regular posts.</span></span></label>
+                <label className="flex cursor-pointer items-start gap-2.5 border-t border-line pt-2 text-xs font-semibold text-ink"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-line" /><span>Mark as important<span className="mt-0.5 block font-normal text-slate-500">Adds a clear priority badge for students.</span></span></label>
               </div>
             </div>
           </section>
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-sm font-bold text-[#0F172A]">{forApproval ? 'Ready to send?' : 'Ready to publish?'}</h2>
+          <section className="rounded-lg border border-line bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-sm font-bold text-ink">{forApproval ? 'Ready to send?' : 'Ready to publish?'}</h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">{forApproval ? 'Title and content are required. The Admin approves it before members see it.' : 'Title and content are required. You can save a draft without notifying members.'}</p>
             {(!title.trim() || !body.trim()) && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Complete the title and content to enable these actions.</p>}
             {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
             <div className="mt-4 flex flex-col gap-2.5">
-              <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: true })} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: true })} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-50">
                 <Send size={15} />
                 {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish Now'}
               </button>
-              {!forApproval && <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: false })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-50">Save Draft</button>}
+              {!forApproval && <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: false })} className="h-11 w-full rounded-lg border border-line bg-white px-4 text-sm font-bold text-brand-700 transition hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50">Save Draft</button>}
             </div>
           </section>
         </aside>

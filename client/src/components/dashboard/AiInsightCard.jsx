@@ -35,7 +35,7 @@ export default function AiInsightCard({ insight }) {
     <article className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-ink">{insight.title}</h3>
-        <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">From your records</span>
+        <span className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-navy-800">From your records</span>
       </div>
       <p className="max-w-3xl text-sm font-medium leading-6 text-ink-muted">{insight.body}</p>
       <RulesDisclosure label="Why am I seeing this?" items={whyItems(insight.why)} />

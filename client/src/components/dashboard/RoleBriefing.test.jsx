@@ -60,6 +60,19 @@ describe('RoleBriefing', () => {
     expect(getBriefing).toHaveBeenCalledTimes(2);
   });
 
+  it('shows the AI insights to an admin but not to a department head', async () => {
+    const insights = [{ engine: 'budget', title: 'Spending is ahead of plan', detail: 'Two budgets are close to their limit.', severity: 'medium', why: [] }];
+    vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { insights }));
+    const { unmount } = renderBriefing();
+    expect(await screen.findByRole('heading', { name: 'What HIUSA noticed' })).toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { insights }));
+    renderBriefing();
+    expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'What HIUSA noticed' })).not.toBeInTheDocument();
+  });
+
   describe('the setup card', () => {
     const adminSetup = withProgress([
       step('positions', 'Set up your officer positions'),

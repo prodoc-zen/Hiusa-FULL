@@ -146,7 +146,7 @@ export function InviteDepartmentHeadModal({ colleges, initialCollegeId = '', onC
             {colleges.map((college) => <option key={college.id} value={college.id}>{formatDisplayText(college.name)}</option>)}
           </Select>
         </Field>
-        <Field label="Send it to (optional)" error={errors.email} hint="We email the link to this address. You can also copy it after.">
+        <Field label="Send it to" optional error={errors.email} hint="We email the link to this address. You can also copy it after.">
           <Input type="email" autoComplete="off" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((current) => ({ ...current, email: undefined })); }} />
         </Field>
         {formError && <p role="alert" className="rounded-control border border-red-200 bg-red-50 p-3 text-sm font-semibold text-danger-strong">{formError}</p>}
@@ -272,11 +272,13 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
           {formError && <p role="alert" className="rounded-control border border-red-200 bg-red-50 p-3 text-sm font-semibold text-danger-strong sm:col-span-2">{formError}</p>}
         </form>
         <div className="mt-5 space-y-3 border-t border-line pt-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-semibold text-ink">Account status</span>
-            <StatusBadge status={head.account_status} />
-          </div>
-          <p className="text-xs font-medium text-ink-muted">{isActive ? 'An active Department Head can sign in and review every organization in the college.' : 'This account cannot sign in. A college has one active Department Head at a time.'}</p>
+          {!isActive && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[13px] font-medium text-ink">Account status</span>
+              <StatusBadge status={head.account_status} />
+            </div>
+          )}
+          <p className="text-xs text-ink-muted">{isActive ? 'This account can sign in and review every organization in the college.' : 'This account cannot sign in. A college has one active Department Head at a time.'}</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" leftIcon={KeyRound} disabled={!isActive || busy} onClick={() => setConfirming('reset')}>Send password reset</Button>
             {isActive

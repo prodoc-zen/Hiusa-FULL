@@ -14,6 +14,8 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { storedUser } from '../../../utils/collegeIdentity';
 import { visibleSchoolId } from '../../../utils/schoolId';
 
+const PAGE_SIZE = 20;
+
 const TABS = [
   { key: 'students', label: 'Students' },
   { key: 'staff', label: 'Office staff' },
@@ -22,7 +24,7 @@ const TABS = [
 
 const EMPTY = {
   students: { title: 'No students yet', description: 'Students show up here once they sign up, or once the school records for your college are loaded.' },
-  staff: { title: 'No office staff yet', description: 'Add your secretary or other office staff from the school records. They set up their own account from a link.' },
+  staff: { title: 'No office staff yet', description: 'People who can review applications for your college. Add them from the school records.' },
   leaders: { title: 'No organization leaders yet', description: 'Heads and officers appear here once an organization in your college has them.' },
 };
 
@@ -37,36 +39,36 @@ const joinDetail = (...parts) => parts.filter(Boolean).join(' · ');
 function PersonCell({ name, detail }) {
   return (
     <span className="block min-w-0">
-      <span className="block font-semibold text-ink">{name}</span>
-      {detail && <span className="block break-words text-xs font-medium text-ink-muted">{detail}</span>}
+      <span className="block font-medium text-ink">{name}</span>
+      {detail && <span className="block break-words text-xs font-normal text-ink-muted">{detail}</span>}
     </span>
   );
 }
 
 const studentColumns = [
   { key: 'name', header: 'Name', render: (row) => <PersonCell name={row.name} detail={joinDetail(row.email, `ID ${row.school_id}`)} /> },
-  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, row.year_level && `Year ${row.year_level}`) || '-' },
+  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, row.year_level && `Year ${row.year_level}`) },
   {
     key: 'organizations',
     header: 'Organizations',
-    render: (row) => (row.organizations.length === 0 ? <span className="text-ink-muted">None</span> : (
+    render: (row) => (row.organizations.length === 0 ? null : (
       <ul className="flex flex-col gap-0.5 text-sm">
         {row.organizations.map((organization) => (
           <li key={organization.id}>
             {organization.name}
-            {organization.position_title && <span className="text-xs font-medium text-ink-muted"> · {organization.position_title}</span>}
+            {organization.position_title && <span className="text-xs font-normal text-ink-muted"> · {organization.position_title}</span>}
           </li>
         ))}
       </ul>
     )),
   },
-  { key: 'status', header: 'Account', render: (row) => <StatusBadge status={row.status} /> },
+  { key: 'status', header: 'Account', render: (row) => (row.status === 'signed_up' ? null : <StatusBadge status={row.status} />) },
 ];
 
 const leaderColumns = [
   { key: 'name', header: 'Name', render: (row) => <PersonCell name={row.name} detail={joinDetail(row.email, `ID ${row.school_id}`)} /> },
   { key: 'organization', header: 'Organization', render: (row) => row.organization.name },
-  { key: 'position_title', header: 'Position', render: (row) => row.position_title || '-' },
+  { key: 'position_title', header: 'Position', render: (row) => row.position_title },
   { key: 'role', header: 'Access', render: (row) => (row.role === 'ADMIN' ? 'Organization head' : 'Officer') },
 ];
 
@@ -81,7 +83,7 @@ export default function CollegePeoplePage() {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
-  const [state, setState] = useState({ tab: 'students', loading: true, error: '', rows: [], meta: { total: 0, perPage: 25 } });
+  const [state, setState] = useState({ tab: 'students', loading: true, error: '', rows: [], meta: { total: 0, perPage: PAGE_SIZE } });
   const [inviting, setInviting] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [granting, setGranting] = useState(false);
@@ -99,9 +101,9 @@ export default function CollegePeoplePage() {
   useEffect(() => {
     let current = true;
     setState((value) => ({ ...value, loading: true, error: '' }));
-    getCollegePeople({ tab, q: query || undefined, page })
+    getCollegePeople({ tab, q: query || undefined, page, per_page: PAGE_SIZE })
       .then((response) => { if (current) setState({ tab, loading: false, error: '', rows: unwrapList(response.data), meta: listMeta(response.data) }); })
-      .catch((cause) => { if (current) setState({ tab, loading: false, error: getApiErrorMessage(cause, 'Could not load this list.'), rows: [], meta: { total: 0, perPage: 25 } }); });
+      .catch((cause) => { if (current) setState({ tab, loading: false, error: getApiErrorMessage(cause, 'Could not load this list.'), rows: [], meta: { total: 0, perPage: PAGE_SIZE } }); });
     return () => { current = false; };
   }, [tab, query, page, reload]);
 
@@ -112,6 +114,10 @@ export default function CollegePeoplePage() {
 
   function changeTab(next) {
     setTab(next);
+    clearSearch();
+  }
+
+  function clearSearch() {
     setSearch('');
     setQuery('');
     setPage(1);
@@ -144,35 +150,35 @@ export default function CollegePeoplePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="People"
-        actions={tab === 'students' ? (
-          <>
-            <Button variant="secondary" onClick={() => setGranting(true)}>Allow a student to apply</Button>
-            {collegeId && <Button variant="secondary" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>}
-          </>
+        actions={tab === 'students' && collegeId ? (
+          <Button variant="secondary" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>
         ) : null}
-        primary={tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
+        primary={tab === 'students' ? (
+          <Button leftIcon={UserPlus} onClick={() => setGranting(true)}>Allow a student to apply</Button>
+        ) : tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
       />
 
       {tab === 'students' && collegeId && recordsOpen && <StudentRecordsPanel collegeId={collegeId} />}
 
-      <div className="rounded-card border border-line bg-surface shadow-card">
-        <div className="px-5">
-          <Tabs tabs={TABS} value={tab} onChange={changeTab} />
-        </div>
-        <div className="px-5 pt-4">
-          <div className="relative max-w-sm">
+      <div className="flex flex-col gap-4">
+        <Tabs tabs={TABS} value={tab} onChange={changeTab} />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-sm">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
             <Input
               type="search"
               aria-label={SEARCH_LABEL[tab]}
-              placeholder="Name, email or school ID"
+              placeholder="Name or email"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="pl-9"
             />
           </div>
+          {search && (
+            <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
+          )}
         </div>
-        <div className="p-5" role="tabpanel">
+        <div role="tabpanel">
           <DataTable
             columns={columns}
             rows={state.tab === tab ? state.rows : []}
@@ -181,13 +187,14 @@ export default function CollegePeoplePage() {
             error={state.error}
             onRetry={() => setReload((value) => value + 1)}
             filtersActive={filtersActive}
+            onClearFilters={clearSearch}
             emptyState={filtersActive ? (
-              <EmptyState kind="filtered" query={query} description="Try a different name, email or school ID." />
+              <EmptyState kind="filtered" query={query} description="Try a different name or email." onClearFilters={clearSearch} />
             ) : (
               <EmptyState
                 title={EMPTY[tab].title}
                 description={EMPTY[tab].description}
-                action={tab === 'students' && collegeId && !recordsOpen ? <Button onClick={toggleRecords}>Load student records</Button> : undefined}
+                action={tab === 'students' && collegeId && !recordsOpen ? <Button variant="secondary" onClick={toggleRecords}>Load student records</Button> : undefined}
               />
             )}
             actions={tab === 'staff' ? staffActions : undefined}

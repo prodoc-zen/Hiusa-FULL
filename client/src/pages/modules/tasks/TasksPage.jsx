@@ -62,12 +62,12 @@ function formatWeightLabel(key) {
 }
 
 const statusBadge = {
-  in_progress: 'bg-[#E6F6FD] text-[#0F2F62]',
-  completed: 'bg-emerald-50 text-emerald-700',
+  in_progress: 'bg-brand-50 text-navy-800',
+  completed: 'bg-success-tint text-success-strong',
   overdue: 'bg-red-50 text-red-700',
   pending: 'bg-slate-100 text-slate-500',
   blocked: 'bg-amber-50 text-amber-700',
-  ready: 'bg-[#E6F6FD] text-[#0F2F62]',
+  ready: 'bg-brand-50 text-navy-800',
 };
 
 function capitalize(s) {
@@ -502,8 +502,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         actions={activeTab === 'create' ? <Button variant="secondary" onClick={() => showView('board')}>Back to tasks</Button> : undefined}
         primary={canManageTasks && !viewingHistory && (activeTab === 'board' || activeTab === 'progress') ? <Button leftIcon={Plus} onClick={() => showView('create')}>New task</Button> : undefined}
       />
-      {academicPeriods.length > 0 && activeTab !== 'create' && <label className="block max-w-sm text-xs font-semibold text-[#0F172A]">Academic period<HiusaSelect filter value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); closeDetails(); setPage(1); }} className="mt-1 block h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect></label>}
-      {viewingHistory && <p className="text-xs font-medium text-[#64748B]">Completed semester tasks are available for viewing only.</p>}
+      {academicPeriods.length > 0 && activeTab !== 'create' && <label className="block max-w-sm text-xs font-semibold text-ink">Academic period<HiusaSelect filter value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); closeDetails(); setPage(1); }} className="mt-1 block h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</HiusaSelect></label>}
+      {viewingHistory && <p className="text-xs font-medium text-ink-muted">Completed semester tasks are available for viewing only.</p>}
       {activeTab !== 'create' && <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Tasks', value: totalTasksCount, helper: academicPeriods.length ? 'Selected period' : 'All time', icon: ListChecks },
@@ -514,12 +514,12 @@ export default function TasksPage({ initialTab = 'board' }) {
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
         ].map((stat) => (
-          <article key={stat.label} className="group rounded-lg border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
+          <article key={stat.label} className="group rounded-lg border border-line bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-brand-600/20">
             <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition">
               <stat.icon size={19} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A]">{stat.value}</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">{stat.value}</p>
             <p className="mt-1 text-xs font-medium text-slate-500">{stat.helper}</p>
           </article>
         ))}
@@ -534,47 +534,47 @@ export default function TasksPage({ initialTab = 'board' }) {
 
       {activeTab === 'create' && canManageTasks && (
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
-            <div className="border-b border-[#DDE7EF] pb-5">
-              <h2 className="text-lg font-bold text-[#0F172A]">Task details</h2>
+          <div className="rounded-lg border border-line bg-white p-5 shadow-sm sm:p-6">
+            <div className="border-b border-line pb-5">
+              <h2 className="text-lg font-bold text-ink">Task details</h2>
               <p className="mt-1 text-sm text-slate-500">Choose a task type, review officer fit, then make the final assignment.</p>
             </div>
-            {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
+            {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-success/30 bg-success-tint p-3 text-sm font-semibold text-success-strong"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
             {officers.length === 0 && <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle size={17} className="mt-0.5 shrink-0" /><div><p className="font-bold">Officer positions must be configured first.</p><p className="mt-1 text-xs leading-5">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating or delegating a task.</p></div></div>}
             <form className="mt-5 space-y-5" onSubmit={handleCreate}>
-              <fieldset className="space-y-2"><legend className="text-[13px] font-semibold text-[#0F172A]">Task type</legend><div className="flex flex-wrap gap-3">{[['standalone', 'Standalone task'], ['event_related', 'Event-related task']].map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-sm"><input type="radio" name="task-kind" checked={form.task_kind === value} onChange={() => setForm({ ...form, task_kind: value, event_id: '' })} />{label}</label>)}</div></fieldset>
-              <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]">Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value, assigned_to: '' }); setPreview(null); }} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
-              <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label><RichTextEditor id="create-task-description" rows={5} value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="Describe the expected result, required materials, and completion criteria..." /></div>
-              <div className="grid gap-4 sm:grid-cols-3"><label className="text-[13px] font-semibold text-[#0F172A]">Assigned category<HiusaSelect value={form.category} onChange={(event) => { setForm({ ...form, category: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">{['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}</HiusaSelect></label><label className="text-[13px] font-semibold text-[#0F172A]">Required position<HiusaSelect value={form.preferred_role} onChange={(event) => { setForm({ ...form, preferred_role: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Any eligible position</option>{[...new Set(officers.map((officer) => officer.position_title).filter(Boolean))].map((position) => <option key={position} value={position}>{position}</option>)}</HiusaSelect></label><label className="text-[13px] font-semibold text-[#0F172A]">Priority<HiusaSelect value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</HiusaSelect></label></div>
+              <fieldset className="space-y-2"><legend className="text-[13px] font-semibold text-ink">Task type</legend><div className="flex flex-wrap gap-3">{[['standalone', 'Standalone task'], ['event_related', 'Event-related task']].map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm"><input type="radio" name="task-kind" checked={form.task_kind === value} onChange={() => setForm({ ...form, task_kind: value, event_id: '' })} />{label}</label>)}</div></fieldset>
+              <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-ink">Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value, assigned_to: '' }); setPreview(null); }} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" /></div>
+              <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-ink">Description</label><RichTextEditor id="create-task-description" rows={5} value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="Describe the expected result, required materials, and completion criteria..." /></div>
+              <div className="grid gap-4 sm:grid-cols-3"><label className="text-[13px] font-semibold text-ink">Assigned category<HiusaSelect value={form.category} onChange={(event) => { setForm({ ...form, category: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm">{['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}</HiusaSelect></label><label className="text-[13px] font-semibold text-ink">Required position<HiusaSelect value={form.preferred_role} onChange={(event) => { setForm({ ...form, preferred_role: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm"><option value="">Any eligible position</option>{[...new Set(officers.map((officer) => officer.position_title).filter(Boolean))].map((position) => <option key={position} value={position}>{position}</option>)}</HiusaSelect></label><label className="text-[13px] font-semibold text-ink">Priority<HiusaSelect value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</HiusaSelect></label></div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-[#0F172A]">Assign To *</label><HiusaSelect id="create-task-assignee" disabled={!preview?.rankings?.length} value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100"><option value="">Review recommendation first</option>{(preview?.rankings || []).map((officer) => <option key={officer.officer_id} value={officer.officer_id}>{formatDisplayText(officer.name)}{officer.position_title ? ` · ${formatDisplayText(officer.position_title)}` : ''}</option>)}</HiusaSelect></div>
-                {form.task_kind === 'event_related' && <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-[#0F172A]">Related Event *</label><HiusaSelect id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Select an event</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect></div>}
-                <div className="space-y-1.5"><label htmlFor="create-task-deadline" className="text-[13px] font-semibold text-[#0F172A]">Deadline *</label><DateTimeInput id="create-task-deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
-                <div className="space-y-1.5"><label htmlFor="create-task-status" className="text-[13px] font-semibold text-[#0F172A]">Initial Status</label><HiusaSelect id="create-task-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pending">Pending</option><option value="in_progress">In Progress</option></HiusaSelect></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-ink">Assign To *</label><HiusaSelect id="create-task-assignee" disabled={!preview?.rankings?.length} value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 disabled:bg-slate-100"><option value="">Review recommendation first</option>{(preview?.rankings || []).map((officer) => <option key={officer.officer_id} value={officer.officer_id}>{formatDisplayText(officer.name)}{officer.position_title ? ` · ${formatDisplayText(officer.position_title)}` : ''}</option>)}</HiusaSelect></div>
+                {form.task_kind === 'event_related' && <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-ink">Related Event *</label><HiusaSelect id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="">Select an event</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect></div>}
+                <div className="space-y-1.5"><label htmlFor="create-task-deadline" className="text-[13px] font-semibold text-ink">Deadline *</label><DateTimeInput id="create-task-deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" /></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-status" className="text-[13px] font-semibold text-ink">Initial Status</label><HiusaSelect id="create-task-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="pending">Pending</option><option value="in_progress">In Progress</option></HiusaSelect></div>
               </div>
-              <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><button type="button" disabled={previewLoading || !form.title.trim()} onClick={loadRecommendation} className="h-10 rounded-lg border border-[#0B8ED0] bg-white px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50">{previewLoading ? 'Evaluating...' : 'Review officer recommendation'}</button>{preview?.rankings?.length ? <div className="mt-3 space-y-2"><p className="text-xs font-semibold text-slate-600">Admin chooses the final assignee.</p>{preview.rankings.map((officer) => <button key={officer.officer_id} type="button" onClick={() => setForm({ ...form, assigned_to: String(officer.officer_id) })} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-[#DDE7EF] bg-white px-3 text-left text-sm hover:border-[#0B8ED0]"><span>{formatDisplayText(officer.name)} · {formatDisplayText(officer.position_title)}{officer.rank === 1 ? ' · Recommended' : ''}</span><span className="font-bold">{officer.final_score}</span></button>)}</div> : preview && <p className="mt-2 text-sm text-amber-800">No eligible officers are available.</p>}</div>
+              <div className="rounded-lg border border-line bg-subtle p-4"><button type="button" disabled={previewLoading || !form.title.trim()} onClick={loadRecommendation} className="h-10 rounded-lg border border-brand-600 bg-white px-4 text-sm font-bold text-brand-700 disabled:opacity-50">{previewLoading ? 'Evaluating...' : 'Review officer recommendation'}</button>{preview?.rankings?.length ? <div className="mt-3 space-y-2"><p className="text-xs font-semibold text-slate-600">Admin chooses the final assignee.</p>{preview.rankings.map((officer) => <button key={officer.officer_id} type="button" onClick={() => setForm({ ...form, assigned_to: String(officer.officer_id) })} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-line bg-white px-3 text-left text-sm hover:border-brand-600"><span>{formatDisplayText(officer.name)} · {formatDisplayText(officer.position_title)}{officer.rank === 1 ? ' · Recommended' : ''}</span><span className="font-bold">{officer.final_score}</span></button>)}</div> : preview && <p className="mt-2 text-sm text-amber-800">No eligible officers are available.</p>}</div>
               {formError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{formError}</p>}
-              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setPreview(null); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || officers.length === 0 || !form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setPreview(null); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Clear Form</button><button type="submit" disabled={formSubmitting || officers.length === 0 || !form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
             </form>
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm"><h3 className="font-bold text-[#0F172A]">Assignment readiness</h3><div className="mt-4 space-y-3">{[['Active SBO officers', officers.length], ['Available events', events.length], ['Current open tasks', tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length]].map(([label, value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5"><span className="text-xs font-semibold text-slate-500">{label}</span><strong className="text-lg text-[#0F172A]">{value}</strong></div>)}</div></div>
-            <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-5"><Bot size={20} className="text-[#0878B7]" /><h3 className="mt-3 font-bold text-[#0F172A]">Best-fit recommendation</h3><p className="mt-2 text-sm leading-6 text-slate-600">Review eligible officers using role fit, current workload, and prior completion performance. Choose the final assignee before creating the task. The result and explanation remain visible in AI Delegation.</p></div>
-            <div className="rounded-lg border border-[#DDE7EF] bg-white p-5"><h3 className="font-bold text-[#0F172A]">Before creating</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500"><li>• Use a specific, outcome-based title.</li><li>• Include completion criteria in the description.</li><li>• Set a realistic deadline before its linked event.</li><li>• Review assignments later from Task Board.</li></ul></div>
+            <div className="rounded-lg border border-line bg-white p-5 shadow-sm"><h3 className="font-bold text-ink">Assignment readiness</h3><div className="mt-4 space-y-3">{[['Active SBO officers', officers.length], ['Available events', events.length], ['Current open tasks', tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length]].map(([label, value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-line bg-subtle px-3 py-2.5"><span className="text-xs font-semibold text-slate-500">{label}</span><strong className="text-lg text-ink">{value}</strong></div>)}</div></div>
+            <div className="rounded-lg border border-line bg-page p-5"><Bot size={20} className="text-brand-700" /><h3 className="mt-3 font-bold text-ink">Best-fit recommendation</h3><p className="mt-2 text-sm leading-6 text-slate-600">Review eligible officers using role fit, current workload, and prior completion performance. Choose the final assignee before creating the task. The result and explanation remain visible in AI Delegation.</p></div>
+            <div className="rounded-lg border border-line bg-white p-5"><h3 className="font-bold text-ink">Before creating</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500"><li>• Use a specific, outcome-based title.</li><li>• Include completion criteria in the description.</li><li>• Set a realistic deadline before its linked event.</li><li>• Review assignments later from Task Board.</li></ul></div>
           </aside>
         </section>
       )}
 
       {activeTab === 'board' && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-lg border border-line bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">{canManageTasks ? 'All Tasks' : 'Assigned Tasks'}</h2>
+              <h2 className="text-lg font-bold text-ink">{canManageTasks ? 'All Tasks' : 'Assigned Tasks'}</h2>
               <p className="text-sm font-medium text-slate-500">{canManageTasks ? 'Create and manage officer tasks' : 'View and update your assignments'}</p>
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-              <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:flex-none"><Download size={14} />Export</button>
+              <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line px-3 text-xs font-bold text-brand-700 hover:bg-subtle sm:flex-none"><Download size={14} />Export</button>
             </div>
           </div>
 
@@ -588,12 +588,12 @@ export default function TasksPage({ initialTab = 'board' }) {
             resultLabel={tasksMeta.total === 1 ? 'task' : 'tasks'}
             secondaryClassName="grid gap-3 sm:grid-cols-3"
           >
-            <HiusaSelect filter aria-label="Filter tasks by status" value={taskFilters.status} onChange={(event) => setTaskFilters({ ...taskFilters, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['pending', 'in_progress', 'completed', 'overdue'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect>
-            {canManageTasks && <HiusaSelect filter aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All assignees</option>{officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{formatDisplayText(officer.first_name)} {formatDisplayText(officer.last_name)}</option>)}</HiusaSelect>}
-            <HiusaSelect filter aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
-            <HiusaSelect filter aria-label="Filter tasks by type" value={taskFilters.type} onChange={(event) => setTaskFilters({ ...taskFilters, type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All task types</option><option value="event_related">Event-related</option><option value="standalone">Standalone</option></HiusaSelect>
-            <HiusaSelect filter aria-label="Filter tasks by priority" value={taskFilters.priority} onChange={(event) => setTaskFilters({ ...taskFilters, priority: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All priorities</option>{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</HiusaSelect>
-            <DateTimeInput type="date" aria-label="Filter tasks by deadline" value={taskFilters.deadline} onChange={(event) => setTaskFilters({ ...taskFilters, deadline: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" />
+            <HiusaSelect filter aria-label="Filter tasks by status" value={taskFilters.status} onChange={(event) => setTaskFilters({ ...taskFilters, status: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All statuses</option>{['pending', 'in_progress', 'completed', 'overdue'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect>
+            {canManageTasks && <HiusaSelect filter aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All assignees</option>{officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{formatDisplayText(officer.first_name)} {formatDisplayText(officer.last_name)}</option>)}</HiusaSelect>}
+            <HiusaSelect filter aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
+            <HiusaSelect filter aria-label="Filter tasks by type" value={taskFilters.type} onChange={(event) => setTaskFilters({ ...taskFilters, type: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All task types</option><option value="event_related">Event-related</option><option value="standalone">Standalone</option></HiusaSelect>
+            <HiusaSelect filter aria-label="Filter tasks by priority" value={taskFilters.priority} onChange={(event) => setTaskFilters({ ...taskFilters, priority: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm"><option value="">All priorities</option>{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</HiusaSelect>
+            <DateTimeInput type="date" aria-label="Filter tasks by deadline" value={taskFilters.deadline} onChange={(event) => setTaskFilters({ ...taskFilters, deadline: event.target.value })} className="h-11 rounded-lg border border-line bg-white px-3 text-sm" />
           </TableFilterBar>
 
           {loading ? (
@@ -622,17 +622,17 @@ export default function TasksPage({ initialTab = 'board' }) {
           ) : (
             <>
             <div className="space-y-3 p-3 lg:hidden" aria-label="Tasks">
-              {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-[#DDE7EF] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(t.title)}</h3><p className="mt-1 text-xs font-semibold text-[#0878B7]">{t.event_id ? 'Event task' : 'Standalone task'}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
+              {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-line p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-ink">{formatDisplayText(t.title)}</h3><p className="mt-1 text-xs font-semibold text-brand-700">{t.event_id ? 'Event task' : 'Standalone task'}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
                 {taskStepper(t)}
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
-                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => openEditTask(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">Edit</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setTaskToDelete(t); }} className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700">Delete</button>}</div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-brand-700" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
+                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-line px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-brand-50 px-3 text-xs font-bold text-navy-800">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-success-tint px-3 text-xs font-bold text-success-strong">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => openEditTask(t)} className="min-h-11 rounded-lg border border-line px-3 text-xs font-bold text-slate-700">Edit</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setTaskToDelete(t); }} className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700">Delete</button>}</div>
               </article>)}
             </div>
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[1380px] text-left">
-                <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <thead className="bg-subtle text-xs font-bold text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Task</th>
                     <th className="px-5 py-3">Assignee / Position</th>
@@ -645,14 +645,14 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <th className="px-5 py-3">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#DDE7EF] text-sm">
+                <tbody className="divide-y divide-line text-sm">
                   {filteredTasks.map((t) => (
-                    <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{formatDisplayText(t.title)}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}<p className="text-[10px] font-semibold text-[#0878B7]">{formatDisplayText(t.assignee?.position_title) || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
-                      <td className="px-5 py-4 text-xs text-slate-600"><p>{t.assignee?.program || 'Program not recorded'}</p><p className="text-[10px] text-slate-500">{[t.assignee?.year_level, t.assignee?.section].filter(Boolean).join(' · ') || 'No year/section'}</p></td>
+                    <tr key={t.id} className="transition hover:bg-subtle">
+                      <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-ink">{formatDisplayText(t.title)}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}<p className="text-xs font-semibold text-brand-700">{formatDisplayText(t.assignee?.position_title) || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
+                      <td className="px-5 py-4 text-xs text-slate-600"><p>{t.assignee?.program || 'Program not recorded'}</p><p className="text-xs text-slate-500">{[t.assignee?.year_level, t.assignee?.section].filter(Boolean).join(' · ') || 'No year/section'}</p></td>
                       <td className="px-5 py-4 text-xs font-semibold text-slate-600">{formatDisplayText(t.event?.title) || 'General organization task'}</td>
-                      <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{t.event_id ? 'Event task' : 'Standalone task'}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-[10px] text-slate-500">{t.progress_percent || 0}% complete</p></td>
+                      <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{t.event_id ? 'Event task' : 'Standalone task'}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-700" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{formatDate(t.deadline)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
@@ -660,13 +660,13 @@ export default function TasksPage({ initialTab = 'board' }) {
                         </span>
                         <div className="w-44">{taskStepper(t)}</div>
                       </td>
-                      <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${formatDisplayText(t.creator.first_name)} ${formatDisplayText(t.creator.last_name)}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
+                      <td className="px-5 py-4 text-xs text-slate-500"><p>{t.creator ? `${formatDisplayText(t.creator.first_name)} ${formatDisplayText(t.creator.last_name)}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
                       <td className="px-5 py-4"><div className="flex items-center gap-2">
                         {canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && (
                           <button
                             type="button"
                             onClick={() => startTask(t)}
-                            className="min-h-9 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62] hover:bg-[#d6eefb]"
+                            className="min-h-9 rounded-lg bg-brand-50 px-3 text-xs font-bold text-navy-800 hover:bg-brand-100"
                           >
                             Start
                           </button>
@@ -675,7 +675,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                           <button
                             type="button"
                             onClick={() => setCompletionTask(t)}
-                            className="min-h-9 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                            className="min-h-9 rounded-lg bg-success-tint px-3 text-xs font-bold text-success-strong hover:bg-success-tint"
                           >
                             Complete
                           </button>
@@ -707,8 +707,8 @@ export default function TasksPage({ initialTab = 'board' }) {
       )}
 
       {activeTab === 'progress' && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-[#0F172A]">Officer Workload</h2>
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-ink">Officer Workload</h2>
           <p className="mb-5 text-sm font-medium text-slate-500">Task completion progress per assignee</p>
           {loading || !totalsLoaded ? (
             <div className="space-y-3">
@@ -724,27 +724,27 @@ export default function TasksPage({ initialTab = 'board' }) {
           ) : (
             <div className="space-y-4">
               {Object.values(workloadByAssignee).map((entry) => (
-                <div key={entry.user.school_id ?? entry.user.id} className="flex items-center gap-4 rounded-lg bg-[#F8FBFD] p-4">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">
+                <div key={entry.user.school_id ?? entry.user.id} className="flex items-center gap-4 rounded-lg bg-subtle p-4">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">
                     {entry.user.first_name?.[0]}{entry.user.last_name?.[0]}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-bold text-[#0F172A]">
+                      <span className="text-sm font-bold text-ink">
                         {formatDisplayText(entry.user.first_name)} {formatDisplayText(entry.user.last_name)}
                       </span>
-                      <span className="text-sm font-bold text-[#0878B7]">{entry.completed}/{entry.total}</span>
+                      <span className="text-sm font-bold text-brand-700">{entry.completed}/{entry.total}</span>
                     </div>
-                    <div className="h-2.5 rounded-full bg-[#EEF6FB] overflow-hidden">
+                    <div className="h-2.5 rounded-full bg-page overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#0B8ED0] transition-all duration-500"
+                        className="h-full rounded-full bg-brand-600 transition-[background-color,color,border-color,transform] duration-500"
                         style={{ width: `${entry.total > 0 ? (entry.completed / entry.total) * 100 : 0}%` }}
                       />
                     </div>
                     <details className="mt-3 text-xs">
-                      <summary className="min-h-11 cursor-pointer py-2 font-bold text-[#0878B7] focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">Show {entry.total} task{entry.total === 1 ? '' : 's'} and progress</summary>
+                      <summary className="min-h-11 cursor-pointer py-2 font-bold text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-600">Show {entry.total} task{entry.total === 1 ? '' : 's'} and progress</summary>
                       <ul className="space-y-2 pt-2">
-                        {entry.tasks.map((task) => <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] py-2"><span className="min-w-0 font-semibold text-[#0F172A]">{formatDisplayText(task.title)}</span><span className="text-slate-600">{capitalize(task.status)} · {Number(task.progress_percent || 0)}%</span><button type="button" onClick={() => openTaskDetails(task)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 font-bold text-[#0878B7]">View details</button></li>)}
+                        {entry.tasks.map((task) => <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2"><span className="min-w-0 font-semibold text-ink">{formatDisplayText(task.title)}</span><span className="text-slate-600">{capitalize(task.status)} · {Number(task.progress_percent || 0)}%</span><button type="button" onClick={() => openTaskDetails(task)} className="min-h-11 rounded-lg border border-line px-3 font-bold text-brand-700">View details</button></li>)}
                       </ul>
                     </details>
                   </div>
@@ -757,13 +757,13 @@ export default function TasksPage({ initialTab = 'board' }) {
 
       {activeTab === 'ai' && (
         <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-5">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-navy-800">
                 <Bot size={20} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">AI Task Suggestions</h2>
+                <h2 className="text-lg font-bold text-ink">AI Task Suggestions</h2>
                 <p className="text-sm font-medium text-slate-500">Weighted officer fit scoring, per task</p>
               </div>
             </div>
@@ -776,7 +776,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   aria-expanded={rankingOpen}
                   className="flex w-full flex-wrap items-center justify-between gap-2 text-left"
                 >
-                  <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#0878B7]">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-brand-700">
                     <ChevronDown size={14} className={`transition-transform ${rankingOpen ? 'rotate-180' : ''}`} />
                     Full officer ranking
                   </span>
@@ -786,20 +786,20 @@ export default function TasksPage({ initialTab = 'board' }) {
                   <div className="mt-3">
                     {activeDelegation.taskArea && (
                       <>
-                        {activeDelegation.taskArea && <p className="text-xs font-semibold text-slate-600">Inferred task area: <span className="text-[#0F172A]">{activeDelegation.taskArea}</span></p>}
+                        {activeDelegation.taskArea && <p className="text-xs font-semibold text-slate-600">Inferred task area: <span className="text-ink">{activeDelegation.taskArea}</span></p>}
                         {(activeDelegation.evaluations || []).some((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible') && (
                           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                             {(activeDelegation.evaluations || []).filter((ev) => ev.eligibility_result && ev.eligibility_result !== 'eligible').map((ev) => (
-                              <span key={`ineligible-${ev.officer_id}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                              <span key={`ineligible-${ev.officer_id}`} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
                                 <span>{formatDisplayText(ev.name)}</span>
-                                <span className="font-bold uppercase text-amber-700">({String(ev.eligibility_result).replaceAll('_', ' ')})</span>
+                                <span className="font-bold text-amber-700">({String(ev.eligibility_result).replaceAll('_', ' ')})</span>
                               </span>
                             ))}
                           </div>
                         )}
                       </>
                     )}
-                    <div className="mt-3 divide-y divide-[#DDE7EF]">
+                    <div className="mt-3 divide-y divide-line">
                       {activeDelegation.rankings.map((ranking) => {
                         const isRecommended = activeDelegation.recommendedOfficerId != null
                           && String(ranking.officer_id) === String(activeDelegation.recommendedOfficerId);
@@ -808,13 +808,13 @@ export default function TasksPage({ initialTab = 'board' }) {
                         return (
                           <div key={ranking.officer_id} className="py-3 first:pt-0">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-sm font-bold text-[#0F172A]">
+                              <p className="text-sm font-bold text-ink">
                                 {formatDisplayText(ranking.name)}
-                                {isRecommended && <span className="ml-2 rounded-full bg-[#E6F6FD] px-2 py-0.5 text-[10px] font-black uppercase text-[#0F2F62]">Recommended</span>}
-                                {positionTier && <span className="ml-2 rounded-full border border-[#DDE7EF] px-2 py-0.5 text-[10px] font-bold text-slate-500">{positionTier}</span>}
+                                {isRecommended && <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-navy-800">Recommended</span>}
+                                {positionTier && <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-xs font-bold text-slate-500">{positionTier}</span>}
                               </p>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-4">
                               {positionScore != null && (
                                 <span>Position <strong className="block text-slate-700">{Number(positionScore).toFixed(2)}{activeDelegation.weights?.role != null && ` (×${(activeDelegation.weights.role * 100).toFixed(0)}%)`}{activeDelegation.weights?.position != null && ` (×${(activeDelegation.weights.position * 100).toFixed(0)}%)`}</strong></span>
                               )}
@@ -843,11 +843,11 @@ export default function TasksPage({ initialTab = 'board' }) {
             ) : (
               <div className="space-y-3">
                 {scoredAssignments.map((task) => (
-                    <div key={task.id} className="rounded-lg border border-[#DDE7EF] bg-[#E6F6FD]/50 p-4">
+                    <div key={task.id} className="rounded-lg border border-line bg-brand-50/50 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(task.title)}</p>
-                          <p className="mt-1 text-xs font-bold text-[#0878B7]">
+                          <p className="text-sm font-bold text-ink">{formatDisplayText(task.title)}</p>
+                          <p className="mt-1 text-xs font-bold text-brand-700">
                             Recommended: {formatDisplayText(task.assignee.first_name)} {formatDisplayText(task.assignee.last_name)}
                           </p>
                         </div>
@@ -855,7 +855,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EngineBadge engine={(task.id === activeDelegation?.taskId ? activeDelegation.engine : null) || getDelegationDetail(task)?.engine || null} />
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-4">
                         <span>Role <strong className="block text-slate-700">{Number(task.role_score).toFixed(2)}</strong></span>
                         <span>Workload <strong className="block text-slate-700">{Number(task.workload_score).toFixed(2)}</strong></span>
                         <span>Performance <strong className="block text-slate-700">{Number(task.performance_score).toFixed(2)}</strong></span>
@@ -868,8 +868,8 @@ export default function TasksPage({ initialTab = 'board' }) {
             )}
           </div>
 
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-[#0F172A]">How AI Delegation Works</h3>
+          <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+            <h3 className="text-base font-bold text-ink">How AI Delegation Works</h3>
             <div className="mt-4 space-y-3">
               {(activeDelegation?.weights
                 ? [
@@ -883,14 +883,14 @@ export default function TasksPage({ initialTab = 'board' }) {
                 ]
               ).map((item, i) => (
                 <div key={i} className="flex items-start gap-3 text-sm font-medium text-slate-600">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#0878B7]" />
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-700" />
                   {item}
                 </div>
               ))}
             </div>
             {activeDelegation?.eligibilityRules?.length > 0 && (
-              <div className="mt-5 border-t border-[#DDE7EF] pt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Eligibility rules for the latest request</p>
+              <div className="mt-5 border-t border-line pt-4">
+                <p className="text-xs font-bold text-slate-500">Eligibility rules for the latest request</p>
                 <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">
                   {activeDelegation.eligibilityRules.map((rule, i) => <li key={i}>{rule}</li>)}
                 </ul>
@@ -901,58 +901,58 @@ export default function TasksPage({ initialTab = 'board' }) {
       )}
 
       {selectedTask && (
-        <AccessibleOverlay label="Task details" onClose={closeDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Task details" onClose={closeDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">{formatDisplayText(selectedTask.title)}</h2>
-                <p className="mt-1 text-xs font-semibold text-[#0878B7]">{selectedTask.event_id ? 'Event task' : 'Standalone task'}</p>
+                <h2 className="text-lg font-bold text-ink">{formatDisplayText(selectedTask.title)}</h2>
+                <p className="mt-1 text-xs font-semibold text-brand-700">{selectedTask.event_id ? 'Event task' : 'Standalone task'}</p>
                 <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.workflow_status || selectedTask.status)}</p>
                 {selectedTask.workflow_status === 'blocked' && selectedTask.dependency && <p className="mt-1 text-xs font-semibold text-amber-700">Blocked by {formatDisplayText(selectedTask.dependency.title)}</p>}
               </div>
-              <button type="button" aria-label="Close task details" onClick={closeDetails} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <button type="button" aria-label="Close task details" onClick={closeDetails} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-subtle"><X size={18} /></button>
             </div>
 
             <FlowStepper steps={taskLifecycle(selectedTask, currentUserRole).steps} ariaLabel="Task stages" className="mt-5" />
             <NextStep {...taskNextStep(selectedTask)} className="mt-4" />
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border border-[#DDE7EF] p-4">
-                <p className="text-xs font-bold uppercase text-slate-500">Description</p>
+              <div className="rounded-lg border border-line p-4">
+                <p className="text-xs font-bold text-slate-500">Description</p>
                 <RichTextBody value={selectedTask.description || 'No description provided.'} className="mt-2 text-sm leading-6 text-slate-700" />
               </div>
-              {selectedTask.event_id && <div className="rounded-lg border border-[#DDE7EF] p-4">
-                <p className="text-xs font-bold uppercase text-slate-500">Related Event</p>
-                <p className="mt-2 text-sm font-semibold text-[#0F172A]">{formatDisplayText(selectedTask.event?.title) || 'No linked event'}</p>
+              {selectedTask.event_id && <div className="rounded-lg border border-line p-4">
+                <p className="text-xs font-bold text-slate-500">Related Event</p>
+                <p className="mt-2 text-sm font-semibold text-ink">{formatDisplayText(selectedTask.event?.title) || 'No linked event'}</p>
                 {selectedTask.event?.start_time && <p className="mt-1 text-xs text-slate-500">Event date: {formatDate(selectedTask.event.start_time)}</p>}
                 {selectedTask.task_type === 'workflow' && <p className="mt-1 text-xs text-slate-500">Workflow: {capitalize(selectedTask.phase || 'Event workflow')}</p>}
                 {selectedTask.ai_recommendation_note && <p className="mt-3 text-xs leading-5 text-slate-500">{selectedTask.ai_recommendation_note}</p>}
               </div>}
             </div>
 
-            <dl className="mt-4 grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-xs sm:grid-cols-2"><div><dt className="font-semibold text-slate-500">Assigned officer</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.assignee ? `${formatDisplayText(selectedTask.assignee.first_name)} ${formatDisplayText(selectedTask.assignee.last_name)}` : 'Unassigned'}</dd></div><div><dt className="font-semibold text-slate-500">Priority</dt><dd className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedTask.priority || 'medium')}</dd></div><div><dt className="font-semibold text-slate-500">Category</dt><dd className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedTask.category || 'coordination')}</dd></div><div><dt className="font-semibold text-slate-500">Required position</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.preferred_role || 'Any eligible position'}</dd></div><div><dt className="font-semibold text-slate-500">Progress</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.progress_percent || 0}%</dd></div><div><dt className="font-semibold text-slate-500">Academic period</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} Semester` : 'Not recorded'}</dd></div></dl>
-            {!selectedTask.event_id && selectedTask.ai_recommendation_note && <p className="mt-3 rounded-lg border border-[#DDE7EF] p-4 text-xs leading-5 text-slate-600">{selectedTask.ai_recommendation_note}</p>}
+            <dl className="mt-4 grid gap-3 rounded-lg border border-line bg-subtle p-4 text-xs sm:grid-cols-2"><div><dt className="font-semibold text-slate-500">Assigned officer</dt><dd className="mt-1 font-bold text-ink">{selectedTask.assignee ? `${formatDisplayText(selectedTask.assignee.first_name)} ${formatDisplayText(selectedTask.assignee.last_name)}` : 'Unassigned'}</dd></div><div><dt className="font-semibold text-slate-500">Priority</dt><dd className="mt-1 font-bold text-ink">{capitalize(selectedTask.priority || 'medium')}</dd></div><div><dt className="font-semibold text-slate-500">Category</dt><dd className="mt-1 font-bold text-ink">{capitalize(selectedTask.category || 'coordination')}</dd></div><div><dt className="font-semibold text-slate-500">Required position</dt><dd className="mt-1 font-bold text-ink">{selectedTask.preferred_role || 'Any eligible position'}</dd></div><div><dt className="font-semibold text-slate-500">Progress</dt><dd className="mt-1 font-bold text-ink">{selectedTask.progress_percent || 0}%</dd></div><div><dt className="font-semibold text-slate-500">Academic period</dt><dd className="mt-1 font-bold text-ink">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} Semester` : 'Not recorded'}</dd></div></dl>
+            {!selectedTask.event_id && selectedTask.ai_recommendation_note && <p className="mt-3 rounded-lg border border-line p-4 text-xs leading-5 text-slate-600">{selectedTask.ai_recommendation_note}</p>}
 
             {canEditTasks && selectedTask.status !== 'completed' && (
-              <div className="mt-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-                <h3 className="text-sm font-bold text-[#0F172A]">Add Progress Update</h3>
+              <div className="mt-5 rounded-lg border border-line bg-subtle p-4">
+                <h3 className="text-sm font-bold text-ink">Add Progress Update</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[140px_1fr]">
                   <div>
                     <label className="text-xs font-semibold text-slate-600">Progress (%)</label>
-                    <input type="number" min="0" max="99" value={progressForm.progress_percent} onChange={(e) => setProgressForm((current) => ({ ...current, progress_percent: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                    <input type="number" min="0" max="99" value={progressForm.progress_percent} onChange={(e) => setProgressForm((current) => ({ ...current, progress_percent: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-600">Update note</label>
-                    <input value={progressForm.progress_note} onChange={(e) => setProgressForm((current) => ({ ...current, progress_note: e.target.value }))} placeholder="Describe what changed..." className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                    <input value={progressForm.progress_note} onChange={(e) => setProgressForm((current) => ({ ...current, progress_note: e.target.value }))} placeholder="Describe what changed..." className="mt-1 h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-brand-600" />
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
+                  <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="h-10 rounded-lg bg-brand-700 px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
                   {canManageTasks && selectedTask.status === 'pending' && selectedTask.workflow_status !== 'blocked' && (
-                    <button type="button" onClick={() => startTask(selectedTask)} className="h-10 rounded-lg border border-[#0B8ED0] bg-[#E6F6FD] px-4 text-xs font-bold text-[#0F2F62] hover:bg-[#d6eefb]">Mark In Progress</button>
+                    <button type="button" onClick={() => startTask(selectedTask)} className="h-10 rounded-lg border border-brand-600 bg-brand-50 px-4 text-xs font-bold text-navy-800 hover:bg-brand-100">Mark In Progress</button>
                   )}
                   {canManageTasks && ['pending', 'in_progress', 'overdue'].includes(selectedTask.status) && selectedTask.workflow_status !== 'blocked' && (
-                    <button type="button" onClick={() => setCompletionTask(selectedTask)} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700">Mark Completed</button>
+                    <button type="button" onClick={() => setCompletionTask(selectedTask)} className="h-10 rounded-lg bg-success px-4 text-xs font-bold text-white hover:bg-success-strong">Mark Completed</button>
                   )}
                 </div>
               </div>
@@ -966,17 +966,17 @@ export default function TasksPage({ initialTab = 'board' }) {
             )}
 
             <div className="mt-5">
-              <h3 className="text-sm font-bold text-[#0F172A]">Progress History</h3>
+              <h3 className="text-sm font-bold text-ink">Progress History</h3>
               {selectedTask.progress_updates?.length ? (
                 <div className="mt-3 space-y-3">
                   {selectedTask.progress_updates.map((update) => (
-                    <div key={update.id} className="border-l-2 border-[#0B8ED0] pl-3">
+                    <div key={update.id} className="border-l-2 border-brand-600 pl-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs font-bold text-[#0F172A]">{capitalize(update.status)} · {update.progress_percent}%</p>
-                        <p className="text-[11px] text-slate-500">{new Date(update.created_at).toLocaleString('en-PH')}</p>
+                        <p className="text-xs font-bold text-ink">{capitalize(update.status)} · {update.progress_percent}%</p>
+                        <p className="text-xs text-slate-500">{new Date(update.created_at).toLocaleString('en-PH')}</p>
                       </div>
                       <p className="mt-1 text-xs text-slate-600">{update.note || 'Status updated.'}</p>
-                      {update.author && <p className="mt-1 text-[11px] text-slate-500">By {formatDisplayText(update.author.first_name)} {formatDisplayText(update.author.last_name)}</p>}
+                      {update.author && <p className="mt-1 text-xs text-slate-500">By {formatDisplayText(update.author.first_name)} {formatDisplayText(update.author.last_name)}</p>}
                     </div>
                   ))}
                 </div>
@@ -1058,13 +1058,13 @@ export default function TasksPage({ initialTab = 'board' }) {
       />
 
       {completionTask && (
-        <AccessibleOverlay label="Confirm task completion" onClose={() => setCompletionTask(null)} className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-bold text-[#0F172A]">Confirm Task Completion</h2>
+        <AccessibleOverlay label="Confirm task completion" onClose={() => setCompletionTask(null)} className="fixed inset-0 z-[60] flex items-center justify-center bg-navy-950/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6">
+            <h2 className="text-lg font-bold text-ink">Confirm Task Completion</h2>
             <p className="mt-2 text-sm text-slate-500">Mark “{formatDisplayText(completionTask.title)}” as completed? Progress will be saved at 100% and the Admin will be notified.</p>
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setCompletionTask(null)} className="h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600">Cancel</button>
-              <button type="button" onClick={async () => { await handleStatusChange(completionTask.id, 'completed', 'Task marked as completed.', 100); setCompletionTask(null); }} className="h-11 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700">Confirm Completion</button>
+              <button type="button" onClick={() => setCompletionTask(null)} className="h-11 rounded-lg border border-line px-4 text-sm font-bold text-slate-600">Cancel</button>
+              <button type="button" onClick={async () => { await handleStatusChange(completionTask.id, 'completed', 'Task marked as completed.', 100); setCompletionTask(null); }} className="h-11 rounded-lg bg-success px-4 text-sm font-bold text-white hover:bg-success-strong">Confirm Completion</button>
             </div>
           </div>
         </AccessibleOverlay>

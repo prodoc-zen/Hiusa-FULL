@@ -21,10 +21,11 @@ function plural(count, singular, pluralForm) {
 }
 
 export function Count({ value }) {
-  return <span className={value ? 'font-bold text-ink' : 'text-ink-muted'}>{value}</span>;
+  return <span className={value ? 'font-semibold text-ink' : 'text-ink-muted'}>{value}</span>;
 }
 
 function LifecycleBadge({ status }) {
+  if (status === 'active') return null;
   if (status !== 'archived') return <StatusBadge status={status} />;
   return <span role="img" aria-label="Archived, read only"><StatusBadge status={status} /></span>;
 }
@@ -36,7 +37,7 @@ function NeedsAttention({ row }) {
   const parts = [];
   if (approvals) parts.push(plural(approvals, 'approval', 'approvals'));
   if (documents) parts.push(plural(documents, 'document', 'documents'));
-  return <span className="font-bold text-ink">{parts.join(', ')}</span>;
+  return <span className="font-semibold text-ink">{parts.join(', ')}</span>;
 }
 
 export const hasAdministratorCount = (row) => row.administrators_count !== undefined && row.administrators_count !== null;
@@ -51,7 +52,7 @@ const COLUMNS = [
   {
     key: 'name',
     header: 'Organization',
-    render: (row) => <span className="block min-w-0"><span className="block break-words font-bold text-ink">{formatDisplayText(row.name)}</span>{row.acronym && <span className="block text-xs font-medium text-ink-muted">{row.acronym}</span>}</span>,
+    render: (row) => <span className="block min-w-0"><span className="block break-words font-semibold text-ink">{formatDisplayText(row.name)}</span>{row.acronym && <span className="block text-xs font-medium text-ink-muted">{row.acronym}</span>}</span>,
   },
   {
     key: 'lifecycle_status',
@@ -59,7 +60,7 @@ const COLUMNS = [
     render: (row) => (
       <span className="block min-w-0">
         <LifecycleBadge status={row.lifecycle_status} />
-        <RegistrationRowStatus organization={row} viewerRole="SUPER_ADMIN" className="mt-2" />
+        <RegistrationRowStatus organization={row} viewerRole="SUPER_ADMIN" className={row.lifecycle_status === 'active' ? '' : 'mt-2'} />
       </span>
     ),
   },
@@ -87,7 +88,7 @@ export function OrganizationsTable({ rows, caption, showAdmins }) {
         rows={[...rows].sort(byAction)}
         caption={caption}
         actions={rowActions}
-        emptyState={<p className="px-5 py-6 text-sm font-medium text-ink-muted">{NO_ORGANIZATIONS}</p>}
+        emptyState={<p className="px-5 py-6 text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>}
       />
     </div>
   );

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordField from '../../components/auth/PasswordField';
-import { Button, DrawnCheck, ErrorState, SkeletonText } from '../../components/ui';
+import { Button, ErrorState, SkeletonText } from '../../components/ui';
 import { resetPassword, validatePasswordResetToken } from '../../services/authService';
 import { getApiErrorMessage } from '../../utils/apiError';
 
@@ -40,7 +39,7 @@ export default function ResetPasswordPage() {
       } catch (err) {
         if (alive) {
           setTokenValid(false);
-          setError(err.response?.data?.message || 'This reset link is invalid or has expired.');
+          setError(err.response?.data?.message || 'Request a new link to choose a new password.');
         }
       } finally {
         if (alive) {
@@ -51,7 +50,7 @@ export default function ResetPasswordPage() {
 
     if (!resetPayload.organization_id || !resetPayload.email || !resetPayload.token) {
       setCheckingToken(false);
-      setError('This reset link is missing information it needs. Request a new one below.');
+      setError('This reset link is incomplete. Request a new one.');
       return;
     }
 
@@ -94,37 +93,34 @@ export default function ResetPasswordPage() {
   if (success) {
     return (
       <AuthLayout>
-        <div className="flex flex-col items-center text-center">
-          <DrawnCheck label="Password updated" size="lg" />
-          <h1 className="mt-5 text-2xl font-black text-ink">Password updated</h1>
-          <p className="mt-2 text-sm font-medium leading-6 text-ink-muted">{success}</p>
-          <p className="mt-1 text-xs font-semibold text-ink-soft">Taking you to sign in with your new password.</p>
-          <Button className="mt-6 w-full" onClick={() => navigate('/login', { replace: true })}>
-            Back to login now
-          </Button>
-        </div>
+        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Password updated</h1>
+        <p className="mt-2 text-sm text-ink-muted">{success}</p>
+        <p className="mt-1 text-sm text-ink-muted">Taking you to sign in with your new password.</p>
+        <Button className="mt-6 w-full" onClick={() => navigate('/login', { replace: true })}>
+          Back to login now
+        </Button>
       </AuthLayout>
     );
   }
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-black text-ink">Create a new password</h1>
-      <p className="mt-2 text-sm font-medium leading-6 text-ink-muted">
-        Use at least 8 characters. After the update, any existing sessions for this account are signed out.
+      <h1 className="text-xl font-semibold text-ink sm:text-2xl">Create a new password</h1>
+      <p className="mt-2 text-sm text-ink-muted">
+        Use at least 8 characters. You are signed out of this account on every device.
       </p>
 
       {checkingToken && (
         <div className="mt-6">
-          <p className="text-sm font-semibold text-ink-muted">Validating your reset link&hellip;</p>
+          <p className="text-sm text-ink-muted">Checking your reset link</p>
           <div className="mt-4"><SkeletonText lines={3} /></div>
         </div>
       )}
 
       {!checkingToken && !tokenValid && (
         <ErrorState
-          className="mt-6 px-0 py-8"
-          title="This reset link isn't valid"
+          className="mt-6 py-0"
+          title="This reset link has expired"
           description={error}
           onRetry={() => navigate('/recover-account')}
           retryLabel="Request a new link"
@@ -155,7 +151,7 @@ export default function ResetPasswordPage() {
           />
 
           {error && (
-            <p role="alert" className="rounded-control border border-danger-strong/20 bg-danger-tint px-3 py-2.5 text-xs font-semibold text-danger-strong">
+            <p role="alert" className="rounded-control border border-danger-strong/30 bg-danger-tint px-3 py-2.5 text-sm font-medium text-danger-strong">
               {error}
             </p>
           )}
@@ -166,8 +162,7 @@ export default function ResetPasswordPage() {
         </form>
       )}
 
-      <Link to="/login" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-brand-700 hover:text-navy-950">
-        <ArrowLeft size={15} aria-hidden="true" />
+      <Link to="/login" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline hover:text-brand-800">
         Back to login
       </Link>
     </AuthLayout>

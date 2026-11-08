@@ -14,8 +14,8 @@ function Row({ title, detail, badge, children, action }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line-soft py-3 last:border-b-0">
       <div className="min-w-0">
-        <p className="break-words text-sm font-semibold text-ink">{title}</p>
-        {detail && <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{detail}</p>}
+        <p className="break-words text-sm font-medium text-ink">{title}</p>
+        {detail && <p className="mt-0.5 break-words text-xs text-ink-muted">{detail}</p>}
         {children}
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -26,14 +26,22 @@ function Row({ title, detail, badge, children, action }) {
   );
 }
 
+// One captioned section per record type. A type with nothing in the period collapses to one muted line.
 function Section({ id, title, count, empty, children }) {
+  if (count === 0) {
+    return (
+      <section aria-label={title} className="py-3 first:pt-0">
+        <p className="text-sm text-ink-muted">{empty}</p>
+      </section>
+    );
+  }
   return (
     <section aria-labelledby={id} className="py-4 first:pt-0">
-      <h3 id={id} className="flex items-baseline gap-2 text-sm font-bold text-ink">
+      <h3 id={id} className="flex items-baseline gap-2 text-sm font-semibold text-ink">
         {title}
-        <span className="text-xs font-semibold text-ink-muted">{count}</span>
+        <span className="text-xs font-normal text-ink-muted">{count}</span>
       </h3>
-      {count === 0 ? <p className="mt-2 text-sm font-medium text-ink-muted">{empty}</p> : <ul className="mt-1">{children}</ul>}
+      <ul className="mt-1">{children}</ul>
     </section>
   );
 }
@@ -65,11 +73,11 @@ function OrganizationRecords({ organization, onOpen }) {
     <Card
       title={organization.name}
       description={[organization.acronym, organization.college].filter(Boolean).join(' · ')}
-      actions={<StatusBadge status={organization.status.lifecycle_status} />}
+      actions={organization.status.lifecycle_status === 'active' ? null : <StatusBadge status={organization.status.lifecycle_status} />}
       className="min-w-0"
     >
       {!organization.status.recorded && (
-        <p className="mb-4 rounded-control border border-line bg-subtle px-3 py-2 text-sm font-medium text-ink-muted">
+        <p className="mb-4 rounded-control border border-line bg-subtle px-3 py-2 text-sm text-ink-muted">
           Status and officers were not recorded for this period. Files, events and elections below are complete.
         </p>
       )}
@@ -90,7 +98,7 @@ function OrganizationRecords({ organization, onOpen }) {
               {application.documents.length > 0 && (
                 <ul className="mt-2 flex flex-col gap-1.5">
                   {application.documents.map((document) => (
-                    <li key={document.id} className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink-muted">
+                    <li key={document.id} className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                       <span className="break-words">{document.item || document.file_name}</span>
                       <OpenButton url={document.open_url} name={document.file_name || document.item} onOpen={onOpen} />
                     </li>
@@ -128,10 +136,10 @@ function OrganizationRecords({ organization, onOpen }) {
               badge={<StatusBadge status={election.status} />}
             >
               {election.winners && election.winners.some((position) => position.winners.length > 0) && (
-                <ul className="mt-2 flex flex-col gap-1 text-xs font-medium text-ink-muted">
+                <ul className="mt-2 flex flex-col gap-1 text-xs text-ink-muted">
                   {election.winners.filter((position) => position.winners.length > 0).map((position) => (
                     <li key={position.position}>
-                      <span className="font-semibold text-ink">{position.position}:</span>{' '}
+                      <span className="font-medium text-ink">{position.position}:</span>{' '}
                       {position.winners.map((winner) => `${winner.name} (${winner.votes} ${winner.votes === 1 ? 'vote' : 'votes'})`).join(', ')}
                     </li>
                   ))}
@@ -168,13 +176,13 @@ function OrganizationList({ organizations, selectedId, onSelect, search, onSearc
                 type="button"
                 onClick={() => onSelect(organization.id)}
                 aria-current={organization.id === selectedId ? 'true' : undefined}
-                className={`flex min-h-[52px] w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors duration-150 hover:bg-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/15 ${organization.id === selectedId ? 'bg-brand-50' : ''}`}
+                className={`flex min-h-[52px] w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors duration-150 hover:bg-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600 ${organization.id === selectedId ? 'bg-brand-50' : ''}`}
               >
                 <span className="flex w-full items-center justify-between gap-2">
-                  <span className="break-words text-sm font-semibold text-ink">{organization.name}</span>
-                  <StatusBadge status={organization.lifecycle_status} />
+                  <span className="break-words text-sm font-medium text-ink">{organization.name}</span>
+                  {organization.lifecycle_status !== 'active' && <StatusBadge status={organization.lifecycle_status} />}
                 </span>
-                <span className="text-xs font-medium text-ink-muted">
+                <span className="text-xs text-ink-muted">
                   {[organization.college, `${organization.counts.events} events`, `${organization.counts.files} files`].filter(Boolean).join(' · ')}
                 </span>
               </button>
@@ -240,7 +248,6 @@ export default function RecordsPage({ role = getStoredRole() }) {
   const header = (
     <PageHeader
       title="Records"
-      description="Past school years, kept as they were. Nothing here can be changed."
       meta={semester?.read_only ? <StatusBadge tone="neutral" label="Read only" /> : null}
     />
   );
@@ -274,7 +281,7 @@ export default function RecordsPage({ role = getStoredRole() }) {
           </Select>
         </Field>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-semibold text-ink" id="records-semester-label">Semester</span>
+          <span className="text-[13px] font-medium text-ink" id="records-semester-label">Semester</span>
           <SegmentedControl
             options={(year?.semesters || []).map((item) => ({ value: item.id, label: ORDINAL[item.number] || `Semester ${item.number}` }))}
             value={semester.id}
@@ -283,7 +290,7 @@ export default function RecordsPage({ role = getStoredRole() }) {
         </div>
       </div>
 
-      {error && <ErrorState title="Records could not be refreshed" description={error} onRetry={load} className="py-6" />}
+      {error && <ErrorState title="Records could not be refreshed" description={error} onRetry={load} />}
 
       <div className={picksOrganization ? 'grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]' : ''}>
         {picksOrganization && (

@@ -549,7 +549,7 @@ export default function SaoVenuesPage() {
           <p role="alert" className="inline-flex items-start gap-1.5 text-sm font-semibold text-warning-strong"><AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Could not check for overlapping bookings. Check the calendar before approving.</p>
         ) : conflicts.items.length > 0 ? (
           <div className="rounded-control border border-warning/30 bg-warning-tint p-3">
-            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} other booking{conflicts.items.length === 1 ? '' : 's'} for this venue</p>
+            <p className="inline-flex items-center gap-1.5 text-xs font-bold text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} other booking{conflicts.items.length === 1 ? '' : 's'} for this venue</p>
             <ul className="mt-2 space-y-1 text-sm font-medium text-warning-strong">
               {conflicts.items.map((slot) => <li key={slot.id}>{statusStyle(slot.status).label}: {slot.reserved_by ? `${slot.reserved_by}, ` : ''}{formatRange(slot.start_time, slot.end_time)}</li>)}
             </ul>

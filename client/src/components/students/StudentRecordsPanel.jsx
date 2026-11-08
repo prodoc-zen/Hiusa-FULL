@@ -21,15 +21,15 @@ const previewColumns = [
     header: 'Person',
     render: (row) => (
       <span className="block min-w-0">
-        <span className="block font-semibold text-ink">{[row.first_name, row.last_name].filter(Boolean).join(' ') || 'No name'}</span>
-        <span className="block text-xs font-medium text-ink-muted">Line {row.line}{row.school_id ? `, ID ${row.school_id}` : ''}</span>
+        <span className="block font-medium text-ink">{[row.first_name, row.last_name].filter(Boolean).join(' ') || 'No name'}</span>
+        <span className="block text-xs text-ink-muted">Line {row.line}{row.school_id ? `, ID ${row.school_id}` : ''}</span>
       </span>
     ),
   },
   {
     key: 'program',
     header: 'Program or position',
-    render: (row) => (row.record_type === 'employee' ? row.position : [row.program, row.year_level].filter(Boolean).join(', ')) || 'None',
+    render: (row) => (row.record_type === 'employee' ? row.position : [row.program, row.year_level].filter(Boolean).join(', ')),
   },
   {
     key: 'status',
@@ -37,7 +37,7 @@ const previewColumns = [
     render: (row) => (
       <span className="block">
         <StatusBadge status={row.status} />
-        {row.reason && <span className="mt-1 block text-xs font-medium text-ink-muted">{row.reason}</span>}
+        {row.reason && <span className="mt-1 block text-xs text-ink-muted">{row.reason}</span>}
       </span>
     ),
   },
@@ -98,6 +98,13 @@ export default function StudentRecordsPanel({ collegeId }) {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const clearFilters = () => {
+    setSearch('');
+    setQuery('');
+    setClaimed('');
+    setPage(1);
+  };
+
   const resetUpload = () => {
     setFile(null);
     setPreview(null);
@@ -148,21 +155,21 @@ export default function StudentRecordsPanel({ collegeId }) {
       header: type.one,
       render: (row) => (
         <span className="block min-w-0">
-          <span className="block font-semibold text-ink">{row.name}</span>
-          <span className="block text-xs font-medium text-ink-muted">ID {row.school_id}</span>
+          <span className="block font-medium text-ink">{row.name}</span>
+          <span className="block text-xs text-ink-muted">ID {row.school_id}</span>
         </span>
       ),
     },
-    ...(collegeId ? [] : [{ key: 'college', header: 'College', render: (row) => row.college?.code || 'None' }]),
+    ...(collegeId ? [] : [{ key: 'college', header: 'College', render: (row) => row.college?.code }]),
     isEmployee
-      ? { key: 'position', header: 'Position', render: (row) => row.position || 'None' }
+      ? { key: 'position', header: 'Position', render: (row) => row.position }
       : { key: 'program', header: 'Program', render: (row) => [row.program, row.year_level, row.section].filter(Boolean).join(', ') },
     {
       key: 'claimed',
       header: 'Account',
       render: (row) => (row.claimed
         ? <StatusBadge status="claimed" label={isEmployee ? 'Has account' : 'Signed up'} />
-        : <StatusBadge status="unclaimed" label="Not yet" />),
+        : <span className="text-ink-muted">Not yet</span>),
     },
   ];
 
@@ -176,13 +183,13 @@ export default function StudentRecordsPanel({ collegeId }) {
           <Field label="CSV file" hint={`Columns: ${columns}. Optional: section, record_type (student or employee), position. Employees need no program or year level.`}>
             <Input key={fileKey} type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setUploadError(''); }} />
           </Field>
-          <a href={template} download="student-records-template.csv" className="inline-flex min-h-11 w-fit items-center text-sm font-bold text-brand-700 hover:text-navy-950">
+          <a href={template} download="student-records-template.csv" className="inline-flex min-h-11 w-fit items-center rounded-control text-sm font-medium text-brand-700 hover:underline">
             Download a blank file
           </a>
 
-          {uploadError && <p role="alert" className="rounded-control border border-danger-strong/20 bg-danger-tint px-3 py-2.5 text-sm font-semibold text-danger-strong">{uploadError}</p>}
+          {uploadError && <p role="alert" className="rounded-control border border-danger-strong/20 bg-danger-tint px-3 py-2.5 text-sm font-medium text-danger-strong">{uploadError}</p>}
           {result && (
-            <p role="status" className="rounded-control border border-success-strong/20 bg-success-tint px-3 py-2.5 text-sm font-semibold text-success-strong">
+            <p role="status" className="rounded-control border border-success-strong/20 bg-success-tint px-3 py-2.5 text-sm font-medium text-success-strong">
               Saved: {result.created} added, {result.updated} updated.
               {result.invalid + result.duplicate > 0 && ` ${result.invalid + result.duplicate} rows were skipped.`}
             </p>
@@ -196,7 +203,7 @@ export default function StudentRecordsPanel({ collegeId }) {
 
           {preview && (
             <div className="flex flex-col gap-4">
-              <p role="status" className="text-sm font-semibold text-ink">
+              <p role="status" className="text-sm font-medium text-ink">
                 {counts.created} new, {counts.updated} to update, {counts.unchanged + counts.claimed} left as they are, {counts.invalid + counts.duplicate} need fixing.
               </p>
               <DataTable
@@ -206,8 +213,8 @@ export default function StudentRecordsPanel({ collegeId }) {
                 rowKey={(row) => row.line}
                 stickyHeader={false}
               />
-              {preview.truncated && <p className="text-xs font-medium text-ink-muted">Only the first {preview.rows.length} rows are shown. The whole file is checked.</p>}
-              {counts.invalid + counts.duplicate > 0 && <p className="text-sm font-medium text-ink-muted">Rows that need fixing are skipped. Fix them in the file and upload it again.</p>}
+              {preview.truncated && <p className="text-xs text-ink-muted">Only the first {preview.rows.length} rows are shown. The whole file is checked.</p>}
+              {counts.invalid + counts.duplicate > 0 && <p className="text-sm text-ink-muted">Rows that need fixing are skipped. Fix them in the file and upload it again.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={saveRecords} loading={busy === 'apply'} disabled={savable === 0}>
                   {savable === 0 ? 'Nothing to save' : `Save ${savable} ${savable === 1 ? 'record' : 'records'}`}
@@ -233,6 +240,7 @@ export default function StudentRecordsPanel({ collegeId }) {
           error={error}
           onRetry={load}
           filtersActive={filtersActive}
+          onClearFilters={clearFilters}
           stickyHeader={false}
           filters={(
             <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-end">
@@ -251,6 +259,9 @@ export default function StudentRecordsPanel({ collegeId }) {
                   <option value="unclaimed">Not yet</option>
                 </Select>
               </Field>
+              {filtersActive && (
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline sm:self-end">Clear</button>
+              )}
             </div>
           )}
           emptyState={filtersActive ? undefined : (

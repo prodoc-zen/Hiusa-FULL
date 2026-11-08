@@ -6,7 +6,7 @@ export default function DataDonutChart({ title, description, segments, centerVal
   return (
     <section className="rounded-card border border-line bg-surface p-4 shadow-card sm:p-5" aria-labelledby={headingId}>
       <div>
-        <h2 id={headingId} className="text-sm font-black text-ink">{title}</h2>
+        <h2 id={headingId} className="text-sm font-semibold text-ink">{title}</h2>
         {description && <p className="mt-1 text-xs leading-5 text-ink-muted">{description}</p>}
       </div>
       <div className="mt-4">

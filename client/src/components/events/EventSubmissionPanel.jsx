@@ -74,8 +74,8 @@ function EventSubmission({ eventId, role, onSubmitted }) {
   );
 
   return (
-    <section className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-      <div className="flex items-center gap-2 text-[#0F2F62]"><FileText size={17} aria-hidden="true" /><h3 className="text-sm font-bold">SAO event requirements</h3></div>
+    <section className="rounded-lg border border-line bg-white p-4">
+      <div className="flex items-center gap-2 text-navy-800"><FileText size={17} aria-hidden="true" /><h3 className="text-sm font-bold">SAO event requirements</h3></div>
       {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error} <button type="button" onClick={() => load(true)} className="font-bold underline">Retry</button></p>}
       {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-slate-500">SAO has not listed any file requirements.</p>}
       {requirements.length > 0 && <div className="mt-3"><DataTable
@@ -98,9 +98,9 @@ function EventSubmission({ eventId, role, onSubmitted }) {
       {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3">
         <p className="text-xs text-slate-600">{uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.</p>
         {requirements.map((requirement) => <div key={requirement.id}>
-          <label className="block text-xs font-semibold text-[#0F172A]">
+          <label className="block text-xs font-semibold text-ink">
             {formatDisplayText(requirement.name)} <span className="font-normal text-slate-500">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>
-            <input required={!requirement.is_optional && !byRequirement.has(requirement.id)} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-xs" />
+            <input required={!requirement.is_optional && !byRequirement.has(requirement.id)} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs" />
           </label>
           {(requirement.template_original_name || requirement.template_url) && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
             <span className="break-all">SAO sample: {requirement.template_original_name || requirement.template_url}</span>
@@ -108,9 +108,9 @@ function EventSubmission({ eventId, role, onSubmitted }) {
           </div>}
           {!requirement.template_original_name && !requirement.template_url && <p className="mt-2 text-xs font-medium text-danger-strong">Sample format not provided. SAO must attach a file or link to this requirement.</p>}
         </div>)}
-        <button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{busy ? 'Submitting…' : 'Submit event files to SAO'}</button>
+        <button disabled={busy} className="min-h-11 rounded-lg bg-brand-700 px-4 text-xs font-bold text-white disabled:opacity-50">{busy ? 'Submitting…' : 'Submit event files to SAO'}</button>
       </form>}
-      {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-[#0F2F62]">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
+      {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-navy-800">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
     </section>
   );
 }

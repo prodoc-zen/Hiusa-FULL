@@ -25,7 +25,7 @@ function Avatar({ name, size = 'sm' }) {
     .join('')
     .toUpperCase();
 
-  const colors = ['bg-[#0878B7]', 'bg-[#0B8ED0]', 'bg-[#0F2F62]', 'bg-[#0B1831]'];
+  const colors = ['bg-brand-700', 'bg-brand-600', 'bg-navy-800', 'bg-navy-950'];
   const bg = colors[name.charCodeAt(0) % colors.length];
   const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
 
@@ -38,15 +38,15 @@ function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onCon
   }
 
   return (
-    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-[#0F172A]">{title}</h3>
+    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div className="w-full max-w-md rounded-lg border border-line bg-white p-6">
+        <h3 className="text-lg font-bold text-ink">{title}</h3>
         <p className="mt-2 text-sm text-slate-600">{message}</p>
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={busy}>
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle" disabled={busy}>
             Cancel
           </button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50" disabled={busy}>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50" disabled={busy}>
             {busy ? 'Processing...' : confirmText}
           </button>
         </div>
@@ -137,7 +137,7 @@ function StudentSearchDropdown({ users, value, onChange }) {
           }
         }}
         placeholder="Search student..."
-        className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-9 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+        className="h-11 w-full rounded-lg border border-line bg-white px-9 text-sm outline-none placeholder:text-ink-soft focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
       />
       <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
 
@@ -145,7 +145,7 @@ function StudentSearchDropdown({ users, value, onChange }) {
         <div
           id={listboxId}
           role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 max-h-64 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white py-1 shadow-xl shadow-[#0B1831]/10"
+          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 max-h-64 overflow-y-auto rounded-lg border border-line bg-white py-1 shadow-xl shadow-navy-950/10"
         >
           {filteredUsers.length === 0 ? (
             <div className="px-3 py-3 text-sm font-medium text-slate-500">No students found.</div>
@@ -158,12 +158,12 @@ function StudentSearchDropdown({ users, value, onChange }) {
                 aria-selected={studentKey(user) === String(value)}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectUser(user)}
-                className={`flex w-full flex-col items-start px-3 py-2 text-left transition hover:bg-[#F8FBFD] ${
-                  studentKey(user) === String(value) ? 'bg-[#E6F6FD]' : ''
+                className={`flex w-full flex-col items-start px-3 py-2 text-left transition hover:bg-subtle ${
+                  studentKey(user) === String(value) ? 'bg-brand-50' : ''
                 }`}
               >
-                <span className="text-sm font-bold text-[#0F172A]">{studentLabel(user)}</span>
-                {user.email && <span className="text-xs font-medium text-[#64748B]">{user.email}</span>}
+                <span className="text-sm font-bold text-ink">{studentLabel(user)}</span>
+                {user.email && <span className="text-xs font-medium text-ink-muted">{user.email}</span>}
               </button>
             ))
           )}
@@ -189,15 +189,15 @@ function CandidateForm({
   onCancel,
 }) {
   return (
-    <div className="rounded-lg border border-[#0B8ED0]/30 bg-white p-5 shadow-sm">
+    <div className="rounded-lg border border-brand-600/30 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#0F172A]">{title}</h3>
-        <button type="button" onClick={onCancel} className="rounded p-1 text-slate-500 hover:bg-red-50"><X size={16} /></button>
+        <h3 className="text-sm font-bold text-ink">{title}</h3>
+        <button type="button" onClick={onCancel} className="rounded p-1 text-ink-muted hover:bg-danger-tint"><X size={16} /></button>
       </div>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Student *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Student *</label>
             <StudentSearchDropdown
               users={users}
               value={form.user_id}
@@ -206,12 +206,12 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Position *</label>
             <div className="relative">
               <HiusaSelect
                 value={form.position_id}
                 onChange={(event) => setForm({ ...form, position_id: event.target.value })}
-                className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                className="h-11 w-full appearance-none rounded-lg border border-line bg-white px-3 pr-9 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
               >
                 <option value="">Select a position...</option>
                 {positions.map((position) => (
@@ -223,12 +223,12 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party List</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Party List</label>
             <div className="relative">
               <HiusaSelect
                 value={form.partylist_id}
                 onChange={(event) => setForm({ ...form, partylist_id: event.target.value })}
-                className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                className="h-11 w-full appearance-none rounded-lg border border-line bg-white px-3 pr-9 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
               >
                 <option value="">Independent</option>
                 {partylists.map((partylist) => (
@@ -240,11 +240,11 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Candidate Photo</label>
-            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Candidate Photo</label>
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line bg-subtle px-3 py-2 transition hover:border-brand-600/50 hover:bg-subtle">
               {imagePreview
-                ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
-                : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0F2F62]" /></div>
+                ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-line" />
+                : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-50"><ImagePlus size={16} className="text-navy-800" /></div>
               }
               <span className="text-[13px] font-medium text-slate-500">{imagePreview ? 'Change photo' : 'Upload photo'}</span>
               <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={onImageChange} />
@@ -252,7 +252,7 @@ function CandidateForm({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Platform Statement</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Platform Statement</label>
             <RichTextEditor
               value={form.platform}
               maxLength={2000}
@@ -271,10 +271,10 @@ function CandidateForm({
         )}
 
         <div className="flex gap-3">
-          <button type="submit" disabled={submitting || !form.user_id || !form.position_id} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-40">
+          <button type="submit" disabled={submitting || !form.user_id || !form.position_id} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-40">
             {submitting ? 'Saving...' : submitLabel}
           </button>
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] transition">Cancel</button>
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle transition">Cancel</button>
         </div>
       </form>
     </div>
@@ -449,20 +449,20 @@ export default function ManageCandidatesPage() {
 
   return (
     <div className="space-y-5">
-      <section aria-label="Candidate filters and actions" className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section aria-label="Candidate filters and actions" className="flex flex-col gap-4 rounded-lg border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[#0F172A]">{candidates.length} candidates registered for {formatDisplayText(election.title)}</p>
+          <p className="text-sm font-semibold text-ink">{candidates.length} candidates registered for {formatDisplayText(election.title)}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === 'All' ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>All</button>
+            <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-xs font-bold rounded-full transition ${posFilter === 'All' ? 'bg-navy-800 text-white' : 'border border-line text-slate-600 hover:bg-page'}`}>All</button>
             {positions.map((position) => (
-              <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>
+              <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-xs font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-navy-800 text-white' : 'border border-line text-slate-600 hover:bg-page'}`}>
                 {formatDisplayText(position.title)}
               </button>
             ))}
           </div>
         </div>
         {election.status !== 'closed' && !ballotLocked && (
-          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62] disabled:cursor-wait disabled:opacity-50 sm:w-auto">
+          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition-colors hover:bg-navy-800 disabled:cursor-wait disabled:opacity-50 sm:w-auto">
             <Plus size={15} />
             Add Candidate
           </button>
@@ -547,15 +547,15 @@ export default function ManageCandidatesPage() {
 
       {resourcesLoading && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" role="status" aria-label="Loading candidate options">
-          {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}
+          {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-line bg-slate-100" />)}
           <span className="sr-only">Loading candidate options...</span>
         </div>
       )}
 
       {!resourcesLoading && (filtered.length === 0 ? (
-        <div className="rounded-lg border border-[#DDE7EF] bg-white p-10 text-center">
-          <Award size={36} className="text-[#DDE7EF] mx-auto mb-3" />
-          <p className="text-sm text-[#64748B]">No candidates yet for this election.</p>
+        <div className="rounded-lg border border-line bg-white p-10 text-center">
+          <Award size={36} className="text-line mx-auto mb-3" />
+          <p className="text-sm text-ink-muted">No candidates yet for this election.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -566,20 +566,20 @@ export default function ManageCandidatesPage() {
             const partylist = candidate.partylist?.name || 'Independent';
 
             return (
-              <div key={candidate.id} className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
-                <div className="h-2 bg-[#0878B7]" />
+              <div key={candidate.id} className="rounded-lg border border-line bg-white shadow-sm overflow-hidden">
+                <div className="h-2 bg-brand-700" />
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       {candidate.image_url
-                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
+                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="h-9 w-9 shrink-0 rounded-full border border-line object-cover" />
                         : <Avatar name={name || 'Candidate'} size="md" />
                       }
                       <div className="min-w-0">
-                        <p className="font-bold text-[#0F172A]">{formatDisplayText(name) || 'Unknown Candidate'}</p>
-                        <p className="text-xs text-[#64748B]">{position}</p>
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-[#EEF6FB] text-[#0F2F62] text-[10px] font-bold rounded-full">{partylist}</span>
-                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-[#0878B7]">View candidate details</summary><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-2" /></details>
+                        <p className="font-bold text-ink">{formatDisplayText(name) || 'Unknown Candidate'}</p>
+                        <p className="text-xs text-ink-muted">{position}</p>
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-page text-navy-800 text-xs font-bold rounded-full">{partylist}</span>
+                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-brand-700">View candidate details</summary><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-2" /></details>
                       </div>
                     </div>
                     {election.status !== 'closed' && !ballotLocked && (

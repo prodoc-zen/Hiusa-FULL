@@ -165,62 +165,62 @@ export default function SettingsPage() {
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm lg:sticky lg:top-6">
-          <div className="bg-[#0B1831] px-5 py-6 text-center">
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border-4 border-white/20 bg-[#0878B7] text-2xl font-black text-white shadow-sm">
+        <aside className="overflow-hidden rounded-lg border border-line bg-white shadow-sm lg:sticky lg:top-6">
+          <div className="bg-navy-950 px-5 py-6 text-center">
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border-4 border-white/20 bg-brand-700 text-2xl font-semibold text-white shadow-sm">
               {initials}
             </div>
-            <h2 className="mt-4 break-words text-lg font-extrabold text-white">{fullName}</h2>
-            <span className="mt-2 inline-flex rounded-full bg-[#16C7F3]/15 px-3 py-1 text-[11px] font-bold text-[#16C7F3]">{roleLabel(currentUser.role)}</span>
+            <h2 className="mt-4 break-words text-lg font-semibold text-white">{fullName}</h2>
+            <span className="mt-2 inline-flex rounded-full bg-accent/15 px-3 py-1 text-xs font-bold text-accent">{roleLabel(currentUser.role)}</span>
             {currentUser.position_title && <p className="mt-2 text-xs font-medium text-slate-300">{formatDisplayText(currentUser.position_title)}</p>}
           </div>
 
-          <div className="divide-y divide-[#DDE7EF] px-5">
+          <div className="divide-y divide-line px-5">
             {schoolId && (
               <div className="flex gap-3 py-4">
-                <IdCard size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
+                <IdCard size={17} className="mt-0.5 shrink-0 text-brand-700" />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">School ID</p>
-                  <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">{schoolId}</p>
+                  <p className="text-xs font-bold text-ink-soft">School ID</p>
+                  <p className="mt-1 break-words text-sm font-bold text-ink">{schoolId}</p>
                 </div>
               </div>
             )}
             <div className="flex gap-3 py-4">
-              <Building2 size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
+              <Building2 size={17} className="mt-0.5 shrink-0 text-brand-700" />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'}</p>
-                <p className="mt-1 break-words text-sm font-bold leading-5 text-[#0F172A]">{organizationName}</p>
+                <p className="text-xs font-bold text-ink-soft">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'}</p>
+                <p className="mt-1 break-words text-sm font-bold leading-5 text-ink">{organizationName}</p>
               </div>
             </div>
             <div className="flex gap-3 py-4">
-              <Mail size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
+              <Mail size={17} className="mt-0.5 shrink-0 text-brand-700" />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Email address</p>
-                <p className="mt-1 break-all text-sm font-bold text-[#0F172A]">{currentUser.email || 'Not provided'}</p>
+                <p className="text-xs font-bold text-ink-soft">Email address</p>
+                <p className="mt-1 break-all text-sm font-bold text-ink">{currentUser.email || 'Not provided'}</p>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-[#DDE7EF] bg-[#F8FBFD] p-5">
+          <div className="border-t border-line bg-subtle p-5">
             <div className="flex items-start gap-3">
-              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600" />
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-success-strong" />
               <div>
-                <p className="text-xs font-bold text-[#0F172A]">Protected account</p>
-                <p className="mt-1 text-[11px] font-medium leading-5 text-[#64748B]">Profile and password changes are verified by the authenticated API.</p>
+                <p className="text-xs font-bold text-ink">Protected account</p>
+                <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">Profile and password changes are verified by the authenticated API.</p>
               </div>
             </div>
           </div>
         </aside>
 
         <div className="space-y-6">
-          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+          <section className="rounded-lg border border-line bg-white shadow-sm">
+            <div className="flex items-start gap-3 border-b border-line p-5 sm:p-6">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800">
                 <UserRound size={19} />
               </div>
               <div>
-                <h2 className="text-base font-extrabold text-[#0F172A]">Personal information</h2>
-                <p className="mt-0.5 text-xs font-medium text-[#64748B]">Update the name and email shown across your profiles.</p>
+                <h2 className="text-base font-semibold text-ink">Personal information</h2>
+                <p className="mt-0.5 text-xs font-medium text-ink-muted">Update the name and email shown across your profiles.</p>
               </div>
             </div>
 
@@ -228,101 +228,101 @@ export default function SettingsPage() {
               <div className="space-y-5 p-5 sm:p-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">First name</span>
-                    <input type="text" autoComplete="given-name" value={profileForm.first_name} onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                    <span className="text-[13px] font-semibold text-ink">First name</span>
+                    <input type="text" autoComplete="given-name" value={profileForm.first_name} onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">Last name</span>
-                    <input type="text" autoComplete="family-name" value={profileForm.last_name} onChange={(event) => setProfileForm({ ...profileForm, last_name: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                    <span className="text-[13px] font-semibold text-ink">Last name</span>
+                    <input type="text" autoComplete="family-name" value={profileForm.last_name} onChange={(event) => setProfileForm({ ...profileForm, last_name: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
                   </label>
                 </div>
                 <label className="space-y-1.5">
-                  <span className="text-[13px] font-semibold text-[#0F172A]">Email address</span>
+                  <span className="text-[13px] font-semibold text-ink">Email address</span>
                   <span className="relative block">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
-                    <input type="email" autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" size={16} />
+                    <input type="email" autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-3 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
                   </span>
-                  <span className="block text-[11px] font-medium text-[#94A3B8]">Used for account recovery and organization notifications.</span>
+                  <span className="block text-xs font-medium text-ink-soft">Used for account recovery and organization notifications.</span>
                 </label>
 
                 <label className="space-y-1.5">
-                  <span className="text-[13px] font-semibold text-[#0F172A]">Mobile number (optional)</span>
+                  <span className="text-[13px] font-semibold text-ink">Mobile number (optional)</span>
                   <span className="relative block">
-                    <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
-                    <input type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={profileForm.contact_number} onChange={(event) => setProfileForm({ ...profileForm, contact_number: event.target.value })} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                    <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" size={16} />
+                    <input type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={profileForm.contact_number} onChange={(event) => setProfileForm({ ...profileForm, contact_number: event.target.value })} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-3 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
                   </span>
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-3">
-                  {schoolId && <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">School ID (read-only)</span><input type="text" readOnly disabled value={schoolId} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>}
-                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">Role (read-only)</span><input type="text" readOnly disabled value={roleLabel(currentUser.role)} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
-                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'} (read-only)</span><input type="text" readOnly disabled value={organizationName} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
+                  {schoolId && <label className="space-y-1.5"><span className="text-[13px] font-semibold text-ink-muted">School ID (read-only)</span><input type="text" readOnly disabled value={schoolId} className="h-11 w-full cursor-not-allowed rounded-lg border border-line bg-subtle px-3 text-sm font-semibold text-ink-muted" /></label>}
+                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-ink-muted">Role (read-only)</span><input type="text" readOnly disabled value={roleLabel(currentUser.role)} className="h-11 w-full cursor-not-allowed rounded-lg border border-line bg-subtle px-3 text-sm font-semibold text-ink-muted" /></label>
+                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-ink-muted">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'} (read-only)</span><input type="text" readOnly disabled value={organizationName} className="h-11 w-full cursor-not-allowed rounded-lg border border-line bg-subtle px-3 text-sm font-semibold text-ink-muted" /></label>
                 </div>
-                {!profileDirty && <p className="text-[11px] font-medium text-[#64748B]">Edit a field above to enable Save profile.</p>}
+                {!profileDirty && <p className="text-xs font-medium text-ink-muted">Edit a field above to enable Save profile.</p>}
                 {profileError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">{profileError}</p>}
               </div>
 
-              <div className="flex flex-col-reverse gap-2 border-t border-[#DDE7EF] bg-[#F8FBFD] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-                <button type="button" onClick={resetProfileForm} disabled={!profileDirty || profileSaving} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Discard changes</button>
-                <button type="submit" disabled={!profileDirty || profileSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:opacity-40">
+              <div className="flex flex-col-reverse gap-2 border-t border-line bg-subtle px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                <button type="button" onClick={resetProfileForm} disabled={!profileDirty || profileSaving} className="h-11 rounded-lg border border-line bg-white px-5 text-sm font-bold text-ink-muted transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Discard changes</button>
+                <button type="submit" disabled={!profileDirty || profileSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-40">
                   <Save size={15} /> {profileSaving ? 'Saving...' : 'Save profile'}
                 </button>
               </div>
             </form>
           </section>
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
+          <section className="rounded-lg border border-line bg-white shadow-sm">
+            <div className="flex items-start gap-3 border-b border-line p-5 sm:p-6">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800">
                 <LockKeyhole size={19} />
               </div>
               <div>
-                <h2 className="text-base font-extrabold text-[#0F172A]">Password & security</h2>
-                <p className="mt-0.5 text-xs font-medium text-[#64748B]">Confirm your current password before choosing a new one.</p>
+                <h2 className="text-base font-semibold text-ink">Password & security</h2>
+                <p className="mt-0.5 text-xs font-medium text-ink-muted">Confirm your current password before choosing a new one.</p>
               </div>
             </div>
 
             <form onSubmit={handlePasswordSave}>
               <div className="space-y-5 p-5 sm:p-6">
                 <label className="block max-w-xl space-y-1.5">
-                  <span className="text-[13px] font-semibold text-[#0F172A]">Current password</span>
+                  <span className="text-[13px] font-semibold text-ink">Current password</span>
                   <span className="relative block">
-                    <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
-                    <input type={passwordVisibility.current ? 'text' : 'password'} autoComplete="current-password" value={pwForm.current_password} onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                    <button type="button" aria-label={passwordVisibility.current ? 'Hide current password' : 'Show current password'} onClick={() => togglePasswordVisibility('current')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.current ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                    <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" size={16} />
+                    <input type={passwordVisibility.current ? 'text' : 'password'} autoComplete="current-password" value={pwForm.current_password} onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-11 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+                    <button type="button" aria-label={passwordVisibility.current ? 'Hide current password' : 'Show current password'} onClick={() => togglePasswordVisibility('current')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-soft transition hover:text-brand-700">{passwordVisibility.current ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                   </span>
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">New password</span>
+                    <span className="text-[13px] font-semibold text-ink">New password</span>
                     <span className="relative block">
-                      <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
-                      <input type={passwordVisibility.next ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password} onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                      <button type="button" aria-label={passwordVisibility.next ? 'Hide new password' : 'Show new password'} onClick={() => togglePasswordVisibility('next')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.next ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" size={16} />
+                      <input type={passwordVisibility.next ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password} onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-11 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+                      <button type="button" aria-label={passwordVisibility.next ? 'Hide new password' : 'Show new password'} onClick={() => togglePasswordVisibility('next')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-soft transition hover:text-brand-700">{passwordVisibility.next ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                     </span>
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">Confirm new password</span>
+                    <span className="text-[13px] font-semibold text-ink">Confirm new password</span>
                     <span className="relative block">
-                      <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
-                      <input type={passwordVisibility.confirmation ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password_confirmation} onChange={(event) => setPwForm({ ...pwForm, password_confirmation: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                      <button type="button" aria-label={passwordVisibility.confirmation ? 'Hide password confirmation' : 'Show password confirmation'} onClick={() => togglePasswordVisibility('confirmation')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.confirmation ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" size={16} />
+                      <input type={passwordVisibility.confirmation ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password_confirmation} onChange={(event) => setPwForm({ ...pwForm, password_confirmation: event.target.value })} className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-11 text-sm outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+                      <button type="button" aria-label={passwordVisibility.confirmation ? 'Hide password confirmation' : 'Show password confirmation'} onClick={() => togglePasswordVisibility('confirmation')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-soft transition hover:text-brand-700">{passwordVisibility.confirmation ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                     </span>
                   </label>
                 </div>
 
-                <div className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-xs font-semibold sm:grid-cols-2">
-                  <span className={`flex items-center gap-2 ${passwordLongEnough ? 'text-emerald-700' : 'text-[#64748B]'}`}><CheckCircle2 size={15} /> At least 8 characters</span>
-                  <span className={`flex items-center gap-2 ${passwordsMatch ? 'text-emerald-700' : 'text-[#64748B]'}`}><CheckCircle2 size={15} /> New passwords match</span>
+                <div className="grid gap-2 rounded-lg border border-line bg-subtle p-4 text-xs font-semibold sm:grid-cols-2">
+                  <span className={`flex items-center gap-2 ${passwordLongEnough ? 'text-success-strong' : 'text-ink-muted'}`}><CheckCircle2 size={15} /> At least 8 characters</span>
+                  <span className={`flex items-center gap-2 ${passwordsMatch ? 'text-success-strong' : 'text-ink-muted'}`}><CheckCircle2 size={15} /> New passwords match</span>
                 </div>
 
                 {pwError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">{pwError}</p>}
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-[#DDE7EF] bg-[#F8FBFD] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <p className="flex items-center gap-2 text-[11px] font-medium text-[#64748B]"><ShieldCheck size={15} /> Updating your password signs your other devices out. This one stays signed in.</p>
-                <button type="submit" disabled={pwSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50">
+              <div className="flex flex-col gap-3 border-t border-line bg-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <p className="flex items-center gap-2 text-xs font-medium text-ink-muted"><ShieldCheck size={15} /> Updating your password signs your other devices out. This one stays signed in.</p>
+                <button type="submit" disabled={pwSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50">
                   <LockKeyhole size={15} /> {pwSaving ? 'Updating...' : 'Update password'}
                 </button>
               </div>

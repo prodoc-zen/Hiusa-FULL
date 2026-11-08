@@ -50,14 +50,24 @@ describe('PersonPicker', () => {
     expect(peopleMocks.searchPeople).toHaveBeenCalledWith({ q: 'mar', scope: 'college', organization_id: 7, role: 'STUDENT' });
   });
 
-  it('shows name first, email and program muted, and the school ID small', async () => {
+  it('shows name first, college or organization and email muted, and the school ID small', async () => {
     renderPicker();
     type('mar');
 
     const option = await screen.findByRole('option', { name: /Maria Santos/ });
     expect(option).toHaveTextContent('Maria Santos');
-    expect(option).toHaveTextContent('maria@example.edu · BSIT');
+    expect(option).toHaveTextContent('College of Computing · maria@example.edu');
     expect(option).toHaveTextContent('2100142');
+  });
+
+  it('shows the organization instead of the college when the person is in one', async () => {
+    peopleMocks.searchPeople.mockResolvedValue([{ ...MARIA, organizations: [{ id: 3, name: 'Computing Society', position_title: 'Treasurer' }] }]);
+    renderPicker();
+    type('mar');
+
+    const option = await screen.findByRole('option', { name: /Maria Santos/ });
+    expect(option).toHaveTextContent('Computing Society · maria@example.edu');
+    expect(option).not.toHaveTextContent('College of Computing');
   });
 
   it('shows nothing for an internal account number', async () => {
@@ -147,7 +157,7 @@ describe('PersonPicker', () => {
     type('mar');
 
     expect(screen.getByText('Searching...')).toBeInTheDocument();
-    expect(await screen.findByRole('alert')).toHaveTextContent('We could not search just now.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not search. Try again.');
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('option', { name: /Maria Santos/ })).toBeInTheDocument();

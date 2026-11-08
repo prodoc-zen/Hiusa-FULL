@@ -19,7 +19,7 @@ async function openForm() {
   fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'Meet in the office.' } });
 }
 async function action(name) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actions for Orientation' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Orientation' }))[0]);
   fireEvent.click(await screen.findByRole('menuitem', { name }));
 }
 describe('Department Head announcements', () => {
@@ -31,7 +31,7 @@ describe('Department Head announcements', () => {
   });
   it('publishes to the chosen organization and refreshes the managed list', async () => {
     renderPage();
-    await screen.findByText('Orientation');
+    await screen.findAllByText('Orientation');
     expect(announcements.getAnnouncements).toHaveBeenCalledWith({ managed: 1, page: 1, per_page: 10 });
     expect(organizations.getCollegeOrganizations).not.toHaveBeenCalled();
     await openForm();

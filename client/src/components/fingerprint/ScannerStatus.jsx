@@ -1,7 +1,7 @@
 import { Fingerprint, RefreshCw, Usb } from 'lucide-react';
 
 export default function ScannerStatus({ reader }) {
-  const tone = reader.connected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800';
+  const tone = reader.connected ? 'border-success/30 bg-success-tint text-success-strong' : 'border-amber-200 bg-amber-50 text-amber-800';
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 ${tone}`} role="status">
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/80">

@@ -133,7 +133,8 @@ describe('CollegeOrganizationsPage', () => {
     expect(screen.getByRole('heading', { name: 'Organizations' })).toBeInTheDocument();
     expect(screen.getByText(/College of Engineering/)).toBeInTheDocument();
     const table = screen.getAllByRole('table')[0];
-    ['Pending review', 'Returned', 'Active', 'Archived'].forEach((label) => expect(within(table).getAllByText(label).length).toBeGreaterThan(0));
+    ['Pending review', 'Returned', 'Archived'].forEach((label) => expect(within(table).getAllByText(label).length).toBeGreaterThan(0));
+    expect(within(table).queryByText('Active')).not.toBeInTheDocument();
     expect(screen.getAllByText('Archived by the SAO. Read only.').length).toBeGreaterThan(0);
   });
 
@@ -281,7 +282,7 @@ describe('CollegeOrganizationsPage', () => {
       renderPage();
 
       expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
-      expect(screen.getByText(/Pick a student of your college to apply/)).toBeInTheDocument();
+      expect(screen.getByText(/Allow a student to apply\. Their application comes to you/)).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: 'Allow a student to apply' })).toHaveLength(1);
       expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
     });
