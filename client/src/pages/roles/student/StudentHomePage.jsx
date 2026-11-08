@@ -6,6 +6,7 @@ import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { RoleBriefing } from '../../../components/dashboard';
+import { ProcessTracker } from '../../../components/process';
 import { Button } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 
@@ -113,6 +114,7 @@ export default function StudentHomePage() {
 
   return (
     <div className="w-full space-y-6 overflow-x-hidden">
+      <ProcessTracker />
       <RoleBriefing onData={handleBriefing} />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">

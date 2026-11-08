@@ -43,6 +43,7 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\OrgSpaceController;
 use App\Http\Controllers\PeopleSearchController;
+use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
@@ -75,6 +76,7 @@ Route::post('/department-head-invitations/{token}/accept', [DepartmentHeadInvita
 Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
+    Route::get('/process/status', [ProcessStatusController::class, 'show'])->middleware('throttle:api-read');
     Route::get('/people/search', [PeopleSearchController::class, 'search'])->middleware(['throttle:people-search', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
     Route::get('/students/registry', [StudentRegistryController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/preview', [StudentRegistryController::class, 'preview'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
