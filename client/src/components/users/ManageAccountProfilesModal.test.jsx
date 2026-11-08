@@ -21,7 +21,7 @@ describe('ManageAccountProfilesModal', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Delete profile for/ }));
     expect(screen.getByText(/retains their other profiles/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete profile', exact: true })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Type/), { target: { value: String(profile.school_id) } });
+    fireEvent.change(screen.getByLabelText(/Type/), { target: { value: 'Maria Reyes' } });
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile', exact: true }));
     await waitFor(() => expect(mocks.deleteAccountProfile).toHaveBeenCalledWith(4));
     await waitFor(() => expect(mocks.getManagedAccountProfiles).toHaveBeenCalledTimes(2));
@@ -35,7 +35,7 @@ describe('ManageAccountProfilesModal', () => {
     render(<ManageAccountProfilesModal user={profile} onClose={onClose} />);
     fireEvent.click(await screen.findByRole('button', { name: /Delete profile for/ }));
     expect(screen.getByText(/also permanently deletes the user account/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/Type/), { target: { value: String(profile.school_id) } });
+    fireEvent.change(screen.getByLabelText(/Type/), { target: { value: 'Maria Reyes' } });
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile', exact: true }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Linked financial records prevent deletion.');
     expect(onClose).not.toHaveBeenCalled();

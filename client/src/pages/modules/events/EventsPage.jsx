@@ -60,6 +60,7 @@ import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../comp
 import { FILE_STAGES, RETURNED_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
 import { Button, EmptyState, PageHeader } from '../../../components/ui';
+import PersonPicker from '../../../components/people/PersonPicker';
 import useRecordParam from '../../../lib/useRecordParam';
 
 const statusBadge = {
@@ -411,8 +412,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [attendanceAcademicStructure, setAttendanceAcademicStructure] = useState(null);
   const [attendanceAcademicStructureError, setAttendanceAcademicStructureError] = useState('');
-  const [checkInSearch, setCheckInSearch] = useState('');
-  const [checkInUserId, setCheckInUserId] = useState(null);
+  const [checkInPerson, setCheckInPerson] = useState(null);
   const [checkInStatus, setCheckInStatus] = useState('present');
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
@@ -595,8 +595,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setSelectedAttEventId(id);
     setAttendanceData(null);
     setAttendanceLoading(true);
-    setCheckInSearch('');
-    setCheckInUserId(null);
+    setCheckInPerson(null);
     setCheckInStatus('present');
     setCheckInError(null);
     setCheckInSuccess(null);
@@ -607,18 +606,17 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   async function handleCheckIn() {
-    if (!canManageAttendance || !checkInUserId) return;
+    if (!canManageAttendance || !checkInPerson) return;
     setCheckInSubmitting(true);
     setCheckInError(null);
     setCheckInSuccess(null);
     try {
       await recordAttendance(selectedAttEventId, {
-        user_id: checkInUserId,
+        user_id: checkInPerson.school_id,
         method: 'manual',
         status: checkInStatus,
       });
-      setCheckInUserId(null);
-      setCheckInSearch('');
+      setCheckInPerson(null);
       setCheckInSuccess('Check-in recorded.');
       setAttendanceReload((value) => value + 1);
     } catch (err) {
@@ -1041,16 +1039,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const currentlyInside = Number(attendanceData?.checked_in_count ?? attendanceCount);
   const expectedAttendance = Number(attendanceEvent?.planning_details?.expected_participants ?? 0);
   const attendanceRate = expectedAttendance > 0 ? Math.min(100, Math.round((attendanceCount / expectedAttendance) * 100)) : null;
-  const filteredCheckInUsers = allUsers
-    .filter(
-      (u) =>
-        Boolean(u) &&
-        (checkInSearch.trim() === '' ||
-          `${u.first_name} ${u.last_name}`.toLowerCase().includes(checkInSearch.toLowerCase()) ||
-          String(u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
-    )
-    .slice(0, 6);
-
   useEffect(() => {
     setEventsPage(1);
   }, [search, dateFilter, eventStatusFilter, eventSort, selectedPeriodId]);
@@ -1701,42 +1689,24 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           <div className="relative flex flex-col rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
                             <div className="mb-4 flex items-start gap-3">
                               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><Search size={18} /></span>
-                              <div><p className="text-[13px] font-bold text-[#0F172A]">Manual check-in</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Find the member by name or School ID, then confirm their attendance status.</p></div>
+                              <div><p className="text-[13px] font-bold text-[#0F172A]">Manual check-in</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Find the member by name, then confirm their attendance status.</p></div>
                             </div>
-                            <label htmlFor="attendance-member-search" className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Member" />Member</label>
-                            <div className="relative mt-1.5">
-                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                              <input
-                                id="attendance-member-search"
-                                value={checkInSearch}
-                                onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); setCheckInError(null); }}
-                                type="text"
-                                autoComplete="off"
-                                placeholder="Search name or School ID"
-                                className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20"
-                              />
-                              {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length > 0 && (
-                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white shadow-xl">
-                                {filteredCheckInUsers.map((u) => (
-                                  <button
-                                    key={u.school_id ?? u.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setCheckInUserId(u.school_id ?? u.id);
-                                      if (checkedInUserIds.has(u.school_id ?? u.id)) { setCheckInError('This member is already checked in for this event.'); notify.error('This member is already checked in for this event.'); } else { setCheckInError(null); }
-                                      setCheckInSearch(`${u.first_name} ${u.last_name} (${u.school_id})`);
-                                    }}
-                                    className="flex w-full items-center gap-3 border-b border-[#DDE7EF] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#F8FBFD]"
-                                  >
-                                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0878B7] text-[10px] font-black text-white">{u.first_name?.[0]}{u.last_name?.[0]}</span>
-                                    <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(u.first_name)} {formatDisplayText(u.last_name)}</span><span className="block text-[11px] font-medium text-slate-500">{u.school_id} · {capitalize(u.role)}</span></span>
-                                    {checkedInUserIds.has(u.school_id ?? u.id) && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">Already checked in</span>}
-                                  </button>
-                                ))}
-                              </div>
-                              )}
-                            </div>
-                            {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length === 0 && <p className="mt-2 text-xs font-medium text-slate-500">No matching members found.</p>}
+                            <PersonPicker
+                              label="Member"
+                              organizationId={attendanceEvent?.organization_id}
+                              value={checkInPerson}
+                              onSelect={(person) => {
+                                setCheckInPerson(person);
+                                setCheckInSuccess(null);
+                                if (person && checkedInUserIds.has(person.school_id)) {
+                                  setCheckInError('This member is already checked in for this event.');
+                                  notify.error('This member is already checked in for this event.');
+                                } else {
+                                  setCheckInError(null);
+                                }
+                              }}
+                              disabled={checkInSubmitting}
+                            />
                             <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-[#0F172A]"><FieldIcon label="Attendance status" />Attendance status</label>
                             <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} className="mt-1.5 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                               <option value="present">Present</option>
@@ -1746,7 +1716,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             </HiusaSelect>
                             {checkInError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
                             {checkInSuccess && <p role="status" className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
-                            <button type="button" onClick={handleCheckIn} disabled={!checkInUserId || checkInSubmitting} className="mt-auto flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+                            <button type="button" onClick={handleCheckIn} disabled={!checkInPerson || checkInSubmitting} className="mt-auto flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
                               <UserCheck size={15} /> {checkInSubmitting ? 'Recording...' : 'Confirm Check-In'}
                             </button>
                           </div>

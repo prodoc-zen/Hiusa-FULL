@@ -4,6 +4,7 @@ import { Building2, Eye, Plus, UserPlus, Users } from 'lucide-react';
 import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import PersonPicker from '../../../components/people/PersonPicker';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ApplicantGrantList from '../../../components/org/ApplicantGrantList';
 import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
@@ -93,14 +94,8 @@ function CollegeStaffModal({ open, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({
-    school_id: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    position_title: 'Department Secretary',
-    role: 'ADMIN',
-  });
+  const [person, setPerson] = useState(null);
+  const [positionTitle, setPositionTitle] = useState('Department Secretary');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [removeTarget, setRemoveTarget] = useState(null);
@@ -128,26 +123,34 @@ function CollegeStaffModal({ open, onClose }) {
     if (open) load();
   }, [open, load]);
 
+  const closeForm = () => {
+    setAdding(false);
+    setPerson(null);
+    setFormError(null);
+  };
+
   const handleCreateStaff = async (e) => {
     e.preventDefault();
     setFormError(null);
-    if (!form.school_id || !form.first_name.trim() || !form.last_name.trim() || !form.email.trim() || !form.position_title.trim()) {
-      setFormError('Please fill out all required fields.');
+    if (!person || !positionTitle.trim()) {
+      setFormError('Find the person and give their position.');
       return;
     }
+    const words = person.name.trim().split(/\s+/);
+    const lastName = words.length > 1 ? words.pop() : words[0];
     setSubmitting(true);
     try {
       await addCollegeStaff({
-        school_id: Number(form.school_id),
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        email: form.email.trim(),
-        position_title: form.position_title.trim(),
-        role: form.role || 'ADMIN',
+        school_id: person.school_id,
+        first_name: words.join(' ') || lastName,
+        last_name: lastName,
+        email: person.email,
+        position_title: positionTitle.trim(),
+        role: 'ADMIN',
       });
-      notify.success(`${form.first_name} ${form.last_name} assigned as ${form.position_title}.`);
-      setAdding(false);
-      setForm({ school_id: '', first_name: '', last_name: '', email: '', position_title: 'Department Secretary', role: 'ADMIN' });
+      notify.success(`${person.name} assigned as ${positionTitle.trim()}.`);
+      closeForm();
+      setPositionTitle('Department Secretary');
       load();
     } catch (err) {
       setFormError(getApiErrorMessage(err, 'Could not assign staff member.'));
@@ -201,31 +204,29 @@ function CollegeStaffModal({ open, onClose }) {
           <form onSubmit={handleCreateStaff} className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#0878B7]">New Delegate Information</h4>
-              <button type="button" onClick={() => setAdding(false)} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+              <button type="button" onClick={closeForm} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
             </div>
             {formError && <p role="alert" className="rounded-md border border-danger/30 bg-danger-tint p-2 text-xs font-semibold text-danger-strong">{formError}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="School ID">
-                <Input type="number" required value={form.school_id} onChange={(e) => setForm((f) => ({ ...f, school_id: e.target.value }))} placeholder="e.g. 20261199" />
-              </Field>
-              <Field label="Position Title">
-                <Input required value={form.position_title} onChange={(e) => setForm((f) => ({ ...f, position_title: e.target.value }))} placeholder="e.g. Department Secretary" />
-              </Field>
-              <Field label="First Name">
-                <Input required value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} placeholder="First name" />
-              </Field>
-              <Field label="Last Name">
-                <Input required value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} placeholder="Last name" />
-              </Field>
               <div className="sm:col-span-2">
-                <Field label="University Email">
-                  <Input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="user@university.edu.ph" />
+                <PersonPicker
+                  label="Person"
+                  value={person}
+                  onSelect={setPerson}
+                  excludeIds={staff.map((member) => member.school_id)}
+                  disabled={submitting}
+                  hint="Someone without an account yet is invited by link instead."
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="Position Title">
+                  <Input required value={positionTitle} onChange={(e) => setPositionTitle(e.target.value)} placeholder="e.g. Department Secretary" />
                 </Field>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" size="sm" type="button" onClick={() => setAdding(false)}>Cancel</Button>
-              <Button size="sm" type="submit" loading={submitting}>Assign Delegate</Button>
+              <Button variant="secondary" size="sm" type="button" onClick={closeForm}>Cancel</Button>
+              <Button size="sm" type="submit" loading={submitting} disabled={!person}>Assign Delegate</Button>
             </div>
           </form>
         )}
@@ -249,7 +250,7 @@ function CollegeStaffModal({ open, onClose }) {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-ink">{member.name}</p>
-                    <p className="text-xs text-ink-muted">{member.position_title} · ID: {member.school_id}</p>
+                    <p className="text-xs text-ink-muted">{member.position_title} · {member.school_id}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

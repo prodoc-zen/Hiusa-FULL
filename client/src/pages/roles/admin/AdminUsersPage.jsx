@@ -12,7 +12,7 @@ import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
 import UserImportDrawer from '../../../components/users/UserImportDrawer';
-import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
+import { deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
@@ -37,22 +37,6 @@ const ROLE_LABELS = {
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearNumber = (label) => Number(String(label).match(/^(\d+)/)?.[1]);
 const programYears = (program) => Array.from({ length: Number(program?.duration_years) || 4 }, (_, index) => yearLabel(index + 1));
-
-const emptyCreateForm = {
-  school_id: '',
-  first_name: '',
-  last_name: '',
-  email: '',
-  contact_number: '',
-  role: 'STUDENT',
-  position_title: '',
-  department: '',
-  program: '',
-  year_level: '',
-  major: '', section: '',
-  password: '',
-  password_confirmation: '',
-};
 
 const emptyEditForm = {
   school_id: '',
@@ -435,11 +419,10 @@ export default function AdminUsersPage() {
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
   const [modalFieldErrors, setModalFieldErrors] = useState({});
-  const [createPhoto, setCreatePhoto] = useState(null);
   const [editPhoto, setEditPhoto] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUser, setInviteUser] = useState(null);
+  const [inviteRole, setInviteRole] = useState('STUDENT');
   const [selectedUser, setSelectedUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
   const [profileDebt, setProfileDebt] = useState(null);
@@ -461,7 +444,6 @@ export default function AdminUsersPage() {
   const [showImport, setShowImport] = useState(false);
   const loadRequestRef = useRef(0);
 
-  const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
 
   // Debounced so typing doesn't fire a request per keystroke - role/search are
@@ -540,17 +522,10 @@ export default function AdminUsersPage() {
   };
 
 
-  const openCreate = () => {
-    setCreateForm({ ...emptyCreateForm, role: isAdminsUnit ? 'ADMIN' : 'STUDENT', department: academicStructure.department || 'College of Computer Studies' });
-    setModalError('');
-    setModalFieldErrors({}); setCreatePhoto(null);
-    setShowCreate(true);
-  };
-
-  const closeCreate = () => {
-    if (busy) return;
-    setShowCreate(false);
-    setModalError('');
+  const openAddStudent = (user = null) => {
+    setInviteUser(user);
+    setInviteRole(isAdminsUnit && !user ? 'ADMIN' : 'STUDENT');
+    setShowInvite(true);
   };
 
   const openEdit = (user) => {
@@ -599,39 +574,6 @@ export default function AdminUsersPage() {
     setProfileUser(null);
     setProfileDebt(null);
     setProfileError('');
-  };
-
-  const handleCreate = async (event) => {
-    event.preventDefault();
-    if (createForm.role === 'STUDENT' && (!academicStructure.programs?.length || !createForm.program)) {
-      setModalFieldErrors({ program: [academicStructure.programs?.length ? 'Choose a course/program for this student.' : 'Configure a course/program before creating a student.'] });
-      return;
-    }
-    if (createPhoto && (createPhoto.size > 2 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(createPhoto.type))) { setModalFieldErrors({ photo: ['Choose a JPEG, PNG, or WebP image up to 2 MB.'] }); return; }
-    setModalError('');
-    setModalFieldErrors({});
-    setBusy(true);
-
-    try {
-      const created = await createUser({
-        ...createForm,
-        position_title: ['ADMIN', 'SBO_OFFICER'].includes(createForm.role) ? createForm.position_title : '',
-      });
-      let photoError = false;
-      if (createPhoto) {
-        try { await uploadUserPhoto(created.school_id, createPhoto); } catch { photoError = true; }
-      }
-      setShowCreate(false);
-      setCreatePhoto(null);
-      setCreateForm(emptyCreateForm);
-      await refreshUsers();
-      setFeedback({ open: true, type: photoError ? 'error' : 'success', message: photoError ? 'Account created, but its profile photo could not be uploaded.' : 'User account created.' });
-    } catch (createError) {
-      setModalError(firstError(createError) || 'Unable to create user.');
-      setModalFieldErrors(createError?.response?.data?.errors || {});
-    } finally {
-      setBusy(false);
-    }
   };
 
   const handleEdit = async (event) => {
@@ -716,24 +658,10 @@ export default function AdminUsersPage() {
     } finally { setBusy(false); }
   };
 
-  const userForm = (form, setForm, mode) => (
-    <form id={`${mode}-user-form`} onSubmit={mode === 'create' ? handleCreate : handleEdit} className="grid gap-4 sm:grid-cols-2">
+  const userForm = (form, setForm) => (
+    <form id="edit-user-form" onSubmit={handleEdit} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Identity and contact</h3><p className="text-xs text-slate-500">Fields marked * are required.</p></div>
-      {mode === 'edit' && selectedUser && <div className="sm:col-span-2"><UserIdentityCard user={selectedUser} compact /></div>}
-      <Field label="School ID" required error={modalFieldErrors.school_id?.[0]}>
-        <input
-          type="number"
-          min="1"
-          max="99999999"
-          value={form.school_id}
-          onChange={(event) => mode === 'create' && setForm({ ...form, school_id: event.target.value })}
-          required
-          readOnly={mode === 'edit'}
-          disabled={mode === 'edit'}
-          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 read-only:bg-slate-100 read-only:text-slate-500 read-only:focus:border-[#DDE7EF] read-only:focus:ring-0 disabled:bg-slate-100 disabled:text-slate-500"
-
-        />
-      </Field>
+      {selectedUser && <div className="sm:col-span-2"><UserIdentityCard user={selectedUser} compact /></div>}
       <Field label="Email" required error={modalFieldErrors.email?.[0]}>
         <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
@@ -746,11 +674,11 @@ export default function AdminUsersPage() {
       <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
         <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
-      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => (mode === 'create' ? setCreatePhoto : setEditPhoto)(event.target.files?.[0] || null)} className="w-full rounded-lg border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
+      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setEditPhoto(event.target.files?.[0] || null)} className="w-full rounded-lg border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
       <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Role and academic details</h3></div>
       <Field label="Role" required error={modalFieldErrors.role?.[0]}>
-        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
-          {(mode === 'edit' && selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
+        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
+          {(selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
         </HiusaSelect>
@@ -768,7 +696,7 @@ export default function AdminUsersPage() {
           ))}
         </HiusaSelect>
       </Field>}
-      <Field label="Course / Program" required={form.role === 'STUDENT' && mode === 'create'} error={modalFieldErrors.program?.[0]}>
+      <Field label="Course / Program" error={modalFieldErrors.program?.[0]}>
         <HiusaSelect value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
         {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
       </Field>
@@ -777,17 +705,6 @@ export default function AdminUsersPage() {
       </Field>
       <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
       <Field label="Section" error={modalFieldErrors.section?.[0]}><HiusaSelect value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect></Field>
-      {mode === 'create' && (
-        <>
-          <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Set password</h3></div>
-          <Field label="Password" required error={modalFieldErrors.password?.[0]}>
-            <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-          </Field>
-          <Field label="Confirm Password" required error={modalFieldErrors.password_confirmation?.[0]}>
-            <input type="password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-          </Field>
-        </>
-      )}
       {modalError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 sm:col-span-2">
           {modalError}
@@ -844,15 +761,6 @@ export default function AdminUsersPage() {
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${isAdminsUnit ? 'bg-white/20 text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{roleSummary.ADMIN ?? 0}</span>
             </button>
           </div>
-          {isAdminsUnit && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]"
-            >
-              <UserPlus size={15} /> Add Admin
-            </button>
-          )}
         </div>
       )}
 
@@ -862,7 +770,7 @@ export default function AdminUsersPage() {
         ] : [
           ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
         ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-[#DDE7EF] bg-white p-4"><div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></div><Icon size={22} className="text-[#0878B7]" aria-hidden="true" /></dl>)}</div>
-        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{actorRole === 'ADMIN' && <button type="button" onClick={() => { setInviteUser(null); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Add existing user</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
+        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}<button type="button" onClick={() => openAddStudent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> Add existing student</button></div>}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -920,7 +828,7 @@ export default function AdminUsersPage() {
             <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
-                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
+                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => openAddStudent(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span><span className={`rounded-full px-2.5 py-1 ${user.fingerprint_enrolled ? 'bg-sky-50 text-[#0878B7]' : 'bg-slate-100 text-slate-600'}`}>{user.fingerprint_enrolled ? 'Fingerprint enrolled' : 'Not enrolled'}</span></div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
@@ -932,8 +840,8 @@ export default function AdminUsersPage() {
           <table className="w-full min-w-[940px] text-left">
             <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>
-                <th className="px-4 py-3">School ID</th>
                 <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">School ID</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Program / Major</th>
                 <th className="px-4 py-3">Year Level</th>
@@ -954,8 +862,8 @@ export default function AdminUsersPage() {
               ))}
               {!loading && sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
-                  <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5">
                     <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
@@ -978,7 +886,7 @@ export default function AdminUsersPage() {
                       actorRole={actorRole}
                       onEdit={() => openEdit(user)}
                       onView={() => openProfile(user)}
-                      onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }}
+                      onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => openAddStudent(user)}
                       onFingerprint={() => setFingerprintTarget(user)}
                       onVerify={() => setFingerprintVerifyTarget(user)}
                       onDeactivate={() => setDisableTarget(user)}
@@ -1057,25 +965,8 @@ export default function AdminUsersPage() {
         onClose={() => setFingerprintVerifyTarget(null)}
       />}
 
-      <Modal
-        open={showCreate}
-        title="Create User"
-        description="Add a new account. The user will sign in with their School ID."
-        onClose={closeCreate}
-        closeOnBackdrop={!busy}
-        closeOnEscape={!busy}
-        footer={(
-          <>
-            <button type="button" onClick={closeCreate} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="create-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Creating...' : 'Create User'}</button>
-          </>
-        )}
-      >
-        {userForm(createForm, setCreateForm, 'create')}
-      </Modal>
-
       {managedProfileUser && <ManageAccountProfilesModal user={managedProfileUser} onClose={() => setManagedProfileUser(null)} onDeleted={(result) => { setFeedback({ open: true, type: 'success', message: result.message }); load(); }} />}
-      {showInvite && <AddExistingUserModal actorRole={actorRole} initialUser={inviteUser} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
+      {showInvite && <AddExistingUserModal actorRole={actorRole} initialUser={inviteUser} initialRole={inviteRole} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
 
       <Modal
         open={Boolean(selectedUser)}
@@ -1091,7 +982,7 @@ export default function AdminUsersPage() {
           </>
         )}
       >
-        {userForm(editForm, setEditForm, 'edit')}
+        {userForm(editForm, setEditForm)}
       </Modal>
 
       <ConfirmModal
@@ -1123,7 +1014,7 @@ export default function AdminUsersPage() {
         title="Delete organization profile"
         message="Remove this organization profile. Other profiles remain available. If this is the final profile, the user account is also deleted. Linked records can prevent final deletion."
         recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''}
-        confirmationText={deleteTarget ? String(deleteTarget.school_id) : ''}
+        confirmationText={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}`.trim() : ''}
         confirmText="Delete profile"
         variant="danger"
         busy={busy}

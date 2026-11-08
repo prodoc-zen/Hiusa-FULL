@@ -7,13 +7,16 @@ const serviceMocks = vi.hoisted(() => ({
   getSystemAdmins: vi.fn(),
   getSystemOrganizations: vi.fn(),
   getSystemOrganizationOverview: vi.fn(),
-  createSystemAdmin: vi.fn(),
   deleteSystemAdmin: vi.fn(),
   updateSystemAdmin: vi.fn(),
   initiateSystemAdminPasswordReset: vi.fn(),
 }));
 
 vi.mock('../../../services/systemAdministrationService', () => serviceMocks);
+const profileMocks = vi.hoisted(() => ({ getProfileOrganizations: vi.fn(), inviteAccountProfile: vi.fn(), getProfileCandidates: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
+vi.mock('../../../services/authService', () => profileMocks);
+const peopleMocks = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => peopleMocks);
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
@@ -24,14 +27,9 @@ function Probe() {
 
 const renderPage = (entry = '/dashboard/super-admin/admins') => render(<MemoryRouter initialEntries={[entry]}><SystemAdminsPage /><Probe /></MemoryRouter>);
 
-async function fillAdminForm({ organization } = {}) {
-  fireEvent.change(await screen.findByLabelText(/School ID/i), { target: { value: '20260001' } });
-  fireEvent.change(screen.getByLabelText(/First name/i), { target: { value: 'Maria' } });
-  fireEvent.change(screen.getByLabelText(/Last name/i), { target: { value: 'Santos' } });
-  fireEvent.change(screen.getByLabelText(/Email address/i), { target: { value: 'MARIA@example.test' } });
-  if (organization) fireEvent.change(screen.getByLabelText(/Assigned organization/i), { target: { value: organization } });
-  fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'Initial-Password-123!' } });
-  fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: 'Initial-Password-123!' } });
+async function pickMaria(dialog) {
+  fireEvent.change(await within(dialog).findByRole('combobox', { name: 'Student' }), { target: { value: 'maria' } });
+  fireEvent.click(await within(dialog).findByRole('option', { name: /Maria Santos/ }));
 }
 
 describe('SystemAdminsPage', () => {
@@ -52,30 +50,28 @@ describe('SystemAdminsPage', () => {
       { id: 9, name: 'Chess Club', acronym: 'CHESS', is_active: true, lifecycle_status: 'active', administrators_count: 0 },
       { id: 10, name: 'Drama Guild', acronym: 'DRAMA', is_active: false, lifecycle_status: 'pending', administrators_count: 0 },
     ] });
-    serviceMocks.createSystemAdmin.mockResolvedValue({});
+    profileMocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Computing Council' }, { id: 9, name: 'Chess Club' }] });
+    profileMocks.inviteAccountProfile.mockImplementation(async ({ organization_id }) => ({ data: { id: 1, organization_id } }));
+    peopleMocks.searchPeople.mockResolvedValue([{ school_id: 20260001, name: 'Maria Santos', email: 'maria@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
     serviceMocks.updateSystemAdmin.mockResolvedValue({});
     serviceMocks.initiateSystemAdminPasswordReset.mockResolvedValue({ message: 'Password reset instructions were sent.' });
   });
 
-  it('requires and submits the initial password when SAO creates an Admin', async () => {
+  it('adds an Admin by finding the person, with no school ID or password to type', async () => {
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'New Admin User' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add administrator' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
 
-    expect(document.querySelectorAll('input[type="password"]')).toHaveLength(2);
-    expect(screen.getByText(/SAO sets the initial password/i)).toBeInTheDocument();
-    expect(document.querySelector('datalist option[value="Adviser"]')).toBeInTheDocument();
-    expect(document.querySelector('datalist option[value="Organization Adviser"]')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    expect(dialog.querySelectorAll('input[type="password"]')).toHaveLength(0);
 
-    await fillAdminForm({ organization: '8' });
-    fireEvent.click(screen.getByRole('button', { name: 'Create Admin User' }));
+    await within(dialog).findByRole('option', { name: 'Computing Council' });
+    fireEvent.change(within(dialog).getByLabelText(/^Organization/), { target: { value: '8' } });
+    await pickMaria(dialog);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
 
-    await waitFor(() => expect(serviceMocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({
-      school_id: 20260001,
-      organization_id: 8,
-      email: 'maria@example.test',
-      password: 'Initial-Password-123!',
-      password_confirmation: 'Initial-Password-123!',
-    })));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 20260001, organization_id: 8, role: 'ADMIN' }));
+    expect(await screen.findByText('Administrator added.')).toBeInTheDocument();
   });
 
   it('initiates a secure password reset after confirmation', async () => {
@@ -171,21 +167,19 @@ describe('SystemAdminsPage', () => {
   describe('provisioning from an approved registration', () => {
     const provisionLink = '/dashboard/super-admin/admins?organization=9&create=1';
 
-    it('opens the create form with the organization preselected and locked', async () => {
+    it('opens the add administrator dialog for the organization from the link', async () => {
       renderPage(provisionLink);
 
-      const dialog = await screen.findByRole('dialog', { name: 'Create administrator' });
-      const select = within(dialog).getByLabelText(/Assigned organization/i);
-      expect(select).toHaveValue('9');
-      expect(select).toBeDisabled();
-      expect(within(dialog).getByText('This Admin account belongs to the selected organization.')).toBeInTheDocument();
+      const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+      expect(within(dialog).getByText('Chess Club')).toBeInTheDocument();
+      expect(within(dialog).queryByLabelText(/^Organization/)).not.toBeInTheDocument();
       await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('create=1'));
       expect(screen.getByTestId('location')).not.toHaveTextContent('organization=');
     });
 
     it('shows the registration stepper and a Add Admin account step when the form is cancelled', async () => {
       renderPage(provisionLink);
-      const dialog = await screen.findByRole('dialog', { name: 'Create administrator' });
+      const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
       const stepper = await screen.findByRole('list', { name: 'Registration progress for Chess Club' });
@@ -193,18 +187,17 @@ describe('SystemAdminsPage', () => {
       expect(screen.getByText('Add the first Admin account')).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Add Admin account' }));
-      const reopened = await screen.findByRole('dialog', { name: 'Create administrator' });
-      expect(within(reopened).getByLabelText(/Assigned organization/i)).toHaveValue('9');
-      expect(within(reopened).getByLabelText(/Assigned organization/i)).toBeDisabled();
+      const reopened = await screen.findByRole('dialog', { name: 'Add administrator' });
+      expect(within(reopened).getByText('Chess Club')).toBeInTheDocument();
     });
 
-    it('creates the administrator for the locked organization and then says the administrator can sign in', async () => {
+    it('adds the administrator for the linked organization and then says the administrator can sign in', async () => {
       renderPage(provisionLink);
-      const dialog = await screen.findByRole('dialog', { name: 'Create administrator' });
-      await fillAdminForm();
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Create Admin User' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+      await pickMaria(dialog);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
 
-      await waitFor(() => expect(serviceMocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 9, school_id: 20260001 })));
+      await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 20260001, organization_id: 9, role: 'ADMIN' }));
       expect(await screen.findByText('Done: Maria Santos can sign in')).toBeInTheDocument();
       expect(screen.getByText('Chess Club now has an administrator.')).toBeInTheDocument();
       const stepper = screen.getByRole('list', { name: 'Registration progress for Chess Club' });
@@ -213,11 +206,14 @@ describe('SystemAdminsPage', () => {
       expect(screen.getByRole('link', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/9');
     });
 
-    it('also reports completion when the administrator is created with the plain button', async () => {
+    it('also reports completion when the administrator is added with the plain button', async () => {
       renderPage();
-      fireEvent.click(await screen.findByRole('button', { name: 'New Admin User' }));
-      await fillAdminForm({ organization: '9' });
-      fireEvent.click(screen.getByRole('button', { name: 'Create Admin User' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add administrator' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+      await within(dialog).findByRole('option', { name: 'Chess Club' });
+      fireEvent.change(within(dialog).getByLabelText(/^Organization/), { target: { value: '9' } });
+      await pickMaria(dialog);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
 
       expect(await screen.findByText('Done: Maria Santos can sign in')).toBeInTheDocument();
     });
@@ -226,7 +222,7 @@ describe('SystemAdminsPage', () => {
       renderPage('/dashboard/super-admin/admins?organization=10&create=1');
 
       expect(await screen.findByText('Drama Guild is not active yet. Approve its registration before assigning an administrator.')).toBeInTheDocument();
-      expect(screen.queryByRole('dialog', { name: 'Create administrator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Add administrator' })).not.toBeInTheDocument();
     });
 
     it('loads an organization that is not on the first page of the list', async () => {
@@ -237,8 +233,8 @@ describe('SystemAdminsPage', () => {
       });
       renderPage('/dashboard/super-admin/admins?organization=77&create=1');
 
-      const dialog = await screen.findByRole('dialog', { name: 'Create administrator' });
-      expect(within(dialog).getByLabelText(/Assigned organization/i)).toHaveValue('77');
+      const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
+      expect(within(dialog).getByText('Far Club')).toBeInTheDocument();
       expect(serviceMocks.getSystemOrganizationOverview).toHaveBeenCalledWith('77');
     });
 
@@ -246,7 +242,7 @@ describe('SystemAdminsPage', () => {
       renderPage('/dashboard/super-admin/admins?organization=9');
 
       await waitFor(() => expect(screen.getByLabelText('Filter by organization')).toHaveValue('9'));
-      expect(screen.queryByRole('dialog', { name: 'Create administrator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Add administrator' })).not.toBeInTheDocument();
     });
   });
 
