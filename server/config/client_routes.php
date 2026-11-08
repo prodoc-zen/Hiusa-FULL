@@ -33,6 +33,7 @@ return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/organization-approvals',
         '/dashboard/super-admin/organizations/:organizationId',
@@ -56,6 +57,7 @@ return [
     'ADMIN' => [
         '/dashboard/admin',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/approvals',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
@@ -109,6 +111,7 @@ return [
     'SBO_OFFICER' => [
         '/dashboard/officer',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
         '/dashboard/admin/users',
@@ -143,6 +146,7 @@ return [
         '/dashboard/organization-applications',
         '/dashboard/department-head',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/department-head/approvals',
         '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',

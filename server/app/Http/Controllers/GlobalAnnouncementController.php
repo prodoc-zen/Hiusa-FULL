@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\Announcement;
 use App\Models\AnnouncementRecipient;
 use App\Models\AuditLog;
@@ -26,6 +27,9 @@ class GlobalAnnouncementController extends Controller
         $data = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'status' => ['nullable', 'in:all,draft,published,archived']]);
         $query = Announcement::with(['creator:school_id,first_name,last_name,position_title', 'sourceOrganization:id,name,acronym'])
             ->withCount('recipients')->whereIn('announcement_source', ['SAO', 'COMPLIANCE']);
+        if ($semester = AcademicSemester::selected($request)) {
+            $query->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id));
+        }
         match ($data['status'] ?? 'all') {
             'draft' => $query->where('is_published', false),
             'published' => $query->where('is_published', true)->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now())),
