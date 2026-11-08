@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ClipboardCheck, Megaphone } from 'lucide-react';
 import { getBriefing } from '../../services/dashboardService';
+import { useTrackerShown } from '../process/trackerPresence';
 import { ErrorState } from '../ui';
 import AiInsightCard from './AiInsightCard';
 import AttentionList from './AttentionList';
@@ -36,6 +37,9 @@ function storedSchoolId() {
 // one filled button. The briefing stays secondary there, for the header action and the checklist alike.
 const PROCESS_LED_ROLES = new Set(['ADMIN']);
 
+// On these homes the process tracker is the one progress widget: while it shows, the first-run checklist stays out.
+const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT']);
+
 const ACTIONS = {
   ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],
   DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
@@ -46,6 +50,7 @@ function BriefingBody({ data, introduction }) {
   const role = user?.role;
   const userKey = `${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`;
   const [setupHidden, setSetupHidden] = useState(() => readSetupHidden(userKey));
+  const trackerShown = useTrackerShown();
 
   let attention = [...rawAttention].sort((a, b) => Number(REGISTRATION_TYPES.has(b.type)) - Number(REGISTRATION_TYPES.has(a.type)));
   let headline = summary.headline;
@@ -62,7 +67,7 @@ function BriefingBody({ data, introduction }) {
   if (reviewAreas.length > 0) headline = reviewHeadline(reviewAreas);
 
   const setup = shapeSetup(role, data.setup);
-  const setupOpen = Boolean(setup) && setup.completed < setup.total && !setupHidden;
+  const setupOpen = Boolean(setup) && setup.completed < setup.total && !setupHidden && !(trackerShown && TRACKER_OWNS_SETUP.has(role));
 
   // One filled button leads the page: the SAO's first queue, else the first open setup step, else the role's usual action
   // (an admin's briefing never fills one; the process tracker does).

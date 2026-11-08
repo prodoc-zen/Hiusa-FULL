@@ -142,7 +142,7 @@ class UserController extends Controller
         $organizationId = $actor->organization_id;
 
         $validatedData = $request->validate([
-            ...$this->memberRules($organizationId, ['STUDENT', 'SBO_OFFICER', 'ADMIN']),
+            ...$this->memberRules(['STUDENT', 'SBO_OFFICER', 'ADMIN']),
             'password' => 'required|string|min:8|confirmed',
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
             'notification_preferences' => ['nullable', 'array'],
@@ -213,7 +213,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Import up to '.self::IMPORT_LIMIT.' members at a time.'], 422);
         }
 
-        $rules = $this->memberRules($organizationId, self::IMPORTABLE_ROLES);
+        $rules = $this->memberRules(self::IMPORTABLE_ROLES);
         $programsConfigured = AcademicProgram::where('organization_id', $organizationId)->exists();
         $seenIds = [];
         $seenEmails = [];
@@ -360,7 +360,7 @@ class UserController extends Controller
         }
     }
 
-    private function memberRules(int $organizationId, array $roles): array
+    private function memberRules(array $roles): array
     {
         return [
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999', Rule::unique('users', 'school_id')],
@@ -371,7 +371,7 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $organizationId)),
+                Rule::unique('users', 'email'),
             ],
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'role' => ['required', Rule::in($roles)],
@@ -419,9 +419,7 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')
-                    ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
-                    ->ignore($user->school_id, 'school_id'),
+                Rule::unique('users', 'email')->ignore($user->school_id, 'school_id'),
             ],
             'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN',
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
@@ -895,9 +893,7 @@ class UserController extends Controller
                 'required',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')
-                    ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
-                    ->ignore($user->school_id, 'school_id'),
+                Rule::unique('users', 'email')->ignore($user->school_id, 'school_id'),
             ],
             'notification_preferences' => ['nullable', 'array'],
         ]);

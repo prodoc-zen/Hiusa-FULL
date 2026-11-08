@@ -31,6 +31,9 @@ const VIEWPORTS = [
   { name: '1366x900', width: 1366, height: 900 },
   { name: '390x844', width: 390, height: 844 },
 ];
+// The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1366),
+// folds into an icon at 1279 and 1024, and stays an icon on a phone (390).
+const SWITCHER_WIDTHS = [1366, 1279, 1024, 390];
 const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
 
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -38,6 +41,8 @@ const onlyRoles = arg('roles')?.split(',');
 const match = arg('match');
 const limit = Number(arg('limit')) || Infinity;
 const keepStack = process.argv.includes('--keep-stack');
+const periodOnly = process.argv.includes('--period-only'); // skip the route sweep, run only the top bar period capture
+const noSemesters = process.argv.includes('--no-semesters'); // leave the database without semesters: the period capture must go red
 
 const log = (...parts) => console.log('[audit]', ...parts);
 const children = [];
@@ -138,10 +143,57 @@ function artisan(...args) {
   if (result.status !== 0) throw new Error(`php artisan ${args.join(' ')} failed:\n${(result.stdout || '').slice(-600)}\n${(result.stderr || '').slice(-600)}`);
 }
 
+// The seeders create an academic year but no semester, so the top bar has no period to show and its period
+// button never mounts. The audit adds an active first semester and an upcoming second one to that year (and
+// creates the year if a future seeder drops it), directly in its own sqlite file.
+function seedAcademicSemesters() {
+  const code = `$p = new PDO('sqlite:' . $argv[1]); $p->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $now = date('Y-m-d H:i:s');
+    $year = $p->query("select id, starts_on, ends_on from academic_years order by is_current desc, id desc limit 1")->fetch(PDO::FETCH_ASSOC);
+    if (!$year) {
+      $y = (int) date('Y');
+      $p->prepare("insert into academic_years (label, starts_on, ends_on, is_current, created_at, updated_at) values (?, ?, ?, 1, ?, ?)")
+        ->execute([$y . '-' . ($y + 1), $y . '-06-01', ($y + 1) . '-05-31', $now, $now]);
+      $year = ['id' => $p->lastInsertId(), 'starts_on' => $y . '-06-01', 'ends_on' => ($y + 1) . '-05-31'];
+    }
+    $mid = date('Y-m-d', (strtotime($year['starts_on']) + strtotime($year['ends_on'])) / 2);
+    $next = date('Y-m-d', strtotime($mid . ' +1 day'));
+    $semester = $p->prepare("insert into academic_semesters (academic_year_id, number, starts_on, ends_on, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)");
+    $semester->execute([$year['id'], 1, $year['starts_on'], $mid, 'active', $now, $now]);
+    $semester->execute([$year['id'], 2, $next, $year['ends_on'], 'upcoming', $now, $now]);`;
+  const result = spawnSync('php', ['-r', code, DB_FILE], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`could not seed the academic semesters: ${(result.stderr || result.stdout || '').slice(0, 300)}`);
+}
+
+// /dashboard/records only shows its read-only state for a closed period, and the seeders close none. The audit
+// adds the school year before the current one with two closed semesters, then snapshots them the way closing a
+// semester does, so that period lists organizations and officers. Skipped when a closed semester already exists.
+function seedClosedSchoolYear() {
+  const code = `$p = new PDO('sqlite:' . $argv[1]); $p->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $now = date('Y-m-d H:i:s');
+    if ((int) $p->query("select count(*) from academic_semesters where status = 'completed'")->fetchColumn() === 0) {
+      $current = $p->query("select starts_on, ends_on from academic_years order by is_current desc, id desc limit 1")->fetch(PDO::FETCH_ASSOC);
+      $from = (int) date('Y', strtotime($current['starts_on'])) - 1;
+      $label = $from . '-' . ($from + 1);
+      $p->prepare("insert into academic_years (label, starts_on, ends_on, is_current, created_at, updated_at) values (?, ?, ?, 0, ?, ?)")
+        ->execute([$label, $from . '-06-01', ($from + 1) . '-05-31', $now, $now]);
+      $yearId = $p->lastInsertId();
+      $semester = $p->prepare("insert into academic_semesters (academic_year_id, number, starts_on, ends_on, status, created_at, updated_at) values (?, ?, ?, ?, 'completed', ?, ?)");
+      $semester->execute([$yearId, 1, $from . '-06-01', $from . '-10-31', $now, $now]);
+      $semester->execute([$yearId, 2, $from . '-11-01', ($from + 1) . '-05-31', $now, $now]);
+    }
+    echo json_encode(array_map('intval', $p->query("select id from academic_semesters where status = 'completed' order by id")->fetchAll(PDO::FETCH_COLUMN)));`;
+  const result = spawnSync('php', ['-r', code, DB_FILE], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`could not seed the closed school year: ${(result.stderr || result.stdout || '').slice(0, 300)}`);
+  for (const id of JSON.parse(result.stdout || '[]')) artisan('hiusa:snapshot-semester', String(id));
+}
+
 async function bootStack() {
   prepareEnv();
   log('migrate:fresh --seed on', DB_FILE);
   artisan('migrate:fresh', '--seed', '--force');
+  if (!noSemesters) {
+    seedAcademicSemesters();
+    seedClosedSchoolYear();
+  }
   const serverEnv = { ...process.env, FRONTEND_URL: WEB, FRONTEND_URLS: WEB, DB_CONNECTION: 'sqlite', DB_DATABASE: DB_FILE, APP_ENV: 'local', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' };
   children.push(spawn('php', ['artisan', 'serve', '--host=127.0.0.1', `--port=${API_PORT}`, '--no-reload'], { cwd: SERVER, env: serverEnv, stdio: 'ignore', windowsHide: true }));
   children.push(spawn(process.execPath, [path.join(CLIENT, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', String(WEB_PORT), '--strictPort'], {
@@ -201,32 +253,83 @@ async function paramValues(role, session) {
     const id = await firstId(token, ['/system/organizations', '/organizations'], (r) => r.lifecycle_status === undefined || r.lifecycle_status === 'active');
     values.organizationId = id;
     values.orgId = id;
+    // The SAO opens the application the Department Head already endorsed, with that stage's note and file on it.
+    seedApplication('sao');
+    values.applicationId = await firstId(token, ['/organization-applications?status=pending_sao'], (r) => r.name === SAO_APPLICATION);
   }
   if (role === 'DEPARTMENT_HEAD') {
     values.orgId = await firstId(token, ['/college/organizations', '/organizations']);
+    seedApplication('dean');
+    values.applicationId = await firstId(token, ['/organization-applications?status=pending_dean'], (r) => r.name === DEAN_APPLICATION);
   }
   if (role === 'STUDENT') {
-    let id = await firstId(token, ['/my/organization-applications']);
-    if (!id) {
-      // The seeders create no organization application, but any student can file one, so the audit files one
-      // directly in its own sqlite file (no uploads: the page is audited as a just-submitted application).
-      seedStudentApplication(session.user);
-      id = await firstId(token, ['/my/organization-applications']);
-    }
-    values.applicationId = id;
+    seedApplication('dean');
+    values.applicationId = await firstId(token, ['/my/organization-applications'], (r) => r.name === DEAN_APPLICATION);
   }
   return values;
 }
 
-function seedStudentApplication(user) {
-  const code = `$p = new PDO('sqlite:' . $argv[1]); $u = json_decode($argv[2], true); $now = date('Y-m-d H:i:s');
-    $p->prepare("insert into organization_applications (college_id, name, acronym, description, school_id, first_name, last_name, email, position_title, status, round, submitted_at, created_at, updated_at) values (1, 'Audit Sample Society', 'AUDIT', 'Filed by the rendered audit.', ?, ?, ?, ?, 'President', 'pending_dean', 1, ?, ?, ?)")
-      ->execute([$u['school_id'], $u['first_name'], $u['last_name'], $u['email'], $now, $now, $now]);`;
-  const result = spawnSync('php', ['-r', code, DB_FILE, JSON.stringify({ school_id: user.school_id, first_name: user.first_name, last_name: user.last_name, email: user.email })], { encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`could not file the sample application: ${(result.stderr || '').slice(0, 300)}`);
+const DEAN_APPLICATION = 'Audit Review Society';
+const SAO_APPLICATION = 'Audit Endorsed Society';
+
+// The review screens are empty without an active semester that publishes organization requirements and an
+// application that carries one uploaded document per requirement, so the audit files both directly in its own
+// sqlite file. 'dean' files an application waiting for the Department Head; 'sao' files one the Department Head
+// already endorsed, with a requirement review and a review file on it. A second call keeps what is already filed.
+function seedApplication(stage) {
+  const code = `$p = new PDO('sqlite:' . $argv[1]); $p->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $o = json_decode($argv[2], true); $now = date('Y-m-d H:i:s');
+    function q($p, $sql, $args = []) { $s = $p->prepare($sql); $s->execute($args); return $s; }
+    $name = $o['stage'] === 'sao' ? $o['saoName'] : $o['deanName'];
+    if (q($p, 'select id from organization_applications where name = ?', [$name])->fetchColumn()) exit(0);
+
+    $sem = q($p, "select id, academic_year_id from academic_semesters where status = 'active' limit 1")->fetch(PDO::FETCH_ASSOC);
+    if (!$sem) {
+      $year = q($p, 'select id from academic_years order by is_current desc, id desc limit 1')->fetchColumn();
+      if (!$year) {
+        $y = (int) date('Y');
+        q($p, 'insert into academic_years (label, starts_on, ends_on, is_current, created_at, updated_at) values (?, ?, ?, 1, ?, ?)', [$y . '-' . ($y + 1), $y . '-06-01', ($y + 1) . '-05-31', $now, $now]);
+        $year = $p->lastInsertId();
+      }
+      $number = 1 + (int) q($p, 'select coalesce(max(number), 0) from academic_semesters where academic_year_id = ?', [$year])->fetchColumn();
+      q($p, "insert into academic_semesters (academic_year_id, number, starts_on, ends_on, status, created_at, updated_at) values (?, ?, ?, ?, 'active', ?, ?)", [$year, $number, date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+120 days')), $now, $now]);
+      $sem = ['id' => $p->lastInsertId(), 'academic_year_id' => $year];
+    }
+    $label = q($p, 'select label from academic_years where id = ?', [$sem['academic_year_id']])->fetchColumn();
+
+    $types = [];
+    foreach (['Letter of intent', 'Constitution and by-laws', 'List of proposed officers'] as $title) {
+      $id = q($p, "select id from compliance_requirement_types where name = ? and academic_semester_id = ? and category = 'organization'", [$title, $sem['id']])->fetchColumn();
+      if (!$id) {
+        q($p, "insert into compliance_requirement_types (category, academic_year, academic_semester_id, name, description, deadline_at, is_active, created_by, allowed_extensions, created_at, updated_at) values ('organization', ?, ?, ?, 'Filed by the rendered audit.', ?, 1, ?, ?, ?, ?)", [$label, $sem['id'], $title, date('Y-m-d H:i:s', strtotime('+60 days')), $o['sao'], json_encode(['pdf']), $now, $now]);
+        $id = $p->lastInsertId();
+      }
+      $types[] = $id;
+    }
+
+    $college = q($p, 'select o.college_id from users u join organizations o on o.id = u.organization_id where u.school_id = ?', [$o['dean']])->fetchColumn() ?: 1;
+    $user = q($p, 'select first_name, last_name, email from users where school_id = ?', [$o['student']])->fetch(PDO::FETCH_ASSOC) ?: ['first_name' => 'Audit', 'last_name' => 'Student', 'email' => 'audit.student@hiusa.local'];
+    $endorsed = $o['stage'] === 'sao';
+    q($p, 'insert into organization_applications (college_id, name, acronym, description, school_id, first_name, last_name, email, position_title, status, round, submitted_at, requires_documents, required_documents_count, endorsed_by, endorsed_at, endorsement_note, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?, ?, ?, ?)', [
+      $college, $name, $endorsed ? 'AUDEND' : 'AUDREV', 'Filed by the rendered audit so the review screen has requirements to show.', $o['student'], $user['first_name'], $user['last_name'], $user['email'], 'President',
+      $endorsed ? 'pending_sao' : 'pending_dean', $now, count($types), $endorsed ? $o['dean'] : null, $endorsed ? $now : null, $endorsed ? 'Every officer on the list is enrolled in the college.' : null, $now, $now,
+    ]);
+    $app = $p->lastInsertId();
+    foreach ($types as $i => $type) {
+      q($p, 'insert into organization_application_documents (organization_application_id, requirement_type_id, file_path, file_original_name, mime_type, file_size, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)', [$app, $type, 'organization-applications/audit/' . $app . '-' . $i . '.pdf', 'requirement-' . ($i + 1) . '.pdf', 'application/pdf', 2048, $now, $now]);
+      if ($endorsed) {
+        q($p, "insert into organization_application_requirement_reviews (organization_application_id, requirement_type_id, round, stage, status, note, reviewed_by, created_at, updated_at) values (?, ?, 1, 'dean', 'ok', ?, ?, ?, ?)", [$app, $type, $i === 0 ? 'The signatures are clear.' : null, $o['dean'], $now, $now]);
+      }
+    }
+    if ($endorsed) {
+      q($p, "insert into organization_application_review_files (organization_application_id, requirement_type_id, round, stage, uploaded_by, file_path, file_original_name, mime_type, file_size, created_at, updated_at) values (?, null, 1, 'dean', ?, ?, 'endorsement-letter.pdf', 'application/pdf', 2048, ?, ?)", [$app, $o['dean'], 'organization-applications/audit/' . $app . '-review.pdf', $now, $now]);
+    }`;
+  const payload = { stage, student: BY_ROLE.STUDENT.schoolId, dean: BY_ROLE.DEPARTMENT_HEAD.schoolId, sao: BY_ROLE.SUPER_ADMIN.schoolId, deanName: DEAN_APPLICATION, saoName: SAO_APPLICATION };
+  const result = spawnSync('php', ['-r', code, DB_FILE, JSON.stringify(payload)], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`could not file the ${stage} sample application: ${(result.stderr || result.stdout || '').slice(0, 400)}`);
 }
 
-const slugOf = (p) => (p.replace(/^\/dashboard\/?/, '').replace(/[/:]+/g, '-') || 'dashboard');
+const slugOf = (p) => (p.replace(/^\/dashboard\/?/, '').replace(/[/:?=&]+/g, '-') || 'dashboard');
 
 // Runs inside the page. Returns every measurement for one route at one viewport.
 function measurePage() {
@@ -312,7 +415,87 @@ function measurePage() {
   };
 }
 
-async function auditRoute(context, viewport, role, route, filledPath, roleRoutes) {
+// Pages that carry the organization application pipeline are checked past first paint, because an empty queue or
+// an empty requirement list still passes every layout check. Each inspector returns { checkName: detail } for
+// what is wrong; the review screen also gets a screenshot per state next to the route's own.
+const REVIEW_PATH = '/dashboard/organization-applications?record=:applicationId';
+const QUEUE_PATH = '/dashboard/organization-applications';
+const REVIEW_PASS = { DEPARTMENT_HEAD: 'Endorse', SUPER_ADMIN: 'Approve' };
+
+// The queue must list the filed application under its first tab, with a way to open it.
+async function queueInspector(page) {
+  const problems = {};
+  // The tabs are a row from 640px and a select below it; both carry the label, so the page text is the same at either width.
+  const text = (await page.locator('body').textContent()) || '';
+  const found = text.match(/To review \((\d+)\)/);
+  if (!found || Number(found[1]) < 1) problems['queue-count'] = `the To review tab reads ${found ? found[0] : 'nothing'}, expected at least one application`;
+  // The table and the card list are both in the page; only one of them is showing at a given width.
+  if ((await page.locator('[aria-label^="Review application of "]:visible').count()) < 1) problems['queue-review-link'] = 'no Review button on the queue';
+  return problems;
+}
+
+// The student page must list the requirements of the semester, not the empty state.
+async function studentApplicationInspector(page) {
+  const problems = {};
+  if (await page.getByText('No requirements are listed for this application.').isVisible().catch(() => false)) problems['student-requirements'] = 'the page says no requirements are listed';
+  if (!(await page.getByText('Letter of intent').first().isVisible().catch(() => false))) problems['student-requirements'] = 'the seeded requirement is not on the page';
+  return problems;
+}
+
+// The review screen: one row per requirement, the passing button off until every row is Accepted, a note field on
+// Needs changes, Return on once there is a note, and the comment-only form behind its link.
+function reviewInspector(role) {
+  const passLabel = REVIEW_PASS[role];
+  return async (page, result) => {
+    const problems = {};
+    const shot = (state) => page.screenshot({ path: result.screenshot.replace(/\.png$/, `-${state}.png`), fullPage: true }).catch(() => {});
+    const rows = page.locator('section[aria-label="Requirements"] > ul > li');
+    const count = await rows.count();
+    if (count < 3) return { 'review-requirements': `${count} requirement rows, expected 3` };
+
+    const pass = page.getByRole('button', { name: passLabel, exact: true });
+    const giveBack = page.getByRole('button', { name: 'Return with comments', exact: true });
+    const comment = page.getByRole('button', { name: 'Add a comment', exact: true });
+    if (!(await pass.isDisabled())) problems['review-pass-early'] = `${passLabel} is on before every requirement is Accepted`;
+    if (!(await giveBack.isDisabled())) problems['review-return-early'] = 'Return with comments is on with no note';
+    if (!(await comment.isVisible())) problems['review-comment-link'] = 'no Add a comment link';
+    if (role === 'SUPER_ADMIN' && !(await page.getByText('Department Head:').first().isVisible().catch(() => false))) problems['review-prior-stage'] = 'the Department Head review is not shown to the SAO';
+
+    // The app shell scrolls inside itself, so a full-page shot stops at the first screen: scroll to the decision first.
+    await page.getByRole('heading', { name: 'Decision', exact: true }).scrollIntoViewIfNeeded();
+    await shot('decision');
+
+    const marks = page.locator('select[aria-label^="Review of "]');
+    await marks.first().selectOption('needs_changes');
+    const note = rows.first().locator('textarea');
+    if ((await note.count()) !== 1) {
+      problems['review-note-field'] = 'Needs changes did not open a note field';
+    } else {
+      await note.fill('Add the signed page.');
+      if (!(await giveBack.isEnabled())) problems['review-return-late'] = 'Return with comments stays off with a note on a flagged requirement';
+      if (!(await pass.isDisabled())) problems['review-pass-flagged'] = `${passLabel} is on with a requirement that needs changes`;
+    }
+    await shot('needs-changes');
+
+    for (let i = 0; i < count; i += 1) await marks.nth(i).selectOption('ok');
+    if (!(await pass.isEnabled())) problems['review-pass-late'] = `${passLabel} stays off with every requirement Accepted`;
+    await shot('accepted');
+
+    await comment.click();
+    if (!(await page.getByRole('button', { name: 'Save comment', exact: true }).isVisible())) problems['review-comment-form'] = 'Add a comment did not open the comment form';
+    await shot('comment');
+    return problems;
+  };
+}
+
+function inspectorFor(role, route) {
+  if (route === REVIEW_PATH) return reviewInspector(role);
+  if (route === QUEUE_PATH && REVIEW_PASS[role]) return queueInspector;
+  if (role === 'STUDENT' && route === '/dashboard/student/organization-applications/:applicationId') return studentApplicationInspector;
+  return null;
+}
+
+async function auditRoute(context, viewport, role, route, filledPath, roleRoutes, inspect = null) {
   const page = await context.newPage();
   const consoleErrors = [];
   const apiFailures = [];
@@ -334,6 +517,7 @@ async function auditRoute(context, viewport, role, route, filledPath, roleRoutes
       result.navigationNote = `no network idle: ${String(error.message).split('\n')[0]}`;
     }
     await page.waitForTimeout(400);
+    if (route === '/dashboard/records') await prepareRecords(page, role, result);
     const landed = new URL(page.url()).pathname;
     result.landed = landed;
     const measured = await page.evaluate(measurePage);
@@ -343,6 +527,7 @@ async function auditRoute(context, viewport, role, route, filledPath, roleRoutes
     result.screenshot = path.join(shotDir, `${slugOf(filledPath)}.png`);
     await page.screenshot({ path: result.screenshot, fullPage: true }).catch(async () => { await page.screenshot({ path: result.screenshot }); });
 
+    const inspected = inspect ? await inspect(page, result) : {};
     const fail = (name, detail) => { result.checks[name] = detail; };
     if (landed !== filledPath.split('?')[0]) {
       // A route that forwards to another page of the same role is an alias (that page is audited on its own); anything else is a dead end.
@@ -356,10 +541,103 @@ async function auditRoute(context, viewport, role, route, filledPath, roleRoutes
     if (measured.primaryCount > 1) fail('primary-buttons', `${measured.primaryCount} filled primary: ${measured.primaryText.join(' | ')}`);
     if (measured.smallTextCount) fail('font-under-12px', `${measured.smallTextCount} nodes, e.g. ${measured.smallText.slice(0, 4).join(' | ')}`);
     if (measured.heavyTextCount) fail('font-weight-800+', `${measured.heavyTextCount} elements, e.g. ${measured.heavyText.slice(0, 4).join(' | ')}`);
+    Object.assign(result.checks, inspected);
   } catch (error) {
     result.checks.crashed = String(error.message).split('\n')[0];
   } finally {
     await page.close().catch(() => {});
+  }
+  return result;
+}
+
+// Department Head top bar: below xl the period button must stay as an icon only square button (40px, 44px on touch
+// widths) with its aria-label; from xl up it shows the label. Its dropdown must open and list the closed, current and
+// upcoming semester with an Open records link; picking the upcoming one must show the planning banner and send the
+// X-Academic-Semester header. Screenshots of the closed, open and planning states go next to the route screenshots.
+async function auditPeriodSwitcher(session, width) {
+  const viewport = `${width}x800`;
+  const result = { role: 'DEPARTMENT_HEAD', route: 'top bar period button', path: '/dashboard/department-head', viewport, checks: {}, screenshot: null };
+  const requestsAfterPick = [];
+  let picked = false;
+  let browser = null;
+  try {
+    browser = await chromium.launch({ args: ['--mute-audio'] });
+    const context = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 1 });
+    await context.addInitScript(({ token, user, expires }) => {
+      try {
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('auth_expires_at', String(Date.now() + (Number(expires) || 14400) * 1000));
+      } catch { /* storage unavailable */ }
+    }, { token: session.token, user: session.user, expires: session.expires });
+    const page = await context.newPage();
+    page.on('request', (request) => {
+      if (picked && request.url().startsWith(API)) requestsAfterPick.push(request.headers()['x-academic-semester'] || null);
+    });
+    await page.goto(`${WEB}/dashboard/department-head`, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
+    const shotDir = path.join(OUT, 'DEPARTMENT_HEAD', 'top-bar');
+    fs.mkdirSync(shotDir, { recursive: true });
+    const button = page.locator('header button[aria-label^="Academic Period"]').first();
+    const mounted = await button.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+    result.screenshot = path.join(shotDir, `period-closed-${width}.png`);
+    await page.screenshot({ path: result.screenshot, clip: { x: 0, y: 0, width, height: 120 } });
+    if (!mounted) {
+      result.checks['period-button'] = 'the period button did not mount in the top bar';
+    } else {
+      const box = await button.boundingBox();
+      const label = await button.getAttribute('aria-label');
+      const text = ((await button.innerText()) || '').trim();
+      if (width < 1280 && (!box || Math.round(box.width) !== Math.round(box.height) || box.width < 40)) result.checks['period-button-size'] = `expected a square of 40px or more, got ${box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'no box'}`;
+      if (!label || !/Academic Period: AY .+ Semester/.test(label)) result.checks['period-button-label'] = `aria-label was ${JSON.stringify(label)}`;
+      if (width < 1280 && text) result.checks['period-button-icon-only'] = `button shows text ${JSON.stringify(text)} below xl`;
+      const switcherBox = await page.locator('header button[aria-label^="Workspace:"]').first().boundingBox().catch(() => null);
+      if (!switcherBox) result.checks['switcher-missing'] = 'the Department Head shows no workspace switcher, so the shared top bar layout is not the one being captured';
+      else if (box && box.x < switcherBox.x + switcherBox.width && switcherBox.x < box.x + box.width && box.y < switcherBox.y + switcherBox.height && switcherBox.y < box.y + box.height) result.checks['period-switcher-overlap'] = 'the period button overlaps the workspace switcher';
+      if (width >= 1280 && !/AY .+ Semester/.test(text)) result.checks['period-button-text'] = `from xl up the button shows ${JSON.stringify(text)}, expected the school year and semester`;
+      if (box && box.x + box.width > width + 1) result.checks['period-button-bounds'] = `button ends at ${Math.round(box.x + box.width)} of ${width}`;
+      await button.click();
+      const list = page.locator('[role="listbox"][aria-label="Academic Periods"]');
+      const opened = await list.waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false);
+      await page.waitForTimeout(250);
+      result.openScreenshot = path.join(shotDir, `period-open-${width}.png`);
+      await page.screenshot({ path: result.openScreenshot, clip: { x: 0, y: 0, width, height: 420 } });
+      if (!opened) {
+        result.checks['period-dropdown'] = 'the period dropdown did not open';
+      } else {
+        const listBox = await list.boundingBox();
+        if (!listBox || listBox.x < -1 || listBox.x + listBox.width > width + 1) result.checks['period-dropdown-bounds'] = `dropdown at ${listBox ? `${Math.round(listBox.x)}..${Math.round(listBox.x + listBox.width)}` : 'no box'} of ${width}`;
+        const listText = ((await list.innerText()) || '').replace(/\s+/g, ' ');
+        for (const needed of ['Current semester', 'Upcoming, for planning', 'Closed, open in Records']) {
+          if (!listText.includes(needed)) result.checks[`period-dropdown-${needed.split(',')[0].toLowerCase().replace(/\s+/g, '-')}`] = `the dropdown has no "${needed}" entry: ${listText.slice(0, 160)}`;
+        }
+        if (!(await page.locator('header').getByRole('button', { name: 'Open records' }).first().isVisible().catch(() => false))) result.checks['open-records'] = 'the dropdown has no Open records link';
+
+        // Picking the upcoming semester shows the planning banner and sends the period header with the next requests.
+        picked = true;
+        await list.getByRole('button').filter({ hasText: 'Upcoming, for planning' }).first().click();
+        const banner = page.locator('aside[aria-label="Planning"]');
+        const bannerShown = await banner.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
+        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        result.planningScreenshot = path.join(shotDir, `period-planning-${width}.png`);
+        await page.screenshot({ path: result.planningScreenshot, clip: { x: 0, y: 0, width, height: 260 } });
+        if (!bannerShown) {
+          result.checks['planning-banner'] = 'no Planning banner after picking the upcoming semester';
+        } else {
+          const bannerBox = await banner.boundingBox();
+          const bannerText = ((await banner.innerText()) || '').replace(/\s+/g, ' ');
+          if (!bannerBox || bannerBox.x < -1 || bannerBox.x + bannerBox.width > width + 1) result.checks['planning-banner-bounds'] = `banner at ${bannerBox ? `${Math.round(bannerBox.x)}..${Math.round(bannerBox.x + bannerBox.width)}` : 'no box'} of ${width}`;
+          if (!/planning/i.test(bannerText)) result.checks['planning-banner-copy'] = bannerText.slice(0, 120);
+        }
+        if (!(await page.evaluate(() => localStorage.getItem('hiusa_selected_academic_period')))) result.checks['period-not-stored'] = 'hiusa_selected_academic_period is empty after the pick';
+        if (!requestsAfterPick.some(Boolean)) result.checks['period-header'] = requestsAfterPick.length ? `${requestsAfterPick.length} API calls after the pick, none carried X-Academic-Semester` : 'no API call after the pick to read the header from';
+      }
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+    if (overflow) result.checks['overflow-x'] = 'document scrolls sideways';
+  } catch (error) {
+    result.checks.crashed = String(error.message).split('\n')[0];
+  } finally {
+    await browser?.close().catch(() => {});
   }
   return result;
 }
@@ -403,10 +681,11 @@ async function main() {
     }, { token: session.token, user: session.user, expires: session.expires });
   };
   try {
-    for (const role of roles) {
+    for (const role of periodOnly ? [] : roles) {
       const session = accounts[role];
       const values = await paramValues(role, session);
-      const paths = (routesConfig[role] || []).filter((p) => !match || p.includes(match)).slice(0, limit);
+      // The review screen is one query-string state of the queue route, so client_routes.php has no row for it.
+      const paths = [...(routesConfig[role] || []).filter((p) => !match || p.includes(match)).slice(0, limit), ...(REVIEW_PASS[role] && (!match || REVIEW_PATH.includes(match)) ? [REVIEW_PATH] : [])];
       for (const viewport of VIEWPORTS) {
         await closeBrowser();
         for (const route of paths) {
@@ -422,7 +701,7 @@ async function main() {
           let result = null;
           for (let attempt = 0; attempt < 2 && !result; attempt += 1) {
             if (!browser || served >= PAGES_PER_BROWSER) await openBrowser(viewport, session);
-            const candidate = await auditRoute(context, viewport, role, route, filled, routesConfig[role] || []);
+            const candidate = await auditRoute(context, viewport, role, route, filled, routesConfig[role] || [], inspectorFor(role, route));
             served += 1;
             if (/crashed|closed/i.test(candidate.checks.crashed || '') && attempt === 0) {
               log(`${role} ${viewport.name} ${filled} browser crashed, relaunching`);
@@ -436,6 +715,14 @@ async function main() {
           log(`${role} ${viewport.name} ${filled} ${failed.length ? `FAIL ${failed.join(',')}` : 'ok'} (${Math.round((Date.now() - started) / 1000)}s)`);
         }
         await closeBrowser();
+      }
+    }
+    if (accounts.DEPARTMENT_HEAD && !match) {
+      for (const width of SWITCHER_WIDTHS) {
+        const result = await auditPeriodSwitcher(accounts.DEPARTMENT_HEAD, width);
+        results.push(result);
+        const failed = Object.keys(result.checks);
+        log(`DEPARTMENT_HEAD ${result.viewport} top bar period button ${failed.length ? `FAIL ${failed.join(',')}` : 'ok'}`);
       }
     }
   } finally {

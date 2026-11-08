@@ -332,9 +332,9 @@ export default function TopBar({ onMenuToggle }) {
                 >
                   <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-ink-muted" />
                   <span className={`truncate sm:hidden ${hasSwitcher ? 'max-xl:hidden' : ''}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'}</span>
-                  <span className={`hidden truncate sm:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
-                  {isAdvanceMode && <span className={`hidden text-xs font-semibold text-warning-strong min-[480px]:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>Planning</span>}
-                  {isArchiveMode && <span className={`hidden text-xs font-semibold text-ink-muted-strong min-[480px]:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>Archive</span>}
+                  <span className={`hidden truncate ${hasSwitcher ? 'xl:inline' : 'sm:inline'}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                  {isAdvanceMode && <span className={`hidden text-xs font-semibold text-warning-strong ${hasSwitcher ? 'xl:inline' : 'min-[480px]:inline'}`}>Planning</span>}
+                  {isArchiveMode && <span className={`hidden text-xs font-semibold text-ink-muted-strong ${hasSwitcher ? 'xl:inline' : 'min-[480px]:inline'}`}>Archive</span>}
                   <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${hasSwitcher ? 'max-xl:hidden' : ''} ${periodDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 

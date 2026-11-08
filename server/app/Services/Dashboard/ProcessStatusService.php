@@ -57,10 +57,13 @@ class ProcessStatusService
                 }
             }
             // A step still to do links nowhere; one already visited links to the page where it was done, when this role has such a page.
-            if ($state !== 'todo' && isset($definition['action'])) {
-                $path = $this->actionPath($role, $definition['action'][1], $definition['action'][2] ?? []);
-                if ($path !== null) {
-                    $step['action'] = ['label' => $definition['action'][0], 'path' => $path];
+            // A current step someone else holds carries a `link` instead of an action: where to look while waiting, never a task for this person.
+            foreach (['action', 'link'] as $field) {
+                if ($state !== 'todo' && isset($definition[$field])) {
+                    $path = $this->actionPath($role, $definition[$field][1], $definition[$field][2] ?? []);
+                    if ($path !== null) {
+                        $step[$field] = ['label' => $definition[$field][0], 'path' => $path];
+                    }
                 }
             }
             $steps[] = $step;
@@ -249,9 +252,10 @@ class ProcessStatusService
         $action = match (true) {
             $current === 1 && $status === 'returned' => ['Update and send again', '/dashboard/student/organization-applications/:applicationId', ['applicationId' => $application->id]],
             $current === 1 => ['Apply for an organization', '/dashboard/student/apply-organization'],
-            $current < 5 => ['Open your application', '/dashboard/student/organization-applications/:applicationId', ['applicationId' => $application->id]],
             default => null,
         };
+        // The Dean and the SAO hold their review steps, so the student gets no action there, only the place to look.
+        $link = $current > 1 && $current < 5 ? ['Open your application', '/dashboard/student/organization-applications/:applicationId', ['applicationId' => $application->id]] : null;
 
         $definitions = [];
         foreach (['Allowed to apply', 'Application sent', 'Dean review', 'SAO review', 'Approved'] as $index => $label) {
@@ -259,6 +263,7 @@ class ProcessStatusService
             if ($index === $current) {
                 $definition['note'] = $note;
                 $definition['action'] = $action;
+                $definition['link'] = $link;
             }
             if ($index >= 1 && $index < $current && $application) {
                 $definition['action'] = ['Open your application', '/dashboard/student/organization-applications/:applicationId', ['applicationId' => $application->id]];

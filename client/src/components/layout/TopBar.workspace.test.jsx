@@ -199,5 +199,26 @@ describe('TopBar school year picker', () => {
 
       expect(period.querySelector('.lucide-calendar-days')).not.toBeNull();
     });
+
+    it('leaves no text label that a larger breakpoint turns back on below xl', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Olive', last_name: 'Officer' }));
+      mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(2, 'SBO_OFFICER', 'Computing Society')] } });
+      renderTopBar();
+
+      await screen.findByRole('button', { name: 'Workspace: My account' });
+      const period = screen.getByRole('button', { name: /Academic Period: AY 2026-2027 · 1st Semester/ });
+
+      // In Tailwind 4 a max-xl:hidden loses to a sm:inline on the same element, so the label showed at 1024px and
+      // squeezed the icon. Under xl each label must stay hidden by default and only appear from xl up.
+      const labels = [...period.querySelectorAll('span')];
+      expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        const tokens = label.className.split(/\s+/);
+        const showsBelowXl = tokens.some((token) => /^(sm|md|lg|min-\[\d+px\]):(inline|block|flex)$/.test(token));
+        expect(showsBelowXl, `span class "${label.className}" shows the label below xl`).toBe(false);
+      }
+      const wide = labels.find((label) => label.textContent.endsWith('Semester'));
+      expect(wide.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'xl:inline']));
+    });
   });
 });

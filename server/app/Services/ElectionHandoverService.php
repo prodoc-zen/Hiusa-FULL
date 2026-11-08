@@ -142,7 +142,8 @@ class ElectionHandoverService
             return $listed->role === 'ADMIN' ? 'ADMIN' : 'SBO_OFFICER';
         }
 
-        return Str::contains(Str::lower($title), 'president') ? 'ADMIN' : 'SBO_OFFICER';
+        // Only the president seat itself heads the org; Vice President and the like stay officers.
+        return Str::lower(trim($title)) === 'president' ? 'ADMIN' : 'SBO_OFFICER';
     }
 
     private function grant(Organization $organization, Election $election, int $schoolId, string $role, string $title): bool
