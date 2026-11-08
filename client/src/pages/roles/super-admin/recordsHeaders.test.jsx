@@ -56,11 +56,11 @@ beforeEach(() => {
   mocks.getAuditLogs.mockResolvedValue({ data: { data: [], total: 0, per_page: 10, current_page: 1 } });
 });
 describe('SaoNotificationsPage header', () => {
-  it('has one h1, the pageMeta purpose line and Mark all as read as the single primary action', async () => {
+  it('has one h1, no lead line and Mark all as read as the single primary action', async () => {
     renderAt('/dashboard/super-admin/notifications', <SaoNotificationsPage />);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Notifications');
-    expect(screen.getByText('SAO approval activity and system notices.')).toBeInTheDocument();
+    expect(screen.queryByText('SAO approval activity and system notices.')).not.toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Mark all as read' })).toBeEnabled();
   });
 

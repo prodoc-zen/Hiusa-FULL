@@ -38,6 +38,16 @@ describe('WorkspaceSwitcher for an officer', () => {
     expect(within(panel).getByRole('button', { name: /Computing Society/ })).toHaveTextContent('SBO Officer · Treasurer');
   });
 
+  it('lists names only, with no initials tile in front of them', () => {
+    renderSwitcher(buildWorkspaces({ role: 'STUDENT', profiles, activeProfileId: 1 }), 'STUDENT');
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace: My account' }));
+
+    const panel = screen.getByRole('region', { name: 'Workspaces' });
+    expect(within(panel).getByRole('button', { name: /my account/i }).textContent).not.toMatch(/^ME/);
+    expect(within(panel).getByRole('button', { name: /Computing Society/ }).textContent).toMatch(/^Computing Society/);
+    expect(panel.querySelector('img')).toBeNull();
+  });
+
   it('changes profile for real when an organization is picked', () => {
     const onProfileChange = renderSwitcher(buildWorkspaces({ role: 'STUDENT', profiles, activeProfileId: 1 }), 'STUDENT');
 
@@ -114,6 +124,15 @@ describe('WorkspaceSwitcher for a Department Head', () => {
 
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/department-head');
     expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
+  });
+
+  it('shows no search for a short list, up to 8 places', () => {
+    const few = Array.from({ length: 7 }, (_, index) => ({ id: 100 + index, name: `Club ${index}`, members_count: 1 }));
+    renderSwitcher(buildWorkspaces({ role: 'DEPARTMENT_HEAD', collegeOrganizations: few }), 'DEPARTMENT_HEAD');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace: My college' }));
+
+    expect(screen.queryByRole('searchbox', { name: 'Search organizations' })).not.toBeInTheDocument();
   });
 
   it('searches the organizations once there are many', () => {

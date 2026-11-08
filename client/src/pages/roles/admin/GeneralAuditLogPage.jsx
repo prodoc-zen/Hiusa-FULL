@@ -2,7 +2,6 @@ import HiusaSelect from '../../../components/ui/Select';
 import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, Download, Eye, X } from "lucide-react";
 import { EmptyState, PageHeader } from "../../../components/ui";
@@ -218,7 +217,7 @@ export default function GeneralAuditLogPage() {
             ))}
           </HiusaSelect>
           <label className="text-[10px] font-bold uppercase text-slate-500">
-            <FieldIcon label="From" />From
+            From
             <DateTimeInput
               type="date"
               value={filters.from}
@@ -227,7 +226,7 @@ export default function GeneralAuditLogPage() {
             />
           </label>
           <label className="text-[10px] font-bold uppercase text-slate-500">
-            <FieldIcon label="To" />To
+            To
             <DateTimeInput
               type="date"
               value={filters.to}

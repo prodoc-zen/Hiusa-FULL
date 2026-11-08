@@ -155,8 +155,8 @@ describe('SaoCompliancePage', () => {
   it('shows the accreditation status tones from the shared map', async () => {
     renderPage();
     const pending = (await screen.findAllByText('Pending review'))[0];
-    expect(pending).toHaveClass('bg-brand-50');
-    expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-success-tint');
+    expect(pending).toHaveClass('bg-brand-600/10');
+    expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-green-50');
   });
 
   it('keeps organizations in alphabetical order regardless of review status', async () => {

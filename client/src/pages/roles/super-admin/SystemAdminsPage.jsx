@@ -1,7 +1,6 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { matchesFilter } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -558,30 +557,30 @@ export default function SystemAdminsPage() {
 
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-               <FieldIcon label="First name *" /> First name *
+                First name *
                 <input required value={form.first_name} onChange={(event) => updateField("first_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-               <FieldIcon label="Last name *" /> Last name *
+                Last name *
                 <input required value={form.last_name} onChange={(event) => updateField("last_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-               <FieldIcon label="Email address *" /> Email address *
+                Email address *
                 <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-               <FieldIcon label="Contact number" /> Contact number
+                Contact number
                 <input inputMode="tel" value={form.contact_number} onChange={(event) => updateField("contact_number", event.target.value)} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-               <FieldIcon label="Position title" /> Position title
+                Position title
                 <input list="admin-leadership-titles" value={form.position_title} onChange={(event) => updateField("position_title", event.target.value)} placeholder="Select or enter a title" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                 <datalist id="admin-leadership-titles">
                   {LEADERSHIP_TITLES.map((title) => <option key={title} value={title} />)}
                 </datalist>
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-                <FieldIcon label="Assigned organization *" />Assigned organization *
+                Assigned organization *
                 <HiusaSelect required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   <option value="">Select an active student organization</option>
                   {organizations
@@ -594,7 +593,7 @@ export default function SystemAdminsPage() {
                 </HiusaSelect>
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-               <FieldIcon label="Account status" /> Account status
+                Account status
                 <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
                   <option value="active">Active: can sign in</option>
                   <option value="inactive">Inactive: temporarily unavailable</option>

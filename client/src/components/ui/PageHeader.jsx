@@ -45,8 +45,8 @@ export function PageHeaderView({
       <PageBreadcrumb crumbs={breadcrumbs} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-[28px] font-extrabold leading-tight text-ink">{title}</h1>
-          {lead && <p className="mt-1 max-w-[75ch] text-sm font-medium text-ink-muted-strong">{lead}</p>}
+          <h1 className="text-xl font-semibold leading-tight text-ink sm:text-2xl">{title}</h1>
+          {lead && <p className="mt-1 max-w-[75ch] text-sm text-ink-muted-strong">{lead}</p>}
           {meta && <div className="mt-3 flex flex-wrap items-center gap-3">{meta}</div>}
         </div>
         {(actions || primary) && (
@@ -62,10 +62,11 @@ export function PageHeaderView({
   );
 }
 
-// `description` is the original prop and wins over `purpose` when a page passes both, so a page that
-// still carries its own subtitle keeps it. `actions` holds secondary buttons; `primary` is the one
-// filled button and always renders last. Breadcrumbs, title and purpose fall back to pageMeta for the
-// current route, so a page only passes them to say something different.
+// `description` is the original prop and wins over `purpose` when a page passes both. The lead line
+// shows only when the page passes one of them; pageMeta no longer supplies it. `actions` holds
+// secondary buttons; `primary` is the one filled button and always renders last. Breadcrumbs and
+// title fall back to pageMeta for the current route, so a page only passes them to say something
+// different.
 export default function PageHeader(props) {
   return useInRouterContext() ? <RoutedPageHeader {...props} /> : <PageHeaderBare {...props} />;
 }
@@ -81,7 +82,7 @@ function RoutedPageHeader({ breadcrumbs, title, description, purpose, ...rest })
       {...rest}
       breadcrumbs={breadcrumbs}
       title={title ?? pageMeta.title}
-      lead={description ?? purpose ?? (pageMeta.isHome ? undefined : pageMeta.purpose) ?? undefined}
+      lead={description ?? purpose}
     />
   );
 }

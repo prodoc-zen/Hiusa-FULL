@@ -136,12 +136,12 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     mocks.getStudentDebts.mockResolvedValue(emptyPayload);
   });
 
-  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+  it('uses the shared header: one h1 from the menu label, no lead line and one primary action', async () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Student accounts' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/Review charges, payments, and student clearance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Review charges, payments, and student clearance/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add student charge' })).toHaveLength(1);
   });
 

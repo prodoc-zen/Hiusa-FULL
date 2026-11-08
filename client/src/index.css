@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
@@ -30,7 +30,7 @@ select:not([multiple]):not(.appearance-none) {
 input[type='date'],
 input[type='time'],
 input[type='datetime-local'] {
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   color-scheme: light;
 }
 
@@ -38,8 +38,8 @@ input[type='date']::-webkit-calendar-picker-indicator,
 input[type='time']::-webkit-calendar-picker-indicator,
 input[type='datetime-local']::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  border-radius: 9999px;
-  background-color: #E6F6FD;
+  border-radius: var(--radius-control);
+  background-color: rgb(11 142 208 / 0.1);
   padding: 8px;
 }
 
@@ -49,9 +49,6 @@ input.hiusa-date-time::-webkit-calendar-picker-indicator {
 
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-  --radius-2xl: 1.5rem;
   --color-green-50: #DCFCE7;
   --color-emerald-50: #DCFCE7;
   --color-green-100: #BBF7D0;
@@ -116,15 +113,25 @@ input.hiusa-date-time::-webkit-calendar-picker-indicator {
 }
 
 @layer base {
+  :where(table) :where(th) {
+    background-color: var(--color-subtle);
+    color: var(--color-ink-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  :where(table) :where(td) {
+    padding-block: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 400;
+  }
+
   :where(button, [role='button'], a[href]) {
-    transition-property: color, background-color, border-color, box-shadow, opacity, translate;
+    transition-property: color, background-color, border-color, box-shadow, opacity;
     transition-duration: var(--duration-press);
     transition-timing-function: ease-out;
   }
 
-  :where(button:enabled:not([aria-disabled='true']), [role='button']:not(:disabled):not([aria-disabled='true'])):active {
-    translate: 0 1px;
-  }
 }
 
 .status-icon {
@@ -193,22 +200,20 @@ textarea {
 }
 
 select {
-  height: 44px;
+  height: 40px;
   border: 1px solid #DDE7EF;
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background-color: #FFFFFF;
   color: #0F172A;
 }
 
 select:focus {
   border-color: #0B8ED0;
-  box-shadow: 0 0 0 4px rgba(22, 199, 243, 0.15);
-  outline: none;
 }
+
 :where(button, a[href], input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--color-brand-600);
   outline-offset: 2px;
-  box-shadow: 0 0 0 3px rgb(22 199 243 / 0.35);
   border-radius: var(--radius-control);
 }
 
@@ -407,10 +412,6 @@ a {
   will-change: transform, opacity;
 }
 
-h1 {
-  text-transform: uppercase;
-}
-
 .dashboard-centered-popup {
   left: calc((100vw + var(--dashboard-sidebar-width, 0px)) / 2);
   max-width: min(36rem, calc(100vw - var(--dashboard-sidebar-width, 0px) - 2rem));
@@ -479,7 +480,7 @@ body:has(> .app-overlay) #root {
     width: max-content;
     padding: 0.625rem 0.875rem;
     color: #64748B;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
   }
 

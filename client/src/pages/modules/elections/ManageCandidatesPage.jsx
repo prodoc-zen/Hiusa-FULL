@@ -1,7 +1,6 @@
 import TableRowActions from '../../../components/TableRowActions';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Award, ChevronDown, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
@@ -198,7 +197,7 @@ function CandidateForm({
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Student *" />Student *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Student *</label>
             <StudentSearchDropdown
               users={users}
               value={form.user_id}
@@ -207,7 +206,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Position *" />Position *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position *</label>
             <div className="relative">
               <HiusaSelect
                 value={form.position_id}
@@ -224,7 +223,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party List" />Party List</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party List</label>
             <div className="relative">
               <HiusaSelect
                 value={form.partylist_id}
@@ -241,7 +240,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Candidate Photo" />Candidate Photo</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Candidate Photo</label>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
               {imagePreview
                 ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
@@ -253,7 +252,7 @@ function CandidateForm({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Platform Statement" />Platform Statement</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Platform Statement</label>
             <RichTextEditor
               value={form.platform}
               maxLength={2000}

@@ -20,9 +20,9 @@ const STATE_BADGE = {
 
 const LABEL_TONE = {
   done: 'text-ink',
-  current: 'font-bold text-ink',
-  blocked: 'font-bold text-danger-strong',
-  stopped: 'font-bold text-danger-strong',
+  current: 'font-semibold text-ink',
+  blocked: 'font-semibold text-danger-strong',
+  stopped: 'font-semibold text-danger-strong',
   upcoming: 'text-ink-muted-strong',
   skipped: 'text-ink-muted-strong',
 };
@@ -31,30 +31,30 @@ function normalize(state) {
   return STATE_WORD[state] ? state : 'upcoming';
 }
 
-function StateIcon({ state, size = 24 }) {
+function StateIcon({ state, size = 20 }) {
   const { icon: Icon, className } = STATE_BADGE[state];
   return (
     <span aria-hidden="true" className={`grid shrink-0 place-items-center rounded-full ${className}`} style={{ width: size, height: size }}>
-      <Icon size={size === 24 ? 14 : 12} strokeWidth={state === 'upcoming' ? 2 : 2.5} />
+      <Icon size={size === 20 ? 12 : 10} strokeWidth={state === 'upcoming' ? 2 : 2.5} />
     </span>
   );
 }
 
 function FullStepper({ steps, ariaLabel, className }) {
   return (
-    <ol aria-label={ariaLabel} className={`flex flex-col gap-4 md:flex-row md:gap-2 ${className}`}>
+    <ol aria-label={ariaLabel} className={`flex flex-col gap-3 md:flex-row md:gap-2 ${className}`}>
       {steps.map((step, index) => {
         const state = normalize(step.state);
         return (
           <li
             key={step.key}
             aria-current={state === 'current' ? 'step' : undefined}
-            className="relative flex min-w-0 gap-3 md:flex-1 md:flex-col md:gap-2"
+            className="relative flex min-w-0 gap-3 md:flex-1 md:flex-col md:gap-1.5"
           >
             {index < steps.length - 1 && (
               <span
                 aria-hidden="true"
-                className={`absolute left-[11px] top-7 -bottom-4 w-px md:-right-2 md:bottom-auto md:left-8 md:top-[11px] md:h-px md:w-auto ${state === 'done' ? 'bg-success' : 'bg-line'}`}
+                className={`absolute left-[9px] top-6 -bottom-3 w-px md:-right-2 md:bottom-auto md:left-7 md:top-[9px] md:h-px md:w-auto ${state === 'done' ? 'bg-success' : 'bg-line'}`}
               />
             )}
             <StateIcon state={state} />
@@ -63,8 +63,8 @@ function FullStepper({ steps, ariaLabel, className }) {
                 <span className="sr-only">{STATE_WORD[state]}: </span>
                 {step.label}
               </p>
-              {step.actor && <p className="text-xs font-medium text-ink-muted-strong">{step.actor}</p>}
-              {step.note && <p className="text-xs font-semibold text-ink-muted-strong">{step.note}</p>}
+              {step.actor && <p className="text-xs text-ink-muted-strong">{step.actor}</p>}
+              {step.note && <p className="text-xs font-medium text-ink-muted-strong">{step.note}</p>}
             </div>
           </li>
         );
@@ -88,7 +88,7 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <p className="flex min-w-0 items-center gap-2 text-xs font-semibold text-ink">
+      <p className="flex min-w-0 items-center gap-2 text-xs font-medium text-ink">
         <StateIcon state={state} size={16} />
         <span className="sr-only">{STATE_WORD[state]}: </span>
         {summary ? (
@@ -115,11 +115,16 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
   );
 }
 
+// The step list stays short: past six counted steps a row of labels stops being readable, so it
+// falls back to the one-line summary. Skipped steps do not count.
+const MAX_LISTED_STEPS = 6;
+
 // variant="compact" is one line for table rows. Pass `summary` (the next action text) to show it
 // alone below 640px, where a row has no room for a step label and a meter.
 export default function FlowStepper({ steps = [], variant = 'full', ariaLabel = 'Progress', summary, className = '' }) {
   if (steps.length === 0) return null;
-  if (variant === 'compact') {
+  const counted = steps.filter((step) => normalize(step.state) !== 'skipped').length;
+  if (variant === 'compact' || counted > MAX_LISTED_STEPS) {
     return <CompactStepper steps={steps} ariaLabel={ariaLabel} summary={summary} className={className} />;
   }
   return <FullStepper steps={steps} ariaLabel={ariaLabel} className={className} />;

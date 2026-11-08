@@ -1,4 +1,3 @@
-import FieldIcon from './FieldIcon.jsx';
 import { AlertCircle, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import Button from './ui/Button';
@@ -52,7 +51,7 @@ export default function ConfirmModal({
         <p className="text-sm font-semibold text-ink">{recordName || message}</p>
       </div>
       {error && <div role="alert" className="mt-3 rounded-lg bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{error}</div>}
-      {confirmationText && <label className="mt-4 block text-xs font-semibold text-slate-700"><FieldIcon label="Type" />Type <strong>{confirmationText}</strong> to confirm<input value={entered} onChange={(event) => setConfirmation({ recordName, value: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm" /></label>}
+      {confirmationText && <label className="mt-4 block text-xs font-semibold text-slate-700">Type <strong>{confirmationText}</strong> to confirm<input value={entered} onChange={(event) => setConfirmation({ recordName, value: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm" /></label>}
     </Modal>
   );
 }

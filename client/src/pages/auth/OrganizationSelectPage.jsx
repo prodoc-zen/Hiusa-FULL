@@ -1,6 +1,5 @@
 import HiusaSelect from '../../components/ui/Select';
 import { formatDisplayText } from '../../utils/displayText.js';
-import FieldIcon from '../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, ChevronDown, Search } from 'lucide-react';
@@ -131,7 +130,7 @@ export default function OrganizationSelectPage() {
 
           <div className="space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800"><FieldIcon label="Search organizations" />Search organizations</span>
+              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800">Search organizations</span>
               <span className="relative block">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
                 <input
@@ -145,7 +144,7 @@ export default function OrganizationSelectPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800"><FieldIcon label="Organization or SAO access" />Organization or SAO access</span>
+              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800">Organization or SAO access</span>
               <span className="relative block">
                 <HiusaSelect
                   value={selectedId}

@@ -1,5 +1,5 @@
 export function Skeleton({ className = '' }) {
-  return <div className={`skeleton-shimmer rounded-control ${className}`} aria-hidden="true" />;
+  return <div className={`rounded-control bg-line ${className}`} aria-hidden="true" />;
 }
 
 export function SkeletonText({ lines = 3, className = '' }) {
@@ -31,15 +31,22 @@ export function SkeletonStat({ className = '' }) {
   );
 }
 
+// Cell widths vary by column so the placeholder reads as rows of a table, not a bar chart.
+const SKELETON_CELL_WIDTHS = ['w-3/4', 'w-1/2', 'w-2/3', 'w-1/3'];
+
 export function SkeletonTable({ rows = 5, columns = 4, className = '' }) {
   return (
     <div className={`overflow-hidden rounded-card border border-line ${className}`} role="status" aria-label="Loading table">
-      <div className="flex gap-4 border-b border-line bg-subtle px-4 py-3">
-        {Array.from({ length: columns }).map((_, index) => <Skeleton key={index} className="h-3 flex-1" />)}
+      <div className="flex h-9 items-center gap-4 border-b border-line bg-subtle px-4">
+        {Array.from({ length: columns }).map((_, index) => <Skeleton key={index} className="h-3 w-1/4 flex-1" />)}
       </div>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <div key={rowIndex} className="flex gap-4 border-b border-line-soft px-4 py-4 last:border-b-0">
-          {Array.from({ length: columns }).map((_, colIndex) => <Skeleton key={colIndex} className="h-3 flex-1" />)}
+        <div key={rowIndex} className="flex h-10 items-center gap-4 border-b border-line-soft px-4 last:border-b-0">
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <div key={colIndex} className="flex-1">
+              <Skeleton className={`h-3 ${SKELETON_CELL_WIDTHS[(rowIndex + colIndex) % SKELETON_CELL_WIDTHS.length]}`} />
+            </div>
+          ))}
         </div>
       ))}
     </div>

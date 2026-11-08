@@ -78,6 +78,29 @@ describe('FlowStepper full variant', () => {
   });
 });
 
+describe('FlowStepper step limit', () => {
+  const make = (count, extra = []) => [
+    ...Array.from({ length: count }, (_, index) => ({ key: `s${index}`, label: `Step ${index}`, state: index === 0 ? 'done' : index === 1 ? 'current' : 'upcoming' })),
+    ...extra,
+  ];
+
+  it('lists six steps in full', () => {
+    render(<FlowStepper steps={make(6)} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(6);
+  });
+
+  it('falls back to the one-line summary past six counted steps', () => {
+    render(<FlowStepper steps={make(7)} ariaLabel="Long flow" />);
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Long flow' })).toHaveAttribute('aria-valuemax', '7');
+  });
+
+  it('does not count skipped steps toward the limit', () => {
+    render(<FlowStepper steps={make(6, [{ key: 'x', label: 'Skipped one', state: 'skipped' }])} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(7);
+  });
+});
+
 describe('FlowStepper compact variant', () => {
   it('shows one line "Step 3 of 4" that ignores skipped steps, with a progress meter', () => {
     render(<FlowStepper steps={STEPS} variant="compact" ariaLabel="Event stage" />);

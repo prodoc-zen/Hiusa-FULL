@@ -63,12 +63,12 @@ describe('FinancialCollectionsPage header and empty states', () => {
     mocks.getCashAdvances.mockResolvedValue({ data: [] });
   });
 
-  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+  it('uses the shared header: one h1 from the menu label, no lead line and one primary action', async () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Collections and advances' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/Track money received, its verification and remittance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Track money received, its verification and remittance/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Record collection' })).toHaveLength(1);
   });
 

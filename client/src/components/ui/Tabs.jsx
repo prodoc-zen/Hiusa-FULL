@@ -53,7 +53,7 @@ export default function Tabs({ tabs, value, onChange, className = '' }) {
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.key)}
               onKeyDown={(event) => handleKeyDown(event, index)}
-              className={`relative flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-4 text-sm font-bold transition-colors duration-150 ${isActive ? 'text-brand-700' : 'text-ink-muted hover:text-ink'}`}
+              className={`relative flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-4 text-sm font-medium transition-colors duration-150 ${isActive ? 'text-brand-700' : 'text-ink-muted hover:text-ink'}`}
             >
               {tab.icon && <tab.icon size={16} aria-hidden="true" />}
               {tab.label}
@@ -61,7 +61,7 @@ export default function Tabs({ tabs, value, onChange, className = '' }) {
           );
         })}
         <span
-          className="pointer-events-none absolute -bottom-px h-0.5 rounded-full bg-brand-600 transition-transform duration-[180ms] ease-out"
+          className="pointer-events-none absolute -bottom-px h-0.5 bg-brand-600 transition-transform duration-[180ms] ease-out"
           style={{ width: `${indicator.width}px`, transform: `translateX(${indicator.left}px)` }}
           aria-hidden="true"
         />

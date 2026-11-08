@@ -2,7 +2,6 @@ import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -289,13 +288,13 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
           ))}
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <label className="text-[11px] font-bold text-slate-600"><FieldIcon label="Program" />Program
+          <label className="text-[11px] font-bold text-slate-600">Program
             <HiusaSelect filter aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
               <option value="">All programs</option>
               {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
             </HiusaSelect>
           </label>
-          <label className="text-[11px] font-bold text-slate-600"><FieldIcon label="Section" />Section
+          <label className="text-[11px] font-bold text-slate-600">Section
             <HiusaSelect filter aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
               <option value="">All sections</option>
               {sectionOptions.map((section) => <option key={section} value={section}>{section}</option>)}
@@ -1212,9 +1211,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 resultLabel={eventTotal === 1 ? 'event' : 'events'}
                 secondaryClassName="grid gap-3 sm:grid-cols-3"
               >
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Event date" />Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Status" />Status<HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Sort by" />Sort by<HiusaSelect value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></label>
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Status<HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></label>
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort by<HiusaSelect value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></label>
               </TableFilterBar>
             </div>
           )}
@@ -1404,7 +1403,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
               <form className="mt-5 grid gap-4 lg:grid-cols-[260px_1fr]" onSubmit={handleGeneratePlan}>
                 <div>
-                  <label htmlFor="planning-event" className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Event" />Event</label>
+                  <label htmlFor="planning-event" className="text-xs font-bold text-[#0F172A]">Event</label>
                   <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="">Choose an event</option>
                     {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
@@ -1412,7 +1411,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
                 </div>
                 <div>
-                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Optional planning context" />Optional planning context</label>
+                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]">Optional planning context</label>
                   <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Add priorities or constraints. The planner will also recommend the practical work the event needs." className="mt-1.5 w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" />
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-[11px] leading-5 text-slate-500">The draft can recommend operational tasks. Missing names, prices, and approvals stay marked for review instead of being guessed.</p>
@@ -1475,14 +1474,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         </div>
 
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Task name" />Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
-                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Due date and time" />Due date and time</label><DateTimeInput id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="What needs to be done?" />What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
-                          <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="When should it happen?" />When should it happen?</label><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></div>
-                          <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Importance" />Importance</label><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></div>
-                          <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Best officer role" />Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
-                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="This can start after" />This can start after</label><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Assign to" />Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
+                          <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]">Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
+                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]">Due date and time</label><DateTimeInput id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]">What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
+                          <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]">When should it happen?</label><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></div>
+                          <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]">Importance</label><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></div>
+                          <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]">Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
+                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]">This can start after</label><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]">Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
                         </div>
 
                         {selectedOfficer && (
@@ -1707,7 +1706,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               }}
                               disabled={checkInSubmitting}
                             />
-                            <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-[#0F172A]"><FieldIcon label="Attendance status" />Attendance status</label>
+                            <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-[#0F172A]">Attendance status</label>
                             <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} className="mt-1.5 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                               <option value="present">Present</option>
                               <option value="late">Late</option>
@@ -1960,7 +1959,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
             </div>
             <form className="space-y-4" onSubmit={handleSaveEvent}>
               <div className="space-y-1.5">
-                <label htmlFor="event-title" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Event Name *" />Event Name *</label>
+                <label htmlFor="event-title" className="text-[13px] font-semibold text-[#0F172A]">Event Name *</label>
                 <input
                   id="event-title"
                   type="text"
@@ -1973,17 +1972,17 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-type" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Event Type" />Event Type</label>
+                  <label htmlFor="event-type" className="text-[13px] font-semibold text-[#0F172A]">Event Type</label>
                   <input id="event-type" type="text" maxLength={100} value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} placeholder="e.g. General Assembly" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-participants" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Expected Participants" />Expected Participants</label>
+                  <label htmlFor="event-participants" className="text-[13px] font-semibold text-[#0F172A]">Expected Participants</label>
                   <input id="event-participants" type="number" min="1" max="1000000" value={form.expected_participants} onChange={(e) => setForm({ ...form, expected_participants: e.target.value })} placeholder="e.g. 250" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-start-date" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Start Date *" />Start Date *</label>
+                  <label htmlFor="event-start-date" className="text-[13px] font-semibold text-[#0F172A]">Start Date *</label>
                   <DateTimeInput
                     id="event-start-date"
                     type="date"
@@ -1993,7 +1992,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-start-time" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Start Time *" />Start Time *</label>
+                  <label htmlFor="event-start-time" className="text-[13px] font-semibold text-[#0F172A]">Start Time *</label>
                   <DateTimeInput
                     id="event-start-time"
                     type="time"
@@ -2005,7 +2004,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="event-end-date" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="End Date" />End Date</label>
+                  <label htmlFor="event-end-date" className="text-[13px] font-semibold text-[#0F172A]">End Date</label>
                   <DateTimeInput
                     id="event-end-date"
                     type="date"
@@ -2015,7 +2014,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="event-end-time" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="End Time" />End Time</label>
+                  <label htmlFor="event-end-time" className="text-[13px] font-semibold text-[#0F172A]">End Time</label>
                   <DateTimeInput
                     id="event-end-time"
                     type="time"
@@ -2026,12 +2025,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Venue type" />Venue type</label>
+                <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-[#0F172A]">Venue type</label>
                 <HiusaSelect id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></HiusaSelect>
                 {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-[#0F172A]">SAO venue</label><HiusaSelect id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}</HiusaSelect></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-[#0F172A]">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></>}
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>
+                <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label>
                 <RichTextEditor
                   id="event-description"
                   rows={3}
@@ -2041,15 +2040,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-requirements" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Planning Requirements" />Planning Requirements</label>
+                <label htmlFor="event-requirements" className="text-[13px] font-semibold text-[#0F172A]">Planning Requirements</label>
                 <textarea id="event-requirements" rows={2} value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="Program, safety, registration, approvals, accessibility..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-resources" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Available / Required Resources" />Available / Required Resources</label>
+                <label htmlFor="event-resources" className="text-[13px] font-semibold text-[#0F172A]">Available / Required Resources</label>
                 <textarea id="event-resources" rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Rooms, equipment, volunteers, suppliers, materials..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-image" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Event poster" />Event poster <span className="font-normal text-slate-500">(optional)</span></label>
+                <label htmlFor="event-image" className="text-[13px] font-semibold text-[#0F172A]">Event poster <span className="font-normal text-slate-500">(optional)</span></label>
                 <label htmlFor="event-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ImagePlus size={18} /></span>
                   <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#0F172A]">{form.imageFile?.name || (editingEventId ? 'Choose a replacement poster' : 'Choose an image')}</span><span className="block text-[10px] text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
@@ -2063,16 +2062,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   onChange={(e) => setForm({ ...form, requires_budget: e.target.checked })}
                   className="h-4 w-4 rounded border-[#DDE7EF]"
                 />
-               <FieldIcon label="Requires budget allocation" /> Requires budget allocation
+                Requires budget allocation
               </label>
               {form.requires_budget && (
                 <div className="grid grid-cols-1 gap-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label htmlFor="event-proposed-budget" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Proposed Budget" />Proposed Budget</label>
+                    <label htmlFor="event-proposed-budget" className="text-[13px] font-semibold text-[#0F172A]">Proposed Budget</label>
                     <input id="event-proposed-budget" type="number" min="0.01" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.proposed_budget_amount} onChange={(e) => setForm({ ...form, proposed_budget_amount: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
                   </div>
                   <div className="space-y-1.5">
-                    <label htmlFor="event-budget-threshold" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Warning Threshold" />Warning Threshold</label>
+                    <label htmlFor="event-budget-threshold" className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold</label>
                     <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
                   </div>
                   <p className="text-xs font-medium text-[#0878B7] sm:col-span-2">
@@ -2081,7 +2080,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
               )}
               <div className="space-y-1.5">
-                <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Budget Requirements / Notes" />Budget Requirements / Notes</label>
+                <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
                 <textarea
                   id="event-budget-notes"
                   rows={2}
@@ -2097,7 +2096,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </p>
               )}
               <div className="space-y-1.5">
-                <label htmlFor="event-vendor-deadlines" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Vendor Deadlines" />Vendor Deadlines</label>
+                <label htmlFor="event-vendor-deadlines" className="text-[13px] font-semibold text-[#0F172A]">Vendor Deadlines</label>
                 <textarea
                   id="event-vendor-deadlines"
                   rows={2}
@@ -2108,7 +2107,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-logistics-checklist" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Logistics Checklist" />Logistics Checklist</label>
+                <label htmlFor="event-logistics-checklist" className="text-[13px] font-semibold text-[#0F172A]">Logistics Checklist</label>
                 <textarea
                   id="event-logistics-checklist"
                   rows={2}

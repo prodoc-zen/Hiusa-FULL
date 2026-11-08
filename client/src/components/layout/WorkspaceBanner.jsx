@@ -1,15 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../ui';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import useWorkspaces from '../../hooks/useWorkspaces';
 import { getStoredRole } from '../../lib/pageMeta';
 import { formatDisplayText } from '../../utils/displayText.js';
 
-function Banner({ name, actionLabel, onAction, busy = false }) {
+// One strip under the top bar: where the person is looking, and one way back to their own view.
+function Banner({ name, onAction, busy = false }) {
   return (
-    <aside aria-label="Workspace" className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-4 py-2 text-sm text-[#0F172A] sm:mx-6 sm:mt-3">
-      <p className="min-w-0 break-words">Viewing <strong className="font-bold">{formatDisplayText(name)}</strong></p>
-      <Button variant="secondary" size="sm" onClick={onAction} loading={busy}>{actionLabel}</Button>
+    <aside aria-label="Workspace" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-brand-50 px-4 py-2 text-sm text-ink sm:px-6">
+      <p className="min-w-0 break-words">Viewing <strong className="font-semibold">{formatDisplayText(name)}</strong></p>
+      <button
+        type="button"
+        onClick={onAction}
+        disabled={busy}
+        className="min-h-11 text-sm font-medium text-brand-800 underline underline-offset-2 hover:text-navy-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60 sm:min-h-8"
+      >
+        Back to mine
+      </button>
     </aside>
   );
 }
@@ -24,7 +31,6 @@ export default function WorkspaceBanner() {
     return (
       <Banner
         name={subAccount.name}
-        actionLabel="Back to my college"
         onAction={() => {
           leave();
           navigate('/dashboard/department-head');
@@ -37,7 +43,6 @@ export default function WorkspaceBanner() {
     return (
       <Banner
         name={workspaces.current.label}
-        actionLabel="Back to my account"
         busy={workspaces.switching}
         onAction={() => workspaces.switchProfile(workspaces.main.profile)}
       />

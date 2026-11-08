@@ -26,10 +26,23 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Budgets' })).toBeInTheDocument();
   });
 
+  it('sets the title at text-xl, semibold, with no uppercase or extrabold', () => {
+    renderHeader({ title: 'Budgets' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Budgets' });
+    expect(heading).toHaveClass('text-xl', 'sm:text-2xl', 'font-semibold');
+    expect(heading).not.toHaveClass('font-extrabold');
+    expect(heading.className).not.toMatch(/uppercase/);
+  });
+
   it('shows the purpose line in the description slot', () => {
     renderHeader({ title: 'Budgets', purpose: 'Review approval requests awaiting your sign-off.' });
     const purpose = screen.getByText('Review approval requests awaiting your sign-off.');
     expect(purpose).toHaveClass('max-w-[75ch]', 'text-ink-muted-strong');
+  });
+
+  it('renders no lead when the page passes neither description nor purpose', () => {
+    const { container } = renderHeader({ title: 'Budgets' });
+    expect(container.querySelector('p')).toBeNull();
   });
 
   it('keeps a page-written description when purpose is also passed', () => {

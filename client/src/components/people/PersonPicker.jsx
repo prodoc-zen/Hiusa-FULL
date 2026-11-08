@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { Avatar, Button, Input } from '../ui';
-import FieldIcon from '../FieldIcon.jsx';
 import { searchPeople } from '../../services/peopleService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { visibleSchoolId } from '../../utils/schoolId';
@@ -117,7 +116,7 @@ export default function PersonPicker({
     return (
       <div className={`flex flex-col gap-1.5 ${className}`}>
         <span id={`${baseId}-label`} className={labelClass}>
-          <FieldIcon label={label} />
+          
           {label}
         </span>
         <div
@@ -144,7 +143,7 @@ export default function PersonPicker({
   return (
     <div className={`relative flex flex-col gap-1.5 ${className}`}>
       <label htmlFor={inputId} className={labelClass}>
-        <FieldIcon label={label} />
+        
         {label}
       </label>
       <div className="relative">

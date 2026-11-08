@@ -1,10 +1,10 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, ChevronDown, Compass, History, LogOut, Menu, MousePointerClick, Search, ShoppingCart, User } from 'lucide-react';
+import { Bell, Check, ChevronDown, History, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
-import { Kbd } from '../ui';
+import { Button, Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
 import { ROLE_LABELS } from './navigation';
 import { logout } from '../../services/authService';
@@ -124,7 +124,7 @@ export default function TopBar({ onMenuToggle }) {
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = organizationLabel(user);
-  const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
+  const showCart = role === 'STUDENT';
   const hasRecords = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER'].includes(role);
   const canPlanAhead = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'].includes(role);
   const { subAccount } = useActiveSubAccount();
@@ -180,7 +180,7 @@ export default function TopBar({ onMenuToggle }) {
   }, [loadNotifications]);
 
   useEffect(() => {
-    if (!canOrderMerchandise) {
+    if (!showCart) {
       return undefined;
     }
 
@@ -200,7 +200,7 @@ export default function TopBar({ onMenuToggle }) {
       window.removeEventListener('hiusa-cart-updated', onCartUpdate);
       window.removeEventListener('storage', onStorage);
     };
-  }, [canOrderMerchandise, loadCart]);
+  }, [showCart, loadCart]);
 
   async function handleMarkRead(id) {
     const wasUnread = notifications.some((notification) => notification.id === id && !notification.is_read);
@@ -287,415 +287,370 @@ export default function TopBar({ onMenuToggle }) {
   const cartTypeCount = cartItems.length;
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
+
+  const iconButton = 'relative grid h-11 w-11 place-items-center rounded-control text-ink-muted-strong transition-colors hover:bg-page hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 sm:w-10';
+  const countBadge = 'absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand-700 px-1 text-xs font-semibold text-white ring-2 ring-white';
+  const panelBase = 'fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 rounded-card border border-line bg-white shadow-raised sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:max-w-[calc(100vw-3rem)]';
+  const panelItem = 'flex w-full items-center gap-3 rounded-control px-3 py-2.5 text-left text-sm font-medium text-ink transition-colors hover:bg-page focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
+
   return (
-    <header ref={headerRef} className="relative z-30 mx-2 mt-2 min-w-0 shrink-0 rounded-2xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6 sm:rounded-3xl">
-      <div className="flex min-h-16 min-w-0 items-center gap-1.5 px-2 py-2 sm:gap-3 sm:px-6 sm:py-3">
-        {/* Hamburger toggle */}
-        <button
-          type="button"
-          aria-label="Open menu"
-          onClick={onMenuToggle}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7] lg:hidden"
-        >
-          <Menu size={19} />
-        </button>
-        <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
+    <header ref={headerRef} className="relative z-30 flex h-14 min-w-0 shrink-0 items-center gap-1.5 border-b border-line bg-white px-4 sm:gap-3 sm:px-6">
+      <button
+        type="button"
+        aria-label="Open menu"
+        onClick={onMenuToggle}
+        className={`${iconButton} lg:hidden`}
+      >
+        <Menu size={20} aria-hidden="true" />
+      </button>
+      <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
-        {(() => {
-          const currentDisplayPeriod = (canPlanAhead && viewingPeriod) || activeAcademicPeriod;
-          const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
-          const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
-          return (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5" data-tour="topbar-period" ref={periodRef}>
-              {currentDisplayPeriod?.academic_year?.label && (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setPeriodDropdownOpen((open) => !open)}
-                    aria-expanded={periodDropdownOpen}
-                    aria-haspopup="listbox"
-                    aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
-                    className={`inline-flex max-w-[140px] min-[420px]:max-w-[200px] min-[540px]:max-w-full items-center gap-1.5 sm:gap-2 truncate rounded-full border px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
-                      isAdvanceMode
-                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                        : isArchiveMode
-                        ? 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0878B7]/40 hover:bg-white'
-                    }`}
+      {(() => {
+        const currentDisplayPeriod = (canPlanAhead && viewingPeriod) || activeAcademicPeriod;
+        const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
+        const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
+        return (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2" ref={periodRef}>
+            {currentDisplayPeriod?.academic_year?.label && (
+              <div className="relative min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setPeriodDropdownOpen((open) => !open)}
+                  aria-expanded={periodDropdownOpen}
+                  aria-haspopup="listbox"
+                  aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
+                  className={`inline-flex h-11 max-w-full items-center gap-1.5 rounded-control border px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 ${
+                    isAdvanceMode
+                      ? 'border-warning/40 bg-warning-tint text-ink hover:bg-warning-tint'
+                      : isArchiveMode
+                      ? 'border-line bg-page text-ink-muted-strong hover:bg-line-soft'
+                      : 'border-line bg-white text-ink hover:bg-page'
+                  }`}
+                >
+                  <span className="truncate sm:hidden">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'}</span>
+                  <span className="hidden truncate sm:inline">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                  {isAdvanceMode && <span className="hidden text-xs font-semibold text-warning-strong min-[480px]:inline">Planning</span>}
+                  {isArchiveMode && <span className="hidden text-xs font-semibold text-ink-muted-strong min-[480px]:inline">Archive</span>}
+                  <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${periodDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {periodDropdownOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Academic Periods"
+                    className="absolute left-0 top-full z-50 mt-1.5 w-72 max-w-[calc(100vw-2rem)] rounded-card border border-line bg-white p-1 shadow-raised"
                   >
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        isAdvanceMode ? 'bg-amber-500' : isArchiveMode ? 'bg-slate-400' : 'bg-[#0878B7]'
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span className="truncate">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
-                    {isAdvanceMode && (
-                      <span className="hidden min-[480px]:inline rounded bg-amber-200 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase text-amber-900">
-                        Planning
-                      </span>
-                    )}
-                    {isArchiveMode && (
-                      <span className="hidden min-[480px]:inline rounded bg-slate-200 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase text-slate-700">
-                        Archive
-                      </span>
-                    )}
-                    <ChevronDown size={13} className={`text-slate-500 transition-transform duration-150 ${periodDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {periodDropdownOpen && (
-                    <div
-                      role="listbox"
-                      aria-label="Academic Periods"
-                      className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-[#DDE7EF] bg-white p-2 shadow-xl shadow-slate-200/60"
-                    >
-                      <div className="border-b border-[#DDE7EF] px-2.5 pb-2 pt-1">
-                        <p className="text-xs font-bold text-[#0F172A]">School year and semester</p>
-                        <p className="mt-0.5 text-xs font-medium text-slate-600">Pick an upcoming semester to plan ahead. Closed semesters are in Records.</p>
-                      </div>
-                      <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
-                        {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : []))
-                          .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords : canPlanAhead))
-                          .map((p) => {
-                          const isSelected = p.id === currentDisplayPeriod.id;
-                          const isLive = p.id === activeAcademicPeriod?.id;
-                          const isUpcoming = p.status === 'upcoming';
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => handleSelectPeriod(p)}
-                              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
-                                isSelected ? 'bg-[#EEF6FB] font-bold text-[#0878B7]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'
-                              }`}
-                            >
-                              <div>
-                                <p className="font-semibold text-[#0F172A]">AY {p.academic_year?.label} · {p.number === 1 ? '1st' : '2nd'} Semester</p>
-                                <p className="text-[10px] text-slate-500">
-                                  {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : 'Closed, open in Records'}
-                                </p>
-                              </div>
-                              {isSelected && <Check size={14} className="text-[#0878B7]" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {hasRecords && (
-                        <button
-                          type="button"
-                          onClick={() => { setPeriodDropdownOpen(false); navigate('/dashboard/records'); }}
-                          className="mt-1 flex min-h-11 w-full items-center gap-2 border-t border-[#DDE7EF] px-2.5 pt-2 text-left text-xs font-semibold text-[#0878B7] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"
-                        >
-                          <History size={14} aria-hidden="true" />
-                          Open records
-                        </button>
-                      )}
+                    <div className="border-b border-line px-3 pb-2 pt-1.5">
+                      <p className="text-sm font-semibold text-ink">School year and semester</p>
+                      <p className="mt-0.5 text-xs text-ink-muted">Pick an upcoming semester to plan ahead. Closed semesters are in Records.</p>
                     </div>
-                  )}
-                </div>
-              )}
-
-              <WorkspaceSwitcher workspaces={workspaces} role={role} onProfileChange={handleSwitchProfile} />
-              <button
-                type="button"
-                data-tour="topbar-tour-btn"
-                onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
-                className="hidden h-9 items-center gap-1.5 rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] transition-colors hover:border-[#0B8ED0] hover:bg-[#F8FBFD] md:inline-flex"
-              >
-                <MousePointerClick size={14} className="text-[#0878B7]" aria-hidden="true" />
-                <span>Interactive Tour</span>
-              </button>
-            </div>
-          );
-        })()}
-
-        <button
-          type="button"
-          onClick={() => setPaletteOpen(true)}
-          aria-label="Go to page"
-          aria-keyshortcuts="Control+K Meta+K"
-          className="hidden h-10 items-center justify-between gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-medium text-ink-muted transition-colors hover:border-[#0B8ED0]/40 hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px]"
-        >
-          <span className="flex items-center gap-2">
-            <Search size={16} aria-hidden="true" />
-            <span className="hidden md:inline">Go to page</span>
-          </span>
-          <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
-        </button>
-
-        {canOrderMerchandise && (
-          <div className="relative ml-auto sm:ml-0" ref={cartRef}>
-            <button
-              type="button"
-              aria-label="Cart"
-              aria-expanded={cartOpen}
-              aria-controls="topbar-cart-panel"
-              onClick={() => {
-                setCartOpen(!cartOpen);
-                setNotifOpen(false);
-                setProfileOpen(false);
-              }}
-              className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
-            >
-              <ShoppingCart size={17} />
-              {cartTypeCount > 0 && (
-                <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#0878B7] px-1 text-[10px] font-black text-white ring-2 ring-white">
-                  {cartTypeCount > 9 ? '9+' : cartTypeCount}
-                </span>
-              )}
-            </button>
-
-            {cartOpen && (
-              <div
-                id="topbar-cart-panel"
-                role="region"
-                aria-label="Cart summary"
-                className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-3rem)]"
-              >
-                <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
-                  <p className="text-sm font-bold text-[#0F172A]">Your Cart</p>
-                  <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-black text-[#0F2F62]">{cartTypeCount} item type{cartTypeCount === 1 ? '' : 's'}</span>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[300px]">
-                  {cartItems.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <ShoppingCart size={28} className="mx-auto mb-2 text-slate-200" />
-                      <p className="text-sm text-slate-500">Cart is empty</p>
+                    <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
+                      {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : []))
+                        .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords : canPlanAhead))
+                        .map((p) => {
+                        const isSelected = p.id === currentDisplayPeriod.id;
+                        const isLive = p.id === activeAcademicPeriod?.id;
+                        const isUpcoming = p.status === 'upcoming';
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleSelectPeriod(p)}
+                            className={`flex min-h-11 w-full items-center justify-between rounded-control px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+                              isSelected ? 'bg-brand-50' : 'hover:bg-page'
+                            }`}
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-ink">AY {p.academic_year?.label} · {p.number === 1 ? '1st' : '2nd'} Semester</p>
+                              <p className="text-xs text-ink-muted">
+                                {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : 'Closed, open in Records'}
+                              </p>
+                            </div>
+                            {isSelected && <Check size={16} aria-hidden="true" className="text-brand-700" />}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ) : (
-                    cartItems.map((row) => (
-                      <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] px-4 py-3 last:border-b-0">
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(row.item?.name) || 'Item'}</p>
-                          <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
-                        </div>
-                        <p className="text-xs font-black text-[#0F172A]">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="shrink-0 border-t border-[#DDE7EF] px-4 py-3">
-                  <p className="mb-2 text-xs font-bold text-slate-500">Total: <span className="text-[#0F172A]">{formatMoney(cartTotal)}</span></p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCartOpen(false);
-                      navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now() } });
-                    }}
-                    className="h-9 w-full rounded-lg bg-[#0878B7] text-xs font-bold text-white transition hover:bg-[#0F2F62]"
-                  >
-                    Open Cart
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Notification Bell */}
-        <div className={`relative ${canOrderMerchandise ? '' : 'ml-auto sm:ml-0'}`} ref={notifRef}>
-          <button
-            type="button"
-            aria-label="Notifications"
-            aria-expanded={notifOpen}
-            aria-controls="topbar-notifications-panel"
-            onClick={() => {
-              setNotifOpen(!notifOpen);
-              setSelectedNotification(null);
-              setProfileOpen(false);
-              setCartOpen(false);
-            }}
-            className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
-          >
-            <Bell size={17} />
-            {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#0878B7] px-1 text-[10px] font-black text-white ring-2 ring-white">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {notifOpen && (
-            <div
-              id="topbar-notifications-panel"
-              role="region"
-              aria-label="Notifications panel"
-              className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]"
-            >
-              <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
-                <p className="text-sm font-bold text-[#0F172A]">
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span className="ml-2 rounded-full bg-[#16C7F3]/15 px-2 py-0.5 text-[11px] font-black text-[#0878B7]">{unreadCount} new</span>
-                  )}
-                </p>
-                {unreadCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleMarkAllRead}
-                    className="text-xs font-bold text-[#0878B7] hover:underline"
-                  >
-                    Mark all as read
-                  </button>
-                )}
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[340px]">
-                {selectedNotification ? (
-                  <div className="p-4">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedNotification(null)}
-                      className="mb-3 text-xs font-bold text-[#0878B7] hover:underline"
-                    >
-                      Back to notifications
-                    </button>
-                    <p className="text-sm font-black text-[#0F172A]">{formatDisplayText(selectedNotification.title)}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{selectedNotification.message}</p>
-                    <p className="mt-3 text-[11px] font-medium text-slate-300">{timeAgo(selectedNotification.created_at)}</p>
-                    {getNotificationDestination(selectedNotification, user?.role) && (
+                    {hasRecords && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setNotifOpen(false);
-                          setSelectedNotification(null);
-                          navigate(getNotificationDestination(selectedNotification, user?.role));
-                        }}
-                        className="mt-4 h-9 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]"
+                        onClick={() => { setPeriodDropdownOpen(false); navigate('/dashboard/records'); }}
+                        className="mt-1 flex min-h-11 w-full items-center gap-2 border-t border-line px-3 pt-2 text-left text-sm font-medium text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                       >
-                        Open related record
+                        <History size={16} aria-hidden="true" />
+                        Open records
                       </button>
                     )}
                   </div>
-                ) : recent5.length === 0 ? (
-                  <div className="py-10 text-center">
-                    <Bell size={28} className="mx-auto mb-2 text-slate-200" />
-                    <p className="text-sm text-slate-500">No notifications yet</p>
-                  </div>
+                )}
+              </div>
+            )}
+
+            <WorkspaceSwitcher workspaces={workspaces} role={role} onProfileChange={handleSwitchProfile} />
+          </div>
+        );
+      })()}
+
+      <button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        aria-label="Go to page"
+        aria-keyshortcuts="Control+K Meta+K"
+        className="hidden h-10 items-center justify-between gap-3 rounded-control border border-line bg-white px-3 text-sm text-ink-muted transition-colors hover:bg-page hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px]"
+      >
+        <span className="flex items-center gap-2">
+          <Search size={16} aria-hidden="true" />
+          <span className="hidden md:inline">Go to page</span>
+        </span>
+        <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
+      </button>
+
+      {showCart && (
+        <div className="relative" ref={cartRef}>
+          <button
+            type="button"
+            aria-label="Cart"
+            aria-expanded={cartOpen}
+            aria-controls="topbar-cart-panel"
+            onClick={() => {
+              setCartOpen(!cartOpen);
+              setNotifOpen(false);
+              setProfileOpen(false);
+            }}
+            className={iconButton}
+          >
+            <ShoppingCart size={18} aria-hidden="true" />
+            {cartTypeCount > 0 && <span className={countBadge}>{cartTypeCount > 9 ? '9+' : cartTypeCount}</span>}
+          </button>
+
+          {cartOpen && (
+            <div
+              id="topbar-cart-panel"
+              role="region"
+              aria-label="Cart summary"
+              className={`${panelBase} flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden sm:w-96`}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
+                <p className="text-sm font-semibold text-ink">Your cart</p>
+                <span className="text-xs text-ink-muted">{cartTypeCount} item type{cartTypeCount === 1 ? '' : 's'}</span>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[300px]">
+                {cartItems.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-ink-muted">Your cart is empty.</p>
                 ) : (
-                  recent5.map((n) => {
-                    const Icon = notificationIcon(n);
-                    return (
+                  cartItems.map((row) => (
+                    <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{formatDisplayText(row.item?.name) || 'Item'}</p>
+                        <p className="text-xs text-ink-muted">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
+                      </div>
+                      <p className="text-sm font-medium tabular-nums text-ink">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="shrink-0 border-t border-line px-4 py-3">
+                <p className="mb-2 text-sm text-ink-muted">Total: <span className="font-medium tabular-nums text-ink">{formatMoney(cartTotal)}</span></p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    setCartOpen(false);
+                    navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now() } });
+                  }}
+                >
+                  Open cart
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notification Bell */}
+      <div className="relative" ref={notifRef}>
+        <button
+          type="button"
+          aria-label="Notifications"
+          aria-expanded={notifOpen}
+          aria-controls="topbar-notifications-panel"
+          onClick={() => {
+            setNotifOpen(!notifOpen);
+            setSelectedNotification(null);
+            setProfileOpen(false);
+            setCartOpen(false);
+          }}
+          className={iconButton}
+        >
+          <Bell size={18} aria-hidden="true" />
+          {unreadCount > 0 && <span className={countBadge}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        </button>
+
+        {notifOpen && (
+          <div
+            id="topbar-notifications-panel"
+            role="region"
+            aria-label="Notifications panel"
+            className={`${panelBase} flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden sm:w-80`}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
+              <p className="text-sm font-semibold text-ink">
+                Notifications
+                {unreadCount > 0 && <span className="ml-2 text-xs font-medium text-brand-800">{unreadCount} new</span>}
+              </p>
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="min-h-11 text-xs font-medium text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                >
+                  Mark all as read
+                </button>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[340px]">
+              {selectedNotification ? (
+                <div className="p-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedNotification(null)}
+                    className="mb-3 min-h-11 text-xs font-medium text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  >
+                    Back to notifications
+                  </button>
+                  <p className="text-sm font-semibold text-ink">{formatDisplayText(selectedNotification.title)}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-ink-muted-strong">{selectedNotification.message}</p>
+                  <p className="mt-3 text-xs text-ink-muted">{timeAgo(selectedNotification.created_at)}</p>
+                  {getNotificationDestination(selectedNotification, user?.role) && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => {
+                        setNotifOpen(false);
+                        setSelectedNotification(null);
+                        navigate(getNotificationDestination(selectedNotification, user?.role));
+                      }}
+                    >
+                      Open related record
+                    </Button>
+                  )}
+                </div>
+              ) : recent5.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-ink-muted">No notifications yet.</p>
+              ) : (
+                recent5.map((n) => {
+                  const Icon = notificationIcon(n);
+                  return (
                     <button
                       key={n.id}
                       type="button"
                       onClick={() => handleNotificationClick(n)}
-                      className={`flex w-full items-start gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${notificationAppearance(n).row}`}
+                      className={`flex w-full items-start gap-3 border-b border-line-soft px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-page ${n.is_read ? '' : 'bg-brand-50'}`}
                     >
                       <Icon size={18} className={`mt-0.5 shrink-0 ${notificationAppearance(n).icon}`} aria-hidden="true" />
                       <div className="min-w-0 flex-1">
-                        <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{formatDisplayText(n.title)}</p>
-                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.message}</p>
-                        <p className="mt-1 text-[11px] font-medium text-slate-300">{timeAgo(n.created_at)}</p>
+                        <p className={`truncate text-sm ${n.is_read ? 'font-normal text-ink-muted-strong' : 'font-semibold text-ink'}`}>{formatDisplayText(n.title)}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-ink-muted-strong">{n.message}</p>
+                        <p className="mt-1 text-xs text-ink-muted">{timeAgo(n.created_at)}</p>
                       </div>
                     </button>
-                  ); })
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Profile dropdown */}
-        <div className="relative" ref={profileRef}>
-          <button
-            type="button"
-            ref={profileTriggerRef}
-            aria-label={`Account menu for ${fullName}`}
-            aria-expanded={profileOpen}
-            aria-controls="topbar-profile-panel"
-            onClick={() => {
-              setProfileOpen(!profileOpen);
-              if (!profileOpen && !workspaces.error && !workspaces.loading) workspaces.reload({ quiet: true });
-              setNotifOpen(false);
-              setCartOpen(false);
-            }}
-            className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#F8FBFD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"
-          >
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
-              {initials}
-            </div>
-            <div className="hidden min-w-0 max-w-[min(12rem,25vw)] text-left sm:block">
-              <p className="truncate text-[13px] font-bold text-[#0F172A]" title={fullName}>{fullName}</p>
-              {role === 'DEPARTMENT_HEAD' ? (
-                <div title={`${organizationName} · ${roleLabel}`}>
-                  <p className="break-words text-[11px] font-medium leading-tight text-slate-600">{organizationName}</p>
-                  <p className="text-[11px] font-semibold leading-tight text-[#0878B7]">{roleLabel}</p>
-                </div>
-              ) : (
-                <p className="max-w-40 truncate text-[11px] font-medium text-slate-600" title={`${organizationName} · ${roleLabel}`}>{organizationName} · {roleLabel}</p>
+                  );
+                })
               )}
             </div>
-            <ChevronDown size={14} className={`text-slate-600 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
-          </button>
+          </div>
+        )}
+      </div>
 
-          {profileOpen && (
-            <div id="topbar-profile-panel" role="region" aria-label="Account and profiles" className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
-              <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
-                <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
-                <p className="break-all text-xs font-medium text-slate-500">{user?.email || ''}</p>
-                {role === 'DEPARTMENT_HEAD' && <p className="mt-1 text-xs font-semibold text-[#0878B7] sm:hidden">{organizationName} · {roleLabel}</p>}
+      {/* Profile dropdown */}
+      <div className="relative" ref={profileRef}>
+        <button
+          type="button"
+          ref={profileTriggerRef}
+          aria-label={`Account menu for ${fullName}`}
+          aria-expanded={profileOpen}
+          aria-controls="topbar-profile-panel"
+          onClick={() => {
+            setProfileOpen(!profileOpen);
+            if (!profileOpen && !workspaces.error && !workspaces.loading) workspaces.reload({ quiet: true });
+            setNotifOpen(false);
+            setCartOpen(false);
+          }}
+          className="flex h-11 items-center gap-2 rounded-control px-1.5 transition-colors hover:bg-page focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:px-2"
+        >
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">
+            {initials}
+          </div>
+          <div className="hidden min-w-0 max-w-[min(12rem,25vw)] text-left sm:block">
+            <p className="truncate text-sm font-semibold text-ink" title={fullName}>{fullName}</p>
+            {role === 'DEPARTMENT_HEAD' ? (
+              <div title={`${organizationName} · ${roleLabel}`}>
+                <p className="break-words text-xs leading-tight text-ink-muted-strong">{organizationName}</p>
+                <p className="text-xs font-medium leading-tight text-brand-800">{roleLabel}</p>
               </div>
-              <section aria-label="Profiles" className="border-b border-[#DDE7EF] px-2 pb-2">
-                <div className="flex items-center justify-between px-1 pb-1">
-                  <h2 className="text-xs font-bold text-[#0F172A]">Profiles</h2>
-                  {availableProfiles.length > 1 && <span className="text-xs text-slate-600">Switch profile</span>}
-                </div>
-                {profileLoading ? <p role="status" className="px-2 py-3 text-xs text-slate-600">Loading profiles…</p> : profileError ? <div className="px-2 py-2"><p role="alert" className="text-xs text-red-700">{profileError}</p><button type="button" onClick={() => workspaces.reload()} className="mt-2 min-h-11 text-xs font-semibold text-[#0878B7] underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Try again</button></div> : availableProfiles.length === 0 ? <p className="px-2 py-3 text-xs text-slate-600">No active profiles available.</p> : <div className="space-y-1">
-                  {availableProfiles.map((profile) => {
-                    const current = profile.id === (activeProfileId ?? user?.active_profile_id);
-                    return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-default ${current ? 'bg-[#EEF6FB]' : 'hover:bg-[#F8FBFD] active:bg-[#EEF6FB]'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
-                      <span aria-hidden="true" className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold ${current ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{(profile.organization?.acronym || profile.organization?.name || '?').slice(0, 2).toUpperCase()}</span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-slate-600">{profile.organization?.organization_type === 'COLLEGE' ? 'College profile' : 'Organization profile'} · {ROLE_LABELS[profile.role] || profile.role}</span></span>
-                      {current && <span className="text-xs font-semibold text-[#0F2F62]">Current</span>}
-                    </button>;
-                  })}
-                  {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-slate-600">{availableProfiles[0].organization?.organization_type === 'COLLEGE' ? 'Your college dashboard is available without an organization membership. If an organization adds you, its profile will appear here.' : 'This is your only active profile. Other profiles appear here when an organization adds you.'}</p>}
-                </div>}
-                {switchingProfile && <p role="status" className="px-2 py-2 text-xs text-slate-600">Switching profile…</p>}
-              </section>
-              <button
-                type="button"
-                onClick={() => { setProfileOpen(false); navigate('/dashboard/profile'); }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
-              >
-                <User size={16} />
-                View Profile
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileOpen(false);
-                  window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'));
-                }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
-              >
-                <Compass size={16} className="text-[#0878B7]" />
-                System Walkthrough & Tour
-              </button>
-              <div className="my-1.5 border-t border-[#DDE7EF]" />
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileOpen(false);
-                  setLogoutConfirmOpen(true);
-                }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-red-500 transition hover:bg-red-50"
-              >
-                <LogOut size={16} />
-                Logout
-              </button>
+            ) : (
+              <p className="max-w-40 truncate text-xs text-ink-muted-strong" title={`${organizationName} · ${roleLabel}`}>{organizationName} · {roleLabel}</p>
+            )}
+          </div>
+          <ChevronDown size={14} aria-hidden="true" className={`hidden text-ink-muted transition-transform motion-reduce:transition-none sm:block ${profileOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {profileOpen && (
+          <div id="topbar-profile-panel" role="region" aria-label="Account and profiles" className={`${panelBase} max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] overflow-y-auto p-1 sm:w-80`}>
+            <div className="mb-1 border-b border-line px-3 py-3">
+              <p className="text-sm font-semibold text-ink">{fullName}</p>
+              <p className="break-all text-xs text-ink-muted-strong">{user?.email || ''}</p>
+              {role === 'DEPARTMENT_HEAD' && <p className="mt-1 text-xs font-medium text-brand-800 sm:hidden">{organizationName} · {roleLabel}</p>}
             </div>
-          )}
-        </div>
+            <section aria-label="Profiles" className="border-b border-line px-1 pb-2">
+              <div className="flex items-center justify-between px-2 pb-1">
+                <h2 className="text-xs font-medium text-ink-muted-strong">Profiles</h2>
+                {availableProfiles.length > 1 && <span className="text-xs text-ink-muted-strong">Switch profile</span>}
+              </div>
+              {profileLoading ? <p role="status" className="px-2 py-3 text-xs text-ink-muted-strong">Loading profiles…</p> : profileError ? <div className="px-2 py-2"><p role="alert" className="text-xs text-danger-strong">{profileError}</p><button type="button" onClick={() => workspaces.reload()} className="mt-2 min-h-11 text-xs font-medium text-brand-800 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Try again</button></div> : availableProfiles.length === 0 ? <p className="px-2 py-3 text-xs text-ink-muted-strong">No active profiles available.</p> : <div className="space-y-0.5">
+                {availableProfiles.map((profile) => {
+                  const current = profile.id === (activeProfileId ?? user?.active_profile_id);
+                  return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-12 w-full items-center gap-3 rounded-control px-2 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-default ${current ? 'bg-brand-50' : 'hover:bg-page'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-ink-muted">{profile.organization?.organization_type === 'COLLEGE' ? 'College profile' : 'Organization profile'} · {ROLE_LABELS[profile.role] || profile.role}</span></span>
+                    {current && <span className="text-xs font-medium text-ink-muted-strong">Current</span>}
+                  </button>;
+                })}
+                {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-ink-muted-strong">{availableProfiles[0].organization?.organization_type === 'COLLEGE' ? 'Your college dashboard is available without an organization membership. If an organization adds you, its profile will appear here.' : 'This is your only active profile. Other profiles appear here when an organization adds you.'}</p>}
+              </div>}
+              {switchingProfile && <p role="status" className="px-2 py-2 text-xs text-ink-muted-strong">Switching profile…</p>}
+            </section>
+            <button
+              type="button"
+              onClick={() => { setProfileOpen(false); navigate('/dashboard/profile'); }}
+              className={panelItem}
+            >
+              <User size={16} aria-hidden="true" />
+              View profile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProfileOpen(false);
+                setLogoutConfirmOpen(true);
+              }}
+              className={panelItem}
+            >
+              <LogOut size={16} aria-hidden="true" />
+              Log out
+            </button>
+          </div>
+        )}
       </div>
       <ConfirmModal
         open={logoutConfirmOpen}
-        title="Log Out"
+        title="Log out"
         message="You will need to sign in again to access your dashboard."
-        confirmText="Log Out"
+        confirmText="Log out"
         variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
