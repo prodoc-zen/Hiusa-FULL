@@ -157,6 +157,22 @@ class OrgAccessGrantTest extends TestCase
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
     }
 
+    public function test_office_staff_cannot_name_an_org_head_or_officer_in_a_student_organization_of_the_college(): void
+    {
+        $this->computingOrg->update(['parent_organization_id' => $this->computingHome->id]);
+        $staff = User::factory()->admin()->create(['organization_id' => $this->computingHome->id]);
+        $student = $this->homeStudent();
+        SboPosition::create(['organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'title' => 'President', 'is_active' => true]);
+
+        foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
+            $this->grant($staff, [
+                'school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id,
+                'role' => $role, 'position_title' => $role === 'ADMIN' ? 'President' : null,
+            ])->assertNotFound();
+        }
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
+    }
+
     public function test_the_org_head_cannot_grant_in_another_organization(): void
     {
         $head = $this->orgHead($this->computingOrg);
@@ -216,20 +232,38 @@ class OrgAccessGrantTest extends TestCase
         $this->assertSame(1, Notification::where('user_id', $student->school_id)->count());
     }
 
-    public function test_an_officer_is_blocked_from_modules_that_were_not_ticked(): void
+    public function test_an_officer_is_blocked_from_management_modules_that_were_not_ticked(): void
     {
         $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
         $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['events']]);
         Sanctum::actingAs($officer);
 
         $this->getJson('/api/events')->assertSuccessful();
-        $this->getJson('/api/tasks')->assertForbidden();
         $this->getJson('/api/budgets')->assertForbidden();
         $this->getJson('/api/orders')->assertForbidden();
-        $this->getJson('/api/elections')->assertForbidden();
-        $this->getJson('/api/announcements')->assertForbidden();
+        $this->postJson('/api/tasks', [])->assertForbidden();
+        $this->postJson('/api/announcements', [])->assertForbidden();
+        $this->postJson('/api/elections', [])->assertForbidden();
+        $this->getJson('/api/elections/1/voters')->assertForbidden();
+        $this->postJson('/api/merchandise', [])->assertForbidden();
         $this->getJson('/api/users')->assertForbidden();
         $this->getJson('/api/compliance/status')->assertForbidden();
+    }
+
+    public function test_an_officer_without_modules_keeps_their_rights_as_an_ordinary_member(): void
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['events']]);
+        Sanctum::actingAs($officer);
+
+        $this->getJson('/api/elections')->assertSuccessful();
+        $this->getJson('/api/announcements')->assertSuccessful();
+        $this->getJson('/api/merchandise')->assertSuccessful();
+        $this->getJson('/api/orders?mine=1')->assertSuccessful();
+        $this->getJson('/api/tasks')->assertSuccessful();
+        $this->assertNotSame(403, $this->postJson('/api/elections/999999/vote', [])->getStatusCode());
+        $this->assertNotSame(403, $this->postJson('/api/orders', [])->getStatusCode());
+        $this->assertNotSame(403, $this->patchJson('/api/tasks/999999/status', ['status' => 'completed'])->getStatusCode());
     }
 
     public function test_an_officer_with_all_modules_and_an_org_head_are_never_blocked(): void

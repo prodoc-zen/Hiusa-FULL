@@ -152,7 +152,7 @@ describe('SystemAdminsPage', () => {
       serviceMocks.getSystemAdmins.mockResolvedValue({ data: [profile({ profile_id: 501 })] });
       renderPage();
 
-      expect(await menuLabels()).toEqual(['Add to organization', 'Manage profiles', 'Hand over role', 'Reset access', 'Edit administrator', 'Delete administrator']);
+      expect(await menuLabels()).toEqual(['Add to organization', 'Manage profiles', 'Reset access', 'Edit administrator', 'Delete administrator']);
       expect(screen.queryByText('Added through a profile')).not.toBeInTheDocument();
     });
 

@@ -2,7 +2,7 @@
 
 This is the checklist for the server that already holds real data (the Lightsail instance in LIGHTSAIL_DEPLOYMENT_AND_MAINTENANCE.md). It does not repeat the general update commands; those live in section 2 of that guide ("Pull a GitHub update"). This page adds what is specific to this release: what changes in the data, what to back up, how to rehearse, which extra commands to run, how to check the result and how to go back.
 
-Nothing deploys by itself when code is pushed to GitHub. Someone with SSH access to the server runs these steps.
+Pushing to GitHub deploys automatically only once the steps in AUTO_DEPLOY.md are done: after Tests pass on main, the Deploy workflow runs the same update on the server. Until then, someone with SSH access to the server runs these steps.
 
 ## 1. What this release changes in the data
 

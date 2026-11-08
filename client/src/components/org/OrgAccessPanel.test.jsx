@@ -58,6 +58,14 @@ describe('OrgAccessPanel', () => {
     expect(mocks.getManagedAccountProfiles).toHaveBeenCalledWith({ organization_id: 5, per_page: 20, page: 1 });
   });
 
+  it('shows only the email for an internal account number', async () => {
+    mocks.getManagedAccountProfiles.mockResolvedValue(envelope([{ ...JUAN, school_id: 95000002 }]));
+    renderPanel();
+
+    expect(await screen.findAllByText('juan@example.edu')).not.toHaveLength(0);
+    expect(screen.queryByText(/95000002/)).not.toBeInTheDocument();
+  });
+
   it('shows a plain empty state and offers to give access', async () => {
     mocks.getManagedAccountProfiles.mockResolvedValue(envelope([]));
     renderPanel();

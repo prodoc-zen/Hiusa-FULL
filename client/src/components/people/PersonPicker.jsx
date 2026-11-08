@@ -4,6 +4,7 @@ import { Avatar, Button, Input } from '../ui';
 import FieldIcon from '../FieldIcon.jsx';
 import { searchPeople } from '../../services/peopleService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { visibleSchoolId } from '../../utils/schoolId';
 
 const DEBOUNCE_MS = 250;
 const MIN_CHARS = 2;
@@ -206,7 +207,7 @@ export default function PersonPicker({
               <p className="truncate text-sm font-bold text-ink">{person.name}</p>
               <p className="truncate text-xs font-medium text-ink-muted">{detail(person)}</p>
             </div>
-            <span className="shrink-0 text-[11px] font-medium text-ink-soft">{person.school_id}</span>
+            {visibleSchoolId(person.school_id) !== null && <span className="shrink-0 text-[11px] font-medium text-ink-soft">{visibleSchoolId(person.school_id)}</span>}
           </div>
         ))}
       </div>

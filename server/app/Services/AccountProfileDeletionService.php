@@ -19,6 +19,9 @@ class AccountProfileDeletionService
             $isCollegeHead = Organization::whereKey($actor->organization_id)->where('organization_type', 'COLLEGE')->exists();
             $query->whereIn('id', $isCollegeHead ? $actor->scopedOrganizationIds() : []);
         } elseif ($actor->role !== 'SUPER_ADMIN') {
+            if (Organization::whereKey($actor->organization_id)->where('organization_type', 'COLLEGE')->exists()) {
+                return $query->whereIn('id', []);
+            }
             $college = Organization::whereKey($actor->organization_id)->value('college');
             $query->where('college', $college)->where(fn ($query) => $query
                 ->where('id', $actor->organization_id)->orWhere('parent_organization_id', $actor->organization_id));

@@ -135,6 +135,16 @@ class CollegeOrganizationController extends Controller
                 ]);
             }
 
+            $inCollege = $existing->accountProfiles()
+                ->where('account_status', 'active')
+                ->whereHas('organization', fn ($organization) => $organization->where('college_id', $college->id))
+                ->exists();
+            if (! $inCollege) {
+                throw ValidationException::withMessages([
+                    'school_id' => ['Pick someone from your own college. People from another college cannot join your office.'],
+                ]);
+            }
+
             if ($existing->accountProfiles()->where('organization_id', $home->id)->exists() || (int) $existing->getRawOriginal('organization_id') === (int) $home->id) {
                 throw ValidationException::withMessages([
                     'school_id' => ['This person is already on the college office staff.'],
