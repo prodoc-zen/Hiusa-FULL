@@ -48,6 +48,13 @@ const STATUS_MAP = {
   paid: { tone: 'success', label: 'Paid' },
   claimed: { tone: 'success', label: 'Claimed' },
   unclaimed: { tone: 'neutral', label: 'Unclaimed' },
+
+  // Student records import preview
+  new: { tone: 'info', label: 'New' },
+  update: { tone: 'warning', label: 'Update' },
+  unchanged: { tone: 'neutral', label: 'No change' },
+  invalid: { tone: 'danger', label: 'Invalid' },
+  duplicate: { tone: 'danger', label: 'Duplicate' },
   purchased: { tone: 'success', label: 'Purchased' },
   not_purchased: { tone: 'neutral', label: 'Not Purchased' },
   cancelled: { tone: 'danger', label: 'Cancelled' },

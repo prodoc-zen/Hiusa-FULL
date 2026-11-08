@@ -61,4 +61,11 @@ return [
         'announcement_daily_limit' => env('ANNOUNCEMENT_AI_DAILY_LIMIT', 20),
     ],
 
+    'edp' => [
+        'driver' => env('EDP_DRIVER', 'local'),
+        'url' => env('EDP_URL'),
+        'key' => env('EDP_KEY'),
+        'timeout' => (int) env('EDP_TIMEOUT', 5),
+    ],
+
 ];
