@@ -94,6 +94,7 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             { label: `Edit ${name}`, icon: Pencil, onClick: () => onEdit(college) },
             { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
             college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
+            college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
             college.is_active && !headIsActive && { label: `Assign Department Head to ${name}`, icon: UserPlus, onClick: () => onAssign(college) },
             { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
             { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },

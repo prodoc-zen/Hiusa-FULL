@@ -691,8 +691,25 @@ export default function CollegeOrganizationsPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const counts = useMemo(() => state.organizations.reduce((totals, organization) => ({ ...totals, [organization.lifecycle_status]: (totals[organization.lifecycle_status] || 0) + 1 }), {}), [state.organizations]);
-  const rows = useMemo(() => (tab === 'all' ? state.organizations : state.organizations.filter((organization) => organization.lifecycle_status === tab)), [state.organizations, tab]);
+  const [subAccountId, setSubAccountId] = useState(() => {
+    try {
+      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
+      return sub?.id ? Number(sub.id) : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    const onSubAccountSwitched = (event) => {
+      const org = event?.detail;
+      setSubAccountId(org?.id ? Number(org.id) : null);
+    };
+    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+  }, []);
+  const scopedOrganizations = useMemo(() => (subAccountId ? state.organizations.filter((organization) => Number(organization.id) === subAccountId) : state.organizations), [state.organizations, subAccountId]);
+  const counts = useMemo(() => scopedOrganizations.reduce((totals, organization) => ({ ...totals, [organization.lifecycle_status]: (totals[organization.lifecycle_status] || 0) + 1 }), {}), [scopedOrganizations]);
+  const rows = useMemo(() => (tab === 'all' ? scopedOrganizations : scopedOrganizations.filter((organization) => organization.lifecycle_status === tab)), [scopedOrganizations, tab]);
   const detailsTarget = recordId ? state.organizations.find((organization) => String(organization.id) === recordId) ?? null : null;
   if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
   const shownDetails = detailsTarget ?? lastDetails;

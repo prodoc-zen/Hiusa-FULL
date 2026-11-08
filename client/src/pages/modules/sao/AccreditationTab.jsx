@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bell, Check, Eye, FileText, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
 import ComplianceReminderModal from './ComplianceReminderModal';
@@ -22,7 +22,23 @@ function orgPendingCount(org) {
 
 export default function AccreditationTab({ title = 'Organization accreditation', overview, onRetry, onReviewOrganization, onChanged, role = 'SUPER_ADMIN' }) {
   const [search, setSearch] = useState('');
-  const rows = useMemo(() => [...overview.organizations].sort((a, b) => String(a.organization_name).localeCompare(String(b.organization_name)) || a.organization_id - b.organization_id).filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search]);
+  const [subAccountId, setSubAccountId] = useState(() => {
+    try {
+      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
+      return sub?.id ? Number(sub.id) : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    const onSubAccountSwitched = (event) => {
+      const org = event?.detail;
+      setSubAccountId(org?.id ? Number(org.id) : null);
+    };
+    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+  }, []);
+  const rows = useMemo(() => [...overview.organizations].sort((a, b) => String(a.organization_name).localeCompare(String(b.organization_name)) || a.organization_id - b.organization_id).filter((org) => (!subAccountId || Number(org.organization_id) === subAccountId) && org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search, subAccountId]);
   const [selectedId, setSelectedId] = useState(null);
   const [reminder, setReminder] = useState(null);
   const [fileComments, setFileComments] = useState({});
