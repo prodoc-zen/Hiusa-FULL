@@ -12,6 +12,7 @@ import { RoleBriefing } from '../../../components/dashboard';
 import { Button, EmptyState } from '../../../components/ui';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
+import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -95,13 +96,8 @@ export default function DepartmentHeadHomePage() {
   const stat = (val) => loading ? '-' : val;
 
   const college = headCollegeName(storedUser());
-  let activeSubId = null;
-  try {
-    const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
-    activeSubId = sub?.id ? String(sub.id) : null;
-  } catch {
-    activeSubId = null;
-  }
+  const { subAccountId } = useActiveSubAccount();
+  const activeSubId = subAccountId ? String(subAccountId) : null;
   const scopedOrganizations = activeSubId ? data.organizations.filter((o) => String(o.id) === activeSubId) : data.organizations;
   const organizationCount = (status) => scopedOrganizations.filter((o) => o.lifecycle_status === status).length;
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import CollegeOrganizationsPage from './CollegeOrganizationsPage';
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: vi.fn() }));
+
+function LocationProbe() {
+  return <output data-testid="route">{useLocation().pathname}</output>;
+}
 
 const mockStaff = [
   {
@@ -152,10 +156,11 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     });
   });
 
-  it('provides Oversee Sub-Account action in the organization row', async () => {
+  it('opens the organization space from the organization row', async () => {
     render(
       <MemoryRouter>
         <CollegeOrganizationsPage />
+        <LocationProbe />
       </MemoryRouter>
     );
 
@@ -163,11 +168,12 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     const actionsBtn = (await screen.findAllByRole('button', { name: /Actions for Philippine IT Society/i }))[0];
     fireEvent.click(actionsBtn);
 
-    const overseeBtn = await screen.findByRole('menuitem', { name: /Oversee Sub-Account/i });
+    const overseeBtn = await screen.findByRole('menuitem', { name: /Open organization space/i });
     expect(overseeBtn).toBeInTheDocument();
 
     fireEvent.click(overseeBtn);
 
     expect(sessionStorage.getItem('hiusa_active_subaccount')).toContain('Philippine IT Society');
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/department-head/org/1');
   });
 });

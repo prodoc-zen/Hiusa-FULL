@@ -151,6 +151,7 @@ return [
         '/dashboard/department-head/approvals',
         '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',
+        '/dashboard/department-head/org/:orgId',
         '/dashboard/department-head/documents',
         '/dashboard/department-head/compliance',
         '/dashboard/clearances',
