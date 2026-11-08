@@ -130,6 +130,7 @@ const NAV_BY_ROLE = {
     { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+    { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
     { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
     { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'] },
     { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },

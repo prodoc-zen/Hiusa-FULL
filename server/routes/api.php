@@ -15,6 +15,7 @@ use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\CollegeController;
 use App\Http\Controllers\DepartmentHeadInvitationController;
 use App\Http\Controllers\CollegeOrganizationController;
+use App\Http\Controllers\CollegePeopleController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ComplianceReminderController;
 use App\Http\Controllers\DashboardBriefingController;
@@ -191,6 +192,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/people', [CollegePeopleController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/staff', [CollegeOrganizationController::class, 'staff'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff/invitations', [DepartmentHeadInvitationController::class, 'inviteStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff', [CollegeOrganizationController::class, 'storeStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);

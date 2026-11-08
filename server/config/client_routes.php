@@ -152,6 +152,7 @@ return [
         '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',
         '/dashboard/department-head/org/:orgId',
+        '/dashboard/department-head/people',
         '/dashboard/department-head/documents',
         '/dashboard/department-head/compliance',
         '/dashboard/clearances',

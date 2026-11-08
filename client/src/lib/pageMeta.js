@@ -67,6 +67,7 @@ const PAGE_META = {
   '/dashboard/department-head/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/org/:orgId': { title: 'Organization', purpose: 'Work inside one student organization of your college.', group: 'Organizations', parents: [] },
   '/dashboard/department-head/organizations': { title: 'Organizations', purpose: 'Review the student organizations in your college.' },
+  '/dashboard/department-head/people': { title: 'People', purpose: 'See the students, office staff and organization leaders in your college.' },
   '/dashboard/department-head/documents': { title: 'College files', purpose: 'Search organization folders and open submitted files from your college.' },
   '/dashboard/department-head/compliance': { title: 'College compliance', purpose: 'Track organization requirements and send reminders to members and college reviewers.' },
   '/dashboard/records': { title: 'Records', purpose: 'Look back at a past school year: officers, files, events and elections, as they were.', group: 'Records', byRole: { DEPARTMENT_HEAD: { group: null }, SBO_OFFICER: { group: null }, SUPER_ADMIN: { group: 'Setup and records' } } },

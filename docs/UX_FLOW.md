@@ -267,6 +267,7 @@ Format: group (band): children in order, each `Label  route`.
 - Dashboard `/dashboard/department-head`
 - Approvals `/dashboard/department-head/approvals` (the one route; `/dashboard/approvals` redirects here for this role)
 - Organizations `/dashboard/department-head/organizations`
+- People `/dashboard/department-head/people` (students, office staff, organization leaders; works with zero organizations)
 - Submitted files `/dashboard/submitted-files`
 - College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 

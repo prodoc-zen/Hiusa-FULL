@@ -85,6 +85,7 @@ const SPEC = {
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
+    { label: 'People', path: '/dashboard/department-head/people' },
     { label: 'College files', path: '/dashboard/department-head/documents' },
     { label: 'Records', path: '/dashboard/records' },
     { label: 'College compliance', path: '/dashboard/department-head/compliance' },
