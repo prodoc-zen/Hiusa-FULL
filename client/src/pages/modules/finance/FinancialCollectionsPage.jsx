@@ -141,16 +141,14 @@ export default function FinancialCollectionsPage() {
       </dl>
     )}
     <section aria-labelledby="collection-records-title">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="collection-records-title" className="text-base font-semibold text-ink">Collections</h2>
-        <label className="text-[13px] font-medium text-ink">
-          Status
-          <Select filter value={filter} onChange={(event) => setFilter(event.target.value)} className="mt-1.5 w-48 max-w-full">
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="verified">Verified</option>
-          </Select>
-        </label>
+        <label htmlFor="collection-status" className="sr-only">Status</label>
+        <Select filter id="collection-status" value={filter} onChange={(event) => setFilter(event.target.value)} className="w-44 max-w-[55%]">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="verified">Verified</option>
+        </Select>
       </div>
       <DataTable
         caption="Collection records"

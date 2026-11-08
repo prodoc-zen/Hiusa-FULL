@@ -46,7 +46,8 @@ function SectionCountFields({ form, setForm }) {
 
 export default function ManageAcademicStructurePage() {
   const [structure, setStructure] = useState({ department: '', programs: [] });
-  const [form, setForm] = useState(emptyForm());
+  // One drawer adds and edits: `editing` is the program being edited, or null while adding.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState(emptyForm());
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -61,21 +62,22 @@ export default function ManageAcademicStructurePage() {
   };
   useEffect(() => { load(); }, []);
 
-  const submit = async (event) => {
+  const beginAdd = () => { setEditing(null); setEditForm(emptyForm()); setError(''); setSuccess(''); setDrawerOpen(true); };
+  const beginEdit = (program) => { setEditing(program); setEditForm(programForm(program)); setError(''); setSuccess(''); setDrawerOpen(true); };
+  const closeDrawer = () => { if (!busy) { setDrawerOpen(false); setEditing(null); } };
+  const saveProgram = async (event) => {
     event.preventDefault(); setBusy(true); setError(''); setSuccess('');
+    const payload = { name: editForm.name.trim(), duration_years: editForm.duration_years, sections: editForm.sections };
     try {
-      await createAcademicProgram({ name: form.name.trim(), duration_years: form.duration_years, sections: form.sections });
-      setForm(emptyForm()); setSuccess('Program and its required Non Block sections were created.'); await load();
-    } catch (requestError) { setError(firstError(requestError, 'Unable to save the program.')); } finally { setBusy(false); }
-  };
-
-  const beginEdit = (program) => { setEditing(program); setEditForm(programForm(program)); setError(''); setSuccess(''); };
-  const saveEdit = async (event) => {
-    event.preventDefault(); setBusy(true); setError(''); setSuccess('');
-    try {
-      await updateAcademicProgram(editing.id, { name: editForm.name.trim(), duration_years: editForm.duration_years, sections: editForm.sections });
-      setEditing(null); setSuccess('Program and section settings were updated.'); await load();
-    } catch (requestError) { setError(firstError(requestError, 'Unable to update the program.')); } finally { setBusy(false); }
+      if (editing) {
+        await updateAcademicProgram(editing.id, payload);
+        setSuccess('Program and section settings were updated.');
+      } else {
+        await createAcademicProgram(payload);
+        setSuccess('Program and its required Non Block sections were created.');
+      }
+      setDrawerOpen(false); setEditing(null); await load();
+    } catch (requestError) { setError(firstError(requestError, editing ? 'Unable to update the program.' : 'Unable to save the program.')); } finally { setBusy(false); }
   };
   const confirmDelete = async () => {
     setBusy(true); setError(''); setSuccess('');
@@ -86,30 +88,15 @@ export default function ManageAcademicStructurePage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader />
+      <PageHeader primary={<Button leftIcon={Plus} onClick={beginAdd}>Add program</Button>} />
 
-      <section className="rounded-card border border-line bg-surface p-5" aria-labelledby="add-program-title">
-        <h2 id="add-program-title" className="text-base font-semibold text-ink">Add a program</h2>
-        <p className="mt-1 text-sm text-ink-muted">Department: <span className="font-medium text-ink">{structure.department || 'Not assigned'}</span>. Each year also gets a Non Block section.</p>
-        <form onSubmit={submit} className="mt-4 space-y-4 border-t border-line pt-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-            <Field label="Program name">
-              <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required placeholder="e.g. BS Information Technology" />
-            </Field>
-            <SectionCountFields form={form} setForm={setForm} />
-          </div>
-          <Button type="submit" leftIcon={Plus} disabled={busy || !form.name.trim()}>{busy ? 'Saving...' : 'Add program'}</Button>
-        </form>
-        {error && !loadFailed && !editing && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
-        {success && <p role="status" className="mt-4 text-sm font-medium text-success-strong">{success}</p>}
-      </section>
-
-      <ClassListImportPanel />
+      {error && !loadFailed && !drawerOpen && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+      {success && <p role="status" className="text-sm font-medium text-success-strong">{success}</p>}
 
       <section className="rounded-card border border-line bg-surface" aria-labelledby="configured-programs-title">
         <div className="border-b border-line px-5 py-4">
           <h2 id="configured-programs-title" className="text-base font-semibold text-ink">Programs</h2>
-          <p className="mt-1 text-sm text-ink-muted">Block sections use letter labels. Each year keeps its Non Block section.</p>
+          <p className="mt-1 text-sm text-ink-muted">Department: <span className="font-medium text-ink">{structure.department || 'Not assigned'}</span>. Block sections use letter labels. Each year keeps its Non Block section.</p>
         </div>
         {loading ? (
           <div role="status" className="space-y-3 p-5"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading programs</span></div>
@@ -144,26 +131,31 @@ export default function ManageAcademicStructurePage() {
             ))}
           </ul>
         ) : (
-          <div className="px-5"><EmptyState title="No programs yet" description="Add a program above to set up its years and sections." /></div>
+          <div className="px-5"><EmptyState title="No programs yet" description="Add a program to set up its years and sections." action={<Button variant="secondary" leftIcon={Plus} onClick={beginAdd}>Add program</Button>} /></div>
         )}
       </section>
 
+      <details className="group">
+        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 marker:content-none hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Import a class list from CSV</summary>
+        <div className="mt-3"><ClassListImportPanel /></div>
+      </details>
+
       <Drawer
-        open={Boolean(editing)}
-        title="Edit program"
-        description="A section cannot be removed while user accounts are assigned to it. Renaming a program updates assigned user profiles."
+        open={drawerOpen}
+        title={editing ? 'Edit program' : 'Add program'}
+        description={editing ? 'A section cannot be removed while user accounts are assigned to it. Renaming a program updates assigned user profiles.' : 'Each year also gets a Non Block section.'}
         width="max-w-xl"
-        onClose={() => !busy && setEditing(null)}
+        onClose={closeDrawer}
         footer={(
           <>
-            <Button variant="secondary" onClick={() => setEditing(null)} disabled={busy}>Cancel</Button>
-            <Button type="submit" form="edit-program-form" disabled={busy || !editForm.name.trim()}>{busy ? 'Saving...' : 'Save changes'}</Button>
+            <Button variant="secondary" onClick={closeDrawer} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="program-form" disabled={busy || !editForm.name.trim()}>{busy ? 'Saving...' : editing ? 'Save changes' : 'Add program'}</Button>
           </>
         )}
       >
-        <form id="edit-program-form" onSubmit={saveEdit} className="space-y-4">
+        <form id="program-form" onSubmit={saveProgram} className="space-y-4">
           <Field label="Program name">
-            <Input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required />
+            <Input data-autofocus value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required placeholder="e.g. BS Information Technology" />
           </Field>
           <SectionCountFields form={editForm} setForm={setEditForm} />
           {error && !loadFailed && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}

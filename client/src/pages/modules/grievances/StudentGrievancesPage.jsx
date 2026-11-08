@@ -1,6 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import RichTextEditor from '../../../components/RichText';
 import { MessageSquareWarning, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -14,8 +13,8 @@ import {
   PageHeader,
   SegmentedControl,
   SkeletonCard,
-  StatusBadge,
   Tabs,
+  Textarea,
 } from '../../../components/ui';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
@@ -25,7 +24,8 @@ import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import useRecordParam from '../../../lib/useRecordParam';
-import { addressedToLabel, grievanceStage, grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import { UrgencyCell } from './GrievanceCells';
+import { addressedToLabel, grievanceStage, grievanceStageText } from './grievanceLabels';
 
 const ADDRESSED_TO_OPTIONS = [
   { value: 'organization', label: 'My organization' },
@@ -40,8 +40,8 @@ function ClassificationAdvisory({ grievance }) {
         <EngineBadge engine={grievance.classification_engine} />
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        <StatusBadge tone={urgencyTone(grievance.urgency)} label={`${grievance.urgency} urgency`} />
-        <StatusBadge tone="neutral" label={grievance.category} />
+        <UrgencyCell urgency={grievance.urgency} suffix=" urgency" />
+        <span className="text-sm text-ink-muted">{grievance.category}</span>
       </div>
       <RulesDisclosure label="Why this classification?" items={grievance.classification_reasoning ? [grievance.classification_reasoning] : []} />
     </div>
@@ -142,7 +142,7 @@ export default function StudentGrievancesPage() {
       <Tabs
         tabs={[
           { key: 'file', label: 'File a grievance' },
-          { key: 'mine', label: `My grievances${grievances.length ? ` (${grievances.length})` : ''}` },
+          { key: 'mine', label: `Filed grievances${grievances.length ? ` (${grievances.length})` : ''}` },
         ]}
         value={tab}
         onChange={setTab}
@@ -156,7 +156,7 @@ export default function StudentGrievancesPage() {
             </Field>
 
             <Field label="Tell us what happened" required hint="Include when and where this happened, and anyone involved." error={fieldErrors.description?.[0]}>
-              <RichTextEditor ariaLabel="Tell us what happened" value={description} onChange={setDescription} maxLength={5000} rows={6} placeholder="Describe the situation in your own words..." />
+              <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={6} placeholder="Describe the situation in your own words" />
             </Field>
 
             <Field label="Who should this go to?" required>
@@ -213,10 +213,7 @@ export default function StudentGrievancesPage() {
                     <p className="text-base font-semibold text-ink">{formatDisplayText(grievance.title)}</p>
                     <p className="text-xs text-ink-muted">Addressed to {addressedToLabel(grievance)} · Filed {relativeTime(grievance.created_at)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
-                    {grievance.status === 'submitted' && <IconButton icon={Trash2} label={`Delete grievance ${formatDisplayText(grievance.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(grievance); }} />}
-                  </div>
+                  {grievance.status === 'submitted' && <IconButton icon={Trash2} label={`Delete grievance ${formatDisplayText(grievance.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(grievance); }} />}
                 </div>
 
                 <FlowStepper steps={grievanceStage(grievance, 'STUDENT').steps} ariaLabel={`Progress of ${formatDisplayText(grievance.title)}`} />

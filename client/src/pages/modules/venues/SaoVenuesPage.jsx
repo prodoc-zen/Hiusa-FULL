@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
@@ -23,6 +23,7 @@ import {
 import { rangeParams, todayInManila } from './calendarDates';
 import { ConflictBadge, statusStyle } from './calendarParts';
 import { fetchWindowBookings } from './fetchVenueWindow';
+import useNarrowScreen from './useNarrowScreen';
 import VenueCalendar from './VenueCalendar';
 import { conflictingPendingIds, overlaps } from './venueConflicts';
 import { venueStageText } from './venueStage';
@@ -30,6 +31,12 @@ import EventRequirementsTab from '../sao/EventRequirementsTab';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
+const SECTIONS = [
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'bookings', label: 'Booking requests' },
+  { key: 'venues', label: 'Venue catalog' },
+  { key: 'requirements', label: 'Venue requirements' },
+];
 
 function getCurrentRole() {
   try {
@@ -85,6 +92,7 @@ function BookingDetail({ booking, conflict, onApprove, onReject }) {
 
 export default function SaoVenuesPage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const narrow = useNarrowScreen();
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
 
@@ -357,16 +365,13 @@ export default function SaoVenuesPage() {
     <div className="space-y-5 pb-8">
       <PageHeader primary={activeTab === 'venues' && venues.items.length > 0 && <Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>} />
 
-      <Tabs
-        value={activeTab}
-        onChange={setActiveTab}
-        tabs={[
-          { key: 'calendar', label: 'Calendar', icon: CalendarDays },
-          { key: 'bookings', label: 'Booking requests', icon: ClipboardCheck },
-          { key: 'venues', label: 'Venue catalog', icon: Building2 },
-          { key: 'requirements', label: 'Venue requirements', icon: ClipboardCheck },
-        ]}
-      />
+      {narrow ? (
+        <Select aria-label="Section" value={activeTab} onChange={(event) => setActiveTab(event.target.value)}>
+          {SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.label}</option>)}
+        </Select>
+      ) : (
+        <Tabs value={activeTab} onChange={setActiveTab} tabs={SECTIONS} />
+      )}
 
       {activeTab === 'calendar' && (
         <Card title="Venue calendar">

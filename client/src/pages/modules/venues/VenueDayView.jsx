@@ -1,8 +1,8 @@
-import { Clock3 } from 'lucide-react';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { manilaDay, timeLabel } from './VenueAvailabilityTimeline';
+import { manilaDay } from './VenueAvailabilityTimeline';
 import { dayLabel, todayInManila } from './calendarDates';
-import { ConflictBadge, sortByStart, statusStyle } from './calendarParts';
+import { sortByStart } from './calendarParts';
+import VenueBookingRow from './VenueBookingRow';
 import VenueTimeGrid from './VenueTimeGrid';
 
 // A venue is a lane when it is open for booking or when it holds a booking this day.
@@ -49,25 +49,9 @@ export default function VenueDayView({ day, slots, venues, venueId, conflictIds,
             <h3 className="text-sm font-semibold text-ink">{lane.name}</h3>
             {lane.slots.length ? (
               <ul className="mt-2 space-y-2">
-                {sortByStart(lane.slots).map((slot) => {
-                  const status = statusStyle(slot.status);
-                  return (
-                    <li key={slot.id}>
-                      <button type="button" onClick={() => onSelect(slot)} className={`flex min-h-11 w-full items-start gap-2 rounded-control border bg-surface p-3 text-left text-xs outline-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent ${status.row}`}>
-                        <Clock3 size={16} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden="true" />
-                        <span className="min-w-0">
-                          <span className="flex flex-wrap items-center gap-1 font-semibold text-ink">
-                            {timeLabel(slot.start_time)} - {timeLabel(slot.end_time)}
-                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${status.block}`}>{status.label}</span>
-                            {conflictIds.has(slot.id) && <ConflictBadge />}
-                          </span>
-                          <span className="mt-0.5 block break-words font-semibold text-ink">{slot.reserved_by}</span>
-                          {slot.event_title && <span className="block break-words text-ink-muted">{slot.event_title}</span>}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
+                {sortByStart(lane.slots).map((slot) => (
+                  <li key={slot.id}><VenueBookingRow slot={slot} conflict={conflictIds.has(slot.id)} onSelect={onSelect} /></li>
+                ))}
               </ul>
             ) : (
               <p className="mt-1 text-xs font-medium text-ink-muted">Nothing booked.</p>

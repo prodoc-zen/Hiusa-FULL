@@ -1,33 +1,37 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleDashed, ClipboardCheck, PauseCircle } from 'lucide-react';
-import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { ClipboardCheck, PauseCircle, CircleDashed } from 'lucide-react';
+import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard } from '../../../components/ui';
 import { getMyClearances } from '../../../services/clearanceService';
 import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import { manilaDate } from '../../../lib/format';
-import { clearanceStatusTone, humanizeRole, whoToSee } from './clearanceLabels';
+import { humanizeRole, whoToSee } from './clearanceLabels';
 
+// The stepper above already shows every signatory and its state, so the list holds only what the student can act on.
 function SignatureRow({ signature }) {
-  const Icon = signature.status === 'cleared' ? CheckCircle2 : signature.status === 'held' ? PauseCircle : CircleDashed;
-  const iconTone = signature.status === 'cleared' ? 'text-success-strong' : signature.status === 'held' ? 'text-warning-strong' : 'text-ink-soft';
+  const held = signature.status === 'held';
+  const Icon = held ? PauseCircle : CircleDashed;
 
   return (
-    <div className="flex items-start gap-3 border-t border-line-soft py-3 first:border-t-0 first:pt-0">
-      <Icon size={20} className={`mt-0.5 shrink-0 ${iconTone}`} aria-hidden="true" />
+    <div className="flex items-start gap-3 border-t border-line-soft py-3 first:border-t-0 first:pt-0 last:pb-0">
+      <Icon size={20} className={`mt-0.5 shrink-0 ${held ? 'text-warning-strong' : 'text-ink-soft'}`} aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-ink">{humanizeRole(signature.required_role)}</p>
-          <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} />
-        </div>
-        {signature.status === 'held' && (
+        <p className="text-sm font-semibold text-ink">{humanizeRole(signature.required_role)}</p>
+        {held ? (
           <p className="mt-1 text-sm text-ink">{signature.remarks || 'On hold.'} See {whoToSee(signature.required_role)}.</p>
-        )}
-        {signature.status === 'pending' && (
+        ) : (
           <p className="mt-1 text-sm text-ink-muted">Waiting on {whoToSee(signature.required_role)}.</p>
         )}
       </div>
     </div>
   );
+}
+
+// Period titles often carry the academic year already, so add it only when the title does not.
+function periodLabel(entry, joiner = ' · ') {
+  const title = formatDisplayText(entry.title);
+  if (!entry.academic_year || String(entry.title).includes(entry.academic_year)) return title;
+  return joiner === ' · ' ? `${title} · ${entry.academic_year}` : `${title} (${entry.academic_year})`;
 }
 
 export default function StudentClearancePage() {
@@ -63,14 +67,17 @@ export default function StudentClearancePage() {
   const showing = !loading && !error ? selected : undefined;
   const stage = useMemo(() => (showing ? clearanceLifecycle(showing, 'STUDENT') : null), [showing]);
   const clearedCount = showing ? showing.signatures.filter((signature) => signature.status === 'cleared').length : 0;
+  // The stepper drops the actor line: it repeats the step label ("SAO", "Department Head").
+  const steps = stage?.steps.map(({ key, label, state, note }) => ({ key, label, state, note }));
+  const openSignatures = showing ? showing.signatures.filter((signature) => signature.status !== 'cleared') : [];
   // The celebration card below already says a complete clearance is done, so the callout stays for open ones.
   const nextStep = stage && !showing.is_complete ? { ...toNextStepProps(stage), primary: undefined } : null;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        meta={showing && <span className="text-xs font-semibold text-ink-muted-strong">{formatDisplayText(showing.title)} · {showing.academic_year}</span>}
-        stepper={stage && <FlowStepper variant="full" steps={stage.steps} ariaLabel="Clearance signatures" />}
+        meta={showing && <span className="text-xs font-semibold text-ink-muted-strong">{periodLabel(showing)}</span>}
+        stepper={stage && <FlowStepper variant="full" steps={steps} ariaLabel="Clearance signatures" />}
         nextStep={nextStep && <NextStep {...nextStep} />}
       />
 
@@ -88,11 +95,13 @@ export default function StudentClearancePage() {
       )}
 
       {showing && periods.length > 1 && (
-        <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-          {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
-            <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{formatDisplayText(entry.title)} ({entry.academic_year})</option>
-          ))}
-        </Select>
+        <div className="sm:w-80">
+          <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+            {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
+              <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{periodLabel(entry, 'parens')}</option>
+            ))}
+          </Select>
+        </div>
       )}
 
       {showing && (showing.is_complete ? (
@@ -108,7 +117,7 @@ export default function StudentClearancePage() {
           <ProgressMeter label="Signatures cleared" value={clearedCount} max={showing.signatures.length} valueLabel={`${clearedCount} of ${showing.signatures.length}`} className="mb-3" />
           {showing.deadline_at && <p className="mb-3 text-xs font-semibold text-ink-muted">Deadline: {manilaDate(showing.deadline_at, 'long')}</p>}
           <div>
-            {showing.signatures.map((signature) => <SignatureRow key={signature.id} signature={signature} />)}
+            {openSignatures.map((signature) => <SignatureRow key={signature.id} signature={signature} />)}
           </div>
         </Card>
       ))}

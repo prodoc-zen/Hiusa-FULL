@@ -101,6 +101,17 @@ describe('OrganizationApplicationsPage', () => {
     expect(within(table).getByRole('link', { name: 'View application of Chess Club' })).toBeInTheDocument();
   });
 
+  it('offers every status as a select on narrow screens, so none is cut off', async () => {
+    renderPage('SUPER_ADMIN');
+    await screen.findAllByText('Chess Club');
+
+    const select = screen.getByRole('combobox', { name: 'Application status' });
+    expect(within(select).getAllByRole('option').map((option) => option.textContent.replace(/ \(\d+\)$/, ''))).toEqual(['To review', 'With the Department Head', 'Returned', 'Approved', 'Not approved']);
+    fireEvent.change(select, { target: { value: 'approved' } });
+
+    await waitFor(() => expect(mocks.getOrganizationApplications).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'approved', page: 1 })));
+  });
+
   it('switches status with the tabs and asks for that status', async () => {
     renderPage();
     await screen.findAllByText('Chess Club');

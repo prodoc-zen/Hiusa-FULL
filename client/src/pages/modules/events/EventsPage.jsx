@@ -46,13 +46,12 @@ import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIso
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../../../services/fingerprintService';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
-import TableFilterBar from '../../../components/TableFilterBar';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
 import PersonPicker from '../../../components/people/PersonPicker';
 import useRecordParam from '../../../lib/useRecordParam';
 
@@ -84,7 +83,7 @@ function EventStatus({ event, text }) {
 // A task nobody has started is the normal state, so it reads as plain text and only the others get a badge.
 function TaskStatus({ task }) {
   const status = task.workflow_status || task.status;
-  if (status === 'pending') return <span className="text-xs text-ink-muted">Pending</span>;
+  if (status === 'pending' || status === 'ready') return <span className="text-xs text-ink-muted">{capitalize(status)}</span>;
   return <StatusBadge status={status} label={capitalize(status)} />;
 }
 
@@ -135,6 +134,7 @@ function formatCurrency(value) {
   return `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Pending and approved are the ordinary states of a budget, so they read as plain text and only a problem gets a badge.
 function getEventBudgetStatus(event) {
   if (!event.budgets?.length) {
     return event.requires_budget
@@ -142,8 +142,8 @@ function getEventBudgetStatus(event) {
       : { label: 'Not required', tone: null };
   }
   if (event.budgets.some((budget) => budget.approval_status === 'rejected')) return { label: 'Rejected', tone: budgetApprovalTone.rejected };
-  if (event.budgets.some((budget) => budget.approval_status === 'pending' || !budget.approval_status)) return { label: 'Pending', tone: budgetApprovalTone.pending };
-  return { label: 'Approved', tone: budgetApprovalTone.approved };
+  if (event.budgets.some((budget) => budget.approval_status === 'pending' || !budget.approval_status)) return { label: 'Pending', tone: null };
+  return { label: 'Approved', tone: null };
 }
 
 function BudgetStatus({ event }) {
@@ -158,6 +158,8 @@ const emptyEventForm = () => ({
   proposed_budget_amount: '', budget_warning_threshold: '', budget_notes: '', vendor_deadlines: '', logistics_checklist: '',
   proposed_budget_id: null,
 });
+
+const REQUEST_SELECTOR_PATH = '/dashboard/approval-requests/new';
 
 const attendanceYearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
@@ -178,11 +180,10 @@ function BiometricCheckIn(props) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <h4 className="text-sm font-semibold text-ink">Fingerprint check-in / checkout</h4>
-      <p className="mt-1 text-sm text-ink-muted">Scan, verify the matched Student, then confirm check-in or checkout.</p>
-      <p className="mt-4 text-sm text-ink-muted-strong">Connect the reader to this computer, then start scanning.</p>
-      <div className="mt-auto pt-4">
+      <p className="mt-1 text-sm text-ink-muted">Connect the reader to this computer, then scan. You confirm each match before it is recorded.</p>
+      <div className="mt-3">
         <Button variant="secondary" leftIcon={Fingerprint} onClick={connect}>Connect reader</Button>
       </div>
     </div>
@@ -302,10 +303,9 @@ function FingerprintScanPanel({ eventId, onRecorded, users = [], department = ''
 
   return (
     <>
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <h4 className="text-sm font-semibold text-ink">Fingerprint check-in / checkout</h4>
-      <p className="mt-1 text-sm text-ink-muted">Scan, verify the matched Student, then confirm check-in or checkout.</p>
-      <div className="mt-4"><ScannerStatus reader={reader} /></div>
+      <div className="mt-3"><ScannerStatus reader={reader} /></div>
       <fieldset disabled={busy || Boolean(pendingConfirmation)} className="mt-4 border-t border-line pt-4 disabled:opacity-60">
         <legend className="sr-only">Narrow fingerprint candidates</legend>
         <p className="text-sm text-ink-muted-strong"><span className="font-semibold text-ink">Required scope:</span> active Students in {department || 'this organization’s configured department'} only.</p>
@@ -337,7 +337,7 @@ function FingerprintScanPanel({ eventId, onRecorded, users = [], department = ''
         {result.user && <p className="mb-0.5 font-semibold">{formatDisplayText(result.user.first_name)} {formatDisplayText(result.user.last_name)} · {result.user.school_id}</p>}
         <p>{result.message}</p>
       </div>}
-      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+      <div className="flex flex-wrap gap-2 pt-4">
         <Button variant="secondary" leftIcon={Fingerprint} onClick={scan} disabled={!reader.connected || busy || Boolean(pendingConfirmation)} className="flex-1">
           {busy ? 'Scanning and identifying...' : 'Scan fingerprint'}
         </Button>
@@ -408,7 +408,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [statusError, setStatusError] = useState(null);
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
-  const [eventPageSize, setEventPageSize] = useState(10);
   const [eventReload, setEventReload] = useState(0);
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [campusVenues, setCampusVenues] = useState([]);
@@ -416,9 +415,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [attachedEventFiles, setAttachedEventFiles] = useState({});
   const [attachedFileErrors, setAttachedFileErrors] = useState({});
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
-  const [tasksPage, setTasksPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
+  const eventPageSize = 20;
 
   const [form, setForm] = useState(emptyEventForm);
   const [formError, setFormError] = useState(null);
@@ -997,7 +996,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const filteredEvents = eventRows;
   const eventLinkedTasks = tasks.filter((t) => t.event_id);
   const pagedEvents = eventRows;
-  const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
   const selectedPlanningEvent = events.find((event) => String(event.id) === String(planForm.event_id));
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
@@ -1104,16 +1102,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     return () => { active = false; };
   }, [attendancePage, attendanceReload, attendanceStatusFilter, debouncedAttendanceSearch, selectedAttEventId]);
 
-  useEffect(() => {
-    setTasksPage(1);
-  }, [tasks.length]);
-
-  const activeEventFilters = [
-    search.trim() && `Search: ${search.trim()}`,
-    dateFilter && `Date: ${dateFilter}`,
-    eventStatusFilter && `Status: ${statusLabel[eventStatusFilter] || capitalize(eventStatusFilter)}`,
-  ].filter(Boolean);
-
   const clearEventFilters = () => {
     setSearch('');
     setDateFilter('');
@@ -1172,6 +1160,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setShowForm(false);
     setEditingEventId(null);
     setAttachedFileErrors({});
+    // A form opened from the request selector goes back there, not to the events list.
+    if (startEventRequest && !editingEventId) navigate(REQUEST_SELECTOR_PATH);
   }
 
   const periodSelect = academicPeriods.length > 0 && (
@@ -1189,11 +1179,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       <div className="space-y-6">
         <PageHeader
           title={editingEventId ? 'Edit event' : 'New event'}
-          actions={<Button variant="secondary" onClick={closeForm}>Back to events</Button>}
+          breadcrumbs={startEventRequest && !editingEventId ? [{ label: 'New request', to: REQUEST_SELECTOR_PATH }, { label: 'New event' }] : undefined}
         />
         <form className="max-w-3xl space-y-8" onSubmit={handleSaveEvent} noValidate>
-          <section aria-labelledby="event-basics" className="space-y-4">
-            <h2 id="event-basics" className="text-base font-semibold text-ink">Event</h2>
+          <section aria-label="Event details" className="space-y-4">
             <Field label="Event name" required>
               <Input id="event-title" type="text" value={form.title} maxLength={255} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Annual General Assembly" />
             </Field>
@@ -1390,19 +1379,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           {viewingHistory && <p className="text-sm text-ink-muted">Viewing completed semester records. New events use only the active period.</p>}
 
           {eventsView === 'list' && (
-            <TableFilterBar
-              searchValue={search}
-              onSearchChange={setSearch}
-              searchPlaceholder="Search events"
-              activeFilters={activeEventFilters}
-              onClear={clearEventFilters}
-              resultCount={eventTotal}
-              resultLabel={eventTotal === 1 ? 'event' : 'events'}
-              secondaryClassName="grid gap-3 sm:grid-cols-2"
-            >
-              <Field label="Event date"><Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></Field>
-              <Field label="Status"><HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)}><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></Field>
-            </TableFilterBar>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="relative min-w-0 flex-1 sm:max-w-xs">
+                <span className="sr-only">Search events</span>
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search events" className="pl-9" />
+              </label>
+              <Field label="Event date" className="w-full sm:w-44"><Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></Field>
+              <Field label="Status" className="w-full sm:w-52"><HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)}><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></Field>
+              {hasEventFilters && <button type="button" onClick={clearEventFilters} className="min-h-10 rounded-control px-2 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+            </div>
           )}
 
           {eventsView === 'calendar' ? (
@@ -1414,115 +1400,73 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           ) : (
             <div>
               {eventListLoading ? (
-                <SkeletonTable rows={5} columns={6} />
+                <SkeletonTable rows={5} columns={5} />
               ) : filteredEvents.length === 0 ? (
                 eventListEmptyState()
               ) : (
-                <>
-                <ul className="divide-y divide-line lg:hidden" aria-label="Events">
-                  {pagedEvents.map((evt) => (
-                    <li key={evt.id} className="py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="min-w-0 leading-6">
+                <table className="block w-full text-left lg:table">
+                  <caption className="sr-only">Events</caption>
+                  <thead className="hidden lg:table-header-group">
+                    <tr>
+                      <th scope="col" className="px-4 py-2.5">Event</th>
+                      <th scope="col" className="px-4 py-2.5">Status</th>
+                      <th scope="col" className="px-4 py-2.5">Schedule</th>
+                      <th scope="col" className="px-4 py-2.5">Venue</th>
+                      {canCreateEvents && <th scope="col" className="px-4 py-2.5">Budget</th>}
+                      <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className="block lg:table-row-group">
+                    {pagedEvents.map((evt) => (
+                      <tr key={evt.id} className="relative flex flex-col gap-1 border-b border-line-soft py-3 hover:bg-subtle lg:table-row lg:py-0">
+                        <td className="order-1 pr-12 lg:table-cell lg:max-w-[280px] py-0 lg:px-4 lg:py-2.5 lg:pr-4">
                           <button
                             type="button"
                             onClick={() => openEventDetails(evt)}
-                            className="min-h-11 text-left text-sm font-semibold text-ink hover:text-brand-700"
+                            className="min-h-10 text-left text-sm font-semibold text-ink after:absolute after:inset-0 hover:text-brand-700 focus-visible:underline lg:min-h-0 lg:font-medium lg:after:hidden"
                           >
                             {formatDisplayText(evt.title)}
                           </button>
-                        </h3>
-                        <EventStatus event={evt} text={eventStatusText(evt)} />
-                      </div>
-                      {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-1" />}
-                      <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
-                        <div><dt className="text-ink-muted">Schedule</dt><dd className="mt-0.5 font-medium text-ink">{formatDateTime(evt.start_time)}<span className="block font-normal text-ink-muted">Ends {formatDateTime(evt.end_time)}</span></dd></div>
-                        <div><dt className="text-ink-muted">Venue</dt><dd className="mt-0.5 font-medium text-ink">{evt.location || ''}</dd></div>
-                        <div><dt className="text-ink-muted">Operations</dt><dd className="mt-0.5 font-medium tabular-nums text-ink">{evt.present_count || 0} present / late · {evt.tasks_count || 0} tasks</dd></div>
-                        {canCreateEvents && <div><dt className="text-ink-muted">Budget</dt><dd className="mt-0.5"><BudgetStatus event={evt} /></dd></div>}
-                      </dl>
-                      {isReturned(evt) && evt.approval_remarks && <p className="mt-3 text-xs text-danger-strong">Returned: {evt.approval_remarks}</p>}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button variant="secondary" leftIcon={Eye} onClick={() => openEventDetails(evt)}>View details</Button>
-                        {canCreateEvents && <Button variant="secondary" leftIcon={Pencil} onClick={() => openEditForm(evt)}>Edit event</Button>}
-                        {canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && <Button variant="secondary" leftIcon={Trash2} className="text-danger-strong" onClick={() => { setDeleteError(null); setEventToDelete(evt); }}>Delete event</Button>}
-                        {canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && <Button variant="secondary" leftIcon={Ban} className="text-danger-strong" onClick={() => { setCancelError(null); setEventToCancel(evt); }}>Cancel event</Button>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <div className="hidden overflow-x-auto lg:block">
-                  <table className="w-full min-w-[1040px] text-left">
-                    <caption className="sr-only">Events</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col" className="px-4 py-2.5">Event</th>
-                        <th scope="col" className="px-4 py-2.5">Schedule</th>
-                        <th scope="col" className="px-4 py-2.5">Venue</th>
-                        <th scope="col" className="px-4 py-2.5 text-right">Present</th>
-                        <th scope="col" className="px-4 py-2.5 text-right">Tasks</th>
-                        <th scope="col" className="px-4 py-2.5">Status</th>
-                        {canCreateEvents && <th scope="col" className="px-4 py-2.5">Budget</th>}
-                        <th scope="col" className="px-4 py-2.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line-soft">
-                      {pagedEvents.map((evt) => (
-                        <tr key={evt.id} className="hover:bg-subtle">
-                          <td className="max-w-[280px] px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => openEventDetails(evt)}
-                              className="text-left font-medium text-ink hover:text-brand-700 focus-visible:underline"
-                            >
-                              {formatDisplayText(evt.title)}
-                            </button>
-                            <p className="text-xs text-ink-muted">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : ''}{evt.creator && (evt.creator.position_title || evt.creator.role) ? ` · ${formatDisplayText(evt.creator.position_title) || evt.creator.role?.replaceAll('_', ' ')}` : ''}</p>
-                          </td>
-                          <td className="px-4 py-2.5 text-ink">
-                            {formatDateTime(evt.start_time)}
-                            <p className="text-xs text-ink-muted">Ends {formatDateTime(evt.end_time)}</p>
-                          </td>
-                          <td className="px-4 py-2.5 text-ink">{evt.location || ''}</td>
-                          <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink">{evt.present_count || 0}<p className="text-xs text-ink-muted">of {evt.attendance_records_count || 0}</p></td>
-                          <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink">{evt.tasks_count || 0}</td>
-                          <td className="px-4 py-2.5">
-                            <EventStatus event={evt} text={eventStatusText(evt)} />
-                            {isReturned(evt) && evt.approval_remarks && (
-                              <p className="mt-1 max-w-[220px] text-xs text-danger-strong">
-                                <span className="font-semibold">Returned:</span> {evt.approval_remarks}
-                              </p>
-                            )}
-                            {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-2 w-[220px]" />}
-                          </td>
-                          {canCreateEvents && (
-                            <td className="px-4 py-2.5">
-                              <BudgetStatus event={evt} />
-                              {evt.budgets?.length > 0 && <p className="mt-1 text-xs text-ink-muted">{evt.budgets.length} linked</p>}
-                            </td>
+                          <p className="text-xs text-ink-muted">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : ''}{evt.creator && (evt.creator.position_title || evt.creator.role) ? ` · ${formatDisplayText(evt.creator.position_title) || evt.creator.role?.replaceAll('_', ' ')}` : ''}</p>
+                        </td>
+                        <td className="order-2 lg:table-cell py-0 lg:px-4 lg:py-2.5">
+                          <EventStatus event={evt} text={eventStatusText(evt)} />
+                          {isReturned(evt) && evt.approval_remarks && (
+                            <p className="mt-1 max-w-[220px] text-xs text-danger-strong">
+                              <span className="font-semibold">Returned:</span> {evt.approval_remarks}
+                            </p>
                           )}
-                          <td className="px-4 py-2.5 text-right">
-                            <TableRowActions subject={evt.title} label="Event actions" actions={[
-                              { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
-                              canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
-                              canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
-                              canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
-                            ]} />
+                          {seesEventFlow && evt.status === 'planning' && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-2 hidden w-[220px] lg:block" />}
+                        </td>
+                        <td className="order-3 text-sm text-ink lg:table-cell py-0 lg:px-4 lg:py-2.5">
+                          <span className="whitespace-nowrap">{formatDateTime(evt.start_time)}</span>
+                          <span className="block whitespace-nowrap text-xs text-ink-muted">Ends {formatDateTime(evt.end_time)}</span>
+                        </td>
+                        <td className="order-4 text-sm text-ink lg:table-cell py-0 lg:px-4 lg:py-2.5">{evt.location || ''}</td>
+                        {canCreateEvents && (
+                          <td className="order-5 text-sm text-ink lg:table-cell py-0 lg:px-4 lg:py-2.5">
+                            <span className="text-xs text-ink-muted lg:hidden">Budget </span>
+                            <BudgetStatus event={evt} />
                           </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                </>
+                        )}
+                        <td className="absolute right-0 top-2 z-10 lg:static lg:table-cell py-0 lg:px-4 lg:py-2.5 lg:text-right">
+                          <TableRowActions subject={evt.title} label="Event actions" actions={[
+                            { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
+                            canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
+                            canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                            canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
+                          ]} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
               <PaginationControls
                 currentPage={eventsPage}
                 totalItems={eventTotal}
                 pageSize={eventPageSize}
                 onPageChange={setEventsPage}
-                onPageSizeChange={(size) => { setEventPageSize(size); setEventsPage(1); }}
-                pageSizeOptions={[10, 25, 50]}
                 label="events"
               />
             </div>
@@ -1540,168 +1484,137 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               action={<Button variant="secondary" leftIcon={Plus} to="/dashboard/events/manage-events?new=1">Propose your first event</Button>}
             />
           ) : (
-          <div>
-            <p className="max-w-3xl text-sm text-ink-muted-strong">Choose an event and say what needs to happen. You get a suggested plan with due dates and officers, and nothing is created until you review it.</p>
+            <>
+              <DataTable
+                caption="Assigned event tasks"
+                captionVisible
+                loading={loading}
+                rows={eventLinkedTasks}
+                emptyState={<EmptyState title="No event tasks yet" description="Draft a to-do list below to assign the first tasks." />}
+                columns={[
+                  { key: 'title', header: 'Task', render: (t) => formatDisplayText(t.title) },
+                  { key: 'assignee', header: 'Assigned officer', render: (t) => (t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '') },
+                  { key: 'event', header: 'Event', render: (t) => formatDisplayText(t.event?.title) ?? '' },
+                  { key: 'deadline', header: 'Due date', render: (t) => <span className="whitespace-nowrap">{formatDateTime(t.deadline)}</span> },
+                  { key: 'status', header: 'Status', render: (t) => <TaskStatus task={t} /> },
+                ]}
+              />
 
-            <form className="mt-4 grid gap-4 lg:grid-cols-[260px_1fr]" onSubmit={handleGeneratePlan}>
-              <div>
-                <Field label="Event">
-                  <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)}>
-                    <option value="">Choose an event</option>
-                    {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
-                  </HiusaSelect>
-                </Field>
-                {selectedPlanningEvent && <p className="mt-2 text-xs text-ink-muted">{formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
-              </div>
-              <div>
-                <Field label="Planning context" optional hint="Add priorities or constraints. Missing names, prices, and approvals stay marked for review instead of being guessed.">
-                  <Textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Setup, supplies, publicity, safety, reports, or special concerns" />
-                </Field>
-                <div className="mt-3 flex justify-end">
-                  <Button type="submit" variant={workflowDraft ? 'secondary' : 'primary'} loading={planSubmitting} disabled={!planForm.event_id}>{planSubmitting ? 'Creating your to-do list…' : 'Draft to-do list'}</Button>
-                </div>
-              </div>
-            </form>
+              <div className="border-t border-line pt-6">
+                <h2 className="text-base font-semibold text-ink">Draft a to-do list</h2>
+                <form className="mt-3 grid gap-4 lg:grid-cols-[260px_1fr]" onSubmit={handleGeneratePlan}>
+                  <div>
+                    <Field label="Event">
+                      <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)}>
+                        <option value="">Choose an event</option>
+                        {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
+                      </HiusaSelect>
+                    </Field>
+                    {selectedPlanningEvent && <p className="mt-2 text-xs text-ink-muted">{formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
+                  </div>
+                  <div>
+                    <Field label="Planning context" optional hint="Add priorities or limits. Anything unknown stays marked for review.">
+                      <Textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Setup, supplies, publicity, safety, reports, or special concerns" />
+                    </Field>
+                    <div className="mt-3 flex justify-end">
+                      <Button type="submit" variant={workflowDraft ? 'secondary' : 'primary'} loading={planSubmitting} disabled={!planForm.event_id}>{planSubmitting ? 'Drafting…' : 'Draft to-do list'}</Button>
+                    </div>
+                  </div>
+                </form>
 
-            {planError && <div role="alert" className="mt-4 rounded-control border border-danger/30 bg-danger-tint px-4 py-3"><p className="text-sm font-semibold text-danger-strong">We could not finish that action</p><p className="mt-1 text-sm text-danger-strong">{planError}</p></div>}
+                {planError && <div role="alert" className="mt-4 rounded-control border border-danger/30 bg-danger-tint px-4 py-3"><p className="text-sm font-semibold text-danger-strong">We could not finish that action</p><p className="mt-1 text-sm text-danger-strong">{planError}</p></div>}
 
-            {workflowHistoryError && <p role="alert" className="mt-4 rounded-control border border-danger/30 bg-danger-tint px-4 py-3 text-sm font-medium text-danger-strong">{workflowHistoryError}</p>}
+                {workflowHistoryError && <p role="alert" className="mt-4 rounded-control border border-danger/30 bg-danger-tint px-4 py-3 text-sm font-medium text-danger-strong">{workflowHistoryError}</p>}
 
-            {workflowHistory.length > 0 && (
-              <div className="mt-4 border-t border-line pt-4">
-                <p className="text-sm font-semibold text-ink">Previous drafts</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {workflowHistory.map((output) => (
-                    <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`min-h-11 rounded-control border px-3 text-sm font-medium ${output.id === workflowOutputId ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
-                  ))}
-                </div>
-              </div>
-            )}
+                {workflowHistory.length > 0 && (
+                  <div className="mt-4 border-t border-line pt-4">
+                    <p className="text-sm font-semibold text-ink">Previous drafts</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {workflowHistory.map((output) => (
+                        <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`min-h-11 rounded-control border px-3 text-sm font-medium ${output.id === workflowOutputId ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {planResult && !workflowDraft && <div className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border-t border-line pt-4 text-sm text-ink-muted-strong">{replaceIsoDateTimes(planResult)}</div>}
+                {planResult && !workflowDraft && <div className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border-t border-line pt-4 text-sm text-ink-muted-strong">{replaceIsoDateTimes(planResult)}</div>}
 
-            {workflowDraft && (
-              <div className="mt-6 border-t border-line pt-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div><p className="text-xs font-medium text-ink-muted">Ready for your review</p><h3 className="mt-1 text-base font-semibold text-ink">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm text-ink-muted-strong">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
-                  <StatusBadge tone="warning" label="Nothing saved yet" className="w-fit" />
-                </div>
+                {workflowDraft && (
+                  <div className="mt-6 border-t border-line pt-6">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div><h3 className="text-base font-semibold text-ink">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm text-ink-muted-strong">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
+                      <StatusBadge tone="warning" label="Nothing saved yet" className="w-fit" />
+                    </div>
 
-                <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {[
-                    ['Plan outline', workflowDraft.preparation_phases],
-                    ['Key dates', workflowDraft.timeline],
-                    ['What is needed', workflowDraft.resources],
-                    ['Setup and coordination', workflowDraft.logistics],
-                    ['Possible problems', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
-                  ].map(([heading, items]) => (
-                    <section key={heading}><h4 className="text-sm font-semibold text-ink">{heading}</h4>{items?.length ? <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-ink-muted-strong">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-1.5 text-xs text-ink-muted">Nothing listed.</p>}</section>
-                  ))}
-                </div>
+                    <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {[
+                        ['Plan outline', workflowDraft.preparation_phases],
+                        ['Key dates', workflowDraft.timeline],
+                        ['What is needed', workflowDraft.resources],
+                        ['Setup and coordination', workflowDraft.logistics],
+                        ['Possible problems', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
+                      ].map(([heading, items]) => (
+                        <section key={heading}><h4 className="text-sm font-semibold text-ink">{heading}</h4>{items?.length ? <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-ink-muted-strong">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-1.5 text-xs text-ink-muted">Nothing listed.</p>}</section>
+                      ))}
+                    </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <div><h3 className="text-base font-semibold text-ink">To-do items</h3><p className="mt-0.5 text-sm text-ink-muted">Review the order, due dates, and assigned officers.</p></div>
-                  <Button variant="secondary" leftIcon={Plus} onClick={addWorkflowTask}>Add to-do</Button>
-                </div>
+                    <div className="mt-6 flex items-center justify-between gap-3">
+                      <div><h3 className="text-base font-semibold text-ink">To-do items</h3><p className="mt-0.5 text-sm text-ink-muted">Review the order, due dates, and assigned officers.</p></div>
+                      <Button variant="secondary" leftIcon={Plus} onClick={addWorkflowTask}>Add to-do</Button>
+                    </div>
 
-                <ol className="mt-3 divide-y divide-line border-t border-line">
-                  {workflowDraft.tasks.map((task, index) => {
-                    const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
-                    const dueDateHint = task.phase === 'pre_event' ? `Choose a time before ${formatDateTime(selectedPlanningEvent?.start_time)}.` : task.phase === 'event_day' ? `Choose a time between ${formatDateTime(selectedPlanningEvent?.start_time)} and ${formatDateTime(selectedPlanningEvent?.end_time)}.` : `Choose a time after ${formatDateTime(selectedPlanningEvent?.end_time)}, within 30 days.`;
-                    return (
-                      <li key={task.key} className="py-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div><p className="text-sm font-semibold text-ink">To-do {index + 1}</p><p className="mt-0.5 text-xs text-ink-muted">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div>
-                          <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-11 w-11 shrink-0 place-items-center rounded-control border border-line text-danger-strong hover:bg-danger-tint"><X size={15} /></button>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <Field label="Task name"><Input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} /></Field>
-                          <Field label="Due date and time" hint={dueDateHint}><Input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} /></Field>
-                          <Field label="What needs to be done?" optional className="lg:col-span-2"><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></Field>
-                          <Field label="When should it happen?"><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)}><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></Field>
-                          <Field label="Importance"><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)}>{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></Field>
-                          <Field label="Best officer role" optional><Input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" /></Field>
-                          <Field label="This can start after" optional><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)}><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></Field>
-                          <div className="lg:col-span-2">
-                            <Field label="Assign to" required>
-                              <HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)}><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect>
-                            </Field>
-                            <div className="mt-2 flex flex-wrap items-center gap-3">
-                              <Button variant="secondary" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)}>{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</Button>
-                              {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">Review eligible officers, then choose the final assignee.</p>}
+                    <ol className="mt-3 divide-y divide-line border-t border-line">
+                      {workflowDraft.tasks.map((task, index) => {
+                        const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
+                        const dueDateHint = task.phase === 'pre_event' ? `Choose a time before ${formatDateTime(selectedPlanningEvent?.start_time)}.` : task.phase === 'event_day' ? `Choose a time between ${formatDateTime(selectedPlanningEvent?.start_time)} and ${formatDateTime(selectedPlanningEvent?.end_time)}.` : `Choose a time after ${formatDateTime(selectedPlanningEvent?.end_time)}, within 30 days.`;
+                        return (
+                          <li key={task.key} className="py-5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div><p className="text-sm font-semibold text-ink">To-do {index + 1}</p><p className="mt-0.5 text-xs text-ink-muted">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div>
+                              <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-11 w-11 shrink-0 place-items-center rounded-control border border-line text-danger-strong hover:bg-danger-tint"><X size={15} /></button>
                             </div>
-                          </div>
-                        </div>
 
-                        {selectedOfficer && (
-                          <div className="mt-4 border-t border-line-soft pt-3">
-                            <p className="text-sm font-semibold text-ink">Why {formatDisplayText(selectedOfficer.name)} was suggested</p>
-                            <p className="mt-0.5 text-xs text-ink-muted">{scoreLabel(selectedOfficer.final_score)} overall match</p>
-                            <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label}><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-0.5 text-sm font-medium tabular-nums text-ink">{scoreLabel(value)}</dd></div>)}</dl>
-                            {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-xs text-ink-muted-strong">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
+                            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                              <Field label="Task name"><Input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} /></Field>
+                              <Field label="Due date and time" hint={dueDateHint}><Input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} /></Field>
+                              <Field label="What needs to be done?" optional className="lg:col-span-2"><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></Field>
+                              <Field label="When should it happen?"><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)}><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></Field>
+                              <Field label="Importance"><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)}>{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></Field>
+                              <Field label="Best officer role" optional><Input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" /></Field>
+                              <Field label="This can start after" optional><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)}><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></Field>
+                              <div className="lg:col-span-2">
+                                <Field label="Assign to" required>
+                                  <HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)}><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect>
+                                </Field>
+                                <div className="mt-2 flex flex-wrap items-center gap-3">
+                                  <Button variant="secondary" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)}>{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</Button>
+                                  {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">Review eligible officers, then choose the final assignee.</p>}
+                                </div>
+                              </div>
+                            </div>
 
-                <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-ink-muted">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button variant="secondary" className="text-danger-strong" disabled={workflowAction} onClick={discardWorkflow}>Remove draft</Button><Button disabled={workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} loading={workflowAction} onClick={confirmWorkflow}>Save and assign tasks</Button></div>
-                </div>
+                            {selectedOfficer && (
+                              <div className="mt-4 border-t border-line-soft pt-3">
+                                <p className="text-sm font-semibold text-ink">Why {formatDisplayText(selectedOfficer.name)} was suggested</p>
+                                <p className="mt-0.5 text-xs text-ink-muted">{scoreLabel(selectedOfficer.final_score)} overall match</p>
+                                <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label}><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-0.5 text-sm font-medium tabular-nums text-ink">{scoreLabel(value)}</dd></div>)}</dl>
+                                {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-xs text-ink-muted-strong">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ol>
+
+                    <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-ink-muted">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button variant="secondary" className="text-danger-strong" disabled={workflowAction} onClick={discardWorkflow}>Remove draft</Button><Button disabled={workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} loading={workflowAction} onClick={confirmWorkflow}>Save and assign tasks</Button></div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
           )}
-
-          <div>
-            <h2 className="text-base font-semibold text-ink">Assigned event tasks</h2>
-            <p className="mb-3 text-sm text-ink-muted">Who is responsible, when each task is due, and whether it can begin.</p>
-            {loading ? (
-              <SkeletonTable rows={3} columns={5} />
-            ) : eventLinkedTasks.length === 0 ? (
-              <EmptyState title="No event tasks yet" description="Save a to-do list above to assign the first tasks." />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px] text-left">
-                  <caption className="sr-only">Assigned event tasks</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="px-4 py-2.5">Task</th>
-                      <th scope="col" className="px-4 py-2.5">Assigned officer</th>
-                      <th scope="col" className="px-4 py-2.5">Event</th>
-                      <th scope="col" className="px-4 py-2.5">Due date</th>
-                      <th scope="col" className="px-4 py-2.5">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line-soft">
-                    {pagedEventTasks.map((t) => (
-                      <tr key={t.id} className="hover:bg-subtle">
-                        <td className="max-w-[220px] truncate px-4 py-2.5 font-medium text-ink">{formatDisplayText(t.title)}</td>
-                        <td className="max-w-[160px] truncate px-4 py-2.5 text-ink">
-                          {t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}
-                        </td>
-                        <td className="max-w-[160px] truncate px-4 py-2.5 text-ink">
-                          {formatDisplayText(t.event?.title) ?? ''}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-ink">{formatDateTime(t.deadline)}</td>
-                        <td className="px-4 py-2.5"><TaskStatus task={t} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <PaginationControls
-              currentPage={tasksPage}
-              totalItems={eventLinkedTasks.length}
-              pageSize={pageSize}
-              onPageChange={setTasksPage}
-              label="tasks"
-            />
-          </div>
         </section>
       )}
 
@@ -1734,9 +1647,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         className={`flex min-h-11 w-full items-start gap-3 px-2 py-3 text-left hover:bg-subtle ${selectedAttEventId === evt.id ? 'bg-brand-600/10' : ''}`}
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-ink">{formatDisplayText(evt.title)}</p>
+                          <p className="break-words text-sm font-medium text-ink">{formatDisplayText(evt.title)}</p>
                           <p className="mt-0.5 text-xs text-ink-muted">{formatDateTime(evt.start_time)}</p>
-                          {evt.location && <p className="truncate text-xs text-ink-muted">{evt.location}</p>}
+                          {evt.location && <p className="break-words text-xs text-ink-muted">{evt.location}</p>}
                         </div>
                         {evt.status === 'ongoing' && <StatusBadge tone="active" label="Ongoing" className="shrink-0" />}
                         <ChevronRight size={16} className="mt-0.5 shrink-0 text-ink-soft" aria-hidden="true" />
@@ -1770,24 +1683,23 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <div className="pb-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <h3 className="truncate text-lg font-semibold text-ink">{formatDisplayText(attendanceEvent?.title) ?? ''}</h3>
+                          <h3 className="break-words text-lg font-semibold text-ink">{formatDisplayText(attendanceEvent?.title) ?? ''}</h3>
                           <p className="mt-1 text-sm text-ink-muted">{formatDateTime(attendanceEvent?.start_time)}{attendanceEvent?.location ? ` at ${attendanceEvent.location}` : ''}</p>
                           <div className="mt-2"><EventStatus event={attendanceEvent || {}} text={statusLabel[attendanceEvent?.status] || capitalize(attendanceEvent?.status)} /></div>
                         </div>
-                        <Button variant="secondary" onClick={() => setAttendanceReload((value) => value + 1)}>Refresh live data</Button>
+                        <Button variant="secondary" onClick={() => setAttendanceReload((value) => value + 1)}>Refresh</Button>
                       </div>
 
-                      <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 lg:grid-cols-4">
+                      <dl className="mt-4 grid grid-cols-3 gap-4 border-t border-line pt-4">
                         {[
-                          ['Currently inside', currentlyInside, 'Not checked out'],
-                          ['Attendance records', attendanceCount, 'Total arrivals'],
-                          ['Late', attendanceData?.summary?.late ?? 0, 'After start'],
-                          ['Check-in rate', attendanceRate === null ? 'Not available' : `${attendanceRate}%`, expectedAttendance > 0 ? `of ${expectedAttendance} expected` : 'No target set'],
+                          ['Inside now', currentlyInside, null],
+                          ['Arrivals', attendanceCount, attendanceRate === null ? null : `${attendanceRate}% of ${expectedAttendance} expected`],
+                          ['Late', attendanceData?.summary?.late ?? 0, null],
                         ].map(([label, value, helper]) => (
                           <div key={label}>
                             <dt className="text-xs text-ink-muted">{label}</dt>
                             <dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{value}</dd>
-                            <p className="mt-0.5 text-xs text-ink-muted">{helper}</p>
+                            {helper && <p className="mt-0.5 text-xs text-ink-muted">{helper}</p>}
                           </div>
                         ))}
                       </dl>
@@ -1795,49 +1707,45 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
-                      <div className="border-t border-line py-5">
-                        <h4 className="text-base font-semibold text-ink">Door controls</h4>
-                        <p className="mt-1 text-sm text-ink-muted">Record an arrival with the fingerprint reader, or look up a member for a manual record.</p>
-                        <div className="mt-4 grid items-stretch gap-8 lg:grid-cols-2">
-                          <BiometricCheckIn
-                            eventId={selectedAttEventId}
-                            users={allUsers}
-                            academicStructure={attendanceAcademicStructure}
-                            academicStructureError={attendanceAcademicStructureError}
-                            department={attendanceAcademicStructure?.department || currentUser.department || currentUser.organization?.college || allUsers.find((user) => user.department)?.department || ''}
-                            onRecorded={async () => setAttendanceReload((value) => value + 1)}
+                      <div className="grid items-start gap-6 border-t border-line py-5 lg:grid-cols-2 lg:gap-8">
+                        <div className="flex flex-col gap-3">
+                          <h4 className="text-sm font-semibold text-ink">Manual check-in</h4>
+                          <PersonPicker
+                            label="Member"
+                            organizationId={attendanceEvent?.organization_id}
+                            value={checkInPerson}
+                            onSelect={(person) => {
+                              setCheckInPerson(person);
+                              setCheckInSuccess(null);
+                              if (person && checkedInUserIds.has(person.school_id)) {
+                                setCheckInError('This member is already checked in for this event.');
+                                notify.error('This member is already checked in for this event.');
+                              } else {
+                                setCheckInError(null);
+                              }
+                            }}
+                            disabled={checkInSubmitting}
                           />
-                          <div className="flex flex-col gap-3">
-                            <div><h4 className="text-sm font-semibold text-ink">Manual check-in</h4><p className="mt-1 text-sm text-ink-muted">Find the member by name, then confirm their attendance status.</p></div>
-                            <PersonPicker
-                              label="Member"
-                              organizationId={attendanceEvent?.organization_id}
-                              value={checkInPerson}
-                              onSelect={(person) => {
-                                setCheckInPerson(person);
-                                setCheckInSuccess(null);
-                                if (person && checkedInUserIds.has(person.school_id)) {
-                                  setCheckInError('This member is already checked in for this event.');
-                                  notify.error('This member is already checked in for this event.');
-                                } else {
-                                  setCheckInError(null);
-                                }
-                              }}
-                              disabled={checkInSubmitting}
-                            />
-                            <Field label="Attendance status">
-                              <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)}>
-                                <option value="present">Present</option>
-                                <option value="late">Late</option>
-                                <option value="excused">Excused</option>
-                                <option value="absent">Absent</option>
-                              </HiusaSelect>
-                            </Field>
-                            {checkInError && <p role="alert" className="text-sm font-medium text-danger-strong">{checkInError}</p>}
-                            {checkInSuccess && <p role="status" className="text-sm font-medium text-success-strong">{checkInSuccess}</p>}
-                            <Button leftIcon={UserCheck} className="mt-auto" onClick={handleCheckIn} loading={checkInSubmitting} disabled={!checkInPerson}>Confirm check-in</Button>
-                          </div>
+                          <Field label="Attendance status">
+                            <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)}>
+                              <option value="present">Present</option>
+                              <option value="late">Late</option>
+                              <option value="excused">Excused</option>
+                              <option value="absent">Absent</option>
+                            </HiusaSelect>
+                          </Field>
+                          {checkInError && <p role="alert" className="text-sm font-medium text-danger-strong">{checkInError}</p>}
+                          {checkInSuccess && <p role="status" className="text-sm font-medium text-success-strong">{checkInSuccess}</p>}
+                          <Button leftIcon={UserCheck} className="w-full sm:w-auto sm:self-start" onClick={handleCheckIn} loading={checkInSubmitting} disabled={!checkInPerson}>Confirm check-in</Button>
                         </div>
+                        <BiometricCheckIn
+                          eventId={selectedAttEventId}
+                          users={allUsers}
+                          academicStructure={attendanceAcademicStructure}
+                          academicStructureError={attendanceAcademicStructureError}
+                          department={attendanceAcademicStructure?.department || currentUser.department || currentUser.organization?.college || allUsers.find((user) => user.department)?.department || ''}
+                          onRecorded={async () => setAttendanceReload((value) => value + 1)}
+                        />
                       </div>
                     ) : canManageAttendance ? (
                       <div className="border-t border-line py-4">
@@ -1852,7 +1760,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     ) : (
                       <div className="border-t border-line pt-5">
                         <div className="mb-3 flex items-center justify-between gap-3">
-                          <div><h4 className="text-base font-semibold text-ink">Attendance log</h4><p className="mt-0.5 text-sm text-ink-muted">Search, review, and export recorded arrivals.</p></div>
+                          <h4 className="text-base font-semibold text-ink">Attendance log</h4>
                           <p className="shrink-0 text-xs tabular-nums text-ink-muted">{attendanceMeta.total} matching</p>
                         </div>
                         <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
@@ -1876,14 +1784,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           ))}
                           {!filteredAttendanceRecords.length && <li className="py-8 text-sm text-ink-muted">No attendance records match the filters.</li>}
                         </ul>
-                        <div className="hidden overflow-x-auto lg:block">
-                        <table className="w-full min-w-[900px] text-left">
+                        <div className="hidden lg:block">
+                        <table className="w-full text-left">
                           <caption className="sr-only">Attendance records</caption>
                           <thead>
                             <tr>
                               <th scope="col" className="px-4 py-2.5">Member</th>
-                              <th scope="col" className="px-4 py-2.5">Academic profile</th>
-                              <th scope="col" className="px-4 py-2.5">Method</th>
                               <th scope="col" className="px-4 py-2.5">Status</th>
                               <th scope="col" className="px-4 py-2.5">Check in / out</th>
                               <th scope="col" className="px-4 py-2.5">Recorded by</th>
@@ -1894,16 +1800,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <tr key={rec.id} className="hover:bg-subtle">
                                 <td className="px-4 py-2.5 font-medium text-ink">
                                   {rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : ''}
-                                  <p className="text-xs font-normal text-ink-muted">{rec.user?.school_id ?? ''}</p>
+                                  <p className="text-xs font-normal text-ink-muted">{[rec.user?.school_id, ...[rec.user?.program, rec.user?.major, rec.user?.year_level, rec.user?.section].filter(Boolean)].filter((value) => value !== undefined && value !== null && value !== '').join(' · ')}</p>
                                 </td>
-                                <td className="px-4 py-2.5 text-xs text-ink-muted-strong"><p className="text-ink">{[rec.user?.program, rec.user?.major].filter(Boolean).join(' · ')}</p><p>{[rec.user?.year_level, rec.user?.section, rec.user?.department].filter(Boolean).join(' · ')}</p></td>
-                                <td className="px-4 py-2.5 text-ink">{capitalize(rec.method)}</td>
                                 <td className="px-4 py-2.5"><AttendanceStatus status={rec.status} /></td>
-                                <td className="px-4 py-2.5 text-xs text-ink"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-ink-muted">Out: {formatDateTime(rec.check_out_time)}</p></td>
-                                <td className="px-4 py-2.5 text-xs text-ink"><p>{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : ''}</p><p className="text-ink-muted">{formatDisplayText(rec.recorder?.position_title) || rec.recorder?.role || ''}</p></td>
+                                <td className="px-4 py-2.5 text-xs text-ink"><p className="whitespace-nowrap">{formatDateTime(rec.check_in_time)}</p><p className="whitespace-nowrap text-ink-muted">Out: {formatDateTime(rec.check_out_time)} · {capitalize(rec.method)}</p></td>
+                                <td className="px-4 py-2.5 text-xs text-ink"><p>{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : ''}</p></td>
                               </tr>
                             ))}
-                            {!filteredAttendanceRecords.length && <tr><td colSpan={6} className="px-4 py-8 text-sm text-ink-muted">No attendance records match the filters.</td></tr>}
+                            {!filteredAttendanceRecords.length && <tr><td colSpan={4} className="px-4 py-8 text-sm text-ink-muted">No attendance records match the filters.</td></tr>}
                           </tbody>
                         </table>
                         </div>

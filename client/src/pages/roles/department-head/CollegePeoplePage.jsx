@@ -19,7 +19,7 @@ const PAGE_SIZE = 20;
 const TABS = [
   { key: 'students', label: 'Students' },
   { key: 'staff', label: 'Office staff' },
-  { key: 'leaders', label: 'Organization leaders' },
+  { key: 'leaders', label: 'Leaders' },
 ];
 
 const EMPTY = {
@@ -36,25 +36,28 @@ const SEARCH_LABEL = {
 
 const joinDetail = (...parts) => parts.filter(Boolean).join(' · ');
 
-function PersonCell({ name, detail }) {
+// Year levels arrive as '4th Year' from the school records and as a bare number from older rows.
+const yearLabel = (level) => (/^\d+$/.test(String(level ?? '').trim()) ? `Year ${String(level).trim()}` : level);
+
+function PersonCell({ name, detail, status }) {
   return (
     <span className="block min-w-0">
-      <span className="block font-medium text-ink">{name}</span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink">{name}{status && <StatusBadge status={status} />}</span>
       {detail && <span className="block break-words text-xs font-normal text-ink-muted">{detail}</span>}
     </span>
   );
 }
 
 const studentColumns = [
-  { key: 'name', header: 'Name', render: (row) => <PersonCell name={row.name} detail={joinDetail(row.email, `ID ${row.school_id}`)} /> },
-  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, row.year_level && `Year ${row.year_level}`) },
+  { key: 'name', header: 'Name', render: (row) => <PersonCell name={row.name} detail={joinDetail(row.email, `ID ${row.school_id}`)} status={row.status === 'signed_up' ? null : row.status} /> },
+  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, yearLabel(row.year_level)) },
   {
     key: 'organizations',
     header: 'Organizations',
     render: (row) => (row.organizations.length === 0 ? null : (
       <ul className="flex flex-col gap-0.5 text-sm">
         {row.organizations.map((organization) => (
-          <li key={organization.id}>
+          <li key={organization.id} title={organization.name} className="max-w-[16rem] truncate">
             {organization.name}
             {organization.position_title && <span className="text-xs font-normal text-ink-muted"> · {organization.position_title}</span>}
           </li>
@@ -62,7 +65,6 @@ const studentColumns = [
       </ul>
     )),
   },
-  { key: 'status', header: 'Account', render: (row) => (row.status === 'signed_up' ? null : <StatusBadge status={row.status} />) },
 ];
 
 const leaderColumns = [

@@ -183,4 +183,14 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     expect(screen.getByPlaceholderText('Name, school ID, email, course...')).toHaveValue('');
     expect(await screen.findByText('No student accounts yet')).toBeInTheDocument();
   });
+
+  it('says one student with a balance in the singular and keeps View account on one line', async () => {
+    const account = accountWith([invoice()]);
+    mocks.getStudentDebts.mockResolvedValue({ data: { data: [account], summary: { total_outstanding: 300, students_owing: 1, students_cleared: 0, students_overdue: 0, total_students: 1 }, filter_options: { departments: [], programs: [], year_levels: [] }, total: 1, per_page: 10, current_page: 1 } });
+    renderPage();
+
+    expect(await screen.findByText('1 student with a balance')).toBeInTheDocument();
+    expect(screen.getByText('Out of 1 student')).toBeInTheDocument();
+    for (const button of await screen.findAllByRole('button', { name: 'View account' })) expect(button).toHaveClass('whitespace-nowrap');
+  });
 });

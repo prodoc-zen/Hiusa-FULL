@@ -58,6 +58,14 @@ function roleCount(organization, key) {
   return count ?? (key === 'admin' ? organization.administrators_count ?? 0 : 0);
 }
 
+// The status sits beside the organization name, not in a column of its own: most rows are active and carry
+// no badge, and a phone prints every column label whether or not the row has a value for it.
+function OrganizationStatus({ organization }) {
+  const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active;
+  const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />;
+  return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge;
+}
+
 function CollegeHeader({ overview, onManageStaff }) {
   const user = storedUser();
   const name = overview?.college?.name || headCollegeName(user);
@@ -414,19 +422,20 @@ export default function CollegeOrganizationsPage() {
         <div className="flex min-w-0 items-start gap-2.5">
           <span className={organization.lifecycle_status === 'archived' ? 'grayscale' : ''}><OrgMark name={organization.name} acronym={organization.acronym} size="sm" /></span>
           <div className="min-w-0 text-left">
-            <p className={`break-words font-medium ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
-            <p className="text-xs text-ink-muted">{organization.acronym}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className={`break-words font-medium ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
+              {organization.lifecycle_status !== 'active' && <OrganizationStatus organization={organization} />}
+            </div>
+            <p className="text-xs text-ink-muted">{[organization.acronym, organization.submitted_at && `Submitted ${manilaDate(organization.submitted_at)}`].filter(Boolean).join(' · ')}</p>
             {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm text-danger-strong"><span className="block text-xs font-semibold">SAO remarks</span>{organization.review_remarks}</p>}
             {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs text-ink-muted">Archived by the SAO. Read only.</p>}
           </div>
         </div>
       ),
     },
-    { key: 'status', header: 'Status', render: (organization) => { if (organization.lifecycle_status === 'active') return null; const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge; } },
     { key: 'admins', header: 'Admins', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'admin')}</span> },
     { key: 'officers', header: 'SBO Officers', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'sbo_officer')}</span> },
     { key: 'students', header: 'Students', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'student')}</span> },
-    { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : ''}</span> },
   ];
 
   return (
@@ -439,7 +448,7 @@ export default function CollegeOrganizationsPage() {
 
       <Card bodyClassName="p-0">
         <div className="px-4 pt-2"><Tabs tabs={tabs} value={tab} onChange={changeTab} /></div>
-        <div role="tabpanel" id={STATUS_PANEL_ID} aria-label={`${tab === 'all' ? 'All' : LIFECYCLE[tab].label} organizations`}>
+        <div role="tabpanel" id={STATUS_PANEL_ID} aria-label={`${tab === 'all' ? 'All' : LIFECYCLE[tab].label} organizations`} className="p-4 pt-3">
           <DataTable
             stickyHeader={false}
             caption="Organizations of your college"
@@ -453,13 +462,13 @@ export default function CollegeOrganizationsPage() {
               ? <EmptyState icon={Building2} title="No organizations yet" description="Allow a student to apply. Their application comes to you for review." action={<Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
+              <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap">
+                <Button variant="secondary" size="sm" className="min-w-28 max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
                 {organization.lifecycle_status !== 'archived' && (
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="max-sm:h-[42px]"
+                    className="min-w-28 max-sm:h-[42px]"
                     aria-label={`Open organization space for ${organization.name}`}
                     onClick={() => {
                       enterOrganizationSpace(organization);

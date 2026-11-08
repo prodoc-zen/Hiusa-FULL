@@ -1,8 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarRange, ClipboardList, MapPin } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { CalendarRange, ChevronLeft, ChevronRight, ClipboardList, MapPin } from 'lucide-react';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -15,6 +15,7 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
 import { getEvents } from '../../../services/eventService';
+import { addDays, dayLabel, todayInManila } from './calendarDates';
 import VenueAvailabilityTimeline from './VenueAvailabilityTimeline';
 import { venueStageText } from './venueStage';
 
@@ -26,12 +27,10 @@ function getCurrentRole() {
   }
 }
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function weekAheadIso() {
-  return new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+// The availability window is eight days from today, and it moves a week at a time.
+function firstWindow() {
+  const from = todayInManila();
+  return { from, to: addDays(from, 7) };
 }
 
 function formatRange(start, end) {
@@ -71,7 +70,7 @@ export default function VenueBookingPage() {
   const [venues, setVenues] = useState({ loading: true, error: null, items: [] });
   const [events, setEvents] = useState([]);
   const [selectedVenueId, setSelectedVenueId] = useState('');
-  const [range, setRange] = useState({ from: todayIso(), to: weekAheadIso() });
+  const [range, setRange] = useState(firstWindow);
   const [availability, setAvailability] = useState({ loading: false, error: null, slots: [] });
 
   const [requestForm, setRequestForm] = useState(EMPTY_REQUEST_FORM);
@@ -249,27 +248,22 @@ export default function VenueBookingPage() {
     return booking.status === 'pending' || (booking.status === 'approved' && new Date(booking.start_time) > new Date());
   }
 
-  const firstRun = !bookings.loading && !bookings.error && bookings.items.length === 0;
-
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader
-        primary={firstRun ? undefined : <Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
-      />
+      <PageHeader primary={<Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>} />
 
-      <Card title="Find a venue">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Venue">
+      <Card title="Availability">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <Field label="Venue" className="w-full sm:w-80">
             <Select value={selectedVenueId} onChange={(event) => setSelectedVenueId(event.target.value)} disabled={venues.loading || venues.items.length === 0}>
               {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)} - capacity {venue.capacity}</option>)}
             </Select>
           </Field>
-          <Field label="From">
-            <Input type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} />
-          </Field>
-          <Field label="To">
-            <Input type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} />
-          </Field>
+          <div className="flex items-center gap-2">
+            <IconButton icon={ChevronLeft} label="Previous week" variant="secondary" className="pointer-coarse:h-11 pointer-coarse:w-11" disabled={range.from <= todayInManila()} onClick={() => setRange({ from: addDays(range.from, -7), to: addDays(range.to, -7) })} />
+            <p className="min-w-44 text-center text-sm font-semibold text-ink" aria-live="polite">{dayLabel(range.from, { month: 'short', day: 'numeric' })} - {dayLabel(range.to, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+            <IconButton icon={ChevronRight} label="Next week" variant="secondary" className="pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => setRange({ from: addDays(range.from, 7), to: addDays(range.to, 7) })} />
+          </div>
         </div>
 
         {venues.error && <p className="mt-4 text-sm font-medium text-danger-strong">{venues.error}</p>}
@@ -280,12 +274,9 @@ export default function VenueBookingPage() {
 
         {selectedVenue && (
           <div className="mt-5 border-t border-line pt-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-ink">{formatDisplayText(selectedVenue.name)}</p>
-                <p className="text-xs text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
-              </div>
-              <Button variant="secondary" onClick={() => openRequestForm()}>Request this venue</Button>
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-ink">{formatDisplayText(selectedVenue.name)}</p>
+              <p className="text-xs text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
             </div>
             {availability.loading ? (
               <p className="text-sm text-ink-muted">Checking availability...</p>
@@ -322,7 +313,6 @@ export default function VenueBookingPage() {
               icon={ClipboardList}
               title="No booking requests yet"
               description="Requests you send appear here with their status."
-              action={<Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
             />
           )}
         />

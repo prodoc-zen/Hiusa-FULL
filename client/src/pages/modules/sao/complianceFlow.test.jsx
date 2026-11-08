@@ -121,6 +121,21 @@ describe('OrganizationCompliancePage', () => {
     expect(within(row).getAllByText(text).length).toBeGreaterThan(0);
   });
 
+  it('prints no sample error on rows without a sample and says Approved once', async () => {
+    mocks.getComplianceStatus.mockResolvedValue(adminStatus('incomplete', [requirement('approved')]));
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    const row = (await screen.findAllByText('Officer Roster')).map((node) => node.closest('tr')).find(Boolean);
+    expect(screen.queryByText(/Sample format not provided/)).not.toBeInTheDocument();
+    expect(within(row).getAllByText('Approved')).toHaveLength(1);
+  });
+
+  it('offers every compliance tab as a select on narrow screens', async () => {
+    mocks.getComplianceStatus.mockResolvedValue(adminStatus('incomplete', [requirement('approved')]));
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    const select = await screen.findByRole('combobox', { name: 'Requirement group' });
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual(['Organization accreditation', 'Annual organization renewal', 'Semestral and financial report']);
+  });
+
   it.each([
     ['incomplete', 'Submit the missing requirements', 'Owner: Admin'],
     ['returned', 'Replace the returned files', 'Owner: Admin'],
@@ -174,7 +189,7 @@ describe('OrganizationCompliancePage', () => {
     mocks.getComplianceStatus.mockResolvedValue(adminStatus('not_applicable', []));
     renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
     expect(await screen.findByText('No requirements assigned yet')).toBeInTheDocument();
-    expect(screen.getByText(/The SAO publishes the compliance requirements/)).toBeInTheDocument();
+    expect(screen.getByText(/Requirements appear here once the SAO publishes them/)).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 

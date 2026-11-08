@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { EmptyState, PageHeader, Select, Tabs } from '../../../components/ui';
+import { EmptyState, PageHeader, Select } from '../../../components/ui';
+import ResponsiveTabs from './ResponsiveTabs';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus } from '../../../services/complianceService';
 import { fetchAllPages } from '../../../services/pagination';
@@ -164,11 +165,11 @@ export default function SaoCompliancePage() {
         }
       />
 
-      <Tabs value={activeGroup} onChange={(key) => changeTab(TABS.find((tab) => tab.key === key).defaultTab || key)} tabs={TABS} />
+      <ResponsiveTabs label="Compliance section" value={activeGroup} onChange={(key) => changeTab(TABS.find((tab) => tab.key === key).defaultTab || key)} tabs={TABS} />
 
       <div role="tabpanel" id={PANEL_ID} aria-label={TABS.find((tab) => tab.key === activeGroup).label} className="space-y-5">
-        {activeGroup === 'organizations' && <Tabs value={activeTab} onChange={changeTab} tabs={organizationTabs} />}
-        {activeGroup === 'settings' && <Tabs value={activeTab} onChange={changeTab} tabs={SETTING_TABS} />}
+        {activeGroup === 'organizations' && <ResponsiveTabs label="Organizations view" value={activeTab} onChange={changeTab} tabs={organizationTabs} />}
+        {activeGroup === 'settings' && <ResponsiveTabs label="Requirement settings view" value={activeTab} onChange={changeTab} tabs={SETTING_TABS} />}
         <div role={activeGroup === 'organizations' || activeGroup === 'settings' ? 'tabpanel' : undefined} id={SUB_PANEL_ID} aria-label={activeLabel} className="space-y-5">
           {activeTab === 'accreditation' && (
             <AccreditationTab overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} onChanged={loadOverview} />

@@ -53,6 +53,15 @@ describe('SettingsPage', () => {
     expect(screen.queryByText(/School ID/i)).not.toBeInTheDocument();
   });
 
+  it('shows a plain job title instead of the role enum', () => {
+    localStorage.setItem('user', JSON.stringify({ ...storedUser, role: 'SUPER_ADMIN', position_title: 'SAO Director', organization: null }));
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    expect(screen.getByText('SAO Director')).toBeInTheDocument();
+    expect(screen.queryByText(/SUPER_ADMIN/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Selected organization')).not.toBeInTheDocument();
+  });
+
   it('saves changed profile information and refreshes the stored identity', async () => {
     profileMocks.updateProfile.mockResolvedValue({ data: { ...storedUser, first_name: 'Ramona' } });
     renderPage();

@@ -10,7 +10,7 @@ import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import { useApplicantAccess } from '../../hooks/useApplicantAccess';
 import { readUserModules } from '../../utils/userModules';
-import { APPLY_ORGANIZATION, ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, resolveItemPath, withApplicantAccess } from './navigation';
+import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, resolveItemPath, withApplicantAccess } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
@@ -48,21 +48,6 @@ function BandHeading({ label, desktopCollapsed }) {
       {desktopCollapsed && <div aria-hidden="true" className="mx-2 mb-2 mt-3 hidden border-t border-white/10 lg:block" />}
       <p className={`px-3 pb-1 pt-4 text-xs font-medium text-white/60 ${desktopCollapsed ? 'lg:hidden' : ''}`}>{label}</p>
     </>
-  );
-}
-
-function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
-  const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || 'HI';
-  const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
-
-  return (
-    <div className={`flex items-center gap-3 px-2 py-2 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${formatDisplayText(name)} · ${roleLabel}` : undefined}>
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">{initials}</div>
-      <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
-        <p className="truncate text-sm font-semibold text-white">{formatDisplayText(name)}</p>
-        <p className="truncate text-xs font-medium text-white/60 capitalize">{roleLabel}</p>
-      </div>
-    </div>
   );
 }
 
@@ -184,7 +169,6 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   }, []);
 
   const role = user?.role || 'SBO_OFFICER';
-  const roleLabel = ROLE_LABELS[role] || role;
   const { subAccount, leave } = useActiveSubAccount();
   const orgSpace = role === 'DEPARTMENT_HEAD' ? subAccount : null;
   const modules = useMemo(() => readUserModules(), []);
@@ -236,7 +220,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
       </div>
 
       <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
-        <div className="flex-1 space-y-1">
+        <div className="space-y-1">
           {orgSpace && (
             <div className="mb-2 border-b border-white/10 pb-3">
               <button type="button" onClick={handleBackToCollege} aria-label={desktopCollapsed ? 'Back to my college' : undefined} title={desktopCollapsed ? 'Back to my college' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
@@ -312,21 +296,18 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
           })}
         </div>
 
-        <div className="mt-3 border-t border-white/10 pt-2">
-          <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
-          <div className="mt-1">
-          {footerNav.map((item) => (
-            <div key={item.path} onClick={handleNavItemClick}>
-              <NavItem {...item} active={activeId === item.id} desktopCollapsed={desktopCollapsed} />
-            </div>
-          ))}
-          <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Log out' : undefined} title={desktopCollapsed ? 'Log out' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
-            <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-            <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Log out</span>
-          </button>
-          </div>
-        </div>
       </nav>
+      <div className="shrink-0 space-y-0.5 border-t border-white/10 px-3 py-2">
+        {footerNav.map((item) => (
+          <div key={item.path} onClick={handleNavItemClick}>
+            <NavItem {...item} active={activeId === item.id} desktopCollapsed={desktopCollapsed} />
+          </div>
+        ))}
+        <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Log out' : undefined} title={desktopCollapsed ? 'Log out' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-control px-3 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white lg:h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+          <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+          <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Log out</span>
+        </button>
+      </div>
     </>
   );
 

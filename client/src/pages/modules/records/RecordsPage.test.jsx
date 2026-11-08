@@ -165,6 +165,15 @@ describe('Records page', () => {
     renderPage();
 
     expect(await screen.findByText('No school year records yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open academic years' })).toHaveAttribute('href', '/dashboard/super-admin/academic-years');
+  });
+
+  it('tells other roles who starts a semester instead of offering an action', async () => {
+    records.getRecords.mockResolvedValue({ periods: [], semester: null, organizations: [], organization: null });
+    renderPage('ADMIN');
+
+    expect(await screen.findByText(/after the university administrator starts a semester/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open academic years' })).not.toBeInTheDocument();
   });
 
   it('warns when a past period has no recorded officers', async () => {

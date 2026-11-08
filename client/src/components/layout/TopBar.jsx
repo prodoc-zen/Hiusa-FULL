@@ -586,17 +586,7 @@ export default function TopBar({ onMenuToggle }) {
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">
             {initials}
           </div>
-          <div className="hidden min-w-0 max-w-[min(12rem,25vw)] text-left sm:block">
-            <p className="truncate text-sm font-semibold text-ink" title={fullName}>{fullName}</p>
-            {role === 'DEPARTMENT_HEAD' ? (
-              <div title={`${organizationName} · ${roleLabel}`}>
-                <p className="break-words text-xs leading-tight text-ink-muted-strong">{organizationName}</p>
-                <p className="text-xs font-medium leading-tight text-brand-800">{roleLabel}</p>
-              </div>
-            ) : (
-              <p className="max-w-40 truncate text-xs text-ink-muted-strong" title={`${organizationName} · ${roleLabel}`}>{organizationName} · {roleLabel}</p>
-            )}
-          </div>
+          <p className="hidden max-w-[min(12rem,25vw)] truncate text-sm font-semibold text-ink sm:block" title={fullName}>{fullName}</p>
           <ChevronDown size={14} aria-hidden="true" className={`hidden text-ink-muted transition-transform motion-reduce:transition-none sm:block ${profileOpen ? 'rotate-180' : ''}`} />
         </button>
 
@@ -605,7 +595,7 @@ export default function TopBar({ onMenuToggle }) {
             <div className="mb-1 border-b border-line px-3 py-3">
               <p className="text-sm font-semibold text-ink">{fullName}</p>
               <p className="break-all text-xs text-ink-muted-strong">{user?.email || ''}</p>
-              {role === 'DEPARTMENT_HEAD' && <p className="mt-1 text-xs font-medium text-brand-800 sm:hidden">{organizationName} · {roleLabel}</p>}
+              <p className="mt-1 break-words text-xs text-ink-muted-strong">{organizationName} · {roleLabel}</p>
             </div>
             <section aria-label="Profiles" className="border-b border-line px-1 pb-2">
               <div className="flex items-center justify-between px-2 pb-1">

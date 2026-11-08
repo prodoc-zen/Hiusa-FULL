@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Eye, Megaphone, PencilLine, Plus, Send, Trash2 } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -103,14 +102,16 @@ export default function DepartmentHeadAnnouncementsPage() {
   }
 
   const columns = [
-    { key: 'title', header: 'Announcement', render: (row) => <span className="font-medium">{row.title}</span> },
+    { key: 'title', header: 'Announcement', render: (row) => <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">{row.title}{!row.is_published && <StatusBadge status="draft" />}</span> },
     { key: 'organization', header: 'Organization', render: (row) => row.organization?.name },
-    { key: 'status', header: 'Status', render: (row) => (row.is_published ? null : <StatusBadge status="draft" />) },
   ];
   const change = (key) => (event) => { setForm((current) => ({ ...current, [key]: event.target.value })); setErrors((current) => ({ ...current, [key]: undefined })); };
   return <div className="space-y-5 pb-8">
-    <PageHeader title="College announcements" primary={<Button leftIcon={Plus} onClick={() => openEditor()}>New announcement</Button>} />
-    <Link to="/dashboard/announcements/view-announcements" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700">View announcement feed</Link>
+    <PageHeader
+      title="College announcements"
+      actions={<Button variant="secondary" to="/dashboard/announcements/view-announcements">View announcement feed</Button>}
+      primary={<Button leftIcon={Plus} onClick={() => openEditor()}>New announcement</Button>}
+    />
     {notice && <p role="status" className="text-sm font-semibold text-success-strong">{notice}</p>}
     {error && !form && !deleting && <p role="alert" className="text-sm text-danger-strong">{error}</p>}
     <Card bodyClassName="p-0">
@@ -124,7 +125,7 @@ export default function DepartmentHeadAnnouncementsPage() {
           error={state.error}
           onRetry={load}
           stickyHeader={false}
-          emptyState={<EmptyState icon={Megaphone} title="No announcements yet" description="Write the first one for an organization in your college." />}
+          emptyState={<EmptyState icon={Megaphone} title="You have not written any announcements" description="Announcements from the organizations in your college are in the feed." />}
           actions={(row) => (
             <TableRowActions subject={row.title} actions={[
               { label: 'Edit announcement', icon: PencilLine, disabled: busy, onClick: () => openEditor(row) },

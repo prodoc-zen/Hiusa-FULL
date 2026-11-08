@@ -82,7 +82,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
       header: 'Requirements met',
       render: (org) => (
         <div className="min-w-[220px]">
-          <ProgressMeter value={orgApprovedCount(org)} max={org.requirements.length || 1} valueLabel={`${orgApprovedCount(org)}/${org.requirements.length}`} />
+          <ProgressMeter kind="progress" value={orgApprovedCount(org)} max={org.requirements.length || 1} valueLabel={`${orgApprovedCount(org)}/${org.requirements.length}`} />
         </div>
       ),
     },
@@ -106,7 +106,9 @@ export default function AccreditationTab({ title = 'Organization accreditation',
           onReviewOrganization && orgPendingCount(org) > 0 && { label: `Review ${orgPendingCount(org)} submission${orgPendingCount(org) === 1 ? '' : 's'}`, icon: FileText, onClick: () => onReviewOrganization(org.organization_id) },
           org.requirements.some((item) => item.status !== 'approved') && { label: 'Send compliance reminder', icon: Bell, onClick: () => setReminder({ organization: org }) },
         ]} />}
-        emptyState={(
+        emptyState={search.trim() ? (
+          <EmptyState kind="filtered" query={search.trim()} onClearFilters={() => setSearch('')} />
+        ) : (
           <EmptyState
             kind="first-run"
             icon={ShieldCheck}
@@ -154,7 +156,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
             ),
           },
           { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '' },
-          { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
+          { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : '' },
           { key: 'status', header: 'Status', render: (requirement) => requirement.status === 'not_submitted' ? <span className="text-ink-muted">Not submitted</span> : <StatusBadge label={requirement.status.charAt(0).toUpperCase() + requirement.status.slice(1).replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
           { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs text-ink-muted-strong">{requirement.file_name || 'No file'}</span> },
         ]}

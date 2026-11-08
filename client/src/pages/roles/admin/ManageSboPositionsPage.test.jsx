@@ -35,6 +35,19 @@ describe('ManageSboPositionsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('keeps responsibilities and the inactive flag in the position cell and hides an unneeded role column', async () => {
+    service.getSboPositions.mockResolvedValue([
+      { id: 8, role: 'ADMIN', title: 'Treasurer', description: 'Handles funds', is_active: true },
+      { id: 9, role: 'ADMIN', title: 'Auditor', description: '', is_active: false },
+    ]);
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+    const table = tableView();
+    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Position', 'Actions']);
+    expect(table.getByText('Handles funds')).toBeInTheDocument();
+    expect(table.getAllByText('Inactive')).toHaveLength(1);
+  });
+
   it('requires the position title before deletion', async () => {
     render(<ManageSboPositionsPage />);
     await screen.findAllByText('Treasurer');

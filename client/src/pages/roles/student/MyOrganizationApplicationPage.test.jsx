@@ -129,6 +129,14 @@ describe('MyOrganizationApplicationPage', () => {
     expect(screen.getByText('With the SAO')).toBeInTheDocument();
   });
 
+  it('says there is nothing to submit when the application lists no requirements', async () => {
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: application({ status: 'pending_dean', remarks: null, requirements: [] }) });
+    renderPage();
+
+    expect(await screen.findByText('Nothing to submit yet')).toBeInTheDocument();
+    expect(screen.getByText('No requirements are listed for this application.')).toBeInTheDocument();
+  });
+
   it('says what an approval means for the student', async () => {
     mocks.getMyOrganizationApplication.mockResolvedValue({ data: application({ status: 'approved', remarks: null, review_files: [] }) });
     renderPage();

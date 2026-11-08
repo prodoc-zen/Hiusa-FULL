@@ -1,8 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, CheckCheck, ExternalLink } from 'lucide-react';
+import { CheckCheck, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Button, EmptyState, PageHeader } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../../../components/ui';
 import { getNotifications, markAllRead, markRead } from '../../../services/notificationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getNotificationDestination } from '../../../utils/notificationLinks';
@@ -14,15 +14,17 @@ export default function SaoNotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setLoadError('');
     try {
       const response = await getNotifications({ per_page: 100 });
       setNotifications(response.data?.data || []);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to load SAO notifications.'));
+      setLoadError(getApiErrorMessage(requestError, 'Unable to load SAO notifications.'));
     } finally {
       setLoading(false);
     }
@@ -58,14 +60,14 @@ export default function SaoNotificationsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader primary={<Button leftIcon={CheckCheck} disabled={!unread} onClick={readAll}>Mark all as read</Button>} />
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
-      <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
-        {loading ? <div className="h-48 animate-pulse bg-slate-100" /> : notifications.length ? <div className="divide-y divide-line">{notifications.map((notification) => {
+      <PageHeader primary={unread > 0 ? <Button leftIcon={CheckCheck} onClick={readAll}>Mark all as read</Button> : undefined} />
+      {error && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{error}</p>}
+      <section>
+        {loading ? <SkeletonTable columns={2} rows={4} /> : loadError ? <ErrorState title="Notifications could not load" description={loadError} onRetry={load} /> : notifications.length ? <div className="divide-y divide-line border-y border-line">{notifications.map((notification) => {
           const destination = getNotificationDestination(notification, 'SUPER_ADMIN');
           const Icon = notificationIcon(notification);
-          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex w-full items-start gap-3 p-4 text-left hover:bg-subtle ${notificationAppearance(notification).row}`}><Icon size={19} className={`mt-0.5 shrink-0 ${notificationAppearance(notification).icon}`} aria-hidden="true" /><div className="min-w-0 flex-1"><p className="font-bold text-ink">{formatDisplayText(notification.title)}</p><p className="mt-1 text-sm text-slate-600">{notification.message}</p><p className="mt-2 text-xs text-slate-500">{new Date(notification.sent_at || notification.created_at).toLocaleString('en-PH')}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-brand-700" />}</button>;
-        })}</div> : <EmptyState kind="first-run" icon={Bell} title="No SAO notifications yet" description="Registrations, submissions, and requests that need the SAO are announced here as organizations send them." />}
+          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex min-h-11 w-full items-start gap-3 px-1 py-4 text-left hover:bg-subtle ${notificationAppearance(notification).row}`}><Icon size={19} className={`mt-0.5 shrink-0 ${notificationAppearance(notification).icon}`} aria-hidden="true" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{formatDisplayText(notification.title)}</p><p className="mt-1 text-sm text-ink-muted-strong">{notification.message}</p><p className="mt-2 text-xs text-ink-muted">{new Date(notification.sent_at || notification.created_at).toLocaleString('en-PH')}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-brand-700" />}</button>;
+        })}</div> : <EmptyState kind="first-run" title="No notifications yet" description="Registrations and requests that need the SAO appear here." />}
       </section>
     </div>
   );

@@ -97,8 +97,7 @@ describe('SaoClearancesPage', () => {
     await screen.findByText('No clearance periods yet');
     fireEvent.click(screen.getAllByRole('button', { name: 'New clearance period' })[0]);
 
-    // Required fields render as "Title*" (label text immediately followed by
-    // the asterisk marker, no separating space), so exact matches miss them.
+    // Labels are matched by prefix so an "(optional)" suffix never breaks the lookup.
     fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'Second Semester Clearance' } });
     fireEvent.change(screen.getByLabelText(/^Academic year/), { target: { value: '2026-2027' } });
     fireEvent.change(screen.getByLabelText(/Required signatory roles/), { target: { value: 'sao' } });

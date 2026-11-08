@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import OrgTransactions from '../../../components/org/OrgTransactions';
-import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonTable, Stat, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, ErrorState, Field, PageHeader, Select, SkeletonTable, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 import { manilaDate, peso } from '../../../lib/format';
 import notify from '../../../lib/notify';
@@ -30,7 +30,7 @@ function Loading() {
   );
 }
 
-function OverviewTab({ space, onOpen, oversight }) {
+function OverviewTab({ space, oversight }) {
   const { counts, lifecycle, events, finance } = space;
   const next = events.upcoming[0];
 
@@ -52,7 +52,7 @@ function OverviewTab({ space, onOpen, oversight }) {
           {lifecycle.review_remarks && <p className="mt-3 text-sm text-ink">{lifecycle.review_remarks}</p>}
           {oversight && <Button variant="secondary" size="sm" className="mt-3" to={`/dashboard/super-admin/organizations/${space.organization.id}`}>Registration details</Button>}
         </Card>
-        <Card title="Next event" actions={<Button variant="secondary" size="sm" onClick={() => onOpen('events')}>All events</Button>}>
+        <Card title="Next event">
           {next ? (
             <div>
               <p className="text-sm font-semibold text-ink">{next.title}</p>
@@ -62,7 +62,7 @@ function OverviewTab({ space, onOpen, oversight }) {
             <p className="text-sm text-ink-muted">No upcoming events.</p>
           )}
         </Card>
-        <Card title="Money" actions={<Button variant="secondary" size="sm" onClick={() => onOpen('finance')}>See finance</Button>}>
+        <Card title="Money">
           {finance.approved_budget_count > 0 ? (
             <p className="text-sm text-ink"><span className="text-2xl font-semibold tabular-nums">{peso(finance.remaining)}</span> left across {finance.approved_budget_count} approved {finance.approved_budget_count === 1 ? 'budget' : 'budgets'}</p>
           ) : (
@@ -198,9 +198,8 @@ function DocumentsTab({ space }) {
 
 export default function OrgSpacePage({ oversight = false }) {
   const { orgId } = useParams();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { subAccount, enter, leave } = useActiveSubAccount();
+  const { subAccount, enter } = useActiveSubAccount();
   const [space, setSpace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -232,11 +231,6 @@ export default function OrgSpacePage({ oversight = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
-  function backToCollege() {
-    leave();
-    navigate('/dashboard/department-head');
-  }
-
   function openTab(key) {
     const next = new URLSearchParams(params);
     if (key === 'overview') next.delete('tab');
@@ -247,10 +241,8 @@ export default function OrgSpacePage({ oversight = false }) {
   const header = (
     <PageHeader
       title={space?.organization?.name || 'Organization'}
-      description={space ? `${space.organization.acronym ? `${space.organization.acronym} · ` : ''}${space.organization.college}` : undefined}
-      actions={oversight
-        ? <Button variant="secondary" to={COLLEGES_PATH}>Back to colleges</Button>
-        : <Button variant="secondary" onClick={backToCollege}>Back to my college</Button>}
+      description={oversight && space ? space.organization.college : undefined}
+      actions={oversight ? <Button variant="secondary" to={COLLEGES_PATH}>Back to colleges</Button> : undefined}
     />
   );
 
@@ -265,9 +257,16 @@ export default function OrgSpacePage({ oversight = false }) {
   return (
     <div>
       {header}
-      <Tabs tabs={TABS.map((entry) => ({ ...entry, panelId: 'org-space-panel' }))} value={tab} onChange={openTab} className="mt-4" />
+      <Tabs tabs={TABS.map((entry) => ({ ...entry, panelId: 'org-space-panel' }))} value={tab} onChange={openTab} className="mt-4 hidden sm:block" />
+      <div className="mt-4 sm:hidden">
+        <Field label="Section">
+          <Select value={tab} onChange={(event) => openTab(event.target.value)}>
+            {TABS.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}
+          </Select>
+        </Field>
+      </div>
       <div id="org-space-panel" role="tabpanel" className="mt-6">
-        {tab === 'overview' && <OverviewTab space={space} onOpen={openTab} oversight={oversight} />}
+        {tab === 'overview' && <OverviewTab space={space} oversight={oversight} />}
         {tab === 'people' && (oversight
           ? <MembersTab space={space} />
           : <OrgAccessPanel organizationId={space.organization.id} actorRole="DEPARTMENT_HEAD" />)}

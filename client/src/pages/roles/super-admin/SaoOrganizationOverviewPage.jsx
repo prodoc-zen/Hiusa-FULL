@@ -5,7 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { RegistrationNextStep, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
-import { Button, ErrorState, PageHeader, SkeletonCard, SkeletonStat, StatusBadge } from '../../../components/ui';
+import { Button, ErrorState, PageHeader, SkeletonCard, SkeletonStat, SkeletonText, StatusBadge } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 import { getComplianceDocuments } from '../../../services/complianceService';
 import { getSystemOrganizationOverview, restoreSystemOrganization } from '../../../services/systemAdministrationService';
@@ -20,7 +20,7 @@ const LINK_CLASS = 'mt-2 inline-flex min-h-11 items-center text-sm font-semibold
 
 function Section({ id, title, children }) {
   return (
-    <section aria-labelledby={id} className="rounded-card border border-line bg-surface p-4 sm:p-5">
+    <section aria-labelledby={id} className="border-t border-line pt-5">
       <h2 id={id} className="text-base font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
@@ -97,13 +97,13 @@ function LatestDocuments({ organizationId, refreshTick }) {
     }
   }
 
-  if (loading) return <p role="status" className="text-sm text-ink-muted">Loading documents...</p>;
+  if (loading) return <SkeletonText lines={3} />;
   if (error) return <ErrorState className="py-6" description={error} onRetry={() => load()} />;
-  if (!documents.length) return <p className="text-sm font-medium text-ink-muted">No documents have been submitted.</p>;
+  if (!documents.length) return <p className="text-sm text-ink-muted">No documents have been submitted.</p>;
 
   return (
     <>
-      {fileError && <p role="alert" className="mb-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">{fileError}</p>}
+      {fileError && <p role="alert" className="mb-2 rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{fileError}</p>}
       <ul className="divide-y divide-line-soft">
         {documents.map((document) => (
           <li key={`${document.source}-${document.open_url}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -190,6 +190,8 @@ export default function SaoOrganizationOverviewPage() {
   const accreditation = accreditationBadge(compliance.accreditation_status);
   const name = formatDisplayText(organization.name);
   const registration = { id: organization.id, name, lifecycle_status: lifecycle.status, review_remarks: lifecycle.review_remarks, administrators_count: members.ADMIN ?? 0 };
+  const registrationFinished = lifecycle.status === 'active' && (members.ADMIN ?? 0) > 0;
+  const hasEvents = (events.upcoming || []).length + (events.recent || []).length > 0;
 
   return (
     <div className="space-y-5">
@@ -202,17 +204,19 @@ export default function SaoOrganizationOverviewPage() {
       />
 
       {lifecycle.status === 'archived' && (
-        <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">
+        <p role="note" className="rounded-control border border-line bg-subtle p-3 text-sm font-medium text-ink">
           Archived organizations are read-only. Restore to make changes.
           {lifecycle.archived_at && <span className="block text-xs font-medium text-ink-muted">Archived {formatDateTime(lifecycle.archived_at)}{lifecycle.archived_by ? ` by ${lifecycle.archived_by.name}` : ''}.</span>}
         </p>
       )}
-      <section aria-label="Registration progress" className="space-y-3">
-        <RegistrationStepper organization={registration} viewerRole="SUPER_ADMIN" />
-        {lifecycle.status !== 'archived' && <RegistrationNextStep organization={registration} viewerRole="SUPER_ADMIN" />}
-      </section>
-      {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
-      {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+      {!registrationFinished && (
+        <section aria-label="Registration progress" className="space-y-3">
+          <RegistrationStepper organization={registration} viewerRole="SUPER_ADMIN" />
+          {lifecycle.status !== 'archived' && <RegistrationNextStep organization={registration} viewerRole="SUPER_ADMIN" />}
+        </section>
+      )}
+      {actionError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{actionError}</p>}
+      {notice && <p role="status" className="rounded-control bg-success-tint p-3 text-sm font-medium text-success-strong">{notice}</p>}
 
       {organization.description && <RichTextBody value={organization.description} className="max-w-[75ch] text-sm text-ink-muted" />}
 
@@ -240,20 +244,26 @@ export default function SaoOrganizationOverviewPage() {
         </Section>
 
         <Section id="events" title="Events">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <EventList title="Upcoming" events={events.upcoming || []} />
-            <EventList title="Recent" events={events.recent || []} />
-          </div>
+          {hasEvents ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <EventList title="Upcoming" events={events.upcoming || []} />
+              <EventList title="Recent" events={events.recent || []} />
+            </div>
+          ) : <p className="text-sm text-ink-muted">No events yet.</p>}
         </Section>
 
         <Section id="budgets" title="Approved budgets">
-          <dl className="grid grid-cols-2 gap-4">
-            <Figure label="Allocated" value={peso(budget.allocated)} />
-            <Figure label="Spent" value={peso(budget.spent)} />
-            <Figure label="Income" value={peso(budget.income)} />
-            <Figure label="Remaining" value={peso(budget.remaining)} />
-          </dl>
-          <p className="mt-3 text-xs font-medium text-ink-muted">{budget.approved_budget_count ?? 0} approved {budget.approved_budget_count === 1 ? 'budget' : 'budgets'}. Only approved budgets are counted.</p>
+          {(budget.approved_budget_count ?? 0) > 0 ? (
+            <>
+              <dl className="grid grid-cols-2 gap-4">
+                <Figure label="Allocated" value={peso(budget.allocated)} />
+                <Figure label="Spent" value={peso(budget.spent)} />
+                <Figure label="Income" value={peso(budget.income)} />
+                <Figure label="Remaining" value={peso(budget.remaining)} />
+              </dl>
+              <p className="mt-3 text-xs text-ink-muted">{budget.approved_budget_count} approved {budget.approved_budget_count === 1 ? 'budget' : 'budgets'}. Only approved budgets are counted.</p>
+            </>
+          ) : <p className="text-sm text-ink-muted">No approved budgets yet.</p>}
         </Section>
 
         <Section id="compliance" title="Compliance">
@@ -264,9 +274,11 @@ export default function SaoOrganizationOverviewPage() {
           <Link to="/dashboard/super-admin/compliance?tab=review" className={LINK_CLASS}>Open the review queue</Link>
         </Section>
 
-        <Section id="pending-approvals" title="Pending approvals">
-          <p className="text-sm font-medium text-ink"><span className="text-lg font-semibold tabular-nums">{pendingApprovals}</span> {pendingApprovals === 1 ? 'request is' : 'requests are'} waiting for a decision.</p>
-        </Section>
+        {pendingApprovals > 0 && (
+          <Section id="pending-approvals" title="Pending approvals">
+            <p className="text-sm text-ink"><span className="text-lg font-semibold tabular-nums">{pendingApprovals}</span> {pendingApprovals === 1 ? 'request is' : 'requests are'} waiting for a decision.</p>
+          </Section>
+        )}
       </div>
 
       <Section id="documents" title="Latest documents">

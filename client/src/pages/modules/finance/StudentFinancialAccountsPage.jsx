@@ -11,7 +11,8 @@ import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select
 
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
-const EMPTY_FILTERS = { search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };
+const plural = (count, noun) => `${count} ${noun}${Number(count) === 1 ? '' : 's'}`;
+const EMPTY_FILTERS ={ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };
 
 // Overdue and pending clearance carry a badge; a cleared student is the default and shows nothing.
 function standing(account) {
@@ -112,9 +113,9 @@ export default function StudentFinancialAccountsPage() {
 
     <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
-        { label: 'Total outstanding', value: money(summary.total_outstanding), detail: `${summary.students_owing || 0} students with balances` },
+        { label: 'Total outstanding', value: money(summary.total_outstanding), detail: `${plural(summary.students_owing || 0, 'student')} with ${Number(summary.students_owing) === 1 ? 'a balance' : 'balances'}` },
         { label: 'Overdue accounts', value: summary.students_overdue || 0, detail: 'Past at least one due date' },
-        { label: 'Cleared students', value: summary.students_cleared || 0, detail: `Out of ${summary.total_students || 0} students` },
+        { label: 'Cleared students', value: summary.students_cleared || 0, detail: `Out of ${plural(summary.total_students || 0, 'student')}` },
       ].map((item) => <div key={item.label} className="p-4"><dt className="text-xs font-medium text-ink-muted">{item.label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{item.value}</dd><p className="mt-1 text-xs text-ink-muted">{item.detail}</p></div>)}
     </dl>
 
@@ -129,7 +130,7 @@ export default function StudentFinancialAccountsPage() {
         onRetry={load}
         filters={filterRow}
         emptyState={emptyState}
-        actions={(account) => <Button variant="secondary" onClick={() => setSelected(account)}>View account</Button>}
+        actions={(account) => <Button variant="secondary" className="whitespace-nowrap" onClick={() => setSelected(account)}>View account</Button>}
         actionsHeader="Action"
         stickyHeader={false}
         pagination={<PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="student accounts" />}
@@ -155,7 +156,6 @@ export default function StudentFinancialAccountsPage() {
     <Drawer
       open={Boolean(charge)}
       title="Add student charge"
-      description="Create an amount due on the student's financial account."
       onClose={() => !busy && setCharge(null)}
       footer={<><Button variant="secondary" onClick={() => setCharge(null)} disabled={busy}>Cancel</Button><Button type="submit" form="charge-form" disabled={!charge?.student_id} loading={busy}>Add charge</Button></>}
     >

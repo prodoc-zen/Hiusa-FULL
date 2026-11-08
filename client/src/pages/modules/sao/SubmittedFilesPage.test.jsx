@@ -39,6 +39,16 @@ describe('SubmittedFilesPage', () => {
     await waitFor(() => expect(mocks.deleteComplianceFile).toHaveBeenCalledWith(11, row.submitted_at));
   });
 
+  it('leaves the Organization column off the organization Admin own page and keeps it for the college Head', async () => {
+    const { unmount } = render(<MemoryRouter><SubmittedFilesPage role="ADMIN" /></MemoryRouter>);
+    await screen.findByText('constitution.pdf');
+    expect(screen.queryByRole('columnheader', { name: 'Organization' })).not.toBeInTheDocument();
+    unmount();
+    render(<MemoryRouter><SubmittedFilesPage role="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await screen.findByText('constitution.pdf');
+    expect(screen.getByRole('columnheader', { name: 'Organization' })).toBeInTheDocument();
+  });
+
   it('keeps the college Head on protected view actions only', async () => {
     render(<MemoryRouter><SubmittedFilesPage role="DEPARTMENT_HEAD" /></MemoryRouter>);
     await screen.findByText('constitution.pdf');

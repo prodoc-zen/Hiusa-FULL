@@ -211,28 +211,72 @@ describe('TasksPage', () => {
 
     it('shows the progress view for ?view=progress and switches views through the query', async () => {
       renderAt('/dashboard/tasks/task-board?view=progress');
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: 'Progress' })).toBeChecked();
-      fireEvent.click(screen.getByRole('radio', { name: 'Board' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Task progress' })).toBeInTheDocument();
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to tasks' }));
       expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
       expect(screen.getByTestId('where')).toHaveTextContent(/^\/dashboard\/tasks\/task-board$/);
-      fireEvent.click(screen.getByRole('radio', { name: 'Progress' }));
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Officer progress' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
       expect(screen.getByTestId('where')).toHaveTextContent('?view=progress');
+    });
+
+    it('lists every task under its officer without collapsed sections or avatar initials', async () => {
+      renderAt('/dashboard/tasks/task-board?view=progress');
+      const section = await screen.findByRole('region', { name: 'Ana Reyes' });
+      expect(within(section).getByText('1 of 2 done')).toBeInTheDocument();
+      expect(within(section).getByText('Monthly Records')).toBeInTheDocument();
+      expect(within(section).getByText('Event Brief')).toBeInTheDocument();
+      expect(document.querySelector('details')).toBeNull();
+      expect(screen.queryByText('AR')).not.toBeInTheDocument();
+    });
+
+    it('drops the progress column from the board', async () => {
+      renderAt('/dashboard/tasks/task-board');
+      await screen.findAllByText('Monthly Records');
+      expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/% complete/)).not.toBeInTheDocument();
     });
 
     it('moves from the old progress route to the board route when the view changes', async () => {
       renderAt('/dashboard/tasks/task-progress', { initialTab: 'progress' });
-      expect(await screen.findByRole('heading', { name: 'Officer Workload' })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('radio', { name: 'Board' }));
+      expect(await screen.findByRole('heading', { name: 'Workload by officer' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to tasks' }));
       await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/dashboard\/tasks\/task-board$/));
     });
 
     it('keeps the AI delegation tab free of the new task button and view switch', async () => {
       renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
-      expect(await screen.findByRole('heading', { name: 'AI Task Suggestions' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Suggested officers' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New task' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('radio', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Officer progress' })).not.toBeInTheDocument();
+    });
+
+    it('explains the ranking in plain words and shows only the scores the server recorded', async () => {
+      const scored = { id: 5, title: 'sCORED tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: 82.5, role_score: 90, workload_score: 70 };
+      const unscored = { id: 6, title: 'pLAIN tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: null };
+      mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([scored, unscored])));
+      renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
+      expect(await screen.findByText('Scored Task')).toBeInTheDocument();
+      expect(screen.queryByText('Plain Task')).not.toBeInTheDocument();
+      expect(screen.getByText('Position')).toBeInTheDocument();
+      expect(screen.getByText('Workload')).toBeInTheDocument();
+      expect(screen.queryByText('Performance')).not.toBeInTheDocument();
+      expect(screen.queryByText('0.00')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Engine not reported/)).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'How officers are ranked' })).toBeInTheDocument();
+      expect(screen.getByText('The officer with the highest score is suggested. The Admin makes the final choice.')).toBeInTheDocument();
+      expect(screen.queryByText(/policy-eligible|weighted fit score/)).not.toBeInTheDocument();
+    });
+
+    it('sends an officer from the delegation page to their own tasks', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
+      expect(await screen.findByText('Your Admin assigns tasks')).toBeInTheDocument();
+      expect(screen.queryByText('How officers are ranked')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Go to my tasks' }));
+      expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/tasks/assigned-tasks');
     });
 
     it('does not offer the new task form or progress view to officers', async () => {
@@ -241,7 +285,7 @@ describe('TasksPage', () => {
       expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
       expect(screen.queryByLabelText(/^Task title/)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New task' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('radio', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Officer progress' })).not.toBeInTheDocument();
     });
 
     it('writes ?record= when a task is opened and removes it when the details close', async () => {

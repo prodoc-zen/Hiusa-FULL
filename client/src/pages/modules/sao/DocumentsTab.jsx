@@ -149,11 +149,11 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const folderFilter = (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <Field label="Find an organization" className="w-full max-w-md">
-        <Input type="search" placeholder="Name or acronym" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Input type="search" className="max-sm:h-[42px]" placeholder="Name or acronym" value={query} onChange={(event) => setQuery(event.target.value)} />
       </Field>
       <div className="flex items-center gap-1" role="group" aria-label="Folder layout">
-        <Button variant="secondary" size="sm" className={`min-h-[42px] ${view === 'grid' ? 'bg-subtle' : ''}`} aria-pressed={view === 'grid'} leftIcon={LayoutGrid} onClick={() => setView('grid')} aria-label="Grid view">Grid</Button>
-        <Button variant="secondary" size="sm" className={`min-h-[42px] ${view === 'list' ? 'bg-subtle' : ''}`} aria-pressed={view === 'list'} leftIcon={List} onClick={() => setView('list')} aria-label="List view">List</Button>
+        <Button variant="secondary" className={`max-sm:h-[42px] ${view === 'grid' ? 'bg-subtle' : ''}`} aria-pressed={view === 'grid'} leftIcon={LayoutGrid} onClick={() => setView('grid')} aria-label="Grid view">Grid</Button>
+        <Button variant="secondary" className={`max-sm:h-[42px] ${view === 'list' ? 'bg-subtle' : ''}`} aria-pressed={view === 'list'} leftIcon={List} onClick={() => setView('list')} aria-label="List view">List</Button>
       </div>
     </div>
   );
@@ -161,10 +161,11 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
 
   return <div className="space-y-4 pb-8">
     <PageHeader title={role === 'DEPARTMENT_HEAD' ? 'College files' : 'Submitted files'} />
-    <nav aria-label="File location" className="flex flex-wrap items-center gap-1 text-sm font-medium">
-      <button type="button" onClick={() => { setOrganization(null); setParams({}); }} className="min-h-[42px] rounded-control px-2 text-brand-700 hover:bg-subtle">All organizations</button>
-      {organization && <><ChevronRight size={15} className="text-ink-muted" aria-hidden="true" /><span className="break-words px-2 text-ink">{organization.name}</span></>}
-    </nav>
+    {organization && <nav aria-label="File location" className="flex flex-wrap items-center gap-1 text-sm font-medium">
+      <button type="button" onClick={() => { setOrganization(null); setParams({}); }} className="inline-flex min-h-[42px] items-center rounded-control pr-2 text-brand-700 underline underline-offset-2 hover:text-brand-800">All organizations</button>
+      <ChevronRight size={15} className="text-ink-muted" aria-hidden="true" />
+      <span className="break-words px-2 text-ink">{organization.name}</span>
+    </nav>}
     {notice && <p role="status" className="rounded-control border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {actionError && !deleting && !editing && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{actionError}</p>}
     {!organization ? <section className="space-y-4">
@@ -172,18 +173,15 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
       {folders.loading ? <SkeletonTable rows={5} columns={3} /> : folders.error ? <div role="alert"><ErrorState title="Could not load organizations" description={folders.error} onRetry={loadFolders} /></div> : folders.rows.length === 0 ? <EmptyState icon={Folder} kind={search ? 'filtered' : 'first-run'} title={search ? undefined : 'No organizations yet'} description={search ? 'Try another name or acronym.' : 'Submitted files appear in organization folders.'} onClearFilters={search ? () => setQuery('') : undefined} /> : <div className={view === 'grid' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3' : 'divide-y divide-line rounded-card border border-line'}>
         {folders.rows.map((folder) => <button key={folder.organization.id} type="button" onClick={() => openFolder(folder)} className={`flex min-h-[44px] min-w-0 items-start gap-3 text-left transition-colors duration-150 hover:bg-subtle ${view === 'grid' ? 'rounded-card border border-line p-4' : 'px-4 py-3'}`}>
           <Folder size={20} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden="true" />
-          <span className="min-w-0 flex-1"><span className="block break-words text-sm font-semibold text-ink">{folder.organization.name}</span><span className="block text-xs text-ink-muted">{folder.organization.college || 'No college assigned'}</span><span className="mt-1 block text-xs text-ink-muted">{folder.file_count} {folder.file_count === 1 ? 'file' : 'files'} · {folder.latest_submitted_at ? manilaDate(folder.latest_submitted_at, 'long') : 'No date'}</span></span>
+          <span className="min-w-0 flex-1"><span title={folder.organization.name} className="line-clamp-2 break-words text-sm font-semibold text-ink">{folder.organization.name}</span><span className="block truncate text-xs text-ink-muted">{folder.organization.college || 'No college assigned'}</span><span className={`mt-1 block text-xs ${folder.file_count ? 'text-ink-muted-strong' : 'text-ink-muted'}`}>{folder.file_count ? `${folder.file_count} ${folder.file_count === 1 ? 'file' : 'files'}${folder.latest_submitted_at ? ` · latest ${manilaDate(folder.latest_submitted_at, 'long')}` : ''}` : 'No files yet'}</span></span>
         </button>)}
       </div>}
       {!folders.loading && !folders.error && <PaginationControls currentPage={folders.meta.currentPage} totalItems={folders.meta.total} pageSize={folders.meta.perPage} onPageChange={setFolderPage} label="organizations" />}
     </section> : <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-base font-semibold text-ink">{organization.name}</h2>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Find a file"><Input type="search" className="min-w-48" value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="Name, event or report" /></Field>
-          <Field label="Type"><Select filter className="min-w-40" value={family} onChange={(event) => { setFamily(event.target.value); setFilePage(1); }}><option value="">All types</option>{FAMILIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
-          <Field label="Semester"><Select filter className="min-w-40" value={semester} onChange={(event) => { setSemester(event.target.value); setFilePage(1); }}><option value="">All semesters</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.academic_year?.label} · Semester {period.number}</option>)}</Select></Field>
-        </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Find a file"><Input type="search" className="min-w-48" value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="Name, event or report" /></Field>
+        <Field label="Type"><Select filter className="min-w-40" value={family} onChange={(event) => { setFamily(event.target.value); setFilePage(1); }}><option value="">All types</option>{FAMILIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
+        <Field label="Semester"><Select filter className="min-w-40" value={semester} onChange={(event) => { setSemester(event.target.value); setFilePage(1); }}><option value="">All semesters</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.academic_year?.label} · Semester {period.number}</option>)}</Select></Field>
       </div>
       {files.loading ? <SkeletonTable rows={5} columns={5} /> : files.error ? <div role="alert"><ErrorState title="Could not load files" description={files.error} onRetry={loadFiles} /></div> : files.rows.length === 0 ? <EmptyState kind={fileFiltersActive ? 'filtered' : 'first-run'} title={fileFiltersActive ? 'No files in this view' : 'No files yet'} description={fileFiltersActive ? 'Try another document type or semester.' : 'Files this organization submits appear here.'} onClearFilters={fileFiltersActive ? () => { setFamily(''); setSemester(''); setFileQuery(''); setFileSearch(''); setFilePage(1); } : undefined} /> : <div><table className={TABLE}><caption className="sr-only">Files submitted by {organization.name}</caption><thead className={THEAD}><tr><th scope="col" className={TH}>Name</th><th scope="col" className={TH}>Type</th><th scope="col" className={TH}>Submitted</th><th scope="col" className={TH}>Status</th><th scope="col" className={`${TH} text-right`}>Actions</th></tr></thead><tbody className={TBODY}>{files.rows.map((row) => <tr key={`${row.source}-${row.open_url}`} className={TR}><td data-label="Name" className={`${TD} max-w-xs`}><div><span className="block break-words font-medium text-ink">{row.file_name || row.item}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></div></td><td data-label="Type" className={`${TD} text-ink-muted-strong`}>{FAMILY_NAMES[row.family] || row.family}</td><td data-label="Submitted" className={`${TD} text-ink-muted-strong`}>{row.submitted_at ? manilaDate(row.submitted_at, 'long') : ''}</td><td data-label="Status" className={TD}><StatusBadge status={row.status} /></td><td data-label="Actions" className={`${TD} md:text-right`}><TableRowActions subject={row.file_name || row.item} actions={[
         { label: 'View file', icon: ExternalLink, onClick: () => openFile(row) },

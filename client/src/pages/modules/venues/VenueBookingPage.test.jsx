@@ -49,4 +49,24 @@ describe('VenueBookingPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Request a venue booking' });
     expect(within(dialog).getByLabelText('Venue type')).toBeInTheDocument();
   });
+
+  it('offers one request button, with no second one beside the calendar', async () => {
+    render(<MemoryRouter><VenueBookingPage /></MemoryRouter>);
+    await screen.findByText(/Reserved by Your organization/);
+    expect(screen.getAllByRole('button', { name: /^Request/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Request this venue' })).not.toBeInTheDocument();
+  });
+
+  it('moves the availability window a week at a time without native date fields', async () => {
+    render(<MemoryRouter><VenueBookingPage /></MemoryRouter>);
+    await screen.findByText(/Reserved by Your organization/);
+    expect(screen.getByText('Oct 7 - Oct 14, 2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next week' }));
+    expect(screen.getByText('Oct 14 - Oct 21, 2026')).toBeInTheDocument();
+    await waitFor(() => expect(venueMocks.getVenueAvailability).toHaveBeenLastCalledWith('8', { from: '2026-10-14', to: '2026-10-21' }));
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBeEnabled();
+    expect(screen.queryByLabelText('From')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('To')).not.toBeInTheDocument();
+  });
 });

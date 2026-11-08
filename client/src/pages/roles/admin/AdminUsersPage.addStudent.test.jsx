@@ -51,6 +51,19 @@ describe('AdminUsersPage add existing student', () => {
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
   });
 
+  it('names the position under an administrator and drops the program column when nobody has one', async () => {
+    mocks.getUsers.mockResolvedValue({
+      data: [{ id: 3, school_id: 990002, first_name: 'Organization', last_name: 'Adviser', role: 'ADMIN', position_title: 'Adviser', account_status: 'active' }],
+      current_page: 1, last_page: 1, total: 1, per_page: 20, summary: { by_role: { ADMIN: 1 }, by_section: [] },
+    });
+    render(<AdminUsersPage />);
+
+    const table = await screen.findByRole('table', { name: 'Users' });
+    expect(within(table).getByText('Adviser')).toBeInTheDocument();
+    expect(within(table).getByText('Administrator')).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Program' })).not.toBeInTheDocument();
+  });
+
   it('lists users in a captioned table with a badge only on accounts that are not active', async () => {
     mocks.getUsers.mockResolvedValue({
       data: [
@@ -65,7 +78,9 @@ describe('AdminUsersPage add existing student', () => {
     expect(within(table).getByText('Ana Reyes')).toBeInTheDocument();
     expect(within(table).getAllByText('Disabled')).toHaveLength(1);
     expect(within(table).queryByText('Active')).not.toBeInTheDocument();
-    expect(within(table).getByText('Enrolled')).toBeInTheDocument();
+    expect(within(table).getByText('Fingerprint enrolled')).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Fingerprint' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
     expect(mocks.getUsers).toHaveBeenCalledWith(expect.objectContaining({ per_page: 20 }));
   });
 });

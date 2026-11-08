@@ -105,12 +105,12 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
       return { data: { data: [row(20 + params.page, 8, `Drama report ${params.page}`)], current_page: params.page, last_page: 3, per_page: 20, total: 45 } };
     });
     renderPage();
-    expect(await screen.findByRole('button', { name: 'Pending (9)' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Pending (9)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '8' } });
 
     expect(await screen.findByText(/drama report 1/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pending (3)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pending (3)' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next page of requests' }));
 
@@ -204,7 +204,8 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     renderPage('/dashboard/department-head/approvals');
 
     await screen.findByText('October Financial Report');
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /To review/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Pending/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('link', { name: 'New request' })).not.toBeInTheDocument();
   });
 });
@@ -318,12 +319,25 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     expect(screen.queryByRole('link', { name: /^Open.*: Pep Rally$/ })).not.toBeInTheDocument();
   });
 
+  it('names the requester without a school ID or role code and keeps one secondary action per row', async () => {
+    renderPage('/dashboard/approvals?tab=submitted');
+    await screen.findByText('Foundation Day');
+
+    const row = rowOf('Foundation Day');
+    expect(within(row).getByText(/Requested by Ana Admin ·/)).toBeInTheDocument();
+    expect(within(row).queryByText(/ADM-1/)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/ADMIN/)).not.toBeInTheDocument();
+    expect(within(row).getByText('Admin')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Details: Foundation Day' })).toHaveAttribute('data-variant', 'secondary');
+    expect(within(row).getByRole('link', { name: 'Open event: Foundation Day' })).toHaveAttribute('data-variant', 'ghost');
+  });
+
   it('explains how to submit when nothing has been submitted and links the New request page', async () => {
     serve({ submitted: [] });
     renderPage('/dashboard/approvals?tab=submitted');
 
     expect(await screen.findByText('Nothing submitted yet')).toBeInTheDocument();
-    expect(screen.getByText(/tracked here, with the stage each one is at/)).toBeInTheDocument();
+    expect(screen.getByText(/show here, with who each one is waiting on/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Start a new request' })).toHaveAttribute('href', '/dashboard/approval-requests/new');
   });
 
@@ -332,8 +346,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     renderPage();
 
     expect(await screen.findByText('No requests to review')).toBeInTheDocument();
-    expect(screen.getByText(/officers submit and student payments/)).toBeInTheDocument();
-    expect(screen.getByText(/Officers send them from their own pages/)).toBeInTheDocument();
+    expect(screen.getByText('Nothing from your officers or students needs your decision right now.')).toBeInTheDocument();
   });
 
   it('offers to clear filters when the filters hide everything', async () => {
@@ -374,7 +387,7 @@ describe('DepartmentHeadApprovalsPage for an SBO officer', () => {
     renderPage();
 
     expect(await screen.findByText('Open House')).toBeInTheDocument();
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Submitted by me' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New request' })).toBeInTheDocument();
     expect(mocks.getApprovalRequests.mock.calls.every(([params]) => params.scope === 'submitted')).toBe(true);
     expect(within(rowOf('Open House')).getByText('Waiting for Admin approval')).toBeInTheDocument();
@@ -567,7 +580,8 @@ describe('SAO organization approvals', () => {
       expect(await screen.findByText('Council Election')).toBeInTheDocument();
       expect(mocks.getSystemOrganizations).toHaveBeenCalled();
       expect(mocks.getCollegeOrganizations).not.toHaveBeenCalled();
-      expect(screen.getByText('Review this election')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Review: Council Election' })).toBeInTheDocument();
+      expect(screen.queryByText('Review this election')).not.toBeInTheDocument();
       expect(screen.queryByText('Awaiting Department Head review')).not.toBeInTheDocument();
     } finally { localStorage.clear(); }
   });
@@ -613,7 +627,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
 
     expect(listCalls()).toEqual([expect.objectContaining({ search: 'report', status: 'pending', page: 1 })]);
     expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Pending (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pending (2)' })).toBeInTheDocument();
     expect(loaded()).toBe(true);
     expect(screen.getByLabelText('Search requests')).toHaveValue('report');
     expect(screen.getByRole('dialog')).toBeInTheDocument();

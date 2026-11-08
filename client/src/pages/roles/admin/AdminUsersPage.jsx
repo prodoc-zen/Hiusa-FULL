@@ -704,7 +704,10 @@ export default function AdminUsersPage() {
     />
   );
 
-  // The default state (an active account, no fingerprint yet) carries no badge and no text.
+  // The default state (an active account, no fingerprint yet) carries no badge and no text. Status and
+  // fingerprint sit under the name, and the program column appears only when someone on the page has one,
+  // so no row shows an empty cell.
+  const hasAcademic = sortedUsers.some((user) => user.program || user.year_level || user.section || user.major);
   const columns = [
     {
       key: 'name',
@@ -712,29 +715,32 @@ export default function AdminUsersPage() {
       render: (user) => (
         <>
           <span className="font-medium">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</span>
+          {user.account_status && user.account_status !== 'active' && <span className="ml-2 align-middle"><StatusBadge tone={user.account_status === 'disabled' ? 'danger' : 'warning'} label={user.account_status === 'disabled' ? 'Disabled' : 'Inactive'} /></span>}
           <span className="block text-xs tabular-nums text-ink-muted">{user.school_id}</span>
+          {user.fingerprint_enrolled && <span className="block text-xs text-ink-muted">Fingerprint enrolled</span>}
         </>
       ),
     },
-    { key: 'role', header: 'Role', render: (user) => ROLE_SHORT[user.role] || user.role },
     {
+      key: 'role',
+      header: 'Role',
+      render: (user) => (
+        <>
+          {user.position_title ? formatDisplayText(user.position_title) : ROLE_SHORT[user.role] || user.role}
+          {user.position_title && <span className="block text-xs text-ink-muted">{ROLE_SHORT[user.role] || user.role}</span>}
+        </>
+      ),
+    },
+    ...(hasAcademic ? [{
       key: 'program',
       header: 'Program',
       render: (user) => (
         <>
           {user.program}
-          {user.major && <span className="block text-xs text-ink-muted">{user.major}</span>}
+          {(user.year_level || user.section || user.major) && <span className="block text-xs text-ink-muted">{[user.year_level, user.section, user.major].filter(Boolean).join(' · ')}</span>}
         </>
       ),
-    },
-    { key: 'year', header: 'Year level', render: (user) => user.year_level },
-    { key: 'section', header: 'Section', render: (user) => user.section },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (user) => (!user.account_status || user.account_status === 'active' ? null : <StatusBadge tone={user.account_status === 'disabled' ? 'danger' : 'warning'} label={user.account_status === 'disabled' ? 'Disabled' : 'Inactive'} />),
-    },
-    { key: 'fingerprint', header: 'Fingerprint', render: (user) => (user.fingerprint_enrolled ? 'Enrolled' : null) },
+    }] : []),
   ];
 
   const canManage = actorRole !== 'SBO_OFFICER';
@@ -746,8 +752,8 @@ export default function AdminUsersPage() {
       <p className="text-sm tabular-nums text-ink-muted">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
       {canManage && (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>
-          {actorRole === 'ADMIN' && <Button variant="secondary" leftIcon={Upload} onClick={() => setShowImport(true)}>Import</Button>}
+          <Button variant="ghost" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>
+          {actorRole === 'ADMIN' && <Button variant="ghost" leftIcon={Upload} onClick={() => setShowImport(true)}>Import</Button>}
         </div>
       )}
     </div>

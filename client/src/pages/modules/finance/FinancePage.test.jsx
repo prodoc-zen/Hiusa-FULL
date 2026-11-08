@@ -237,7 +237,7 @@ describe('FinancePage transaction search', () => {
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
     expect(await screen.findByText('Operating Budget')).toBeInTheDocument();
-    expect(screen.getByText(/View only\./)).toBeInTheDocument();
+    expect(screen.queryByText(/View only/)).not.toBeInTheDocument();
     expect(financeMocks.getBudgets).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Propose budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI Advice' })).not.toBeInTheDocument();
@@ -519,7 +519,7 @@ describe('FinancePage forecast explainability', () => {
     financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   });
 
-  it('shows a weak-fit warning and reports an unknown engine when the forecast metadata is thin', async () => {
+  it('shows a weak-fit warning and no engine label when the forecast metadata is thin', async () => {
     financeMocks.getForecasts.mockResolvedValue({
       data: [{
         id: 1,
@@ -534,8 +534,39 @@ describe('FinancePage forecast explainability', () => {
 
     render(<FinancePage initialTab="forecasting" />);
 
-    expect(await screen.findByText('Engine not reported')).toBeInTheDocument();
     expect(await screen.findByText(/Treat this projection as directional only/i)).toBeInTheDocument();
+    expect(screen.queryByText('Engine not reported')).not.toBeInTheDocument();
+    expect(screen.queryByText(/R²/)).not.toBeInTheDocument();
+  });
+
+  it('lists forecasts oldest to newest whether the period is a month or a quarter', async () => {
+    const base = { predicted_expense: 800, predicted_balance: 200, safe_spending_limit: 160, model_details: { sample_months: 6, income: { r_squared: 0.9 }, expense: { r_squared: 0.9 } } };
+    financeMocks.getForecasts.mockResolvedValue({ data: [
+      { ...base, id: 1, forecast_period: 'Q1 2025', predicted_income: 1000 },
+      { ...base, id: 2, forecast_period: 'Q3 2024', predicted_income: 1000 },
+      { ...base, id: 3, forecast_period: 'Q4 2024', predicted_income: 1000 },
+    ] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    await screen.findByText('Forecast for Q3 2024');
+    const titles = screen.getAllByText(/^Forecast for /).map((node) => node.textContent);
+    expect(titles).toEqual(['Forecast for Q3 2024', 'Forecast for Q4 2024', 'Forecast for Q1 2025']);
+    const chartPeriods = screen.getAllByRole('row').map((row) => row.cells[0]?.textContent).filter((text) => /^Q\d/.test(text));
+    expect(chartPeriods).toEqual(['Q3 2024', 'Q4 2024', 'Q1 2025']);
+  });
+
+  it('shows no balance, safe spend or risk for a forecast that has no ledger history behind it', async () => {
+    financeMocks.getForecasts.mockResolvedValue({ data: [{
+      id: 4, forecast_period: '2026-09', predicted_income: 0, predicted_expense: 0, predicted_balance: 0, safe_spending_limit: 0, model_details: { sample_months: 0 },
+    }] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText(/Not enough ledger history to project this period/)).toBeInTheDocument();
+    expect(screen.queryByText('Safe spend')).not.toBeInTheDocument();
+    expect(screen.queryByText('Risk')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not set')).not.toBeInTheDocument();
   });
 
   it('shows the reporting engine and skips the weak-fit warning for a well-fit forecast', async () => {
@@ -805,13 +836,14 @@ describe('FinancePage statement of account for a student', () => {
     expect(clearanceMocks.getMyClearances).toHaveBeenCalledTimes(1);
   });
 
-  it('says cleared when nothing is owed and no signature is held', async () => {
+  it('says once, in a sentence and without a badge, that nothing is owed and no signature is held', async () => {
     render(<FinancePage initialTab="invoices" />);
 
     const region = await screen.findByRole('region', { name: 'Account summary' });
-    await waitFor(() => expect(within(region).getByText('Cleared')).toBeInTheDocument());
+    await waitFor(() => expect(within(region).getByText('Nothing owed and no clearance signature is on hold.')).toBeInTheDocument());
     expect(within(region).getByText('₱0.00')).toBeInTheDocument();
-    expect(within(region).getByText('Nothing owed and no clearance signature is on hold.')).toBeInTheDocument();
+    expect(within(region).queryByText('Nothing owed')).not.toBeInTheDocument();
+    expect(within(region).queryByText('Cleared')).not.toBeInTheDocument();
     expect(within(region).queryByText('On hold')).not.toBeInTheDocument();
   });
 
@@ -887,5 +919,105 @@ describe('FinancePage statement of account for a student', () => {
     expect(screen.queryByRole('region', { name: 'Account summary' })).not.toBeInTheDocument();
     expect(clearanceMocks.getMyClearances).not.toHaveBeenCalled();
     expect(financeMocks.getStudentDebts).not.toHaveBeenCalled();
+  });
+});
+
+describe('FinancePage plain ledger rows and page-level states', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  it('leaves out a payer, a recorder and a reference the system already shows in the description', async () => {
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [{
+      id: 21, transaction_date: '2026-09-08T10:30:00.000000Z', description: 'Merchandise order ORD-2', category: 'Merchandise', type: 'income', amount: 350,
+      receipt_reference: 'MERCH-ORD-2', is_system_generated: true, system_source_label: 'Merchandise order', event: null, budget: null, payer: null, recorder: null,
+    }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+
+    render(<FinancePage initialTab="transactions" />);
+
+    await screen.findAllByText('Merchandise order ORD-2');
+    expect(screen.queryByText(/No payer linked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unknown recorder/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/General ledger/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/MERCH-ORD-2/)).not.toBeInTheDocument();
+  });
+
+  it('puts the budget form on the page, with no budget list behind it, when opened from the request selector', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [{ id: 1, title: 'Operating Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' }] });
+    render(<FinancePage initialTab="budgets" startBudgetProposal />, '/dashboard/approval-requests/new/budget');
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Propose budget' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Propose budget' })).toHaveLength(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Operating Budget')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
+  });
+
+  it('confirms a proposal sent from the request page and offers the budgets', async () => {
+    financeMocks.createBudget.mockResolvedValue({ data: { id: 9 } });
+    render(<FinancePage initialTab="budgets" startBudgetProposal />, '/dashboard/approval-requests/new/budget');
+
+    fireEvent.change(await screen.findByPlaceholderText('e.g. Sports Fest 2026 Budget'), { target: { value: 'Foundation Day' } });
+    const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
+    fireEvent.change(amount, { target: { value: '2000' } });
+    fireEvent.change(threshold, { target: { value: '300' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Budget proposal sent' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View budgets' })).toHaveAttribute('href', '/dashboard/finance/budget-allocation');
+    expect(screen.queryByRole('button', { name: 'Submit for approval' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the report builder closed behind one button while saved reports exist', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
+    render(<FinancePage initialTab="reports" />);
+
+    await screen.findByText('August Report');
+    expect(screen.queryByRole('heading', { name: 'Prepare a report' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare a report' }));
+    expect(await screen.findByRole('heading', { name: 'Prepare a report' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Prepare a report' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Prepare a report' })).not.toBeInTheDocument());
+  });
+
+  it('shows no saved-report filters above an empty list', async () => {
+    render(<FinancePage initialTab="reports" />);
+
+    expect(await screen.findByText('No saved reports yet')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search report history')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Filter reports by status')).not.toBeInTheDocument();
+  });
+
+  it('tells an Admin why the personal receipts and statement are empty and points to where member payments live', async () => {
+    const { unmount } = render(<FinancePage initialTab="receipts" />);
+    expect(await screen.findByText('No receipts of your own')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open the ledger' })).toHaveAttribute('href', '/dashboard/finance/financial-ledger');
+    unmount();
+
+    render(<FinancePage initialTab="invoices" />);
+    expect(await screen.findByText('No invoices of your own')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open student accounts' })).toHaveAttribute('href', '/dashboard/finance/student-accounts');
+  });
+
+  it('keeps the student wording on the student empty states', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    financeMocks.getStudentDebts.mockResolvedValue({ data: { data: [] } });
+    clearanceMocks.getMyClearances.mockResolvedValue({ data: [] });
+    const { unmount } = render(<FinancePage initialTab="receipts" />);
+    expect(await screen.findByText('No receipts yet')).toBeInTheDocument();
+    unmount();
+
+    render(<FinancePage initialTab="invoices" />);
+    expect(await screen.findByText('No invoices yet')).toBeInTheDocument();
   });
 });

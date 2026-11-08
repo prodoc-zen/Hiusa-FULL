@@ -237,21 +237,30 @@ function ProductForm({ editing = false, value, onChange, images, onImagesChange,
   );
 }
 
-// A notice row whose action is secondary: the Add product button stays the one filled button on the screen.
-function InventoryNotice({ title, body, blocked = false, actionLabel, onAction }) {
+// A quiet notice row with a text action: the Add product button stays the one prominent control on the screen.
+function InventoryNotice({ title, body, actionLabel, onAction }) {
   return (
-    <div role={blocked ? "alert" : undefined} className={`flex flex-col gap-3 rounded-card border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${blocked ? "border-danger/40 bg-danger-tint" : "border-line bg-white"}`}>
+    <div className="flex flex-col gap-1 rounded-card border border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div className="min-w-0">
-        <p className={`text-sm font-semibold ${blocked ? "text-danger-strong" : "text-ink"}`}>{title}</p>
+        <p className="text-sm font-semibold text-ink">{title}</p>
         <p className="mt-0.5 text-sm text-ink-muted-strong">{body}</p>
       </div>
-      <Button type="button" variant="secondary" className="shrink-0" onClick={onAction}>{actionLabel}</Button>
+      <button type="button" onClick={onAction} className="inline-flex min-h-11 shrink-0 items-center self-start rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-auto">{actionLabel}</button>
     </div>
   );
 }
 
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "-";
+}
+// Payment methods are stored lowercase. A buyer who has not chosen one yet reads as blank.
+function paymentLabel(method) {
+  if (!method) return "";
+  return String(method).toLowerCase() === "gcash" ? "GCash" : capitalize(method);
+}
+// The ID and the course are joined with a separator so they never read as one string.
+function studentProfile(student) {
+  return [student?.program, student?.year_level && `Y${student.year_level}`, student?.section].filter(Boolean).join(" · ") || student?.role?.replaceAll("_", " ") || "";
 }
 function toNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -449,16 +458,15 @@ function FulfillmentOrderRow({
           <p className="mt-1 text-sm font-semibold tabular-nums text-ink">
             {fmt(order.total_price)}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-            <span>{order.payment_method || "No method"}</span>
-            {order.payment_method !== 'cash' && <>
-              <span aria-hidden="true">·</span>
-              <span className="max-w-32 truncate font-mono">{order.payment_reference || 'Reference pending'}</span>
-            </>}
-          </div>
-          <p className="mt-2 text-xs text-ink-muted">
-            Officer: {capitalize(order.officer_review_status)} · Admin: {capitalize(order.admin_review_status)}
-          </p>
+          {order.payment_method && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+              <span>{paymentLabel(order.payment_method)}</span>
+              {order.payment_method !== "cash" && <>
+                <span aria-hidden="true">·</span>
+                <span className="max-w-32 truncate font-mono">{order.payment_reference || "Reference pending"}</span>
+              </>}
+            </div>
+          )}
         </div>
 
         <div className="min-w-0">
@@ -528,7 +536,7 @@ export default function MerchandisePage({ initialTab }) {
       : role === "SBO_OFFICER"
         ? "orders"
         : "order";
-  const [activeTab, setActiveTab] = useState(initialTab || defaultTab);
+  const [activeTab, setActiveTab] = useState(initialTab === "gcash" ? "orders" : initialTab || defaultTab);
   const isPersonalShoppingView =
     ["order", "cart", "my-orders"].includes(activeTab);
 
@@ -552,7 +560,7 @@ export default function MerchandisePage({ initialTab }) {
     payment_methods: [],
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showPaymentSettings, setShowPaymentSettings] = useState(false);
+  const [showPaymentSettings, setShowPaymentSettings] = useState(initialTab === "gcash");
   const [paymentSettingsBusy, setPaymentSettingsBusy] = useState(false);
   const [tokenStatusFilter, setTokenStatusFilter] = useState('claimable');
   const [analyticsModal, setAnalyticsModal] = useState({
@@ -585,7 +593,6 @@ export default function MerchandisePage({ initialTab }) {
     total: 0,
     per_page: 10,
   });
-  const [pendingOrdersTotal, setPendingOrdersTotal] = useState(0);
 
   // Officer-only state
   const [showForm, setShowForm] = useState(false);
@@ -768,7 +775,6 @@ export default function MerchandisePage({ initialTab }) {
         if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
         if (allMineOrders) {
           setMineOrders(allMineOrders);
-          setPendingOrdersTotal(allMineOrders.filter((o) => o.status === "pending").length);
         }
       })
       .catch(() => setError("Failed to load merchandise data."))
@@ -801,7 +807,7 @@ export default function MerchandisePage({ initialTab }) {
 
   useEffect(load, [activeTab, isPersonalShoppingView, tokenStatusFilter]);
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (initialTab) setActiveTab(initialTab === "gcash" ? "orders" : initialTab);
   }, [initialTab]);
   useEffect(() => {
     if (activeTab !== "inventory" || role !== "ADMIN") return;
@@ -1222,7 +1228,6 @@ export default function MerchandisePage({ initialTab }) {
           rows.map((row) => (row.id === order.id ? response.data : row));
         setOrders(replace);
         setMineOrders(replace);
-        setPendingOrdersTotal((current) => Math.max(0, current - 1));
         setTransactionMessage(
           `Order ORD-${order.id} was cancelled.`,
         );
@@ -1655,13 +1660,6 @@ export default function MerchandisePage({ initialTab }) {
   const lowStock = items.filter((i) => i.is_low_stock).length;
   const topSellers = [...(orderSummary?.breakdown || [])].sort((left, right) => Number(right.quantity) - Number(left.quantity)).slice(0, 5);
   const tokenOrders = orders.filter((o) => tokenStatusFilter === 'claimable' ? ['paid', 'claimed'].includes(o.status) : matchesFilter(tokenStatusFilter, o.status));
-  const availableItems = items.filter(
-    (i) => i.is_active && i.stock_quantity > 0,
-  );
-  const availableUnits = availableItems.reduce(
-    (sum, item) => sum + item.stock_quantity,
-    0,
-  );
   const cartTotal = useMemo(
     () =>
       cart.reduce(
@@ -1853,8 +1851,8 @@ export default function MerchandisePage({ initialTab }) {
         <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
         <Modal open={Boolean(productPreview)} title={formatDisplayText(productPreview?.name)} onClose={() => setProductPreview(null)} maxWidth="max-w-xl" footer={productPreview && <Button type="button" leftIcon={ShoppingBag} onClick={() => { if (addToCart(productPreview)) setProductPreview(null); }} disabled={productPreview.stock_quantity === 0}>Add to cart</Button>}>
           {cartError && <p role="alert" className="mb-3 rounded-control border border-danger/40 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{cartError}</p>}
-          {productPreview && <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
-            {productPreview.image_url ? <img src={resolveAssetUrl(productPreview.image_url)} alt={formatDisplayText(productPreview.name)} className="aspect-square w-full rounded-control border border-line object-cover" /> : <div className="grid aspect-square place-items-center rounded-control bg-subtle"><Package size={42} className="text-ink-soft" aria-hidden="true" /></div>}
+          {productPreview && <div className={`grid gap-4 ${productPreview.image_url ? "sm:grid-cols-[180px_minmax(0,1fr)]" : ""}`}>
+            {productPreview.image_url && <img src={resolveAssetUrl(productPreview.image_url)} alt={formatDisplayText(productPreview.name)} className="aspect-square w-full rounded-control border border-line object-cover" />}
             <div className="min-w-0 space-y-3">
               <p className="text-xl font-semibold tabular-nums text-ink">{fmt(productPreview.effective_price ?? productPreview.price)}</p>
               <p className="text-sm font-semibold text-ink">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>
@@ -1873,29 +1871,6 @@ export default function MerchandisePage({ initialTab }) {
             </div>
           </div>}
         </Modal>
-
-        <section aria-label="Summary" className="grid gap-3 sm:grid-cols-3">
-          <StatTile
-            to="/dashboard/merchandise/order-merchandise"
-            onClick={() => setActiveTab("order")}
-            label="Available items"
-            value={availableItems.length}
-            context={`${availableUnits} unit${availableUnits === 1 ? "" : "s"} in stock`}
-          />
-          <StatTile
-            to="/dashboard/merchandise/my-orders"
-            onClick={() => setActiveTab("my-orders")}
-            label="My orders"
-            value={ordersMeta.total}
-            context={pendingOrdersTotal > 0 ? `${pendingOrdersTotal} awaiting payment` : "Total reservations"}
-          />
-          <StatTile
-            onClick={() => setActiveTab("cart")}
-            label="My cart"
-            value={cartQuantity}
-            context={`${fmt(cartTotal)} in cart`}
-          />
-        </section>
 
         {/* Order Merchandise tab */}
         {activeTab === "order" && (
@@ -1945,6 +1920,12 @@ export default function MerchandisePage({ initialTab }) {
             {gcashUnavailable && (
               <p className="text-sm text-ink-muted-strong">Online payment is not available. Pay cash at pickup.</p>
             )}
+            {cartQuantity > 0 && (
+              <div className="flex flex-col gap-2 rounded-card border border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-ink">{cartQuantity} item{cartQuantity === 1 ? "" : "s"} in your cart, <span className="tabular-nums">{fmt(cartTotal)}</span></p>
+                <Button type="button" variant="secondary" onClick={() => setActiveTab("cart")}>View cart</Button>
+              </div>
+            )}
 
             {loading ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -1956,7 +1937,7 @@ export default function MerchandisePage({ initialTab }) {
               items.some((item) => item.is_active) ? (
                 <EmptyState
                   kind="filtered"
-                  title="No merchandise matches your filters."
+                  title="No merchandise matches your filters"
                   onClearFilters={() => {
                     setStudentItemSearch("");
                     setStudentCategory("all");
@@ -1965,7 +1946,7 @@ export default function MerchandisePage({ initialTab }) {
               ) : (
                 <EmptyState
                   icon={Package}
-                  title="Nothing to buy yet."
+                  title="Nothing to buy yet"
                   description="Your officers add merchandise here."
                 />
               )
@@ -1976,19 +1957,15 @@ export default function MerchandisePage({ initialTab }) {
                     key={item.id}
                     className="flex min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface"
                   >
-                    <div className="bg-subtle">
-                      {item.image_url ? (
+                    {item.image_url && (
+                      <div className="bg-subtle">
                         <button type="button" onClick={() => setLightbox({ item, index: 0 })} className="block w-full" aria-label={`View ${formatDisplayText(item.name)} images`}><img
                           src={resolveAssetUrl(item.image_url)}
                           alt={formatDisplayText(item.name)}
                           className={`h-44 w-full object-cover ${item.stock_quantity === 0 ? "grayscale" : ""}`}
                         /></button>
-                      ) : (
-                        <div className="flex h-44 items-center justify-center">
-                          <Package size={40} className="text-ink-soft" aria-hidden="true" />
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div className="flex flex-1 flex-col gap-2 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -2005,14 +1982,17 @@ export default function MerchandisePage({ initialTab }) {
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         {item.stock_quantity === 0 ? (
                           <StatusBadge tone="danger" label="Out of stock" />
-                        ) : item.is_low_stock ? (
-                          <StatusBadge tone="warning" label="Low stock" />
                         ) : (
-                          <span className="text-ink-muted">{item.stock_quantity} in stock</span>
+                          <>
+                            <span className="text-ink-muted">{item.stock_quantity} in stock</span>
+                            {item.is_low_stock && <StatusBadge tone="warning" label="Low stock" />}
+                          </>
                         )}
                         {item.promotion_available_to_viewer && <StatusBadge tone="active" label={`First ${item.promotion_buyer_limit} buyers`} />}
                       </div>
-                      {item.description && <RichTextBody value={item.description} className="line-clamp-2 min-h-10 text-xs leading-5 text-ink-muted" />}
+                      <div className="min-h-10">
+                        {item.description && <RichTextBody value={item.description} className="line-clamp-2 text-xs leading-5 text-ink-muted" />}
+                      </div>
                       <button type="button" onClick={() => { setCartError(null); setProductPreview(item); }} className="inline-flex min-h-11 w-fit items-center rounded-control text-sm font-medium text-brand-700 hover:underline">View product details</button>
                       {item.variants?.length > 0 && <Field label="Size or variant">
                         <HiusaSelect value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} aria-label={`Select variant for ${formatDisplayText(item.name)}`}>
@@ -2114,7 +2094,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="px-4">
                 <EmptyState
                   icon={ShoppingBag}
-                  title="Your cart is empty."
+                  title="Your cart is empty"
                   action={<Button type="button" onClick={() => setActiveTab("order")}>Browse merchandise</Button>}
                 />
               </div>
@@ -2225,15 +2205,17 @@ export default function MerchandisePage({ initialTab }) {
         {/* My Orders tab */}
         {activeTab === "my-orders" && (
           <section className="space-y-4">
-            <div className="max-w-sm">
-              <Input
-                value={studentOrderSearch}
-                onChange={(e) => setStudentOrderSearch(e.target.value)}
-                type="search"
-                aria-label="Search orders"
-                placeholder="Search orders or token"
-              />
-            </div>
+            {orders.length > 0 && (
+              <div className="max-w-sm">
+                <Input
+                  value={studentOrderSearch}
+                  onChange={(e) => setStudentOrderSearch(e.target.value)}
+                  type="search"
+                  aria-label="Search orders"
+                  placeholder="Search orders or token"
+                />
+              </div>
+            )}
 
             {loading ? (
               <SkeletonTable columns={4} rows={3} />
@@ -2241,13 +2223,13 @@ export default function MerchandisePage({ initialTab }) {
               studentOrderSearch.trim() && ordersMeta.total > 0 ? (
                 <EmptyState
                   kind="filtered"
-                  title="No orders on this page match your search."
+                  title="No orders on this page match your search"
                   onClearFilters={() => setStudentOrderSearch("")}
                 />
               ) : (
                 <EmptyState
                   icon={ShoppingBag}
-                  title="No orders yet."
+                  title="No orders yet"
                   description="Browse the shop to place your first order."
                   action={<Button onClick={browseShop}>Browse the shop</Button>}
                 />
@@ -2648,7 +2630,6 @@ export default function MerchandisePage({ initialTab }) {
       {outOfStockItems.length > 0 && (
         <InventoryNotice
           title={everyItemSoldOut ? "Every active item is out of stock" : `${outOfStockItems.length} ${outOfStockItems.length === 1 ? "item is" : "items are"} out of stock`}
-          blocked
           body="Students cannot order an item until you add stock."
           actionLabel="Add stock"
           onAction={() => openAddStockModal(outOfStockItems[0])}
@@ -2712,12 +2693,12 @@ export default function MerchandisePage({ initialTab }) {
     {
       key: "status",
       header: "Status",
-      render: (item) => item.stock_quantity === 0
-        ? <StatusBadge tone="danger" label="Out of stock" />
-        : item.is_low_stock
-          ? <StatusBadge tone="warning" label="Low stock" />
-          : !item.is_active
-            ? <StatusBadge tone="neutral" label="Not selling" />
+      render: (item) => !item.is_active
+        ? <StatusBadge tone="neutral" label="Not selling" />
+        : item.stock_quantity === 0
+          ? <StatusBadge tone="danger" label="Out of stock" />
+          : item.is_low_stock
+            ? <StatusBadge tone="warning" label="Low stock" />
             : null,
     },
   ];
@@ -2770,17 +2751,12 @@ export default function MerchandisePage({ initialTab }) {
         </div>
       ),
     },
-    { key: "payment", header: "Payment", render: (o) => o.payment_method || "" },
+    { key: "payment", header: "Payment", render: (o) => paymentLabel(o.payment_method) },
     { key: "quantity", header: "Items", align: "right", render: (o) => o.quantity },
     {
       key: "token",
-      header: "Status and token",
-      render: (o) => (
-        <div className="flex flex-col items-start gap-1">
-          <StatusBadge tone={o.status === "claimed" ? "success" : "warning"} label={o.status === "claimed" ? "Claimed" : "Waiting to be claimed"} />
-          <span className="font-mono text-xs">{o.claim_token || ""}</span>
-        </div>
-      ),
+      header: "Status",
+      render: (o) => <StatusBadge tone={o.status === "claimed" ? "success" : "warning"} label={o.status === "claimed" ? "Claimed" : "Waiting to be claimed"} />,
     },
   ];
   const linkButton = "inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800";
@@ -2831,20 +2807,20 @@ export default function MerchandisePage({ initialTab }) {
             emptyState={items.length > 0 ? (
               <EmptyState
                 kind="filtered"
-                title="No items match these filters."
+                title="No items match these filters"
                 onClearFilters={clearInventoryFilters}
               />
             ) : role === "ADMIN" ? (
               <EmptyState
                 icon={Package}
-                title="No items yet."
+                title="No items yet"
                 description="Add your first merchandise item so students can order it from the Shop."
                 action={<Button leftIcon={Plus} onClick={() => setShowForm(true)}>Add your first item</Button>}
               />
             ) : (
               <EmptyState
                 kind="restricted"
-                title="No items yet."
+                title="No items yet"
                 description="Only the Admin can add merchandise."
               />
             )}
@@ -2903,8 +2879,8 @@ export default function MerchandisePage({ initialTab }) {
                 </Button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4">
-              <div role="group" aria-label="Filter orders by status" className="flex max-w-full gap-4 overflow-x-auto">
+            <div className="border-b border-line px-4">
+              <div role="group" aria-label="Filter orders by status" className="flex flex-wrap gap-x-4">
                 {[
                   ["", "All orders"],
                   ["pending", "Pending review"],
@@ -2915,12 +2891,9 @@ export default function MerchandisePage({ initialTab }) {
                   <button key={status} type="button" aria-pressed={orderFilters.status === status} onClick={() => setOrderFilters((current) => ({ ...current, status }))} className={`min-h-11 shrink-0 border-b-2 px-1 text-sm transition-colors duration-150 ${orderFilters.status === status ? "border-brand-700 font-semibold text-ink" : "border-transparent font-medium text-ink-muted hover:text-ink"}`}>{label}</button>
                 ))}
               </div>
-              <button type="button" aria-expanded={showAdvancedFilters} aria-controls="order-advanced-filters" onClick={() => setShowAdvancedFilters((value) => !value)} className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-sm font-medium text-ink hover:bg-subtle">
-                More filters{activeOrderFilterCount > 0 ? ` (${activeOrderFilterCount})` : ""}
-              </button>
             </div>
             <div className="border-b border-line p-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_200px_170px]">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_200px_170px_auto]">
                 <div className="sm:col-span-2 lg:col-span-1">
                   <Input
                     aria-label="Search merchandise orders"
@@ -2966,6 +2939,9 @@ export default function MerchandisePage({ initialTab }) {
                   <option value="item">Merchandise item</option>
                   <option value="status">Order status</option>
                 </HiusaSelect>
+                <button type="button" aria-expanded={showAdvancedFilters} aria-controls="order-advanced-filters" onClick={() => setShowAdvancedFilters((value) => !value)} className="inline-flex min-h-11 items-center justify-center rounded-control border border-line px-3 text-sm font-medium text-ink hover:bg-subtle sm:col-span-2 lg:col-span-1 lg:min-h-10">
+                  More filters{activeOrderFilterCount > 0 ? ` (${activeOrderFilterCount})` : ""}
+                </button>
               </div>
               {showAdvancedFilters && (
                 <div id="order-advanced-filters" className="mt-4 border-t border-line pt-4">
@@ -3129,13 +3105,13 @@ export default function MerchandisePage({ initialTab }) {
                 {activeOrderFilterCount > 0 ? (
                   <EmptyState
                     kind="filtered"
-                    title="No orders match these filters."
+                    title="No orders match these filters"
                     onClearFilters={() => setOrderFilters(EMPTY_ORDER_FILTERS)}
                   />
                 ) : (
                   <EmptyState
                     icon={ShoppingBag}
-                    title="No orders yet."
+                    title="No orders yet"
                     description={role === "ADMIN" ? "Orders appear here when students check out from the Shop. Add merchandise in Inventory first." : "Orders appear here when students check out from the Shop."}
                     action={role === "ADMIN" ? <Button variant="secondary" to="/dashboard/merchandise/manage-inventory">Open inventory</Button> : undefined}
                   />
@@ -3176,9 +3152,6 @@ export default function MerchandisePage({ initialTab }) {
                             <p className="font-mono text-xs font-semibold text-brand-700">
                               ORD-{o.id}
                             </p>
-                            <p className="mt-0.5 max-w-32 break-words text-xs text-ink-muted">
-                              {o.transaction?.receipt_reference || (o.payment_method === 'cash' ? 'Cash payment' : o.payment_reference || 'Reference pending')}
-                            </p>
                           </td>
                           <td className="px-3 py-2.5 align-top">
                             <p className="text-left font-semibold text-ink">
@@ -3188,7 +3161,7 @@ export default function MerchandisePage({ initialTab }) {
                             </p>
                             <p className="mt-0.5 text-xs text-ink-muted">
                               <span className="font-mono">{o.student?.school_id}</span>
-                              {[o.student?.program, o.student?.year_level && `Y${o.student.year_level}`, o.student?.section].filter(Boolean).join(" · ") || o.student?.role?.replaceAll("_", " ") || ""}
+                              {studentProfile(o.student) && ` · ${studentProfile(o.student)}`}
                             </p>
                           </td>
                           <td className="px-3 py-2.5 align-top">
@@ -3201,10 +3174,10 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5 text-right align-top tabular-nums text-ink">{fmt(o.total_price)}</td>
                           <td className="px-3 py-2.5 align-top text-xs">
-                            <p className="text-ink">
-                              {o.payment_method || "Not selected"}
-                            </p>
-                            {o.payment_method !== 'cash' && <p className="mt-0.5 max-w-32 break-words text-ink-muted">{o.payment_reference || 'Reference pending'}</p>}
+                            {o.payment_method && <>
+                              <p className="text-ink">{paymentLabel(o.payment_method)}</p>
+                              {o.payment_method !== "cash" && <p className="mt-0.5 max-w-32 break-words text-ink-muted">{o.payment_reference || "Reference pending"}</p>}
+                            </>}
                           </td>
                           <td className="px-3 py-2.5 align-top">
                             <OrderStatus status={o.status} />
@@ -3283,7 +3256,7 @@ export default function MerchandisePage({ initialTab }) {
             rowKey={(row) => `${row.user.school_id}-${row.order?.id ?? "none"}`}
             loading={analyticsModal.loading}
             error={analyticsModal.error || null}
-            emptyState={<EmptyState title="No users match this drill-down." />}
+            emptyState={<EmptyState title="No users match this drill-down" />}
             pagination={
               <>
                 <PaginationControls
@@ -3469,14 +3442,14 @@ export default function MerchandisePage({ initialTab }) {
               emptyState={tokenStatusFilter !== "claimed" ? (
                 <EmptyState
                   icon={Ticket}
-                  title={tokenStatusFilter === 'claimable' ? 'No claim tokens yet.' : 'Nothing is waiting at the claim desk.'}
+                  title={tokenStatusFilter === 'claimable' ? 'No claim tokens yet' : 'Nothing is waiting at the claim desk'}
                   description="Orders appear here once their payment is verified and the buyer has a claim token."
                   action={<Button variant="secondary" to="/dashboard/merchandise/manage-orders">Open orders</Button>}
                 />
               ) : (
                 <EmptyState
                   icon={Ticket}
-                  title="No orders have been claimed yet."
+                  title="No orders have been claimed yet"
                   description="Released orders are listed here after you confirm a claim."
                 />
               )}

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import EventsPage from './EventsPage';
 import { searchPeople } from '../../../services/peopleService';
 
@@ -89,6 +89,28 @@ describe('EventsPage approval-request launch', () => {
 
     expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Event name/)).toHaveValue('');
+  });
+
+  it('offers no Back to events button and cancels back to the request selector', async () => {
+    function Where() { return <p data-testid="where">{useLocation().pathname}</p>; }
+    render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/event']}><EventsPage initialTab="events" startEventRequest /><Where /></MemoryRouter>);
+
+    await screen.findByRole('heading', { level: 1, name: 'New event' });
+    expect(screen.queryByRole('button', { name: 'Back to events' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Event' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/approval-requests/new');
+  });
+
+  it('keeps officer operations counts off the event list', async () => {
+    const event = { id: 7, title: 'Sports Fest 2024', status: 'approved', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym', present_count: 8, attendance_records_count: 9, tasks_count: 2 };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 20 } });
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+
+    await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' });
+    expect(screen.queryByRole('columnheader', { name: 'Present' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Tasks' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/present \/ late/)).not.toBeInTheDocument();
   });
 
   it('does not reopen event details when a pending details request resolves after close', async () => {
@@ -190,17 +212,19 @@ describe('EventsPage approval-request launch', () => {
     expect(await screen.findByRole('region', { name: 'Event check-in' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Foundation Day' }));
 
-    expect(await screen.findByText('Door controls')).toBeInTheDocument();
+    expect(await screen.findByText('Manual check-in')).toBeInTheDocument();
     expect(screen.getByText('Fingerprint check-in / checkout')).toBeInTheDocument();
-    expect(screen.getByText(/scan, verify the matched student/i)).toBeInTheDocument();
+    expect(screen.getByText(/connect the reader to this computer/i)).toBeInTheDocument();
     expect(fingerprintMocks.useReader).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Connect reader' }));
     expect(fingerprintMocks.useReader).toHaveBeenCalled();
     expect(screen.getByText(/required scope:/i)).toBeInTheDocument();
     expect(screen.getByText('Manual check-in')).toBeInTheDocument();
+    expect(screen.queryByText('Door controls')).not.toBeInTheDocument();
     expect(screen.getByText('Attendance log')).toBeInTheDocument();
-    expect(screen.getByText('24%')).toBeInTheDocument();
-    expect(eventMocks.getAttendance).toHaveBeenCalledWith(21, { page: 1, per_page: 10 });
+    expect(screen.getByText('24% of 200 expected')).toBeInTheDocument();
+    expect(screen.queryByText('Check-in rate')).not.toBeInTheDocument();
+    expect(eventMocks.getAttendance).toHaveBeenCalledWith(21, { page: 1, per_page: 20 });
   });
 
   it('checks a member in by finding their name, never by typing a school ID', async () => {
@@ -254,7 +278,7 @@ describe('EventsPage approval-request launch', () => {
 
     render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for General Assembly' }));
-    await screen.findByText('Door controls');
+    await screen.findByText('Manual check-in');
     fireEvent.click(screen.getByRole('button', { name: 'Connect reader' }));
     await screen.findByRole('option', { name: 'BSIT' });
     fireEvent.click(screen.getByLabelText('4th Year'));
@@ -292,7 +316,7 @@ describe('EventsPage approval-request launch', () => {
     await screen.findByText('No attendance records yet');
     expect(screen.queryByText('Personal attendance')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Check In to Event' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Door controls')).not.toBeInTheDocument();
+    expect(screen.queryByText('Manual check-in')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Export CSV' })).not.toBeInTheDocument();
     expect(eventMocks.recordAttendance).not.toHaveBeenCalled();
   });

@@ -136,6 +136,25 @@ describe('desktop sidebar rail', () => {
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('pins Profile and Log out below the scrolling menu, with an open group above them', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'Admin' }));
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
+    const scroller = document.querySelector('nav.overflow-y-auto');
+    expect(scroller).not.toBeNull();
+    const profile = screen.getByRole('link', { name: 'Profile' });
+    const logout = screen.getByRole('button', { name: 'Log out' });
+    expect(scroller).not.toContainElement(profile);
+    expect(scroller).not.toContainElement(logout);
+    expect(profile.parentElement.parentElement).toBe(logout.parentElement);
+    expect(logout.parentElement).toHaveClass('shrink-0');
+  });
+
+  it('shows no second copy of the signed-in name in the sidebar', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'Admin' }));
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
+    expect(screen.queryByText('Test Admin')).not.toBeInTheDocument();
+  });
+
   it.each([
     '/dashboard/super-admin/organizations?status=pending',
     '/dashboard/super-admin/organizations?status=active',
