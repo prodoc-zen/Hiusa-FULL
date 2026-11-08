@@ -8,8 +8,6 @@ import {
   AlertCircle,
   ArrowRightLeft,
   CheckCircle2,
-  Eye,
-  EyeOff,
   KeyRound,
   PencilLine,
   Search,
@@ -20,7 +18,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  createSystemAdmin,
   deleteSystemAdmin,
   getSystemAdmins,
   getSystemOrganizationOverview,
@@ -57,11 +54,8 @@ const emptyForm = () => ({
   email: "",
   contact_number: "",
   organization_id: "",
-  organization_locked: false,
   position_title: "",
   account_status: "active",
-  password: "",
-  password_confirmation: "",
 });
 
 function statusStyle(status) {
@@ -114,7 +108,7 @@ export default function SystemAdminsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [membershipUser, setMembershipUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [addingAdmin, setAddingAdmin] = useState(null);
 
   const loadEpoch = useRef(0);
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -186,7 +180,7 @@ export default function SystemAdminsPage() {
         return;
       }
       setProvisioning({ organization, adminName: null });
-      openCreate({ organization_id: String(organization.id), organization_locked: true });
+      openCreate(organization);
     }).catch((cause) => setError(getApiErrorMessage(cause, "Could not open that organization to assign an administrator.")));
   }, [loading, linkedOrganizationId, createRequested, organizations, setSearchParams]);
 
@@ -254,18 +248,16 @@ export default function SystemAdminsPage() {
       .filter((admin) => admin.account_status === "active")
       .map((admin) => admin.organization_id),
   ).size;
-  const isEditing = Boolean(form?.editing_school_id);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
     setError("");
   }
 
-  function openCreate(preset = {}) {
+  function openCreate(organization = null) {
     setError("");
     setSuccess("");
-    setShowPassword(false);
-    setForm({ ...emptyForm(), ...preset });
+    setAddingAdmin({ organization });
   }
 
   function openEdit(admin) {
@@ -289,11 +281,6 @@ export default function SystemAdminsPage() {
     event.preventDefault();
     if (!form) return;
 
-    if (!isEditing && form.password !== form.password_confirmation) {
-      setError("Password confirmation does not match.");
-      return;
-    }
-
     const payload = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -301,42 +288,33 @@ export default function SystemAdminsPage() {
       contact_number: form.contact_number.trim() || null,
       organization_id: Number(form.organization_id),
       position_title: form.position_title.trim() || null,
+      account_status: form.account_status,
     };
-
-    if (isEditing) {
-      payload.account_status = form.account_status;
-    } else {
-      payload.school_id = Number(form.school_id);
-      payload.password = form.password;
-      payload.password_confirmation = form.password_confirmation;
-    }
 
     setBusy(true);
     setError("");
     try {
-      if (isEditing) {
-        await updateSystemAdmin(form.editing_school_id, payload);
-        setSuccess("Administrator account updated successfully.");
-      } else {
-        await createSystemAdmin(payload);
-        setSuccess("New Admin user created with the password set by SAO.");
-        const organization = organizations.find((item) => item.id === payload.organization_id);
-        if (organization) setProvisioning({ organization: { ...organization, lifecycle_status: organization.lifecycle_status ?? "active", administrators_count: Math.max(1, Number(organization.administrators_count ?? 0) + 1) }, adminName: `${formatDisplayText(payload.first_name)} ${formatDisplayText(payload.last_name)}` });
-      }
+      await updateSystemAdmin(form.editing_school_id, payload);
+      setSuccess("Administrator account updated successfully.");
       setForm(null);
       await load();
     } catch (requestError) {
-      setError(
-        getApiErrorMessage(
-          requestError,
-          isEditing
-            ? "Could not update the administrator."
-            : "Could not create the Admin user.",
-        ),
-      );
+      setError(getApiErrorMessage(requestError, "Could not update the administrator."));
     } finally {
       setBusy(false);
     }
+  }
+
+  function adminAdded(profile, person) {
+    setSuccess("Administrator added.");
+    const organization = organizations.find((item) => item.id === profile?.organization_id);
+    if (organization && person) {
+      setProvisioning({
+        organization: { ...organization, lifecycle_status: organization.lifecycle_status ?? "active", administrators_count: Math.max(1, Number(organization.administrators_count ?? 0) + 1) },
+        adminName: formatDisplayText(person.name),
+      });
+    }
+    load();
   }
 
   async function initiatePasswordReset() {
@@ -358,7 +336,7 @@ export default function SystemAdminsPage() {
   const provisioned = provisioning?.adminName ? provisioning : null;
   const awaiting = provisioning && !provisioned ? provisioning : null;
   const newAdminButton = (
-    <Button variant={awaiting ? "secondary" : "primary"} leftIcon={UserPlus} onClick={() => openCreate()}>New Admin User</Button>
+    <Button variant={awaiting ? "secondary" : "primary"} leftIcon={UserPlus} onClick={() => openCreate()}>Add administrator</Button>
   );
 
   return (
@@ -378,11 +356,12 @@ export default function SystemAdminsPage() {
           <RegistrationNextStep
             organization={awaiting.organization}
             viewerRole="SUPER_ADMIN"
-            onPrimary={() => openCreate({ organization_id: String(awaiting.organization.id), organization_locked: true })}
+            onPrimary={() => openCreate(awaiting.organization)}
           />
         )}
       />
       {profileUser && <ManageAccountProfilesModal user={profileUser} onClose={() => setProfileUser(null)} onDeleted={(result) => { setSuccess(result.message); load(); }} />}
+      {addingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" organization={addingAdmin.organization} onClose={() => setAddingAdmin(null)} onAdded={adminAdded} />}
       {membershipUser && <AddExistingUserModal actorRole="SUPER_ADMIN" initialUser={membershipUser} onClose={() => setMembershipUser(null)} onAdded={() => setSuccess('Organization profile added to the existing user.')} />}
       <section className="grid gap-3 sm:grid-cols-3">
         {[
@@ -551,7 +530,7 @@ export default function SystemAdminsPage() {
       </section>
 
       {form && (
-        <AccessibleOverlay label={isEditing ? "Edit administrator" : "Create administrator"} onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Edit administrator" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <form
             onSubmit={save}
             className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white shadow-2xl"
@@ -559,14 +538,14 @@ export default function SystemAdminsPage() {
             <div className="flex items-start justify-between border-b border-[#DDE7EF] px-5 py-4">
               <div className="flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
-                  {isEditing ? <PencilLine size={18} /> : <UserPlus size={18} />}
+                  <PencilLine size={18} />
                 </span>
                 <div>
                   <h3 className="text-lg font-black text-[#0F172A]">
-                    {isEditing ? "Edit Admin User" : "Create New Admin User"}
+                    Edit Admin User
                   </h3>
                   <p className="mt-0.5 text-xs font-medium text-slate-500">
-                    SAO assigns this account to one student organization. Its system role is fixed to Admin.
+                    Change the contact details or status of this administrator account.
                   </p>
                 </div>
               </div>
@@ -581,18 +560,6 @@ export default function SystemAdminsPage() {
             </div>
 
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              {!isEditing && (
-                <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="School ID *" /> School ID *
-                  <input required type="number" min="1" max="99999999" value={form.school_id} onChange={(event) => updateField("school_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                </label>
-              )}
-              {isEditing && (
-                <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 sm:col-span-2">
-                  <p className="text-[11px] font-bold uppercase text-slate-500">School ID</p>
-                  <p className="mt-0.5 font-bold text-[#0F172A]">{form.school_id}</p>
-                </div>
-              )}
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
                <FieldIcon label="First name *" /> First name *
                 <input required value={form.first_name} onChange={(event) => updateField("first_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
@@ -618,7 +585,7 @@ export default function SystemAdminsPage() {
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
                 <FieldIcon label="Assigned organization *" />Assigned organization *
-                <HiusaSelect required disabled={form.organization_locked} value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <HiusaSelect required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   <option value="">Select an active student organization</option>
                   {organizations
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
@@ -628,61 +595,15 @@ export default function SystemAdminsPage() {
                       </option>
                     ))}
                 </HiusaSelect>
-                {form.organization_locked && <span className="block text-xs font-medium text-slate-500">This Admin account belongs to the selected organization.</span>}
               </label>
-              {!isEditing && (
-                <>
-                  <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                    <FieldIcon label="Password *" />Password *
-                    <span className="relative block">
-                      <input
-                        required
-                        type={showPassword ? "text" : "password"}
-                        minLength={8}
-                        autoComplete="new-password"
-                        value={form.password}
-                        onChange={(event) => updateField("password", event.target.value)}
-                        placeholder="At least 8 characters"
-                        className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 pr-11 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                      />
-                      <button
-                        type="button"
-                        aria-label={showPassword ? "Hide administrator password" : "Show administrator password"}
-                        onClick={() => setShowPassword((visible) => !visible)}
-                        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-500 transition hover:text-[#0878B7]"
-                      >
-                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                      </button>
-                    </span>
-                  </label>
-                  <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                    <FieldIcon label="Confirm password *" />Confirm password *
-                    <input
-                      required
-                      type={showPassword ? "text" : "password"}
-                      minLength={8}
-                      autoComplete="new-password"
-                      value={form.password_confirmation}
-                      onChange={(event) => updateField("password_confirmation", event.target.value)}
-                      placeholder="Enter the password again"
-                      className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                    />
-                  </label>
-                  <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-xs font-medium leading-5 text-slate-600 sm:col-span-2">
-                    SAO sets the initial password. It is securely hashed and is never shown again, so provide it to the Admin through an approved private channel.
-                  </div>
-                </>
-              )}
-              {isEditing && (
-                <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-                 <FieldIcon label="Account status" /> Account status
-                  <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
-                    <option value="active">Active: can sign in</option>
-                    <option value="inactive">Inactive: temporarily unavailable</option>
-                    <option value="disabled">Disabled: access revoked</option>
-                  </HiusaSelect>
-                </label>
-              )}
+              <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
+               <FieldIcon label="Account status" /> Account status
+                <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
+                  <option value="active">Active: can sign in</option>
+                  <option value="inactive">Inactive: temporarily unavailable</option>
+                  <option value="disabled">Disabled: access revoked</option>
+                </HiusaSelect>
+              </label>
               {error && (
                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 sm:col-span-2">
                   <AlertCircle size={15} className="mt-0.5 shrink-0" /> {error}
@@ -695,7 +616,7 @@ export default function SystemAdminsPage() {
                 Cancel
               </button>
               <button disabled={busy} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
-                {busy ? "Saving..." : isEditing ? "Save Changes" : "Create Admin User"}
+                {busy ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>

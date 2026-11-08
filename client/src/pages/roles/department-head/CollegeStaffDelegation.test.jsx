@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
+const people = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => people);
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: vi.fn() }));
 
 const mockStaff = [
@@ -97,6 +99,7 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
       },
     });
     mocks.removeCollegeStaff.mockResolvedValue({ data: { message: 'Removed' } });
+    people.searchPeople.mockResolvedValue([{ school_id: 20262288, name: 'Alex Rivera Assistant', email: 'alex@univ.edu.ph', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
   it('renders the Dean’s Office Staff & Secretary button and opens the modal', async () => {
@@ -132,23 +135,24 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     fireEvent.click(addBtn);
 
     expect(screen.getByText('New Delegate Information')).toBeInTheDocument();
-    expect(screen.getByLabelText(/School ID/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/School ID/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/First Name/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Position Title/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign Delegate' })).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText(/School ID/i), { target: { value: '20262288' } });
-    fireEvent.change(screen.getByLabelText(/First Name/i), { target: { value: 'Alex' } });
-    fireEvent.change(screen.getByLabelText(/Last Name/i), { target: { value: 'Assistant' } });
-    fireEvent.change(screen.getByLabelText(/University Email/i), { target: { value: 'alex@univ.edu.ph' } });
-
+    fireEvent.change(screen.getByRole('combobox', { name: 'Person' }), { target: { value: 'alex' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Alex Rivera Assistant/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Assign Delegate' }));
 
     await waitFor(() => {
-      expect(mocks.addCollegeStaff).toHaveBeenCalledWith(expect.objectContaining({
+      expect(mocks.addCollegeStaff).toHaveBeenCalledWith({
         school_id: 20262288,
-        first_name: 'Alex',
+        first_name: 'Alex Rivera',
         last_name: 'Assistant',
         email: 'alex@univ.edu.ph',
-      }));
+        position_title: 'Department Secretary',
+        role: 'ADMIN',
+      });
     });
   });
 
