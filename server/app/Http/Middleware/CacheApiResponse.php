@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AcademicSemester;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -111,6 +112,7 @@ class CacheApiResponse
             $user->role,
             $orgVersion,
             $globalVersion,
+            $request->headers->get(AcademicSemester::PERIOD_HEADER, ''),
         ]);
 
         if (in_array($user->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
