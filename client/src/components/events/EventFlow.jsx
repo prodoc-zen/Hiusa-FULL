@@ -6,7 +6,7 @@ import { eventNextStepProps } from './eventStage';
 export function EventFlowPanel({ flow, children }) {
   return (
     <section aria-label="Event progress" className="mt-5 space-y-4">
-      <FlowStepper steps={flow.steps} ariaLabel="Event progress" />
+      <FlowStepper variant="full" steps={flow.steps} ariaLabel="Event progress" />
       <NextStep {...eventNextStepProps(flow)} />
       {children}
     </section>
@@ -20,7 +20,7 @@ export function EventFlowFooter({ flow, onEdit, onStart, busy = false }) {
 
   const run = action?.kind === 'edit' ? onEdit : action?.kind === 'start' ? onStart : undefined;
   return (
-    <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-subtle px-6 py-4">
+    <div className="sticky bottom-0 -mx-5 -mb-5 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-subtle px-5 py-4">
       {secondary && <Button variant="secondary" to={secondary.to}>{secondary.label}</Button>}
       {action && <Button to={action.to} onClick={run} loading={action.kind === 'start' && busy}>{action.label}</Button>}
     </div>

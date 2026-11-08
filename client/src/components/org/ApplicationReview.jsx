@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FileText, Paperclip, X } from 'lucide-react';
 import { Button, ErrorState, Field, PageHeader, Select, SkeletonCard, StatusBadge, Textarea } from '../ui';
+import api from '../../services/api';
 import notify from '../../lib/notify';
 import { manilaDate } from '../../lib/format';
 import { attachReviewFile, getOrganizationApplication, removeReviewFile, reviewOrganizationApplication } from '../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { openProtectedFile } from '../../utils/openProtectedFile';
 import { APPLICATION_LABELS } from './applicationStatus';
+
+// A comment-only note: it saves without a decision and the applicant does not see it.
+const commentOnApplication = (id, data) => api.post(`/organization-applications/${id}/comments`, data);
 
 const ATTACH_TYPES = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg';
 const LIST_PATH = '/dashboard/organization-applications';
@@ -92,6 +96,8 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const [remarks, setRemarks] = useState('');
   const [busy, setBusy] = useState('');
   const [problem, setProblem] = useState('');
+  const [commenting, setCommenting] = useState(false);
+  const [comment, setComment] = useState('');
 
   const load = useCallback((silent = false) => {
     if (!silent) setState({ loading: true, error: null, application: null });
@@ -105,6 +111,8 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
     setNotes({});
     setRemarks('');
     setProblem('');
+    setCommenting(false);
+    setComment('');
     load();
   }, [applicationId, load]);
 
@@ -159,6 +167,22 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
     } catch (err) {
       setProblem(getApiErrorMessage(err, 'Could not save this decision.'));
       if (err?.response?.status === 409) load(true);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveComment() {
+    setBusy('comment');
+    setProblem('');
+    try {
+      await commentOnApplication(application.id, { note: comment.trim() });
+      notify.success('Comment saved.');
+      setComment('');
+      setCommenting(false);
+      await load(true);
+    } catch (err) {
+      setProblem(getApiErrorMessage(err, 'Could not save this comment.'));
     } finally {
       setBusy('');
     }
@@ -261,6 +285,23 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
             </section>
           )}
 
+          {application.history?.length > 0 && (
+            <section aria-label="History" className="border-t border-line pt-5">
+              <h2 className="text-base font-semibold text-ink">History</h2>
+              <ul className="mt-3 divide-y divide-line-soft">
+                {application.history.map((entry) => (
+                  <li key={entry.id} className="space-y-1 py-3 first:pt-0">
+                    <p className="text-sm text-ink">
+                      <span className="font-semibold">{entry.label}</span>
+                      <span className="text-ink-muted-strong">{entry.by ? `, ${entry.by}` : ''} ({entry.stage_label}), {manilaDate(entry.at, 'long')}</span>
+                    </p>
+                    {entry.note && <p className="whitespace-pre-wrap text-sm text-ink">{entry.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {actionable ? (
             <section aria-label="Decision" className="space-y-4 border-t border-line pt-5">
               <h2 className="text-base font-semibold text-ink">Decision</h2>
@@ -277,6 +318,21 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
                 )}
               </div>
               {!allAccepted && <p className="text-xs text-ink-muted-strong">{passLabel} turns on when every requirement is Accepted.</p>}
+              <div className="border-t border-line pt-3">
+                {commenting ? (
+                  <div className="space-y-3">
+                    <Field label="Comment" hint="For the reviewers of this application. The applicant does not see it.">
+                      <Textarea rows={3} maxLength={2000} value={comment} onChange={(event) => setComment(event.target.value)} />
+                    </Field>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button variant="secondary" loading={busy === 'comment'} disabled={Boolean(busy) || comment.trim() === ''} onClick={saveComment}>Save comment</Button>
+                      <button type="button" disabled={Boolean(busy)} onClick={() => { setCommenting(false); setComment(''); }} className="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setCommenting(true)} className="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Add a comment</button>
+                )}
+              </div>
               {problem && <p role="alert" className="text-sm font-semibold text-danger-strong">{problem}</p>}
             </section>
           ) : (

@@ -46,8 +46,8 @@ function IdentitySection({ grievance, viewerRole }) {
       <div className="flex items-start gap-3 rounded-card border border-line bg-subtle p-3">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-brand-600" aria-hidden="true" />
         <div>
-          <p className="text-sm font-bold text-ink">Filed anonymously</p>
-          <p className="mt-0.5 text-xs font-medium text-ink-muted">The filer asked to stay anonymous to your organization. This is by design and will not be revealed.</p>
+          <p className="text-sm font-semibold text-ink">Filed anonymously</p>
+          <p className="mt-0.5 text-xs text-ink-muted">The filer asked to stay anonymous to your organization. This is by design and will not be revealed.</p>
         </div>
       </div>
     );
@@ -59,9 +59,9 @@ function IdentitySection({ grievance, viewerRole }) {
     <div className="flex items-start gap-3 rounded-card border border-line bg-subtle p-3">
       <UserRound size={18} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden="true" />
       <div>
-        <p className="text-sm font-bold text-ink">{formatDisplayText(name)}</p>
+        <p className="text-sm font-semibold text-ink">{formatDisplayText(name)}</p>
         {viewerRole === 'SUPER_ADMIN' && grievance.is_anonymous && (
-          <p className="mt-0.5 text-xs font-medium text-ink-muted">Filed anonymously toward the organization. Handle with added discretion.</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Filed anonymously toward the organization. Handle with added discretion.</p>
         )}
       </div>
     </div>
@@ -146,7 +146,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
       await onTransition(grievance.id, { status, remarks: remarks || undefined });
       setPendingTransition(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update this grievance. Please try again.');
+      setError(err.response?.data?.message || 'Could not update this grievance. Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -171,32 +171,32 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
             <IdentitySection grievance={grievance} viewerRole={viewerRole} />
 
             <div>
-              <p className="text-xs font-bold text-ink-soft">Addressed to</p>
-              <p className="mt-1 text-sm font-semibold text-ink">{addressedToLabel(grievance)}</p>
+              <p className="text-xs font-medium text-ink-muted">Addressed to</p>
+              <p className="mt-1 text-sm text-ink">{addressedToLabel(grievance)}</p>
             </div>
 
             <div>
-              <p className="text-xs font-bold text-ink-soft">Description</p>
+              <p className="text-xs font-medium text-ink-muted">Description</p>
               <RichTextBody value={grievance.description} className="mt-1 text-sm leading-6 text-ink" />
             </div>
 
             <div>
-              <p className="text-xs font-bold text-ink-soft">Filed</p>
-              <p className="mt-1 text-sm font-medium text-ink-muted">{manilaDate(grievance.created_at, 'weekday')}</p>
+              <p className="text-xs font-medium text-ink-muted">Filed</p>
+              <p className="mt-1 text-sm text-ink-muted">{manilaDate(grievance.created_at, 'weekday')}</p>
             </div>
 
             {grievance.remarks && (
-              <div className="rounded-card border border-line bg-subtle p-3">
-                <p className="text-xs font-bold text-ink-soft">Remarks</p>
+              <div className="border-t border-line pt-3">
+                <p className="text-xs font-medium text-ink-muted">Remarks</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{grievance.remarks}</p>
               </div>
             )}
 
             {isTerminal ? (
-              <div className="space-y-3"><p className="text-xs font-semibold text-ink-muted">This grievance is closed and cannot be reopened.</p><Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button></div>
+              <div className="space-y-3"><p className="text-xs text-ink-muted">This grievance is closed and cannot be reopened.</p><Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button></div>
             ) : (
               <div className="border-t border-line pt-4">
-                <p className="text-xs font-bold text-ink-soft">Update status</p>
+                <p className="text-xs font-medium text-ink-muted">Update status</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {allowed.map((status, index) => (
                     <Button

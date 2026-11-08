@@ -3,7 +3,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Award, ChevronDown, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   createElectionCandidate,
   deleteElectionCandidate,
@@ -11,53 +11,23 @@ import {
   getUsers,
   updateElectionCandidate,
 } from '../../../services/electionService';
-import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
+import Avatar from '../../../components/ui/Avatar';
+import Button from '../../../components/ui/Button';
+import DataTable from '../../../components/ui/DataTable';
+import Drawer from '../../../components/ui/Drawer';
+import EmptyState from '../../../components/ui/EmptyState';
+import Field from '../../../components/ui/Field';
+import Input from '../../../components/ui/Input';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { fetchAllPages } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
-import AccessibleOverlay from '../../../components/AccessibleOverlay';
 
-function Avatar({ name, size = 'sm' }) {
-  const initials = name
-    .split(' ')
-    .map((value) => value[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
+const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 
-  const colors = ['bg-brand-700', 'bg-brand-600', 'bg-navy-800', 'bg-navy-950'];
-  const bg = colors[name.charCodeAt(0) % colors.length];
-  const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
-
-  return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sz} ${bg}`}>{initials}</div>;
-}
-
-function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onConfirm }) {
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-      <div className="w-full max-w-md rounded-lg border border-line bg-white p-6">
-        <h3 className="text-lg font-bold text-ink">{title}</h3>
-        <p className="mt-2 text-sm text-slate-600">{message}</p>
-        <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle" disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50" disabled={busy}>
-            {busy ? 'Processing...' : confirmText}
-          </button>
-        </div>
-      </div>
-    </AccessibleOverlay>
-  );
-}
-
-function studentLabel(user) {
-  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Unnamed Student';
-  return `${name} (${user.school_id || 'No ID'})`;
+function studentName(user) {
+  return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Unnamed student';
 }
 
 function studentKey(user) {
@@ -70,13 +40,15 @@ function candidateImageError(file) {
   return '';
 }
 
-function StudentSearchDropdown({ users, value, onChange }) {
+// A combobox: type a name, see the name with the school ID and email under it, pick. The school ID
+// is read, never typed.
+function StudentSearchDropdown({ users, value, onChange, ...controlProps }) {
   const listboxId = useId();
   const selectedUser = useMemo(
     () => users.find((user) => studentKey(user) === String(value)),
     [users, value]
   );
-  const selectedLabel = selectedUser ? studentLabel(selectedUser) : '';
+  const selectedLabel = selectedUser ? studentName(selectedUser) : '';
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(selectedLabel);
 
@@ -99,7 +71,7 @@ function StudentSearchDropdown({ users, value, onChange }) {
         user.last_name,
         user.school_id,
         user.email,
-        studentLabel(user),
+        studentName(user),
       ].filter(Boolean).join(' ').toLowerCase();
 
       return searchable.includes(normalizedQuery);
@@ -108,19 +80,20 @@ function StudentSearchDropdown({ users, value, onChange }) {
 
   const selectUser = (user) => {
     onChange(studentKey(user));
-    setQuery(studentLabel(user));
+    setQuery(studentName(user));
     setOpen(false);
   };
 
   return (
     <div className="relative">
-      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-      <input
+      <Input
+        {...controlProps}
         type="text"
         role="combobox"
         aria-expanded={open}
         aria-controls={listboxId}
         aria-autocomplete="list"
+        autoComplete="off"
         value={query}
         onFocus={() => setOpen(true)}
         onBlur={() => {
@@ -136,19 +109,17 @@ function StudentSearchDropdown({ users, value, onChange }) {
             onChange('');
           }
         }}
-        placeholder="Search student..."
-        className="h-11 w-full rounded-lg border border-line bg-white px-9 text-sm outline-none placeholder:text-ink-soft focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
+        placeholder="Type a student name"
       />
-      <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
 
       {open && (
         <div
           id={listboxId}
           role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 max-h-64 overflow-y-auto rounded-lg border border-line bg-white py-1 shadow-xl shadow-navy-950/10"
+          className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30 max-h-64 overflow-y-auto rounded-control border border-line bg-surface py-1 shadow-lg"
         >
           {filteredUsers.length === 0 ? (
-            <div className="px-3 py-3 text-sm font-medium text-slate-500">No students found.</div>
+            <div className="px-3 py-3 text-sm text-ink-muted">No students found.</div>
           ) : (
             filteredUsers.map((user) => (
               <button
@@ -158,12 +129,12 @@ function StudentSearchDropdown({ users, value, onChange }) {
                 aria-selected={studentKey(user) === String(value)}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectUser(user)}
-                className={`flex w-full flex-col items-start px-3 py-2 text-left transition hover:bg-subtle ${
+                className={`flex min-h-11 w-full flex-col items-start justify-center px-3 py-2 text-left transition-colors duration-150 hover:bg-subtle ${
                   studentKey(user) === String(value) ? 'bg-brand-50' : ''
                 }`}
               >
-                <span className="text-sm font-bold text-ink">{studentLabel(user)}</span>
-                {user.email && <span className="text-xs font-medium text-ink-muted">{user.email}</span>}
+                <span className="text-sm font-medium text-ink">{studentName(user)}</span>
+                <span className="text-xs text-ink-muted">{[user.school_id, user.email].filter(Boolean).join(', ')}</span>
               </button>
             ))
           )}
@@ -174,8 +145,7 @@ function StudentSearchDropdown({ users, value, onChange }) {
 }
 
 function CandidateForm({
-  title,
-  submitLabel,
+  formId,
   form,
   setForm,
   positions,
@@ -184,100 +154,61 @@ function CandidateForm({
   imagePreview,
   onImageChange,
   error,
-  submitting,
   onSubmit,
-  onCancel,
 }) {
   return (
-    <div className="rounded-lg border border-brand-600/30 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-ink">{title}</h3>
-        <button type="button" onClick={onCancel} className="rounded p-1 text-ink-muted hover:bg-danger-tint"><X size={16} /></button>
+    <form id={formId} onSubmit={onSubmit} className="space-y-4">
+      <Field label="Student" required>
+        <StudentSearchDropdown
+          users={users}
+          value={form.user_id}
+          onChange={(userId) => setForm({ ...form, user_id: userId })}
+        />
+      </Field>
+
+      <Field label="Position" required>
+        <HiusaSelect
+          value={form.position_id}
+          onChange={(event) => setForm({ ...form, position_id: event.target.value })}
+        >
+          <option value="">Choose a position</option>
+          {positions.map((position) => (
+            <option key={position.id} value={position.id}>{formatDisplayText(position.title)}</option>
+          ))}
+        </HiusaSelect>
+      </Field>
+
+      <Field label="Party list" optional>
+        <HiusaSelect
+          value={form.partylist_id}
+          onChange={(event) => setForm({ ...form, partylist_id: event.target.value })}
+        >
+          <option value="">Independent</option>
+          {partylists.map((partylist) => (
+            <option key={partylist.id} value={partylist.id}>{formatDisplayText(partylist.name)}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
+          ))}
+        </HiusaSelect>
+      </Field>
+
+      <div className="space-y-2">
+        {imagePreview && <Avatar name="Candidate photo preview" src={resolveAssetUrl(imagePreview)} size="lg" />}
+        <Field label="Candidate photo" optional hint="JPEG, PNG or WebP, up to 2 MB.">
+          <input type="file" accept="image/jpeg,image/png,image/webp" className={FILE_INPUT} onChange={onImageChange} />
+        </Field>
       </div>
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Student *</label>
-            <StudentSearchDropdown
-              users={users}
-              value={form.user_id}
-              onChange={(userId) => setForm({ ...form, user_id: userId })}
-            />
-          </div>
 
-          <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Position *</label>
-            <div className="relative">
-              <HiusaSelect
-                value={form.position_id}
-                onChange={(event) => setForm({ ...form, position_id: event.target.value })}
-                className="h-11 w-full appearance-none rounded-lg border border-line bg-white px-3 pr-9 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
-              >
-                <option value="">Select a position...</option>
-                {positions.map((position) => (
-                  <option key={position.id} value={position.id}>{formatDisplayText(position.title)}</option>
-                ))}
-              </HiusaSelect>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            </div>
-          </div>
+      <Field label="Platform statement" optional>
+        <RichTextEditor
+          value={form.platform}
+          maxLength={2000}
+          onChange={(platform) => setForm({ ...form, platform })}
+          rows={3}
+          placeholder="What this candidate stands for"
+        />
+      </Field>
 
-          <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Party List</label>
-            <div className="relative">
-              <HiusaSelect
-                value={form.partylist_id}
-                onChange={(event) => setForm({ ...form, partylist_id: event.target.value })}
-                className="h-11 w-full appearance-none rounded-lg border border-line bg-white px-3 pr-9 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
-              >
-                <option value="">Independent</option>
-                {partylists.map((partylist) => (
-                  <option key={partylist.id} value={partylist.id}>{formatDisplayText(partylist.name)}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
-                ))}
-              </HiusaSelect>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Candidate Photo</label>
-            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line bg-subtle px-3 py-2 transition hover:border-brand-600/50 hover:bg-subtle">
-              {imagePreview
-                ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-line" />
-                : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-50"><ImagePlus size={16} className="text-navy-800" /></div>
-              }
-              <span className="text-[13px] font-medium text-slate-500">{imagePreview ? 'Change photo' : 'Upload photo'}</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={onImageChange} />
-            </label>
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[13px] font-semibold text-ink">Platform Statement</label>
-            <RichTextEditor
-              value={form.platform}
-              maxLength={2000}
-              onChange={(platform) => setForm({ ...form, platform })}
-              rows={3}
-              placeholder="Candidate's platform and vision..."
-              ariaLabel="Platform statement"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            {error}
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <button type="submit" disabled={submitting || !form.user_id || !form.position_id} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-40">
-            {submitting ? 'Saving...' : submitLabel}
-          </button>
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle transition">Cancel</button>
-        </div>
-      </form>
-    </div>
+      {error && <p role="alert" className={ALERT}>{error}</p>}
+    </form>
   );
 }
 
@@ -321,7 +252,7 @@ export default function ManageCandidatesPage() {
         if (!cancelled) {
           setUsers([]);
           setPartylists([]);
-          setError('Unable to load candidate form options. Please try again.');
+          setError('Student and party list options did not load. Reload the page to try again.');
         }
       } finally {
         if (!cancelled) setResourcesLoading(false);
@@ -349,8 +280,11 @@ export default function ManageCandidatesPage() {
   const availableEditUsers = users.filter((user) => studentKey(user) === String(editForm.user_id) || !assignedUserIds.has(Number(studentKey(user))));
 
   if (!election) {
-    return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
+    return <EmptyState title="Election not found" description="Go back and choose an election." />;
   }
+
+  const canEdit = election.status !== 'closed' && !ballotLocked;
+  const drawerOpen = showAdd || Boolean(editId);
 
   const resetAddForm = () => {
     setForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });
@@ -377,6 +311,18 @@ export default function ManageCandidatesPage() {
     setEditImageFile(null);
     setEditImagePreview(candidate.image_url || null);
     setError('');
+  };
+
+  const openAdd = () => {
+    setError('');
+    setShowAdd(true);
+    resetEditForm();
+  };
+
+  const closeDrawer = () => {
+    if (submitting) return;
+    if (editId) resetEditForm();
+    else resetAddForm();
   };
 
   const handleAdd = async (event) => {
@@ -447,159 +393,134 @@ export default function ManageCandidatesPage() {
     }
   };
 
-  return (
-    <div className="space-y-5">
-      <section aria-label="Candidate filters and actions" className="flex flex-col gap-4 rounded-lg border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-ink">{candidates.length} candidates registered for {formatDisplayText(election.title)}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-xs font-bold rounded-full transition ${posFilter === 'All' ? 'bg-navy-800 text-white' : 'border border-line text-slate-600 hover:bg-page'}`}>All</button>
-            {positions.map((position) => (
-              <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-xs font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-navy-800 text-white' : 'border border-line text-slate-600 hover:bg-page'}`}>
-                {formatDisplayText(position.title)}
-              </button>
-            ))}
+  const imageChange = (setFile, setPreview) => (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const imageError = candidateImageError(file);
+    if (imageError) { setError(imageError); event.target.value = ''; return; }
+    setError('');
+    setFile(file);
+    setPreview(URL.createObjectURL(file));
+  };
+
+  const candidateUserOf = (candidate) => candidate.user || users.find((user) => studentKey(user) === String(candidate.user_id));
+  const candidateName = (candidate) => {
+    const candidateUser = candidateUserOf(candidate);
+    return `${candidateUser?.first_name || ''} ${candidateUser?.last_name || ''}`.trim();
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      header: 'Candidate',
+      render: (candidate) => {
+        const name = formatDisplayText(candidateName(candidate)) || 'Unknown candidate';
+        return (
+          <div className="flex items-center gap-3 text-left">
+            <Avatar name={name} src={candidate.image_url ? resolveAssetUrl(candidate.image_url) : undefined} size="sm" />
+            <span className="font-medium">{name}</span>
           </div>
-        </div>
-        {election.status !== 'closed' && !ballotLocked && (
-          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition-colors hover:bg-navy-800 disabled:cursor-wait disabled:opacity-50 sm:w-auto">
-            <Plus size={15} />
-            Add Candidate
-          </button>
-        )}
-      </section>
+        );
+      },
+    },
+    { key: 'position', header: 'Position', render: (candidate) => formatDisplayText(positions.find((value) => value.id === candidate.position_id)?.title) || 'Unknown' },
+    { key: 'partylist', header: 'Party list', render: (candidate) => candidate.partylist?.name || 'Independent' },
+    {
+      key: 'platform',
+      header: 'Platform',
+      render: (candidate) => (
+        <details className="text-left">
+          <summary className="min-h-10 cursor-pointer text-sm font-medium leading-10 text-brand-700 hover:text-brand-800">Read platform</summary>
+          <RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mb-2 max-w-prose text-sm text-ink-muted-strong" />
+        </details>
+      ),
+    },
+  ];
 
+  const addButton = <Button leftIcon={Plus} disabled={resourcesLoading} onClick={openAdd}>Add candidate</Button>;
+  const filtersActive = posFilter !== 'All';
+
+  const filters = candidates.length > 0 && (
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Position" className="w-full sm:w-64">
+          <HiusaSelect value={posFilter} onChange={(event) => setPosFilter(event.target.value)}>
+            <option value="All">All positions</option>
+            {positions.map((position) => <option key={position.id} value={String(position.id)}>{formatDisplayText(position.title)}</option>)}
+          </HiusaSelect>
+        </Field>
+        {filtersActive && <button type="button" onClick={() => setPosFilter('All')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+      </div>
+      {canEdit && addButton}
+    </div>
+  );
+
+  const emptyState = candidates.length > 0
+    ? <EmptyState kind="filtered" title="No candidates for this position" description="Choose another position to see its candidates." onClearFilters={() => setPosFilter('All')} />
+    : (
+      <EmptyState
+        title="No candidates yet"
+        description={canEdit ? 'Add a candidate for each position on the ballot.' : 'Nobody is registered for this election.'}
+        action={canEdit ? addButton : undefined}
+      />
+    );
+
+  const formProps = showAdd || !editId
+    ? { formId: 'candidate-form', form, setForm, users: availableAddUsers, imagePreview, onImageChange: imageChange(setImageFile, setImagePreview), onSubmit: handleAdd }
+    : { formId: 'candidate-form', form: editForm, setForm: setEditForm, users: availableEditUsers, imagePreview: editImagePreview, onImageChange: imageChange(setEditImageFile, setEditImagePreview), onSubmit: handleEdit };
+  const activeForm = editId ? editForm : form;
+
+  return (
+    <div className="space-y-4">
       {ballotLocked && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+        <p className="rounded-control bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Candidate setup is locked because votes have already been cast.
-        </div>
+        </p>
       )}
 
-      <Modal
-        open={showAdd}
-        onClose={() => !submitting && resetAddForm()}
-        closeOnBackdrop={!submitting}
-        closeOnEscape={!submitting}
-        maxWidth="max-w-3xl"
+      {error && !drawerOpen && <p role="alert" className={ALERT}>{error}</p>}
+
+      <DataTable
+        caption={`Candidates for ${formatDisplayText(election.title)}`}
+        columns={columns}
+        rows={filtered}
+        loading={resourcesLoading}
+        filters={filters || null}
+        filtersActive={filtersActive}
+        onClearFilters={() => setPosFilter('All')}
+        emptyState={emptyState}
+        actions={canEdit ? (candidate) => (
+          <TableRowActions subject={formatDisplayText(candidateName(candidate))} actions={[
+            { label: 'Edit', icon: Pencil, onClick: () => openEdit(candidate) },
+            { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === candidate.id, onClick: () => setConfirmDeleteId(candidate.id) },
+          ]} />
+        ) : undefined}
+      />
+
+      <Drawer
+        open={drawerOpen}
+        title={editId ? 'Edit candidate' : 'Add candidate'}
+        onClose={closeDrawer}
+        width="max-w-xl"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={closeDrawer} disabled={submitting}>Cancel</Button>
+            <Button type="submit" form="candidate-form" loading={submitting} disabled={!activeForm.user_id || !activeForm.position_id}>{editId ? 'Save changes' : 'Add candidate'}</Button>
+          </>
+        )}
       >
         <CandidateForm
-            title="Add Candidate"
-            submitLabel="Add Candidate"
-            form={form}
-            setForm={setForm}
-            positions={positions}
-            partylists={partylists}
-            users={availableAddUsers}
-            imagePreview={imagePreview}
-            onImageChange={(event) => {
-              const file = event.target.files[0];
-              if (!file) return;
-              const imageError = candidateImageError(file);
-              if (imageError) { setError(imageError); event.target.value = ''; return; }
-              setError('');
-              setImageFile(file);
-              setImagePreview(URL.createObjectURL(file));
-            }}
-            error={error}
-            submitting={submitting}
-            onSubmit={handleAdd}
-            onCancel={resetAddForm}
-          />
-      </Modal>
-
-      <Modal
-        open={Boolean(editId)}
-        onClose={() => !submitting && resetEditForm()}
-        closeOnBackdrop={!submitting}
-        closeOnEscape={!submitting}
-        maxWidth="max-w-3xl"
-      >
-        <CandidateForm
-            title="Edit Candidate"
-            submitLabel="Save Changes"
-            form={editForm}
-            setForm={setEditForm}
-            positions={positions}
-            partylists={partylists}
-            users={availableEditUsers}
-            imagePreview={editImagePreview}
-            onImageChange={(event) => {
-              const file = event.target.files[0];
-              if (!file) return;
-              const imageError = candidateImageError(file);
-              if (imageError) { setError(imageError); event.target.value = ''; return; }
-              setError('');
-              setEditImageFile(file);
-              setEditImagePreview(URL.createObjectURL(file));
-            }}
-            error={error}
-            submitting={submitting}
-            onSubmit={handleEdit}
-            onCancel={resetEditForm}
-          />
-      </Modal>
-
-      {error && !showAdd && !editId && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {error}
-        </div>
-      )}
-
-      {resourcesLoading && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" role="status" aria-label="Loading candidate options">
-          {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-line bg-slate-100" />)}
-          <span className="sr-only">Loading candidate options...</span>
-        </div>
-      )}
-
-      {!resourcesLoading && (filtered.length === 0 ? (
-        <div className="rounded-lg border border-line bg-white p-10 text-center">
-          <Award size={36} className="text-line mx-auto mb-3" />
-          <p className="text-sm text-ink-muted">No candidates yet for this election.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {filtered.map((candidate) => {
-            const candidateUser = candidate.user || users.find((user) => studentKey(user) === String(candidate.user_id));
-            const name = `${candidateUser?.first_name || ''} ${candidateUser?.last_name || ''}`.trim();
-            const position = positions.find((value) => value.id === candidate.position_id)?.title || 'Unknown';
-            const partylist = candidate.partylist?.name || 'Independent';
-
-            return (
-              <div key={candidate.id} className="rounded-lg border border-line bg-white shadow-sm overflow-hidden">
-                <div className="h-2 bg-brand-700" />
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      {candidate.image_url
-                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="h-9 w-9 shrink-0 rounded-full border border-line object-cover" />
-                        : <Avatar name={name || 'Candidate'} size="md" />
-                      }
-                      <div className="min-w-0">
-                        <p className="font-bold text-ink">{formatDisplayText(name) || 'Unknown Candidate'}</p>
-                        <p className="text-xs text-ink-muted">{position}</p>
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-page text-navy-800 text-xs font-bold rounded-full">{partylist}</span>
-                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-brand-700">View candidate details</summary><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-2" /></details>
-                      </div>
-                    </div>
-                    {election.status !== 'closed' && !ballotLocked && (
-                      <TableRowActions subject={formatDisplayText(name)} actions={[
-                        { label: 'Edit', icon: Pencil, onClick: () => openEdit(candidate) },
-                        { label: 'Remove', icon: Trash2, danger: true, disabled: workingId === candidate.id, onClick: () => setConfirmDeleteId(candidate.id) },
-                      ]} />
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
+          {...formProps}
+          positions={positions}
+          partylists={partylists}
+          error={error}
+        />
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(confirmDeleteId)}
-        title="Remove Candidate"
-        message="Are you sure you want to remove this candidate from the election?"
+        title="Remove candidate"
+        message="This removes the candidate from the election."
         confirmText="Remove"
         busy={workingId === confirmDeleteId}
         onCancel={() => setConfirmDeleteId(null)}

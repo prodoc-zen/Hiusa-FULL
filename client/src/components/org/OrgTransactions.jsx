@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import PaginationControls from '../PaginationControls';
-import { Card, DataTable, EmptyState, SegmentedControl, Stat, StatusBadge } from '../ui';
+import { Card, DataTable, EmptyState, SegmentedControl, Stat } from '../ui';
 import { manilaDate, peso } from '../../lib/format';
 import { getOrganizationTransactions } from '../../services/orgSpaceService';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -13,10 +13,10 @@ const TYPE_OPTIONS = [
 
 const COLUMNS = [
   { key: 'transaction_date', header: 'Date', render: (row) => <span className="whitespace-nowrap">{manilaDate(row.transaction_date)}</span> },
-  { key: 'description', header: 'Description', render: (row) => <span className="block min-w-0 break-words font-bold">{row.description || 'No description'}{row.budget_title && <span className="block text-xs font-medium text-ink-muted">{row.budget_title}</span>}</span> },
+  { key: 'description', header: 'Description', render: (row) => <span className="block min-w-0 break-words font-medium">{row.description || 'No description'}{row.budget_title && <span className="block text-xs font-normal text-ink-muted">{row.budget_title}</span>}</span> },
   { key: 'category', header: 'Category', render: (row) => <span className="capitalize">{row.category || 'None'}</span> },
-  { key: 'type', header: 'Type', render: (row) => <StatusBadge status={row.type} /> },
-  { key: 'amount', header: 'Amount', align: 'right', render: (row) => <span className="font-bold tabular-nums">{peso(row.amount)}</span> },
+  { key: 'type', header: 'Type', render: (row) => <span className="capitalize">{row.type}</span> },
+  { key: 'amount', header: 'Amount', align: 'right', render: (row) => <span className="tabular-nums">{peso(row.amount)}</span> },
   { key: 'recorded_by', header: 'Recorded by', render: (row) => row.recorded_by || 'Unknown' },
 ];
 

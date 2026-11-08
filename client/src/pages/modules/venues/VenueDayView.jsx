@@ -33,7 +33,7 @@ export default function VenueDayView({ day, slots, venues, venueId, conflictIds,
 
   return (
     <div>
-      <p className={`mb-2 text-xs font-bold ${day === todayInManila() ? 'text-brand-700' : 'text-ink-muted'}`}>{label}{day === todayInManila() ? ' (today)' : ''}</p>
+      <p className={`mb-2 text-xs font-semibold ${day === todayInManila() ? 'text-brand-700' : 'text-ink-muted'}`}>{label}{day === todayInManila() ? ' (today)' : ''}</p>
 
       <div className="hidden max-w-full overflow-x-auto rounded-control border border-line md:block" data-testid="day-grid">
         {columns.length ? (
@@ -46,7 +46,7 @@ export default function VenueDayView({ day, slots, venues, venueId, conflictIds,
       <ol className="space-y-4 md:hidden" aria-label="Bookings by venue" data-testid="day-stack">
         {lanes.map((lane) => (
           <li key={lane.id}>
-            <h3 className="text-sm font-bold text-ink">{lane.name}</h3>
+            <h3 className="text-sm font-semibold text-ink">{lane.name}</h3>
             {lane.slots.length ? (
               <ul className="mt-2 space-y-2">
                 {sortByStart(lane.slots).map((slot) => {
@@ -56,9 +56,9 @@ export default function VenueDayView({ day, slots, venues, venueId, conflictIds,
                       <button type="button" onClick={() => onSelect(slot)} className={`flex min-h-11 w-full items-start gap-2 rounded-control border bg-surface p-3 text-left text-xs outline-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent ${status.row}`}>
                         <Clock3 size={16} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden="true" />
                         <span className="min-w-0">
-                          <span className="flex flex-wrap items-center gap-1 font-bold text-ink">
+                          <span className="flex flex-wrap items-center gap-1 font-semibold text-ink">
                             {timeLabel(slot.start_time)} - {timeLabel(slot.end_time)}
-                            <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${status.block}`}>{status.label}</span>
+                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${status.block}`}>{status.label}</span>
                             {conflictIds.has(slot.id) && <ConflictBadge />}
                           </span>
                           <span className="mt-0.5 block break-words font-semibold text-ink">{slot.reserved_by}</span>

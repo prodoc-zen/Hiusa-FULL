@@ -1,7 +1,5 @@
-import HiusaSelect from '../ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { HandCoins, Plus } from 'lucide-react';
-import AccessibleOverlay from '../AccessibleOverlay';
 import ConfirmModal from '../ConfirmModal';
 import { approveCashAdvance, createCashAdvance, getCashAdvances, releaseCashAdvance, repayCashAdvance } from '../../services/financeService';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -9,7 +7,7 @@ import { formatDateTime } from '../../utils/dateTime';
 import { peso } from '../../lib/format';
 import notify from '../../lib/notify';
 import TableRowActions from '../TableRowActions';
-import { Button, EmptyState, Field, Input, StatusBadge, Textarea } from '../ui';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, Skeleton, StatusBadge, Textarea } from '../ui';
 
 const STATUS_FILTERS = [
   ['', 'All statuses'],
@@ -30,19 +28,26 @@ function borrowerName(advance) {
   return advance.borrower ? `${advance.borrower.first_name} ${advance.borrower.last_name}` : `School ID ${advance.borrower_id}`;
 }
 
+// A short form opens in a drawer; the modal is kept for the destructive confirm only.
 function Dialog({ label, onClose, onSubmit, children, submitLabel, busy, error }) {
+  const formId = `${label.toLowerCase().replace(/\s+/g, '-')}-form`;
   return (
-    <AccessibleOverlay label={label} onClose={() => !busy && onClose()} className="fixed inset-0 z-50 grid place-items-center bg-navy-950/50 p-4">
-      <form onSubmit={onSubmit} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-card bg-surface p-5 sm:p-6">
-        <h2 className="text-lg font-bold text-ink">{label}</h2>
-        <div className="mt-4 space-y-4">{children}</div>
-        {error && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
+    <Drawer
+      open
+      title={label}
+      onClose={() => !busy && onClose()}
+      footer={(
+        <>
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button type="submit" loading={busy}>{submitLabel}</Button>
-        </div>
+          <Button type="submit" form={formId} loading={busy}>{submitLabel}</Button>
+        </>
+      )}
+    >
+      <form id={formId} onSubmit={onSubmit} className="space-y-4">
+        {children}
+        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </form>
-    </AccessibleOverlay>
+    </Drawer>
   );
 }
 
@@ -119,7 +124,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
   }
 
   function rowAction(advance) {
-    if (advance.status === 'pending' && advance.borrower_id === me) return <p className="max-w-48 text-xs font-medium text-ink-muted sm:text-right">Another admin approves your request.</p>;
+    if (advance.status === 'pending' && advance.borrower_id === me) return <p className="max-w-48 text-xs text-ink-muted sm:text-right">Another admin approves your request.</p>;
     return <TableRowActions subject={advance.purpose} actions={[
       advance.status === 'pending' && { label: 'Approve', disabled: busy === `approve-${advance.id}`, onClick: () => run(`approve-${advance.id}`, () => approveCashAdvance(advance.id), 'Cash advance approved') },
       advance.status === 'approved' && { label: 'Release funds', onClick: () => setReleaseTarget(advance) },
@@ -128,56 +133,53 @@ export default function CashAdvancesSection({ onLedgerChange }) {
   }
 
   return (
-    <section aria-labelledby="cash-advances-title" className="rounded-lg border border-line bg-white">
+    <section aria-labelledby="cash-advances-title" className="rounded-card border border-line bg-surface">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line p-4 sm:p-5">
         <div>
-          <h2 id="cash-advances-title" className="text-base font-bold text-ink">Cash advances</h2>
-          <p className="mt-1 text-xs text-slate-600">An advance moves cash in the ledger (released out, repaid back in) but is not counted as income or expense in reports and forecasts. A different admin approves every request.</p>
+          <h2 id="cash-advances-title" className="text-base font-semibold text-ink">Cash advances</h2>
+          <p className="mt-1 max-w-prose text-xs text-ink-muted">Advances move cash in the ledger but are not counted as income or expense in reports and forecasts. A different admin approves every request.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs font-semibold text-slate-600">
+          <label className="text-[13px] font-medium text-ink">
             <span className="block">Status</span>
-            <HiusaSelect filter value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-line bg-white px-3 text-sm text-ink">
+            <Select filter value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1.5 w-56 max-w-full">
               {STATUS_FILTERS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
-            </HiusaSelect>
+            </Select>
           </label>
-          <Button variant="secondary" onClick={() => { setFormError(''); setRequestOpen(true); }}><Plus size={16} aria-hidden="true" /> Request cash advance</Button>
+          <Button variant="secondary" leftIcon={Plus} onClick={() => { setFormError(''); setRequestOpen(true); }}>Request cash advance</Button>
         </div>
       </div>
 
       {state.loading && state.rows.length === 0 && (
-        <div className="space-y-2 p-4 sm:p-5" role="status" aria-label="Loading cash advances">
-          {[0, 1].map((key) => <div key={key} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
+        <div className="divide-y divide-line-soft" role="status" aria-label="Loading cash advances">
+          {[0, 1, 2].map((key) => <div key={key} className="flex items-center gap-4 p-4 sm:px-5"><Skeleton className="h-3 w-1/3" /><Skeleton className="h-3 w-1/4" /></div>)}
         </div>
       )}
-      {state.error && (
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
-          <p role="alert" className="text-sm font-semibold text-danger-strong">{state.error}</p>
-          <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
-        </div>
-      )}
+      {state.error && <div className="px-4 sm:px-5"><ErrorState title="Cash advances did not load" description={state.error} onRetry={load} /></div>}
       {!state.loading && !state.error && state.rows.length === 0 && (
-        status ? (
-          <EmptyState kind="filtered" title="No cash advances with this status" description="Show every status to see the rest." onClearFilters={() => setStatus('')} />
-        ) : (
-          <EmptyState
-            icon={HandCoins}
-            title="No cash advances yet"
-            description="A cash advance lends the organization's money to an officer before an event. Choose Request cash advance above; a different admin approves it, and repayments return the money to the ledger."
-          />
-        )
+        <div className="px-4 sm:px-5">
+          {status ? (
+            <EmptyState kind="filtered" title="No cash advances with this status" description="Show every status to see the rest." onClearFilters={() => setStatus('')} />
+          ) : (
+            <EmptyState
+              icon={HandCoins}
+              title="No cash advances yet"
+              description="A cash advance lends the organization's money to an officer before an event. Choose Request cash advance above; a different admin approves it, and repayments return the money to the ledger."
+            />
+          )}
+        </div>
       )}
       {state.rows.length > 0 && (
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-line" aria-label="Cash advances">
           {state.rows.map((advance) => (
             <li key={advance.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="line-clamp-2 break-words text-sm font-bold text-ink">{advance.purpose}</h3>
+                  <h3 className="line-clamp-2 break-words text-sm font-semibold text-ink">{advance.purpose}</h3>
                   <StatusBadge status={advance.status} />
                 </div>
-                <p className="mt-1 text-xs font-medium text-slate-600">{advance.reference} · requested by {borrowerName(advance)} · {formatDateTime(advance.created_at)}</p>
-                <p className="mt-1 text-xs font-medium text-slate-600">
+                <p className="mt-1 text-xs text-ink-muted">{advance.reference} · requested by {borrowerName(advance)} · {formatDateTime(advance.created_at)}</p>
+                <p className="mt-1 text-xs tabular-nums text-ink-muted">
                   {peso(advance.amount)} advanced · {peso(advance.amount_repaid)} repaid · <span className="font-semibold text-ink">{peso(advance.remaining_balance)} outstanding</span>
                 </p>
               </div>
@@ -188,14 +190,14 @@ export default function CashAdvancesSection({ onLedgerChange }) {
       )}
 
       {requestOpen && (
-        <Dialog label="Request cash advance" onClose={() => setRequestOpen(false)} onSubmit={submitRequest} submitLabel="Submit request" busy={busy === 'request'} error={formError}>
+        <Dialog label="Request cash advance" onClose={() => setRequestOpen(false)} onSubmit={submitRequest} submitLabel="Send request" busy={busy === 'request'} error={formError}>
           <Field label="Amount (PHP)" required>
             <Input type="number" min="0.01" step="0.01" inputMode="decimal" value={request.amount} onChange={(event) => setRequest({ ...request, amount: event.target.value })} />
           </Field>
           <Field label="Purpose" required hint="What the money is for, so the approver can judge it.">
             <Textarea rows={3} maxLength={2000} value={request.purpose} onChange={(event) => setRequest({ ...request, purpose: event.target.value })} />
           </Field>
-          <Field label="Notes">
+          <Field label="Notes" optional>
             <Textarea rows={2} maxLength={2000} value={request.notes} onChange={(event) => setRequest({ ...request, notes: event.target.value })} />
           </Field>
         </Dialog>
@@ -203,11 +205,11 @@ export default function CashAdvancesSection({ onLedgerChange }) {
 
       {repayTarget && (
         <Dialog label="Record repayment" onClose={() => setRepayTarget(null)} onSubmit={submitRepayment} submitLabel="Record repayment" busy={busy === 'repay'} error={formError}>
-          <p className="text-sm text-slate-600">{repayTarget.reference} · {borrowerName(repayTarget)} · <span className="font-semibold text-ink">{peso(repayTarget.remaining_balance)} outstanding</span></p>
+          <p className="text-sm text-ink-muted">{repayTarget.reference} · {borrowerName(repayTarget)} · <span className="font-semibold text-ink">{peso(repayTarget.remaining_balance)} outstanding</span></p>
           <Field label="Amount repaid (PHP)" required>
             <Input type="number" min="0.01" step="0.01" max={repayTarget.remaining_balance} inputMode="decimal" value={repayment.amount} onChange={(event) => setRepayment({ ...repayment, amount: event.target.value })} />
           </Field>
-          <Field label="Notes">
+          <Field label="Notes" optional>
             <Textarea rows={2} maxLength={2000} value={repayment.notes} onChange={(event) => setRepayment({ ...repayment, notes: event.target.value })} />
           </Field>
         </Dialog>

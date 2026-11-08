@@ -1,36 +1,21 @@
-import { Plus } from 'lucide-react';
-
 export function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
 export function Badge({ color, children }) {
   const map = {
-    blue: 'bg-brand-50 text-navy-800',
-    green: 'bg-green-100 text-green-800',
-    red: 'bg-red-100 text-red-800',
-    yellow: 'bg-amber-100 text-amber-800',
-    purple: 'bg-brand-50 text-navy-800',
-    gray: 'bg-gray-100 text-gray-700',
-    orange: 'bg-amber-100 text-amber-800',
-    teal: 'bg-brand-50 text-navy-800',
+    blue: 'bg-brand/10 text-brand-700',
+    green: 'bg-green-50 text-green-800',
+    red: 'bg-red-50 text-red-800',
+    yellow: 'bg-amber-50 text-amber-800',
+    gray: 'bg-slate-100 text-slate-700',
   };
 
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold', map[color] || map.gray)}>
+    <span className={cn('inline-flex h-6 items-center whitespace-nowrap rounded px-2 text-xs font-medium', map[color] || map.gray)}>
       {children}
     </span>
   );
-}
-
-export function StatusBadge({ status }) {
-  const map = {
-    Published: 'green',
-    Draft: 'gray',
-    Scheduled: 'blue',
-  };
-
-  return <Badge color={map[status] || 'gray'}>{status}</Badge>;
 }
 
 // The server keeps two fields: approval_status (draft, pending, approved, rejected) and is_published.
@@ -46,43 +31,4 @@ export function announcementStage(announcement) {
 export function AnnouncementStageChip({ announcement }) {
   const stage = announcementStage(announcement);
   return <Badge color={stage.color}>{stage.label}</Badge>;
-}
-
-export function SectionHeader({ title, sub = null, action = null, onAction = null }) {
-  return (
-    <div className="mb-5 flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-ink">
-          {title}
-        </h2>
-        {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
-      </div>
-      {action && (
-        <button
-          onClick={onAction}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-800"
-        >
-          <Plus size={15} />
-          {action}
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function Avatar({ name, size = 'sm', color = null }) {
-  const safeName = name || '?';
-  const initials = safeName
-    .split(' ')
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '?';
-
-  const colors = ['bg-brand-700', 'bg-brand-600', 'bg-navy-800', 'bg-navy-950'];
-  const bg = color || colors[safeName.charCodeAt(0) % colors.length];
-  const sizeClass = size === 'lg' ? 'h-12 w-12 text-base' : size === 'md' ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs';
-
-  return <div className={cn('flex shrink-0 items-center justify-center rounded-full font-bold text-white', sizeClass, bg)}>{initials}</div>;
 }

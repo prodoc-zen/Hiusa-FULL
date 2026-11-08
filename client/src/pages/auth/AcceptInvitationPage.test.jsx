@@ -128,6 +128,21 @@ describe('AcceptInvitationPage', () => {
     expect(await screen.findByText(/Invited by the Department Head of College of Arts and Sciences\./)).toBeInTheDocument();
   });
 
+  it('names the person who invited you, from the Student Affairs Office for a dean', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue({ ...deanInvite, invitation: { ...deanInvite.invitation, inviter: { name: 'Jade Santos' } } });
+    renderPage();
+
+    expect(await screen.findByText('Jade Santos from the Student Affairs Office invited you to College of Arts and Sciences.')).toBeInTheDocument();
+    expect(screen.queryByText(/Invited by/)).not.toBeInTheDocument();
+  });
+
+  it('names the dean who invited office staff', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue({ ...staffInvite, invitation: { ...staffInvite.invitation, inviter: { name: 'Rosa Lim' } } });
+    renderPage();
+
+    expect(await screen.findByText(/Rosa Lim, the Department Head, invited you to College of Arts and Sciences\./)).toBeInTheDocument();
+  });
+
   it('registers the dean, signs them in with their email and lands on the dean home', async () => {
     mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
     mocks.acceptDepartmentHeadInvitation.mockResolvedValue({ token: 'ignored', user: { role: 'DEPARTMENT_HEAD' } });

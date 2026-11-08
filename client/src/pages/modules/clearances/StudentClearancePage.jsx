@@ -16,17 +16,14 @@ function SignatureRow({ signature }) {
       <Icon size={20} className={`mt-0.5 shrink-0 ${iconTone}`} aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold text-ink">{humanizeRole(signature.required_role)}</p>
+          <p className="text-sm font-semibold text-ink">{humanizeRole(signature.required_role)}</p>
           <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} />
         </div>
         {signature.status === 'held' && (
-          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900">
-            <p className="font-semibold text-amber-950">Hold notice</p>
-            <p className="mt-0.5 font-medium leading-5">{signature.remarks || 'On hold.'} Please see {whoToSee(signature.required_role)}.</p>
-          </div>
+          <p className="mt-1 text-sm text-ink">{signature.remarks || 'On hold.'} See {whoToSee(signature.required_role)}.</p>
         )}
         {signature.status === 'pending' && (
-          <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">Waiting on {whoToSee(signature.required_role)}.</p>
+          <p className="mt-1 text-sm text-ink-muted">Waiting on {whoToSee(signature.required_role)}.</p>
         )}
       </div>
     </div>
@@ -73,7 +70,7 @@ export default function StudentClearancePage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         meta={showing && <span className="text-xs font-semibold text-ink-muted-strong">{formatDisplayText(showing.title)} · {showing.academic_year}</span>}
-        stepper={stage && <FlowStepper steps={stage.steps} ariaLabel="Clearance signatures" />}
+        stepper={stage && <FlowStepper variant="full" steps={stage.steps} ariaLabel="Clearance signatures" />}
         nextStep={nextStep && <NextStep {...nextStep} />}
       />
 
@@ -86,7 +83,7 @@ export default function StudentClearancePage() {
           kind="first-run"
           icon={ClipboardCheck}
           title="No clearance period yet"
-          description="The Student Affairs Office opens a clearance period each semester. Once it does, your checklist shows up here with one line for every signature you need."
+          description="The Student Affairs Office opens a clearance period each semester. Your checklist appears here when it does."
         />
       )}
 
@@ -102,8 +99,8 @@ export default function StudentClearancePage() {
         <Card>
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <DrawnCheck label="Clearance complete" size="lg" />
-            <p className="text-lg font-bold text-ink">Your clearance is complete!</p>
-            <p className="max-w-sm text-sm font-medium text-ink-muted">Every required signature for {formatDisplayText(showing.title)} has been cleared.</p>
+            <p className="text-lg font-semibold text-ink">Your clearance is complete!</p>
+            <p className="max-w-sm text-sm text-ink-muted">Every required signature for {formatDisplayText(showing.title)} has been cleared.</p>
           </div>
         </Card>
       ) : (

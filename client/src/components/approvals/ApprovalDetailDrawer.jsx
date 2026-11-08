@@ -88,20 +88,20 @@ function ReportExtras({ request }) {
   return (
     <div className="space-y-3">
       <Button variant="secondary" leftIcon={Download} loading={downloading} onClick={downloadReportPdf}>
-        {downloading ? 'Preparing PDF...' : 'Download submitted report'}
+        {downloading ? 'Preparing PDF' : 'Download submitted report'}
       </Button>
       <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs font-bold text-ink-muted-strong">Required signatories</dt>
+          <dt className="text-xs font-semibold text-ink-muted-strong">Required signatories</dt>
           {Object.entries(summary.signatories || {}).map(([role, name]) => (
             <dd key={role} className="mt-2 capitalize text-ink-muted-strong">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></dd>
           ))}
         </div>
         <div>
-          <dt className="text-xs font-bold text-ink-muted-strong">Supporting documents</dt>
+          <dt className="text-xs font-semibold text-ink-muted-strong">Supporting documents</dt>
           {documents.map((document) => (
             <dd key={document.index}>
-              <button type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-brand-700 hover:underline">
+              <button type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-semibold text-brand-700 hover:underline">
                 <Download size={14} aria-hidden="true" />{document.name}
               </button>
             </dd>
@@ -118,7 +118,7 @@ function RequirementFiles({ files }) {
 
   return (
     <section aria-label="SAO event files">
-      <h3 className="text-xs font-bold text-ink-muted-strong">SAO event files</h3>
+      <h3 className="text-xs font-semibold text-ink-muted-strong">SAO event files</h3>
       <ul className="mt-2 space-y-1 text-sm text-ink">
         {files.map((file) => <li key={file.id}>{file.requirement ? `${file.requirement}: ` : ''}{file.original_name}</li>)}
       </ul>
@@ -142,7 +142,7 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
             <EmptyState
               kind="restricted"
               title="This request is not available to you"
-              description="Only the Department Head or Admin it was sent to, and the organization that sent it, can open it. It may also have been removed."
+              description="Only the reviewer it was sent to and the organization that sent it can open it. It may have been removed."
             />
           )}
       </Drawer>
@@ -176,17 +176,17 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
       footer={footer}
     >
       <div className="space-y-5">
-        {info.kind === 'lifecycle' && <FlowStepper steps={info.steps} ariaLabel={`${typeLabel} progress`} />}
+        {info.kind === 'lifecycle' && <FlowStepper variant="full" steps={info.steps} ariaLabel={`${typeLabel} progress`} />}
         <NextStep {...nextStep} />
         <ApprovalReceipt request={request} organizationName={organizationName} compact />
         {request.entity_type === 'event' && <RequirementFiles files={request.summary?.requirement_files} />}
         {request.entity_type === 'financial_report' && <ReportExtras request={request} />}
         <section aria-label="History">
-          <h3 className="text-xs font-bold text-ink-muted-strong">History</h3>
+          <h3 className="text-xs font-semibold text-ink-muted-strong">History</h3>
           <ol className="mt-2 space-y-3 border-l border-line pl-4">
             {historyEntries(request).map((entry) => (
               <li key={entry.key} className="text-sm">
-                <p className="font-bold text-ink">{entry.title}</p>
+                <p className="font-semibold text-ink">{entry.title}</p>
                 {entry.when && <p className="text-xs font-medium text-ink-muted-strong">{formatDateTime(entry.when)}</p>}
                 {entry.remarks && <p className="mt-1 text-sm text-ink-muted-strong"><span className="font-semibold">Remarks:</span> {entry.remarks}</p>}
               </li>

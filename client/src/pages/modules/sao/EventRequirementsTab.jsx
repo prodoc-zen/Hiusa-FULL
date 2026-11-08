@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Eye, FileText, Pencil, Trash2, X } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusToggleSwitch, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, SegmentedControl, Select, SkeletonText, StatusToggleSwitch, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
@@ -275,14 +275,14 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const filteredRequirements = requirements.filter((item) => venueFilter === 'all' || item.venue_type === venueFilter);
 
   const checklistColumns = [
-    { key: 'order', header: '#', render: (requirement) => filteredRequirements.indexOf(requirement) + 1 },
+    { key: 'order', header: '#', align: 'right', render: (requirement) => filteredRequirements.indexOf(requirement) + 1 },
     {
       key: 'name',
       header: 'File',
       render: (requirement) => (
         <div className="min-w-0 text-left">
-          <p className="break-words font-bold text-ink">{formatDisplayText(requirement.name)}</p>
-          {requirement.description && <RichTextBody value={requirement.description} className="mt-1 break-words text-xs font-medium text-ink-muted" />}
+          <p className="break-words font-medium text-ink">{formatDisplayText(requirement.name)}</p>
+          {requirement.description && <RichTextBody value={requirement.description} className="mt-1 break-words text-xs text-ink-muted" />}
         </div>
       ),
     },
@@ -312,39 +312,34 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   return (
     <div className="space-y-5">
       {loadError && (
-        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">
+        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">
           {loadError}
           <Button variant="secondary" size="sm" className={ROW_ACTION} onClick={() => load(true)}>Retry</Button>
         </p>
       )}
       {actionError && (
-        <p role="alert" className="rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{actionError}</p>
+        <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{actionError}</p>
       )}
 
       {mode === 'settings' && <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
         <Card
           title="Event requirements"
-          description="Active items require one file each. Order is shared with organizations."
+          description="Each active item needs one file for an event."
           actions={<span className="text-xs font-semibold text-ink-muted">{requirements.filter((item) => item.is_active).length} active</span>}
         >
-          <div className="mb-3 flex flex-wrap gap-2">
-            {[
-              ['all', `All venues (${requirements.length})`],
-              ['on_campus', `On-campus (${requirements.filter((r) => r.venue_type === 'on_campus').length})`],
-              ['off_campus', `Off-campus (${requirements.filter((r) => r.venue_type === 'off_campus').length})`],
-            ].map(([key, label]) => (
-              <Button
-                key={key}
-                size="sm"
-                variant={venueFilter === key ? 'primary' : 'secondary'}
-                onClick={() => setVenueFilter(key)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          <SegmentedControl
+            className="mb-3 max-w-full overflow-x-auto"
+            value={venueFilter}
+            onChange={setVenueFilter}
+            options={[
+              { value: 'all', label: `All venues (${requirements.length})` },
+              { value: 'on_campus', label: `On campus (${requirements.filter((r) => r.venue_type === 'on_campus').length})` },
+              { value: 'off_campus', label: `Off campus (${requirements.filter((r) => r.venue_type === 'off_campus').length})` },
+            ]}
+          />
           <DataTable
             stickyHeader={false}
+            caption="Event requirements"
             columns={checklistColumns}
             rows={filteredRequirements}
             loading={loading}
@@ -367,17 +362,14 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 kind="first-run"
                 icon={FileText}
                 title="No files required yet"
-                description="Add the first checklist item."
+                description="Add the first item with the form."
               />
             )}
           />
         </Card>
 
         <form onSubmit={save} noValidate className="h-fit">
-          <Card
-            title={editingId ? 'Edit event requirement' : 'Add event requirement'}
-            description="Each active item needs one file for an event submission."
-          >
+          <Card title={editingId ? 'Edit event requirement' : 'Add event requirement'}>
             <div className="flex flex-col gap-4">
               <Field label="File name" required error={nameError}>
                 <Input
@@ -396,7 +388,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 </Select>
               </Field>
               {(form.venue_type === 'on_campus' || form.venue_type === 'off_campus') && (
-                <Field label={`Standard ${form.venue_type === 'on_campus' ? 'On-Campus' : 'Off-Campus'} requirements`}>
+                <Field label={`Standard ${form.venue_type === 'on_campus' ? 'on-campus' : 'off-campus'} requirement`} optional>
                   <Select
                     aria-label="Standard requirement preset"
                     value=""
@@ -412,18 +404,18 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                       }
                     }}
                   >
-                    <option value="">Select a standard requirement preset…</option>
+                    <option value="">Choose a standard requirement</option>
                     {(form.venue_type === 'on_campus' ? ON_CAMPUS_PRESETS : OFF_CAMPUS_PRESETS).map((preset) => (
                       <option key={preset} value={preset}>{preset}</option>
                     ))}
                   </Select>
                 </Field>
               )}
-              <Field label="Instructions for organizations">
+              <Field label="Instructions for organizations" optional>
                 <RichTextEditor maxLength={500} rows={3} value={form.description} onChange={(description) => setForm({ ...form, description })} />
               </Field>
-              <p className="text-xs font-semibold text-ink-muted">Accepted file type: PDF</p>
-              <Field label="Sample format" required hint="The requirement publisher must provide a file or link. Organizations can open it before submitting or correcting a returned file.">
+              <p className="text-xs text-ink-muted">Accepted file type: PDF</p>
+              <Field label="Sample format" required hint="Organizations can open it before they submit or correct a file.">
                 <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setTemplateError(null); }}>
                   <option value="file">Attach a PDF</option>
                   <option value="link">Use a link</option>
@@ -442,13 +434,13 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   {!editingRequirement.is_active && <Button type="button" size="sm" variant="secondary" onClick={() => setRemoveTemplateTarget(editingRequirement)}>Remove sample</Button>}
                 </div>
               )}
-              <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
+              <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
                 <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={form.is_optional} onChange={(event) => setForm({ ...form, is_optional: event.target.checked })} />
                 Only if applicable
               </label>
               <ActiveSwitch label="Active requirement" checked={form.is_active} onChange={(isActive) => setForm({ ...form, is_active: isActive })} />
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" leftIcon={Check} loading={saving} disabled={busy || !form.allowed_extensions.length}>{editingId ? 'Save changes' : 'Add requirement'}</Button>
+                <Button type="submit" loading={saving} disabled={busy || !form.allowed_extensions.length}>{editingId ? 'Save changes' : 'Add requirement'}</Button>
                 {editingId && <Button variant="secondary" onClick={resetForm}>Cancel</Button>}
               </div>
             </div>
@@ -456,9 +448,9 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
         </form>
       </section>}
 
-      {mode === 'reviews' && <Card title="Events waiting for SAO" description="Review each event's files, then approve it or reject it with remarks.">
+      {mode === 'reviews' && <Card title="Events waiting for SAO">
         <Input type="search" className="mb-4" aria-label="Search event submissions" placeholder="Search event or requester" value={reviewSearch} onChange={(event) => setReviewSearch(event.target.value)} />
-        {loading ? <p role="status" className="text-sm text-ink-muted">Loading events for review…</p> : approvals.length === 0 ? (
+        {loading ? <SkeletonText lines={3} /> : approvals.length === 0 ? (
           !loadError && <EmptyState kind="first-run" icon={FileText} title="No event submissions are waiting for review." />
         ) : (
           <ul className="divide-y divide-line">
@@ -466,8 +458,8 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
               <li key={approval.id} className="py-4 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="break-words text-sm font-bold text-ink">{formatDisplayText(approval.title)}</h3>
-                    <p className="mt-0.5 text-xs font-medium text-ink-muted">Event #{approval.entity_id} · {formatDisplayText(approval.requester?.first_name)} {formatDisplayText(approval.requester?.last_name)}</p>
+                    <h3 className="break-words text-sm font-semibold text-ink">{formatDisplayText(approval.title)}</h3>
+                    <p className="mt-0.5 text-xs text-ink-muted">Event #{approval.entity_id} · {formatDisplayText(approval.requester?.first_name)} {formatDisplayText(approval.requester?.last_name)}</p>
                   </div>
                   <TableRowActions subject={formatDisplayText(approval.title)} actions={[
                     { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => setSelectedEventId(selectedEventId === approval.entity_id ? null : approval.entity_id) },

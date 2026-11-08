@@ -1,19 +1,6 @@
-import { createElement, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ClipboardCheck, FileText, MapPin, ReceiptText, ShoppingBag, Users, Vote, X } from 'lucide-react';
-
-function iconForTitle(title) {
-  const value = String(title || '').toLowerCase();
-  if (/election|ballot|vote/.test(value)) return createElement(Vote, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/venue|booking/.test(value)) return createElement(MapPin, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/event|calendar/.test(value)) return createElement(CalendarDays, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/receipt/.test(value)) return createElement(ReceiptText, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/order|product|merchandise|stock/.test(value)) return createElement(ShoppingBag, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/report|document/.test(value)) return createElement(FileText, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/approval|request/.test(value)) return createElement(ClipboardCheck, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  if (/user|account|profile|member/.test(value)) return createElement(Users, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
-  return null;
-}
+import { X } from 'lucide-react';
 
 export default function Modal({
   open,
@@ -29,7 +16,6 @@ export default function Modal({
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const closeOnEscapeRef = useRef(closeOnEscape);
-  const titleIcon = iconForTitle(title);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -115,20 +101,20 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
-        className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-card border border-white/80 bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
+        className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
       >
         {(title || description || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
             <div className="min-w-0">
-              {title && <h2 id="modal-title" className="flex items-center gap-2 break-words text-lg font-semibold text-ink">{titleIcon}{title}</h2>}
-              {description && <p className="mt-1 text-sm font-medium leading-5 text-ink-muted">{description}</p>}
+              {title && <h2 id="modal-title" className="break-words text-lg font-semibold text-ink">{title}</h2>}
+              {description && <p className="mt-1 text-sm font-normal leading-5 text-ink-muted">{description}</p>}
             </div>
             {onClose && (
               <button
                 type="button"
                 aria-label="Close modal"
                 onClick={onClose}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-control text-ink-muted transition-colors duration-150 hover:bg-danger-tint hover:text-danger-strong"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-control text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
               >
                 <X size={17} />
               </button>

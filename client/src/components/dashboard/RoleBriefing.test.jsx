@@ -60,17 +60,17 @@ describe('RoleBriefing', () => {
     expect(getBriefing).toHaveBeenCalledTimes(2);
   });
 
-  it('shows the AI insights to an admin but not to a department head', async () => {
+  it('shows the suggestions to an admin but not to a department head', async () => {
     const insights = [{ engine: 'budget', title: 'Spending is ahead of plan', detail: 'Two budgets are close to their limit.', severity: 'medium', why: [] }];
     vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { insights }));
     const { unmount } = renderBriefing();
-    expect(await screen.findByRole('heading', { name: 'What HIUSA noticed' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Suggestions from your records' })).toBeInTheDocument();
     unmount();
 
     vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { insights }));
     renderBriefing();
     expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'What HIUSA noticed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Suggestions from your records' })).not.toBeInTheDocument();
   });
 
   describe('the setup card', () => {
@@ -201,7 +201,6 @@ describe('RoleBriefing', () => {
       expect(within(card).getAllByRole('listitem').map((row) => row.querySelector('p').textContent)).toEqual(['Add your contact number', 'Enroll your fingerprint', 'Open My tasks']);
       expect(within(card).getByRole('link', { name: 'Add contact number' })).toHaveAttribute('href', '/dashboard/profile');
       expect(within(card).getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
-      expect(screen.getByText(/SBO Officer/)).toBeInTheDocument();
 
       const where = within(card).getByRole('button', { name: 'Where to go' });
       expect(where).toHaveAttribute('aria-expanded', 'false');
@@ -286,7 +285,6 @@ describe('RoleBriefing', () => {
         'Set the current academic year', 'Every college has a Department Head', 'Publish the accreditation requirements',
       ]);
       expect(within(card).getByRole('link', { name: 'Set the academic year' })).not.toHaveClass('bg-brand-700');
-      expect(screen.getByText(/· SAO ·/)).toBeInTheDocument();
     });
 
     it('SAO: with nothing in the inbox the setup card comes first and holds the one filled button', async () => {

@@ -1,12 +1,19 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { CirclePlus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
+import Button from '../../../components/ui/Button';
+import DataTable from '../../../components/ui/DataTable';
+import Drawer from '../../../components/ui/Drawer';
+import EmptyState from '../../../components/ui/EmptyState';
+import Field from '../../../components/ui/Field';
+import Input from '../../../components/ui/Input';
 import { createElectionPosition, deleteElectionPosition } from '../../../services/electionService';
 import ManageVotersPage from './ManageVotersPage';
+
+const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
 
 export default function ElectionDetailPage() {
   const { election, refreshElection } = useOutletContext();
@@ -26,7 +33,7 @@ export default function ElectionDetailPage() {
   }, [election]);
 
   if (!election) {
-    return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
+    return <EmptyState title="Election not found" description="Go back and choose an election." />;
   }
 
   if (searchParams.get('view') === 'voters') return <ManageVotersPage />;
@@ -40,6 +47,12 @@ export default function ElectionDetailPage() {
     position,
     candidates: candidates.filter((candidate) => candidate.position_id === position.id),
   }));
+
+  const candidateColumns = [
+    { key: 'name', header: 'Candidate', render: (candidate) => <span className="font-medium">{formatDisplayText(`${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim())}</span> },
+    { key: 'partylist', header: 'Party list', render: (candidate) => formatDisplayText(candidate.partylist?.name) || 'Independent' },
+    { key: 'votes', header: 'Votes', align: 'right', render: (candidate) => votes.filter((vote) => vote.candidate_id === candidate.id).length },
+  ];
 
   const openAddPosition = () => {
     setNewPositionTitle('');
@@ -98,112 +111,71 @@ export default function ElectionDetailPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section aria-label="Ballot configuration actions" className="rounded-lg border border-line bg-white p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-bold text-ink">{formatDisplayText(election.title)}</p>
-            <p className="mt-1 text-xs font-medium text-slate-600">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
-          </div>
-          {!ballotLocked && (
-            <button
-              type="button"
-              onClick={openAddPosition}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition hover:bg-navy-800"
-            >
-              <CirclePlus size={15} />
-              Add Position
-            </button>
-          )}
-        </div>
-      </section>
-
-      {ballotLocked && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-          Position setup is locked for this election.
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
-      )}
-
-      <div className="space-y-4">
-        {groupedCandidates.map(({ position, candidates: positionCandidates }) => (
-          <div key={position.id} className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-ink">{formatDisplayText(position.title)}</h3>
-                <p className="text-sm text-slate-500">Up to {position.max_winners} winner{position.max_winners > 1 ? 's' : ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-page px-3 py-1 text-xs font-bold text-navy-800">{positionCandidates.length} candidates</span>
-                {!ballotLocked && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(position)}
-                    className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100"
-                  >
-                    <Trash2 size={12} />
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              {positionCandidates.map((candidate) => {
-                const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
-                return (
-                  <div key={candidate.id} className="flex items-center justify-between rounded-lg bg-subtle px-4 py-3">
-                    <div>
-                      <p className="font-semibold text-ink">{formatDisplayText(name)}</p>
-                      <p className="text-xs text-slate-500">{formatDisplayText(candidate.partylist?.name) || 'Independent'}</p>
-                    </div>
-                    <span className="text-xs font-bold text-brand-700">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
-                  </div>
-                );
-              })}
-              {positionCandidates.length === 0 && <p className="text-sm text-slate-500">No candidates for this position.</p>}
-            </div>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted-strong">
+          <span className="tabular-nums">{positions.length}</span> positions, <span className="tabular-nums">{candidates.length}</span> candidates, <span className="tabular-nums">{votes.length}</span> votes
+        </p>
+        {!ballotLocked && <Button leftIcon={Plus} onClick={openAddPosition}>Add position</Button>}
       </div>
 
-      <Modal
+      {ballotLocked && (
+        <p className="rounded-control bg-amber-50 px-3 py-2 text-sm text-amber-800">Position setup is locked for this election.</p>
+      )}
+
+      {error && <p role="alert" className={ALERT}>{error}</p>}
+
+      {positions.length === 0 && (
+        <EmptyState
+          title="No positions yet"
+          description={ballotLocked ? 'This ballot has no positions.' : 'Add the positions voters will choose for.'}
+        />
+      )}
+
+      {groupedCandidates.map(({ position, candidates: positionCandidates }) => (
+        <section key={position.id} aria-label={formatDisplayText(position.title)} className="border-t border-line pt-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">{formatDisplayText(position.title)}</h2>
+              <p className="text-sm text-ink-muted">Up to {position.max_winners} winner{position.max_winners > 1 ? 's' : ''}, {positionCandidates.length} candidate{positionCandidates.length === 1 ? '' : 's'}</p>
+            </div>
+            {!ballotLocked && (
+              <Button variant="secondary" size="sm" leftIcon={Trash2} onClick={() => setDeleteTarget(position)}>Remove</Button>
+            )}
+          </div>
+          {positionCandidates.length > 0
+            ? <DataTable caption={`Candidates for ${formatDisplayText(position.title)}`} columns={candidateColumns} rows={positionCandidates} stickyHeader={false} />
+            : <p className="text-sm text-ink-muted">No candidates for this position yet.</p>}
+        </section>
+      ))}
+
+      <Drawer
         open={showAddPosition}
-        title="Add Election Position"
-        description="Create a new position for this election ballot."
+        title="Add election position"
         onClose={closeAddPosition}
-        closeOnBackdrop={!busy}
-        closeOnEscape={!busy}
-        maxWidth="max-w-lg"
         footer={(
           <>
-            <button type="button" onClick={closeAddPosition} disabled={busy} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">Cancel</button>
-            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
+            <Button variant="secondary" onClick={closeAddPosition} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="add-position-form" loading={busy} disabled={!newPositionTitle.trim()}>Add position</Button>
           </>
         )}
       >
         <form id="add-position-form" onSubmit={handleAddPosition} className="space-y-4">
-          <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-ink">Position Title</span>
-            <input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" placeholder="e.g. Treasurer" />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-ink">Max Winners</span>
-            <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
-          </label>
-          {modalError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{modalError}</div>
-          )}
+          <Field label="Position title" required>
+            <Input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} placeholder="e.g. Treasurer" />
+          </Field>
+          <Field label="Maximum winners" optional hint="Leave at 1 unless several people can hold this position.">
+            <Input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} />
+          </Field>
+          {modalError && <p role="alert" className={ALERT}>{modalError}</p>}
         </form>
-      </Modal>
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title="Remove Election Position"
+        title="Remove election position"
         message="This removes the position from the ballot configuration."
         recordName={deleteTarget?.title}
         confirmText="Remove"

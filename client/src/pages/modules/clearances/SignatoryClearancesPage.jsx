@@ -38,7 +38,7 @@ function SignatureDetail({ row, role, onSign }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <FlowStepper steps={stage.steps} ariaLabel="Clearance signature" />
+      <FlowStepper variant="full" steps={stage.steps} ariaLabel="Clearance signature" />
       <NextStep {...next} />
       <SignAction signatureId={row.id} status={row.status} remarks={row.remarks} roleLabel={humanizeRole(row.required_role)} onSign={onSign} />
     </div>
@@ -135,7 +135,7 @@ export default function SignatoryClearancesPage() {
       setBulkOpen(false);
       load();
     } catch {
-      notify.error('Some signatures could not be cleared. Please review the queue and try again.');
+      notify.error('Some signatures could not be cleared. Check the queue and try again.');
     } finally {
       setBulkBusy(false);
     }
@@ -148,14 +148,14 @@ export default function SignatoryClearancesPage() {
       header: 'Student',
       render: (row) => (
         <div>
-          <button type="button" onClick={() => { setPinned(row); setRecordId(row.id); }} className="text-left font-bold text-ink hover:text-brand-700">{studentName(row)}</button>
-          <p className="text-xs font-medium text-ink-muted">{row.student_id}</p>
+          <button type="button" onClick={() => { setPinned(row); setRecordId(row.id); }} className="text-left font-medium text-ink hover:text-brand-700">{studentName(row)}</button>
+          <p className="text-xs text-ink-muted">{row.student_id}</p>
         </div>
       ),
     },
     { key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) },
-    { key: 'period', header: 'Period', render: (row) => row.clearance_period?.title || row.clearancePeriod?.title || '-' },
-    { key: 'remarks', header: 'Remarks', render: (row) => row.remarks || (row.status === 'pending' ? `Waiting for ${humanizeRole(row.required_role)} signature` : '-') },
+    { key: 'period', header: 'Period', render: (row) => row.clearance_period?.title || row.clearancePeriod?.title || '' },
+    { key: 'remarks', header: 'Remarks', render: (row) => row.remarks || (row.status === 'pending' ? `Waiting for ${humanizeRole(row.required_role)} signature` : '') },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} /> },
   ];
 
@@ -172,6 +172,7 @@ export default function SignatoryClearancesPage() {
 
       <Card bodyClassName="p-0">
         <DataTable
+          caption="Clearance signatures to sign"
           columns={columns}
           rows={visibleRows}
           rowKey={(row) => row.id}
@@ -193,22 +194,25 @@ export default function SignatoryClearancesPage() {
           )}
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
-              <div className="min-w-[180px] flex-1 sm:flex-none sm:w-56">
-                <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />
+              <div className="w-full sm:w-56">
+                <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or school ID" aria-label="Search students" />
               </div>
-              <div className="w-48">
+              <div className="w-full sm:w-48">
                 <Select filter aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
                   <option value="">All periods</option>
                   {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}</option>)}
                 </Select>
               </div>
-              <div className="w-40">
+              <div className="w-full sm:w-40">
                 <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
+              {(periodId || status || search) && (
+                <button type="button" onClick={() => { setPeriodId(''); setStatus(''); setSearch(''); }} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
+              )}
               {selectablePendingIds.length > 0 && (
-                <button type="button" onClick={toggleAll} className="text-xs font-bold text-brand-700 hover:text-navy-800">
+                <button type="button" onClick={toggleAll} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">
                   {allSelected ? 'Clear selection' : `Select all pending (${selectablePendingIds.length})`}
                 </button>
               )}
@@ -225,7 +229,7 @@ export default function SignatoryClearancesPage() {
               kind="first-run"
               icon={ClipboardCheck}
               title="Nothing waiting on your signature"
-              description={role === 'DEPARTMENT_HEAD' ? 'The SAO opens a clearance period each semester. Students from your college who need your Department Head signature appear here.' : "The SAO opens a clearance period each semester. Once it does, your organization's students who need your signature show up here."}
+              description={role === 'DEPARTMENT_HEAD' ? 'The SAO opens a clearance period each semester. Students from your college who need your Department Head signature appear here.' : "The SAO opens a clearance period each semester. Your organization's students who need your signature appear here when it does."}
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="signatures" />}

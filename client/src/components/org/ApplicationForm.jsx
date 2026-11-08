@@ -7,7 +7,7 @@ import { openRequirementSample } from '../../utils/requirementSample';
 import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../utils/requirementFiles';
 import { getApiErrorMessage } from '../../utils/apiError';
 
-const FILE_INPUT = 'block min-h-11 w-full rounded-control border border-line bg-surface px-3 py-2 text-sm text-ink file:mr-3 file:rounded-control file:border-0 file:bg-subtle file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
+const FILE_INPUT = 'block min-h-11 w-full rounded-control border border-line bg-surface px-3 py-2 text-sm text-ink file:mr-3 file:rounded-control file:border-0 file:bg-subtle file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
 
 async function viewSample(requirement) {
   try {
@@ -62,26 +62,26 @@ export default function ApplicationForm({ requirements, initial, submitLabel, bu
         <Field label="Your position" required hint="What you will be called in the organization." error={errors.position_title?.[0]}>
           <Input required maxLength={100} value={fields.position_title} onChange={change('position_title')} />
         </Field>
-        <Field label="What the organization is for" className="sm:col-span-2" error={errors.description?.[0]}>
+        <Field label="What the organization is for" optional className="sm:col-span-2" error={errors.description?.[0]}>
           <Textarea rows={3} maxLength={3000} value={fields.description} onChange={change('description')} />
         </Field>
       </fieldset>
 
       <fieldset disabled={busy} className="space-y-5 border-t border-line pt-5">
-        <legend className="text-base font-bold text-ink">Requirements</legend>
+        <legend className="text-base font-semibold text-ink">Requirements</legend>
         {requirements.map((requirement) => {
           const current = requirement.document;
           const errorText = fileErrors[requirement.id] || errors[`files.${requirement.id}`]?.[0];
           return (
             <div key={requirement.id}>
-              <label htmlFor={`requirement-${requirement.id}`} className="block text-[13px] font-semibold text-ink">{requirement.name}{!current && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}</label>
-              {requirement.description && <p className="mt-1 text-xs font-medium text-ink-muted">{requirement.description}</p>}
-              <p className="mt-1 text-xs font-medium text-ink-muted">Accepted: {fileTypesLabel(requirement.allowed_extensions)}, up to 10 MB.</p>
+              <label htmlFor={`requirement-${requirement.id}`} className="block text-[13px] font-medium text-ink">{requirement.name}</label>
+              {requirement.description && <p className="mt-1 text-xs text-ink-muted">{requirement.description}</p>}
+              <p className="mt-1 text-xs text-ink-muted">Accepted: {fileTypesLabel(requirement.allowed_extensions)}, up to 10 MB.</p>
               <RequirementSample requirement={requirement} onOpen={viewSample} />
               {current && (
                 <p className="mb-2 text-sm text-ink-muted">
                   Current file:{' '}
-                  <button type="button" onClick={() => viewCurrentFile(current)} className="min-h-11 font-semibold text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{current.name}</button>
+                  <button type="button" onClick={() => viewCurrentFile(current)} className="min-h-11 font-medium text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{current.name}</button>
                   . Choose a file only to replace it.
                 </p>
               )}

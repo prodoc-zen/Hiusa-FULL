@@ -51,8 +51,8 @@ describe('ProcessTracker', () => {
     expect(screen.getByText('Next for you: Student records loaded')).toBeInTheDocument();
   });
 
-  it('links a visited step when the server says where it was done, and never a step still to do', async () => {
-    mocks.getProcessStatus.mockResolvedValue({ data: { ...dean, steps: dean.steps.map((step) => (step.key === 'staff-added' || step.key === 'students-allowed' ? { ...step, path: `/dashboard/${step.key}` } : step)) } });
+  it('links a visited step to the page in its action, and never a step still to do', async () => {
+    mocks.getProcessStatus.mockResolvedValue({ data: { ...dean, steps: dean.steps.map((step) => (step.key === 'staff-added' || step.key === 'students-allowed' ? { ...step, action: { label: 'Open', path: `/dashboard/${step.key}` } } : step)) } });
     renderTracker();
 
     const done = await screen.findByRole('link', { name: /Office staff added/ });

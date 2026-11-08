@@ -37,17 +37,17 @@ describe('StudentFinancialAccountsPage invoice cancellation', () => {
 
   async function openAccount() {
     render(<StudentFinancialAccountsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'View account' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View account' }))[0]);
 
-    return screen.findByRole('dialog', { name: 'Student Financial Account' });
+    return screen.findByRole('dialog', { name: 'Student financial account' });
   }
 
-  // The shared Modal gives every dialog the same title id, so a dialog opened over another is found by position, not by name.
+  // The shared overlays give every dialog the same title id, so a dialog opened over another is found by position, not by name.
   async function openCloseDialog(accountDialog) {
     fireEvent.click(within(accountDialog).getByRole('button', { name: 'Cancel or waive invoice INV-ABC123' }));
     await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(2));
     const form = screen.getAllByRole('dialog')[1];
-    expect(within(form).getByRole('heading', { name: 'Cancel or Waive Invoice' })).toBeInTheDocument();
+    expect(within(form).getByRole('heading', { name: 'Cancel or waive invoice' })).toBeInTheDocument();
 
     return form;
   }
@@ -150,7 +150,7 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     mocks.createInvoice.mockResolvedValue({ data: {} });
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Add student charge' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add Student Charge' });
+    const dialog = await screen.findByRole('dialog', { name: 'Add student charge' });
     expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Add charge' })).toBeDisabled();
 

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElectionResultsPage from './ElectionResultsPage';
 
@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 describe('ElectionResultsPage', () => {
-  it('shows winner spotlights and detailed vote bars', async () => {
+  it('lists the winners and the vote share of every candidate', async () => {
     getElectionResults.mockResolvedValue([{
       position: { id: 1, title: 'President', max_winners: 1 },
       totalVotes: 40,
@@ -21,11 +21,11 @@ describe('ElectionResultsPage', () => {
     }]);
 
     render(<ElectionResultsPage />);
-    expect(await screen.findByText('Winner spotlight')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Winners' })).toBeInTheDocument();
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
-    expect(screen.getByText('63%')).toBeInTheDocument();
+    expect(screen.getAllByText('63%').length).toBeGreaterThan(0);
     expect(screen.getByText('30')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'President' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'President' })).toBeInTheDocument();
   });
 
   it('shows that access was handed to the winners and flags a tie', async () => {
@@ -38,7 +38,9 @@ describe('ElectionResultsPage', () => {
     expect(await screen.findByText('Access handed over')).toBeInTheDocument();
     expect(screen.getAllByText('Tie, assign manually').length).toBeGreaterThan(0);
     expect(screen.getByText(/Treasurer is tied/)).toBeInTheDocument();
-    expect(screen.getAllByText('WINNER')).toHaveLength(2);
+    const winners = screen.getByRole('table', { name: 'Final winners by position' });
+    expect(within(winners).getByText('Ana Reyes')).toBeInTheDocument();
+    expect(within(winners).queryByText('Mia Lopez')).not.toBeInTheDocument();
   });
 
   it('does not request unreleased results', () => {

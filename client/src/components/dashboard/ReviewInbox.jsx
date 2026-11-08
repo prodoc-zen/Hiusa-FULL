@@ -1,11 +1,12 @@
-import { ChevronRight, ShieldCheck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import EmptyState from '../ui/EmptyState';
 
 function Row({ area }) {
   const body = (
     <>
-      <span className="min-w-12 text-xl font-semibold tabular-nums text-ink">{area.count}{area.truncated ? '+' : ''}</span>
-      <span className="min-w-0 flex-1 text-sm font-bold text-ink">{area.label}</span>
+      <span className="min-w-12 text-right text-xl font-semibold tabular-nums text-ink">{area.count}{area.truncated ? '+' : ''}</span>
+      <span className="min-w-0 flex-1 text-sm font-medium text-ink">{area.label}</span>
       {area.href && <ChevronRight size={16} className="shrink-0 text-ink-soft" aria-hidden="true" />}
     </>
   );
@@ -23,15 +24,7 @@ function Row({ area }) {
  */
 export default function ReviewInbox({ areas = [] }) {
   if (areas.length === 0) {
-    return (
-      <div className="flex items-start gap-3 py-4">
-        <ShieldCheck size={20} className="mt-0.5 shrink-0 text-success-strong" aria-hidden="true" />
-        <div>
-          <p className="text-sm font-bold text-ink">No reviews are waiting</p>
-          <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">Registrations, compliance submissions, financial reports, grievances and clearances are counted here as they arrive.</p>
-        </div>
-      </div>
-    );
+    return <EmptyState kind="first-run" title="No reviews are waiting" description="Registrations, compliance, reports, grievances and clearances are counted here as they arrive." />;
   }
 
   return <ul className="divide-y divide-line-soft">{areas.map((area) => <Row key={area.key} area={area} />)}</ul>;

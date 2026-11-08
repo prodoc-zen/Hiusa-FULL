@@ -172,7 +172,7 @@ describe('FinancePage budget lifecycle', () => {
     expect(await screen.findByRole('heading', { name: 'Edit budget' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Sports fest budget')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('5000'), { target: { value: '3500' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Resubmit for Approval' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resubmit for approval' }));
 
     await waitFor(() => expect(financeMocks.updateBudget).toHaveBeenCalledWith(5, expect.objectContaining({ title: 'Sports fest budget', allocated_amount: 3500 })));
     expect(financeMocks.createBudget).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe('FinancePage ?event= handoff', () => {
     const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
     fireEvent.change(amount, { target: { value: '1500' } });
     fireEvent.change(threshold, { target: { value: '200' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit for Approval' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
 
     await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledWith(expect.objectContaining({ event_id: '3', allocated_amount: 1500 })));
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('event='));

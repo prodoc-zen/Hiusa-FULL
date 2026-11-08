@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import RichTextEditor from '../../../components/RichText';
-import { MessageSquareWarning, ShieldCheck, Trash2 } from 'lucide-react';
+import { MessageSquareWarning, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -34,9 +34,9 @@ const ADDRESSED_TO_OPTIONS = [
 
 function ClassificationAdvisory({ grievance }) {
   return (
-    <div className="rounded-card border border-line bg-subtle p-3">
+    <div className="border-t border-line pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-ink-soft">AI classification (advisory)</p>
+        <p className="text-xs font-medium text-ink-muted">Suggested classification</p>
         <EngineBadge engine={grievance.classification_engine} />
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -102,7 +102,7 @@ export default function StudentGrievancesPage() {
         addressed_to: addressedTo,
         is_anonymous: addressedTo === 'organization' ? isAnonymous : false,
       });
-      notify.success('Your grievance was filed. Thank you for speaking up.');
+      notify.success('Your grievance was filed.');
       setTitle('');
       setDescription('');
       setIsAnonymous(false);
@@ -112,7 +112,7 @@ export default function StudentGrievancesPage() {
       if (err.validationErrors) {
         setFieldErrors(err.validationErrors);
       } else {
-        notify.error(err.response?.data?.message || 'Could not file your grievance. Please try again.');
+        notify.error(err.response?.data?.message || 'Could not file your grievance. Try again.');
       }
     } finally {
       setSubmitting(false);
@@ -128,7 +128,7 @@ export default function StudentGrievancesPage() {
       setDeleteTarget(null);
       load();
     } catch (err) {
-      setDeleteError(getApiErrorMessage(err, 'Could not delete this grievance. Please try again.'));
+      setDeleteError(getApiErrorMessage(err, 'Could not delete this grievance. Try again.'));
       if ([404, 409].includes(err.response?.status)) load();
     } finally {
       setDeleteBusy(false);
@@ -151,13 +151,6 @@ export default function StudentGrievancesPage() {
       {tab === 'file' && (
         <Card>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex items-start gap-3 rounded-card border border-brand-100 bg-brand-50 p-3">
-              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-navy-800" aria-hidden="true" />
-              <p className="text-xs font-medium leading-5 text-navy-800">
-                What happens next: your grievance goes to the recipient you choose below. You will get a notification and can track its status and any remarks here at any time.
-              </p>
-            </div>
-
             <Field label="What's this about?" required error={fieldErrors.title?.[0]}>
               <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={255} placeholder="A short, clear title" />
             </Field>
@@ -171,17 +164,17 @@ export default function StudentGrievancesPage() {
             </Field>
 
             {addressedTo === 'organization' ? (
-              <label className="flex cursor-pointer items-start gap-3 rounded-card border border-line p-3">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3">
                 <input type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-700" />
                 <span className="text-sm text-ink">
-                  <span className="block font-semibold">File this anonymously to my organization</span>
-                  <span className="mt-0.5 block text-xs font-medium leading-5 text-ink-muted">
-                    This hides your name from your organization's officers only. The Student Affairs Office can still see who filed it, in case they need to check in with you directly for your safety. You can always see your own submissions here, anonymous or not.
+                  <span className="block font-medium">File this anonymously to my organization</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
+                    Your organization's officers will not see your name. The Student Affairs Office can still see who filed it.
                   </span>
                 </span>
               </label>
             ) : (
-              <p className="text-xs font-medium leading-5 text-ink-muted">Reports filed directly with the Student Affairs Office are handled by SAO staff only. Anonymity toward your organization does not apply here, since your organization never sees this report.</p>
+              <p className="text-xs leading-5 text-ink-muted">Only SAO staff see grievances sent to the Student Affairs Office. Your organization never sees them.</p>
             )}
 
             <div className="flex justify-end">
@@ -207,18 +200,18 @@ export default function StudentGrievancesPage() {
               kind="first-run"
               icon={MessageSquareWarning}
               title="No grievances filed"
-              description="If something went wrong, file one here. You can follow its status and any remarks from reviewers on this page."
+              description="File one here and follow its status on this page."
               action={<Button onClick={() => setTab('file')}>File a grievance</Button>}
             />
           )}
 
           {!loading && !error && grievances.map((grievance) => (
-            <Card key={grievance.id} className={String(grievance.id) === recordId ? 'ring-2 ring-brand-600' : ''}>
+            <Card key={grievance.id} className={String(grievance.id) === recordId ? 'border-brand-600' : ''}>
               <div id={`grievance-${grievance.id}`} className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-base font-bold text-ink">{formatDisplayText(grievance.title)}</p>
-                    <p className="text-xs font-medium text-ink-muted">Addressed to {addressedToLabel(grievance)} · Filed {relativeTime(grievance.created_at)}</p>
+                    <p className="text-base font-semibold text-ink">{formatDisplayText(grievance.title)}</p>
+                    <p className="text-xs text-ink-muted">Addressed to {addressedToLabel(grievance)} · Filed {relativeTime(grievance.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
@@ -227,13 +220,13 @@ export default function StudentGrievancesPage() {
                 </div>
 
                 <FlowStepper steps={grievanceStage(grievance, 'STUDENT').steps} ariaLabel={`Progress of ${formatDisplayText(grievance.title)}`} />
-                <p className="text-sm font-bold text-ink">{grievanceStageText(grievance)}</p>
+                <p className="text-sm text-ink">{grievanceStageText(grievance)}</p>
 
                 <ClassificationAdvisory grievance={grievance} />
 
                 {grievance.remarks && (
-                  <div className="rounded-card border border-line bg-subtle p-3">
-                    <p className="text-xs font-bold text-ink-soft">Response</p>
+                  <div className="border-t border-line pt-3">
+                    <p className="text-xs font-medium text-ink-muted">Response</p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{grievance.remarks}</p>
                   </div>
                 )}

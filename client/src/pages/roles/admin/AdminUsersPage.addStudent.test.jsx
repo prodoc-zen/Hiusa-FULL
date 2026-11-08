@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminUsersPage from './AdminUsersPage';
 
@@ -49,5 +49,23 @@ describe('AdminUsersPage add existing student', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Maria Reyes/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
+  });
+
+  it('lists users in a captioned table with a badge only on accounts that are not active', async () => {
+    mocks.getUsers.mockResolvedValue({
+      data: [
+        { id: 1, school_id: 24001001, first_name: 'ana', last_name: 'reyes', role: 'STUDENT', account_status: 'active', program: 'BSIT', year_level: '1st Year', section: 'A', fingerprint_enrolled: true },
+        { id: 2, school_id: 24001002, first_name: 'ben', last_name: 'cruz', role: 'STUDENT', account_status: 'disabled', program: 'BSIT', year_level: '2nd Year', section: 'B', fingerprint_enrolled: false },
+      ],
+      current_page: 1, last_page: 1, total: 2, per_page: 20, summary: { by_role: { STUDENT: 2 }, by_section: [] },
+    });
+    render(<AdminUsersPage />);
+
+    const table = await screen.findByRole('table', { name: 'Users' });
+    expect(within(table).getByText('Ana Reyes')).toBeInTheDocument();
+    expect(within(table).getAllByText('Disabled')).toHaveLength(1);
+    expect(within(table).queryByText('Active')).not.toBeInTheDocument();
+    expect(within(table).getByText('Enrolled')).toBeInTheDocument();
+    expect(mocks.getUsers).toHaveBeenCalledWith(expect.objectContaining({ per_page: 20 }));
   });
 });

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   attachReviewFile: vi.fn(),
   removeReviewFile: vi.fn(),
 }));
+const apiMocks = vi.hoisted(() => ({ post: vi.fn() }));
+vi.mock('../../services/api', () => ({ default: apiMocks }));
 vi.mock('../../services/organizationApplicationService', () => mocks);
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../utils/openProtectedFile', () => openMocks);
@@ -29,6 +31,7 @@ const detail = (extra = {}) => ({
   endorsement_note: null,
   remarks: null,
   review_files: [],
+  history: [],
   requirements: [
     { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/organization-applications/8/documents/11' }, reviews: [], review_files: [] },
     { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/organization-applications/8/documents/12' }, reviews: [], review_files: [] },
@@ -256,5 +259,91 @@ describe('ApplicationReview', () => {
     expect(screen.queryByRole('button', { name: 'Endorse' })).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Summary' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+  });
+
+  it('puts a quiet Add a comment link in the decision area, for the dean and the SAO', async () => {
+    renderReview();
+    const decision = await screen.findByRole('region', { name: 'Decision' });
+    const link = within(decision).getByRole('button', { name: 'Add a comment' });
+    expect(link.className).not.toMatch(/bg-brand|bg-danger|border/);
+    expect(screen.queryByLabelText(/^Comment$/)).not.toBeInTheDocument();
+  });
+
+  it('shows the comment link to the SAO too', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
+    renderReview('SUPER_ADMIN');
+
+    expect(within(await screen.findByRole('region', { name: 'Decision' })).getByRole('button', { name: 'Add a comment' })).toBeInTheDocument();
+  });
+
+  it('saves a comment without making a decision and shows it in the history', async () => {
+    const saved = { id: 3, kind: 'comment', label: 'Comment', note: 'Check the adviser.', by: 'Rosa Lim', stage_label: 'Department Head', at: '2026-10-02T09:00:00+08:00' };
+    apiMocks.post.mockResolvedValue({ data: detail({ history: [saved] }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+    expect(screen.queryByRole('region', { name: 'History' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a comment' }));
+    const save = screen.getByRole('button', { name: 'Save comment' });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/^Comment$/), { target: { value: '  Check the adviser.  ' } });
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ history: [saved] }) });
+    fireEvent.click(save);
+
+    await waitFor(() => expect(apiMocks.post).toHaveBeenCalledWith('/organization-applications/8/comments', { note: 'Check the adviser.' }));
+    const history = await screen.findByRole('region', { name: 'History' });
+    expect(within(history).getByText('Check the adviser.')).toBeInTheDocument();
+    expect(within(history).getByText(/Rosa Lim/)).toBeInTheDocument();
+    expect(mocks.reviewOrganizationApplication).not.toHaveBeenCalled();
+    expect(notifyMocks.success).toHaveBeenCalledWith('Comment saved.');
+    expect(screen.queryByLabelText(/^Comment$/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
+  });
+
+  it('keeps the typed comment and says why when saving fails', async () => {
+    apiMocks.post.mockRejectedValue({ response: { status: 422, data: { message: 'Write a note before saving.' } } });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a comment' }));
+    fireEvent.change(screen.getByLabelText(/^Comment$/), { target: { value: 'Keep me.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Write a note before saving.');
+    expect(screen.getByLabelText(/^Comment$/)).toHaveValue('Keep me.');
+  });
+
+  it('closes the comment box without saving when cancelled', async () => {
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a comment' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByLabelText(/^Comment$/)).not.toBeInTheDocument();
+    expect(apiMocks.post).not.toHaveBeenCalled();
+  });
+
+  it('lists earlier comments and decisions in the history, oldest first', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao', history: [
+      { id: 1, kind: 'comment', label: 'Comment', note: 'Looks complete.', by: 'Rosa Lim', stage_label: 'Department Head', at: '2026-10-02T09:00:00+08:00' },
+      { id: 2, kind: 'decision', label: 'Endorsed', note: null, by: 'Rosa Lim', stage_label: 'Department Head', at: '2026-10-03T09:00:00+08:00' },
+    ] }) });
+    renderReview('SUPER_ADMIN');
+
+    const history = await screen.findByRole('region', { name: 'History' });
+    const items = within(history).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('Comment');
+    expect(items[0]).toHaveTextContent('Looks complete.');
+    expect(items[1]).toHaveTextContent('Endorsed');
+  });
+
+  it('does not offer a comment link once the application is with someone else', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.queryByRole('button', { name: 'Add a comment' })).not.toBeInTheDocument();
   });
 });

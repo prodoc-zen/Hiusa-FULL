@@ -11,10 +11,10 @@ import PaginationControls from '../PaginationControls';
 
 const ACCREDITATION = {
   accredited: { tone: 'success', label: 'Accredited' },
-  pending_review: { tone: 'warning', label: 'Pending Review' },
+  pending_review: { tone: 'warning', label: 'Pending review' },
   incomplete: { tone: 'danger', label: 'Incomplete' },
   returned: { tone: 'danger', label: 'Returned' },
-  not_applicable: { tone: 'neutral', label: 'Not Applicable' },
+  not_applicable: { tone: 'neutral', label: 'Not applicable' },
 };
 
 const COLUMNS = [
@@ -78,7 +78,7 @@ export default function OrganizationsHealthTable({ organizations = [], loading =
           kind="first-run"
           icon={Building2}
           title="No organizations yet"
-          description="Organizations you register will appear here with their accreditation, budget, and reporting health."
+          description="Registered organizations show here with their accreditation, budget and reports."
         />
       )}
     />

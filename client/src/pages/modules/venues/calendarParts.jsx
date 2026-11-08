@@ -24,7 +24,7 @@ export function statusStyle(status) {
 // A word and an icon, so a clash never relies on colour alone.
 export function ConflictBadge({ className = '' }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border border-danger bg-danger-tint px-2 py-0.5 text-xs font-bold text-danger-strong ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded bg-danger-tint px-2 py-0.5 text-xs font-semibold text-danger-strong ${className}`}>
       <AlertTriangle size={12} aria-hidden="true" />Conflict
     </span>
   );

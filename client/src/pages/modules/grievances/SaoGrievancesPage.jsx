@@ -8,21 +8,18 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
+import { grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUSES = ['submitted', 'under_review', 'resolved', 'dismissed'];
 const URGENCIES = ['Critical', 'High', 'Medium', 'Low'];
+// The three tiles are the queue that needs a person: new, in progress and most urgent.
+const TILE_STATUSES = ['submitted', 'under_review'];
+const TILE_URGENCIES = ['Critical'];
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...STATUSES.map((value) => ({ value, label: value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1) }))];
 const URGENCY_OPTIONS = [{ value: '', label: 'All urgencies' }, ...URGENCIES.map((value) => ({ value, label: value }))];
-const ADDRESSED_TO_OPTIONS = [
-  { value: '', label: 'Organization + SAO' },
-  { value: 'organization', label: 'Addressed to organizations' },
-  { value: 'sao', label: 'Addressed to SAO' },
-];
-
-const EMPTY_COUNTS = { submitted: 0, under_review: 0, resolved: 0, dismissed: 0, Critical: 0, High: 0, Medium: 0, Low: 0 };
+const EMPTY_COUNTS = { submitted: 0, under_review: 0, Critical: 0 };
 
 export default function SaoGrievancesPage() {
   const [rows, setRows] = useState([]);
@@ -30,8 +27,6 @@ export default function SaoGrievancesPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [urgency, setUrgency] = useState('');
-  const [category, setCategory] = useState('');
-  const [addressedTo, setAddressedTo] = useState('');
   const [sort, setSort] = useState({ key: 'urgency', direction: 'asc' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,11 +36,9 @@ export default function SaoGrievancesPage() {
   const filters = useMemo(() => ({
     status: status || undefined,
     urgency: urgency || undefined,
-    category: category || undefined,
-    addressed_to: addressedTo || undefined,
-  }), [status, urgency, category, addressedTo]);
+  }), [status, urgency]);
 
-  const filtersActive = Boolean(status || urgency || category || addressedTo);
+  const filtersActive = Boolean(status || urgency);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -62,29 +55,25 @@ export default function SaoGrievancesPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [filters]);
 
-  // The strip shows the full status/urgency distribution for the current
-  // category + addressed_to scope, independent of the status/urgency selects
-  // below (which narrow the table). There is no aggregate endpoint, so this
-  // is eight lightweight per_page=1 requests read for their `total` only.
+  // The tiles count the queue that needs a person, independent of the status and urgency selects
+  // below (which narrow the table). There is no aggregate endpoint, so this is three lightweight
+  // per_page=1 requests read for their `total` only.
   useEffect(() => {
-    const scope = { category: category || undefined, addressed_to: addressedTo || undefined };
     let cancelled = false;
 
     Promise.all([
-      ...STATUSES.map((value) => getGrievances({ ...scope, status: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
-      ...URGENCIES.map((value) => getGrievances({ ...scope, urgency: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
+      ...TILE_STATUSES.map((value) => getGrievances({ status: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
+      ...TILE_URGENCIES.map((value) => getGrievances({ urgency: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
     ]).then((entries) => {
       if (!cancelled) setCounts({ ...EMPTY_COUNTS, ...Object.fromEntries(entries) });
     }).catch(() => { if (!cancelled) setCounts(EMPTY_COUNTS); });
 
     return () => { cancelled = true; };
-  }, [category, addressedTo]);
+  }, []);
 
   function clearFilters() {
     setStatus('');
     setUrgency('');
-    setCategory('');
-    setAddressedTo('');
   }
 
   async function handleTransition(id, data) {
@@ -112,9 +101,9 @@ export default function SaoGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => open(row)} className="text-left font-bold text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="text-left font-medium text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
-          <span className="block text-xs font-medium text-ink-muted">{row.category} · {row.organization_id ? (formatDisplayText(row.organization?.name) || 'Organization') : 'Student Affairs Office'}</span>
+          <span className="block text-xs font-normal text-ink-muted">{row.category} · {row.organization_id ? (formatDisplayText(row.organization?.name) || 'Organization') : 'Student Affairs Office'}</span>
         </button>
       ),
     },
@@ -125,7 +114,7 @@ export default function SaoGrievancesPage() {
       render: (row) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
-          <span className="text-xs font-semibold text-ink-muted-strong">{grievanceStageText(row)}</span>
+          <span className="text-xs text-ink-muted-strong">{grievanceStageText(row)}</span>
         </div>
       ),
     },
@@ -146,16 +135,16 @@ export default function SaoGrievancesPage() {
     <div className="flex flex-col gap-5">
       <PageHeader />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-        {STATUSES.map((value) => (
-          <button key={value} type="button" onClick={() => setStatus(status === value ? '' : value)} className={`rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
-            <p className="text-xs font-semibold text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
+      <div className="grid grid-cols-3 gap-3">
+        {TILE_STATUSES.map((value) => (
+          <button key={value} type="button" onClick={() => setStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
+            <p className="text-xs font-medium text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
         ))}
-        {URGENCIES.map((value) => (
-          <button key={value} type="button" onClick={() => setUrgency(urgency === value ? '' : value)} className={`rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
-            <p className="text-xs font-semibold text-ink-muted">{value}</p>
+        {TILE_URGENCIES.map((value) => (
+          <button key={value} type="button" onClick={() => setUrgency(urgency === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
+            <p className="text-xs font-medium text-ink-muted">{value}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
         ))}
@@ -174,11 +163,6 @@ export default function SaoGrievancesPage() {
           filtersActive={filtersActive}
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
-              <div className="w-44">
-                <Select filter aria-label="Filter by addressed to" value={addressedTo} onChange={(event) => setAddressedTo(event.target.value)}>
-                  {ADDRESSED_TO_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </Select>
-              </div>
               <div className="w-40">
                 <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -189,26 +173,20 @@ export default function SaoGrievancesPage() {
                   {URGENCY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
-              <div className="w-48">
-                <Select filter aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
-                  <option value="">All categories</option>
-                  {CATEGORIES.map((option) => <option key={option} value={option}>{option}</option>)}
-                </Select>
-              </div>
               {filtersActive && (
-                <button type="button" onClick={clearFilters} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>
               )}
-              <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
+              <p className="w-full text-xs tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>
           )}
           emptyState={filtersActive ? (
-            <EmptyState kind="filtered" title="No grievances match these filters" description="Try a different status, urgency, category, or recipient." onClearFilters={clearFilters} />
+            <EmptyState kind="filtered" title="No grievances match" onClearFilters={clearFilters} />
           ) : (
             <EmptyState
               kind="first-run"
               icon={MessageSquareWarning}
-              title="Nothing to review"
-              description="Students file grievances from My grievances, addressed to their organization or to the SAO. Each one appears here, sorted by urgency."
+              title="No grievances to review"
+              description="Grievances from students appear here, most urgent first."
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}

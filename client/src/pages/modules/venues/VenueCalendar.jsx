@@ -59,7 +59,7 @@ export default function VenueCalendar({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="text-sm font-bold text-ink" aria-live="polite">{rangeLabel(view, anchor)}</p>
+        <p className="text-sm font-semibold text-ink" aria-live="polite">{rangeLabel(view, anchor)}</p>
         {updating && <span role="status" className="text-xs font-semibold text-ink-muted">Updating...</span>}
         <div className="flex flex-wrap gap-4 text-xs font-semibold text-ink-muted sm:ml-auto" aria-label="Legend">
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-success bg-success-tint" aria-hidden="true" />Approved</span>

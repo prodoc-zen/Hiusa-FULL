@@ -165,7 +165,7 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="receipts" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View Receipt' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View receipt' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getAllByText('HIUSA-1-00000009').length).toBeGreaterThan(0);
     expect(within(dialog).getByText('General Assembly')).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('FinancePage transaction search', () => {
     expect(within(dialog).getByRole('link', { name: 'Open receipt file' })).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('loads a student\'s own receipts without requesting restricted reporting data', async () => {
@@ -204,7 +204,7 @@ describe('FinancePage transaction search', () => {
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
     expect(await screen.findByRole('heading', { name: 'Propose budget' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
   });
 
   it('lets a Department Head review budgets read-only, without any write controls', async () => {
@@ -252,14 +252,14 @@ describe('FinancePage transaction search', () => {
     fireEvent.click(await screen.findByRole('radio', { name: /Income Statement/i }));
     await screen.findByRole('option', { name: /Semester 2026-2027/ });
     fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
-    expect(screen.getByLabelText('Letter body')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Letter body/)).toBeInTheDocument();
     const header = new File(['header'], 'organization-header.png', { type: 'image/png' });
-    fireEvent.change(screen.getByLabelText('Letterhead image'), { target: { files: [header] } });
+    fireEvent.change(screen.getByLabelText(/Letterhead image/), { target: { files: [header] } });
     fireEvent.change(screen.getByPlaceholderText('Treasurer full name'), { target: { value: 'Taylor Treasurer' } });
     fireEvent.change(screen.getByPlaceholderText('President full name'), { target: { value: 'Pat President' } });
     fireEvent.change(screen.getByPlaceholderText('Adviser full name'), { target: { value: 'Alex Adviser' } });
     fireEvent.change(screen.getByPlaceholderText('SBO Adviser full name'), { target: { value: 'Sam SBO Adviser' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Income Statement' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate income statement' }));
 
     await waitFor(() => expect(financeMocks.generateFinancialReport).toHaveBeenCalledWith(expect.objectContaining({
       document_type: 'income_statement',
@@ -282,7 +282,7 @@ describe('FinancePage transaction search', () => {
     for (const title of ['Treasurer', 'President', 'Adviser', 'SBO Adviser']) {
       fireEvent.change(screen.getByPlaceholderText(`${title} full name`), { target: { value: `${title} Name` } });
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Financial Report' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate financial report' }));
     await waitFor(() => expect(financeMocks.generateFinancialReport).toHaveBeenCalledWith(expect.objectContaining({
       report_type: 'custom', period_start: '2026-08-01', period_end: '2026-08-31', event_id: null, financial_semester_id: null,
     })));
@@ -379,7 +379,7 @@ describe('FinancePage transaction search', () => {
     for (const title of ['Treasurer', 'President', 'Adviser', 'SBO Adviser']) {
       fireEvent.change(screen.getByPlaceholderText(`${title} full name`), { target: { value: `${title} Name` } });
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Financial Report' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate financial report' }));
 
     expect(await screen.findByText(/Cash advances released:/, {}, { timeout: 8000 })).toHaveTextContent('Cash advances released: ₱500.00 · Cash advance repayments: ₱200.00. Money lent out and returned is not income or expense.');
     expect(screen.getByText('Income')).toHaveTextContent('₱1,000.00');
@@ -397,8 +397,8 @@ describe('FinancePage transaction search', () => {
     const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
     fireEvent.change(amount, { target: { value: '1500' } });
     fireEvent.change(threshold, { target: { value: '200' } });
-    fireEvent.change(screen.getByLabelText('Financial semester (optional)'), { target: { value: '3' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit for Approval' }));
+    fireEvent.change(screen.getByLabelText(/Financial semester/), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
 
     await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledWith(expect.objectContaining({
       title: 'First Semester Allocation', financial_semester_id: '3', allocated_amount: 1500,

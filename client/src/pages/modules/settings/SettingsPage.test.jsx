@@ -39,7 +39,7 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Personal information' })).toBeInTheDocument();
     expect(screen.getByText('Ramon Castillo')).toBeInTheDocument();
     expect(screen.getByText('940001')).toBeInTheDocument();
-    expect(screen.getByText('Protected account')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your account' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save profile' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
   });
@@ -74,7 +74,7 @@ describe('SettingsPage', () => {
     profileMocks.updateProfile.mockResolvedValue({ data: { ...storedUser, contact_number: '09171234567' } });
     renderPage();
 
-    fireEvent.change(screen.getByLabelText('Mobile number (optional)'), { target: { value: '09171234567' } });
+    fireEvent.change(screen.getByLabelText(/Mobile number/), { target: { value: '09171234567' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => expect(profileMocks.updateProfile).toHaveBeenCalledWith(expect.objectContaining({ contact_number: '09171234567' })));

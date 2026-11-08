@@ -1,10 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CalendarRange, ClipboardList, MapPin } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
-import Modal from '../../../components/Modal';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -51,9 +49,9 @@ function BookingDetail({ booking, role, onBookAgain, onWithdraw }) {
       <FlowStepper steps={stage.steps} ariaLabel="Venue booking progress" />
       <NextStep {...next} primary={primary} />
       <dl className="grid gap-3 text-sm">
-        <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-bold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
-        <div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-bold text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
-        {booking.remarks && <div><dt className="text-xs font-semibold text-ink-muted">SAO remarks</dt><dd className="font-medium text-ink">{booking.remarks}</dd></div>}
+        <div><dt className="text-xs text-ink-muted">Event</dt><dd className="font-medium text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
+        <div><dt className="text-xs text-ink-muted">Requested time</dt><dd className="font-medium text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
+        {booking.remarks && <div><dt className="text-xs text-ink-muted">SAO remarks</dt><dd className="font-medium text-ink">{booking.remarks}</dd></div>}
       </dl>
       {onWithdraw && <Button variant="secondary" onClick={onWithdraw}>Withdraw request</Button>}
     </div>
@@ -230,7 +228,7 @@ export default function VenueBookingPage() {
   }
 
   const bookingColumns = [
-    { key: 'venue', header: 'Venue', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-bold text-ink hover:text-brand-700">{booking.venue?.name || booking.off_campus_location || 'Unknown'}</button> },
+    { key: 'venue', header: 'Venue', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-semibold text-ink hover:text-brand-700">{booking.venue?.name || booking.off_campus_location || 'Unknown'}</button> },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
     {
@@ -259,7 +257,7 @@ export default function VenueBookingPage() {
         primary={firstRun ? undefined : <Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
       />
 
-      <Card title="Find a venue" description="Pending requests and approved bookings for the venue and dates you choose.">
+      <Card title="Find a venue">
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Venue">
             <Select value={selectedVenueId} onChange={(event) => setSelectedVenueId(event.target.value)} disabled={venues.loading || venues.items.length === 0}>
@@ -267,32 +265,32 @@ export default function VenueBookingPage() {
             </Select>
           </Field>
           <Field label="From">
-            <DateTimeInput type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <Input type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} />
           </Field>
           <Field label="To">
-            <DateTimeInput type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <Input type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} />
           </Field>
         </div>
 
-        {venues.error && <p className="mt-4 text-sm font-semibold text-danger-strong">{venues.error}</p>}
+        {venues.error && <p className="mt-4 text-sm font-medium text-danger-strong">{venues.error}</p>}
 
         {!venues.loading && venues.items.length === 0 && !venues.error && (
-          <EmptyState kind="first-run" icon={MapPin} title="No venues available yet" description="SAO has not added any bookable venues yet. Check back later." className="mt-2" />
+          <EmptyState kind="first-run" icon={MapPin} title="No venues available yet" description="SAO has not added any venues yet." className="mt-2" />
         )}
 
         {selectedVenue && (
           <div className="mt-5 border-t border-line pt-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-ink">{formatDisplayText(selectedVenue.name)}</p>
-                <p className="text-xs font-medium text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
+                <p className="text-sm font-semibold text-ink">{formatDisplayText(selectedVenue.name)}</p>
+                <p className="text-xs text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
               </div>
               <Button size="sm" variant="secondary" onClick={() => openRequestForm()}>Request this venue</Button>
             </div>
             {availability.loading ? (
-              <p className="text-sm font-medium text-ink-muted">Checking availability...</p>
+              <p className="text-sm text-ink-muted">Checking availability...</p>
             ) : availability.error ? (
-              <p className="text-sm font-semibold text-danger-strong">{availability.error}</p>
+              <p className="text-sm font-medium text-danger-strong">{availability.error}</p>
             ) : (
               <VenueAvailabilityTimeline from={range.from} to={range.to} slots={availability.slots} />
             )}
@@ -300,7 +298,7 @@ export default function VenueBookingPage() {
         )}
       </Card>
 
-      <Card title="My organization's requests" description="Every venue booking your organization has requested.">
+      <Card title="My organization's requests">
         <DataTable
           columns={bookingColumns}
           rows={bookings.items}
@@ -322,18 +320,17 @@ export default function VenueBookingPage() {
               kind="first-run"
               icon={ClipboardList}
               title="No booking requests yet"
-              description="Request a venue for an event and the SAO decides it. Each request shows up here with its status."
+              description="Requests you send appear here with their status."
               action={<Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
             />
           )}
         />
       </Card>
 
-      <Modal
+      <Drawer
         open={requestOpen}
         title="Request a venue booking"
         onClose={requestSubmitting ? undefined : () => setRequestOpen(false)}
-        closeOnEscape={!requestSubmitting}
         footer={(
           <>
             <Button variant="secondary" onClick={() => setRequestOpen(false)} disabled={requestSubmitting}>Cancel</Button>
@@ -341,30 +338,30 @@ export default function VenueBookingPage() {
           </>
         )}
       >
-        <form onSubmit={handleRequestSubmit} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Venue type" required className="sm:col-span-2"><Select value={requestForm.venue_type} onChange={(event) => setRequestForm({ ...requestForm, venue_type: event.target.value })}><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></Select></Field>
-          {requestForm.venue_type === 'on_campus' ? <Field label="Venue" required className="sm:col-span-2">
+        <form onSubmit={handleRequestSubmit} className="grid gap-4">
+          <Field label="Venue type" required><Select value={requestForm.venue_type} onChange={(event) => setRequestForm({ ...requestForm, venue_type: event.target.value })}><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></Select></Field>
+          {requestForm.venue_type === 'on_campus' ? <Field label="Venue" required>
             <Select data-autofocus value={requestForm.venue_id} onChange={(event) => setRequestForm({ ...requestForm, venue_id: event.target.value })}>
               <option value="">Choose a venue</option>
               {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
             </Select>
-          </Field> : <Field label="Off-campus location" required className="sm:col-span-2"><input data-autofocus maxLength={255} value={requestForm.off_campus_location} onChange={(event) => setRequestForm({ ...requestForm, off_campus_location: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm" /></Field>}
+          </Field> : <Field label="Off-campus location" required><Input data-autofocus maxLength={255} value={requestForm.off_campus_location} onChange={(event) => setRequestForm({ ...requestForm, off_campus_location: event.target.value })} /></Field>}
           <Field label="Start" required>
-            <DateTimeInput type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <Input type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} />
           </Field>
           <Field label="End" required>
-            <DateTimeInput type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <Input type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} />
           </Field>
-          <p className="text-xs text-ink-muted sm:col-span-2">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
-          <Field label="Link to an event" hint="Optional" className="sm:col-span-2">
+          <p className="text-xs text-ink-muted">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
+          <Field label="Link to an event" optional>
             <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
               <option value="">Not linked to an event</option>
               {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{formatDisplayText(eventItem.title)}</option>)}
             </Select>
           </Field>
-          {requestError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{requestError}</p>}
+          {requestError && <p role="alert" className="text-sm font-medium text-danger-strong">{requestError}</p>}
         </form>
-      </Modal>
+      </Drawer>
 
       <Drawer open={Boolean(openBooking)} title={openBooking ? (openBooking.venue?.name || openBooking.off_campus_location || 'Venue request') : undefined} description={openBooking ? `Venue request #${openBooking.id}` : undefined} onClose={() => setRecordId(null)}>
         {openBooking && (
@@ -377,12 +374,16 @@ export default function VenueBookingPage() {
         )}
       </Drawer>
 
-      <Modal open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review this request. This is your booking reference, not an approval." onClose={() => setSubmittedBooking(null)} maxWidth="max-w-md" footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
-        {submittedBooking && <div className="rounded-lg border border-line bg-warning-tint p-5">
-          <div className="flex items-center gap-2 border-b border-dashed border-line pb-3 text-navy-800"><CalendarRange size={20} aria-hidden="true" /><span className="text-sm font-semibold">Venue request #{submittedBooking.id}</span></div>
-          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-ink-muted">Venue</dt><dd className="font-bold text-ink">{formatDisplayText(submittedBooking.venue?.name) || submittedBooking.off_campus_location || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-bold text-ink">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
-        </div>}
-      </Modal>
+      <Drawer open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review it. This is your reference, not an approval." onClose={() => setSubmittedBooking(null)} footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
+        {submittedBooking && (
+          <dl className="space-y-3 text-sm">
+            <div><dt className="text-xs text-ink-muted">Reference</dt><dd className="font-medium text-ink">Venue request #{submittedBooking.id}</dd></div>
+            <div><dt className="text-xs text-ink-muted">Venue</dt><dd className="font-medium text-ink">{formatDisplayText(submittedBooking.venue?.name) || submittedBooking.off_campus_location || 'Selected venue'}</dd></div>
+            <div><dt className="text-xs text-ink-muted">Requested time</dt><dd className="font-medium text-ink">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div>
+            <div><dt className="text-xs text-ink-muted">Status</dt><dd><StatusBadge status="pending" /></dd></div>
+          </dl>
+        )}
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(withdrawTarget)}

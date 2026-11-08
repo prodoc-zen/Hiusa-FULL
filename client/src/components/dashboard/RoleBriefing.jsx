@@ -50,7 +50,7 @@ function BriefingBody({ data, introduction }) {
     const withoutTasks = attention.filter((item) => !TASK_TYPES.has(item.type));
     if (withoutTasks.length !== attention.length) {
       attention = withoutTasks;
-      headline = attention.length === 0 ? "You're all caught up." : `${attention.length} ${attention.length === 1 ? 'item needs' : 'items need'} you today.`;
+      headline = attention.length === 0 ? 'Nothing needs you today.' : `${attention.length} ${attention.length === 1 ? 'item needs' : 'items need'} you today.`;
     }
   }
 
@@ -68,7 +68,7 @@ function BriefingBody({ data, introduction }) {
     actions = ACTIONS[role] || [];
   }
 
-  // The AI insights stay out of the SAO and dean journeys; both read plain lists of work.
+  // Suggestions from the engines stay out of the SAO and dean journeys; both read plain lists of work.
   const showInsights = role !== 'SUPER_ADMIN' && role !== 'DEPARTMENT_HEAD';
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;
   const attentionTitle = ATTENTION_TITLE[role] || 'Needs attention';
@@ -99,14 +99,14 @@ function BriefingBody({ data, introduction }) {
       {role !== 'SUPER_ADMIN' && <details className="group overflow-hidden rounded-card border border-line bg-surface">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
-          <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+          <ChevronDown size={18} className="shrink-0 text-ink-muted group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
       </details>}
       {showInsights && insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
-          <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-semibold text-ink sm:px-6">What HIUSA noticed</h2>
-          <div className="divide-y divide-line-soft px-5 sm:px-6">
+          <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">Suggestions from your records</h2>
+          <div className="divide-y divide-line-soft px-4 py-4 sm:px-5">
             {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
           </div>
         </section>
@@ -116,9 +116,9 @@ function BriefingBody({ data, introduction }) {
 }
 
 /**
- * The role-aware briefing that opens every home page: greeting and headline, the first-run
+ * The role-aware briefing that opens every home page: the one-line headline, the first-run
  * checklist (above the work queue until it is finished), what needs this person now, the study's
- * areas, and what the AI noticed (with the "Why?" disclosure). Composed above each home page's own content.
+ * areas, and suggestions from their records (with the "Why?" disclosure). Composed above each home page's own content.
  * A page that shows figures from the same payload (the student account panel) reads them through onData.
  */
 export default function RoleBriefing({ onData, introduction }) {

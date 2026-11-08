@@ -156,14 +156,14 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   }
 
   const columns = [
-    { key: 'organization', header: 'Organization', render: (submission) => <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-bold text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button> },
+    { key: 'organization', header: 'Organization', render: (submission) => <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-medium text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button> },
     {
       key: 'requirement',
       header: 'Requirement',
       render: (submission) => (
         <div>
           <p>{submission.requirement_type?.name || 'Unknown'}</p>
-          <p className="text-xs font-medium text-ink-muted">{documentKind(submission)}</p>
+          <p className="text-xs text-ink-muted">{documentKind(submission)}</p>
         </div>
       ),
     },
@@ -175,7 +175,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       render: (submission) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={submission.status} />
-          <span className="text-xs font-semibold text-ink-muted-strong">{registrationReview(submission)?.text ?? complianceStageText(stageInput(submission))}</span>
+          <span className="text-xs text-ink-muted-strong">{registrationReview(submission)?.text ?? complianceStageText(stageInput(submission))}</span>
         </div>
       ),
     },
@@ -185,11 +185,11 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
 
   if (!organizationId && !recordId) {
     const visible = organizations.filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase()));
-    return <Card title="Review submissions by organization" description="Choose an organization to see its submitted requirements.">
+    return <Card title="Review submissions by organization">
       <DataTable stickyHeader={false} rowKey={(org) => org.organization_id} rows={visible} loading={organizationsLoading} error={organizationsError} onRetry={onRetryOrganizations} filtersActive={Boolean(search)}
         filters={<div className="mb-4"><Input type="search" aria-label="Search review organizations" placeholder="Search organizations" value={search} onChange={(event) => setSearch(event.target.value)} /></div>}
         columns={[
-          { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="flex min-h-11 items-center gap-2 text-left font-bold text-brand-700" onClick={() => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); }}><FolderOpen size={18} aria-hidden="true" />{org.organization_name}</button> },
+          { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="flex min-h-11 items-center gap-2 text-left font-medium text-brand-700" onClick={() => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); }}><FolderOpen size={18} aria-hidden="true" />{org.organization_name}</button> },
           { key: 'submitted', header: 'Awaiting review', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'submitted').length : 'Registration review' },
           { key: 'missing', header: 'Not submitted', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'not_submitted').length : 'See registration' },
           { key: 'returned', header: 'Returned', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'returned').length : 'See registration' },
@@ -201,12 +201,13 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   }
 
   return (
-    <Card title="Review queue" description="Open a submission's document, then approve it or reject it with remarks so the organization can correct it. Registration documents of a new organization are decided in its organization review.">
+    <Card title="Review queue">
       {reviewError && (
-        <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{reviewError}</p>
+        <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{reviewError}</p>
       )}
       <DataTable
         stickyHeader={false}
+        caption="Submissions to review"
         columns={columns}
         rows={queue.items}
         loading={queue.loading}
@@ -230,7 +231,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
             {filtersActive && (
               <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
             )}
-            <p className="text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto">
+            <p className="text-xs tabular-nums text-ink-muted sm:ml-auto">
               {queue.meta.total} {queue.meta.total === 1 ? 'submission' : 'submissions'}
             </p>
           </div>
@@ -261,8 +262,8 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           <EmptyState
             kind="first-run"
             icon={Check}
-            title="Nothing to review"
-            description="Organization admins upload each requirement from their Compliance page. Every submission lands here for your decision."
+            title="No submissions to review"
+            description="Submissions from organizations appear here for your decision."
           />
         )}
       />
@@ -275,14 +276,14 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       >
         {openSubmission && (
           <div className="flex flex-col gap-4">
-            {!registrationReview(openSubmission) && <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />}
+            {!registrationReview(openSubmission) && <FlowStepper variant="full" steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />}
             {registrationReview(openSubmission)
-              ? <p className="text-sm font-medium text-ink">{registrationReview(openSubmission).text}.</p>
+              ? <p className="text-sm text-ink">{registrationReview(openSubmission).text}.</p>
               : <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />}
             <dl className="grid gap-3 text-sm">
-              <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-bold text-ink">{manilaDate(openSubmission.submitted_at, 'long')}</dd></div>
-              <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-bold text-ink">{openSubmission.submitter ? `${openSubmission.submitter.first_name} ${openSubmission.submitter.last_name}` : 'Unknown'}</dd></div>
-              {openSubmission.remarks && <div><dt className="text-xs font-semibold text-ink-muted">SAO remarks</dt><dd className="font-medium text-ink">{openSubmission.remarks}</dd></div>}
+              <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-medium text-ink">{manilaDate(openSubmission.submitted_at, 'long')}</dd></div>
+              <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-medium text-ink">{openSubmission.submitter ? `${openSubmission.submitter.first_name} ${openSubmission.submitter.last_name}` : 'Unknown'}</dd></div>
+              {openSubmission.remarks && <div><dt className="text-xs font-semibold text-ink-muted">SAO remarks</dt><dd className="text-ink">{openSubmission.remarks}</dd></div>}
             </dl>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" leftIcon={ExternalLink} onClick={() => openDocument(openSubmission)} disabled={openingDocumentId === openSubmission.id}>Open document</Button>
@@ -315,7 +316,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       <Modal
         open={reviewTarget?.action === 'return'}
         title="Reject this submission"
-        description="A remark is required so the organization knows what to fix."
+        description="The organization sees your remarks."
         onClose={reviewBusy ? undefined : closeReview}
         closeOnEscape={!reviewBusy}
         footer={(
@@ -325,7 +326,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           </>
         )}
       >
-        <Field label="Remarks" required error={remarksError} hint="Explain what needs to be corrected before resubmission.">
+        <Field label="Remarks" required error={remarksError} hint="Say what needs to be corrected before they resubmit.">
           <Textarea ref={remarksRef} data-autofocus value={reviewRemarks} onChange={(event) => { setReviewRemarks(event.target.value); setRemarksError(null); }} />
         </Field>
       </Modal>

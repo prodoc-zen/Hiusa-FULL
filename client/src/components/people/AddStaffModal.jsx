@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { Button, ErrorState, Field, Input, Skeleton } from '../ui';
-import Modal from '../Modal';
+import { Button, Drawer, ErrorState, Field, Input, Skeleton } from '../ui';
 import PersonPicker from './PersonPicker';
 import notify from '../../lib/notify';
 import { getStaffRecords, inviteCollegeStaff } from '../../services/collegeOrganizationService';
@@ -116,7 +115,7 @@ export default function AddStaffModal({ open, onClose }) {
             <Input value={position} onChange={(event) => setPosition(event.target.value)} maxLength={100} autoComplete="off" />
           </Field>
           {emailField}
-          {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
+          {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {hasRecords ? (
               <Button variant="ghost" size="sm" onClick={() => { setPlain(false); setError(''); }}>Back to the school records</Button>
@@ -150,7 +149,7 @@ export default function AddStaffModal({ open, onClose }) {
           </div>
         )}
         {record && emailField}
-        {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
+        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={() => { setPlain(true); setError(''); }}>Not in the school records? Create a plain invite link</Button>
           <div className="flex flex-wrap justify-end gap-2">
@@ -163,14 +162,14 @@ export default function AddStaffModal({ open, onClose }) {
   }
 
   return (
-    <Modal
+    <Drawer
       open={open}
       title="Add office staff"
-      description="They get a link that works once and expires in 48 hours, and they only choose their email and password."
+      description="They get a link that works once and expires in 48 hours."
       onClose={onClose}
-      maxWidth="max-w-lg"
+      width="max-w-lg"
     >
       {body()}
-    </Modal>
+    </Drawer>
   );
 }

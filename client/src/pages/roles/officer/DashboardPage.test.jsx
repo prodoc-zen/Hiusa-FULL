@@ -59,6 +59,16 @@ describe('Officer DashboardPage stat cards', () => {
     await waitFor(() => expect(statValue('Pending orders')).toBe('8'));
   });
 
+  it('makes each tile a link to the list behind its number', async () => {
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    await waitFor(() => expect(statValue('Open tasks')).toBe('42'));
+    expect(screen.getByText('Open tasks').closest('a')).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
+    expect(screen.getByText('Pending orders').closest('a')).toHaveAttribute('href', '/dashboard/merchandise/manage-orders');
+    expect(screen.getByText('Upcoming events').closest('a')).toHaveAttribute('href', '/dashboard/events/activity-calendar');
+    expect(screen.queryByText('Completed tasks')).not.toBeInTheDocument();
+  });
+
   it('names the first action when nothing has been assigned yet, instead of showing zeros', async () => {
     const none = { data: { data: [], current_page: 1, last_page: 1, per_page: 10, total: 0 } };
     taskMocks.getTasks.mockResolvedValue(none);
@@ -69,7 +79,7 @@ describe('Officer DashboardPage stat cards', () => {
     expect(await screen.findByText('No work has been assigned to you yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
     expect(screen.queryByText('Open tasks')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Check-in' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open My tasks' })).not.toHaveClass('bg-brand-700');
   });
 
   it('does not call a failed load an empty queue', async () => {

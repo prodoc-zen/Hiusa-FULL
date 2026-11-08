@@ -1,32 +1,67 @@
-import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ArrowRight, Briefcase, CalendarPlus, ClipboardCheck, ClipboardList, FileText, GraduationCap, Megaphone, Plus, RefreshCw, ShoppingBag, Users } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { getAdminDashboard } from '../../../services/adminDashboardService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
-import { Button, EmptyState } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, Field, Select, Skeleton, Stat } from '../../../components/ui';
 
 const tools = [
-  ['People', '/dashboard/admin/users', Users],
-  ['Officer positions', '/dashboard/admin/positions', Briefcase],
-  ['Programs and sections', '/dashboard/admin/programs-sections', GraduationCap],
-  ['Audit log', '/dashboard/audit-logs', ClipboardCheck],
+  ['People', '/dashboard/admin/users'],
+  ['Officer positions', '/dashboard/admin/positions'],
+  ['Programs and sections', '/dashboard/admin/programs-sections'],
+  ['Audit log', '/dashboard/audit-logs'],
 ];
+// Three tiles, each a link. New announcements still count toward "nothing has happened yet".
 const cards = [
-  ['pending_orders', 'Pending Orders', '/dashboard/merchandise/manage-orders', ShoppingBag],
-  ['approval_requests', 'Approval Requests', '/dashboard/approvals', ClipboardCheck],
-  ['pending_tasks', 'Pending Tasks', '/dashboard/tasks/task-board', ClipboardList],
-  ['new_announcements', 'New Announcements', '/dashboard/announcements/view-announcements', Megaphone],
+  ['pending_orders', 'Pending orders', '/dashboard/merchandise/manage-orders'],
+  ['approval_requests', 'Approval requests', '/dashboard/approvals'],
+  ['pending_tasks', 'Pending tasks', '/dashboard/tasks/task-board'],
 ];
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function FinancialMovement({ rows }) {
   const largest = Math.max(1, ...rows.flatMap((row) => [Number(row.income), Number(row.expense)]));
-  if (!rows.some((row) => Number(row.income) || Number(row.expense))) return <div className="py-12 text-center"><p className="text-sm text-slate-500">No ledger transactions in this period.</p><p className="mt-1 text-xs text-slate-500">A budget comes first, then spending is recorded against it.</p><NavLink to="/dashboard/finance/budget-allocation" className="mt-3 inline-flex min-h-11 items-center gap-1 text-xs font-bold text-brand-700 hover:underline">Propose a budget <ArrowRight size={14} /></NavLink></div>;
-  return <div className="mt-5 min-w-0" role="img" aria-label="Monthly ledger income and expenses"><div className="flex h-56 min-w-0 items-end gap-1 border-b border-line pb-2 sm:gap-3">{rows.map((row) => <div key={row.month} className="flex min-w-0 flex-1 flex-col items-center"><div className="flex h-44 w-full items-end justify-center gap-0.5 sm:gap-2"><div title={`${row.month} income ${money(row.income)}`} className="w-2 max-w-[40%] rounded-t-lg bg-success sm:w-7" style={{ height: `${Math.max(Number(row.income) ? 4 : 0, Number(row.income) / largest * 100)}%` }} /><div title={`${row.month} expenses ${money(row.expense)}`} className="w-2 max-w-[40%] rounded-t-lg bg-danger sm:w-7" style={{ height: `${Math.max(Number(row.expense) ? 4 : 0, Number(row.expense) / largest * 100)}%` }} /></div><span className="mt-2 text-xs font-semibold text-slate-600 sm:text-xs"><span className="sm:hidden">{new Date(`${row.month}-01T00:00:00`).toLocaleDateString('en', { month: 'numeric' })}</span><span className="hidden sm:inline">{new Date(`${row.month}-01T00:00:00`).toLocaleDateString('en', { month: 'short', year: '2-digit' })}</span></span></div>)}</div><div className="mt-3 flex flex-wrap gap-4 text-xs font-semibold text-slate-600"><span><i className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-success" />Income</span><span><i className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-danger" />Expenses</span></div><table className="sr-only"><caption>Monthly financial movement</caption><thead><tr><th>Month</th><th>Income</th><th>Expenses</th></tr></thead><tbody>{rows.map((row) => <tr key={row.month}><td>{row.month}</td><td>{money(row.income)}</td><td>{money(row.expense)}</td></tr>)}</tbody></table></div>;
+  if (!rows.some((row) => Number(row.income) || Number(row.expense))) {
+    return (
+      <EmptyState
+        kind="first-run"
+        title="No ledger transactions in this period."
+        description="A budget comes first, then spending is recorded against it."
+        action={<Button to="/dashboard/finance/budget-allocation" variant="secondary" rightIcon={ArrowRight}>Propose a budget</Button>}
+      />
+    );
+  }
+
+  return (
+    <div className="mt-4 min-w-0" role="img" aria-label="Monthly ledger income and expenses">
+      <div className="flex h-56 min-w-0 items-end gap-1 border-b border-line pb-2 sm:gap-3">
+        {rows.map((row) => (
+          <div key={row.month} className="flex min-w-0 flex-1 flex-col items-center">
+            <div className="flex h-44 w-full items-end justify-center gap-0.5 sm:gap-2">
+              <div title={`${row.month} income ${money(row.income)}`} className="w-2 max-w-[40%] rounded-t bg-success sm:w-7" style={{ height: `${Math.max(Number(row.income) ? 4 : 0, Number(row.income) / largest * 100)}%` }} />
+              <div title={`${row.month} expenses ${money(row.expense)}`} className="w-2 max-w-[40%] rounded-t bg-danger sm:w-7" style={{ height: `${Math.max(Number(row.expense) ? 4 : 0, Number(row.expense) / largest * 100)}%` }} />
+            </div>
+            <span className="mt-2 text-xs font-medium text-ink-muted">
+              <span className="sm:hidden">{new Date(`${row.month}-01T00:00:00`).toLocaleDateString('en', { month: 'numeric' })}</span>
+              <span className="hidden sm:inline">{new Date(`${row.month}-01T00:00:00`).toLocaleDateString('en', { month: 'short', year: '2-digit' })}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-4 text-xs font-medium text-ink-muted">
+        <span><i className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-success" />Income</span>
+        <span><i className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-danger" />Expenses</span>
+      </div>
+      <table className="sr-only">
+        <caption>Monthly financial movement</caption>
+        <thead><tr><th>Month</th><th>Income</th><th>Expenses</th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.month}><td>{row.month}</td><td>{money(row.income)}</td><td>{money(row.expense)}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
 }
 
 export default function AdminHomePage() {
@@ -43,28 +78,100 @@ export default function AdminHomePage() {
   }, [months, reload]);
 
   const firstRun = !loading && !error && Boolean(data)
-    && cards.every(([key]) => !Number(data.counts?.[key] ?? 0))
+    && [...cards.map(([key]) => key), 'new_announcements'].every((key) => !Number(data.counts?.[key] ?? 0))
     && !(data.movement || []).some((row) => Number(row.income) || Number(row.expense))
     && !(data.announcements || []).length;
 
-  return <div className="w-full space-y-6">
-    <ProcessTracker />
-    <RoleBriefing />
-    {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-200 bg-white px-4 font-bold"><RefreshCw size={15} /> Try again</button></div>}
-    {firstRun ? <section className="rounded-lg border border-line bg-white" aria-label="Administration summary"><EmptyState kind="first-run" icon={CalendarPlus} title="Nothing has happened here yet" description="Orders, approvals, tasks and announcements are counted here once your organization starts using HIUSA. Planning your first event is the quickest way to begin." action={<Button to="/dashboard/events/manage-events">Plan your first event</Button>} /></section> : <section className="overflow-hidden rounded-lg border border-line bg-line" aria-label="Administration summary">
-      <div className="grid gap-px sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(([key, label, to, Icon]) => (
-          <NavLink key={key} to={to} className="group flex min-h-28 flex-col justify-between bg-white p-4 transition-colors hover:bg-subtle focus-visible:z-10">
-            <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600">
-              <span>{label}</span>
-              <Icon size={18} className="shrink-0 text-brand-700" aria-hidden="true" />
+  return (
+    <div className="w-full space-y-6">
+      <ProcessTracker />
+      <RoleBriefing />
+      {error && (
+        <div role="alert" className="rounded-card border border-line bg-surface px-4">
+          <ErrorState title={error} description="Check your connection and try again." onRetry={() => setReload((value) => value + 1)} />
+        </div>
+      )}
+      {firstRun ? (
+        <section className="rounded-card border border-line bg-surface px-4" aria-label="Administration summary">
+          <EmptyState
+            kind="first-run"
+            title="Nothing has happened here yet"
+            description="Orders, approvals and tasks are counted here once your organization starts using HIUSA."
+            action={<Button to="/dashboard/events/manage-events" variant="secondary">Plan your first event</Button>}
+          />
+        </section>
+      ) : (
+        <section className="grid gap-3 sm:grid-cols-3" aria-label="Administration summary">
+          {cards.map(([key, label, to]) => (
+            <Stat key={key} label={label} to={to} value={loading || error ? '-' : Number(data?.counts?.[key] ?? 0).toLocaleString()} />
+          ))}
+        </section>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          <section className="rounded-card border border-line bg-surface p-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-base font-semibold text-ink">Financial status</h2>
+              <Field label="Period">
+                <Select aria-label="Financial status period" value={months} onChange={(event) => setMonths(Number(event.target.value))} className="w-36">
+                  <option value={3}>3 months</option>
+                  <option value={6}>6 months</option>
+                  <option value={12}>12 months</option>
+                </Select>
+              </Field>
             </div>
-            <strong className="mt-3 text-2xl font-semibold tabular-nums text-ink">{loading ? '…' : error ? '—' : Number(data?.counts?.[key] ?? 0).toLocaleString()}</strong>
-          </NavLink>
-        ))}
+            {loading
+              ? <div role="status" className="mt-4"><Skeleton className="h-56 w-full" /><span className="sr-only">Loading financial status</span></div>
+              : error
+                ? <p className="py-8 text-sm text-ink-muted">Financial data is unavailable.</p>
+                : <FinancialMovement rows={data?.movement || []} />}
+            <NavLink to="/dashboard/finance/financial-ledger" className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open ledger <ArrowRight size={14} aria-hidden="true" /></NavLink>
+          </section>
+
+          <section className="rounded-card border border-line bg-surface">
+            <h2 className="border-b border-line px-5 py-3 text-base font-semibold text-ink">Manage</h2>
+            <ul className="grid sm:grid-cols-2">
+              {tools.map(([label, to]) => (
+                <li key={to} className="border-b border-line-soft">
+                  <NavLink to={to} className="flex min-h-12 items-center justify-between gap-3 px-5 py-3 text-sm font-medium text-ink hover:bg-subtle">
+                    {label}
+                    <ArrowRight size={15} className="shrink-0 text-ink-soft" aria-hidden="true" />
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+
+        <aside className="self-start rounded-card border border-line bg-surface p-5" aria-label="Announcements">
+          <h2 className="text-base font-semibold text-ink">Announcements</h2>
+          {loading ? (
+            <div role="status" className="mt-4 space-y-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading announcements</span></div>
+          ) : error ? (
+            <p className="py-6 text-sm text-ink-muted">Announcements are unavailable.</p>
+          ) : data?.announcements?.length ? (
+            <ul className="mt-2 divide-y divide-line-soft">
+              {data.announcements.map((post) => (
+                <li key={post.id} className="py-4 first:pt-2">
+                  <p className="truncate text-xs font-medium text-ink-muted">
+                    {[formatDisplayText(post.source_organization?.name) || 'HIUSA', post.creator && `${post.creator.first_name} ${post.creator.last_name}`, post.published_at && new Date(post.published_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                  </p>
+                  <h3 className="mt-1 text-sm font-semibold text-ink">{formatDisplayText(post.title)}</h3>
+                  <p className="mt-1 line-clamp-3 text-sm leading-5 text-ink-muted-strong">{post.body}</p>
+                  {post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover" />}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState kind="first-run" title="No announcements yet" description="Published announcements show here." />
+          )}
+          <div className="mt-2 flex flex-col items-start border-t border-line pt-2">
+            <NavLink to="/dashboard/announcements/manage-announcements" className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Manage announcements</NavLink>
+            <NavLink to="/dashboard/announcements/view-announcements" className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">View the feed</NavLink>
+          </div>
+        </aside>
       </div>
-    </section>}
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><div className="space-y-5"><section className="rounded-lg border border-line bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Financial status</h2><p className="mt-1 text-xs text-slate-500">Monthly income and expenses from the organization ledger.</p></div><label className="text-xs font-bold text-slate-600">Period<HiusaSelect aria-label="Financial status period" value={months} onChange={(event) => setMonths(Number(event.target.value))} className="mt-1 block rounded-card px-3 text-sm"><option value={3}>3 months</option><option value={6}>6 months</option><option value={12}>12 months</option></HiusaSelect></label></div>{loading ? <div role="status" className="mt-5 h-56 animate-pulse rounded-lg bg-slate-100"><span className="sr-only">Loading financial status</span></div> : error ? <p className="py-12 text-center text-sm text-red-700">Financial data is unavailable.</p> : <FinancialMovement rows={data?.movement || []} />}<NavLink to="/dashboard/finance/financial-ledger" className="mt-4 inline-flex min-h-11 items-center gap-1 text-xs font-bold text-brand-700 hover:underline">Open ledger <ArrowRight size={14} /></NavLink></section><section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm"><div className="border-b border-line p-5"><h2 className="text-base font-semibold">Administration workspace</h2><p className="mt-1 text-xs text-slate-500">Manage organization records and access.</p></div><div className="grid sm:grid-cols-2">{tools.map(([label, to, Icon]) => <NavLink key={to} to={to} className="flex min-h-20 items-center gap-3 border-b border-line p-4 hover:bg-subtle"><span className="status-icon status-info"><Icon size={18} /></span><span className="min-w-0 flex-1 text-sm font-bold">{label}</span><ArrowRight size={15} className="text-slate-400" /></NavLink>)}</div></section></div>
-      <aside className="rounded-lg border border-line bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold text-brand-700">Latest updates</p><h2 className="mt-1 text-base font-semibold">Announcements</h2></div><span className="status-icon status-info"><Megaphone size={19} /></span></div>{loading ? <div className="mt-5 h-44 animate-pulse rounded-lg bg-slate-100" /> : error ? <p className="py-8 text-sm text-red-700">Announcements are unavailable.</p> : data?.announcements?.length ? <div className="mt-4 space-y-3">{data.announcements.map((post) => <article key={post.id} className="rounded-lg border border-line p-4"><div className="flex items-center gap-2"><span className="status-icon status-info !h-9 !w-9"><Megaphone size={16} /></span><div className="min-w-0"><p className="truncate text-xs font-bold">{formatDisplayText(post.source_organization?.name) || 'HIUSA'}</p><p className="text-xs text-slate-500">{[post.creator && `${post.creator.first_name} ${post.creator.last_name}`, post.published_at && new Date(post.published_at).toLocaleDateString()].filter(Boolean).join(' · ')}</p></div></div><h3 className="mt-3 text-sm font-bold">{formatDisplayText(post.title)}</h3><p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">{post.body}</p>{post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover" />}</article>)}</div> : <p className="py-8 text-sm text-slate-500">No published announcements yet.</p>}<div className="mt-4 grid gap-2"><NavLink to="/dashboard/announcements/create-announcement" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line px-4 text-sm font-bold"><Plus size={16} /> New announcement</NavLink><NavLink to="/dashboard/announcements/manage-announcements" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line px-4 text-sm font-bold"><FileText size={16} /> Manage announcements</NavLink><NavLink to="/dashboard/announcements/view-announcements" className="inline-flex min-h-11 items-center justify-center gap-2 text-sm font-bold text-brand-700">View Feed <ArrowRight size={15} /></NavLink></div></aside></div>
-  </div>;
+    </div>
+  );
 }

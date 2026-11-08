@@ -43,12 +43,12 @@ describe('CreateAnnouncementPage', () => {
     expect(screen.getByLabelText('Category')).toBeInTheDocument();
     expect(screen.getByText('Publishing settings')).toBeInTheDocument();
     expect(await screen.findByText('17 of 20 drafts left today')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Publish Now' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish now' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
     fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
 
-    expect(screen.getByRole('button', { name: 'Publish Now' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Publish now' })).toBeEnabled();
     expect(screen.getByText('24 characters')).toBeInTheDocument();
   });
 
@@ -56,8 +56,8 @@ describe('CreateAnnouncementPage', () => {
     signInAs('SBO_OFFICER');
     const dialog = await fillAndStart('Submit for approval');
 
-    expect(screen.queryByRole('button', { name: 'Publish Now' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publish now' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
     expect(within(dialog).getByText(/Admin approves it before members see it/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/publish/i)).not.toBeInTheDocument();
 
@@ -65,23 +65,23 @@ describe('CreateAnnouncementPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sent to your Admin for approval' })).toBeInTheDocument();
     expect(screen.getByText(/once the Admin approves it/)).toHaveTextContent('It goes to All Members once the Admin approves it.');
-    expect(screen.queryByText(/Announcement Posted/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Announcement posted/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Sent to All Members/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View in Announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
+    expect(screen.getByRole('link', { name: 'View in announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
     expect(createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ title: 'General Assembly', is_published: true }));
   });
 
   it('keeps the immediate-publish wording for an Admin and links back to the list', async () => {
     signInAs('ADMIN');
-    const dialog = await fillAndStart('Publish Now');
+    const dialog = await fillAndStart('Publish now');
 
     expect(within(dialog).getByText('Are you sure you want to publish this announcement now?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish Now' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish now' }));
 
-    expect(await screen.findByRole('heading', { name: 'Announcement Posted!' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Announcement posted' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/Sent to/)).toHaveTextContent('Sent to All Members.'));
-    expect(screen.getByRole('link', { name: 'View in Announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
+    expect(screen.getByRole('link', { name: 'View in announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
   });
 });

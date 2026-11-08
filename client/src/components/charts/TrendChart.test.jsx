@@ -167,7 +167,7 @@ describe('TrendChart', () => {
       <TrendChart title="Income trend" series={[{ key: 'a', label: longLabel, points: [{ x: '2026-01', y: 1 }] }]} />,
     );
 
-    const endLabel = container.querySelector('svg text.font-bold');
+    const endLabel = container.querySelector('svg text.font-semibold');
     expect(endLabel.firstChild.textContent).toBe('This is a v…');
     expect(within(endLabel).getByText(longLabel, { selector: 'title' })).toBeInTheDocument();
   });

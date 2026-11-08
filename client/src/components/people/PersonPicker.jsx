@@ -148,6 +148,7 @@ export default function PersonPicker({
           id={inputId}
           type="text"
           role="combobox"
+          data-autofocus
           autoComplete="off"
           className="pl-10"
           aria-expanded={showList}

@@ -140,7 +140,7 @@ describe('VenueBookingPage', () => {
     mocks.getVenueBookings.mockResolvedValue(page([{ ...BOOKING, status }]));
     renderAt('/dashboard/venues?record=31', <VenueBookingPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Main Hall' });
-    expect(within(drawer).getByRole('list', { name: 'Venue booking progress' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('progressbar', { name: 'Venue booking progress' })).toBeInTheDocument();
     expect(within(drawer).getAllByText(title).length).toBeGreaterThan(0);
     if (owner) expect(within(drawer).getByText(owner)).toBeInTheDocument();
   });
@@ -236,8 +236,8 @@ describe('SaoVenuesPage', () => {
     expect(screen.getAllByRole('button', { name: 'New venue' })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('tab', { name: /Booking requests/ }));
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
-    expect(screen.getByText(/request venues from Venue booking/)).toBeInTheDocument();
+    expect(await screen.findByText('No booking requests yet')).toBeInTheDocument();
+    expect(screen.getByText('Requests from organizations appear here.')).toBeInTheDocument();
   });
 
   it('renders exactly one h1', async () => {

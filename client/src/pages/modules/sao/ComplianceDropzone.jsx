@@ -40,10 +40,10 @@ export default function ComplianceDropzone({ onFileSelected, disabled, error, al
           setDragActive(false);
           if (!disabled) handleFiles(event.dataTransfer.files);
         }}
-        className={`flex flex-col items-center gap-2 rounded-card border-2 border-dashed p-6 text-center transition-colors duration-150 ${dragActive ? 'border-brand-600 bg-brand-50' : 'border-line bg-subtle'} ${disabled ? 'opacity-50' : ''}`}
+        className={`flex flex-col items-center gap-2 rounded-card border border-dashed p-6 text-center transition-colors duration-150 ${dragActive ? 'border-brand-600 bg-brand-600/10' : 'border-line bg-subtle'} ${disabled ? 'opacity-50' : ''}`}
       >
-        <UploadCloud size={28} className="text-brand-600" aria-hidden="true" />
-        <p className="text-sm font-semibold text-ink">Drag a file here, or</p>
+        <UploadCloud size={24} className="text-ink-muted" aria-hidden="true" />
+        <p className="text-sm text-ink">Drag a file here, or</p>
         <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => inputRef.current?.click()}>
           Choose file
         </Button>
@@ -56,7 +56,7 @@ export default function ComplianceDropzone({ onFileSelected, disabled, error, al
           aria-label="Upload compliance document"
           onChange={(event) => { handleFiles(event.target.files); event.target.value = ''; }}
         />
-        <p className="text-xs font-medium text-ink-muted">{fileTypesLabel(allowedExtensions)} · up to 10 MB</p>
+        <p className="text-xs text-ink-muted">{fileTypesLabel(allowedExtensions)} · up to 10 MB</p>
       </div>
       {error && <p role="alert" className="mt-2 text-xs font-semibold text-danger-strong">{error}</p>}
     </div>

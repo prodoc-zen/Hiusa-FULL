@@ -11,10 +11,10 @@ const BASE = '/dashboard/elections';
 function FinalizeChecklist({ checklist }) {
   return (
     <div className="px-1">
-      <p className="text-xs font-bold text-ink">Before the ballot can be finalized</p>
+      <p className="text-xs font-semibold text-ink">Before the ballot can be finalized</p>
       <ul className="mt-2 space-y-1.5">
         {checklist.items.map((item) => (
-          <li key={item.key} className="flex items-center gap-2 text-sm font-medium text-ink-muted-strong">
+          <li key={item.key} className="flex items-center gap-2 text-sm text-ink-muted-strong">
             {item.ok
               ? <Check size={16} aria-hidden="true" className="shrink-0 text-success-strong" />
               : <CircleAlert size={16} aria-hidden="true" className="shrink-0 text-danger-strong" />}
@@ -83,7 +83,7 @@ export default function ElectionNextStep({ election, role, onChanged }) {
     <div className="space-y-3">
       <NextStep {...props} tone={tone} primary={primary} />
       {checklist && <FinalizeChecklist checklist={checklist} />}
-      {error && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm font-semibold text-danger-strong">{error}</p>}
+      {error && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong">{error}</p>}
     </div>
   );
 }

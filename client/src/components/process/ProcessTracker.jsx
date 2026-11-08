@@ -27,7 +27,7 @@ function toFlowSteps(steps) {
 }
 
 // One short row of steps. A step already visited links to where it was done when the server sends
-// that place as `path`; the step still to do links nowhere, because its one action sits in NextAction.
+// that place as `action.path`; the step still to do links nowhere, because its one action sits in NextAction.
 function Steps({ steps, ariaLabel }) {
   return (
     <ol aria-label={ariaLabel} className="flex flex-col gap-2 md:flex-row md:flex-wrap md:gap-x-6">
@@ -45,8 +45,8 @@ function Steps({ steps, ariaLabel }) {
         return (
           <li key={step.key} aria-current={state === 'current' ? 'step' : undefined} className="flex min-w-0 items-center gap-2 text-sm">
             <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${className}`}><Icon size={12} strokeWidth={state === 'upcoming' ? 2 : 2.5} /></span>
-            {state === 'done' && step.path
-              ? <Link to={step.path} className="inline-flex min-h-11 items-center text-ink underline underline-offset-2 hover:text-brand-700 md:min-h-0">{label}</Link>
+            {state === 'done' && step.action?.path
+              ? <Link to={step.action.path} className="inline-flex min-h-11 items-center text-ink underline underline-offset-2 hover:text-brand-700 md:min-h-0">{label}</Link>
               : <span className={state === 'current' ? 'font-semibold text-ink' : state === 'done' ? 'text-ink' : 'text-ink-muted-strong'}>{label}</span>}
             {note && <span className="text-xs text-ink-muted-strong">{note}</span>}
           </li>

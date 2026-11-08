@@ -16,11 +16,13 @@ const EMPTY = { first_name: '', last_name: '', email: '', password: '', password
 const FIELD_KEYS = Object.keys(EMPTY);
 const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
 
-// The link only carries the role and the college, so the inviter is named by role: the Student
-// Affairs Office invites deans, a dean invites office staff.
-function inviter(invitation, college) {
-  if (invitation?.role === 'COLLEGE_STAFF') return `the Department Head of ${college}`;
-  return 'the Student Affairs Office';
+// A dean is invited by someone at the Student Affairs Office, office staff by their Department Head.
+// The server sends the inviter's name only; without it the page names the office.
+function invitedLine(invitation, college) {
+  const name = invitation?.inviter?.name?.trim();
+  const staff = invitation?.role === 'COLLEGE_STAFF';
+  if (!name) return `Invited by ${staff ? `the Department Head of ${college}` : 'the Student Affairs Office'}.`;
+  return staff ? `${name}, the Department Head, invited you to ${college}.` : `${name} from the Student Affairs Office invited you to ${college}.`;
 }
 
 const INVALID_COPY = {
@@ -181,7 +183,7 @@ export default function AcceptInvitationPage() {
         <>
           <h1 className="text-xl font-semibold text-ink sm:text-2xl">{headline(invite.invitation, college)}</h1>
           <p className="mt-2 text-sm text-ink-muted">
-            Invited by {inviter(invite.invitation, college)}.
+            {invitedLine(invite.invitation, college)}
             {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? ` Your role: ${invite.invitation.position_title}.` : ''}
             {record ? ' Your name and ID number come from the school records.' : ''}
           </p>

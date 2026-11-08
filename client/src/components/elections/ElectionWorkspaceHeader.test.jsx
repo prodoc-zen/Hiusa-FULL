@@ -20,10 +20,11 @@ function renderHeader(election, role, { path = '/dashboard/elections/manage-elec
   return { onChanged };
 }
 
+// The header shows the compact stepper: one progressbar whose text names the step in focus, and
+// reads "Complete" once every step is done.
 function currentStage() {
-  const items = within(screen.getByRole('list', { name: 'Election progress' })).getAllByRole('listitem');
-  const item = items.find((li) => li.getAttribute('aria-current') === 'step') ?? items.find((li) => /Blocked:/.test(li.textContent));
-  return item ? item.querySelector('p').textContent.replace(/^(Current step|Blocked): /, '') : null;
+  const match = /^(?:Step|Stopped at step) \d+ of \d+: (.+)$/.exec(screen.getByRole('progressbar', { name: 'Election progress' }).getAttribute('aria-valuetext'));
+  return match ? match[1] : null;
 }
 
 describe('ElectionWorkspaceHeader lifecycle', () => {
@@ -59,7 +60,7 @@ describe('ElectionWorkspaceHeader lifecycle', () => {
   it('shows the Department Head reason and the edit and resubmit action to the Admin on a returned election', () => {
     renderHeader({ ...base, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Add the voting room.' }, 'ADMIN');
     expect(screen.getByText('Add the voting room.')).toBeInTheDocument();
-    expect(screen.getAllByText('Returned').length).toBeGreaterThan(1);
+    expect(screen.getByText('Returned')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit and resubmit' })).toHaveAttribute('href', '/dashboard/elections/manage-elections?edit=7');
   });
 
@@ -69,9 +70,9 @@ describe('ElectionWorkspaceHeader lifecycle', () => {
     expect(screen.queryByRole('link', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
   });
 
-  it('words the banner for each role', () => {
+  it('prints no lead line under the title', () => {
     renderHeader({ ...base, status: 'upcoming' }, 'SBO_OFFICER');
-    expect(screen.getByText(/Manage the candidates and voters/)).toBeInTheDocument();
+    expect(screen.queryByText(/Manage the candidates and voters/)).not.toBeInTheDocument();
   });
 
   it('prints one h1 and names the selected election', () => {

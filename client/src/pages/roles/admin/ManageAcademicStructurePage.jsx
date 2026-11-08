@@ -1,9 +1,10 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
-import { BookOpen, Check, Layers, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { createAcademicProgram, deleteAcademicProgram, getAcademicStructure, updateAcademicProgram } from '../../../services/userService';
-import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import ConfirmModal from '../../../components/ConfirmModal';
 import ClassListImportPanel from '../../../components/users/ClassListImportPanel';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, PageHeader, Skeleton } from '../../../components/ui';
 
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearsFor = (durationYears = 4) => Array.from({ length: Number(durationYears) || 4 }, (_, index) => index + 1);
@@ -25,7 +26,22 @@ function firstError(error, fallback) {
 
 function SectionCountFields({ form, setForm }) {
   const updateDuration = (durationYears) => setForm({ ...form, duration_years: durationYears, sections: Object.fromEntries(yearsFor(durationYears).map((year) => [year, form.sections[year] ?? 0])) });
-  return <fieldset><legend className="text-[13px] font-semibold text-ink">Program duration and block sections</legend><p className="mt-1 text-xs text-slate-500">Choose the number of years first. A Non Block section is included in every year and does not count toward these totals.</p><label className="mt-3 block max-w-48 text-xs font-bold text-slate-600">Years in this program<input aria-label="Program duration in years" type="number" min="1" max="8" value={form.duration_years} onChange={(event) => updateDuration(Math.min(8, Math.max(1, Number(event.target.value) || 1)))} className="mt-1 h-10 w-full rounded-md border border-line bg-white px-2 text-sm font-bold outline-none focus:border-brand-600" /></label><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{yearsFor(form.duration_years).map((year) => <label key={year} className="rounded-lg border border-line bg-subtle p-3"><span className="block text-xs font-bold text-slate-600">{yearLabel(year)}</span><input aria-label={`${yearLabel(year)} sections`} type="number" min="0" max="26" value={form.sections[year]} onChange={(event) => setForm({ ...form, sections: { ...form.sections, [year]: Number(event.target.value) } })} className="mt-2 h-10 w-full rounded-md border border-line bg-white px-2 text-sm font-bold outline-none focus:border-brand-600" /></label>)}</div></fieldset>;
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-[13px] font-medium text-ink">Program duration and block sections</legend>
+      <p className="text-xs text-ink-muted">A Non Block section is included in every year and does not count toward these totals.</p>
+      <Field label="Years in this program" className="max-w-48">
+        <Input aria-label="Program duration in years" type="number" min="1" max="8" value={form.duration_years} onChange={(event) => updateDuration(Math.min(8, Math.max(1, Number(event.target.value) || 1)))} />
+      </Field>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {yearsFor(form.duration_years).map((year) => (
+          <Field key={year} label={yearLabel(year)}>
+            <Input aria-label={`${yearLabel(year)} sections`} type="number" min="0" max="26" value={form.sections[year]} onChange={(event) => setForm({ ...form, sections: { ...form.sections, [year]: Number(event.target.value) } })} />
+          </Field>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 export default function ManageAcademicStructurePage() {
@@ -37,10 +53,11 @@ export default function ManageAcademicStructurePage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const [success, setSuccess] = useState('');
 
   const load = async () => {
-    try { setStructure(await getAcademicStructure()); setError(''); } catch { setError('Unable to load program and section settings.'); } finally { setLoading(false); }
+    try { setStructure(await getAcademicStructure()); setError(''); setLoadFailed(false); } catch { setError('Unable to load program and section settings.'); setLoadFailed(true); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
@@ -67,32 +84,102 @@ export default function ManageAcademicStructurePage() {
     } catch (requestError) { setError(firstError(requestError, 'Unable to delete the program.')); setDeleteTarget(null); } finally { setBusy(false); }
   };
 
-  return <div className="space-y-5">
-    <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-sm font-bold text-ink">Add a program</p><p className="mt-1 max-w-2xl text-xs text-slate-600">Programs include Non Block options for each year.</p></div>
-        <div className="rounded-lg border border-line bg-page px-4 py-3"><p className="text-xs font-bold text-navy-800">Department</p><p className="mt-0.5 text-sm font-bold text-ink">{structure.department || 'Not assigned'}</p></div>
-      </div>
-      <form onSubmit={submit} className="mt-6 border-t border-line pt-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-          <label className="block text-[13px] font-semibold text-ink">Course / Program<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required placeholder="e.g. BS Information Technology" className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" /></label>
-          <SectionCountFields form={form} setForm={setForm} />
+  return (
+    <div className="space-y-5">
+      <PageHeader />
+
+      <section className="rounded-card border border-line bg-surface p-5" aria-labelledby="add-program-title">
+        <h2 id="add-program-title" className="text-base font-semibold text-ink">Add a program</h2>
+        <p className="mt-1 text-sm text-ink-muted">Department: <span className="font-medium text-ink">{structure.department || 'Not assigned'}</span>. Each year also gets a Non Block section.</p>
+        <form onSubmit={submit} className="mt-4 space-y-4 border-t border-line pt-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+            <Field label="Program name">
+              <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required placeholder="e.g. BS Information Technology" />
+            </Field>
+            <SectionCountFields form={form} setForm={setForm} />
+          </div>
+          <Button type="submit" leftIcon={Plus} disabled={busy || !form.name.trim()}>{busy ? 'Saving...' : 'Add program'}</Button>
+        </form>
+        {error && !loadFailed && !editing && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
+        {success && <p role="status" className="mt-4 text-sm font-medium text-success-strong">{success}</p>}
+      </section>
+
+      <ClassListImportPanel />
+
+      <section className="rounded-card border border-line bg-surface" aria-labelledby="configured-programs-title">
+        <div className="border-b border-line px-5 py-4">
+          <h2 id="configured-programs-title" className="text-base font-semibold text-ink">Programs</h2>
+          <p className="mt-1 text-sm text-ink-muted">Block sections use letter labels. Each year keeps its Non Block section.</p>
         </div>
-        <button disabled={busy || !form.name.trim()} className="mt-5 inline-flex h-11 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50"><Plus size={16} />{busy ? 'Saving...' : 'Add Program'}</button>
-      </form>
-      {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
-      {success && <p className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success-tint px-3 py-2 text-sm font-medium text-success-strong"><Check size={15} />{success}</p>}
-    </section>
+        {loading ? (
+          <div role="status" className="space-y-3 p-5"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading programs</span></div>
+        ) : loadFailed ? (
+          <div className="px-5"><ErrorState title={error} description="Check your connection and try again." onRetry={() => { setLoading(true); load(); }} /></div>
+        ) : structure.programs?.length ? (
+          <ul className="divide-y divide-line-soft">
+            {structure.programs.map((program) => (
+              <li key={program.id} className="p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink">{formatDisplayText(program.name)}</h3>
+                    <p className="text-xs text-ink-muted">{program.duration_years || 4}-year program</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" aria-label={`Edit ${formatDisplayText(program.name)}`} onClick={() => beginEdit(program)}>Edit</Button>
+                    <Button variant="secondary" aria-label={`Delete ${formatDisplayText(program.name)}`} className="text-danger-strong" onClick={() => setDeleteTarget(program)}>Delete</Button>
+                  </div>
+                </div>
+                <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {yearsFor(program.duration_years || 4).map((year) => {
+                    const sections = program.sections?.filter((section) => Number(section.year_level) === year) || [];
+                    return (
+                      <div key={year}>
+                        <dt className="text-xs font-semibold text-ink-muted">{yearLabel(year)}</dt>
+                        <dd className="mt-0.5 text-sm text-ink">{sections.map((section) => section.name).join(', ')}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="px-5"><EmptyState title="No programs yet" description="Add a program above to set up its years and sections." /></div>
+        )}
+      </section>
 
-    <ClassListImportPanel />
+      <Drawer
+        open={Boolean(editing)}
+        title="Edit program"
+        description="A section cannot be removed while user accounts are assigned to it. Renaming a program updates assigned user profiles."
+        width="max-w-xl"
+        onClose={() => !busy && setEditing(null)}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setEditing(null)} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="edit-program-form" disabled={busy || !editForm.name.trim()}>{busy ? 'Saving...' : 'Save changes'}</Button>
+          </>
+        )}
+      >
+        <form id="edit-program-form" onSubmit={saveEdit} className="space-y-4">
+          <Field label="Program name">
+            <Input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required />
+          </Field>
+          <SectionCountFields form={editForm} setForm={setEditForm} />
+          {error && !loadFailed && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+        </form>
+      </Drawer>
 
-    <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
-      <div className="flex items-center gap-2 border-b border-line p-5"><BookOpen size={18} className="text-brand-700" /><div><h3 className="font-bold text-ink">Configured programs</h3><p className="text-xs text-slate-500">Block sections use letter labels; each year always keeps its Non Block option.</p></div></div>
-      {loading ? <div className="space-y-2 p-5">{[1, 2].map((row) => <div key={row} className="h-20 animate-pulse rounded-lg bg-slate-100" />)}</div> : <div className="divide-y divide-line">{structure.programs?.length ? structure.programs.map((program) => <article key={program.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Layers size={16} className="text-brand-700" /><div><h4 className="font-bold text-ink">{formatDisplayText(program.name)}</h4><p className="text-xs text-slate-500">{program.duration_years || 4}-year program</p></div></div><div className="flex gap-1"><button type="button" aria-label={`Edit ${formatDisplayText(program.name)}`} title="Edit program" onClick={() => beginEdit(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-line text-brand-700 hover:bg-subtle"><Pencil size={15} /></button><button type="button" aria-label={`Delete ${formatDisplayText(program.name)}`} title="Delete program" onClick={() => setDeleteTarget(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{yearsFor(program.duration_years || 4).map((year) => { const sections = program.sections?.filter((section) => Number(section.year_level) === year) || []; return <div key={year} className="rounded-lg border border-line bg-subtle px-3 py-2.5"><p className="text-xs font-bold text-slate-500">{yearLabel(year)}</p><p className="mt-1 text-sm font-bold text-ink">{sections.map((section) => section.name).join(', ')}</p></div>; })}</div></article>) : <p className="p-10 text-center text-sm text-slate-500">No programs have been configured yet.</p>}</div>}
-    </section>
-
-    {editing && <AccessibleOverlay label="Edit academic program" onClose={() => !busy && setEditing(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4"><form onSubmit={saveEdit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-bold text-brand-700">Update academic structure</p><h3 className="mt-1 text-xl font-semibold text-ink">Edit Program</h3></div><button type="button" aria-label="Close edit program" onClick={() => setEditing(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div><label className="mt-5 block text-[13px] font-semibold text-ink">Course / Program<input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600" /></label><div className="mt-4"><SectionCountFields form={editForm} setForm={setEditForm} /></div><p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">A section cannot be removed while user accounts are assigned to it. Renaming a program safely updates assigned user profiles.</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} disabled={busy} className="h-11 rounded-lg border border-line px-4 text-sm font-bold text-slate-600">Cancel</button><button disabled={busy || !editForm.name.trim()} className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white disabled:opacity-50"><Save size={15} />{busy ? 'Saving...' : 'Save Changes'}</button></div></form></AccessibleOverlay>}
-
-    {deleteTarget && <AccessibleOverlay label="Delete academic program" onClose={() => !busy && setDeleteTarget(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4"><div className="w-full max-w-md rounded-lg bg-white p-6"><h3 className="text-lg font-semibold text-ink">Delete program?</h3><p className="mt-2 text-sm text-slate-600">This permanently removes <strong>{formatDisplayText(deleteTarget.name)}</strong> and all its sections. Programs assigned to users cannot be deleted.</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDeleteTarget(null)} disabled={busy} className="h-11 rounded-lg border border-line px-4 text-sm font-bold text-slate-600">Cancel</button><button type="button" onClick={confirmDelete} disabled={busy} className="inline-flex h-11 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-50"><Trash2 size={15} />{busy ? 'Deleting...' : 'Delete Program'}</button></div></div></AccessibleOverlay>}
-  </div>;
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete program"
+        message="This permanently removes the program and all its sections. Programs assigned to users cannot be deleted."
+        recordName={deleteTarget ? formatDisplayText(deleteTarget.name) : ''}
+        confirmText="Delete program"
+        busy={busy}
+        onCancel={() => !busy && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
 }

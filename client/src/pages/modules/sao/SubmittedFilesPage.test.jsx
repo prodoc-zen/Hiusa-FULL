@@ -31,6 +31,7 @@ describe('SubmittedFilesPage', () => {
     fireEvent.change(screen.getByLabelText('New file'), { target: { files: [new File(['%PDF'], 'corrected.pdf', { type: 'application/pdf' })] } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit replacement' }));
     await waitFor(() => expect(mocks.replaceComplianceFile).toHaveBeenCalledWith(11, expect.any(File), row.submitted_at));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for constitution.pdf' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete file' }));

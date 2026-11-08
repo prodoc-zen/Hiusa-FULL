@@ -119,9 +119,10 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
 // falls back to the one-line summary. Skipped steps do not count.
 const MAX_LISTED_STEPS = 6;
 
-// variant="compact" is one line for table rows. Pass `summary` (the next action text) to show it
-// alone below 640px, where a row has no room for a step label and a meter.
-export default function FlowStepper({ steps = [], variant = 'full', ariaLabel = 'Progress', summary, className = '' }) {
+// The default is one line: a step label and a meter, which fits a table row, a drawer or a page
+// header. Pass variant="full" for the labelled step list. Pass `summary` (the next action text) to
+// show it alone below 640px, where a row has no room for a step label and a meter.
+export default function FlowStepper({ steps = [], variant = 'compact', ariaLabel = 'Progress', summary, className = '' }) {
   if (steps.length === 0) return null;
   const counted = steps.filter((step) => normalize(step.state) !== 'skipped').length;
   if (variant === 'compact' || counted > MAX_LISTED_STEPS) {

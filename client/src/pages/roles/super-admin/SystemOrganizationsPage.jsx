@@ -13,7 +13,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import CreateUnifiedOrganizationModal from '../../../components/organizations/CreateUnifiedOrganizationModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
-import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, StatusBadge, Tabs, Textarea } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, Input, Select, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -322,7 +322,7 @@ export default function SystemOrganizationsPage() {
       setLoading(true);
     }
     try {
-      const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 12, page: requestedPage });
+      const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 20, page: requestedPage });
       if (token !== requestToken.current) return;
       const sorted = [...(data.data || [])].sort((left, right) =>
         (left.college || '').localeCompare(right.college || '')
@@ -488,68 +488,88 @@ export default function SystemOrganizationsPage() {
   const parents = parentItems.filter((organization) => !organization.parent_organization_id && organization.is_active);
   const tabs = STATUS_TABS.map((tab) => ({ ...tab, label: counts ? `${tab.label} (${counts[tab.key] || 0})` : tab.label }));
   const editingBase = form ? items.find((item) => item.id === form.id) : null;
+  const columns = [
+    {
+      key: 'organization',
+      header: 'Organization',
+      render: (org) => {
+        const lifecycle = org.lifecycle_status || status;
+        return (
+          <div className="flex min-w-0 items-start gap-3 text-left">
+            {org.logo_url && <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-10 w-10 shrink-0 rounded-control object-cover" />}
+            <div className="min-w-0">
+              <h3 className={`break-words text-sm font-semibold ${lifecycle === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(org.name)}</h3>
+              <p className="mt-1 text-xs font-normal text-ink-muted">{org.acronym} · {org.is_university_wide ? 'All colleges' : org.college || 'No college assigned'}</p>
+              {org.parent_organization && <p className="mt-1 text-xs font-normal text-ink-muted">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}
+              {lifecycle !== 'active' && <div className="mt-2"><LifecycleBadge status={lifecycle} /></div>}
+              {org.college_is_active === false && <p className="mt-2 text-xs font-normal text-danger-strong">College archived, sign-in disabled</p>}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'progress',
+      header: 'Registration progress',
+      render: (org) => {
+        const lifecycle = org.lifecycle_status || status;
+        return (
+          <div className="text-left">
+            <RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" />
+            {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs font-normal text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
+            {lifecycle === 'returned' && <p className="mt-2 text-xs font-normal text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
+          </div>
+        );
+      },
+    },
+    { key: 'members', header: 'Members', align: 'right', render: (org) => org.users_count || 0 },
+    { key: 'admins', header: 'Admins', align: 'right', render: (org) => org.administrators_count ?? org.administrators?.length ?? 0 },
+  ];
+  const rowActions = (org) => {
+    const lifecycle = org.lifecycle_status || status;
+    const name = formatDisplayText(org.name);
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {lifecycle === 'pending' && (
+          <Button variant="secondary" size="sm" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
+        )}
+        <TableRowActions subject={name} label="Organization actions" actions={[
+          { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
+          lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
+          needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first administrator', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
+          lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
+          lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
+          lifecycle === 'active' && { label: 'Add existing student', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
+          lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
+          lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
+          lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
+          { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
+        ]} />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
       {status && <Tabs tabs={tabs} value={status} onChange={selectStatus} />}
       <div {...(status ? { role: 'tabpanel', id: PANEL_ID, 'aria-label': STATUS_TABS.find((tab) => tab.key === status).label } : {})} className="space-y-6">
       <div className="flex flex-wrap items-end gap-3"><Field label="Search organizations" className="w-full max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field>{search && <button type="button" onClick={() => setSearch('')} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}</div>
-      {status === 'archived' && <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">Archived organizations are read-only. Restore to make changes.</p>}
-      {error && !form && <ErrorState description={error} onRetry={() => load()} />}
+      {status === 'archived' && <p role="note" className="text-sm text-ink-muted-strong">Archived organizations are read-only. Restore to make changes.</p>}
       {actionError && <p role="alert" className="rounded-control bg-red-50 p-3 text-sm text-danger-strong">{actionError}</p>}
       {notice && <p role="status" className="rounded-control bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-      {loading && !error && <section aria-label="Loading organizations"><SkeletonTable columns={5} rows={5} /></section>}
-      {!loading && !error && items.length > 0 && <div className="max-w-full overflow-x-auto rounded-card border border-line bg-surface">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <caption className="sr-only">Student organizations, registration progress, membership, and actions</caption>
-          <thead className="border-b border-line bg-subtle text-xs font-semibold text-ink-muted"><tr>
-            <th scope="col" className="px-4 py-2.5">Organization / college</th><th scope="col" className="px-4 py-2.5">Status</th>
-            <th scope="col" className="px-4 py-2.5">Registration progress</th><th scope="col" className="px-4 py-2.5 text-right">Membership</th><th scope="col" className="px-4 py-2.5 text-right">Actions</th>
-          </tr></thead>
-          <tbody className="divide-y divide-line-soft">{items.map((org) => {
-            const lifecycle = org.lifecycle_status || status;
-            const name = formatDisplayText(org.name);
-            return <tr key={org.id} className={lifecycle === 'archived' ? 'bg-subtle' : ''}>
-              <th scope="row" className="max-w-80 px-4 py-3 align-top font-normal">
-                <div className="flex items-start gap-3">
-                  {org.logo_url && <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />}
-                  <div className="min-w-0"><h3 className="break-words font-semibold text-ink">{name}</h3><p className="mt-1 text-xs text-ink-muted">{org.acronym} · {org.is_university_wide ? 'All colleges' : org.college || 'No college assigned'}</p>
-                    {org.parent_organization && <p className="mt-1 text-xs text-ink-muted">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}
-                  </div>
-                </div>
-              </th>
-              <td className="px-4 py-3 align-top"><LifecycleBadge status={lifecycle} />{org.college_is_active === false && <p className="mt-2 text-xs text-danger-strong">College archived · sign-in disabled</p>}</td>
-              <td className="max-w-80 px-4 py-3 align-top"><RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" />
-                {lifecycle === 'pending' && org.submitted_at && <p className="mt-2 text-xs text-ink-muted">Submitted {manilaDate(org.submitted_at)}</p>}
-                {lifecycle === 'returned' && <p className="mt-2 text-xs text-danger-strong">Returned with remarks: {org.review_remarks || 'No remarks were recorded.'}</p>}
-              </td>
-              <td className="px-4 py-3 text-right align-top text-sm tabular-nums text-ink-muted">
-                {org.users_count || 0} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins
-              </td>
-              <td className="px-4 py-2.5 align-top">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {lifecycle === 'pending' && (
-                    <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`} onClick={() => { setReviewTarget(org); setReviewOpen(true); }}>Review</Button>
-                  )}
-                  <TableRowActions subject={name} label="Organization actions" actions={[
-                    { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
-                    lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
-                    needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first administrator', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
-                    lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
-                    lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
-                    lifecycle === 'active' && { label: 'Add existing student', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
-                    lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
-                    lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
-                    lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
-                    { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
-                  ]} />
-                </div>
-              </td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div>}
-      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} onClearFilters={() => setSearch('')} />}
+      <DataTable
+        caption="Student organizations, registration progress, membership, and actions"
+        columns={columns}
+        rows={items}
+        rowKey={(org) => org.id}
+        loading={loading && !error}
+        error={error && !form ? error : null}
+        onRetry={() => load()}
+        stickyHeader={false}
+        actions={rowActions}
+        actionsHeader="Actions"
+        emptyState={<EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} onClearFilters={() => setSearch('')} />}
+      />
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs text-ink-muted"><Button variant="secondary" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span>Page {page} of {lastPage}</span><Button variant="secondary" size="sm" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </div>
       {form && !membershipOrganization && !profileOrganization && (

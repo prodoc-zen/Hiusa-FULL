@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import Modal from '../Modal';
-import { Button, Field, Select } from '../ui';
+import { Button, Drawer, Field, Select } from '../ui';
 import PersonPicker from '../people/PersonPicker';
 import { getProfileOrganizations, inviteAccountProfile } from '../../services/authService';
 import { unwrapList } from '../../services/pagination';
@@ -73,12 +72,11 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   }
 
   return (
-    <Modal
+    <Drawer
       open
       title={headMode ? 'Add administrator' : 'Add an existing student'}
       description="They keep their own login and any other organizations they already belong to."
       onClose={() => !busy && onClose()}
-      closeOnEscape={!busy}
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
@@ -88,7 +86,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
     >
       <form id={formId} onSubmit={add} className="space-y-4">
         {organization ? (
-          <p className="text-sm font-bold text-ink">{formatDisplayText(organization.name)}</p>
+          <p className="text-sm font-semibold text-ink">{formatDisplayText(organization.name)}</p>
         ) : (
           <Field label="Organization" required>
             <Select value={organizationId} disabled={busy || optionsLoading} onChange={(event) => { setOrganizationId(event.target.value); setError(''); }}>
@@ -117,6 +115,6 @@ export default function AddExistingUserModal({ organization = null, initialUser 
         </Field>
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </form>
-    </Modal>
+    </Drawer>
   );
 }

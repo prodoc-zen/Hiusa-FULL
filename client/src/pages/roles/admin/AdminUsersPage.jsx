@@ -1,16 +1,13 @@
-import { filterLabel, filterValues, matchesFilter } from '../../../utils/filterValues';
-import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useInRouterContext, useSearchParams } from 'react-router-dom';
 import { dashboardPopupLeft, dashboardPopupTop } from '../../../utils/dashboardPopupPosition';
-import { BookOpen, BriefcaseBusiness, CalendarDays, CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, Hash, Image, KeyRound, Layers3, Mail, MoreVertical, PencilLine, Phone, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserRound, UserX, UsersRound } from 'lucide-react';
+import { Download, Eye, Fingerprint, MoreVertical, PencilLine, Search, Trash2, Upload, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import TableFilterBar from '../../../components/TableFilterBar';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, Skeleton, StatusBadge } from '../../../components/ui';
 import UserImportDrawer from '../../../components/users/UserImportDrawer';
 import { deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
@@ -21,19 +18,19 @@ import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../..
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
-import DataDonutChart from '../../../components/DataDonutChart';
 import UserIdentityCard from '../../../components/users/UserIdentityCard';
-import SectionDistributionChart from '../../../components/users/SectionDistributionChart';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const filterRoles = accountRoles;
 const ROLE_LABELS = {
-  SUPER_ADMIN: 'Super Admin',
+  SUPER_ADMIN: 'Super admin',
   STUDENT: 'Student',
-  SBO_OFFICER: 'SBO Officer',
-  ADMIN: 'Administrator / Department Secretary (Full organization edit access)',
-  DEPARTMENT_HEAD: 'Department Head',
+  SBO_OFFICER: 'SBO officer',
+  ADMIN: 'Administrator or department secretary (full organization access)',
+  DEPARTMENT_HEAD: 'Department head',
 };
+const ROLE_SHORT = { ...ROLE_LABELS, ADMIN: 'Administrator' };
+const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearNumber = (label) => Number(String(label).match(/^(\d+)/)?.[1]);
 const programYears = (program) => Array.from({ length: Number(program?.duration_years) || 4 }, (_, index) => yearLabel(index + 1));
@@ -52,19 +49,6 @@ const emptyEditForm = {
   major: '', section: '',
 };
 
-const FIELD_ICONS = { 'School ID': Hash, Email: Mail, 'First Name': UserRound, 'Last Name': UserRound, 'Contact Number': Phone, 'Profile photo (optional)': Image, Role: ShieldCheck, 'Organization Position': BriefcaseBusiness, 'Course / Program': BookOpen, 'Year Level': CalendarDays, 'Major / Specialization': Layers3, Section: Layers3, Password: KeyRound, 'Confirm Password': KeyRound };
-
-function Field({ label, children, error, required = false, className = '' }) {
-  const Icon = FIELD_ICONS[label];
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-ink">{Icon && <Icon size={14} aria-hidden="true" className="text-brand-700" />}{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
-      {children}
-      {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
-    </label>
-  );
-}
-
 function firstError(error) {
   const errors = error?.response?.data?.errors;
   if (errors) {
@@ -73,17 +57,6 @@ function firstError(error) {
 
   return error?.response?.data?.message;
 }
-
-const ACTION_ICON_COLORS = {
-  edit: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-  view: 'border-line bg-page text-navy-800 hover:bg-brand-50',
-  fingerprint: 'border-line bg-brand-50 text-navy-800 hover:bg-brand-50',
-  enrolledFingerprint: 'border-success/30 bg-success-tint text-success-strong hover:bg-success-tint',
-  verify: 'border-line bg-brand-50 text-navy-800 hover:bg-subtle',
-  deactivate: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
-  reactivate: 'border-success/30 bg-success-tint text-success-strong hover:bg-success-tint',
-  delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
-};
 
 export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile, onManageProfiles }) {
   const menuId = useId();
@@ -96,15 +69,15 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const canManageAccount = actorRole !== 'SBO_OFFICER' && officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const canManageFingerprint = officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const actions = [
-    canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
-    { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
-    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onAddProfile && user.role !== 'SUPER_ADMIN' && { key: 'membership', label: `Add ${name} to an organization`, menuLabel: 'Add to organization', title: 'Add organization profile', icon: UserPlus, color: 'view', onClick: onAddProfile },
-    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onManageProfiles && user.role !== 'SUPER_ADMIN' && { key: 'profiles', label: `Manage profiles for ${name}`, menuLabel: 'Manage profiles', title: 'Manage organization profiles', icon: UserPlus, color: 'view', onClick: onManageProfiles },
-    canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
-    user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, color: 'verify', onClick: onVerify },
-    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
-    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
-    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete profile', title: 'Delete organization profile', icon: Trash2, color: 'delete', onClick: onDelete },
+    canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, onClick: onEdit },
+    { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, onClick: onView },
+    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onAddProfile && user.role !== 'SUPER_ADMIN' && { key: 'membership', label: `Add ${name} to an organization`, menuLabel: 'Add to organization', title: 'Add organization profile', icon: UserPlus, onClick: onAddProfile },
+    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onManageProfiles && user.role !== 'SUPER_ADMIN' && { key: 'profiles', label: `Manage profiles for ${name}`, menuLabel: 'Manage profiles', title: 'Manage organization profiles', icon: UserPlus, onClick: onManageProfiles },
+    canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, onClick: onFingerprint },
+    user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, onClick: onVerify },
+    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, onClick: onDeactivate },
+    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, onClick: onReactivate },
+    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete profile', title: 'Delete organization profile', icon: Trash2, onClick: onDelete },
   ].filter(Boolean);
 
   useEffect(() => {
@@ -167,13 +140,10 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       aria-label={`Actions for ${formatDisplayText(name)}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
-      className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-lg border border-line bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+      className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-card border border-line bg-surface p-1 shadow-raised ${expanded ? 'visible' : 'invisible pointer-events-none'}`}
     >
-      <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
-        <p className="text-xs font-semibold tracking-[0.16em] text-brand-700">User actions</p>
-        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{formatDisplayText(name)}</p>
-      </div>
-      <div className="space-y-0.5">
+      <p className="truncate border-b border-line-soft px-2.5 py-2 text-xs font-medium text-ink-muted">{formatDisplayText(name)}</p>
+      <div className="pt-1">
         {actions.map((action) => {
           const Icon = action.icon;
           const destructive = action.key === 'delete';
@@ -185,11 +155,10 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
               aria-label={action.label}
               tabIndex={expanded ? 0 : -1}
               onClick={() => run(action)}
-              className={`group flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-subtle hover:text-brand-700'}`}
+              className={`flex h-11 w-full items-center gap-3 rounded-control px-2.5 text-left text-[13px] font-medium ${destructive ? 'text-danger-strong hover:bg-danger-tint' : 'text-ink hover:bg-subtle'}`}
             >
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-colors duration-150 ${ACTION_ICON_COLORS[action.color]}`}><Icon size={14} strokeWidth={2.1} /></span>
+              <Icon size={15} aria-hidden="true" className={destructive ? '' : 'text-ink-muted'} />
               <span className="min-w-0 flex-1 truncate">{action.menuLabel}</span>
-              <span className={`h-1.5 w-1.5 rounded-full transition-[background-color,color,border-color,transform] duration-150 ${destructive ? 'bg-red-200 group-hover:bg-red-500' : 'bg-slate-200 group-hover:bg-accent'}`} />
             </button>
           );
         })}
@@ -199,7 +168,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   );
 
   return (
-    <div className="ml-auto flex h-10 w-10 items-center justify-end">
+    <div className="ml-auto flex h-11 w-11 items-center justify-end">
       <button
         ref={triggerRef}
         type="button"
@@ -208,9 +177,9 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
         aria-haspopup="menu"
         aria-controls={menuId}
         onClick={toggleMenu}
-        className={`grid h-9 w-9 place-items-center rounded-lg border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-accent bg-brand-50 text-navy-800 shadow-accent/15' : 'border-line bg-white text-slate-500 hover:border-line hover:bg-subtle hover:text-brand-700'}`}
+        className={`grid h-11 w-11 place-items-center rounded-control border border-line transition-colors duration-150 ${expanded ? 'bg-subtle text-ink' : 'bg-surface text-ink-muted hover:bg-subtle hover:text-ink'}`}
       >
-        <MoreVertical size={18} />
+        <MoreVertical size={18} aria-hidden="true" />
       </button>
       {menu}
     </div>
@@ -256,10 +225,10 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
   if (confirmRemove) {
     return <ConfirmModal
       open
-      title="Remove Fingerprint Enrollment"
-      message="The encrypted fingerprint template will be removed. Attendance identification will stop working for this Student until they enroll again."
+      title="Remove fingerprint enrollment"
+      message="The encrypted fingerprint template will be removed. Attendance identification will stop working for this student until they enroll again."
       recordName={`${user.first_name} ${user.last_name} · School ID ${user.school_id}`}
-      confirmText="Remove Fingerprint"
+      confirmText="Remove fingerprint"
       variant="danger"
       busy={busy}
       onCancel={() => !busy && setConfirmRemove(false)}
@@ -268,36 +237,33 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
   }
 
   return (
-    <Modal
+    <Drawer
       open
-      title={user.fingerprint_enrolled ? 'Re-enroll Fingerprint' : 'Enroll Fingerprint'}
+      title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'}
       description={`${user.first_name} ${user.last_name} · School ID ${user.school_id}`}
       onClose={() => !busy && onClose()}
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
       footer={<>
-        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
-        {user.fingerprint_enrolled && <button type="button" onClick={() => setConfirmRemove(true)} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
-        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Close</Button>
+        {user.fingerprint_enrolled && <Button variant="secondary" className="text-danger-strong" onClick={() => setConfirmRemove(true)} disabled={busy}>Remove</Button>}
+        <Button onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed}>{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start re-enrollment' : 'Start 4-scan enrollment'}</Button>
       </>}
-      maxWidth="max-w-lg"
     >
       <div className="space-y-4">
         <UserIdentityCard user={user} compact />
         <ScannerStatus reader={reader} />
-        <div className="rounded-lg border border-line bg-subtle p-4">
-          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-ink">Capture progress</p><span className="text-xs font-bold text-brand-700">{captured} / 4</span></div>
+        <div>
+          <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-ink">Capture progress</p><span className="text-xs font-medium tabular-nums text-ink-muted">{captured} / 4</span></div>
           <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-brand-700' : 'bg-line'}`} />)}</div>
-          <p className="mt-3 text-xs leading-5 text-slate-500">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
+          <p className="mt-3 text-xs leading-5 text-ink-muted-strong">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
         </div>
-        <label className="flex items-start gap-3 rounded-lg border border-line bg-white p-3 text-xs font-medium leading-5 text-slate-600">
+        <label className="flex min-h-11 items-start gap-3 text-sm leading-5 text-ink-muted-strong">
           <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-line" />
           <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
         </label>
-        {busy && <p className="rounded-lg border border-line bg-brand-50 px-3 py-2 text-xs font-semibold text-navy-800">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
-        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
+        {busy && <p className="text-sm font-medium text-ink">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
+        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </div>
-    </Modal>
+    </Drawer>
   );
 }
 
@@ -315,7 +281,7 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
       const capture = await reader.identifyFingerprint();
       const response = await identifyFingerprint(capture);
       const identifiedUser = response.data?.user;
-      if (!identifiedUser?.school_id) throw new Error('The matcher did not return an identified user. Please scan again.');
+      if (!identifiedUser?.school_id) throw new Error('The matcher did not return an identified user. Scan again.');
       setResult({
         user: identifiedUser,
         matchesExpected: String(identifiedUser?.school_id) === String(expectedUser.school_id),
@@ -332,44 +298,34 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
   const identifiedName = result?.user ? `${result.user.first_name} ${result.user.last_name}` : '';
 
   return (
-    <Modal
+    <Drawer
       open
-      title="Verify Fingerprint Identity"
-      description="One scan checks the fingerprint against every enrolled user in this organization (1:N)."
+      title="Verify fingerprint identity"
+      description="One scan checks the fingerprint against every enrolled user in this organization."
       onClose={() => !busy && onClose()}
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
-      maxWidth="max-w-xl"
       footer={<>
-        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
-        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white transition-colors hover:bg-navy-800 disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Close</Button>
+        <Button leftIcon={Fingerprint} onClick={handleVerify} disabled={busy || !reader.connected}>{busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</Button>
       </>}
     >
       <div className="space-y-4">
         <ScannerStatus reader={reader} />
-        <div className="rounded-lg border border-line bg-subtle p-4">
-          <p className="text-xs font-semibold tracking-[0.16em] text-brand-700">Expected account</p>
-          <div className="mt-2 flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-navy-800">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
-            <div><p className="text-sm font-semibold text-ink">{formatDisplayText(expectedUser.first_name)} {formatDisplayText(expectedUser.last_name)}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
-          </div>
+        <div>
+          <p className="text-xs font-semibold text-ink-muted">Expected account</p>
+          <p className="mt-1 text-sm font-semibold text-ink">{formatDisplayText(expectedUser.first_name)} {formatDisplayText(expectedUser.last_name)}</p>
+          <p className="text-xs text-ink-muted-strong">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p>
         </div>
 
-        {busy && <div className="rounded-lg border border-line bg-brand-50 px-4 py-3"><p className="text-sm font-bold text-navy-800">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-navy-800">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-        {result && <div className={`rounded-lg border p-4 ${result.matchesExpected ? 'border-success/30 bg-success-tint' : 'border-amber-200 bg-amber-50'}`}>
-          <div className="flex items-start gap-3">
-            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${result.matchesExpected ? 'bg-success-tint text-success-strong' : 'bg-amber-100 text-amber-700'}`}><UserCheck size={19} /></span>
-            <div className="min-w-0 flex-1">
-              <p className={`text-xs font-semibold tracking-[0.16em] ${result.matchesExpected ? 'text-success-strong' : 'text-amber-700'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>
-              <p className="mt-1 text-base font-semibold text-ink">{identifiedName}</p>
-              <p className="text-xs font-medium text-slate-600">School ID {result.user?.school_id} · {ROLE_LABELS[result.user?.role] || result.user?.role}</p>
-              {Number.isFinite(Number(result.score)) && <p className="mt-2 text-xs font-semibold text-slate-500">Match score {Number(result.score).toFixed(2)}{Number.isFinite(Number(result.threshold)) ? ` · Required ${Number(result.threshold).toFixed(2)}` : ''}</p>}
-            </div>
-          </div>
+        {busy && <p className="text-sm font-medium text-ink">Place one finger flat on the reader. HIUSA searches this organization's enrolled fingerprints.</p>}
+        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+        {result && <div role="status" className="border-t border-line pt-4">
+          <p className={`text-sm font-semibold ${result.matchesExpected ? 'text-success-strong' : 'text-warning-strong'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>
+          <p className="mt-1 text-base font-semibold text-ink">{identifiedName}</p>
+          <p className="text-xs text-ink-muted-strong">School ID {result.user?.school_id} · {ROLE_LABELS[result.user?.role] || result.user?.role}</p>
+          {Number.isFinite(Number(result.score)) && <p className="mt-2 text-xs text-ink-muted">Match score {Number(result.score).toFixed(2)}{Number.isFinite(Number(result.threshold)) ? ` · Required ${Number(result.threshold).toFixed(2)}` : ''}</p>}
         </div>}
       </div>
-    </Modal>
+    </Drawer>
   );
 }
 
@@ -391,7 +347,6 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
-  const [sectionSummary, setSectionSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -412,11 +367,8 @@ export default function AdminUsersPage() {
     }
   };
   const [programFilter, setProgramFilter] = useState('all');
-  const [yearLevelFilter, setYearLevelFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sort, setSort] = useState('name');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [modalError, setModalError] = useState('');
   const [modalFieldErrors, setModalFieldErrors] = useState({});
   const [editPhoto, setEditPhoto] = useState(null);
@@ -440,7 +392,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [sboPositions, setSboPositions] = useState([]);
   const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
-  const pageSize = 10;
+  const pageSize = 20;
   const [showImport, setShowImport] = useState(false);
   const loadRequestRef = useRef(0);
 
@@ -456,10 +408,7 @@ export default function AdminUsersPage() {
   // Shared by load() and export(): every filter maps onto a /users query parameter.
   const userQuery = {
     ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
-    ...(statusFilter !== 'all' ? { account_status: statusFilter } : {}),
     ...(programFilter !== 'all' ? { program: programFilter } : {}),
-    ...(yearLevelFilter !== 'all' ? { year_level: yearLevelFilter } : {}),
-    ...(sectionFilter !== 'all' ? { section: sectionFilter } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
   };
 
@@ -471,6 +420,7 @@ export default function AdminUsersPage() {
     const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError('');
+    setLoadError('');
     try {
       // Positions and the academic structure are best-effort: a hiccup there must
       // not blank the user table, so each falls back to null instead of rejecting.
@@ -483,33 +433,27 @@ export default function AdminUsersPage() {
       setUsers(unwrapList(usersRes));
       setMeta(listMeta(usersRes));
       setRoleSummary(usersRes?.summary?.by_role ?? {});
-      setSectionSummary(usersRes?.summary?.by_section ?? []);
       setSboPositions(Array.isArray(positions) ? positions : []);
       if (structure) setAcademicStructure(structure || { department: '', programs: [] });
     } catch {
-      if (loadRequestRef.current === requestId) setError('Unable to load users.');
+      if (loadRequestRef.current === requestId) setLoadError('Unable to load users.');
     } finally {
       if (loadRequestRef.current === requestId) setLoading(false);
     }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [roleFilter, statusFilter, programFilter, yearLevelFilter, sectionFilter, debouncedSearch, page]);
+  useEffect(() => { load(); }, [roleFilter, programFilter, debouncedSearch, page]);
 
   const refreshUsers = load;
 
   // Every filter is applied server-side, so any change goes back to page 1.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, roleFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter]);
+  }, [debouncedSearch, roleFilter, programFilter]);
 
-  // /users has no sort parameter, so sort orders the page on screen.
-  const sortedUsers = useMemo(() => [...users].sort((left, right) => {
-    if (sort === 'newest') return new Date(right.created_at || 0) - new Date(left.created_at || 0);
-    if (sort === 'school_id') return String(left.school_id).localeCompare(String(right.school_id), undefined, { numeric: true });
-      if (sort === 'program') return String(left.program || '').localeCompare(String(right.program || '')) || String(left.year_level || '').localeCompare(String(right.year_level || '')) || String(left.section || '').localeCompare(String(right.section || ''));
-    return `${left.last_name} ${left.first_name}`.localeCompare(`${right.last_name} ${right.first_name}`);
-  }), [users, sort]);
+  // /users has no sort parameter, so the page is ordered by name on screen.
+  const sortedUsers = useMemo(() => [...users].sort((left, right) => `${left.last_name} ${left.first_name}`.localeCompare(`${right.last_name} ${right.first_name}`)), [users]);
 
   const exportUsers = async () => {
     // Export every user matching the active filters; the table shows one page.
@@ -658,297 +602,256 @@ export default function AdminUsersPage() {
     } finally { setBusy(false); }
   };
 
-  const userForm = (form, setForm) => (
-    <form id="edit-user-form" onSubmit={handleEdit} className="grid gap-4 sm:grid-cols-2">
-      <div className="sm:col-span-2"><h3 className="text-sm font-bold text-navy-800">Identity and contact</h3><p className="text-xs text-slate-500">Fields marked * are required.</p></div>
-      {selectedUser && <div className="sm:col-span-2"><UserIdentityCard user={selectedUser} compact /></div>}
-      <Field label="Email" required error={modalFieldErrors.email?.[0]}>
-        <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
-      </Field>
-      <Field label="First Name" required error={modalFieldErrors.first_name?.[0]}>
-        <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
-      </Field>
-      <Field label="Last Name" required error={modalFieldErrors.last_name?.[0]}>
-        <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
-      </Field>
-      <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
-        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
-      </Field>
-      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setEditPhoto(event.target.files?.[0] || null)} className="w-full rounded-lg border border-line p-2 text-xs" /><span className="mt-1 block text-xs text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
-      <div className="mt-2 border-t border-line pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-navy-800">Role and academic details</h3></div>
-      <Field label="Role" required error={modalFieldErrors.role?.[0]}>
-        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100 disabled:text-slate-500">
-          {(selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
-            <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-          ))}
-        </HiusaSelect>
-      </Field>
-      {['ADMIN', 'SBO_OFFICER'].includes(form.role) && <Field label="Organization Position" error={modalFieldErrors.position_title?.[0]}>
-        <HiusaSelect
-          value={form.position_title}
-          onChange={(event) => setForm({ ...form, position_title: event.target.value })}
-          disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
-          className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100 disabled:text-slate-500"
-        >
-          <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
-          {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
-            <option key={position.id} value={position.title}>{formatDisplayText(position.title)}</option>
-          ))}
-        </HiusaSelect>
-      </Field>}
-      <Field label="Course / Program" error={modalFieldErrors.program?.[0]}>
-        <HiusaSelect value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
-        {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
-      </Field>
-      <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
-        <HiusaSelect value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
-      </Field>
-      <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-line px-3 text-sm" /></Field>
-      <Field label="Section" error={modalFieldErrors.section?.[0]}><HiusaSelect value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-card border border-line px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect></Field>
-      {modalError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 sm:col-span-2">
-          {modalError}
-        </div>
-      )}
-    </form>
-  );
+  const fieldError = (name) => modalFieldErrors[name]?.[0];
 
-  const activeUserFilters = [
-    search.trim() && `Search: ${search.trim()}`,
-    roleFilter !== 'all' && `Role: ${filterLabel(roleFilter, (role) => ROLE_LABELS[role] || role)}`,
-    programFilter !== 'all' && `Program: ${filterLabel(programFilter)}`,
-    yearLevelFilter !== 'all' && `Year: ${filterLabel(yearLevelFilter)}`,
-    sectionFilter !== 'all' && `Section: ${filterLabel(sectionFilter)}`,
-    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter)}`,
-    sort !== 'name' && `Sort: ${sort.replaceAll('_', ' ')}`,
-  ].filter(Boolean);
+  const userForm = (form, setForm) => {
+    const selectedProgram = academicStructure.programs?.find((program) => program.name === form.program);
+    const hasPosition = ['ADMIN', 'SBO_OFFICER'].includes(form.role);
+    return (
+      <form id="edit-user-form" onSubmit={handleEdit} className="space-y-4">
+        {selectedUser && <UserIdentityCard user={selectedUser} compact />}
+        <h3 className="text-sm font-semibold text-ink">Identity and contact</h3>
+        <Field label="Email" required error={fieldError('email')}>
+          <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First name" required error={fieldError('first_name')}>
+            <Input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} />
+          </Field>
+          <Field label="Last name" required error={fieldError('last_name')}>
+            <Input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} />
+          </Field>
+        </div>
+        <Field label="Contact number" optional error={fieldError('contact_number')}>
+          <Input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} />
+        </Field>
+        <Field label="Profile photo" optional error={fieldError('photo')} hint="JPEG, PNG or WebP, up to 2 MB.">
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setEditPhoto(event.target.files?.[0] || null)} className="block w-full rounded-control border border-line bg-surface text-sm text-ink file:mr-3 file:h-10 file:border-0 file:bg-subtle file:px-4 file:text-sm file:font-semibold file:text-brand-700" />
+        </Field>
+        <h3 className="border-t border-line pt-4 text-sm font-semibold text-ink">Role and academic details</h3>
+        <Field label="Role" required error={fieldError('role')}>
+          <Select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || selectedUser?.role === 'ADMIN'}>
+            {(selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
+              <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+            ))}
+          </Select>
+        </Field>
+        {hasPosition && (
+          <Field label="Organization position" optional error={fieldError('position_title')}>
+            <Select value={form.position_title} onChange={(event) => setForm({ ...form, position_title: event.target.value })}>
+              <option value="">Choose a position</option>
+              {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
+                <option key={position.id} value={position.title}>{formatDisplayText(position.title)}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Field
+          label="Course or program"
+          optional
+          error={fieldError('program')}
+          hint={form.role === 'STUDENT' && !academicStructure.programs?.length ? 'Set up a program in Programs and sections first.' : undefined}
+        >
+          <Select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })}>
+            <option value="">Choose a program</option>
+            {academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}
+          </Select>
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Year level" optional error={fieldError('year_level')}>
+            <Select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program}>
+              <option value="">Choose a year level</option>
+              {programYears(selectedProgram).map((year) => <option key={year}>{year}</option>)}
+            </Select>
+          </Field>
+          <Field label="Section" optional error={fieldError('section')}>
+            <Select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level}>
+              <option value="">Choose a section</option>
+              {selectedProgram?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Major or specialization" optional error={fieldError('major')}>
+          <Input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} />
+        </Field>
+        {modalError && <p role="alert" className="text-sm font-semibold text-danger-strong">{modalError}</p>}
+      </form>
+    );
+  };
+
+  const filtersActive = Boolean(search.trim() || (!isAdminsUnit && roleFilter !== 'all') || programFilter !== 'all');
 
   const clearUserFilters = () => {
     setSearch('');
-    setRoleFilter('all');
+    setRoleFilter(isAdminsUnit ? 'ADMIN' : 'all');
     setProgramFilter('all');
-    setYearLevelFilter('all');
-    setSectionFilter('all');
-    setStatusFilter('all');
-    setSort('name');
     setPage(1);
   };
+
+  const dock = (user) => (
+    <UserActionDock
+      user={user}
+      actorRole={actorRole}
+      onEdit={() => openEdit(user)}
+      onView={() => openProfile(user)}
+      onManageProfiles={() => setManagedProfileUser(user)}
+      onAddProfile={() => openAddStudent(user)}
+      onFingerprint={() => setFingerprintTarget(user)}
+      onVerify={() => setFingerprintVerifyTarget(user)}
+      onDeactivate={() => setDisableTarget(user)}
+      onReactivate={() => setReactivateTarget(user)}
+      onDelete={() => setDeleteTarget(user)}
+    />
+  );
+
+  // The default state (an active account, no fingerprint yet) carries no badge and no text.
+  const columns = [
+    {
+      key: 'name',
+      header: 'Name',
+      render: (user) => (
+        <>
+          <span className="font-medium">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</span>
+          <span className="block text-xs tabular-nums text-ink-muted">{user.school_id}</span>
+        </>
+      ),
+    },
+    { key: 'role', header: 'Role', render: (user) => ROLE_SHORT[user.role] || user.role },
+    {
+      key: 'program',
+      header: 'Program',
+      render: (user) => (
+        <>
+          {user.program}
+          {user.major && <span className="block text-xs text-ink-muted">{user.major}</span>}
+        </>
+      ),
+    },
+    { key: 'year', header: 'Year level', render: (user) => user.year_level },
+    { key: 'section', header: 'Section', render: (user) => user.section },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (user) => (!user.account_status || user.account_status === 'active' ? null : <StatusBadge tone={user.account_status === 'disabled' ? 'danger' : 'warning'} label={user.account_status === 'disabled' ? 'Disabled' : 'Inactive'} />),
+    },
+    { key: 'fingerprint', header: 'Fingerprint', render: (user) => (user.fingerprint_enrolled ? 'Enrolled' : null) },
+  ];
+
+  const filters = (
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative min-w-0 flex-1 sm:max-w-sm">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+        <Input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, school ID, program or email" className="pl-9" />
+      </div>
+      {!isAdminsUnit && visibleFilterRoles.length > 1 && (
+        <Select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="sm:w-44">
+          <option value="all">All roles</option>
+          {visibleFilterRoles.map((role) => (
+            <option key={role} value={role}>{ROLE_SHORT[role]}</option>
+          ))}
+        </Select>
+      )}
+      <Select aria-label="Filter by program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)} className="sm:w-52">
+        <option value="all">All programs</option>
+        {academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}
+      </Select>
+      {filtersActive && (
+        <button type="button" onClick={clearUserFilters} className="min-h-11 self-start rounded-control px-1 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-auto">Clear</button>
+      )}
+      <p className="text-sm tabular-nums text-ink-muted sm:ml-auto">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
+    </div>
+  );
+
+  const canManage = actorRole !== 'SBO_OFFICER';
+  const tabClass = (selected) => `-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm ${selected ? 'border-brand-700 font-semibold text-ink' : 'border-transparent font-medium text-ink-muted hover:text-ink'}`;
 
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-
-      {actorRole === 'ADMIN' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm">
-          <div className="flex items-center gap-2" role="tablist" aria-label="Member management units">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={!isAdminsUnit}
-              onClick={() => switchUnit('members')}
-              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${!isAdminsUnit ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-subtle'}`}
-            >
-              <UsersRound size={15} /> All Members
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isAdminsUnit}
-              onClick={() => switchUnit('admins')}
-              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-xs font-bold transition ${isAdminsUnit ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-subtle'}`}
-            >
-              <ShieldCheck size={15} /> Manage Admins
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isAdminsUnit ? 'bg-white/20 text-white' : 'bg-page text-navy-800'}`}>{roleSummary.ADMIN ?? 0}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      <section className="flex flex-col gap-4 rounded-lg border border-line bg-page p-4 shadow-sm lg:flex-row lg:items-center">
-        <div className="grid flex-1 gap-3 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [
-          ['Students', meta.total, GraduationCap], ['Fingerprint directory', 'Attendance use only', Fingerprint],
-        ] : [
-          ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
-        ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-line bg-white p-4"><div><dt className="text-xs font-bold text-slate-500">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{value}</dd></div><Icon size={22} className="text-brand-700" aria-hidden="true" /></dl>)}</div>
-        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-bold text-navy-800 hover:bg-subtle disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-bold text-navy-800 hover:bg-subtle"><Upload size={15} /> Import</button>}<button type="button" onClick={() => openAddStudent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800"><UserPlus size={15} /> Add existing student</button></div>}
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-      <DataDonutChart
-        title="Filtered user distribution"
-        description={`${Number(roleSummary.STUDENT ?? 0).toLocaleString()} student${Number(roleSummary.STUDENT ?? 0) === 1 ? '' : 's'} match the current search and academic filters.`}
-        centerValue={meta.total}
-        centerLabel="matching users"
-        segments={[
-          { label: 'Students', value: roleSummary.STUDENT ?? 0, color: '#0B8ED0' },
-          { label: 'SBO officers', value: roleSummary.SBO_OFFICER ?? 0, color: '#0F2F62' },
-          { label: 'Admins', value: roleSummary.ADMIN ?? 0, color: '#16A34A' },
-          { label: 'Department heads', value: roleSummary.DEPARTMENT_HEAD ?? 0, color: '#F59E0B' },
-          { label: 'Super admins', value: roleSummary.SUPER_ADMIN ?? 0, color: '#64748B' },
-        ]}
+      <PageHeader
+        actions={canManage ? (
+          <>
+            <Button variant="secondary" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>
+            {actorRole === 'ADMIN' && <Button variant="secondary" leftIcon={Upload} onClick={() => setShowImport(true)}>Import</Button>}
+          </>
+        ) : undefined}
+        primary={canManage ? <Button leftIcon={UserPlus} onClick={() => openAddStudent()}>{isAdminsUnit ? 'Add administrator' : 'Add existing student'}</Button> : undefined}
       />
 
-      <SectionDistributionChart sections={sectionSummary} loading={loading} />
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
+      {actorRole === 'ADMIN' && (
+        <div className="flex border-b border-line" role="tablist" aria-label="Member management units">
+          <button type="button" role="tab" aria-selected={!isAdminsUnit} onClick={() => switchUnit('members')} className={tabClass(!isAdminsUnit)}>All members</button>
+          <button type="button" role="tab" aria-selected={isAdminsUnit} onClick={() => switchUnit('admins')} className={tabClass(isAdminsUnit)}>Manage admins ({roleSummary.ADMIN ?? 0})</button>
+        </div>
       )}
 
-      <section className="rounded-lg border border-line bg-white p-3 shadow-sm sm:p-5">
-        <TableFilterBar
-          searchValue={search}
-          onSearchChange={(value) => { setSearch(value); setPage(1); }}
-          searchPlaceholder="Search name, school ID, program, or email"
-          activeFilters={activeUserFilters}
-          onClear={clearUserFilters}
-          resultCount={meta.total}
-          resultLabel={meta.total === 1 ? 'user' : 'users'}
-          secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        >
-          <HiusaSelect filter
-            value={roleFilter}
-            onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
-            className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15"
-          >
-            <option value="all">All roles</option>
-            {visibleFilterRoles.map((role) => (
-              <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-            ))}
-          </HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => matchesFilter(programFilter, program.name)).flatMap((program) => program.sections || []).filter((section) => filterValues(yearLevelFilter).length === 0 || filterValues(yearLevelFilter).some((year) => Number(section.year_level) === yearNumber(year))).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
-          <HiusaSelect filter aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
-          <HiusaSelect aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-600"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></HiusaSelect>
-        </TableFilterBar>
-        <div className="space-y-3 md:hidden" aria-label="Users">
-          {loading && Array.from({ length: 3 }, (_, index) => <div key={`user-card-skeleton-${index}`} className="h-32 animate-pulse rounded-card bg-slate-100" />)}
-          {!loading && sortedUsers.map((user) => (
-            <article key={user.id} className="min-w-0 rounded-card border border-line p-4">
-              <div className="flex min-w-0 items-start justify-between gap-2">
-                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-ink">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
-                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => openAddStudent(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-page px-2.5 py-1 text-navy-800">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-success-tint text-success-strong' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span><span className={`rounded-full px-2.5 py-1 ${user.fingerprint_enrolled ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>{user.fingerprint_enrolled ? 'Fingerprint enrolled' : 'Not enrolled'}</span></div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
-            </article>
-          ))}
-          {!loading && users.length === 0 && <p className="py-8 text-center text-sm text-slate-500">{meta.total === 0 ? 'No users found.' : 'No users on this page.'}</p>}
-        </div>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[940px] text-left">
-            <thead className="bg-subtle text-xs font-bold text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">School ID</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Program / Major</th>
-                <th className="px-4 py-3">Year Level</th>
-                <th className="px-4 py-3">Section</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="w-[72px] px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line text-sm">
-              {loading && Array.from({ length: 6 }, (_, index) => (
-                <tr key={`user-skeleton-${index}`} aria-hidden="true">
-                  {Array.from({ length: 8 }, (__, cellIndex) => (
-                    <td key={cellIndex} className="px-4 py-4">
-                      <div className="h-4 animate-pulse rounded bg-slate-100" />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              {!loading && sortedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-subtle">
-                  <td className="px-4 py-3.5 font-semibold text-ink">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-ink-muted">{user.school_id}</td>
-                  <td className="px-4 py-3.5">
-                    <span className="rounded-full bg-page px-2.5 py-1 text-xs font-bold text-navy-800">{ROLE_LABELS[user.role] || user.role}</span>
-                  </td>
-                  <td className="px-4 py-3.5 text-xs text-ink-muted"><p className="font-semibold text-slate-700">{user.program || '-'}</p>{user.major && <p className="mt-0.5">{user.major}</p>}</td>
-                  <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.year_level || '-'}</td>
-                  <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.section || '-'}</td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
-                      {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-success-strong" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
-                      {user.fingerprint_enrolled ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700"><Fingerprint aria-label="Fingerprint enrolled" size={14} /> Enrolled</span>
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">Not enrolled</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <UserActionDock
-                      user={user}
-                      actorRole={actorRole}
-                      onEdit={() => openEdit(user)}
-                      onView={() => openProfile(user)}
-                      onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => openAddStudent(user)}
-                      onFingerprint={() => setFingerprintTarget(user)}
-                      onVerify={() => setFingerprintVerifyTarget(user)}
-                      onDeactivate={() => setDisableTarget(user)}
-                      onReactivate={() => setReactivateTarget(user)}
-                      onDelete={() => setDeleteTarget(user)}
-                    />
-                  </td>
-                </tr>
-              ))}
-              {!loading && users.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-ink-soft">
-                    {meta.total === 0 ? 'No users found.' : 'No users on this page.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          currentPage={meta.currentPage}
-          totalItems={meta.total}
-          pageSize={meta.perPage}
-          onPageChange={setPage}
-          label="users"
+      {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+
+      <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <DataTable
+          caption={isAdminsUnit ? 'Administrators' : 'Users'}
+          columns={columns}
+          rows={sortedUsers}
+          rowKey={(user) => user.id}
+          loading={loading}
+          error={loadError || null}
+          onRetry={refreshUsers}
+          filters={filters}
+          filtersActive={filtersActive}
+          onClearFilters={clearUserFilters}
+          pageSize={pageSize}
+          actions={dock}
+          emptyState={!filtersActive && meta.total === 0 ? (
+            <EmptyState title="No users yet" description="People you add to this organization show here." />
+          ) : undefined}
+          pagination={(
+            <PaginationControls
+              currentPage={meta.currentPage}
+              totalItems={meta.total}
+              pageSize={meta.perPage}
+              onPageChange={setPage}
+              label="users"
+            />
+          )}
         />
       </section>
 
       {actorRole === 'ADMIN' && actorOrganizationId && <OrgAccessPanel organizationId={actorOrganizationId} actorRole={actorRole} />}
 
-      <Modal
+      <Drawer
         open={Boolean(profileUser)}
-        title="User Profile"
-        description={profileUser ? `${profileUser.first_name} ${profileUser.last_name} - School ID ${profileUser.school_id}` : ''}
+        title="User profile"
+        description={profileUser ? `${profileUser.first_name} ${profileUser.last_name} · School ID ${profileUser.school_id}` : ''}
+        width="max-w-xl"
         onClose={closeProfile}
-        maxWidth="max-w-3xl"
-        footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle">Close</button>}
       >
         {profileUser && <div className="space-y-5">
           <UserIdentityCard user={profileUser} />
-          <div className="grid gap-3 rounded-card border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             {[
-              ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
-              ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
-              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'], ['Fingerprint enrollment', profileUser.fingerprint_enrolled ? 'Enrolled' : 'Not enrolled'],
-            ].map(([label, value]) => <div key={label} className="min-w-0"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold leading-6 text-ink">{value}</p></div>)}
-          </div>
-          {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section>
-            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold text-brand-700">Financial standing</p><h3 className="mt-1 text-lg font-semibold text-ink">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-success-tint text-success-strong' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
-            {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-lg bg-slate-100" />}
-            {profileError && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{profileError}</p>}
+              ['Email', profileUser.email], ['Contact number', profileUser.contact_number], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
+              ['Department', profileUser.department], ['Course or program', profileUser.program], ['Year level', profileUser.year_level],
+              ['Major or specialization', profileUser.major], ['Section', profileUser.section], ['Organization position', profileUser.position_title], ['Fingerprint', profileUser.fingerprint_enrolled ? 'Enrolled' : 'Not enrolled'],
+            ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-0.5 min-h-5 break-words text-sm text-ink">{value}</dd></div>)}
+          </dl>
+          {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section className="border-t border-line pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-ink">What this student owes</h3>
+              {profileDebt && <StatusBadge tone={profileDebt.clearance_status === 'financially_cleared' ? 'success' : 'warning'} label={profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'} />}
+            </div>
+            {profileLoading && <div role="status" className="mt-3"><Skeleton className="h-20 w-full" /><span className="sr-only">Loading what this student owes</span></div>}
+            {profileError && <p role="alert" className="mt-3 text-sm font-medium text-warning-strong">{profileError}</p>}
             {!profileLoading && profileDebt && <>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-lg border border-line bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-semibold text-ink">₱{Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
-              {profileDebt.total_debt > 0 && <div className="mt-4 space-y-3">
-                {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-ink">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>₱{Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
-                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-ink">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{formatDisplayText(order.merchandise?.name) || 'Merchandise item'}</span></span><strong>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
+              <dl className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label}><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-0.5 text-lg font-semibold tabular-nums text-ink">{money(amount)}</dd></div>)}</dl>
+              {profileDebt.total_debt > 0 && <div className="mt-4 space-y-4">
+                {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-semibold text-ink">Unsettled invoices</p><ul className="mt-1 divide-y divide-line-soft">{profileDebt.invoices.map((invoice) => <li key={invoice.id} className="flex justify-between gap-3 py-2 text-sm"><span><span className="font-medium">{invoice.reference}</span><span className="block text-xs text-ink-muted">{invoice.description}</span></span><span className="font-medium tabular-nums">{money(invoice.remaining_balance)}</span></li>)}</ul></div>}
+                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-semibold text-ink">Reserved merchandise awaiting payment</p><ul className="mt-1 divide-y divide-line-soft">{profileDebt.reserved_orders.map((order) => <li key={order.id} className="flex justify-between gap-3 py-2 text-sm"><span><span className="font-medium">Order ORD-{order.id}</span><span className="block text-xs text-ink-muted">{formatDisplayText(order.merchandise?.name) || 'Merchandise item'}</span></span><span className="font-medium tabular-nums">{money(order.total_price)}</span></li>)}</ul></div>}
               </div>}
-              {profileDebt.total_debt <= 0 && <p className="mt-4 rounded-lg border border-success/30 bg-success-tint px-3 py-2 text-sm font-semibold text-success-strong">No current invoices or reserved-merchandise debt found.</p>}
+              {profileDebt.total_debt <= 0 && <p className="mt-4 text-sm font-medium text-success-strong">No unsettled invoices or reserved merchandise.</p>}
             </>}
           </section>}
         </div>}
-      </Modal>
+      </Drawer>
 
       {fingerprintTarget && <FingerprintEnrollmentModal
         user={fingerprintTarget}
@@ -968,27 +871,26 @@ export default function AdminUsersPage() {
       {managedProfileUser && <ManageAccountProfilesModal user={managedProfileUser} onClose={() => setManagedProfileUser(null)} onDeleted={(result) => { setFeedback({ open: true, type: 'success', message: result.message }); load(); }} />}
       {showInvite && <AddExistingUserModal actorRole={actorRole} initialUser={inviteUser} initialRole={inviteRole} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
 
-      <Modal
+      <Drawer
         open={Boolean(selectedUser)}
-        title="Edit User"
+        title="Edit user"
         description={selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : ''}
+        width="max-w-xl"
         onClose={closeEdit}
-        closeOnBackdrop={!busy}
-        closeOnEscape={!busy}
         footer={(
           <>
-            <button type="button" onClick={closeEdit} disabled={busy} className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-bold text-slate-600 hover:bg-subtle disabled:opacity-50">Cancel</button>
-            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
+            <Button variant="secondary" onClick={closeEdit} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="edit-user-form" loading={busy}>Save changes</Button>
           </>
         )}
       >
         {userForm(editForm, setEditForm)}
-      </Modal>
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(disableTarget)}
-        title="Deactivate User"
-        message="This will change the account status and sign the user out of active sessions."
+        title="Deactivate user"
+        message="This changes the account status and signs the user out of active sessions."
         recordName={disableTarget ? `${disableTarget.first_name} ${disableTarget.last_name}` : ''}
         confirmText="Deactivate"
         variant="danger"
@@ -999,8 +901,8 @@ export default function AdminUsersPage() {
 
       <ConfirmModal
         open={Boolean(reactivateTarget)}
-        title="Reactivate User"
-        message="This will restore account access. If the account was previously deactivated, the user may still need to recover or reset their password."
+        title="Reactivate user"
+        message="This restores account access. If the account was deactivated before, the user may still need to reset their password."
         recordName={reactivateTarget ? `${reactivateTarget.first_name} ${reactivateTarget.last_name}` : ''}
         confirmText="Reactivate"
         variant="success"
@@ -1012,7 +914,7 @@ export default function AdminUsersPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete organization profile"
-        message="Remove this organization profile. Other profiles remain available. If this is the final profile, the user account is also deleted. Linked records can prevent final deletion."
+        message="This removes the organization profile. Other profiles stay. If it is the final profile, the user account is also deleted. Linked records can prevent final deletion."
         recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''}
         confirmationText={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}`.trim() : ''}
         confirmText="Delete profile"

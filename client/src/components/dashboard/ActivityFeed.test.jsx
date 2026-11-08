@@ -6,7 +6,7 @@ import ActivityFeed from './ActivityFeed';
 describe('ActivityFeed', () => {
   it('shows an empty state when there is no recent activity', () => {
     render(<ActivityFeed items={[]} />);
-    expect(screen.getByText('No recent activity')).toBeInTheDocument();
+    expect(screen.getByText('No activity yet')).toBeInTheDocument();
   });
 
   it('renders the actor, action, and subject for each entry', () => {

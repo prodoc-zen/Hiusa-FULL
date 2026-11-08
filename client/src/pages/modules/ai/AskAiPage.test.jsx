@@ -12,7 +12,7 @@ vi.mock('../../../services/askAiService', () => serviceMocks);
 
 const sampleOverview = {
   role: 'SUPER_ADMIN',
-  role_label: 'SAO Operations Copilot',
+  role_label: 'SAO Operations',
   scope_label: 'University-wide student organizations',
   daily_briefing: {
     title: "Today's SAO Action Plan",
@@ -140,7 +140,7 @@ describe('AskAiPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: 'SAO Operations Copilot' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ask AI' })).toBeInTheDocument();
     expect(screen.getByText(/Audit submitted compliance and accreditation files/i)).toBeInTheDocument();
 
     fireEvent.click(

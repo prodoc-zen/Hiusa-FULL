@@ -12,13 +12,13 @@ export default function RulesDisclosure({ label, items, defaultOpen = false }) {
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="flex items-center gap-1.5 text-xs font-bold text-brand-700"
+        className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-brand-700"
       >
-        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
         {label}
       </button>
       {open && (
-        <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">
+        <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-ink-muted-strong">
           {items.map((item, index) => (
             <li key={index}>{item}</li>
           ))}
