@@ -1,9 +1,3 @@
-export const STATUS_BADGE = {
-  pending: 'bg-amber-50 text-amber-700',
-  approved: 'bg-success-tint text-success-strong',
-  rejected: 'bg-red-50 text-red-700',
-};
-
 export function formatDate(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });

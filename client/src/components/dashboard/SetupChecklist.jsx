@@ -9,7 +9,7 @@ function DoneRow({ step }) {
   return (
     <li className="flex items-center gap-3 py-2.5">
       <CheckCircle2 size={18} className="shrink-0 text-success-strong" aria-hidden="true" />
-      <span className="text-sm font-semibold text-ink-muted">
+      <span className="text-sm font-medium text-ink-muted">
         {step.label}
         <span className="sr-only"> (done)</span>
       </span>
@@ -32,11 +32,11 @@ function OpenRow({ step, primary }) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{step.label}</p>
             {step.blocked ? (
-              <p className="mt-0.5 text-xs font-semibold leading-5 text-warning-strong">
+              <p className="mt-0.5 text-xs font-medium leading-5 text-warning-strong">
                 <span className="sr-only">Blocked. </span>{step.note}
               </p>
             ) : (
-              <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{step.detail}</p>
+              <p className="mt-0.5 text-xs leading-5 text-ink-muted">{step.detail}</p>
             )}
           </div>
         </div>
@@ -56,7 +56,7 @@ function OpenRow({ step, primary }) {
         )}
       </div>
       {step.inPerson && showWhere && (
-        <p id={whereId} className="mt-2 pl-[1.875rem] text-xs font-semibold leading-5 text-ink-muted-strong">
+        <p id={whereId} className="mt-2 pl-[1.875rem] text-xs leading-5 text-ink-muted-strong">
           This step is done in person at the officers' desk, not online. It turns done once your fingerprint is enrolled.
         </p>
       )}
@@ -83,11 +83,11 @@ export default function SetupChecklist({ setup, title = 'Getting started', descr
   const primaryKey = primaryFirst ? open.find((step) => step.href || step.inPerson)?.key : null;
 
   return (
-    <section aria-labelledby="setup-checklist-title" className="rounded-card border border-line bg-surface p-5 shadow-card">
+    <section aria-labelledby="setup-checklist-title" className="rounded-card border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="setup-checklist-title" className="text-base font-bold text-ink">{title}</h2>
-          <p className="mt-0.5 text-xs font-medium text-ink-muted">{description || 'Each step checks itself off once the work is done anywhere in HIUSA.'}</p>
+          <h2 id="setup-checklist-title" className="text-base font-semibold text-ink">{title}</h2>
+          <p className="mt-0.5 text-sm text-ink-muted">{description || 'Each step is checked off once the work is done.'}</p>
         </div>
         <button type="button" onClick={onHide} className="min-h-11 rounded-control px-2 py-1 text-xs font-semibold text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink">
           Hide checklist
@@ -104,7 +104,7 @@ export default function SetupChecklist({ setup, title = 'Getting started', descr
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
-          className="mt-2 min-h-11 rounded-control px-2 text-sm font-bold text-brand-700 hover:bg-subtle"
+          className="mt-2 min-h-11 rounded-control px-2 text-sm font-semibold text-brand-700 hover:bg-subtle"
         >
           {expanded ? 'Show fewer' : `Show all ${steps.length} steps`}
         </button>

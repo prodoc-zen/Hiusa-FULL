@@ -49,7 +49,7 @@ describe('OrganizationGrievancesPage', () => {
   it('shows an empty state when the organization has no grievances', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
   it('shows a retryable error state', async () => {
@@ -59,7 +59,7 @@ describe('OrganizationGrievancesPage', () => {
 
     mocks.getGrievances.mockResolvedValue(envelope([]));
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
   it('never renders an identity for an anonymous filer, showing a dignified confidential badge instead', async () => {

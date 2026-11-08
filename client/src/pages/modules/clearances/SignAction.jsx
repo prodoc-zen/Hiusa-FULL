@@ -26,7 +26,7 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
       setMode(null);
       setRemarksDraft('');
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not save this signature. Please try again.');
+      setError(err.response?.data?.message || 'Could not save this signature. Try again.');
     } finally {
       setSubmitting(false);
     }

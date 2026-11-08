@@ -1,8 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, Eye, Pencil, Plus, Power, Trash2 } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusToggleSwitch } from '../../../components/ui';
-import Modal from '../../../components/Modal';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, Select, StatusToggleSwitch } from '../../../components/ui';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
@@ -188,7 +187,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
   }
 
   const columns = [
-    { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{formatDisplayText(type.name)}</span> },
+    { key: 'name', header: 'Requirement', render: (type) => <span className="font-medium text-ink">{formatDisplayText(type.name)}</span> },
     {
       key: 'status',
       header: 'Status',
@@ -210,13 +209,13 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
   return (
     <>
       <Card
-        title={semestral ? 'Semestral report & financial report requirements' : renewal ? 'Renewal requirements' : 'Organization requirements'}
-        description={semestral ? 'Files organization admins submit to SAO for their semestral and financial report, with deadlines, accepted formats and samples.' : renewal ? 'Annual organization renewal requirements submitted by active organizations.' : 'Files for organization registration and accreditation, with deadlines and accepted formats.'}
+        title={semestral ? 'Semestral and financial report requirements' : renewal ? 'Renewal requirements' : 'Organization requirements'}
+        description={semestral ? 'Files organizations send the SAO for their semestral and financial report.' : renewal ? 'Files active organizations send each year to renew.' : 'Files for organization registration and accreditation.'}
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
-        {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">You must provide a sample format for every requirement you publish. Edit the requirements marked “Sample format required” to attach a file or link.</p>}
+        {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.</p>}
         {deleteError && (
-          <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>
+          <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{deleteError}</p>
         )}
         <DataTable
           stickyHeader={false}
@@ -237,19 +236,17 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
               kind="first-run"
               icon={ClipboardList}
               title="No requirements defined yet"
-              description={semestral ? 'Add the documents every organization must submit for its semestral report.' : 'Add the documents every organization must submit for accreditation this academic year.'}
-              action={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
+              description={semestral ? 'Add the documents every organization must send for its semestral report.' : 'Add the documents every organization must send this academic year.'}
             />
           )}
         />
       </Card>
 
-      <Modal
+      <Drawer
         open={Boolean(typeModal)}
         title={`${typeModal?.mode === 'edit' ? 'Edit' : 'New'} ${semestral ? 'semestral report' : renewal ? 'renewal' : 'organization'} requirement`}
-        description={semestral ? 'Organization admins submit these files from the Semestral report tab in Compliance.' : 'Used for accreditation. Current-semester requirements also appear during organization registration.'}
+        width="max-w-2xl"
         onClose={typeSaving ? undefined : () => setTypeModal(null)}
-        closeOnEscape={!typeSaving}
         footer={(
           <>
             <Button variant="secondary" onClick={() => setTypeModal(null)} disabled={typeSaving}>Cancel</Button>
@@ -270,11 +267,11 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
           <Field label="Name" required error={fieldErrors.name} className="sm:col-span-2">
             <Input ref={(node) => { fieldRefs.current.name = node; }} placeholder="e.g. Accomplishment report" value={typeForm.name} onChange={(event) => { setTypeForm({ ...typeForm, name: event.target.value }); setFieldErrors((current) => ({ ...current, name: null })); }} />
           </Field>
-          <Field label="Description" hint="Shown to organizations alongside this requirement." className="sm:col-span-2">
+          <Field label="Description" optional hint="Shown to organizations alongside this requirement." className="sm:col-span-2">
             <RichTextEditor ariaLabel="Requirement description" value={typeForm.description} onChange={(description) => setTypeForm({ ...typeForm, description })} rows={4} />
           </Field>
           <fieldset className="sm:col-span-2" aria-describedby={fieldErrors.allowed_extensions ? 'organization-file-types-error' : undefined}>
-            <legend className="text-sm font-semibold text-ink">Accepted file types</legend>
+            <legend className="text-[13px] font-medium text-ink">Accepted file types</legend>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
               {SUPPORTED_REQUIREMENT_EXTENSIONS.map((extension) => (
                 <label key={extension} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
@@ -291,7 +288,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
             </div>
             {fieldErrors.allowed_extensions && <p id="organization-file-types-error" role="alert" className="text-xs text-danger-strong">{fieldErrors.allowed_extensions}</p>}
           </fieldset>
-          <Field label="Sample format" required hint="The requirement publisher must provide a file or link. Applicants and organization admins can view it before submitting." className="sm:col-span-2">
+          <Field label="Sample format" required hint="Organizations can open it before they submit." className="sm:col-span-2">
             <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }}>
               <option value="file">Attach a file</option>
               <option value="link">Use a link</option>
@@ -314,11 +311,11 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
           </div>}
           <div className="sm:col-span-2">
             <ActiveSwitch label="Requirement active" checked={typeForm.is_active} onChange={(isActive) => setTypeForm({ ...typeForm, is_active: isActive })} />
-            <p className="text-xs font-medium text-ink-muted">Active requirements must be submitted by every organization. Turning one off changes accreditation for all of them.</p>
+            <p className="text-xs text-ink-muted">Every organization must submit an active requirement. Turning one off changes accreditation for all of them.</p>
           </div>
-          {typeFormError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{typeFormError}</p>}
+          {typeFormError && <p role="alert" className="text-sm text-danger-strong sm:col-span-2">{typeFormError}</p>}
         </form>
-      </Modal>
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(deactivateTarget)}

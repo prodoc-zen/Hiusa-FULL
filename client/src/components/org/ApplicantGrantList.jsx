@@ -7,6 +7,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { visibleSchoolId } from '../../utils/schoolId';
 import { APPLICATION_LABELS } from './applicationStatus';
 
+// An open permission is the default state, so it is plain text and only the later states get a badge.
 const STATE = {
   open: { tone: 'info', label: 'Can apply' },
   used: { tone: 'success', label: 'Applied' },
@@ -46,14 +47,16 @@ export default function ApplicantGrantList({ grants, error, onRetry, onChanged }
               <li key={grant.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
                   <p className="break-words text-sm font-semibold text-ink">{grant.student?.name || 'Former student'}</p>
-                  <p className="break-all text-xs font-medium text-ink-muted">
+                  <p className="break-all text-xs text-ink-muted">
                     {grant.student?.email}
                     {visibleSchoolId(grant.student?.school_id) !== null ? ` · ID ${visibleSchoolId(grant.student?.school_id)}` : ''}
                   </p>
-                  {grant.application && <p className="mt-1 text-xs font-medium text-ink-muted">{grant.application.name}: {APPLICATION_LABELS[grant.application.status] || grant.application.status}</p>}
+                  {grant.application && <p className="mt-1 text-xs text-ink-muted">{grant.application.name}: {APPLICATION_LABELS[grant.application.status] || grant.application.status}</p>}
                 </div>
                 <div className="flex items-center gap-3">
-                  <StatusBadge status={grant.state} label={state.label} tone={state.tone} />
+                  {grant.state === 'open'
+                    ? <span className="text-xs text-ink-muted">{state.label}</span>
+                    : <StatusBadge status={grant.state} label={state.label} tone={state.tone} />}
                   {grant.state === 'open' && (
                     <Button variant="secondary" size="sm" aria-label={`Take back permission from ${grant.student?.name}`} onClick={() => { setProblem(''); setTarget(grant); }}>Take back</Button>
                   )}

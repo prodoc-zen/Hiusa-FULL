@@ -30,7 +30,7 @@ describe('SaoGrievancesPage', () => {
 
   it('shows an empty state with no filters applied', async () => {
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances to review')).toBeInTheDocument();
   });
 
   it('shows a retryable error state for the main table', async () => {

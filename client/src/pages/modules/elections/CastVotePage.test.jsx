@@ -34,7 +34,7 @@ describe('CastVotePage', () => {
   it('presents a guided ballot overview and candidate selection workspace', () => {
     render(<CastVotePage />);
     expect(screen.getByRole('heading', { name: 'Student Council Election' })).toBeInTheDocument();
-    expect(screen.getByText('Review candidates')).toBeInTheDocument();
+    expect(screen.getByText(/Choose one candidate for every position/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
     expect(screen.getByRole('heading', { name: 'President' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ana Reyes/ })).toBeInTheDocument();

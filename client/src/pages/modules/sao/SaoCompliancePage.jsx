@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, ClipboardList, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
-import { Card, EmptyState, PageHeader, Select, Tabs } from '../../../components/ui';
+import { EmptyState, PageHeader, Select, Tabs } from '../../../components/ui';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus } from '../../../services/complianceService';
 import { fetchAllPages } from '../../../services/pagination';
@@ -19,21 +18,21 @@ const DEFAULT_TAB = 'accreditation';
 const DEFAULT_REVIEW_FILTERS = { organizationId: '', status: 'submitted' };
 
 const TABS = [
-  { key: 'organizations', label: 'Organizations', icon: ShieldCheck, panelId: PANEL_ID, defaultTab: 'accreditation' },
-  { key: 'renewal', label: 'Renewal', icon: RefreshCw, panelId: PANEL_ID, defaultTab: 'renewal' },
-  { key: 'event-reviews', label: 'Event reviews', icon: CalendarCheck, panelId: PANEL_ID, defaultTab: 'event-reviews' },
-  { key: 'financial', label: 'Semestral Report & Financial Report', icon: Wallet, panelId: PANEL_ID },
-  { key: 'settings', label: 'Requirement settings', icon: ClipboardList, panelId: PANEL_ID, defaultTab: 'requirements' },
+  { key: 'organizations', label: 'Organizations', panelId: PANEL_ID, defaultTab: 'accreditation' },
+  { key: 'renewal', label: 'Renewal', panelId: PANEL_ID, defaultTab: 'renewal' },
+  { key: 'event-reviews', label: 'Event reviews', panelId: PANEL_ID, defaultTab: 'event-reviews' },
+  { key: 'financial', label: 'Semestral and financial report', panelId: PANEL_ID },
+  { key: 'settings', label: 'Requirement settings', panelId: PANEL_ID, defaultTab: 'requirements' },
 ];
 const ORGANIZATION_TABS = [
   { key: 'accreditation', label: 'Organization accreditation', panelId: SUB_PANEL_ID },
-  { key: 'review', label: 'Review submissions', icon: Check, panelId: SUB_PANEL_ID },
+  { key: 'review', label: 'Review submissions', panelId: SUB_PANEL_ID },
 ];
 const SETTING_TABS = [
   { key: 'requirements', label: 'Organization requirements', panelId: SUB_PANEL_ID },
   { key: 'renewal-requirements', label: 'Renewal requirements', panelId: SUB_PANEL_ID },
   { key: 'events', label: 'Event requirements', panelId: SUB_PANEL_ID },
-  { key: 'semestral-requirements', label: 'Semestral report & financial report requirements', panelId: SUB_PANEL_ID },
+  { key: 'semestral-requirements', label: 'Semestral and financial report requirements', panelId: SUB_PANEL_ID },
 ];
 const TAB_GROUP = {
   accreditation: 'organizations',
@@ -131,7 +130,7 @@ export default function SaoCompliancePage() {
     return (
       <div className="space-y-5">
         <PageHeader />
-        <Card><EmptyState kind="restricted" title="SAO access only" description="Only the Student Affairs Office can review organization compliance." /></Card>
+        <EmptyState kind="restricted" title="SAO access only" description="Only the Student Affairs Office can review organization compliance." />
       </div>
     );
   }
@@ -149,21 +148,19 @@ export default function SaoCompliancePage() {
     <div className="space-y-5 pb-8">
       <PageHeader
         actions={
-          <div className="flex items-center gap-2">
-            <Select
-              filter
-              aria-label="Semester"
-              value={semesterId}
-              onChange={(e) => setSemesterId(e.target.value)}
-            >
-              <option value="">Active / All Semesters</option>
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>
-                  {period.academic_year?.label || period.academic_year_label || 'Academic Year'} · Semester {period.number}{period.is_active ? ' (Active)' : ''}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Select
+            filter
+            aria-label="Semester"
+            value={semesterId}
+            onChange={(e) => setSemesterId(e.target.value)}
+          >
+            <option value="">Active semester</option>
+            {periods.map((period) => (
+              <option key={period.id} value={period.id}>
+                {period.academic_year?.label || period.academic_year_label || 'Academic year'} · Semester {period.number}{period.is_active ? ' (active)' : ''}
+              </option>
+            ))}
+          </Select>
         }
       />
 
@@ -201,7 +198,7 @@ export default function SaoCompliancePage() {
           )}
           {activeTab === 'events' && <EventRequirementsTab />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
-          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral Report & Financial Report">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
+          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
         </div>
       </div>
     </div>

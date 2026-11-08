@@ -1,4 +1,4 @@
-import { ChevronRight, History } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../ui/EmptyState';
 import { relativeTime } from '../../lib/format';
@@ -11,14 +11,14 @@ function Row({ item, role }) {
     <>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-ink">
-          <span className="font-bold">{item.actor}</span> <span className="text-ink-muted">{item.action.toLowerCase()}</span>
+          <span className="font-semibold">{item.actor}</span> <span className="text-ink-muted">{item.action.toLowerCase()}</span>
         </p>
-        <p className="mt-0.5 truncate text-xs font-medium text-ink-muted">{item.subject}</p>
-        {waitingOn && <p className="mt-1 text-xs font-semibold text-ink-muted">{waitingOn}</p>}
-        <p className="mt-1 text-xs font-semibold text-ink-soft">{relativeTime(item.at)}</p>
+        <p className="mt-0.5 truncate text-xs text-ink-muted">{item.subject}</p>
+        {waitingOn && <p className="mt-1 text-xs font-medium text-ink-muted">{waitingOn}</p>}
+        <p className="mt-1 text-xs font-medium text-ink-muted">{relativeTime(item.at)}</p>
       </div>
       {href && (
-        <span className="flex shrink-0 items-center gap-0.5 self-center text-xs font-bold text-brand-600">
+        <span className="flex shrink-0 items-center gap-0.5 self-center text-xs font-semibold text-brand-700">
           Open
           <ChevronRight size={16} aria-hidden="true" />
         </span>
@@ -50,9 +50,8 @@ export default function ActivityFeed({ items = [], role = getStoredRole() }) {
     return (
       <EmptyState
         kind="first-run"
-        icon={History}
-        title="No recent activity"
-        description="Accountable actions taken in your organization will show up here."
+        title="No activity yet"
+        description="Actions taken in your organization show here."
       />
     );
   }

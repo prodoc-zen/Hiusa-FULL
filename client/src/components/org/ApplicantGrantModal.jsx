@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button } from '../ui';
-import Modal from '../Modal';
+import { Button, Drawer } from '../ui';
 import PersonPicker from '../people/PersonPicker';
 import notify from '../../lib/notify';
 import { allowStudentToApply } from '../../services/applicantGrantService';
@@ -34,12 +33,12 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
   }
 
   return (
-    <Modal
+    <Drawer
       open={open}
       title="Allow a student to apply"
       description="They will see Apply for an organization in their menu. One permission covers one application."
       onClose={busy ? undefined : onClose}
-      maxWidth="max-w-lg"
+      width="max-w-lg"
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
@@ -59,6 +58,6 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
         />
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </div>
-    </Modal>
+    </Drawer>
   );
 }

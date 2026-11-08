@@ -36,12 +36,12 @@ export default function VenueBookingDetails({ slot, conflict, onClose, onShowInQ
           <dl className="grid gap-3">
             {rows.map(([label, value]) => (
               <div key={label}>
-                <dt className="text-xs font-bold text-ink-muted">{label}</dt>
+                <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
                 <dd className="mt-0.5 break-words text-sm font-semibold text-ink">{value}</dd>
               </div>
             ))}
             <div>
-              <dt className="text-xs font-bold text-ink-muted">Status</dt>
+              <dt className="text-xs font-semibold text-ink-muted">Status</dt>
               <dd className="mt-1 flex flex-wrap items-center gap-2">
                 <StatusBadge status={slot.status} />
                 {conflict && <ConflictBadge />}

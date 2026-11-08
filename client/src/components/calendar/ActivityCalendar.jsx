@@ -1,22 +1,23 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
 import { resolveAssetUrl } from '../../utils/assetUrl';
 import { RichTextBody } from '../RichText';
+import { Skeleton, StatusBadge, TONE_STYLES } from '../ui';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MAX_VISIBLE_PER_DAY = 2;
 
 const STATUS_STYLE = {
-  planning: { label: 'Pending Approval', dot: '#F59E0B', text: 'text-warning-strong', bg: 'bg-warning/10' },
-  approved: { label: 'Approved', dot: '#0B8ED0', text: 'text-brand-700', bg: 'bg-brand-700/10' },
-  ongoing: { label: 'Ongoing', dot: '#0B8ED0', text: 'text-brand-700', bg: 'bg-brand-700/10' },
-  completed: { label: 'Completed', dot: '#16A34A', text: 'text-success-strong', bg: 'bg-success/10' },
-  cancelled: { label: 'Cancelled', dot: '#DC2626', text: 'text-danger-strong', bg: 'bg-danger/10' },
+  planning: { label: 'Pending approval', tone: 'warning' },
+  approved: { label: 'Approved', tone: 'active' },
+  ongoing: { label: 'Ongoing', tone: 'active' },
+  completed: { label: 'Completed', tone: 'success' },
+  cancelled: { label: 'Cancelled', tone: 'danger' },
 };
 
 function styleFor(status) {
-  return STATUS_STYLE[status] || { label: status || 'Unknown', dot: '#94A3B8', text: 'text-slate-600', bg: 'bg-slate-100' };
+  return STATUS_STYLE[status] || { label: status || 'Unknown', tone: 'neutral' };
 }
 
 function pad(n) {
@@ -110,10 +111,9 @@ function EventChip({ event, onSelect }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onSelect(event); }}
-      className={`flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-bold leading-tight transition hover:brightness-95 ${style.bg} ${style.text} ${event.isContinuation ? 'opacity-70' : ''}`}
+      className={`flex w-full items-center gap-1.5 rounded-control px-1.5 py-1 text-left text-xs font-semibold leading-tight transition-colors duration-150 hover:brightness-95 ${TONE_STYLES[style.tone]} ${event.isContinuation ? 'opacity-70' : ''}`}
       aria-label={`${label}, ${style.label}${event.isMultiDay ? `, ${shortDate(event.start_time)} to ${shortDate(event.end_time)}` : ''}`}
     >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
       <span className="truncate">{label}</span>
     </button>
   );
@@ -124,10 +124,10 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
   const dayEvents = eventsByDate[iso] || [];
   const label = new Date(`${iso}T00:00:00`).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   return (
-    <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-ink">{label}</h3>
+    <section className="rounded-card border border-line bg-surface p-5">
+      <h3 className="text-sm font-semibold text-ink">{label}</h3>
       {dayEvents.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">No events scheduled on this day.</p>
+        <p className="mt-3 text-sm text-ink-muted">No events scheduled on this day.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {dayEvents.map((event) => {
@@ -137,22 +137,20 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                 <button
                   type="button"
                   onClick={() => onSelectEvent(event)}
-                  className="flex w-full flex-col gap-1 rounded-lg border border-line p-3 text-left transition hover:border-brand-600/30 hover:bg-subtle sm:flex-row sm:items-center sm:justify-between"
+                  className="flex w-full flex-col gap-1 rounded-lg border border-line p-3 text-left transition-colors duration-150 hover:border-brand-600/30 hover:bg-subtle sm:flex-row sm:items-center sm:justify-between"
                 >
-                  {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-md object-cover" />}
+                  {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-control object-cover" />}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-ink">{formatDisplayText(event.title)}</p>
-                    {event.description && <RichTextBody value={event.description} className="mt-1 line-clamp-2 text-xs text-slate-600" />}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
-                      <span className="flex items-center gap-1"><Clock size={12} className="text-slate-500" />
+                    <p className="truncate font-semibold text-ink">{formatDisplayText(event.title)}</p>
+                    {event.description && <RichTextBody value={event.description} className="mt-1 line-clamp-2 text-xs text-ink-muted-strong" />}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-ink-muted">
+                      <span className="flex items-center gap-1"><Clock size={12} className="text-ink-muted" />
                         {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}
                       </span>
-                      {event.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-500" />{event.location}</span>}
+                      {event.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-ink-muted" />{event.location}</span>}
                     </div>
                   </div>
-                  <span className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold sm:self-center ${style.bg} ${style.text}`}>
-                    {style.label}
-                  </span>
+                  {event.status !== 'approved' && <StatusBadge tone={style.tone} label={style.label} className="shrink-0 self-start sm:self-center" />}
                 </button>
               </li>
             );
@@ -212,12 +210,14 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   if (loading) {
     return (
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-        <div className="mb-4 h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
-        <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100 sm:h-24" />
-          ))}
+      <section className="rounded-card border border-line bg-surface p-5">
+        <div role="status" aria-label="Loading calendar">
+          <Skeleton className="mb-4 h-8 w-48" />
+          <div className="grid grid-cols-7 gap-2">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 sm:h-24" />
+            ))}
+          </div>
         </div>
       </section>
     );
@@ -225,15 +225,15 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <section className="rounded-card border border-line bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-ink">{monthLabel}</h2>
+          <h2 className="text-lg font-semibold text-ink">{monthLabel}</h2>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={goPrev}
               aria-label="Previous month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle hover:text-brand-700"
+              className="grid h-11 w-11 place-items-center rounded-control border border-line text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-brand-700"
             >
               <ChevronLeft size={16} />
             </button>
@@ -241,7 +241,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goToday}
               aria-label="Go to today"
-              className="h-11 rounded-lg border border-line px-3 text-[13px] font-bold text-slate-600 transition hover:bg-subtle hover:text-brand-700"
+              className="h-11 rounded-control border border-line px-3 text-sm font-medium text-ink-muted-strong transition-colors duration-150 hover:bg-subtle hover:text-brand-700"
             >
               Today
             </button>
@@ -249,7 +249,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goNext}
               aria-label="Next month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-line text-slate-500 transition hover:bg-subtle hover:text-brand-700"
+              className="grid h-11 w-11 place-items-center rounded-control border border-line text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-brand-700"
             >
               <ChevronRight size={16} />
             </button>
@@ -257,17 +257,14 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         </div>
 
         {monthDaysWithEvents.length === 0 && (
-          <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-line py-8 text-center">
-            <CalendarDays size={32} className="text-slate-200" />
-            <p className="text-sm text-slate-500">No events scheduled for {monthLabel}.</p>
-          </div>
+          <p className="mt-4 text-sm text-ink-muted">No events scheduled for {monthLabel}.</p>
         )}
 
         {/* Desktop / tablet grid */}
         <div className="mt-4 hidden sm:block" role="grid" aria-label={`Calendar for ${monthLabel}`}>
           <div className="grid grid-cols-7 gap-1.5" role="row">
             {WEEKDAY_LABELS.map((label) => (
-              <div key={label} role="columnheader" className="px-1 py-1 text-center text-xs font-bold text-slate-500">
+              <div key={label} role="columnheader" className="px-1 py-1 text-center text-xs font-semibold text-ink-muted">
                 {label}
               </div>
             ))}
@@ -285,8 +282,8 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                     <div
                       key={day.iso}
                       role="gridcell"
-                      className={`min-h-[92px] rounded-lg border p-1.5 transition lg:min-h-[104px] ${
-                        isSelected ? 'border-brand-600 ring-2 ring-accent/25' : dayEvents.length ? 'border-brand-600/35' : 'border-line'
+                      className={`min-h-[92px] rounded-lg border p-1.5 transition-colors duration-150 lg:min-h-[104px] ${
+                        isSelected ? 'border-brand-600 outline outline-2 -outline-offset-2 outline-brand-600' : dayEvents.length ? 'border-brand-600/35' : 'border-line'
                       } ${dayEvents.length ? 'bg-page' : day.inMonth ? 'bg-white' : 'bg-subtle'}`}
                     >
                       <button
@@ -296,13 +293,13 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                         className="flex w-full items-center justify-between"
                       >
                         <span
-                          className={`grid h-6 w-6 place-items-center rounded-full text-[12px] font-bold ${
-                            isToday ? 'bg-brand-700 text-white' : dayEvents.length ? 'bg-white text-navy-800 ring-1 ring-brand-600/30' : day.inMonth ? 'text-ink' : 'text-slate-300'
+                          className={`grid h-6 w-6 place-items-center rounded-control text-xs font-semibold ${
+                            isToday ? 'bg-brand-700 text-white' : dayEvents.length ? 'border border-brand-600/30 bg-white text-ink' : day.inMonth ? 'text-ink' : 'text-ink-soft'
                           }`}
                         >
                           {day.date.getDate()}
                         </span>
-                        {dayEvents.length > 0 && <span className="rounded-full bg-navy-800 px-1.5 py-0.5 text-xs font-bold text-white" aria-hidden="true">{dayEvents.length}</span>}
+                        {dayEvents.length > 0 && <span className="text-xs font-medium tabular-nums text-ink-muted" aria-hidden="true">{dayEvents.length}</span>}
                       </button>
                       <div className="mt-1 space-y-1">
                         {visible.map((event) => (
@@ -312,7 +309,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                           <button
                             type="button"
                             onClick={() => selectDay(day.iso)}
-                            className="w-full rounded-md px-1.5 py-0.5 text-left text-xs font-bold text-brand-700 hover:underline"
+                            className="w-full rounded-control px-1.5 py-0.5 text-left text-xs font-semibold text-brand-700 hover:underline"
                           >
                             +{overflow} more
                           </button>
@@ -329,15 +326,15 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         {/* Mobile agenda list */}
         <div className="mt-4 space-y-3 sm:hidden">
           {monthDaysWithEvents.map((day) => (
-            <div key={day.iso} className="rounded-lg border border-brand-600/30 bg-page p-3">
+            <div key={day.iso} className="border-t border-line pt-3">
               <div className="mb-2 flex items-center gap-2">
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-brand-700 text-white' : 'bg-subtle text-ink'}`}>
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-control text-xs font-semibold ${day.iso === todayIso ? 'bg-brand-700 text-white' : 'bg-subtle text-ink'}`}>
                   {day.date.getDate()}
                 </span>
-                <p className="text-[13px] font-bold text-ink">
+                <p className="text-sm font-semibold text-ink">
                   {day.date.toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </p>
-                <span className="ml-auto rounded-full bg-navy-800 px-2 py-0.5 text-xs font-bold text-white">{eventsByDate[day.iso]?.length} events</span>
+                <span className="ml-auto text-xs text-ink-muted">{eventsByDate[day.iso]?.length} {eventsByDate[day.iso]?.length === 1 ? 'event' : 'events'}</span>
               </div>
               <div className="space-y-1.5">
                 {(eventsByDate[day.iso] || []).map((event) => {
@@ -347,19 +344,19 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       key={event.id}
                       type="button"
                       onClick={() => onSelectEvent(event)}
-                      className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-left transition hover:bg-subtle ${event.isContinuation ? 'opacity-70' : ''}`}
+                      className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-control px-2 py-2 text-left transition-colors duration-150 hover:bg-subtle ${event.isContinuation ? 'opacity-70' : ''}`}
                     >
-                      {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />}
+                      {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-control object-cover" />}
                       <div className="min-w-0">
-                        <p className="truncate text-[13px] font-bold text-ink">
+                        <p className="truncate text-sm font-semibold text-ink">
                           {event.isContinuation ? `${formatDisplayText(event.title)} - day ${event.dayIndex} of ${event.dayTotal}` : formatDisplayText(event.title)}
                         </p>
-                        <p className="text-xs font-medium text-slate-500">
+                        <p className="text-xs font-medium text-ink-muted">
                           {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}
                           {event.location ? ` - ${event.location}` : ''}
                         </p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${style.bg} ${style.text}`}>{style.label}</span>
+                      {event.status !== 'approved' && <StatusBadge tone={style.tone} label={style.label} className="shrink-0" />}
                     </button>
                   );
                 })}

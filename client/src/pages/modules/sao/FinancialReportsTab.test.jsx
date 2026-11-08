@@ -60,7 +60,6 @@ describe('FinancialReportsTab', () => {
     expect(screen.queryByText('Transaction history')).not.toBeInTheDocument();
     expect(screen.queryByText('Submission deadline')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /filters/i }));
     fireEvent.change(screen.getByLabelText('Document type'), { target: { value: 'income_statement' } });
 
     await waitFor(() => expect(financeMocks.getFinancialReports).toHaveBeenLastCalledWith(expect.objectContaining({

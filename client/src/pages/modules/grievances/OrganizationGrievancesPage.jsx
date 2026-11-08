@@ -9,7 +9,7 @@ import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
 import TableRowActions from '../../../components/TableRowActions';
-import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import { grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUS_OPTIONS = [
@@ -34,7 +34,6 @@ export default function OrganizationGrievancesPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [urgency, setUrgency] = useState('');
-  const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { selected, open, close, replace } = useGrievanceRecord();
@@ -42,10 +41,9 @@ export default function OrganizationGrievancesPage() {
   const filters = useMemo(() => ({
     status: status || undefined,
     urgency: urgency || undefined,
-    category: category || undefined,
-  }), [status, urgency, category]);
+  }), [status, urgency]);
 
-  const filtersActive = Boolean(status || urgency || category);
+  const filtersActive = Boolean(status || urgency);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -65,7 +63,6 @@ export default function OrganizationGrievancesPage() {
   function clearFilters() {
     setStatus('');
     setUrgency('');
-    setCategory('');
   }
 
   async function handleTransition(id, data) {
@@ -80,9 +77,9 @@ export default function OrganizationGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => open(row)} className="text-left font-bold text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="text-left font-medium text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
-          <span className="block text-xs font-medium text-ink-muted">{row.category}</span>
+          <span className="block text-xs font-normal text-ink-muted">{row.category}</span>
         </button>
       ),
     },
@@ -93,7 +90,7 @@ export default function OrganizationGrievancesPage() {
       render: (row) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
-          <span className="text-xs font-semibold text-ink-muted-strong">{grievanceStageText(row)}</span>
+          <span className="text-xs text-ink-muted-strong">{grievanceStageText(row)}</span>
         </div>
       ),
     },
@@ -132,26 +129,20 @@ export default function OrganizationGrievancesPage() {
                   {URGENCY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
-              <div className="w-48">
-                <Select filter aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
-                  <option value="">All categories</option>
-                  {CATEGORIES.map((option) => <option key={option} value={option}>{option}</option>)}
-                </Select>
-              </div>
               {filtersActive && (
-                <button type="button" onClick={clearFilters} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>
               )}
-              <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
+              <p className="w-full text-xs tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>
           )}
           emptyState={filtersActive ? (
-            <EmptyState kind="filtered" title="No grievances match these filters" description="Try a different status, urgency, or category." onClearFilters={clearFilters} />
+            <EmptyState kind="filtered" title="No grievances match" onClearFilters={clearFilters} />
           ) : (
             <EmptyState
               kind="first-run"
               icon={MessageSquareWarning}
-              title="Nothing to review"
-              description="Students of your organization file confidential grievances from My grievances. Each one appears here for you to review."
+              title="No grievances to review"
+              description="Confidential grievances from your members appear here."
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}

@@ -2,27 +2,19 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useMemo, useState } from 'react';
 import { RichTextBody } from '../../../components/RichText';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import {
-  AlertCircle,
-  ArrowRight,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  LockKeyhole,
-  ShieldCheck,
-  UsersRound,
-  Vote,
-} from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import Button from '../../../components/ui/Button';
+import DataTable from '../../../components/ui/DataTable';
 import Modal from '../../../components/Modal';
 import NextStep from '../../../components/ui/NextStep';
+import ProgressMeter from '../../../components/ui/ProgressMeter';
 import { isVotingOpen } from '../../../utils/electionAccess';
 import { resultsLink } from '../../../components/elections/electionFlow';
 import { castVotes } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
+
+const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
 
 function CandidatePortrait({ candidate, name, className = 'h-16 w-16' }) {
   if (candidate.image_url) {
@@ -43,11 +35,45 @@ function getVotingPeriodRestriction(election) {
   const start = new Date(election.start_time).getTime();
   const end = new Date(election.end_time).getTime();
   const now = Date.now();
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return { title: 'Voting Period Needs Attention', message: 'The configured voting period is invalid. Please contact an election administrator.' };
-  if (now < start) return { title: 'Voting Opens Soon', message: `Voting starts ${formatVotingDateTime(election.start_time)}.` };
-  if (now > end) return { title: 'Voting Period Ended', message: `Voting ended ${formatVotingDateTime(election.end_time)}.` };
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return { title: 'Voting period needs attention', message: 'The configured voting period is invalid. Contact an election administrator.' };
+  if (now < start) return { title: 'Voting opens soon', message: `Voting starts ${formatVotingDateTime(election.start_time)}.` };
+  if (now > end) return { title: 'Voting period ended', message: `Voting ended ${formatVotingDateTime(election.end_time)}.` };
   return null;
 }
+
+// One h1, one sentence, at most one action: the shape of every ballot screen that has nothing to vote on.
+function BallotMessage({ title, children, action }) {
+  return (
+    <div className="mx-auto max-w-xl space-y-3 py-6">
+      <h1 className="text-xl font-semibold text-ink sm:text-2xl">{title}</h1>
+      {children}
+      {action}
+    </div>
+  );
+}
+
+function ballotRows(groupedPositions, chooseCandidate) {
+  return groupedPositions.map((entry, index) => {
+    const candidate = chooseCandidate(entry);
+    const name = candidate ? `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() : '';
+    return { id: entry.position.id, index, position: entry.position, candidate, name };
+  });
+}
+
+const ballotColumns = [
+  { key: 'position', header: 'Position', render: (row) => formatDisplayText(row.position.title) },
+  {
+    key: 'candidate',
+    header: 'Candidate',
+    render: (row) => (row.candidate ? (
+      <div className="flex items-center gap-3 text-left">
+        <CandidatePortrait candidate={row.candidate} name={row.name} className="h-10 w-10" />
+        <span className="font-medium">{formatDisplayText(row.name)}</span>
+      </div>
+    ) : <span className="text-danger-strong">Not selected</span>),
+  },
+  { key: 'partylist', header: 'Party list', render: (row) => (row.candidate ? (formatDisplayText(row.candidate.partylist?.name) || 'Independent') : null) },
+];
 
 export default function CastVotePage({ election: electionOverride = null, refreshElection: refreshElectionOverride = null, onReturnToDashboard = null, onDirtyChange = null }) {
   const outletContext = useOutletContext() || {};
@@ -71,7 +97,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
     onDirtyChange?.(Object.keys(votes).length > 0 && phase !== 'submitted');
   }, [onDirtyChange, phase, votes]);
 
-  if (!election) return <div className="py-20 text-center text-sm text-ink-muted">Election not found.</div>;
+  if (!election) return <BallotMessage title="Election not found"><p className="text-sm text-ink-muted">Go back and choose an election.</p></BallotMessage>;
 
   const groupedPositions = (election.positions || []).map((position) => ({ position, candidates: (election.candidates || []).filter((candidate) => candidate.position_id === position.id) })).filter((entry) => entry.candidates.length > 0);
   const currentPosition = groupedPositions[positionIndex];
@@ -80,6 +106,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
   const allSelected = groupedPositions.length > 0 && groupedPositions.every((entry) => votes[entry.position.id]);
   const votingPeriodRestriction = getVotingPeriodRestriction(election);
   const candidateCount = groupedPositions.reduce((sum, entry) => sum + entry.candidates.length, 0);
+  const selectedCount = Object.keys(votes).length;
 
   const returnToPreviousPage = () => {
     setAlreadyVotedDetected(false);
@@ -111,106 +138,186 @@ export default function CastVotePage({ election: electionOverride = null, refres
   };
 
   if (!isVotingOpen(election)) {
-    return <div className="mx-auto max-w-2xl rounded-lg border border-line bg-white p-8 text-center shadow-sm"><LockKeyhole size={34} className="mx-auto text-ink-soft" /><h2 className="mt-4 text-xl font-semibold text-ink">No election is currently open.</h2><p className="mt-2 text-sm text-ink-muted">This election is not currently accepting ballots.</p></div>;
+    return <BallotMessage title="No election is currently open"><p className="text-sm text-ink-muted">This election is not currently accepting ballots.</p></BallotMessage>;
   }
 
   if (!hasVoted && votingPeriodRestriction) {
-    return <div className="mx-auto max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><CalendarDays size={34} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-semibold text-amber-900">{votingPeriodRestriction.title}</h2><p className="mt-2 text-sm font-medium text-amber-800">{votingPeriodRestriction.message}</p></div>;
+    return <BallotMessage title={votingPeriodRestriction.title}><p className="text-sm text-ink-muted">{votingPeriodRestriction.message}</p></BallotMessage>;
   }
 
   if ((hasVoted && phase !== 'submitted') || alreadyVotedDetected) {
-    return <div className="mx-auto max-w-xl rounded-lg border border-line bg-white p-6 text-center"><CheckCircle2 size={28} className="mx-auto text-success-strong" /><h2 className="mt-3 text-lg font-bold text-ink">Vote already recorded</h2><p className="mt-2 text-sm text-ink-muted">Each voter can submit one ballot for this election.</p>{currentUserVotes[0]?.vote_hash && <div className="mt-4 rounded-lg bg-page p-3"><p className="text-xs font-bold text-navy-800">Your ballot receipt</p><p className="mt-1 break-all font-mono text-xs">{currentUserVotes[0].vote_hash}</p></div>}<button type="button" onClick={returnToPreviousPage} className="mt-5 min-h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white">Back to elections</button></div>;
+    return (
+      <BallotMessage title="Vote already recorded" action={<Button onClick={returnToPreviousPage}>Back to elections</Button>}>
+        <p className="text-sm text-ink-muted">Each voter can submit one ballot for this election.</p>
+        {currentUserVotes[0]?.vote_hash && (
+          <div className="border-t border-line pt-3">
+            <p className="text-xs font-semibold text-ink-muted">Your ballot receipt</p>
+            <p className="mt-1 break-all font-mono text-sm text-ink">{currentUserVotes[0].vote_hash}</p>
+          </div>
+        )}
+      </BallotMessage>
+    );
   }
 
   if (phase === 'submitted') {
-    const selections = groupedPositions.map((entry) => {
+    const rows = ballotRows(groupedPositions, (entry) => {
       const voteItem = currentUserVotes.find((item) => item.position_id === entry.position.id);
-      const candidate = entry.candidates.find((item) => item.id === (voteItem?.candidate_id ?? votes[entry.position.id]));
-      return { position: entry.position.title, candidate, name: candidate ? `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() : 'Not selected' };
+      return entry.candidates.find((item) => item.id === (voteItem?.candidate_id ?? votes[entry.position.id]));
     });
     const resultsSentence = resultsLink(election, currentUser?.role).available
       ? 'Live totals can be viewed on the Vote page.'
       : `Results appear there once voting closes${election.end_time ? ` on ${formatVotingDateTime(election.end_time)}` : ''} and they are released.`;
     return (
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-line bg-white shadow-sm">
-        <div className="bg-navy-950 p-7 text-center text-white sm:p-9"><div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-success/30 bg-success/15 text-success"><CheckCircle2 size={32} /></div><h2 className="mt-4 text-2xl font-semibold">Ballot submitted</h2><p className="mt-2 text-sm text-slate-300">Your choices were securely recorded and cannot be changed.</p></div>
-        <div className="p-5 sm:p-7">
-          <div className="rounded-lg border border-line bg-subtle p-4 text-center"><p className="text-xs font-bold text-ink-muted">Ballot receipt hash</p><p className="mt-1 break-all font-mono text-sm font-semibold text-brand-700 sm:text-lg">{receipt || currentUserVotes[0]?.vote_hash || 'CAST-SUCCESSFUL'}</p></div>
-          <h3 className="mt-6 text-sm font-semibold text-ink">Your selections</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">{selections.map((selection) => <div key={selection.position} className="flex items-center gap-3 rounded-lg border border-line p-3">{selection.candidate && <CandidatePortrait candidate={selection.candidate} name={selection.name} className="h-12 w-12" />}<div><p className="text-xs font-bold text-ink-muted">{selection.position}</p><p className="mt-0.5 text-sm font-bold text-ink">{formatDisplayText(selection.name)}</p></div></div>)}</div>
-          <NextStep
-            className="mt-6"
-            title="What happens next"
-            body={`Your receipt stays on the Vote page. ${resultsSentence}`}
-            primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/elections/cast-vote') }}
-          />
+      <div className="mx-auto max-w-3xl space-y-5">
+        <div>
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">Ballot submitted</h1>
+          <p className="mt-1 text-sm text-ink-muted">Your choices were recorded and cannot be changed.</p>
         </div>
+        <div className="border-t border-line pt-4">
+          <p className="text-xs font-semibold text-ink-muted">Ballot receipt</p>
+          <p className="mt-1 break-all font-mono text-sm text-ink">{receipt || currentUserVotes[0]?.vote_hash || 'CAST-SUCCESSFUL'}</p>
+        </div>
+        <DataTable caption="Your selections" captionVisible columns={ballotColumns} rows={rows} stickyHeader={false} />
+        <NextStep
+          title="What happens next"
+          body={`Your receipt stays on the Vote page. ${resultsSentence}`}
+          primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/elections/cast-vote') }}
+        />
       </div>
     );
   }
 
   if (phase === 'preview') {
     return (
-      <div className="space-y-5">
-        <section className="grid overflow-hidden rounded-lg border border-line bg-white shadow-sm lg:grid-cols-[minmax(320px,.8fr)_minmax(0,1.2fr)]">
-          <div className="relative min-h-64 bg-navy-800">
-            {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-white/70"><Vote size={70} strokeWidth={1.4} /></div>}
-            <div className="absolute inset-0 bg-navy-950/30" />
-            <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-success/30 bg-navy-950/80 px-3 py-1.5 text-xs font-bold text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-success" /> Voting is live</span>
-          </div>
-          <div className="p-5 sm:p-7 lg:p-8">
-            <p className="text-xs font-bold text-brand-700">Official ballot</p>
-            <h1 className="mt-2 text-2xl font-semibold leading-tight text-ink sm:text-3xl">{formatDisplayText(election.title)}</h1>
-            <p className="mt-3 text-sm leading-6 text-ink-muted">Review the ballot, select one candidate for every position, and confirm all choices before final submission.</p>
-            <div className="mt-5 grid grid-cols-3 divide-x divide-line rounded-lg border border-line bg-subtle py-3 text-center"><div><p className="text-xl font-semibold text-ink">{groupedPositions.length}</p><p className="text-xs font-bold text-ink-muted">Positions</p></div><div><p className="text-xl font-semibold text-ink">{candidateCount}</p><p className="text-xs font-bold text-ink-muted">Candidates</p></div><div><p className="text-xl font-semibold text-ink">{Number(election.voters_count || 0)}</p><p className="text-xs font-bold text-ink-muted">Ballots</p></div></div>
-            <button type="button" onClick={() => { setPositionIndex(0); setPhase('voting'); }} className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 sm:w-auto">Start my ballot <ArrowRight size={16} /></button>
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-lg border border-line bg-white" aria-label="How secure voting works">
-          <div className="border-b border-line px-5 py-4"><h2 className="text-base font-semibold text-ink">How secure voting works</h2><p className="mt-1 text-xs text-ink-muted">Your ballot stays editable until the final confirmation.</p></div>
-          <ol className="grid md:grid-cols-3 md:divide-x md:divide-line">
-            {[{ icon: UsersRound, number: '01', title: 'Review candidates', text: 'Read each candidate’s party and platform.' }, { icon: Check, number: '02', title: 'Complete the ballot', text: 'Choose one candidate for every position.' }, { icon: ShieldCheck, number: '03', title: 'Confirm once', text: 'Review all selections before secure submission.' }].map((step) => <li key={step.number} className="flex gap-3 border-b border-line p-4 last:border-b-0 md:border-b-0"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-navy-800"><step.icon size={17} /></span><div><p className="text-xs font-semibold text-brand-700">STEP {step.number}</p><h3 className="mt-0.5 text-sm font-semibold text-ink">{step.title}</h3><p className="mt-1 text-xs leading-5 text-ink-muted">{step.text}</p></div></li>)}
-          </ol>
-        </section>
+      <div className="mx-auto max-w-2xl space-y-5">
+        {election.image_url && <img src={resolveAssetUrl(election.image_url)} alt="" className="aspect-[16/6] w-full rounded-card border border-line object-cover" />}
+        <div>
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">{formatDisplayText(election.title)}</h1>
+          <p className="mt-1 text-sm text-ink-muted">Choose one candidate for every position, check your choices, then submit. A submitted ballot cannot be changed.</p>
+        </div>
+        <p className="text-sm text-ink-muted-strong">
+          <span className="tabular-nums">{groupedPositions.length}</span> positions, <span className="tabular-nums">{candidateCount}</span> candidates
+        </p>
+        <Button size="lg" rightIcon={ArrowRight} onClick={() => { setPositionIndex(0); setPhase('voting'); }}>Start my ballot</Button>
       </div>
     );
   }
 
   if (phase === 'review') {
-    const missing = groupedPositions.filter((entry) => !votes[entry.position.id]);
+    const rows = ballotRows(groupedPositions, (entry) => entry.candidates.find((item) => item.id === votes[entry.position.id]));
+    const missing = rows.filter((row) => !row.candidate);
     return (
       <>
-      <div className="mx-auto max-w-4xl space-y-4">
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm sm:p-7"><p className="text-xs font-bold text-brand-700">Final check</p><h2 className="mt-1 text-2xl font-semibold text-ink">Review your ballot</h2><p className="mt-2 text-sm text-ink-muted">Submitted ballots cannot be edited.</p>
-          {missing.length > 0 && <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3"><AlertCircle size={16} className="mt-0.5 shrink-0 text-red-600" /><p className="text-sm font-medium text-red-700">Complete all positions before final submission.</p></div>}
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">{groupedPositions.map((entry) => { const candidate = entry.candidates.find((item) => item.id === votes[entry.position.id]); const name = candidate ? `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() : 'Not selected'; return <article key={entry.position.id} className={`flex items-center gap-3 rounded-lg border p-3 ${candidate ? 'border-line' : 'border-red-200 bg-red-50'}`}>{candidate && <CandidatePortrait candidate={candidate} name={name} className="h-14 w-14" />}<div><p className="text-xs font-bold text-ink-muted">{formatDisplayText(entry.position.title)}</p><p className="mt-0.5 text-sm font-semibold text-ink">{formatDisplayText(name)}</p><p className="mt-0.5 text-xs text-ink-muted">{formatDisplayText(candidate?.partylist?.name) || (candidate ? 'Independent' : '')}</p></div></article>; })}</div>
-        </section>
-        {submitError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</div>}
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" onClick={() => { setPositionIndex(0); setPhase('voting'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-5 text-sm font-bold text-ink hover:bg-subtle"><ChevronLeft size={16} /> Edit ballot</button><button type="button" disabled={!allSelected || submitting} onClick={() => setConfirmingSubmission(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50"><ShieldCheck size={16} /> {submitting ? 'Submitting...' : 'Submit final ballot'}</button></div>
-      </div>
-      <Modal open={confirmingSubmission} title="Submit your final ballot?" description="This is your final confirmation. After submission, your choices are securely recorded and cannot be changed." onClose={() => setConfirmingSubmission(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-md" footer={<><button type="button" disabled={submitting} onClick={() => setConfirmingSubmission(false)} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-ink hover:bg-subtle">Keep reviewing</button><button type="button" disabled={submitting} onClick={submitBallot} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">{submitting ? 'Submitting...' : 'Confirm and submit'}</button></>}><div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4"><ShieldCheck size={20} className="mt-0.5 shrink-0 text-amber-700" /><p className="text-sm font-medium leading-6 text-amber-900">Verify each selection one last time before confirming.</p></div></Modal>
+        <div className="mx-auto max-w-3xl space-y-4">
+          <div>
+            <h1 className="text-xl font-semibold text-ink sm:text-2xl">Review your ballot</h1>
+            <p className="mt-1 text-sm text-ink-muted">Submitted ballots cannot be edited.</p>
+          </div>
+          {missing.length > 0 && <p role="alert" className={ALERT}>Complete all positions before final submission.</p>}
+          <DataTable
+            caption="Your selections"
+            captionVisible
+            columns={ballotColumns}
+            rows={rows}
+            stickyHeader={false}
+            actions={(row) => <Button variant="secondary" size="sm" onClick={() => { setPositionIndex(row.index); setPhase('voting'); }}>Change<span className="sr-only">, {formatDisplayText(row.position.title)}</span></Button>}
+          />
+          {submitError && <p role="alert" className={ALERT}>{submitError}</p>}
+          <div className="flex flex-col-reverse gap-3 border-t border-line pt-4 sm:flex-row sm:justify-end">
+            <Button variant="secondary" leftIcon={ChevronLeft} onClick={() => { setPositionIndex(0); setPhase('voting'); }}>Edit ballot</Button>
+            <Button disabled={!allSelected || submitting} loading={submitting} onClick={() => setConfirmingSubmission(true)}>Submit final ballot</Button>
+          </div>
+        </div>
+        <Modal
+          open={confirmingSubmission}
+          title="Submit your final ballot?"
+          description="This is your final confirmation. After submission, your choices are recorded and cannot be changed."
+          onClose={() => setConfirmingSubmission(false)}
+          closeOnBackdrop={!submitting}
+          closeOnEscape={!submitting}
+          maxWidth="max-w-md"
+          footer={<><Button variant="secondary" disabled={submitting} onClick={() => setConfirmingSubmission(false)}>Keep reviewing</Button><Button disabled={submitting} loading={submitting} onClick={submitBallot}>Confirm and submit</Button></>}
+        >
+          <p className="text-sm text-ink-muted-strong">Check each choice once more before you confirm.</p>
+        </Modal>
       </>
     );
   }
 
-  if (!currentPosition) return <div className="rounded-lg border border-dashed border-line bg-white p-10 text-center text-sm text-ink-muted">No candidates are available for this election yet.</div>;
+  if (!currentPosition) return <BallotMessage title="No candidates yet"><p className="text-sm text-ink-muted">No candidates are available for this election yet.</p></BallotMessage>;
+
+  const lastPosition = positionIndex >= groupedPositions.length - 1;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
-      <aside className="h-fit rounded-lg border border-line bg-white p-4 lg:sticky lg:top-4">
-        <p className="text-xs font-bold text-brand-700">Ballot progress</p>
-        <p className="mt-1 text-sm font-semibold text-ink">{Object.keys(votes).length} of {groupedPositions.length} selected</p>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-page" role="progressbar" aria-label="Ballot completion" aria-valuemin="0" aria-valuemax={groupedPositions.length} aria-valuenow={Object.keys(votes).length}><div className="h-full rounded-full bg-brand-700 transition-[width]" style={{ width: `${groupedPositions.length ? (Object.keys(votes).length / groupedPositions.length) * 100 : 0}%` }} /></div>
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible">{groupedPositions.map((entry, index) => { const selected = Boolean(votes[entry.position.id]); const active = index === positionIndex; return <button key={entry.position.id} type="button" onClick={() => setPositionIndex(index)} className={`flex h-11 min-w-40 items-center gap-2 rounded-lg border px-3 text-left text-xs font-bold lg:w-full lg:min-w-0 ${active ? 'border-brand-600 bg-page text-navy-800' : 'border-line text-ink-muted hover:bg-subtle'}`}><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs ${selected ? 'bg-success text-white' : 'bg-slate-100 text-ink-muted'}`}>{selected ? <Check size={12} /> : index + 1}</span><span className="truncate">{formatDisplayText(entry.position.title)}</span></button>; })}</div>
-      </aside>
+    <div className="mx-auto max-w-4xl space-y-5">
+      <div>
+        <h1 className="text-xl font-semibold text-ink sm:text-2xl">{formatDisplayText(currentPosition.position.title)}</h1>
+        <p className="mt-1 text-sm text-ink-muted">Position {positionIndex + 1} of {groupedPositions.length}. Select one candidate to continue.</p>
+      </div>
 
-      <section className="rounded-lg border border-line bg-white p-4 sm:p-6">
-        <div className="flex flex-col gap-2 border-b border-line pb-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold text-brand-700">Position {positionIndex + 1} of {groupedPositions.length}</p><h2 className="mt-1 text-2xl font-semibold text-ink">{formatDisplayText(currentPosition.position.title)}</h2><p className="mt-1 text-sm text-ink-muted">Select one candidate to continue.</p></div><span className="text-xs font-bold text-ink-muted">{currentPosition.candidates.length} candidate{currentPosition.candidates.length === 1 ? '' : 's'}</span></div>
-        {errors[currentPosition.position.id] && <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3"><AlertCircle size={15} className="text-red-600" /><p className="text-sm font-medium text-red-700">Select a candidate before continuing.</p></div>}
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">{currentPosition.candidates.map((candidate) => { const selected = votes[currentPosition.position.id] === candidate.id; const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim(); return <button key={candidate.id} type="button" aria-pressed={selected} onClick={() => { setVotes((current) => ({ ...current, [currentPosition.position.id]: candidate.id })); setErrors((current) => ({ ...current, [currentPosition.position.id]: false })); }} className={`relative flex min-h-44 flex-col items-start rounded-lg border-2 p-4 text-left transition ${selected ? 'border-brand-600 bg-page' : 'border-line bg-white hover:border-brand-600/40'}`}><div className="flex w-full items-start gap-3"><CandidatePortrait candidate={candidate} name={name} /><div className="min-w-0 flex-1"><p className="text-base font-semibold leading-tight text-ink">{formatDisplayText(name)}</p><p className="mt-1 text-xs font-semibold text-navy-800">{formatDisplayText(currentPosition.position.title)}</p><p className="mt-1 text-xs font-bold text-brand-700">{formatDisplayText(candidate.partylist?.name) || 'Independent'}</p></div><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${selected ? 'border-brand-600 bg-brand-700 text-white' : 'border-slate-300'}`}>{selected && <Check size={13} />}</span></div><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-4 line-clamp-3 text-xs leading-5 text-ink-muted" /></button>; })}</div>
-        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-line pt-4 sm:flex-row sm:justify-between"><button type="button" onClick={() => positionIndex > 0 ? setPositionIndex((index) => index - 1) : setPhase('preview')} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-bold text-ink hover:bg-subtle"><ChevronLeft size={16} /> {positionIndex > 0 ? 'Previous' : 'Ballot overview'}</button><button type="button" onClick={() => { if (!votes[currentPosition.position.id]) { setErrors((current) => ({ ...current, [currentPosition.position.id]: true })); return; } if (positionIndex < groupedPositions.length - 1) setPositionIndex((index) => index + 1); else setPhase('review'); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800">{positionIndex < groupedPositions.length - 1 ? <>Next position <ChevronRight size={16} /></> : <><Eye size={16} /> Review ballot</>}</button></div>
-      </section>
+      <ProgressMeter kind="progress" label="Ballot completion" value={selectedCount} max={groupedPositions.length} valueLabel={`${selectedCount} of ${groupedPositions.length} selected`} />
+
+      <nav aria-label="Ballot positions" className="flex flex-wrap gap-2">
+        {groupedPositions.map((entry, index) => {
+          const selected = Boolean(votes[entry.position.id]);
+          const active = index === positionIndex;
+          return (
+            <button
+              key={entry.position.id}
+              type="button"
+              aria-current={active ? 'step' : undefined}
+              onClick={() => setPositionIndex(index)}
+              className={`inline-flex h-11 items-center gap-2 rounded-control border px-3 text-sm transition-colors duration-150 ${active ? 'border-brand-600 bg-brand-600/10 font-semibold text-ink' : 'border-line text-ink-muted-strong hover:bg-subtle'}`}
+            >
+              <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs ${selected ? 'bg-success text-white' : 'bg-line-soft text-ink-muted-strong'}`}>{selected ? <Check size={12} aria-hidden="true" /> : index + 1}</span>
+              <span className="max-w-40 truncate">{formatDisplayText(entry.position.title)}</span>
+              {selected && <span className="sr-only">Selected</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      {errors[currentPosition.position.id] && <p role="alert" className={ALERT}>Select a candidate before continuing.</p>}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {currentPosition.candidates.map((candidate) => {
+          const selected = votes[currentPosition.position.id] === candidate.id;
+          const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
+          return (
+            <button
+              key={candidate.id}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => { setVotes((current) => ({ ...current, [currentPosition.position.id]: candidate.id })); setErrors((current) => ({ ...current, [currentPosition.position.id]: false })); }}
+              className={`flex flex-col items-start rounded-card border-2 p-4 text-left transition-colors duration-150 ${selected ? 'border-brand-600 bg-brand-600/10' : 'border-line bg-surface hover:bg-subtle'}`}
+            >
+              <div className="flex w-full items-start gap-3">
+                <CandidatePortrait candidate={candidate} name={name} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-semibold leading-tight text-ink">{formatDisplayText(name)}</p>
+                  <p className="mt-1 text-sm text-ink-muted-strong">{formatDisplayText(candidate.partylist?.name) || 'Independent'}</p>
+                </div>
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${selected ? 'border-brand-700 bg-brand-700 text-white' : 'border-ink-soft'}`}>{selected && <Check size={13} aria-hidden="true" />}</span>
+              </div>
+              <RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-3 line-clamp-3 text-sm text-ink-muted" />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 border-t border-line pt-4 sm:flex-row sm:justify-between">
+        <Button variant="secondary" leftIcon={ChevronLeft} onClick={() => positionIndex > 0 ? setPositionIndex((index) => index - 1) : setPhase('preview')}>{positionIndex > 0 ? 'Previous' : 'Ballot overview'}</Button>
+        <Button
+          rightIcon={lastPosition ? undefined : ChevronRight}
+          onClick={() => {
+            if (!votes[currentPosition.position.id]) { setErrors((current) => ({ ...current, [currentPosition.position.id]: true })); return; }
+            if (!lastPosition) setPositionIndex((index) => index + 1);
+            else setPhase('review');
+          }}
+        >
+          {lastPosition ? 'Review ballot' : 'Next position'}
+        </Button>
+      </div>
     </div>
   );
 }

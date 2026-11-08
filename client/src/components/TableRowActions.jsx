@@ -99,7 +99,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
         aria-haspopup="menu"
         aria-controls={menuId}
         onClick={toggle}
-        className={`grid h-11 w-11 place-items-center md:h-10 md:w-10 rounded-lg border bg-white text-navy-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${open ? 'border-brand-600 bg-page' : 'border-line hover:border-brand-600 hover:bg-subtle'}`}
+        className={`grid h-11 w-11 place-items-center md:h-10 md:w-10 rounded-control border bg-surface text-ink-muted transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${open ? 'border-brand-600 bg-subtle text-ink' : 'border-line hover:bg-subtle hover:text-ink'}`}
       >
         <MoreVertical size={18} aria-hidden="true" />
       </button>
@@ -112,11 +112,11 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
           aria-label={`${label} for ${subject}`}
           style={{ margin: 0, bottom: 'auto', right: 'auto', ...position }}
           onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setOpen(false); triggerRef.current?.focus(); } }}
-          className="fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-line bg-white p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)]"
+          className="fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 max-w-[calc(100vw-24px)] overflow-y-auto rounded-card border border-line bg-surface p-2 shadow-raised"
         >
-          <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
-            <p className="text-xs font-semibold tracking-[0.16em] text-brand-700">{label}</p>
-            <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{subject}</p>
+          <div className="mb-1 border-b border-line-soft px-2.5 py-2">
+            <p className="text-xs font-medium text-ink-muted">{label}</p>
+            <p className="mt-0.5 truncate text-xs font-normal text-ink-muted">{subject}</p>
           </div>
           {available.map((action) => {
             const Icon = action.icon;
@@ -127,13 +127,12 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
                 {...(ActionElement === Link ? { to: action.to } : { type: 'button', disabled: action.disabled })}
                 role="menuitem"
                 onClick={(event) => { event.stopPropagation(); setOpen(false); triggerRef.current?.focus(); action.onClick?.(); }}
-                className={`group flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? 'text-red-700 hover:bg-red-50' : 'text-slate-700 hover:bg-subtle hover:text-brand-700'}`}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-control px-2.5 text-left text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? 'text-danger-strong hover:bg-danger-tint' : 'text-ink hover:bg-subtle'}`}
               >
-                <span aria-hidden="true" className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border ${!Icon ? 'border-transparent' : action.danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-line bg-page text-navy-800'}`}>
-                  {Icon && <Icon size={14} strokeWidth={2.1} aria-hidden="true" />}
+                <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center ${action.danger ? 'text-danger-strong' : 'text-ink-muted'}`}>
+                  {Icon && <Icon size={16} aria-hidden="true" />}
                 </span>
                 <span className="min-w-0 flex-1">{action.label}</span>
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-200 group-hover:bg-brand-600" aria-hidden="true" />
               </ActionElement>
             );
           })}

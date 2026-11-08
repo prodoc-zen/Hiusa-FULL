@@ -1,31 +1,28 @@
-import { ChevronRight, ShieldCheck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import EmptyState from '../ui/EmptyState';
 import StatusBadge from '../ui/StatusBadge';
 import { relativeTime } from '../../lib/format';
 import { getItemHref, getStoredRole, getWaitingOnLabel } from '../../utils/notificationLinks';
 
-const SEVERITY = {
-  high: { tone: 'danger', label: 'High' },
-  medium: { tone: 'warning', label: 'Medium' },
-  low: { tone: 'info', label: 'Low' },
-};
-
 function Row({ item, role }) {
   const href = getItemHref(item, role);
   const waitingOn = getWaitingOnLabel(item);
-  const severity = SEVERITY[item.severity] || { tone: 'neutral', label: 'Notice' };
 
   const body = (
     <>
-      <StatusBadge tone={severity.tone} label={severity.label} className="shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-ink">{item.title}</p>
-        <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{item.detail}</p>
-        {waitingOn && <p className="mt-1 text-xs font-semibold text-ink-muted">{waitingOn}</p>}
-        {item.due_at && <p className="mt-1 text-xs font-semibold text-ink-muted">{relativeTime(item.due_at)}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="min-w-0 truncate text-sm font-semibold text-ink">{item.title}</p>
+          {/* A badge marks the exception only; normal and low items carry none. */}
+          {item.severity === 'high' && <StatusBadge tone="danger" label="Urgent" className="shrink-0" />}
+        </div>
+        <p className="mt-0.5 text-xs leading-5 text-ink-muted">{item.detail}</p>
+        {waitingOn && <p className="mt-1 text-xs font-medium text-ink-muted">{waitingOn}</p>}
+        {item.due_at && <p className="mt-1 text-xs font-medium text-ink-muted">{relativeTime(item.due_at)}</p>}
       </div>
       {href && (
-        <span className="flex shrink-0 items-center gap-0.5 self-center text-xs font-bold text-brand-600">
+        <span className="flex shrink-0 items-center gap-0.5 self-center text-xs font-semibold text-brand-700">
           Open
           <ChevronRight size={16} aria-hidden="true" />
         </span>
@@ -33,7 +30,7 @@ function Row({ item, role }) {
     </>
   );
 
-  const className = 'flex items-start gap-3 px-1 py-3.5';
+  const className = 'flex min-h-11 items-start gap-3 px-1 py-3';
 
   if (href) {
     return (
@@ -56,15 +53,7 @@ function Row({ item, role }) {
  */
 export default function AttentionList({ items = [], role = getStoredRole() }) {
   if (items.length === 0) {
-    return (
-      <div className="flex items-start gap-3 py-4">
-        <ShieldCheck size={20} className="mt-0.5 shrink-0 text-success-strong" aria-hidden="true" />
-        <div>
-          <p className="text-sm font-bold text-ink">Nothing is waiting on you</p>
-          <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">New approvals, deadlines, and alerts will show up here first.</p>
-        </div>
-      </div>
-    );
+    return <EmptyState kind="first-run" title="Nothing needs you right now" description="New approvals and deadlines show here first." />;
   }
 
   return <ul className="divide-y divide-line-soft">{items.map((item) => <Row key={item.id} item={item} role={role} />)}</ul>;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart3, Bot, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { ArrowRight, BarChart3, CheckCircle2, X } from 'lucide-react';
 import { askAiAssistant } from '../../services/askAiService';
 
 const PROMPTS_BY_ROLE = {
@@ -220,33 +220,21 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
   return (
     <section
       aria-label="Ask AI assistant"
-      data-tour="ask-ai-spotlight"
       className="rounded-card border border-line bg-white p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-page text-brand-600">
-            <Bot className="h-4 w-4" aria-hidden="true" />
-          </div>
           <div>
-            <h2 className="text-sm font-semibold text-ink">Ask AI Assistant</h2>
+            <h2 className="text-sm font-semibold text-ink">Ask AI</h2>
             <p className="text-xs text-ink-muted-strong">
               Check what needs action today, who hasn&apos;t submitted requirements, or view formatted graphs and rows.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour'))}
-            className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-800 transition-colors hover:border-brand-600 hover:bg-subtle"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />
-            <span>Interactive Role Tour</span>
-          </button>
           <Link
             to="/dashboard/ask-ai"
-            className="inline-flex items-center gap-1 rounded-lg bg-page px-2.5 py-1.5 text-xs font-medium text-navy-800 transition-colors hover:bg-brand-50"
+            className="inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800"
           >
             <span>Open Ask AI</span>
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -272,7 +260,6 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
           disabled={asking || !query.trim()}
           className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
         >
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{asking ? 'Analyzing...' : 'Ask AI'}</span>
         </button>
       </form>
@@ -366,7 +353,7 @@ export default function AskAiSpotlight({ role = 'STUDENT' }) {
                       className="flex items-start justify-between gap-3 rounded-lg border border-line bg-white p-2.5 text-xs"
                     >
                       <div className="flex items-start gap-2.5">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-bold text-white">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-semibold text-white">
                           {row.step || idx + 1}
                         </span>
                         <div>

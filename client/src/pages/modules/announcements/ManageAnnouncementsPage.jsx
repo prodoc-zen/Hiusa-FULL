@@ -1,11 +1,10 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { filterLabel } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Megaphone, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
+import { Download, Eye, Megaphone, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { AnnouncementStageChip, Badge, announcementStage } from './announcementShared.jsx';
-import { Button, EmptyState, NextStep, PageHeader } from '../../../components/ui';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, NextStep, PageHeader, Skeleton } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
 import TableRowActions from '../../../components/TableRowActions';
@@ -23,7 +22,7 @@ import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
 const CATEGORY_OPTIONS = [
-  { label: 'All Categories', value: 'all' },
+  { label: 'All categories', value: 'all' },
   { label: 'General', value: 'general' },
   { label: 'Election', value: 'election' },
   { label: 'Training', value: 'training' },
@@ -36,17 +35,13 @@ function ConfirmModal({ open, title, message, confirmText, busy, error, onCancel
 
   return (
     <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-      <div className="w-full max-w-md rounded-lg border border-line bg-white p-6">
-        <h3 className="text-lg font-bold text-ink">{title}</h3>
-        <p className="mt-2 text-sm text-slate-600">{message}</p>
-        {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6">
+        <h3 className="text-lg font-semibold text-ink">{title}</h3>
+        <p className="mt-2 text-sm text-ink-muted-strong">{message}</p>
+        {error && <p role="alert" className="mt-3 text-sm font-medium text-danger-strong">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle" disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white transition hover:bg-navy-800 disabled:opacity-50" disabled={busy}>
-            {busy ? 'Processing...' : confirmText}
-          </button>
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button onClick={onConfirm} loading={busy}>{confirmText}</Button>
         </div>
       </div>
     </AccessibleOverlay>
@@ -91,19 +86,14 @@ const CREATE_PATH = '/dashboard/announcements/create-announcement';
 export default function ManageAnnouncementsPage() {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
-  const [summary, setSummary] = useState({ total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [audienceFilter, setAudienceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [sort, setSort] = useState('newest');
   const [details, setDetails] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
@@ -117,13 +107,10 @@ export default function ManageAnnouncementsPage() {
   // loaded page, without page/per_page, via fetchAllPages.
   const queryParams = useMemo(() => ({
     category: categoryFilter === 'all' ? undefined : categoryFilter,
-    target_role: audienceFilter === 'all' ? undefined : audienceFilter,
     publication_status: statusFilter === 'all' ? undefined : statusFilter,
     search: search || undefined,
-    from: from || undefined,
-    to: to || undefined,
-    sort,
-  }), [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
+    sort: 'newest',
+  }), [categoryFilter, statusFilter, search]);
 
   const loadAnnouncements = useCallback(() => {
     let cancelled = false;
@@ -134,9 +121,8 @@ export default function ManageAnnouncementsPage() {
         if (cancelled) return;
         setItems(unwrapList(res.data));
         setMeta(listMeta(res.data));
-        setSummary(res.data?.summary ?? { total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
       })
-      .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
+      .catch(() => { if (!cancelled) setError('Check your connection and try again.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [queryParams, page]);
@@ -147,7 +133,7 @@ export default function ManageAnnouncementsPage() {
       const all = await fetchAllPages((params) => getAnnouncements(params).then((res) => res.data), queryParams);
       exportAnnouncements(all);
     } catch {
-      setActionError('Failed to export announcements. Please try again.');
+      setActionError('Could not export announcements. Try again.');
     } finally {
       setExporting(false);
     }
@@ -158,26 +144,18 @@ export default function ManageAnnouncementsPage() {
     return () => clearTimeout(timer);
   }, [loadAnnouncements]);
 
-  useEffect(() => { setPage(1); }, [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
+  useEffect(() => { setPage(1); }, [categoryFilter, statusFilter, search]);
 
   const activeAnnouncementFilters = [
     search.trim() && `Search: ${search.trim()}`,
     categoryFilter !== 'all' && `Category: ${filterLabel(categoryFilter, (value) => CATEGORY_LABEL[value] || value)}`,
-    audienceFilter !== 'all' && `Audience: ${filterLabel(audienceFilter, (value) => ROLE_LABEL[value] || value)}`,
-    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter, (value) => value === 'draft' ? 'Unpublished / Draft' : 'Published')}`,
-    from && `From: ${from}`,
-    to && `To: ${to}`,
-    sort !== 'newest' && `Sort: ${sort.replaceAll('_', ' ')}`,
+    statusFilter !== 'all' && `Status: ${filterLabel(statusFilter, (value) => value === 'draft' ? 'Unpublished or draft' : 'Published')}`,
   ].filter(Boolean);
 
   const clearAnnouncementFilters = () => {
     setSearch('');
     setCategoryFilter('all');
-    setAudienceFilter('all');
     setStatusFilter('all');
-    setFrom('');
-    setTo('');
-    setSort('newest');
   };
 
   async function handleToggle(id) {
@@ -188,7 +166,7 @@ export default function ManageAnnouncementsPage() {
       setActionMessage('Announcement publication updated.');
       loadAnnouncements();
     } catch (err) {
-      setActionError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
+      setActionError(err.response?.data?.message || 'Could not update the announcement. Try again.');
       throw err;
     }
   }
@@ -203,7 +181,7 @@ export default function ManageAnnouncementsPage() {
       setActionMessage('Announcement deleted.');
       loadAnnouncements();
     } catch (err) {
-      setActionError(err.response?.data?.message || 'Failed to delete announcement. Please try again.');
+      setActionError(err.response?.data?.message || 'Could not delete the announcement. Try again.');
       throw err;
     }
   }
@@ -230,7 +208,7 @@ export default function ManageAnnouncementsPage() {
       setActionMessage('Announcement updated.');
       loadAnnouncements();
     } catch (err) {
-      setActionError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
+      setActionError(err.response?.data?.message || 'Could not update the announcement. Try again.');
     }
   }
 
@@ -273,12 +251,10 @@ export default function ManageAnnouncementsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {header}
-        <div className="space-y-3 rounded-lg border border-line bg-white p-5 shadow-sm">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
-          ))}
+        <div className="space-y-3 rounded-card border border-line bg-surface p-5" role="status" aria-label="Loading announcements">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
       </div>
     );
@@ -286,67 +262,91 @@ export default function ManageAnnouncementsPage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {header}
-        <div className="rounded-lg border border-red-100 bg-red-50 p-6 text-center">
-          <p className="text-sm font-semibold text-red-700">{error}</p>
-          <button onClick={loadAnnouncements} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
-        </div>
+        <ErrorState title="Could not load announcements" description={error} onRetry={loadAnnouncements} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-    {header}
-    <div className="rounded-lg border border-line bg-white p-5">
-      {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
-      {actionMessage && <p role="status" className="mb-4 rounded-lg border border-success/30 bg-success-tint p-3 text-sm text-success-strong">{actionMessage}</p>}
-      <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          ['Matching records', summary.total], ['Published', summary.published], ['Waiting for approval', summary.pending], ['Recorded views', summary.views],
-        ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-xs font-bold text-slate-500">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{value}</dd></dl>)}
+    <div className="space-y-5">
+      {header}
+      <div className="rounded-card border border-line bg-surface">
+        {actionError && !confirmState.open && !editing && <p role="alert" className="m-4 text-sm font-medium text-danger-strong">{actionError}</p>}
+        {actionMessage && <p role="status" className="m-4 text-sm font-medium text-success-strong">{actionMessage}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
+          <h2 className="text-base font-semibold text-ink">Announcement list</h2>
+          <Button variant="secondary" size="sm" leftIcon={Download} onClick={handleExport} disabled={!meta.total || exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+        </div>
+        <div className="mt-3">
+          <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2">
+            <HiusaSelect filter aria-label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
+            <HiusaSelect filter aria-label="Publication state" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished or draft</option></HiusaSelect>
+          </TableFilterBar>
+        </div>
+        {items.length === 0 ? (activeAnnouncementFilters.length > 0
+          ? <EmptyState className="px-5" kind="filtered" title="No announcements match these filters" onClearFilters={clearAnnouncementFilters} />
+          : <EmptyState
+            className="px-5"
+            icon={Megaphone}
+            title="No announcements yet"
+            description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
+            action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
+          />) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm sm:min-w-[580px]">
+              <caption className="sr-only">Announcements</caption>
+              <thead className="bg-subtle"><tr><th scope="col" className="px-2 py-2.5 text-xs font-semibold text-ink-muted sm:px-4">Title</th><th scope="col" className="px-2 py-2.5 text-xs font-semibold text-ink-muted sm:px-4">Status</th><th scope="col" className="hidden px-4 py-2.5 text-xs font-semibold text-ink-muted sm:table-cell">Audience</th><th scope="col" className="hidden px-4 py-2.5 text-right text-xs font-semibold text-ink-muted sm:table-cell">Views</th><th scope="col" className="px-2 py-2.5 text-right text-xs font-semibold text-ink-muted sm:px-4">Actions</th></tr></thead>
+              <tbody className="divide-y divide-line">{items.map((a) => {
+                const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
+                const canPublish = canModify && currentRole === 'ADMIN';
+                const isExpanded = expandedId === a.id;
+                return (
+                  <Fragment key={a.id}>
+                    <tr className="hover:bg-subtle">
+                      <td className="px-2 py-2.5 sm:px-4"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button></td>
+                      <td className="px-2 py-2.5 sm:px-4"><AnnouncementStageChip announcement={a} /></td>
+                      <td className="hidden px-4 py-2.5 text-ink-muted sm:table-cell">{ROLE_LABEL[a.target_role] || a.target_role}</td>
+                      <td className="hidden px-4 py-2.5 text-right tabular-nums text-ink-muted sm:table-cell">{a.views_count || 0}</td>
+                      <td className="px-2 py-2.5 sm:px-4">
+                        <TableRowActions subject={a.title} label="Announcement actions" actions={[
+                          { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
+                          canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
+                          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve and publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
+                          canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
+                        ]} />
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr id={`announcement-details-${a.id}`}>
+                        <td colSpan={5} className="bg-subtle px-4 py-5">
+                          <NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" />
+                          <article className="mx-auto max-w-2xl">
+                            <header className="border-b border-line pb-3">
+                              <p className="text-sm font-semibold text-ink">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p>
+                              <p className="text-xs text-ink-muted">Published {formatDateTime(a.published_at)}</p>
+                            </header>
+                            <div className="py-3">
+                              <h3 className="text-lg font-semibold text-ink">{formatDisplayText(a.title)}</h3>
+                              <RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-ink" />
+                              {a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}
+                            </div>
+                            <dl className="grid gap-2 border-t border-line pt-3 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="text-ink-muted">{label}</dt><dd className="mt-1 text-ink">{value || '-'}</dd></div>)}</dl>
+                          </article>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        )}
+        <div className="px-4 pb-4 sm:px-5">
+          <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
+        </div>
       </div>
-      <section className="mb-4 rounded-lg border border-line p-4" aria-label="Announcement interactions">
-        <h2 className="text-sm font-bold text-ink">Announcement interactions</h2>
-        <p className="mt-1 text-xs text-ink-muted">Views and reactions for announcements on this page.</p>
-        {items.length === 0 ? <p className="mt-4 text-sm text-ink-muted">No interaction data for the current selection.</p> : <div className="mt-4 space-y-3">{items.slice(0, 8).map((item) => {
-          const views = Number(item.views_count || 0);
-          const reactions = Number(item.reactions_count || 0);
-          const maximum = Math.max(1, ...items.slice(0, 8).map((row) => Math.max(Number(row.views_count || 0), Number(row.reactions_count || 0))));
-          return <div key={item.id} className="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"><p className="truncate text-xs font-semibold text-ink" title={formatDisplayText(item.title)}>{formatDisplayText(item.title)}</p><div className="space-y-1"><div className="flex items-center gap-2"><span className="w-14 text-xs text-slate-500">Views</span><div className="h-3 flex-1 rounded bg-page"><div className="h-full rounded bg-brand-600" style={{ width: `${views / maximum * 100}%` }} /></div><span className="w-8 text-right text-xs font-semibold tabular-nums">{views}</span></div><div className="flex items-center gap-2"><span className="w-14 text-xs text-slate-500">Likes</span><div className="h-3 flex-1 rounded bg-page"><div className="h-full rounded bg-navy-800" style={{ width: `${reactions / maximum * 100}%` }} /></div><span className="w-8 text-right text-xs font-semibold tabular-nums">{reactions}</span></div></div></div>;
-        })}</div>}
-      </section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4"><h2 className="text-base font-semibold text-ink">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-4 text-xs font-bold text-navy-800 disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
-      <div className="-mx-5 mb-4">
-        <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <HiusaSelect filter value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</HiusaSelect>
-          <HiusaSelect filter value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</HiusaSelect>
-          <HiusaSelect filter value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></HiusaSelect>
-          <DateTimeInput type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs" />
-          <DateTimeInput type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs" />
-          <HiusaSelect value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-line px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></HiusaSelect>
-        </TableFilterBar>
-      </div>
-      {items.length === 0 ? (activeAnnouncementFilters.length > 0
-        ? <EmptyState kind="filtered" title="No announcements match these filters" onClearFilters={clearAnnouncementFilters} />
-        : <EmptyState
-          icon={Megaphone}
-          title="No announcements yet"
-          description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
-          action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
-        />) : <div className="overflow-x-auto"><table className="w-full text-left text-sm sm:min-w-[580px]"><thead className="bg-subtle"><tr><th className="px-2 py-3 sm:px-4">Title</th><th className="px-2 py-3 sm:px-4">Status</th><th className="hidden px-4 py-3 sm:table-cell">Audience</th><th className="px-2 py-3 text-right sm:px-4">Actions</th></tr></thead><tbody className="divide-y divide-line">{items.map((a) => {
-        const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
-        const canPublish = canModify && currentRole === 'ADMIN';
-        const isExpanded = expandedId === a.id;
-        return <Fragment key={a.id}><tr className="hover:bg-subtle"><td className="px-2 py-3 sm:px-4"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button></td><td className="px-2 py-3 sm:px-4"><AnnouncementStageChip announcement={a} /></td><td className="hidden px-4 py-3 text-ink-muted sm:table-cell">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-2 py-3 sm:px-4"><TableRowActions subject={a.title} label="Announcement actions" actions={[
-          { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
-          canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
-          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve & publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
-          canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
-        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-subtle px-4 py-5"><NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" /><article className="mx-auto max-w-2xl rounded-lg border border-line bg-white"><header className="border-b border-line p-4"><p className="text-sm font-bold text-ink">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p><p className="text-xs text-ink-muted">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-semibold text-ink">{formatDisplayText(a.title)}</h3><RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-ink" />{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-line p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-ink-muted">{label}</dt><dd className="mt-1 text-ink">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
-      })}</tbody></table></div>}
-      <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
 
       <ConfirmModal
         open={confirmState.open}
@@ -370,45 +370,67 @@ export default function ManageAnnouncementsPage() {
         }}
       />
 
-      {editing && (
-        <AccessibleOverlay label="Edit announcement" onClose={() => setEditing(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-          <form onSubmit={handleEdit} className="w-full max-w-2xl rounded-lg border border-line bg-white p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-ink">Edit Announcement</h3>
-              <button type="button" onClick={() => setEditing(null)} className="rounded p-1 text-ink-muted hover:bg-danger-tint">Close</button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm" placeholder="Title" />
-              <HiusaSelect value={editForm.target_role} onChange={(e) => setEditForm({ ...editForm, target_role: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm">
-                {Object.entries(ROLE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </HiusaSelect>
-              <HiusaSelect value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="h-11 rounded-lg border border-line px-3 text-sm sm:col-span-2">
-                {CATEGORY_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </HiusaSelect>
-              <div className="sm:col-span-2"><RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} rows={8} placeholder="Announcement content" /></div>
-            </div>
-            {actionError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setEditing(null)} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-slate-600 hover:bg-subtle">Cancel</button>
-              <button type="submit" disabled={!editForm.title.trim() || !editForm.body.trim()} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800 disabled:opacity-50">Save Record</button>
-            </div>
-          </form>
-        </AccessibleOverlay>
-      )}
-      {details && (
-        <AccessibleOverlay label="Announcement details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-white p-6" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold text-brand-700">Announcement #{details.id}</p><h3 className="mt-1 text-xl font-semibold text-ink">{formatDisplayText(details.title)}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
+      <Drawer
+        open={Boolean(editing)}
+        title="Edit announcement"
+        width="max-w-xl"
+        onClose={() => setEditing(null)}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button type="submit" form="edit-announcement-form" disabled={!editForm.title.trim() || !editForm.body.trim()}>Save changes</Button>
+          </>
+        )}
+      >
+        <form id="edit-announcement-form" onSubmit={handleEdit} className="grid gap-4">
+          <Field label="Title" required>
+            <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+          </Field>
+          <Field label="Audience">
+            <HiusaSelect value={editForm.target_role} onChange={(e) => setEditForm({ ...editForm, target_role: e.target.value })}>
+              {Object.entries(ROLE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </HiusaSelect>
+          </Field>
+          <Field label="Category">
+            <HiusaSelect value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
+              {CATEGORY_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </HiusaSelect>
+          </Field>
+          <RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} rows={8} placeholder="Announcement content" />
+          {actionError && <p role="alert" className="text-sm font-medium text-danger-strong">{actionError}</p>}
+        </form>
+      </Drawer>
+
+      <Drawer
+        open={Boolean(details)}
+        title={details ? formatDisplayText(details.title) : undefined}
+        description={details ? `Announcement #${details.id}` : undefined}
+        width="max-w-xl"
+        onClose={() => setDetails(null)}
+      >
+        {details && (
+          <div className="space-y-5">
+            <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">{[
               ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Stage', announcementStage(details).label], ['Publication', details.is_published ? 'Published' : 'Draft'],
-              ['Unique Views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
-            ].map(([label, value]) => <div key={label} className="rounded-lg border border-line bg-subtle p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-ink">{value ?? '-'}</p></div>)}</div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-line p-4"><p className="text-xs font-bold text-slate-500">Author</p><p className="mt-2 text-sm font-bold text-ink">{creatorName(details)}</p><p className="mt-1 text-xs text-slate-500">{[details.creator?.school_id, details.creator?.email, details.creator?.role, details.creator?.position_title, details.creator?.department, details.creator?.program, details.creator?.year_level, details.creator?.section].filter(Boolean).join(' · ') || '-'}</p></div><div className="rounded-lg border border-line p-4"><p className="text-xs font-bold text-slate-500">Review trail</p><p className="mt-2 text-sm font-bold text-ink">{details.reviewer ? `${formatDisplayText(details.reviewer.first_name)} ${formatDisplayText(details.reviewer.last_name)}` : 'Not reviewed'}</p><p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{details.review_remarks || 'No review remarks.'}</p></div></div>
-            <div className="mt-4 rounded-lg border border-line p-5"><p className="text-xs font-bold text-slate-500">Full announcement</p><RichTextBody value={details.body} className="mt-3 text-sm leading-7 text-slate-700" /></div>
+              ['Unique views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
+            ].map(([label, value]) => <div key={label}><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-0.5 break-words font-medium text-ink">{value ?? '-'}</dd></div>)}</dl>
+            <div className="border-t border-line pt-4">
+              <p className="text-xs text-ink-muted">Author</p>
+              <p className="mt-1 text-sm font-medium text-ink">{creatorName(details)}</p>
+              <p className="mt-1 text-xs text-ink-muted">{[details.creator?.school_id, details.creator?.email, details.creator?.role, details.creator?.position_title, details.creator?.department, details.creator?.program, details.creator?.year_level, details.creator?.section].filter(Boolean).join(' · ') || '-'}</p>
+            </div>
+            <div className="border-t border-line pt-4">
+              <p className="text-xs text-ink-muted">Review trail</p>
+              <p className="mt-1 text-sm font-medium text-ink">{details.reviewer ? `${formatDisplayText(details.reviewer.first_name)} ${formatDisplayText(details.reviewer.last_name)}` : 'Not reviewed'}</p>
+              <p className="mt-1 whitespace-pre-wrap text-xs text-ink-muted">{details.review_remarks || 'No review remarks.'}</p>
+            </div>
+            <div className="border-t border-line pt-4">
+              <p className="text-xs text-ink-muted">Full announcement</p>
+              <RichTextBody value={details.body} className="mt-2 text-sm leading-6 text-ink" />
+            </div>
           </div>
-        </AccessibleOverlay>
-      )}
-    </div>
+        )}
+      </Drawer>
     </div>
   );
 }

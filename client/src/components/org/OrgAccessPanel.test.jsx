@@ -101,7 +101,7 @@ describe('OrgAccessPanel', () => {
     const dialog = await screen.findByRole('dialog');
     await pickPerson();
     fireEvent.change(within(dialog).getByLabelText('Access level'), { target: { value: 'SBO_OFFICER' } });
-    fireEvent.change(within(dialog).getByLabelText('Position'), { target: { value: 'Treasurer' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Position/), { target: { value: 'Treasurer' } });
     expect(within(dialog).getAllByRole('checkbox')).toHaveLength(8);
     within(dialog).getAllByRole('checkbox').forEach((box) => expect(box).toBeChecked());
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Finance' }));
@@ -141,7 +141,7 @@ describe('OrgAccessPanel', () => {
     fireEvent.change(within(dialog).getByLabelText('Access level'), { target: { value: 'STUDENT' } });
 
     expect(within(dialog).queryAllByRole('checkbox')).toHaveLength(0);
-    expect(within(dialog).queryByLabelText('Position')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Position/)).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Give access' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 2100150, organization_id: 5, role: 'STUDENT', position_title: null }));
   });
@@ -155,7 +155,7 @@ describe('OrgAccessPanel', () => {
 
     fireEvent.change(within(dialog).getByLabelText('Access level'), { target: { value: 'ADMIN' } });
 
-    const options = Array.from(within(dialog).getByLabelText('Position').querySelectorAll('option')).map((option) => option.textContent);
+    const options = Array.from(within(dialog).getByLabelText(/^Position/).querySelectorAll('option')).map((option) => option.textContent);
     expect(options).toEqual(['No position', 'President']);
   });
 

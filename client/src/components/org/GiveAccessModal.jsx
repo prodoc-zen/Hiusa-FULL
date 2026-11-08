@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import Modal from '../Modal';
 import PersonPicker from '../people/PersonPicker';
-import { Button, Field, Select } from '../ui';
+import { Button, Drawer, Field, Select } from '../ui';
 import { getProfilePositions, inviteAccountProfile, updateAccountProfile } from '../../services/authService';
 import { unwrapList } from '../../services/pagination';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -74,11 +73,11 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
   const title = editing ? 'Change access' : 'Give access';
 
   return (
-    <Modal
+    <Drawer
       open
       title={title}
       description={editing ? 'Update what this person can do in the organization.' : 'Pick a student from the college and choose what they can do in this organization.'}
-      maxWidth="max-w-lg"
+      width="max-w-lg"
       onClose={busy ? undefined : onClose}
       closeOnEscape={!busy}
       footer={(
@@ -89,11 +88,11 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
       )}
     >
       <form id={formId} onSubmit={save} className="space-y-4">
-        {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
+        {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
         {editing ? (
           <div>
-            <p className="text-sm font-bold text-ink">{profile.first_name} {profile.last_name}</p>
-            <p className="text-xs font-medium text-ink-muted">{profile.email}</p>
+            <p className="text-sm font-semibold text-ink">{profile.first_name} {profile.last_name}</p>
+            <p className="text-xs text-ink-muted">{profile.email}</p>
           </div>
         ) : (
           <PersonPicker
@@ -114,6 +113,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
         {role !== 'STUDENT' && (
           <Field
             label="Position"
+            optional
             hint={positionsFailed ? 'The position list did not load. You can leave this blank.' : rolePositions.length === 0 ? 'No positions are set up for this level yet.' : undefined}
             error={errors.position_title?.[0]}
           >
@@ -125,13 +125,13 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
         )}
         {needsModules && (
           <fieldset>
-            <legend className="text-[13px] font-semibold text-ink">What can they open?</legend>
+            <legend className="text-[13px] font-medium text-ink">What can they open?</legend>
             <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
               {ORG_MODULES.map((module) => (
-                <label key={module.key} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-medium text-ink">
+                <label key={module.key} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-normal text-ink">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="h-4 w-4 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                     checked={modules.includes(module.key)}
                     onChange={() => toggleModule(module.key)}
                     disabled={busy}
@@ -140,11 +140,11 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
                 </label>
               ))}
             </div>
-            {modules.length === 0 && <p role="alert" className="mt-1 text-xs font-medium text-danger-strong">Pick at least one.</p>}
-            {errors.modules?.[0] && <p role="alert" className="mt-1 text-xs font-medium text-danger-strong">{errors.modules[0]}</p>}
+            {modules.length === 0 && <p role="alert" className="mt-1 text-xs font-semibold text-danger-strong">Pick at least one.</p>}
+            {errors.modules?.[0] && <p role="alert" className="mt-1 text-xs font-semibold text-danger-strong">{errors.modules[0]}</p>}
           </fieldset>
         )}
       </form>
-    </Modal>
+    </Drawer>
   );
 }

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Modal from '../../../components/Modal';
-import NextStep from '../../../components/ui/NextStep';
+import Button from '../../../components/ui/Button';
+import ErrorState from '../../../components/ui/ErrorState';
+import { SkeletonText } from '../../../components/ui/Skeleton';
 import logo from '../../../assets/Hiusa Logo.png';
 import { getElectionDetails } from '../../../services/electionService';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -53,21 +55,22 @@ export default function ImmersiveVotePage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-3"><img src={logo} alt="HIUSA" className="h-9 w-9 object-contain" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">Secure Voting</p><p className="hidden items-center gap-1 text-xs font-semibold text-success-strong sm:flex"><LockKeyhole size={10} /> Authenticated official ballot</p></div></div>
-          <span className="hidden items-center gap-2 rounded-full bg-success-tint px-3 py-1.5 text-xs font-bold text-success-strong md:inline-flex"><ShieldCheck size={13} /> One secure submission</span>
-          <button type="button" onClick={requestExit} className="inline-flex h-10 items-center gap-2 rounded-lg border border-line px-3 text-xs font-bold text-ink hover:bg-subtle sm:px-4"><ArrowLeft size={15} /> Exit ballot</button>
+      <header className="sticky top-0 z-30 border-b border-line bg-white">
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3"><img src={logo} alt="HIUSA" className="h-8 w-8 object-contain" /><p className="truncate text-sm font-semibold text-ink">Voting</p></div>
+          <Button variant="secondary" leftIcon={ArrowLeft} onClick={requestExit}>Exit ballot</Button>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7">
-        {loading && <div className="space-y-4" role="status"><div className="h-72 animate-pulse rounded-lg border border-line bg-white" /><div className="grid gap-4 sm:grid-cols-3">{[1, 2, 3].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-line bg-white" />)}</div><span className="sr-only">Loading ballot</span></div>}
-        {!loading && error && <div role="alert" className="mx-auto max-w-xl rounded-lg border border-red-200 bg-white p-7 text-center"><LockKeyhole size={30} className="mx-auto text-red-500" /><h1 className="mt-3 text-lg font-semibold text-ink">Unable to open this ballot</h1><p className="mt-2 text-sm text-red-700">{error}</p><div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row"><button type="button" onClick={loadElection} className="h-11 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-navy-800">Try again</button><button type="button" onClick={leaveVoting} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-ink">Back to Vote</button></div></div>}
+        {loading && <div role="status" aria-label="Loading ballot" className="mx-auto max-w-2xl"><h1 className="sr-only">Ballot</h1><SkeletonText lines={4} /></div>}
+        {!loading && error && <div className="mx-auto max-w-xl"><h1 className="sr-only">Ballot</h1><ErrorState title="This ballot did not open" description={error} onRetry={loadElection} /></div>}
         {!loading && election && <CastVotePage election={election} refreshElection={refreshElection} onDirtyChange={setDirty} onReturnToDashboard={leaveVoting} />}
       </main>
 
-      <Modal open={confirmExit} title="Leave secure voting?" description="Your current selections have not been submitted and will be lost if you leave." onClose={() => setConfirmExit(false)} closeOnBackdrop closeOnEscape maxWidth="max-w-md" footer={<><button type="button" onClick={() => setConfirmExit(false)} className="h-11 rounded-lg border border-line px-5 text-sm font-bold text-ink hover:bg-white">Continue voting</button><button type="button" onClick={leaveVoting} className="h-11 rounded-lg bg-red-600 px-5 text-sm font-bold text-white hover:bg-red-700">Leave voting</button></>}><div className="space-y-3"><p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium leading-6 text-amber-900">Only a submitted ballot is recorded. Unsubmitted selections cannot be recovered.</p><NextStep title="What happens next" body="You go back to Vote. Nothing is recorded, and you can start a new ballot there while voting is open." /></div></Modal>
+      <Modal open={confirmExit} title="Leave the ballot?" description="Your current selections have not been submitted and will be lost if you leave." onClose={() => setConfirmExit(false)} closeOnBackdrop closeOnEscape maxWidth="max-w-md" footer={<><Button variant="secondary" onClick={() => setConfirmExit(false)}>Continue voting</Button><Button variant="danger" onClick={leaveVoting}>Leave voting</Button></>}>
+        <p className="text-sm text-ink-muted-strong">Only a submitted ballot is recorded. You go back to Vote, and you can start a new ballot there while voting is open.</p>
+      </Modal>
     </div>
   );
 }

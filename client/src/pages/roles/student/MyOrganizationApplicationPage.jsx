@@ -29,8 +29,8 @@ function FileButton({ url, children, icon: Icon = FileText }) {
 
 function Note({ who, children }) {
   return (
-    <div className="mt-3 rounded-control border border-line bg-subtle p-3">
-      <p className="text-xs font-bold text-ink-muted">Note from {who}</p>
+    <div className="mt-3 border-t border-line pt-3">
+      <p className="text-xs font-semibold text-ink-muted">Note from {who}</p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{children}</p>
     </div>
   );
@@ -79,7 +79,7 @@ export default function MyOrganizationApplicationPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader title={application?.name} description={application ? undefined : 'Follow your organization application.'} />
+      <PageHeader title={application?.name} />
 
       {loading && <SkeletonCard />}
       {!loading && error && <Card><ErrorState description={error} onRetry={load} /></Card>}
@@ -100,7 +100,7 @@ export default function MyOrganizationApplicationPage() {
             <ul className="divide-y divide-line-soft">
               {application.requirements.map((requirement) => (
                 <li key={requirement.id} className="space-y-2 px-5 py-4">
-                  <p className="text-sm font-bold text-ink">{requirement.name}</p>
+                  <p className="text-sm font-semibold text-ink">{requirement.name}</p>
                   {requirement.document
                     ? <FileButton url={requirement.document.open_url}>{requirement.document.name}</FileButton>
                     : <p className="text-sm font-medium text-ink-muted">No file yet.</p>}

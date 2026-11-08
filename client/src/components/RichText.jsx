@@ -49,16 +49,16 @@ export default function RichTextEditor({ value, onChange, id, ariaLabel, rows = 
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-white focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-accent/15">
+    <div className="overflow-hidden rounded-control border border-line bg-surface focus-within:border-brand-600 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
       <div className="flex flex-wrap items-center gap-1 border-b border-line bg-subtle p-2" role="toolbar" aria-label="Text formatting">
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('**')} aria-label="Bold selected text" className="min-h-10 min-w-10 rounded-md px-2 text-sm font-bold hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600">B</button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('**')} aria-label="Bold selected text" className="min-h-10 min-w-10 rounded-control px-2 text-sm font-semibold hover:bg-white focus-visible:outline-2 focus-visible:outline-brand-600">B</button>
         <span className="mx-1 h-5 border-l border-line" aria-hidden="true" />
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('[font=serif]', '[/font]')} className="min-h-10 rounded-md px-2 font-serif text-xs font-semibold hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600">Serif</button>
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('[font=handwritten]', '[/font]')} className="min-h-10 rounded-md px-2 text-xs font-semibold hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600">Handwritten</button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('[font=serif]', '[/font]')} className="min-h-10 rounded-control px-2 font-serif text-xs font-medium hover:bg-white focus-visible:outline-2 focus-visible:outline-brand-600">Serif</button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapSelection('[font=handwritten]', '[/font]')} className="min-h-10 rounded-control px-2 text-xs font-medium hover:bg-white focus-visible:outline-2 focus-visible:outline-brand-600">Handwritten</button>
       </div>
       <textarea ref={inputRef} id={id} aria-label={ariaLabel} value={text} onChange={(event) => onChange(event.target.value)} rows={rows} maxLength={maxLength} placeholder={placeholder} className={`w-full resize-y border-0 bg-transparent p-3 text-sm leading-6 text-ink outline-none ${className}`} />
       <div className="border-t border-line bg-subtle px-3 py-2">
-        <p className="mb-1 text-xs font-semibold text-ink-muted">Preview</p>
+        <p className="mb-1 text-xs font-medium text-ink-muted">Preview</p>
         <RichTextBody value={value || 'Your formatted text will appear here.'} className="text-sm leading-6 text-ink" />
       </div>
     </div>

@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Bell, Check, Eye, FileText, RotateCcw, ShieldCheck } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
 import ComplianceReminderModal from './ComplianceReminderModal';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
-import Modal from '../../../components/Modal';
 import { manilaDate } from '../../../lib/format';
 import TableRowActions from '../../../components/TableRowActions';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
@@ -63,7 +62,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
   }
 
   const columns = [
-    { key: 'organization_name', header: 'Organization', render: (org) => <strong>{org.organization_name}</strong> },
+    { key: 'organization_name', header: 'Organization', render: (org) => <span className="font-medium text-ink">{org.organization_name}</span> },
     {
       key: 'accreditation_status',
       header: 'Accreditation',
@@ -94,6 +93,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
     <Card title={title} description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
       <DataTable
         stickyHeader={false}
+        caption={`${title} by organization`}
         columns={columns}
         rowKey={(row) => row.organization_id}
         rows={rows}
@@ -116,7 +116,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
         )}
       />
     </Card>
-    <Modal open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelectedId(null)} maxWidth="max-w-5xl">
+    <Drawer open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelectedId(null)} width="max-w-4xl">
       <DataTable
         caption={`Requirements for ${selected?.organization_name || 'organization'}`}
         stickyHeader={false}
@@ -128,24 +128,24 @@ export default function AccreditationTab({ title = 'Organization accreditation',
             header: 'Requirement',
             render: (requirement) => (
               <div className="space-y-1.5">
-                <strong>{requirement.requirement_name}</strong>
+                <span className="font-medium text-ink">{requirement.requirement_name}</span>
                 {requirement.status === 'returned' && requirement.remarks && (
                   <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks}</p>
                 )}
                 {role === 'SUPER_ADMIN' && requirement.submission_id && requirement.status === 'submitted' && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <input
+                    <Input
                       type="text"
                       aria-label={`Comment for ${requirement.requirement_name}`}
-                      placeholder="Add file comment (required to return)…"
+                      placeholder="Comment (required to return)"
                       value={fileComments[requirement.submission_id] ?? (requirement.remarks || '')}
                       onChange={(e) => setFileComments((curr) => ({ ...curr, [requirement.submission_id]: e.target.value }))}
-                      className="h-8 min-w-[200px] flex-1 rounded border border-line bg-surface px-2 text-xs text-ink"
+                      className="min-w-[200px] flex-1"
                     />
-                    <Button size="xs" variant="secondary" leftIcon={Check} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'approved')}>
+                    <Button size="sm" variant="secondary" leftIcon={Check} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'approved')}>
                       Approve
                     </Button>
-                    <Button size="xs" variant="danger" leftIcon={RotateCcw} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'returned')}>
+                    <Button size="sm" variant="secondary" leftIcon={RotateCcw} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'returned')}>
                       Return
                     </Button>
                   </div>
@@ -153,18 +153,18 @@ export default function AccreditationTab({ title = 'Organization accreditation',
               </div>
             ),
           },
-          { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '—' },
+          { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '' },
           { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
-          { key: 'status', header: 'Status', render: (requirement) => <StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
-          { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs">{requirement.file_name || 'No file'}</span> },
+          { key: 'status', header: 'Status', render: (requirement) => requirement.status === 'not_submitted' ? <span className="text-ink-muted">Not submitted</span> : <StatusBadge label={requirement.status.charAt(0).toUpperCase() + requirement.status.slice(1).replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
+          { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs text-ink-muted-strong">{requirement.file_name || 'No file'}</span> },
         ]}
         actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
           requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
           requirement.status !== 'approved' && { label: 'Send compliance reminder', icon: Bell, onClick: () => { setReminder({ organization: selected, requirementId: requirement.requirement_type_id }); setSelectedId(null); } },
         ]} />}
       />
-      {onReviewOrganization && selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
-    </Modal>
+      {onReviewOrganization && selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
+    </Drawer>
     {reminder && <ComplianceReminderModal {...reminder} onClose={() => setReminder(null)} />}
     </>
   );

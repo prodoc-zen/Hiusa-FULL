@@ -77,18 +77,18 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
       header: 'Person',
       render: (row) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-ink">{`${row.first_name} ${row.last_name}`}</p>
-          <p className="truncate text-xs font-medium text-ink-muted">{visibleSchoolId(row.school_id) !== null ? `${row.email} · ${visibleSchoolId(row.school_id)}` : row.email}</p>
+          <p className="truncate text-sm font-medium text-ink">{`${row.first_name} ${row.last_name}`}</p>
+          <p className="truncate text-xs font-normal text-ink-muted">{visibleSchoolId(row.school_id) !== null ? `${row.email} · ${visibleSchoolId(row.school_id)}` : row.email}</p>
         </div>
       ),
     },
-    { key: 'position_title', header: 'Position', render: (row) => row.position_title || '-' },
+    { key: 'position_title', header: 'Position', render: (row) => row.position_title || '' },
     {
       key: 'role',
       header: 'Access',
       render: (row) => <StatusBadge label={ACCESS_LEVELS[row.role]?.label || row.role} tone={ACCESS_LEVELS[row.role]?.tone || 'neutral'} />,
     },
-    { key: 'modules', header: 'Can open', render: (row) => <span className="text-xs font-medium text-ink-muted">{modulesLabel(row)}</span> },
+    { key: 'modules', header: 'Can open', render: (row) => <span className="text-xs font-normal text-ink-muted">{modulesLabel(row)}</span> },
   ];
 
   const actions = canGrant ? (row) => (

@@ -1,11 +1,12 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Button, Card, EmptyState, ErrorState, Input, SkeletonTable, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriodStudents, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import notify from '../../../lib/notify';
 import SignAction from './SignAction';
+import { TABLE, TBODY, TD, TH, THEAD, TR } from '../sao/responsiveTable';
 import { SAO_ROLE, clearanceStageText, clearanceStatusTone, humanizeRole } from './clearanceLabels';
 
 export default function ClearancePeriodStudentsDrawer({ period, onClose, onSignatureChanged }) {
@@ -54,31 +55,31 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
 
   return (
     <Card bodyClassName="p-0">
-      {period && <div className="border-b border-line p-4"><Button variant="secondary" size="sm" onClick={onClose}>Back to periods</Button><h2 className="mt-3 text-lg font-bold text-ink">{formatDisplayText(period.title)}</h2><p className="text-sm text-ink-muted">{period.academic_year} · Student clearance roster</p></div>}
+      {period && <div className="border-b border-line p-4"><Button variant="secondary" size="sm" onClick={onClose}>Back to periods</Button><h2 className="mt-3 text-base font-semibold text-ink">{formatDisplayText(period.title)}</h2><p className="text-sm text-ink-muted">{period.academic_year} · Student clearance roster</p></div>}
       {period && (
         <div className="flex flex-col gap-4">
-          <div className="p-4"><Input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" /></div>
+          <div className="p-4"><Input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Name or school ID" aria-label="Search students" /></div>
 
-          {loading && <SkeletonText lines={6} />}
+          {loading && <SkeletonTable rows={5} columns={4} className="mx-4" />}
           {!loading && error && <ErrorState description={error} onRetry={load} />}
           {!loading && !error && students.length === 0 && (
             <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student. None are on this one yet.'} />
           )}
 
-          {!loading && !error && students.length > 0 && <div className="overflow-x-auto border-y border-line">
-            <table className="w-full min-w-[650px] text-left text-sm">
+          {!loading && !error && students.length > 0 && <div className="border-y border-line">
+            <table className={TABLE}>
               <caption className="sr-only">Student clearance signatures</caption>
-              <thead className="bg-subtle text-xs font-bold text-ink-muted"><tr>
-                <th scope="col" className="px-3 py-3">Student</th>
-                <th scope="col" className="px-3 py-3">Progress</th>
-                {(period.required_roles || []).map((role) => <th scope="col" key={role} className="px-3 py-3">{humanizeRole(role)}</th>)}
-                <th scope="col" className="px-3 py-3 text-right">Actions</th>
+              <thead className={THEAD}><tr>
+                <th scope="col" className={TH}>Student</th>
+                <th scope="col" className={TH}>Progress</th>
+                {(period.required_roles || []).map((role) => <th scope="col" key={role} className={TH}>{humanizeRole(role)}</th>)}
+                <th scope="col" className={`${TH} text-right`}>Actions</th>
               </tr></thead>
-              <tbody className="divide-y divide-line">{students.map((student) => <tr key={student.student_id} className="align-middle">
-                <td className="px-3 py-3"><span className="block font-bold text-ink">{student.student_name || `Student ${student.student_id}`}</span><span className="text-xs text-ink-muted">{student.student_id}</span></td>
-                <td className="px-3 py-3"><span className="font-semibold text-ink">{student.signatures.filter((signature) => signature.status === 'cleared').length} of {student.signatures.length}</span><span className="block text-xs text-ink-muted">{clearanceStageText(student)}</span></td>
-                {(period.required_roles || []).map((role) => <td key={role} className="px-3 py-3">{signatureStatus(signatureFor(student, role))}</td>)}
-                <td className="px-3 py-3 text-right">{saoAction(student)}</td>
+              <tbody className={TBODY}>{students.map((student) => <tr key={student.student_id} className={TR}>
+                <td data-label="Student" className={TD}><div><span className="block font-medium text-ink">{student.student_name || `Student ${student.student_id}`}</span><span className="block text-xs text-ink-muted">{student.student_id}</span></div></td>
+                <td data-label="Progress" className={TD}><div><span className="block text-ink">{student.signatures.filter((signature) => signature.status === 'cleared').length} of {student.signatures.length}</span><span className="block text-xs text-ink-muted">{clearanceStageText(student)}</span></div></td>
+                {(period.required_roles || []).map((role) => <td key={role} data-label={humanizeRole(role)} className={TD}>{signatureStatus(signatureFor(student, role))}</td>)}
+                <td data-label="Actions" className={`${TD} md:text-right`}>{saoAction(student)}</td>
               </tr>)}</tbody>
             </table>
           </div>}

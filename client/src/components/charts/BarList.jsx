@@ -10,7 +10,7 @@ export default function BarList({ items = [], max, valueFormat, title, descripti
 
   return (
     <section aria-label={title}>
-      {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+      {title && <h3 className="text-sm font-semibold text-ink">{title}</h3>}
       {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
 
       {safeItems.length === 0 ? (

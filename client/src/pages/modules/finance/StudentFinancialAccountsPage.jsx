@@ -1,25 +1,30 @@
-import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BadgeCheck, Eye, FilePlus2, Search, UsersRound, WalletCards } from 'lucide-react';
+import { FilePlus2, Search, UsersRound } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import PersonPicker from '../../../components/people/PersonPicker';
-import TableRowActions from '../../../components/TableRowActions';
 import { createInvoice, getStudentDebts, recordInvoicePayment, updateInvoiceStatus } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { Button, EmptyState, PageHeader } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
+const EMPTY_FILTERS = { search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };
+
+// Overdue and pending clearance carry a badge; a cleared student is the default and shows nothing.
+function standing(account) {
+  if (account.overdue_invoice_count) return <StatusBadge status="overdue" />;
+  if (account.total_debt > 0) return <StatusBadge tone="warning" label="Pending clearance" />;
+  return null;
+}
 
 export default function StudentFinancialAccountsPage() {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState({});
   const [options, setOptions] = useState({ departments: [], programs: [], year_levels: [] });
-  const [filters, setFilters] = useState({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ total: 0, per_page: 10, current_page: 1 });
   const [loading, setLoading] = useState(true);
@@ -46,7 +51,7 @@ export default function StudentFinancialAccountsPage() {
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
   const filtersActive = Boolean(filters.search.trim() || filters.department || filters.program || filters.year_level || filters.status !== 'all');
   const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); };
-  const clearFilters = () => { setFilters({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 }); setPage(1); };
+  const clearFilters = () => { setFilters(EMPTY_FILTERS); setPage(1); };
   const refreshAndReselect = async (schoolId) => { await load(); if (schoolId) { const response = await getStudentDebts({ student_id: schoolId }); setSelected(response.data?.[0] || null); } };
 
   const submitCharge = async (event) => {
@@ -68,58 +73,119 @@ export default function StudentFinancialAccountsPage() {
     finally { setBusy(false); }
   };
 
-  return <div className="space-y-5">
+  const columns = [
+    { key: 'student', header: 'Student', render: (account) => <div className="text-left"><p className="font-semibold text-ink">{formatDisplayText(account.student.name)}</p><p className="text-xs text-ink-muted">{account.student.school_id}</p></div> },
+    { key: 'program', header: 'Program', render: (account) => <div className="text-left"><p>{account.student.program || 'Not recorded'}</p><p className="text-xs text-ink-muted">{[account.student.department, account.student.year_level, account.student.section].filter(Boolean).join(' · ') || 'Not recorded'}</p></div> },
+    { key: 'invoice_debt', header: 'Invoices', align: 'right', render: (account) => <><span>{money(account.invoice_debt)}</span><span className="block text-xs text-ink-muted">{account.unpaid_invoice_count} open</span></> },
+    { key: 'reserved_order_debt', header: 'Merchandise', align: 'right', render: (account) => <><span>{money(account.reserved_order_debt)}</span><span className="block text-xs text-ink-muted">{account.pending_order_count} pending</span></> },
+    { key: 'total_debt', header: 'Total balance', align: 'right', render: (account) => <span className="font-semibold">{money(account.total_debt)}</span> },
+    { key: 'standing', header: 'Standing', render: standing },
+  ];
+
+  const filterRow = (
+    <div className="mb-4 flex flex-wrap items-end gap-3">
+      <label className="relative min-w-56 flex-1">
+        <span className="sr-only">Search accounts</span>
+        <Search size={16} className="pointer-events-none absolute left-3 top-3 text-ink-muted" aria-hidden="true" />
+        <Input value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Name, school ID, email, course..." className="pl-9" />
+      </label>
+      <Select filter aria-label="Financial status" value={filters.status} onChange={(event) => updateFilter('status', event.target.value)} className="w-52 max-w-full"><option value="all">All statuses</option><option value="owing">Has outstanding debt</option><option value="overdue">Overdue</option><option value="pending_payment">Payment pending</option><option value="cleared">Financially cleared</option></Select>
+      <Select filter aria-label="Department" value={filters.department} onChange={(event) => updateFilter('department', event.target.value)} className="w-52 max-w-full"><option value="">All departments</option>{(options.departments || []).map((value) => <option key={value}>{value}</option>)}</Select>
+      {filtersActive && rows.length > 0 && <button type="button" onClick={clearFilters} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>}
+    </div>
+  );
+
+  const emptyState = filtersActive ? (
+    <EmptyState kind="filtered" title="No student accounts match these filters" description="Try a different search or clear the filters." onClearFilters={clearFilters} />
+  ) : (
+    <EmptyState
+      icon={UsersRound}
+      title="No student accounts yet"
+      description="An account appears for each member of your organization, with what they owe and their clearance. Add members first, then use Add student charge above to bill them."
+      action={<Button variant="secondary" to="/dashboard/admin/users">Add members</Button>}
+    />
+  );
+
+  return <div className="space-y-6">
     <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
     <PageHeader primary={<Button leftIcon={FilePlus2} onClick={() => { setCharge({ student: null, student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
-        { label: 'Total Outstanding', value: money(summary.total_outstanding), detail: `${summary.students_owing || 0} students with balances`, icon: WalletCards, tone: 'bg-brand-50 text-navy-800' },
-        { label: 'Students Owing', value: summary.students_owing || 0, detail: `${summary.students_cleared || 0} financially cleared`, icon: AlertTriangle, tone: 'bg-amber-50 text-amber-700' },
-        { label: 'Overdue Accounts', value: summary.students_overdue || 0, detail: 'Past at least one due date', icon: AlertTriangle, tone: 'bg-red-50 text-red-700' },
-        { label: 'Cleared Students', value: summary.students_cleared || 0, detail: `Out of ${summary.total_students || 0} students`, icon: BadgeCheck, tone: 'bg-success-tint text-success-strong' },
-      ].map((item) => <dl key={item.label} className="flex items-start justify-between gap-3 rounded-lg border border-line bg-white p-4"><div><dt className="text-xs font-semibold text-slate-500">{item.label}</dt><dd className="mt-2 text-2xl font-semibold tabular-nums text-ink">{item.value}</dd><p className="mt-1 text-xs font-medium text-slate-500">{item.detail}</p></div><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${item.tone}`}><item.icon size={19} /></span></dl>)}
+        { label: 'Total outstanding', value: money(summary.total_outstanding), detail: `${summary.students_owing || 0} students with balances` },
+        { label: 'Overdue accounts', value: summary.students_overdue || 0, detail: 'Past at least one due date' },
+        { label: 'Cleared students', value: summary.students_cleared || 0, detail: `Out of ${summary.total_students || 0} students` },
+      ].map((item) => <div key={item.label} className="p-4"><dt className="text-xs font-medium text-ink-muted">{item.label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{item.value}</dd><p className="mt-1 text-xs text-ink-muted">{item.detail}</p></div>)}
+    </dl>
+
+    <section aria-label="Student accounts">
+      <DataTable
+        caption="Student accounts"
+        columns={columns}
+        rows={rows}
+        rowKey={(account) => account.student.school_id}
+        loading={loading}
+        error={error}
+        onRetry={load}
+        filters={filterRow}
+        emptyState={emptyState}
+        actions={(account) => <Button variant="secondary" onClick={() => setSelected(account)}>View account</Button>}
+        actionsHeader="Action"
+        stickyHeader={false}
+        pagination={<PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="student accounts" />}
+      />
     </section>
 
-    <section className="rounded-lg border border-line bg-white p-4">
-      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(140px,1fr))]">
-        <label className="relative"><span className="sr-only">Search accounts</span><Search size={16} className="absolute left-3 top-3.5 text-slate-500" /><input value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Name, school ID, email, course..." className="h-11 w-full rounded-lg border border-line pl-9 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" /></label>
-        <HiusaSelect filter aria-label="Financial status" value={filters.status} onChange={(event) => updateFilter('status', event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm"><option value="all">All statuses</option><option value="owing">Has outstanding debt</option><option value="overdue">Overdue</option><option value="pending_payment">Payment pending</option><option value="cleared">Financially cleared</option></HiusaSelect>
-        <HiusaSelect filter aria-label="Department" value={filters.department} onChange={(event) => updateFilter('department', event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm"><option value="">All departments</option>{(options.departments || []).map((value) => <option key={value}>{value}</option>)}</HiusaSelect>
-        <HiusaSelect filter aria-label="Year level" value={filters.year_level} onChange={(event) => updateFilter('year_level', event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm"><option value="">All year levels</option>{(options.year_levels || []).map((value) => <option key={value}>{value}</option>)}</HiusaSelect>
-        <HiusaSelect aria-label="Sort accounts" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value)} className="h-11 rounded-lg border border-line px-3 text-sm"><option value="highest_debt">Highest debt first</option><option value="name">Student name</option><option value="recent">Recent activity</option></HiusaSelect>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={clearFilters} className="text-xs font-bold text-brand-700 hover:underline">Clear all filters</button><span className="rounded-lg border border-line bg-subtle px-3 py-2 text-xs font-semibold text-slate-500">10 rows per page</span></div>
-    </section>
-
-    {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
-    <section className="overflow-hidden rounded-lg border border-line bg-white">
-      <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1000px] text-left"><thead className="bg-subtle text-xs font-bold text-slate-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Academic profile</th><th className="px-4 py-3 text-right">Invoices</th><th className="px-4 py-3 text-right">Merchandise</th><th className="px-4 py-3 text-right">Total balance</th><th className="px-4 py-3">Standing</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-line">
-        {loading ? Array.from({ length: 6 }, (_, index) => <tr key={index}>{Array.from({ length: 7 }, (__, cell) => <td key={cell} className="px-4 py-4"><div className="h-4 animate-pulse rounded bg-slate-100" /></td>)}</tr>) : rows.map((account) => <tr key={account.student.school_id} className="hover:bg-subtle"><td className="px-4 py-3.5"><p className="text-sm font-bold text-ink">{formatDisplayText(account.student.name)}</p><p className="mt-0.5 text-xs text-slate-500">{account.student.school_id}</p></td><td className="px-4 py-3.5"><p className="text-xs font-semibold text-slate-700">{account.student.program || 'Course not recorded'}</p><p className="mt-0.5 text-xs text-slate-500">{[account.student.department, account.student.year_level, account.student.section].filter(Boolean).join(' · ') || 'Academic details not recorded'}</p></td><td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">{money(account.invoice_debt)}<p className="text-xs font-medium text-slate-500">{account.unpaid_invoice_count} open</p></td><td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">{money(account.reserved_order_debt)}<p className="text-xs font-medium text-slate-500">{account.pending_order_count} pending</p></td><td className="px-4 py-3.5 text-right text-sm font-semibold text-ink">{money(account.total_debt)}</td><td className="px-4 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.overdue_invoice_count ? 'bg-red-50 text-red-700' : account.total_debt > 0 ? 'bg-amber-50 text-amber-700' : 'bg-success-tint text-success-strong'}`}>{account.overdue_invoice_count ? 'Overdue' : account.total_debt > 0 ? 'Pending clearance' : 'Cleared'}</span></td><td className="px-4 py-3.5 text-right"><TableRowActions subject={account.student.name} label="Account actions" actions={[{ label: 'View account', icon: Eye, onClick: () => setSelected(account) }]} /></td></tr>)}
-      </tbody></table></div>
-      <div className="divide-y divide-line md:hidden">{loading ? Array.from({ length: 4 }, (_, index) => <div key={index} className="m-4 h-28 animate-pulse rounded-lg bg-slate-100" />) : rows.map((account) => <article key={account.student.school_id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-ink">{formatDisplayText(account.student.name)}</p><p className="text-xs text-slate-500">{account.student.school_id}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.total_debt > 0 ? 'bg-amber-50 text-amber-700' : 'bg-success-tint text-success-strong'}`}>{account.total_debt > 0 ? 'Pending' : 'Cleared'}</span></div><p className="mt-2 text-xs text-slate-500">{account.student.program || 'Course not recorded'} · {account.student.year_level || 'Year not recorded'}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-xs font-bold text-slate-500">Outstanding</p><p className="text-lg font-semibold text-ink">{money(account.total_debt)}</p></div><button type="button" onClick={() => setSelected(account)} className="min-h-11 rounded-lg bg-brand-700 px-3 text-xs font-bold text-white">View account</button></div></article>)}</div>
-      {!loading && !error && rows.length === 0 && (filtersActive ? (
-        <EmptyState kind="filtered" title="No student accounts match these filters" description="Try a different search or clear the filters." onClearFilters={clearFilters} />
-      ) : (
-        <EmptyState
-          icon={UsersRound}
-          title="No student accounts yet"
-          description="An account appears for each member of your organization, with what they owe and their clearance. Add members first, then use Add student charge above to bill them."
-          action={<Button variant="secondary" to="/dashboard/admin/users">Add members</Button>}
-        />
-      ))}
-      <PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="student accounts" />
-    </section>
-
-    <Modal open={Boolean(selected)} title="Student Financial Account" description={selected ? `${selected.student.name} · ${selected.student.school_id}` : ''} onClose={() => setSelected(null)} maxWidth="max-w-4xl" footer={selected && <><button type="button" onClick={() => { setCharge({ student_id: selected.student.school_id, description: '', amount_due: '', due_date: '' }); setFormError(''); }} className="h-10 rounded-lg border border-line px-4 text-sm font-bold text-slate-700">Add charge</button><button type="button" onClick={() => setSelected(null)} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white">Close</button></>}>
-      {selected && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['Department', selected.student.department], ['Course / Program', selected.student.program], ['Year & Section', [selected.student.year_level, selected.student.section].filter(Boolean).join(' · ')], ['Email', selected.student.email]].map(([label, value]) => <div key={label} className="rounded-lg bg-subtle p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-bold text-ink">{value || 'Not recorded'}</p></div>)}</div><div className="grid gap-3 sm:grid-cols-3">{[['Invoice balance', selected.invoice_debt], ['Pending merchandise', selected.reserved_order_debt], ['Total outstanding', selected.total_debt]].map(([label, value]) => <div key={label} className="rounded-lg border border-line p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-semibold text-ink">{money(value)}</p></div>)}</div>
-        <div><h3 className="text-sm font-semibold text-ink">Open invoices</h3>{selected.invoices?.length ? <div className="mt-2 space-y-2">{selected.invoices.map((invoice) => <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"><div><p className="text-sm font-bold text-ink">{invoice.reference} · {invoice.description}</p><p className={`mt-1 text-xs ${invoice.due_date && new Date(invoice.due_date) < new Date() ? 'font-bold text-red-600' : 'text-slate-500'}`}>Due: {date(invoice.due_date)} · Paid {money(invoice.amount_paid)}</p></div><div className="text-right"><p className="text-sm font-semibold text-ink">{money(invoice.remaining_balance)}</p><div className="mt-1 flex justify-end gap-3"><button type="button" onClick={() => { setPayment({ invoice, amount: '' }); setFormError(''); }} className="text-xs font-bold text-brand-700 hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">Record payment</button>{Number(invoice.amount_paid) <= 0 && <button type="button" aria-label={`Cancel or waive invoice ${invoice.reference}`} onClick={() => { setClosing({ invoice, status: 'cancelled', reason: '' }); setFormError(''); }} className="text-xs font-bold text-slate-600 hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">Cancel or waive</button>}</div></div></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No open invoices.</p>}</div>
-        <div><h3 className="text-sm font-semibold text-ink">Pending merchandise</h3>{selected.reserved_orders?.length ? <div className="mt-2 space-y-2">{selected.reserved_orders.map((order) => <div key={order.id} className="flex justify-between gap-3 rounded-lg border border-line p-3"><div><p className="text-sm font-bold text-ink">ORD-{order.id} · {formatDisplayText(order.merchandise?.name) || 'Merchandise'}</p><p className="mt-1 text-xs text-slate-500">{order.payment_proof_url ? 'Payment proof awaiting verification' : 'Reserved and not yet paid'}</p></div><p className="text-sm font-semibold text-ink">{money(order.total_price)}</p></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No unpaid reservations.</p>}</div>
+    <Drawer
+      open={Boolean(selected)}
+      title="Student financial account"
+      description={selected ? `${selected.student.name} · ${selected.student.school_id}` : ''}
+      onClose={() => setSelected(null)}
+      width="max-w-2xl"
+      footer={selected && <><Button variant="secondary" onClick={() => setSelected(null)}>Close</Button><Button onClick={() => { setCharge({ student_id: selected.student.school_id, description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add charge</Button></>}
+    >
+      {selected && <div className="space-y-5">
+        <dl className="grid gap-3 sm:grid-cols-2">{[['Department', selected.student.department], ['Course or program', selected.student.program], ['Year and section', [selected.student.year_level, selected.student.section].filter(Boolean).join(' · ')], ['Email', selected.student.email]].map(([label, value]) => <div key={label}><dt className="text-xs font-medium text-ink-muted">{label}</dt><dd className="mt-0.5 break-words text-sm text-ink">{value || 'Not recorded'}</dd></div>)}</dl>
+        <dl className="grid gap-3 border-t border-line pt-4 sm:grid-cols-3">{[['Invoice balance', selected.invoice_debt], ['Pending merchandise', selected.reserved_order_debt], ['Total outstanding', selected.total_debt]].map(([label, value]) => <div key={label}><dt className="text-xs font-medium text-ink-muted">{label}</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums text-ink">{money(value)}</dd></div>)}</dl>
+        <section className="border-t border-line pt-4"><h3 className="text-sm font-semibold text-ink">Open invoices</h3>{selected.invoices?.length ? <ul className="mt-2 divide-y divide-line-soft">{selected.invoices.map((invoice) => <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="text-sm font-semibold text-ink">{invoice.reference} · {invoice.description}</p><p className={`mt-1 text-xs ${invoice.due_date && new Date(invoice.due_date) < new Date() ? 'font-medium text-danger-strong' : 'text-ink-muted'}`}>Due: {date(invoice.due_date)} · Paid {money(invoice.amount_paid)}</p></div><div className="text-right"><p className="text-sm font-semibold tabular-nums text-ink">{money(invoice.remaining_balance)}</p><div className="mt-2 flex flex-wrap justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => { setPayment({ invoice, amount: '' }); setFormError(''); }}>Record payment</Button>{Number(invoice.amount_paid) <= 0 && <Button size="sm" variant="secondary" aria-label={`Cancel or waive invoice ${invoice.reference}`} onClick={() => { setClosing({ invoice, status: 'cancelled', reason: '' }); setFormError(''); }}>Cancel or waive</Button>}</div></div></li>)}</ul> : <p className="mt-2 text-sm text-ink-muted">No open invoices.</p>}</section>
+        <section className="border-t border-line pt-4"><h3 className="text-sm font-semibold text-ink">Pending merchandise</h3>{selected.reserved_orders?.length ? <ul className="mt-2 divide-y divide-line-soft">{selected.reserved_orders.map((order) => <li key={order.id} className="flex justify-between gap-3 py-3"><div><p className="text-sm font-semibold text-ink">ORD-{order.id} · {formatDisplayText(order.merchandise?.name) || 'Merchandise'}</p><p className="mt-1 text-xs text-ink-muted">{order.payment_proof_url ? 'Payment proof awaiting verification' : 'Reserved and not yet paid'}</p></div><p className="text-sm font-semibold tabular-nums text-ink">{money(order.total_price)}</p></li>)}</ul> : <p className="mt-2 text-sm text-ink-muted">No unpaid reservations.</p>}</section>
       </div>}
-    </Modal>
+    </Drawer>
 
-    <Modal open={Boolean(charge)} title="Add Student Charge" description="Create an amount due on the student's financial account." onClose={() => !busy && setCharge(null)} footer={<><button type="button" onClick={() => setCharge(null)} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold">Cancel</button><button type="submit" form="charge-form" disabled={busy || !charge?.student_id} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white">{busy ? 'Saving...' : 'Add charge'}</button></>}><form id="charge-form" onSubmit={submitCharge} className="grid gap-3 sm:grid-cols-2"><PersonPicker label="Student" scope="college" role="STUDENT" value={charge?.student ?? null} onSelect={(person) => setCharge({ ...charge, student: person, student_id: person?.school_id ?? '' })} disabled={busy} className="sm:col-span-2" /><label className="text-xs font-bold text-slate-600">Amount due<input type="number" min="0.01" step="0.01" required value={charge?.amount_due || ''} onChange={(event) => setCharge({ ...charge, amount_due: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" /></label><label className="text-xs font-bold text-slate-600 sm:col-span-2">Description<input required maxLength={255} value={charge?.description || ''} onChange={(event) => setCharge({ ...charge, description: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" placeholder="e.g. Organization fee" /></label><label className="text-xs font-bold text-slate-600">Due date<DateTimeInput type="date" value={charge?.due_date || ''} onChange={(event) => setCharge({ ...charge, due_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" /></label>{formError && <p className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700 sm:col-span-2">{formError}</p>}</form></Modal>
-    <Modal open={Boolean(payment)} title="Record Invoice Payment" description={payment ? `${payment.invoice.reference} · Remaining ${money(payment.invoice.remaining_balance)}` : ''} onClose={() => !busy && setPayment(null)} footer={<><button type="button" onClick={() => setPayment(null)} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold">Cancel</button><button type="submit" form="payment-form" disabled={busy} className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-bold text-white">{busy ? 'Recording...' : 'Record payment'}</button></>}><form id="payment-form" onSubmit={submitPayment}><label className="text-xs font-bold text-slate-600">Payment amount<input type="number" min="0.01" max={payment?.invoice.remaining_balance} step="0.01" required value={payment?.amount || ''} onChange={(event) => setPayment({ ...payment, amount: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm" /></label>{formError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">{formError}</p>}</form></Modal>
-    <Modal open={Boolean(closing)} title="Cancel or Waive Invoice" description={closing ? `${closing.invoice.reference} · ${closing.invoice.description} · Remaining ${money(closing.invoice.remaining_balance)}` : ''} onClose={() => !busy && setClosing(null)} footer={<><button type="button" onClick={() => setClosing(null)} disabled={busy} className="h-10 rounded-lg border border-line px-4 text-sm font-bold">Keep invoice</button><button type="submit" form="close-invoice-form" disabled={busy} className={`h-10 rounded-lg px-4 text-sm font-bold text-white ${closing?.status === 'waived' ? 'bg-brand-700 hover:bg-navy-800' : 'bg-danger hover:bg-danger-strong'}`}>{busy ? 'Saving...' : closing?.status === 'waived' ? 'Waive balance' : 'Cancel invoice'}</button></>}><form id="close-invoice-form" onSubmit={submitClose} className="space-y-3"><label className="block text-xs font-bold text-slate-600">Action<HiusaSelect value={closing?.status || 'cancelled'} onChange={(event) => setClosing({ ...closing, status: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-line px-3 text-sm"><option value="cancelled">Cancel: charged in error</option><option value="waived">Waive: student is excused</option></HiusaSelect></label><label className="block text-xs font-bold text-slate-600">Reason<textarea required maxLength={500} rows={3} value={closing?.reason || ''} onChange={(event) => setClosing({ ...closing, reason: event.target.value })} className="mt-1 w-full resize-none rounded-lg border border-line px-3 py-2 text-sm" placeholder="Why is this charge being removed?" /></label>{closing?.invoice.order_id && <p className="rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-800">This charge bills merchandise order ORD-{closing.invoice.order_id}. Removing it returns the order to pending merchandise. Cancel the order instead to remove both.</p>}{formError && <p className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">{formError}</p>}</form></Modal>
+    <Drawer
+      open={Boolean(charge)}
+      title="Add student charge"
+      description="Create an amount due on the student's financial account."
+      onClose={() => !busy && setCharge(null)}
+      footer={<><Button variant="secondary" onClick={() => setCharge(null)} disabled={busy}>Cancel</Button><Button type="submit" form="charge-form" disabled={!charge?.student_id} loading={busy}>Add charge</Button></>}
+    >
+      <form id="charge-form" onSubmit={submitCharge} className="space-y-4">
+        <PersonPicker label="Student" scope="college" role="STUDENT" value={charge?.student ?? null} onSelect={(person) => setCharge({ ...charge, student: person, student_id: person?.school_id ?? '' })} disabled={busy} />
+        <Field label="Amount due" required><Input type="number" min="0.01" step="0.01" value={charge?.amount_due || ''} onChange={(event) => setCharge({ ...charge, amount_due: event.target.value })} /></Field>
+        <Field label="Description" required><Input maxLength={255} value={charge?.description || ''} onChange={(event) => setCharge({ ...charge, description: event.target.value })} placeholder="e.g. Organization fee" /></Field>
+        <Field label="Due date" optional><Input type="date" value={charge?.due_date || ''} onChange={(event) => setCharge({ ...charge, due_date: event.target.value })} /></Field>
+        {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
+      </form>
+    </Drawer>
+    <Drawer
+      open={Boolean(payment)}
+      title="Record invoice payment"
+      description={payment ? `${payment.invoice.reference} · Remaining ${money(payment.invoice.remaining_balance)}` : ''}
+      onClose={() => !busy && setPayment(null)}
+      footer={<><Button variant="secondary" onClick={() => setPayment(null)} disabled={busy}>Cancel</Button><Button type="submit" form="payment-form" loading={busy}>Record payment</Button></>}
+    >
+      <form id="payment-form" onSubmit={submitPayment} className="space-y-4">
+        <Field label="Payment amount" required><Input type="number" min="0.01" max={payment?.invoice.remaining_balance} step="0.01" value={payment?.amount || ''} onChange={(event) => setPayment({ ...payment, amount: event.target.value })} /></Field>
+        {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
+      </form>
+    </Drawer>
+    <Modal open={Boolean(closing)} title="Cancel or waive invoice" description={closing ? `${closing.invoice.reference} · ${closing.invoice.description} · Remaining ${money(closing.invoice.remaining_balance)}` : ''} onClose={() => !busy && setClosing(null)} footer={<><Button variant="secondary" onClick={() => setClosing(null)} disabled={busy}>Keep invoice</Button><Button type="submit" form="close-invoice-form" variant={closing?.status === 'waived' ? 'primary' : 'danger'} loading={busy}>{closing?.status === 'waived' ? 'Waive balance' : 'Cancel invoice'}</Button></>}>
+      <form id="close-invoice-form" onSubmit={submitClose} className="space-y-4">
+        <Field label="Action"><Select value={closing?.status || 'cancelled'} onChange={(event) => setClosing({ ...closing, status: event.target.value })}><option value="cancelled">Cancel: charged in error</option><option value="waived">Waive: student is excused</option></Select></Field>
+        <Field label="Reason" required><Textarea required rows={3} maxLength={500} value={closing?.reason || ''} onChange={(event) => setClosing({ ...closing, reason: event.target.value })} placeholder="Why is this charge being removed?" /></Field>
+        {closing?.invoice.order_id && <p className="rounded-control bg-amber-50 p-3 text-xs font-medium text-amber-800">This charge bills merchandise order ORD-{closing.invoice.order_id}. Removing it returns the order to pending merchandise. Cancel the order instead to remove both.</p>}
+        {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
+      </form>
+    </Modal>
   </div>;
 }

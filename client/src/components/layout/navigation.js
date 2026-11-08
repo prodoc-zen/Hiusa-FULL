@@ -95,7 +95,7 @@ const L = {
 const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.shop, L.myOrders, L.myReceipts, L.statement], { band: 'Me' });
 
 const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
-const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'AI Copilot', 'What to do today'] });
+const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'What to do today'] });
 
 const NAV_BY_ROLE = {
   ADMIN: [

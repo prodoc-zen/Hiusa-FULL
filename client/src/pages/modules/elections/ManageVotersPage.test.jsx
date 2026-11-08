@@ -38,17 +38,17 @@ describe('ManageVotersPage', () => {
     render(<ManageVotersPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Juan Dela Vega')).toBeInTheDocument();
+      expect(screen.getAllByText('Juan Dela Vega').length).toBeGreaterThan(0);
     });
-    expect(screen.getByText('Pia Torres')).toBeInTheDocument();
-    expect(screen.queryByText('No voters match your search.')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Pia Torres').length).toBeGreaterThan(0);
+    expect(screen.queryByText('No voters match')).not.toBeInTheDocument();
 
-    // Vote status is per row, and the words also appear as card labels and filter
-    // buttons, so scope the assertion to each voter's own table row.
-    const votedRow = screen.getByText('Juan Dela Vega').closest('tr');
-    const pendingRow = screen.getByText('Pia Torres').closest('tr');
+    // The table and the phone list both render, so scope the assertion to each voter's
+    // own table row (the table comes first in the DOM).
+    const votedRow = screen.getAllByText('Juan Dela Vega')[0].closest('tr');
+    const pendingRow = screen.getAllByText('Pia Torres')[0].closest('tr');
     expect(votedRow).toHaveTextContent('Voted');
-    expect(pendingRow).toHaveTextContent('Not Yet');
+    expect(pendingRow).toHaveTextContent('Not yet');
   });
 
   // The headline counts must come from the server-wide `summary`, never from the
@@ -66,22 +66,10 @@ describe('ManageVotersPage', () => {
 
     render(<ManageVotersPage />);
 
-    // These numbers and words also appear in the pagination footer, the filter
-    // buttons and the row badges, so resolve each stat card by finding the label
-    // whose sibling is the numeric value. Only ONE voter row is loaded here, so a
-    // regression back to page-length counting would read 1 / 1 / 0 instead.
-    const cardValue = (label) =>
-      screen
-        .getAllByText(label)
-        .map((node) => node.parentElement?.querySelector('.tabular-nums')?.textContent)
-        .find((value) => value !== undefined);
-
-    await waitFor(() => {
-      expect(cardValue('Total Voters')).toBe('320');
-    });
-    expect(cardValue('Voted')).toBe('118');
-    expect(cardValue('Not Yet Voted')).toBe('202');
-    expect(screen.getByText('36.9% turnout')).toBeInTheDocument();
+    // Only ONE voter row is loaded here, so a regression back to page-length counting
+    // would read 1 of 1 and 0 still to vote instead.
+    const summary = await screen.findByText(/eligible voters have voted/);
+    expect(summary).toHaveTextContent('118 of 320 eligible voters have voted (36.9% turnout). 202 still to vote.');
   });
 
   it('shows an error with a retry when the request fails', async () => {
@@ -92,6 +80,6 @@ describe('ManageVotersPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Failed to load voters.')).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

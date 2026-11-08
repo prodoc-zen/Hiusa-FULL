@@ -86,7 +86,7 @@ describe('EventsPage approval-request launch', () => {
     render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/event']}><EventsPage initialTab="events" startEventRequest /></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Event Name *')).toHaveValue('');
+    expect(screen.getByLabelText(/^Event name/)).toHaveValue('');
   });
 
   it('does not reopen event details when a pending details request resolves after close', async () => {
@@ -157,8 +157,8 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.queryByText('Build an Event To-do List')).not.toBeInTheDocument();
     await screen.findByRole('option', { name: 'Leadership Summit' });
     fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '9' } });
-    fireEvent.change(screen.getByLabelText('Optional planning context'), { target: { value: 'Plan setup and safety.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Draft Editable To-do List' }));
+    fireEvent.change(screen.getByLabelText(/^Planning context/), { target: { value: 'Plan setup and safety.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
 
     expect(await screen.findByText('1 suggested to-do item')).toBeInTheDocument();
     expect(screen.getByText('Why Alex Santos was suggested')).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('EventsPage approval-request launch', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add to-do' }));
     expect(screen.getByLabelText('Task 2 officer')).toHaveValue('');
     expect(screen.getByText('Review eligible officers, then choose the final assignee.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save and Assign Tasks' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeDisabled();
   });
 
   it('presents check-in as a live door-management workspace', async () => {
@@ -255,10 +255,10 @@ describe('EventsPage approval-request launch', () => {
     fireEvent.change(screen.getByLabelText('Fingerprint program filter'), { target: { value: 'BSIT' } });
     await screen.findByRole('option', { name: '4-B' });
     fireEvent.change(screen.getByLabelText('Fingerprint section filter'), { target: { value: '4-B' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Scan Fingerprint' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan fingerprint' }));
 
     expect(await screen.findByText('Is this the correct Student?')).toBeInTheDocument();
-    const confirmationModal = screen.getByRole('dialog', { name: 'Confirm Fingerprint Check-In' });
+    const confirmationModal = screen.getByRole('dialog', { name: 'Confirm fingerprint check-in' });
     expect(screen.getByText('91.2', { exact: false })).toBeInTheDocument();
     expect(fingerprintMocks.identifyAttendanceFingerprint).toHaveBeenCalledWith(31, { samples: ['probe'], sampleFormat: 5 }, {
       year_levels: ['4th Year'],
@@ -267,7 +267,7 @@ describe('EventsPage approval-request launch', () => {
     });
     expect(fingerprintMocks.confirmFingerprintAttendance).not.toHaveBeenCalled();
 
-    fireEvent.click(within(confirmationModal).getByRole('button', { name: 'Confirm Check-In' }));
+    fireEvent.click(within(confirmationModal).getByRole('button', { name: 'Confirm check-in' }));
     await waitFor(() => expect(fingerprintMocks.confirmFingerprintAttendance).toHaveBeenCalledWith(31, 'signed-confirmation'));
     expect(await screen.findByText('Ana Reyes was identified and checked in.')).toBeInTheDocument();
   });

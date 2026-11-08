@@ -14,7 +14,7 @@ export default function VenueWeekCalendar({ days, slots, conflictIds, showVenue,
       <>
         <span className="block">{dayLabel(day, { weekday: 'short' })}</span>
         <span className={`mx-auto mt-0.5 grid h-7 w-7 place-items-center rounded-full text-sm ${day === today ? 'bg-brand-700 text-white' : 'text-ink'}`}>{dayLabel(day, { day: 'numeric' })}</span>
-        {day === today && <span className="mt-0.5 block text-xs font-bold">Today</span>}
+        {day === today && <span className="mt-0.5 block text-xs font-semibold">Today</span>}
       </>
     ),
   }));

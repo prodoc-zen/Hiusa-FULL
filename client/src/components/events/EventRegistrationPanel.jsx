@@ -1,11 +1,10 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, Users } from 'lucide-react';
 import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations, registerForEvent } from '../../services/eventService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 import notify from '../../lib/notify';
-import { Button, FlowStepper, ProgressMeter, StatusBadge } from '../ui';
+import { Button, FlowStepper, ProgressMeter, Skeleton, StatusBadge } from '../ui';
 
 // A cancelled registration is a neutral outcome here, not the danger tone the
 // shared status map gives cancelled requests.
@@ -69,7 +68,7 @@ function ParticipantRegistration({ event }) {
   }
 
   if (registration === undefined) {
-    return <div className="h-11 animate-pulse rounded-control bg-subtle" role="status" aria-label="Loading your registration" />;
+    return <div role="status" aria-label="Loading your registration"><Skeleton className="h-11" /></div>;
   }
 
   const status = registration?.status;
@@ -100,15 +99,14 @@ function ParticipantRegistration({ event }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <CalendarCheck size={16} className="text-brand-700" aria-hidden="true" />
-            <p className="text-sm font-bold text-ink">{status === 'registered' ? 'You are registered' : 'Your registration'}</p>
+            <p className="text-sm font-semibold text-ink">{status === 'registered' ? 'You are registered' : 'Your registration'}</p>
             {status && <RegistrationBadge status={status} />}
           </div>
           <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">{message}</p>
         </div>
         {action}
       </div>
-      <FlowStepper steps={registrationSteps(status, event, open)} ariaLabel="Your registration progress" />
+      <FlowStepper variant="full" steps={registrationSteps(status, event, open)} ariaLabel="Your registration progress" />
       {error && <p className="text-xs font-semibold text-danger-strong" role="alert">{error}</p>}
     </div>
   );
@@ -131,7 +129,7 @@ function OrganizerRoster({ event }) {
   useEffect(() => { load(); }, [load]);
 
   if (state.loading && !state.data) {
-    return <div className="h-24 animate-pulse rounded-control bg-subtle" role="status" aria-label="Loading registrations" />;
+    return <div role="status" aria-label="Loading registrations"><Skeleton className="h-24" /></div>;
   }
   if (state.error) {
     return (
@@ -147,10 +145,7 @@ function OrganizerRoster({ event }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Users size={16} className="text-brand-700" aria-hidden="true" />
-        <p className="text-sm font-bold text-ink">Registrations</p>
-      </div>
+      <p className="text-sm font-semibold text-ink">Registrations</p>
       {summary.capacity ? (
         <ProgressMeter
           label="Seats taken"
@@ -161,11 +156,11 @@ function OrganizerRoster({ event }) {
       ) : (
         <p className="text-xs font-medium text-ink-muted">{active} registered. Set expected participants on the event to cap registrations.</p>
       )}
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
         {[['Registered', summary.registered], ['Attended', summary.attended], ['No-show', summary.no_show], ['Cancelled', summary.cancelled]].map(([label, value]) => (
-          <div key={label} className="rounded-control bg-subtle px-3 py-2">
-            <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
-            <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{value ?? 0}</dd>
+          <div key={label} className="flex gap-1.5">
+            <dt className="text-ink-muted">{label}</dt>
+            <dd className="font-semibold tabular-nums text-ink">{value ?? 0}</dd>
           </div>
         ))}
       </dl>

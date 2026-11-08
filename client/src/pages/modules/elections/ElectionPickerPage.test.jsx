@@ -31,6 +31,11 @@ const upcoming = {
   votes_count: 0,
 };
 
+// The table and the phone list both render, so the table row (first in the DOM) stands in for the card.
+async function rowFor(title) {
+  return (await screen.findAllByText(title))[0].closest('tr');
+}
+
 describe('ElectionPickerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,15 +49,16 @@ describe('ElectionPickerPage', () => {
     render(<ElectionPickerPage onSelect={onSelect} />);
 
     expect(screen.queryByRole('heading', { name: 'Election Workspace' })).not.toBeInTheDocument();
-    await screen.findByText('HIUSA General Election 2026');
-    fireEvent.click(await findRowAction(/Open election/));
+    await screen.findAllByText('HIUSA General Election 2026');
+    fireEvent.click(screen.getAllByRole('button', { name: 'HIUSA General Election 2026' })[0]);
     expect(onSelect).toHaveBeenCalledWith(7);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create election' }));
     await waitFor(() => expect(screen.getByText('Election artwork')).toBeInTheDocument());
-    expect(screen.getByLabelText('Election title *')).toBeInTheDocument();
-    expect(screen.getByText('Choose image')).toBeInTheDocument();
-    expect(screen.getByText('Informative letter (PDF) *')).toBeInTheDocument();
+    expect(screen.getByLabelText('Election title')).toBeRequired();
+    expect(screen.getByLabelText(/Election artwork/)).toHaveAttribute('type', 'file');
+    expect(screen.getByLabelText(/Informative letter/)).toBeRequired();
+    expect(screen.getAllByText('(optional)').length).toBeGreaterThan(0);
   });
 
   it('shows a completed semester as read only', async () => {
@@ -74,21 +80,21 @@ describe('ElectionPickerPage', () => {
 
   it('shows each election its stage and next action, and keeps Finalize ballot for the workspace', async () => {
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
-    expect(within(card).getByText('Next: Build the ballot')).toBeInTheDocument();
-    expect(within(card).getByRole('progressbar', { name: /Progress for HIUSA General Election 2026/ })).toBeInTheDocument();
-    expect(within(card).queryByRole('button', { name: /Finalize ballot/ })).not.toBeInTheDocument();
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Next: Build the ballot')).toBeInTheDocument();
+    expect(within(row).getByText('Upcoming')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Finalize ballot/ })).not.toBeInTheDocument();
   });
 
   it('marks a returned election with the reason and an edit and resubmit action', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Add the voting room.' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
-    expect(within(card).getByText('Returned')).toBeInTheDocument();
-    expect(within(card).getByText('Reason: Add the voting room.')).toBeInTheDocument();
-    expect(within(card).getByText('Next: Returned: edit and resubmit')).toBeInTheDocument();
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Returned')).toBeInTheDocument();
+    expect(within(row).getByText('Reason: Add the voting room.')).toBeInTheDocument();
+    expect(within(row).getByText('Next: Returned: edit and resubmit')).toBeInTheDocument();
     expect(await findRowAction(/Edit and resubmit/)).toBeInTheDocument();
-    expect(within(card).queryByText('In review')).not.toBeInTheDocument();
+    expect(within(row).queryByText('Pending approval')).not.toBeInTheDocument();
   });
 
   it('opens the submitted informative letter after a rejection', async () => {
@@ -98,12 +104,12 @@ describe('ElectionPickerPage', () => {
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/elections/7/informative-letter'));
   });
 
-  it('keeps a pending election that has no approval fields as in review', async () => {
+  it('keeps a pending election that has no approval fields as pending approval', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
-    expect(within(card).getByText('In review')).toBeInTheDocument();
-    expect(within(card).getByText('Next: Awaiting Department Head review')).toBeInTheDocument();
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Pending approval')).toBeInTheDocument();
+    expect(within(row).getByText('Next: Awaiting Department Head review')).toBeInTheDocument();
   });
 
   it('opens the edit form for the election named in an edit link and reports when it closes', async () => {
@@ -159,11 +165,11 @@ describe('ElectionPickerPage empty states', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     electionMocks.getElections.mockResolvedValue([upcoming]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    await screen.findByText('HIUSA General Election 2026');
+    await screen.findAllByText('HIUSA General Election 2026');
     fireEvent.change(screen.getByLabelText('Search elections'), { target: { value: 'zzz' } });
     expect(await screen.findByText('No elections match')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(await screen.findByText('HIUSA General Election 2026')).toBeInTheDocument();
+    expect((await screen.findAllByText('HIUSA General Election 2026')).length).toBeGreaterThan(0);
   });
 });
 
@@ -177,11 +183,11 @@ describe('ElectionPickerPage delete rules', () => {
     electionMocks.getElections.mockResolvedValue([upcoming]);
     electionMocks.deleteElection.mockResolvedValue({});
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+    const row = await rowFor('HIUSA General Election 2026');
 
-    expect(within(card).getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /^Actions for/ })).toBeInTheDocument();
     fireEvent.click(await findRowAction(/Delete/));
-    const dialog = await screen.findByRole('dialog', { name: 'Delete Election' });
+    const dialog = await screen.findByRole('dialog', { name: 'Delete election' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(electionMocks.deleteElection).toHaveBeenCalledWith(7));
@@ -190,22 +196,22 @@ describe('ElectionPickerPage delete rules', () => {
   it('hides Delete for an open election and offers Close instead', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'active', approved_at: '2026-09-01T00:00:00Z', finalized_at: '2026-09-02T00:00:00Z' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+    const row = await rowFor('HIUSA General Election 2026');
 
-    expect(within(card).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
     expect(await findRowAction(/Close/)).toBeInTheDocument();
   });
 
   it('hides Delete for a closed election and for any election that has votes', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'closed' }]);
     const closed = render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const closedCard = (await screen.findByText('HIUSA General Election 2026')).closest('article');
-    expect(within(closedCard).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    const closedRow = await rowFor('HIUSA General Election 2026');
+    expect(within(closedRow).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
     closed.unmount();
 
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, votes_count: 3 }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
-    const votedCard = (await screen.findByText('HIUSA General Election 2026')).closest('article');
-    expect(within(votedCard).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    const votedRow = await rowFor('HIUSA General Election 2026');
+    expect(within(votedRow).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
   });
 });
