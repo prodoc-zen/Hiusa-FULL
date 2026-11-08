@@ -25,7 +25,29 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [organization, setOrganization] = useState(() => /^\d+$/.test(params.get('organization') || '') ? { id: Number(params.get('organization')), name: params.get('name') || `Organization ${params.get('organization')}` } : null);
+  const [organization, setOrganization] = useState(() => {
+    if (/^\d+$/.test(params.get('organization') || '')) {
+      return { id: Number(params.get('organization')), name: params.get('name') || `Organization ${params.get('organization')}` };
+    }
+    try {
+      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
+      if (sub?.id) return { id: Number(sub.id), name: sub.name || sub.acronym || `Organization ${sub.id}` };
+    } catch {}
+    return null;
+  });
+  useEffect(() => {
+    const onSubAccountSwitched = (event) => {
+      const org = event?.detail;
+      if (org?.id) {
+        setOrganization({ id: Number(org.id), name: org.name || org.acronym || `Organization ${org.id}` });
+        setFilePage(1);
+      } else {
+        setOrganization(null);
+      }
+    };
+    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
+  }, []);
   const [fileQuery, setFileQuery] = useState('');
   const [fileSearch, setFileSearch] = useState('');
   const [folderPage, setFolderPage] = useState(1);
