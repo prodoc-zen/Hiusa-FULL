@@ -65,6 +65,8 @@ async function runJourney(cfg) {
     if (message.type() === 'error') consoleErrors.push(`${page.url().replace(BASE, '')} :: ${message.text().slice(0, 240)}`);
   });
   page.on('pageerror', (error) => consoleErrors.push(`${page.url().replace(BASE, '')} :: pageerror ${String(error.message).slice(0, 240)}`));
+  // A "Failed to load resource" console error carries no URL; this names the request that never got an answer.
+  page.on('requestfailed', (request) => httpFailures.push(`FAILED ${request.method()} ${request.url().replace(/^https?:\/\/[^/]+/, '')} :: ${request.failure()?.errorText ?? 'unknown'}`));
   page.on('response', (response) => {
     if (response.status() >= 400) httpFailures.push(`${response.status()} ${response.request().method()} ${response.url().replace(/^https?:\/\/[^/]+/, '')}`);
   });
@@ -91,17 +93,46 @@ async function runJourney(cfg) {
   async function snap(name) {
     const measured = await page.evaluate(() => {
       const main = document.querySelector('main');
+      // content: where the last visible, non-fixed element inside <main> actually ends, to cross-check the scroll measure.
+      let content = 0;
+      let lastEl = '';
+      if (main) {
+        const mainRect = main.getBoundingClientRect();
+        const origin = mainRect.top - main.scrollTop;
+        let lowest = 0;
+        main.querySelectorAll('*').forEach((el) => {
+          const rect = el.getBoundingClientRect();
+          if (!rect.width || !rect.height || getComputedStyle(el).position === 'fixed') return;
+          if (rect.bottom - origin > lowest) {
+            lowest = rect.bottom - origin;
+            lastEl = `${el.tagName.toLowerCase()}.${String(el.className).split(/\s+/).slice(0, 3).join('.')}`;
+          }
+        });
+        content = Math.round(mainRect.top + lowest + parseFloat(getComputedStyle(main).paddingBottom || '0'));
+      }
       return {
         overflow: document.documentElement.scrollWidth - window.innerWidth,
         height: document.documentElement.scrollHeight + (main ? Math.max(0, main.scrollHeight - main.clientHeight) : 0),
+        doc: document.documentElement.scrollHeight,
+        mainScroll: main ? main.scrollHeight : 0,
+        content,
+        lastEl,
       };
     });
     const file = path.join(OUT, `${label}-${String(stepNo).padStart(2, '0')}-${currentStep.id}-${currentStep.shots.length + 1}-${name}.png`);
     await page.screenshot({ path: file, fullPage: true });
     currentStep.shots.push(file);
+    // The shell is one viewport tall, so the shot above holds only the first screen. HIUSA_SMOKE_TALL=1 also
+    // writes a "-tall" shot of the whole page by growing the viewport to the measured height for that one capture.
+    if (process.env.HIUSA_SMOKE_TALL && measured.height > cfg.viewport.height + 4) {
+      await page.setViewportSize({ width: cfg.viewport.width, height: Math.min(measured.height + 8, 14000) });
+      await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
+      await page.screenshot({ path: file.replace(/\.png$/, '-tall.png') });
+      await page.setViewportSize(cfg.viewport);
+    }
     if (measured.overflow > 1) currentStep.overflow.push(`${name}: ${measured.overflow}px sideways`);
     const screens = measured.height / cfg.viewport.height;
-    heights.push({ step: currentStep.id, shot: name, route: new URL(page.url()).pathname, px: measured.height, screens: Number(screens.toFixed(2)) });
+    heights.push({ step: currentStep.id, shot: name, route: new URL(page.url()).pathname, px: measured.height, screens: Number(screens.toFixed(2)), doc: measured.doc, mainScroll: measured.mainScroll, content: measured.content, lastEl: measured.lastEl });
     // Reported for every run; it fails a step only when HIUSA_SMOKE_ENFORCE_HEIGHT=1 (the brief names no limit).
     if (isMobile && screens > MAX_SCREENS && process.env.HIUSA_SMOKE_ENFORCE_HEIGHT) currentStep.overflow.push(`${name}: ${measured.height}px tall, ${screens.toFixed(2)} screens`);
   }
@@ -183,10 +214,20 @@ async function runJourney(cfg) {
     await page.waitForURL(/\/login/, { timeout: 15000 });
   }
 
+  // A requirement row that needs nothing sits on one line behind a "Review" or "Change" link; the status select
+  // appears when the row is opened, as a reviewer opens it. Rows that already need action show it at once.
+  const requirementRows = () => page.locator('section[aria-label="Requirements"] > ul > li');
+  async function markRow(index, label) {
+    const row = requirementRows().nth(index);
+    const select = row.locator('select[aria-label^="Review of "]');
+    if (!(await select.count())) await row.locator('button[aria-expanded]').click();
+    await select.selectOption({ label });
+  }
+
   async function acceptAll() {
-    const marks = page.locator('select[aria-label^="Review of "]');
-    const total = await marks.count();
-    for (let index = 0; index < total; index += 1) await marks.nth(index).selectOption({ label: 'Accepted' });
+    const total = await requirementRows().count();
+    if (total === 0) throw new Error('no requirement rows to review');
+    for (let index = 0; index < total; index += 1) await markRow(index, 'Accepted');
   }
 
   const api = {
@@ -398,14 +439,13 @@ async function runJourney(cfg) {
     await go(`/dashboard/organization-applications?record=${applicationId}`);
     await expect(page.getByRole('heading', { name: orgName })).toBeVisible({ timeout: 20000 });
     await snap('review-open');
-    const marks = page.locator('select[aria-label^="Review of "]');
-    const total = await marks.count();
-    if (total === 0) throw new Error('no per-requirement status controls');
-    await marks.nth(0).selectOption({ label: 'Needs changes' });
+    const total = await requirementRows().count();
+    if (total === 0) throw new Error('no per-requirement rows');
+    await markRow(0, 'Needs changes');
     await page.getByLabel('Note for the applicant').first().fill('Use the signed copy.');
-    for (let index = 1; index < total; index += 1) await marks.nth(index).selectOption({ label: 'Accepted' });
+    for (let index = 1; index < total; index += 1) await markRow(index, 'Accepted');
     await snap('review-marked');
-    await marks.nth(0).selectOption({ label: 'Accepted' });
+    await markRow(0, 'Accepted');
     await page.getByRole('button', { name: 'Add a comment' }).click();
     await page.getByLabel('Comment', { exact: true }).fill('Looks complete from here. Sending it to the SAO.');
     await snap('comment-open');
@@ -423,8 +463,7 @@ async function runJourney(cfg) {
     await go(`/dashboard/organization-applications?record=${applicationId}`);
     await expect(page.getByRole('heading', { name: orgName })).toBeVisible({ timeout: 20000 });
     await snap('sao-review-open');
-    const marks = page.locator('select[aria-label^="Review of "]');
-    await marks.nth(0).selectOption({ label: 'Needs changes' });
+    await markRow(0, 'Needs changes');
     await page.getByLabel('Note for the applicant').first().fill('The first file is not the signed copy.');
     await page.getByLabel('Comments for the applicant').fill('Replace the first file with the signed copy and send it again.');
     await snap('sao-return-filled');
