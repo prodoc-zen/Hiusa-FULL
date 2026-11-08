@@ -30,6 +30,7 @@ const PAGE_META = {
     group: 'Governance',
     parents: [{ label: 'Organizations', to: '/dashboard/super-admin/organizations' }],
   },
+  '/dashboard/super-admin/student-records': { title: 'Student records', purpose: 'Load the school records students are matched against when they sign up.', group: 'Governance' },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Governance' },
   '/dashboard/super-admin/admins': {
     title: 'Administrator accounts',

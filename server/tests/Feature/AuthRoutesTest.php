@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Mail\PasswordResetMail;
+use App\Models\College;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -22,15 +24,18 @@ class AuthRoutesTest extends TestCase
 
     use RefreshDatabase;
 
-    public function test_user_can_register_without_explicit_role(): void
+    public function test_student_can_register_with_school_id_and_birth_date(): void
     {
-        $organization = Organization::factory()->create();
+        $college = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS', 'is_active' => true]);
+        Organization::factory()->create(['organization_type' => 'COLLEGE', 'college_id' => $college->id, 'college' => $college->name]);
+        StudentRegistryEntry::create([
+            'school_id' => 1001, 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'birth_date' => '2005-12-10',
+            'college_id' => $college->id, 'program' => 'BS Computer Science', 'year_level' => '2nd Year',
+        ]);
 
         $response = $this->postJson('/api/register', [
-            'organization_id' => $organization->id,
             'school_id' => 1001,
-            'first_name' => 'Ada',
-            'last_name' => 'Lovelace',
+            'birth_date' => '2005-12-10',
             'email' => 'ada@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
@@ -46,6 +51,7 @@ class AuthRoutesTest extends TestCase
             'school_id' => 1001,
             'email' => 'ada@example.com',
             'role' => 'STUDENT',
+            'first_name' => 'Ada',
         ]);
     }
 

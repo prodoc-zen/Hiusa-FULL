@@ -41,6 +41,7 @@ use App\Http\Controllers\PeopleSearchController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
+use App\Http\Controllers\StudentRegistryController;
 use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\SystemUsersController;
 use App\Http\Controllers\TaskController;
@@ -60,6 +61,7 @@ Route::get('/user', function (Request $request) {
 })->middleware(['auth:sanctum', 'account.profile', 'throttle:api-read', 'cache.api']);
 
 Route::post('/register', [UserController::class, 'register'])->middleware('throttle:registration');
+Route::post('/register/lookup', [UserController::class, 'registerLookup'])->middleware('throttle:registration');
 Route::post('/login', [UserController::class, 'login'])->middleware('throttle:login');
 Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])->middleware('throttle:password');
 Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:password');
@@ -83,6 +85,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/people/search', [PeopleSearchController::class, 'search'])->middleware(['throttle:people-search', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
+    Route::get('/students/registry', [StudentRegistryController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/students/registry/preview', [StudentRegistryController::class, 'preview'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/students/registry/apply', [StudentRegistryController::class, 'apply'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);

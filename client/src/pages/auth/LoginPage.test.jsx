@@ -33,6 +33,12 @@ describe('LoginPage', () => {
     });
   });
 
+  it('links new students to the sign-up page', () => {
+    renderPage();
+
+    expect(screen.getByRole('link', { name: 'Create your account' })).toHaveAttribute('href', '/sign-up');
+  });
+
   it('has one field that takes an email or a school ID', async () => {
     renderPage();
 

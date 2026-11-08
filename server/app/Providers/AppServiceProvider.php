@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Contracts\FingerprintMatcher;
 use App\Models\User;
+use App\Services\Edp\HttpStudentRegistry;
+use App\Services\Edp\LocalStudentRegistry;
+use App\Services\Edp\StudentRegistry;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
 use App\Support\DatabaseStatementTimeout;
@@ -32,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
 
             return new UnavailableFingerprintMatcher;
         });
+
+        $this->app->singleton(StudentRegistry::class, fn () => config('services.edp.driver') === 'local'
+            ? new LocalStudentRegistry
+            : new HttpStudentRegistry(config('services.edp.url'), config('services.edp.key'), config('services.edp.timeout')));
     }
 
     /**
