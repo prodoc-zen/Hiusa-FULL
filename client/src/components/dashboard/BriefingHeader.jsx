@@ -1,7 +1,7 @@
 import Button from '../ui/Button';
 
 // The page title above is the welcome, so this row carries only the one-sentence summary and the
-// role's actions. The first action is the page's one filled button.
+// role's actions. The first action is the page's one filled button unless it names its own variant.
 export default function BriefingHeader({ user, summary, actions }) {
   const headline = user.role !== 'SUPER_ADMIN' ? summary?.headline : null;
   const hasActions = Boolean(actions && actions.length > 0);
@@ -20,7 +20,7 @@ export default function BriefingHeader({ user, summary, actions }) {
               to={action.to}
               onClick={action.onClick}
               leftIcon={action.icon}
-              variant={index === 0 ? 'primary' : 'secondary'}
+              variant={action.variant ?? (index === 0 ? 'primary' : 'secondary')}
             >
               {action.label}
             </Button>

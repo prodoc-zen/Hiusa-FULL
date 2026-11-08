@@ -56,15 +56,24 @@ function Steps({ steps, ariaLabel }) {
   );
 }
 
-// One row that says who acts next: a button when this person can act, plain text when someone
-// else holds the current step.
+// One row that says who acts next: a secondary button when this person can act, plain text when someone
+// else holds the current step. The tracker sits above each home page's own main action (the setup checklist
+// or the page's header button), so its button never fills and the screen keeps one filled button.
 function NextAction({ steps, className = '' }) {
   const current = steps.find((step) => step.state === 'current');
   if (!current) return null;
   if (!current.action) {
     return <NextStep tone="waiting" title={`Waiting on: ${current.label}`} body={current.note} className={className} />;
   }
-  return <NextStep title={`Next for you: ${current.label}`} body={current.note} primary={{ label: current.action.label, to: current.action.path }} className={className} />;
+  return (
+    <div className={`flex flex-col gap-3 rounded-card border border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${className}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-ink">{`Next for you: ${current.label}`}</p>
+        {current.note && <p className="mt-0.5 text-sm text-ink-muted-strong">{current.note}</p>}
+      </div>
+      <Button variant="secondary" to={current.action.path} className="shrink-0">{current.action.label}</Button>
+    </div>
+  );
 }
 
 function CollegeRows({ colleges }) {

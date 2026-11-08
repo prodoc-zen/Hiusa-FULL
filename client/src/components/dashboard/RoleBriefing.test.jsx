@@ -45,6 +45,7 @@ describe('RoleBriefing', () => {
     expect(screen.getByText('Foundation Week budget')).toBeInTheDocument();
     expect(screen.getByText('Remaining budget')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /New announcement/ })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(screen.getByRole('link', { name: /New announcement/ })).not.toHaveClass('bg-brand-700');
     expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
     const indicators = screen.getByText('Organization indicators').closest('details');
     expect(indicators).not.toHaveAttribute('open');
@@ -143,12 +144,12 @@ describe('RoleBriefing', () => {
       ]);
     });
 
-    it('ADMIN: the one filled button is the first step, not a header action', async () => {
+    it('ADMIN: no briefing button is filled, because the process tracker owns the one on the page', async () => {
       const setup = withProgress([step('positions', 'Set up your officer positions'), step('members', 'Add your members')]);
       vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
       renderBriefing();
       const first = await screen.findByRole('link', { name: 'Add positions' });
-      expect(first).toHaveClass('bg-brand-700');
+      expect(first).not.toHaveClass('bg-brand-700');
       expect(screen.getByRole('link', { name: 'Add members' })).not.toHaveClass('bg-brand-700');
       expect(screen.queryByRole('link', { name: /New announcement/ })).not.toBeInTheDocument();
     });

@@ -32,8 +32,12 @@ function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
 }
 
+// The admin home mounts the process tracker above the briefing, and its next-step row owns that page's
+// one filled button. The briefing stays secondary there, for the header action and the checklist alike.
+const PROCESS_LED_ROLES = new Set(['ADMIN']);
+
 const ACTIONS = {
-  ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }],
+  ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],
   DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
 
@@ -60,7 +64,8 @@ function BriefingBody({ data, introduction }) {
   const setup = shapeSetup(role, data.setup);
   const setupOpen = Boolean(setup) && setup.completed < setup.total && !setupHidden;
 
-  // One filled button leads the page: the SAO's first queue, else the first open setup step, else the role's usual action.
+  // One filled button leads the page: the SAO's first queue, else the first open setup step, else the role's usual action
+  // (an admin's briefing never fills one; the process tracker does).
   let actions = [];
   if (role === 'SUPER_ADMIN') {
     if (reviewAreas[0]?.href) actions = [{ label: reviewAreas[0].action, to: reviewAreas[0].href, icon: ClipboardCheck }];
@@ -78,7 +83,7 @@ function BriefingBody({ data, introduction }) {
       setup={setup}
       title={SETUP_TITLE[role]}
       description={setupDescription(role, user?.organization)}
-      primaryFirst={actions.length === 0}
+      primaryFirst={actions.length === 0 && !PROCESS_LED_ROLES.has(role)}
       onHide={() => { writeSetupHidden(userKey); setSetupHidden(true); }}
     />
   );

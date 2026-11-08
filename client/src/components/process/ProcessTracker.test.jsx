@@ -66,6 +66,7 @@ describe('ProcessTracker', () => {
     await screen.findByRole('list', { name: 'Setting up your college' });
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Load student records' })).toHaveAttribute('data-variant', 'secondary');
     expect(screen.getByRole('region', { name: 'Where you are in the process' }).className).not.toMatch(/border|shadow/);
   });
 
