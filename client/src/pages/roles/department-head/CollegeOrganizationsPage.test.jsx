@@ -6,12 +6,12 @@ import CollegeOrganizationsPage from './CollegeOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
   getCollegeOverview: vi.fn(),
-  getRegistrationRequirements: vi.fn(),
-  registerOrganization: vi.fn(),
-  resubmitOrganization: vi.fn(),
-  withdrawOrganization: vi.fn(),
 }));
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
+const grantMocks = vi.hoisted(() => ({ getApplicantGrants: vi.fn(), allowStudentToApply: vi.fn(), revokeApplicantGrant: vi.fn() }));
+vi.mock('../../../services/applicantGrantService', () => grantMocks);
+const peopleMocks = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => peopleMocks);
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
@@ -36,16 +36,6 @@ const organizations = [
 
 const paginator = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 100, total: data.length } });
 
-const requirements = {
-  academic_semester: { id: 1, number: 1, academic_year: '2026-2027' },
-  requirements: [
-    { id: 1, name: 'Constitution', description: 'Signed copy of the constitution', deadline_at: '2026-12-01T00:00:00+08:00' },
-    { id: 2, name: 'Officer list', description: null, deadline_at: '2026-12-01T00:00:00+08:00' },
-  ],
-};
-
-const pdf = (name = 'doc.pdf') => new File(['pdf'], name, { type: 'application/pdf' });
-
 async function chooseOrganizationAction(name, action) {
   fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${name}` }))[0]);
   fireEvent.click(await screen.findByRole('menuitem', { name: action }));
@@ -65,15 +55,11 @@ function renderPage(entry = '/dashboard/department-head/organizations') {
   );
 }
 
-function chooseFile(label, file) {
-  fireEvent.change(screen.getByLabelText(label), { target: { files: [file] } });
-}
-
 describe('CollegeOrganizationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
-    mocks.getRegistrationRequirements.mockResolvedValue({ data: requirements });
+    grantMocks.getApplicantGrants.mockResolvedValue({ data: { data: [] } });
     mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', code: 'COE', logo_url: null, color: '#0B8ED0' }, head: { name: 'Eduardo Ramos' } } });
   });
 
@@ -190,38 +176,10 @@ describe('CollegeOrganizationsPage', () => {
     await chooseOrganizationAction('Chess Club', 'View checklist');
 
     const drawer = await screen.findByRole('dialog');
-    expect(within(drawer).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
+    expect(within(drawer).getByText('Waiting for the SAO to decide.')).toBeInTheDocument();
     expect(within(drawer).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
     expect(within(drawer).getAllByText('Submitted').length).toBeGreaterThan(0);
     expect(within(drawer).getAllByText('Approved').length).toBeGreaterThan(0);
-  });
-
-  it('opens the SAO sample while a returned registration is being corrected', async () => {
-    const returned = organization({ id: 3, name: 'Drama Guild', acronym: 'DRAMA', lifecycle_status: 'returned', review_remarks: 'Wrong format.', registration_requirements: [
-      { requirement_type_id: 1, requirement_name: 'Constitution', file_name: 'old.pdf', status: 'returned', submission_id: 11, template_original_name: 'sample.pdf' },
-    ] });
-    mocks.getCollegeOrganizations.mockResolvedValue(paginator([returned]));
-    openMocks.openProtectedFile.mockResolvedValue();
-    renderPage();
-    await screen.findAllByText('Drama Guild');
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    fireEvent.click(await screen.findByRole('button', { name: 'View sample format' }));
-    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/requirement-types/1/template'));
-  });
-
-  it('opens the registration file from the checklist and returned edit form', async () => {
-    renderPage();
-    await chooseOrganizationAction('Drama Guild', 'View checklist');
-    const drawer = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(drawer).getByRole('button', { name: 'Close panel' })).toHaveFocus());
-    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Actions for Constitution' })[1]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
-    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/11/document'));
-
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Edit and resubmit' }));
-    const dialog = await screen.findByRole('dialog', { name: /Edit and resubmit Drama Guild/ });
-    fireEvent.click(within(dialog).getAllByRole('button', { name: 'View current file' })[0]);
-    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledTimes(2));
   });
 
   it('shows the SAO remarks of a returned registration beside the row', async () => {
@@ -230,79 +188,9 @@ describe('CollegeOrganizationsPage', () => {
     expect((await screen.findAllByText(/The constitution is missing signatures\./)).length).toBeGreaterThan(0);
     expect(screen.getAllByText('SAO remarks').length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Drama Guild' })[0]);
-    expect(await screen.findByRole('menuitem', { name: 'Edit and resubmit' })).toBeInTheDocument();
-  });
-
-  it('lets a Department Head open the registration form', async () => {
-    renderPage();
-    await screen.findAllByText('Chess Club');
-    expect(screen.getByRole('button', { name: 'Register an organization' })).toBeInTheDocument();
-  });
-
-  it('prefills a returned registration and sends only the replaced files', async () => {
-    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3, lifecycle_status: 'pending' }) });
-    renderPage();
-    await screen.findAllByText('Chess Club');
-
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    const dialog = await screen.findByRole('dialog');
-
-    expect(within(dialog).getByLabelText(/Organization name/)).toHaveValue('Drama Guild');
-    expect(within(dialog).getByText(/The constitution is missing signatures\./)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Current file: constitution\.pdf \(Returned\)/)).toBeInTheDocument();
-    expect(mocks.getRegistrationRequirements).not.toHaveBeenCalled();
-
-    const replacement = pdf('constitution-v2.pdf');
-    chooseFile(/Constitution/, replacement);
-    fireEvent.change(within(dialog).getByLabelText(/Acronym/), { target: { value: 'DRAMA2' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Resubmit to SAO' }));
-
-    await waitFor(() => expect(mocks.resubmitOrganization).toHaveBeenCalledTimes(1));
-    expect(mocks.resubmitOrganization).toHaveBeenCalledWith(
-      3,
-      { name: 'Drama Guild', acronym: 'DRAMA2', description: 'Builds robots', color: '#0B8ED0' },
-      { 1: replacement },
-    );
-  });
-
-  it('lets a returned registration resubmit with no replacement files', async () => {
-    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3 }) });
-    renderPage();
-    await screen.findAllByText('Chess Club');
-
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Resubmit to SAO' }));
-
-    await waitFor(() => expect(mocks.resubmitOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ name: 'Drama Guild' }), {}));
-  });
-
-  it('moves from the Returned tab to Pending review once the registration is resubmitted', async () => {
-    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3, lifecycle_status: 'pending' }) });
-    renderPage('/dashboard/department-head/organizations?status=returned');
-    await screen.findAllByText('Drama Guild');
-    mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations.map((item) => (item.id === 3 ? organization({ id: 3, name: 'Drama Guild', acronym: 'DRAMA', lifecycle_status: 'pending', registration_requirements: checklist() }) : item))));
-
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Resubmit to SAO' }));
-
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Pending review (2)' })).toHaveAttribute('aria-selected', 'true'));
-    expect(screen.getByTestId('location')).toHaveTextContent('?status=pending');
-    const row = screen.getAllByRole('row').find((candidate) => within(candidate).queryByText('Drama Guild'));
-    expect(within(row).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
-  });
-
-  it('stays on the All tab after a resubmission because the row is still listed there', async () => {
-    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3, lifecycle_status: 'pending' }) });
-    renderPage();
-    await screen.findAllByText('Chess Club');
-
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Resubmit to SAO' }));
-
-    await waitFor(() => expect(mocks.resubmitOrganization).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('menuitem', { name: 'View checklist' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Withdraw' })).not.toBeInTheDocument();
   });
 
   it('preselects the status tab from the status query parameter', async () => {
@@ -344,74 +232,17 @@ describe('CollegeOrganizationsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('focuses the first invalid field when the form is submitted incomplete', async () => {
-    renderPage();
-    await screen.findAllByText('Drama Guild');
-    await chooseOrganizationAction('Drama Guild', 'Edit and resubmit');
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: '' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Resubmit to SAO' }));
-
-    const name = within(dialog).getByLabelText(/Organization name/);
-    expect(await within(dialog).findByText('Enter the organization name.')).toBeInTheDocument();
-    expect(name).toHaveAttribute('aria-invalid', 'true');
-    await waitFor(() => expect(name).toHaveFocus());
-  });
-
   describe('registration flow', () => {
-    const rowOf = (name) => screen.getAllByRole('row').find((row) => within(row).queryByText(name));
-
-    it('says in words what happens next for every lifecycle status', async () => {
-      mocks.getCollegeOrganizations.mockResolvedValue(paginator([...organizations, organization({ id: 5, name: 'Waiting Club', acronym: 'WAIT', administrators_count: 0 })]));
-      renderPage();
-      await screen.findAllByText('Chess Club');
-
-      expect(within(rowOf('Chess Club')).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
-      expect(within(rowOf('Drama Guild')).getByText('Returned: edit and resubmit')).toBeInTheDocument();
-      expect(within(rowOf('Waiting Club')).getByText('Approved: waiting for SAO to add the first Admin account')).toBeInTheDocument();
-      expect(within(rowOf('Robotics Society')).getByText('Active: administrator can sign in')).toBeInTheDocument();
-      expect(within(rowOf('Old Band')).getByText('Archived: read only')).toBeInTheDocument();
-    });
-
-    it('shows a compact stepper on each row with the step it is on', async () => {
-      renderPage();
-      await screen.findAllByText('Chess Club');
-
-      expect(within(rowOf('Chess Club')).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
-      expect(within(rowOf('Robotics Society')).getByText('Complete: 4 of 4 steps done')).toBeInTheDocument();
-    });
-
     it('shows the full stepper and a waiting callout without a button for a pending registration', async () => {
       renderPage('/dashboard/department-head/organizations?record=2');
       const drawer = await screen.findByRole('dialog');
 
       const stepper = within(drawer).getByRole('list', { name: 'Registration progress for Chess Club' });
       expect(within(stepper).getByText('SAO approval').closest('li')).toHaveAttribute('aria-current', 'step');
-      expect(within(drawer).getByRole('status')).toHaveTextContent('Pending review: waiting for SAO review');
-      expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
+      expect(within(drawer).getByText('Waiting for the SAO to decide.')).toBeInTheDocument();
       expect(within(drawer).queryByRole('button', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
     });
 
-    it('offers Edit and resubmit with the SAO remarks for a returned registration', async () => {
-      renderPage('/dashboard/department-head/organizations?record=3');
-      const drawer = await screen.findByRole('dialog');
-
-      expect(within(drawer).getByText('Returned: edit and resubmit')).toBeInTheDocument();
-      expect(within(drawer).getByText('The constitution is missing signatures.')).toBeInTheDocument();
-      fireEvent.click(within(drawer).getByRole('button', { name: 'Edit and resubmit' }));
-
-      expect(await screen.findByRole('dialog', { name: /Edit and resubmit Drama Guild/ })).toBeInTheDocument();
-      await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record='));
-    });
-
-    it('waits for the SAO to provide an administrator after approval', async () => {
-      mocks.getCollegeOrganizations.mockResolvedValue(paginator([organization({ id: 5, name: 'Waiting Club', acronym: 'WAIT', administrators_count: 0 })]));
-      renderPage('/dashboard/department-head/organizations?record=5');
-      const drawer = await screen.findByRole('dialog');
-
-      expect(within(drawer).getByRole('status')).toHaveTextContent('Approved: waiting for SAO to add the first Admin account');
-      expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
-    });
   });
 
   describe('record parameter', () => {
@@ -445,13 +276,59 @@ describe('CollegeOrganizationsPage', () => {
   });
 
   describe('first use', () => {
-    it('shows empty state and offers to register when the college has no organizations', async () => {
+    it('shows the empty state with one way forward: allow a student to apply', async () => {
       mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
       renderPage();
 
       expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
-      expect(screen.getByText(/Organization representatives apply from the public HIUSA home page/)).toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: 'Register an organization' })).toHaveLength(2);
+      expect(screen.getByText(/Pick a student of your college to apply/)).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Allow a student to apply' })).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
+    });
+
+    it('puts the one primary action in the header once the college has organizations', async () => {
+      renderPage();
+      await screen.findAllByText('Robotics Society');
+
+      expect(screen.getAllByRole('button', { name: 'Allow a student to apply' })).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
+    });
+
+    it('opens the grant modal and finds the student by name, never by school ID', async () => {
+      mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
+      peopleMocks.searchPeople.mockResolvedValue([{ school_id: 20260042, name: 'Ana Cruz', email: 'ana.cruz@example.test', role: 'STUDENT', program: 'BSIT', year_level: '3', college: 'College of Engineering', organizations: [] }]);
+      grantMocks.allowStudentToApply.mockResolvedValue({ data: { id: 1, state: 'open', student: { school_id: 20260042, name: 'Ana Cruz', email: 'ana.cruz@example.test' }, application: null } });
+      renderPage();
+      await screen.findByText('No organizations yet');
+      fireEvent.click(screen.getByRole('button', { name: 'Allow a student to apply' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Allow a student to apply' });
+      expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByRole('combobox', { name: /Student/ }), { target: { value: 'ana' } });
+      fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Cruz/ }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Allow to apply' }));
+
+      await waitFor(() => expect(grantMocks.allowStudentToApply).toHaveBeenCalledWith(20260042));
+      expect(peopleMocks.searchPeople).toHaveBeenCalledWith(expect.objectContaining({ q: 'ana', scope: 'college', role: 'STUDENT' }));
+      await waitFor(() => expect(grantMocks.getApplicantGrants).toHaveBeenCalledTimes(2));
+    });
+
+    it('lists the students allowed to apply and lets the dean take one back', async () => {
+      grantMocks.getApplicantGrants.mockResolvedValue({ data: { data: [
+        { id: 4, state: 'open', student: { school_id: 20260042, name: 'Ana Cruz', email: 'ana.cruz@example.test' }, application: null },
+        { id: 5, state: 'used', student: { school_id: 20260043, name: 'Ben Reyes', email: 'ben.reyes@example.test' }, application: { id: 9, name: 'Chess Club', status: 'pending_dean' } },
+      ] } });
+      grantMocks.revokeApplicantGrant.mockResolvedValue({ data: { id: 4, state: 'revoked' } });
+      renderPage();
+
+      const list = (await screen.findByRole('heading', { name: 'Students allowed to apply' })).closest('section');
+      expect(within(list).getByText('Ana Cruz')).toBeInTheDocument();
+      expect(within(list).getByText('Chess Club: With the Department Head')).toBeInTheDocument();
+      expect(within(list).getAllByRole('button', { name: /Take back/ })).toHaveLength(1);
+      fireEvent.click(within(list).getByRole('button', { name: 'Take back permission from Ana Cruz' }));
+      fireEvent.click(within(await screen.findByRole('dialog', { name: 'Take back this permission?' })).getByRole('button', { name: 'Take back' }));
+
+      await waitFor(() => expect(grantMocks.revokeApplicantGrant).toHaveBeenCalledWith(4));
     });
 
     it('has one h1 from the shared header', async () => {
@@ -460,52 +337,6 @@ describe('CollegeOrganizationsPage', () => {
 
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
-  });
-});
-
-describe('CollegeOrganizationsPage withdraw', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
-  });
-
-  it('offers Withdraw only for pending and returned registrations', async () => {
-    renderPage();
-    await screen.findAllByText('Robotics Society');
-
-    for (const name of ['Chess Club', 'Drama Guild']) {
-      fireEvent.click(screen.getAllByRole('button', { name: `Actions for ${name}` })[0]);
-      expect(await screen.findByRole('menuitem', { name: 'Withdraw' })).toBeInTheDocument();
-      fireEvent.click(screen.getAllByRole('button', { name: `Actions for ${name}` })[0]);
-    }
-    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Robotics Society' })[0]);
-    expect(screen.queryByRole('menuitem', { name: 'Withdraw' })).not.toBeInTheDocument();
-  });
-
-  it('withdraws a registration after confirmation and reloads the list', async () => {
-    mocks.withdrawOrganization.mockResolvedValue({ data: { message: 'Registration withdrawn.' } });
-    renderPage();
-    await screen.findAllByText('Robotics Society');
-
-    await chooseOrganizationAction('Chess Club', 'Withdraw');
-    const dialog = await screen.findByRole('dialog', { name: 'Withdraw this registration?' });
-    expect(mocks.withdrawOrganization).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw registration' }));
-
-    await waitFor(() => expect(mocks.withdrawOrganization).toHaveBeenCalledWith(2));
-    await waitFor(() => expect(mocks.getCollegeOrganizations).toHaveBeenCalledTimes(2));
-  });
-
-  it('keeps the registration and shows the server message when it can no longer be withdrawn', async () => {
-    mocks.withdrawOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'This organization already has members, users or other records, so it cannot be withdrawn.' } } });
-    renderPage();
-    await screen.findAllByText('Robotics Society');
-
-    await chooseOrganizationAction('Drama Guild', 'Withdraw');
-    const dialog = await screen.findByRole('dialog', { name: 'Withdraw this registration?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw registration' }));
-
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This organization already has members, users or other records, so it cannot be withdrawn.');
   });
 });
 

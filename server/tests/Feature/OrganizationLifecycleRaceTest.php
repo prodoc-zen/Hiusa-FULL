@@ -54,24 +54,6 @@ class OrganizationLifecycleRaceTest extends TestCase
             ->assertStatus(409);
     }
 
-    public function test_resubmitting_a_returned_registration_withdrawn_after_it_was_read_is_a_conflict(): void
-    {
-        $this->organization->update(['lifecycle_status' => 'returned', 'is_active' => false]);
-        $head = User::factory()->departmentHead()->create(['organization_id' => Organization::factory()->create(['college' => $this->organization->college, 'college_id' => $this->organization->college_id, 'organization_type' => 'COLLEGE'])->id]);
-        Sanctum::actingAs($head);
-        $id = $this->organization->id;
-        $fired = false;
-        DB::listen(function ($query) use (&$fired, $id) {
-            if (! $fired && str_starts_with(str_replace(['"', '`'], '', $query->sql), 'select * from organizations where organization_type') && str_contains($query->sql, 'limit 1')) {
-                $fired = true;
-                DB::table('organizations')->where('id', $id)->delete();
-            }
-        });
-
-        $this->putJson("/api/college/organizations/{$id}", ['name' => 'Renamed'])->assertStatus(409);
-        $this->assertTrue($fired, 'the withdraw did not interleave');
-    }
-
     public function test_archiving_an_organization_removed_after_binding_is_a_conflict(): void
     {
         $this->organization->update(['lifecycle_status' => 'active']);

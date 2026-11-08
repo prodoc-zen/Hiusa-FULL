@@ -8,9 +8,7 @@ export default function SessionExpiry() {
       window.clearTimeout(timer);
       if (sessionHasExpired()) {
         clearAuthSession();
-        if (!window.location.pathname.startsWith('/register-organization') && !window.location.pathname.startsWith('/track-organization')) {
-          window.location.assign('/?session=expired');
-        }
+        window.location.assign('/?session=expired');
         return;
       }
       const expiresAt = Number(localStorage.getItem('auth_expires_at'));

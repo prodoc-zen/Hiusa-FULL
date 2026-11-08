@@ -164,6 +164,8 @@ return [
 
     'STUDENT' => [
         '/dashboard/student',
+        '/dashboard/student/apply-organization',
+        '/dashboard/student/organization-applications/:applicationId',
         '/dashboard/ask-ai',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',

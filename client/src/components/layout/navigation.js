@@ -179,6 +179,16 @@ const NAV_BY_ROLE = {
   ],
 };
 
+// Shown only to a student a Department Head allowed to apply, or who has an application to follow, so it
+// sits outside the rows above that docs/UX_FLOW.md section 3.2 counts. Sidebar.jsx adds it after Ask AI.
+export const APPLY_ORGANIZATION = leaf('apply-organization', 'Apply for an organization', '/dashboard/student/apply-organization', Building2, { also: ['/dashboard/student/organization-applications'], aliases: ['Start an organization', 'Register an organization'] });
+
+export function withApplicantAccess(items, canApply) {
+  if (!canApply) return items;
+  const at = items.findIndex((item) => item.id === 'ask-ai');
+  return [...items.slice(0, at + 1), APPLY_ORGANIZATION, ...items.slice(at + 1)];
+}
+
 // Every role shares the same footer: the account page and the page that ends the old orphan.
 export const footerNav = [
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: User },

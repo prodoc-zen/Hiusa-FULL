@@ -7,7 +7,8 @@ import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
-import { ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath } from './navigation';
+import { APPLY_ORGANIZATION, ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath, withApplicantAccess } from './navigation';
+import { useApplicantAccess } from '../../hooks/useApplicantAccess';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
@@ -183,8 +184,10 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
   const role = user?.role || 'SBO_OFFICER';
   const roleLabel = ROLE_LABELS[role] || role;
-  const nav = getNavForRole(role);
-  const activeId = useMemo(() => findActiveNavId([...getNavLeaves(role), ...footerNav], location.pathname, location.search), [role, location.pathname, location.search]);
+  const { visible: canApply } = useApplicantAccess(role);
+  const showApply = role === 'STUDENT' && canApply;
+  const nav = useMemo(() => withApplicantAccess(getNavForRole(role), showApply), [role, showApply]);
+  const activeId = useMemo(() => findActiveNavId([...getNavLeaves(role), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search), [role, showApply, location.pathname, location.search]);
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
   const handleLogout = async () => {
