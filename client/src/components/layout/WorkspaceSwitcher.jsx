@@ -89,7 +89,7 @@ export default function WorkspaceSwitcher({ workspaces, role, onProfileChange })
   const inOrg = current.kind === 'org';
 
   return (
-    <div className="relative" ref={rootRef} data-tour="topbar-subaccount">
+    <div className="relative flex min-w-0 max-sm:shrink-0" ref={rootRef} data-tour="topbar-subaccount">
       <button
         ref={triggerRef}
         type="button"
@@ -97,7 +97,7 @@ export default function WorkspaceSwitcher({ workspaces, role, onProfileChange })
         aria-expanded={open}
         aria-controls="workspace-switcher-panel"
         aria-label={`Workspace: ${current.label}`}
-        className={`inline-flex min-h-9 max-w-[130px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] min-[420px]:max-w-[180px] sm:max-w-[240px] ${inOrg ? 'border-[#0B8ED0]/50 bg-[#EEF6FB] text-[#0878B7]' : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0B8ED0]/40 hover:bg-white'}`}
+        className={`inline-flex min-h-9 min-w-0 max-w-[130px] sm:min-w-[6rem] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] min-[420px]:max-w-[180px] sm:max-w-[240px] ${inOrg ? 'border-[#0B8ED0]/50 bg-[#EEF6FB] text-[#0878B7]' : 'border-[#DDE7EF] bg-[#F8FBFD] text-[#0F2F62] hover:border-[#0B8ED0]/40 hover:bg-white'}`}
       >
         <span className="truncate">{formatDisplayText(current.label)}</span>
         <ChevronDown size={13} aria-hidden="true" className={`shrink-0 text-[#64748B] transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />

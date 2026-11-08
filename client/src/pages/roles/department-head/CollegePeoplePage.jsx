@@ -44,7 +44,7 @@ function PersonCell({ name, detail }) {
 
 const studentColumns = [
   { key: 'name', header: 'Name', render: (row) => <PersonCell name={row.name} detail={joinDetail(row.email, `ID ${row.school_id}`)} /> },
-  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, row.year_level && `Year ${row.year_level}`) || '-' },
+  { key: 'program', header: 'Program', render: (row) => joinDetail(row.program, row.year_level) || '-' },
   {
     key: 'organizations',
     header: 'Organizations',

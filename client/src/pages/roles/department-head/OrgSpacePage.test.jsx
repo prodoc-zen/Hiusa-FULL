@@ -131,14 +131,10 @@ describe('OrgSpacePage', () => {
     expect(screen.getByText('No approved budget yet')).toBeInTheDocument();
   });
 
-  it('goes back to the college and closes the space', async () => {
+  it('leaves the way back to the sidebar and banner, with no copy in the page header', async () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Computing Society' });
-    await waitFor(() => expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).not.toBeNull());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to my college' }));
-
-    expect(await screen.findByText('College home')).toBeInTheDocument();
-    expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back to my college' })).not.toBeInTheDocument();
   });
 });
