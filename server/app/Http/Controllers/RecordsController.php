@@ -12,6 +12,7 @@ use App\Models\Event;
 use App\Models\Organization;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationSemesterRecord;
+use App\Models\User;
 use App\Services\Compliance\ComplianceDocumentService;
 use App\Services\Records\SemesterSnapshotService;
 use Illuminate\Http\JsonResponse;
@@ -59,7 +60,7 @@ class RecordsController extends Controller
 
         if ($organizationId !== null) {
             abort_unless(in_array((int) $organizationId, $scope, true), 403, 'You cannot open records for that organization.');
-            $payload['organization'] = $this->organizationDetail(Organization::findOrFail($organizationId), $semester, $user->role);
+            $payload['organization'] = $this->organizationDetail(Organization::findOrFail($organizationId), $semester, $user);
         }
 
         return response()->json($payload);
@@ -159,8 +160,26 @@ class RecordsController extends Controller
             ])->values()->all();
     }
 
-    private function organizationDetail(Organization $organization, AcademicSemester $semester, string $role): array
+    /**
+     * An officer limited to some organization areas sees only those areas here too: the org.module middleware
+     * cannot map /records, so the sections are cut by hand. Everyone else, and an officer with every area, sees all.
+     */
+    private function sectionAllowed(User $user, string $module): bool
     {
+        if ($user->role !== 'SBO_OFFICER') {
+            return true;
+        }
+
+        return $user->activeProfile()?->allowsModule($module) ?? true;
+    }
+
+    private function organizationDetail(Organization $organization, AcademicSemester $semester, User $user): array
+    {
+        $role = $user->role;
+        $showFinance = $this->sectionAllowed($user, 'finance');
+        $showCompliance = $this->sectionAllowed($user, 'compliance');
+        $showEvents = $this->sectionAllowed($user, 'events');
+        $showElections = $this->sectionAllowed($user, 'elections');
         $snapshot = OrganizationSemesterRecord::where('organization_id', $organization->id)->where('academic_semester_id', $semester->id)->first();
         $live = $semester->status === 'active';
         $useSnapshot = ! $live && $snapshot !== null;
@@ -176,8 +195,10 @@ class RecordsController extends Controller
                 'family' => $row['family'],
                 'source' => $row['source'],
             ]);
-        $events = Event::where('organization_id', $organization->id)->where('academic_semester_id', $semester->id)
-            ->orderBy('start_time')->limit(self::LIST_LIMIT)->get(['id', 'title', 'status', 'start_time', 'end_time', 'location']);
+        $events = $showEvents
+            ? Event::where('organization_id', $organization->id)->where('academic_semester_id', $semester->id)
+                ->orderBy('start_time')->limit(self::LIST_LIMIT)->get(['id', 'title', 'status', 'start_time', 'end_time', 'location'])
+            : collect();
 
         return [
             'id' => $organization->id,
@@ -189,14 +210,14 @@ class RecordsController extends Controller
                 'recorded' => $live || $useSnapshot,
             ],
             'officers' => $useSnapshot ? $snapshot->officers : ($live ? $this->liveOfficers($organization) : []),
-            'applications' => $this->applications($organization, $semester, $role),
+            'applications' => $showCompliance ? $this->applications($organization, $semester, $role) : [],
             'documents' => [
-                'compliance' => $files->where('source', 'compliance')->values(),
-                'event_files' => $files->where('source', 'event_requirement')->values(),
-                'financial_reports' => $files->whereIn('source', ['financial_report', 'financial_supporting_document'])->values(),
+                'compliance' => $showCompliance ? $files->where('source', 'compliance')->values() : collect(),
+                'event_files' => $showEvents ? $files->where('source', 'event_requirement')->values() : collect(),
+                'financial_reports' => $showFinance ? $files->whereIn('source', ['financial_report', 'financial_supporting_document'])->values() : collect(),
             ],
             'events' => $events,
-            'elections' => $this->elections($organization, $semester, $role),
+            'elections' => $showElections ? $this->elections($organization, $semester, $role) : [],
         ];
     }
 

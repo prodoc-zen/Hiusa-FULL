@@ -134,6 +134,20 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame('Secretary', $this->profile($secretary)->position_title);
     }
 
+    public function test_an_unlisted_vice_president_becomes_an_officer_not_an_admin(): void
+    {
+        $election = $this->closedElection();
+        [$vp] = $this->position($election, 'Vice President', [3]);
+        [$vpFinance] = $this->position($election, 'Vice President for Finance', [3]);
+        [$president] = $this->position($election, '  PRESIDENT ', [3]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('SBO_OFFICER', $this->profile($vp)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($vpFinance)->role);
+        $this->assertSame('ADMIN', $this->profile($president)->role);
+    }
+
     public function test_a_tie_grants_nothing_and_the_results_flag_it(): void
     {
         $election = $this->closedElection();

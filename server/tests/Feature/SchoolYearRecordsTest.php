@@ -10,7 +10,9 @@ use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
+use App\Models\FinancialReport;
 use App\Models\Organization;
+use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\OrganizationSemesterRecord;
 use App\Models\User;
@@ -332,6 +334,75 @@ class SchoolYearRecordsTest extends TestCase
             Sanctum::actingAs($user);
             $response = $this->getJson("/api/records?organization_id={$other->id}")->assertOk();
             $response->assertJsonPath('organization.name', 'Code Guild')->assertJsonPath('organizations', []);
+        }
+    }
+
+    /** A closed period holding one of everything an organization can file, so a limited officer shows what leaks. */
+    private function fillClosedPeriod(): void
+    {
+        Event::factory()->create(['organization_id' => $this->org->id, 'academic_semester_id' => $this->closed->id, 'status' => 'completed', 'created_by' => $this->admin->school_id, 'title' => 'Orientation 2026']);
+        Election::factory()->create(['organization_id' => $this->org->id, 'academic_semester_id' => $this->closed->id, 'status' => 'closed', 'results_visible' => true]);
+        $type = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'academic_semester_id' => $this->closed->id, 'name' => 'Letter of Intent', 'deadline_at' => '2026-12-31 23:59:59', 'is_active' => true, 'created_by' => $this->sao->school_id]);
+        OrganizationComplianceSubmission::create([
+            'organization_id' => $this->org->id, 'requirement_type_id' => $type->id, 'status' => 'approved', 'file_path' => 'compliance-submissions/1/loi.pdf',
+            'file_original_name' => 'loi.pdf', 'mime_type' => 'application/pdf', 'file_size' => 1200, 'submitted_by' => $this->admin->school_id, 'submitted_at' => '2026-09-01 08:00:00',
+        ]);
+        OrganizationApplication::create(['college_id' => $this->org->college_id, 'organization_id' => $this->org->id, 'name' => 'Code Guild', 'acronym' => 'CG', 'school_id' => $this->admin->school_id, 'first_name' => 'Ana', 'last_name' => 'Cruz', 'email' => 'ana@example.test', 'position_title' => 'President', 'status' => 'approved', 'created_at' => '2026-09-02 08:00:00']);
+        FinancialReport::create([
+            'organization_id' => $this->org->id, 'report_type' => 'monthly', 'title' => 'September report', 'source_transaction_ids' => [], 'signatories' => [],
+            'submission_status' => 'approved', 'generated_by' => $this->admin->school_id, 'generated_at' => '2026-09-30 08:00:00', 'submitted_at' => '2026-09-30 09:00:00',
+        ]);
+    }
+
+    private function officerWithModules(?array $modules): User
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->org->id]);
+        AccountProfile::where('user_school_id', $officer->school_id)->where('organization_id', $this->org->id)->update(['modules' => $modules]);
+
+        return $officer;
+    }
+
+    public function test_an_officer_limited_to_events_does_not_see_finance_compliance_or_election_records(): void
+    {
+        $this->fillClosedPeriod();
+        Sanctum::actingAs($this->officerWithModules(['events']));
+
+        $organization = $this->getJson("/api/records?academic_semester_id={$this->closed->id}")->assertOk()->json('organization');
+
+        $this->assertSame(['Orientation 2026'], collect($organization['events'])->pluck('title')->all());
+        $this->assertSame([], $organization['documents']['financial_reports']);
+        $this->assertSame([], $organization['documents']['compliance']);
+        $this->assertSame([], $organization['applications']);
+        $this->assertSame([], $organization['elections']);
+    }
+
+    public function test_an_officer_keeps_exactly_the_sections_their_modules_allow(): void
+    {
+        $this->fillClosedPeriod();
+        Sanctum::actingAs($this->officerWithModules(['finance', 'elections']));
+
+        $organization = $this->getJson("/api/records?academic_semester_id={$this->closed->id}")->assertOk()->json('organization');
+
+        $this->assertCount(1, $organization['documents']['financial_reports']);
+        $this->assertCount(1, $organization['elections']);
+        $this->assertSame([], $organization['events']);
+        $this->assertSame([], $organization['documents']['compliance']);
+        $this->assertSame([], $organization['applications']);
+    }
+
+    public function test_an_officer_with_every_module_and_an_admin_see_every_section(): void
+    {
+        $this->fillClosedPeriod();
+
+        foreach ([$this->officerWithModules(null), $this->admin] as $user) {
+            Sanctum::actingAs($user);
+            $organization = $this->getJson("/api/records?academic_semester_id={$this->closed->id}")->assertOk()->json('organization');
+
+            $this->assertCount(1, $organization['events']);
+            $this->assertCount(1, $organization['elections']);
+            $this->assertCount(1, $organization['applications']);
+            $this->assertCount(1, $organization['documents']['compliance']);
+            $this->assertCount(1, $organization['documents']['financial_reports']);
         }
     }
 

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProcessTracker from './ProcessTracker';
+import { setTrackerShown, useTrackerShown } from './trackerPresence';
 
 const mocks = vi.hoisted(() => ({ getProcessStatus: vi.fn() }));
 vi.mock('../../services/processService', () => mocks);
@@ -85,6 +86,39 @@ describe('ProcessTracker', () => {
     expect(await screen.findByText('Waiting on: Dean review')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.getByText(/Returned by your Department Head/)).toBeInTheDocument();
+  });
+
+  it('says "Waiting on" and links to where to look when someone else holds the step, never "Next for you"', async () => {
+    mocks.getProcessStatus.mockResolvedValue({ data: {
+      title: 'Your organization application',
+      complete: false,
+      steps: [
+        { key: 'a', label: 'Allowed to apply', state: 'done' },
+        { key: 'b', label: 'Application sent', state: 'done' },
+        { key: 'c', label: 'Dean review', state: 'current', link: { label: 'Open your application', path: '/dashboard/student/organization-applications/7' } },
+        { key: 'd', label: 'SAO review', state: 'todo' },
+      ],
+    } });
+    renderTracker();
+
+    expect(await screen.findByText('Waiting on: Dean review')).toBeInTheDocument();
+    expect(screen.queryByText(/Next for you/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open your application' })).toHaveAttribute('href', '/dashboard/student/organization-applications/7');
+    expect(screen.getByRole('link', { name: 'Open your application' })).toHaveAttribute('data-variant', 'secondary');
+  });
+
+  it('tells the briefing it is on screen while it loads and while it has steps, and clears that on leaving', async () => {
+    const Probe = () => <p>{useTrackerShown() ? 'tracker on' : 'tracker off'}</p>;
+    const { unmount } = render(<MemoryRouter><ProcessTracker /><Probe /></MemoryRouter>);
+    expect(screen.getByText('tracker on')).toBeInTheDocument();
+    await screen.findByRole('list', { name: 'Setting up your college' });
+    expect(screen.getByText('tracker on')).toBeInTheDocument();
+    unmount();
+
+    mocks.getProcessStatus.mockResolvedValue({ data: { title: null, complete: false, steps: [] } });
+    render(<MemoryRouter><ProcessTracker /><Probe /></MemoryRouter>);
+    expect(await screen.findByText('tracker off')).toBeInTheDocument();
+    setTrackerShown(false);
   });
 
   it('leaves a zero total and a zero count out of the step', async () => {

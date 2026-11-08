@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\College;
-use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;

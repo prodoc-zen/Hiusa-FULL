@@ -443,7 +443,7 @@ class ProcessStatusTest extends TestCase
 
         $payload = $this->statusOf($student)->assertOk()->json();
         $this->assertSame(['done', 'done', 'current', 'todo', 'todo'], array_column($payload['steps'], 'state'));
-        $this->assertSame("/dashboard/student/organization-applications/{$application->id}", $payload['steps'][2]['action']['path']);
+        $this->assertSame("/dashboard/student/organization-applications/{$application->id}", $payload['steps'][2]['link']['path']);
 
         $application->update(['status' => 'pending_sao', 'endorsed_at' => now()]);
         $this->assertSame(['done', 'done', 'done', 'current', 'todo'], array_column($this->statusOf($student)->json()['steps'], 'state'));
@@ -451,6 +451,29 @@ class ProcessStatusTest extends TestCase
         $application->update(['status' => 'approved']);
         $payload = $this->statusOf($student)->json();
         $this->assertTrue($payload['complete']);
+    }
+
+    public function test_student_is_given_no_action_on_the_dean_and_sao_review_steps_only_a_link_to_look(): void
+    {
+        $student = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        $application = $this->application($this->computing, $student, 'pending_dean');
+        $open = ['label' => 'Open your application', 'path' => "/dashboard/student/organization-applications/{$application->id}"];
+
+        $dean = $this->statusOf($student)->assertOk()->json()['steps'][2];
+        $this->assertSame('current', $dean['state']);
+        $this->assertArrayNotHasKey('action', $dean);
+        $this->assertSame($open, $dean['link']);
+
+        $application->update(['status' => 'pending_sao', 'endorsed_at' => now()]);
+        $sao = $this->statusOf($student)->json()['steps'][3];
+        $this->assertSame('current', $sao['state']);
+        $this->assertArrayNotHasKey('action', $sao);
+        $this->assertSame($open, $sao['link']);
+
+        $application->update(['status' => 'returned', 'returned_by_role' => 'DEPARTMENT_HEAD']);
+        $sent = $this->statusOf($student)->json()['steps'][1];
+        $this->assertSame('Update and send again', $sent['action']['label']);
+        $this->assertArrayNotHasKey('link', $sent);
     }
 
     public function test_done_steps_carry_the_page_where_they_were_done_and_steps_still_to_do_do_not(): void

@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RoleBriefing from './RoleBriefing';
 import { getBriefing } from '../../services/dashboardService';
+import { setTrackerShown } from '../process/trackerPresence';
 
 vi.mock('../../services/dashboardService', () => ({ getBriefing: vi.fn() }));
 
@@ -27,6 +28,7 @@ describe('RoleBriefing', () => {
   beforeEach(() => {
     vi.mocked(getBriefing).mockReset();
     localStorage.clear();
+    setTrackerShown(false);
   });
 
   it('shows a briefing-shaped skeleton while loading', async () => {
@@ -310,6 +312,40 @@ describe('RoleBriefing', () => {
       renderBriefing();
       expect(await screen.findByRole('link', { name: 'Review financial reports' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=financial');
       expect(screen.queryByText('1 item needs your attention: 1 financial report.')).not.toBeInTheDocument();
+    });
+
+    describe('while the process tracker shows', () => {
+      const setup = withProgress([step('contact', 'Add your contact number'), step('academic-year', 'Set the current academic year'), step('positions', 'Set up your officer positions')]);
+
+      it.each(['SUPER_ADMIN', 'STUDENT'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing(role, { setup, organizations: [] }));
+        renderBriefing();
+
+        await screen.findByRole('heading', { name: role === 'SUPER_ADMIN' ? 'Review inbox' : 'Needs attention' });
+        expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+      });
+
+      it('brings the checklist back once the tracker has nothing to show', async () => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('STUDENT', { setup }));
+        renderBriefing();
+        await waitFor(() => expect(getBriefing).toHaveBeenCalled());
+        expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+
+        act(() => setTrackerShown(false));
+
+        expect(await screen.findByRole('heading', { name: 'Next for you' })).toBeInTheDocument();
+      });
+
+      it('ADMIN: keeps its checklist, which the tracker does not replace', async () => {
+        setTrackerShown(true);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
+        renderBriefing();
+
+        expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+      });
     });
 
     it('keeps organization indicators out of the SAO dashboard', async () => {

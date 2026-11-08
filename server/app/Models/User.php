@@ -198,9 +198,14 @@ class User extends Authenticatable
             return null;
         }
 
-        return str_contains($normalized, '@')
-            ? static::where('email', $normalized)->first()
-            : (strlen($normalized) <= 8 ? static::find((int) $normalized) : null);
+        if (str_contains($normalized, '@')) {
+            // Email is a login identity; if more than one account holds it, no account is the right one.
+            $matches = static::where('email', $normalized)->limit(2)->get();
+
+            return $matches->count() === 1 ? $matches->first() : null;
+        }
+
+        return strlen($normalized) <= 8 ? static::find((int) $normalized) : null;
     }
 
     public function accountProfiles(): HasMany
