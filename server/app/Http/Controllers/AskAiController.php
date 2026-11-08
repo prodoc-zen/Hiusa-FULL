@@ -31,4 +31,3 @@ class AskAiController extends Controller
         );
     }
 }
-

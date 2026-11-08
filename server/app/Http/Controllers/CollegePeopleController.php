@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 /** The Department Head's People page: one college's students, office staff and organization leaders. */
@@ -61,20 +60,14 @@ class CollegePeopleController extends Controller
             ->where(fn ($query) => $this->matchTokens($query, $term, true))
             ->select('users.school_id', 'users.first_name', 'users.last_name', 'users.email', 'users.program', 'users.year_level', 'users.account_status', DB::raw("'account' as source"));
 
-        $people = $accounts;
+        $unclaimed = DB::table('student_registry')
+            ->where('student_registry.college_id', $college->id)
+            ->whereNull('student_registry.claimed_at')
+            ->whereNotExists(fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'))
+            ->where(fn ($query) => $this->matchTokens($query, $term, false))
+            ->select('student_registry.school_id', 'student_registry.first_name', 'student_registry.last_name', DB::raw('NULL as email'), 'student_registry.program', 'student_registry.year_level', DB::raw("'not_signed_up' as account_status"), DB::raw("'registry' as source"));
 
-        if (Schema::hasTable('student_registry')) {
-            $unclaimed = DB::table('student_registry')
-                ->where('student_registry.college_id', $college->id)
-                ->whereNull('student_registry.claimed_at')
-                ->whereNotExists(fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'))
-                ->where(fn ($query) => $this->matchTokens($query, $term, false))
-                ->select('student_registry.school_id', 'student_registry.first_name', 'student_registry.last_name', DB::raw('NULL as email'), 'student_registry.program', 'student_registry.year_level', DB::raw("'not_signed_up' as account_status"), DB::raw("'registry' as source"));
-
-            $people = $accounts->unionAll($unclaimed);
-        }
-
-        $page = DB::query()->fromSub($people, 'people')
+        $page = DB::query()->fromSub($accounts->unionAll($unclaimed), 'people')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->orderBy('school_id')

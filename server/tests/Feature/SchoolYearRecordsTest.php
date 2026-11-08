@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\AccountProfile;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\Announcement;
+use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
@@ -310,7 +311,7 @@ class SchoolYearRecordsTest extends TestCase
     public function test_a_department_head_reads_only_their_own_college(): void
     {
         $own = $this->org->college_id;
-        $head = $this->makeCollegeHead(\App\Models\College::findOrFail($own));
+        $head = $this->makeCollegeHead(College::findOrFail($own));
         $otherCollege = $this->makeCollege('COE');
         $this->makeCollegeHome($otherCollege);
         $otherOrg = $this->makeCollegeStudentOrganization($otherCollege, ['name' => 'Builders Circle']);
@@ -324,7 +325,7 @@ class SchoolYearRecordsTest extends TestCase
 
     public function test_an_organization_admin_and_officer_read_only_their_own_organization(): void
     {
-        $other = $this->makeCollegeStudentOrganization(\App\Models\College::findOrFail($this->org->college_id), ['name' => 'Rival Club']);
+        $other = $this->makeCollegeStudentOrganization(College::findOrFail($this->org->college_id), ['name' => 'Rival Club']);
         $officer = User::factory()->officer()->create(['organization_id' => $this->org->id]);
 
         foreach ([$this->admin, $officer] as $user) {

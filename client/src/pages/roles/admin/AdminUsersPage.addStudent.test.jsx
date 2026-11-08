@@ -21,6 +21,7 @@ vi.mock('../../../services/userService', () => ({
 }));
 vi.mock('../../../services/authService', () => ({ getProfileOrganizations: mocks.getProfileOrganizations, inviteAccountProfile: mocks.inviteAccountProfile }));
 vi.mock('../../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
+vi.mock('../../../components/org/OrgAccessPanel', () => ({ default: () => null }));
 vi.mock('../../../services/financeService', () => ({ getStudentDebts: vi.fn() }));
 vi.mock('../../../hooks/useFingerprintReader', () => ({ useFingerprintReader: () => ({ connected: false, scanning: false, mock: false, error: null, retry: vi.fn() }) }));
 

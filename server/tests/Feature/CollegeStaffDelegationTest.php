@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\College;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,4 +147,3 @@ class CollegeStaffDelegationTest extends TestCase
         ]);
     }
 }
-

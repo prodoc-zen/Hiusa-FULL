@@ -11,7 +11,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMPTY = { first_name: '', last_name: '', email: '', school_id: '', password: '', password_confirmation: '' };
+const EMPTY = { first_name: '', last_name: '', email: '', password: '', password_confirmation: '' };
 const FIELD_KEYS = Object.keys(EMPTY);
 
 const ROLE_HOME = {
@@ -31,8 +31,6 @@ function validate(values) {
   const email = values.email.trim();
   if (!email) found.email = 'Enter your email.';
   else if (!EMAIL_PATTERN.test(email)) found.email = 'That email does not look right.';
-  const employeeNumber = values.school_id.trim();
-  if (employeeNumber && (!/^\d{1,8}$/.test(employeeNumber) || Number(employeeNumber) < 1)) found.school_id = 'Use up to 8 digits, or leave it blank.';
   if (!values.password) found.password = 'Choose a password.';
   else if (values.password.length < 8) found.password = 'Use at least 8 characters.';
   if (!values.password_confirmation) found.password_confirmation = 'Type the password again.';
@@ -106,7 +104,6 @@ export default function AcceptInvitationPage() {
         password: values.password,
         password_confirmation: values.password_confirmation,
       };
-      if (values.school_id.trim()) body.school_id = Number(values.school_id);
       await acceptDepartmentHeadInvitation(token, body);
 
       try {
@@ -162,7 +159,6 @@ export default function AcceptInvitationPage() {
             <AuthField label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
             <AuthField label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
             <AuthField label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
-            <AuthField label="Employee number (optional)" inputMode="numeric" autoComplete="off" value={values.school_id} error={errors.school_id} hint="Leave this blank if you do not have one." onChange={(event) => setField('school_id', event.target.value)} />
             <PasswordField label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
             <PasswordField label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
 

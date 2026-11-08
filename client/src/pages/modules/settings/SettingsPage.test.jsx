@@ -44,6 +44,15 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeDisabled();
   });
 
+  it('shows no school ID for an account that joined by invite link and only has an internal number', () => {
+    localStorage.setItem('user', JSON.stringify({ ...storedUser, school_id: 95000007 }));
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    expect(screen.getByText('Ramon Castillo')).toBeInTheDocument();
+    expect(screen.queryByText('95000007')).not.toBeInTheDocument();
+    expect(screen.queryByText(/School ID/i)).not.toBeInTheDocument();
+  });
+
   it('saves changed profile information and refreshes the stored identity', async () => {
     profileMocks.updateProfile.mockResolvedValue({ data: { ...storedUser, first_name: 'Ramona' } });
     renderPage();

@@ -95,10 +95,10 @@ describe('AcceptInvitationPage', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: "You're invited to lead College of Arts and Sciences" })).toBeInTheDocument();
-    [/^First name/, /^Last name/, /^Email/, /^Employee number \(optional\)/, /^Password/, /^Confirm password/].forEach((label) => {
+    [/^First name/, /^Last name/, /^Email/, /^Password/, /^Confirm password/].forEach((label) => {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     });
-    expect(screen.queryByLabelText(/School ID/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/School ID|Employee number/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Create account/ })).toHaveLength(1);
   });
 
@@ -122,20 +122,6 @@ describe('AcceptInvitationPage', () => {
     expect(mocks.login).toHaveBeenCalledWith({ identifier: 'arthur.dent@example.edu', password: 'Password123!' });
     expect(await screen.findByText('Dean home')).toBeInTheDocument();
     expect(localStorage.getItem('auth_token')).toBe('real-token');
-  });
-
-  it('sends the employee number only when it is filled in', async () => {
-    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
-    mocks.acceptDepartmentHeadInvitation.mockResolvedValue({});
-    mocks.login.mockResolvedValue({ data: { access_token: 't', user: { role: 'DEPARTMENT_HEAD' } } });
-    renderPage();
-    await screen.findByRole('heading', { name: /You're invited to lead/ });
-
-    fillForm();
-    type(/Employee number/, '20261001');
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-
-    await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', expect.objectContaining({ school_id: 20261001 })));
   });
 
   it('greets office staff with their role and sends them to the staff home', async () => {
@@ -164,11 +150,9 @@ describe('AcceptInvitationPage', () => {
     expect(screen.getByText('Choose a password.')).toBeInTheDocument();
 
     fillForm({ confirm: 'Mismatch!!' });
-    type(/Employee number/, 'abc');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(await screen.findByText('The two passwords do not match.')).toBeInTheDocument();
-    expect(screen.getByText('Use up to 8 digits, or leave it blank.')).toBeInTheDocument();
     expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
   });
 

@@ -353,5 +353,4 @@ class CollegeOrganizationController extends Controller
 
         return [$semester, $types];
     }
-
 }

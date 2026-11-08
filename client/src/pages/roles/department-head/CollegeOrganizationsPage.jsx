@@ -17,6 +17,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
+import { visibleSchoolId } from '../../../utils/schoolId';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import { RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
@@ -250,7 +251,7 @@ function CollegeStaffModal({ open, onClose }) {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-ink">{member.name}</p>
-                    <p className="text-xs text-ink-muted">{member.position_title} · {member.school_id}</p>
+                    <p className="text-xs text-ink-muted">{[member.position_title, visibleSchoolId(member.school_id)].filter(Boolean).join(' · ')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

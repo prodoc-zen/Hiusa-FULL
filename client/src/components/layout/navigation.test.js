@@ -151,9 +151,9 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it.each([
     ['ADMIN', 11, 37],
     ['SBO_OFFICER', 11, 26],
-    ['DEPARTMENT_HEAD', 13, 16],
+    ['DEPARTMENT_HEAD', 14, 17],
     ['STUDENT', 8, 12],
-    ['SUPER_ADMIN', 7, 17],
+    ['SUPER_ADMIN', 7, 18],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);

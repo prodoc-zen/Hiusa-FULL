@@ -245,7 +245,7 @@ Format: group (band): children in order, each `Label  route`.
   - Store: Inventory `/dashboard/merchandise/manage-inventory`; Orders `/dashboard/merchandise/manage-orders`; Claim desk `/dashboard/merchandise/claim-tokens`
   - Updates: Announcements `/dashboard/announcements/manage-announcements` (New announcement is its primary button); Feed `/dashboard/announcements/view-announcements`
 - Records band
-  - Records: Compliance `/dashboard/compliance`; Submitted files `/dashboard/submitted-files`; Grievances `/dashboard/grievances`; Clearance signing `/dashboard/clearances`; Audit log `/dashboard/audit-logs`
+  - Records: Compliance `/dashboard/compliance`; Submitted files `/dashboard/submitted-files`; Grievances `/dashboard/grievances`; Clearance signing `/dashboard/clearances`; Audit log `/dashboard/audit-logs`; School year records `/dashboard/records`
 - Me band
   - My activity: Vote `/dashboard/elections/cast-vote`; Shop `/dashboard/merchandise/order-merchandise`; My orders `/dashboard/merchandise/my-orders`; My receipts `/dashboard/finance/personal-receipts`; Statement of account `/dashboard/finance/statement-of-account`
 - Footer: Profile `/dashboard/profile`; Study objectives `/dashboard/objectives` (new link, ends the orphan)
@@ -260,7 +260,7 @@ Format: group (band): children in order, each `Label  route`.
   - Voting: Candidates `/dashboard/elections/manage-candidates`; Voters `/dashboard/elections/manage-voters`; Results
   - Store: Orders `/dashboard/merchandise/manage-orders`; Claim desk `/dashboard/merchandise/claim-tokens`
   - Updates: Announcements `/dashboard/announcements/manage-announcements` (New announcement; the page header says it goes to the Admin for approval); Feed
-- Records band: Clearance signing `/dashboard/clearances` (single link)
+- Records band: Clearance signing `/dashboard/clearances` (single link); Records `/dashboard/records` (single link, the organization's past school years, read only)
 - Me band: My activity: Vote, Shop, My orders, My receipts, Statement of account (same routes as Admin)
 
 **DEPARTMENT_HEAD** (7 rows, jobs first)
@@ -269,6 +269,7 @@ Format: group (band): children in order, each `Label  route`.
 - Organizations `/dashboard/department-head/organizations`
 - People `/dashboard/department-head/people` (students, office staff, organization leaders; works with zero organizations)
 - Submitted files `/dashboard/submitted-files`
+- Records `/dashboard/records` (every organization in the college, past school years, read only)
 - College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 
 **STUDENT** (7 rows, 11 leaves; same size, renamed and reordered)
@@ -287,7 +288,7 @@ Format: group (band): children in order, each `Label  route`.
 - Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
 - Files: Submitted files `/dashboard/super-admin/documents` (organization folders); Storage and limits `/dashboard/super-admin/file-storage`
 - Updates: University announcements `/dashboard/super-admin/announcements`; Notifications `/dashboard/super-admin/notifications`
-- Setup and records: Academic years `/dashboard/super-admin/academic-years`; Audit trail `/dashboard/super-admin/audit-logs`
+- Setup and records: Academic years `/dashboard/super-admin/academic-years`; School year records `/dashboard/records`; Audit trail `/dashboard/super-admin/audit-logs`
 
 ### 3.3 Old to new mapping
 

@@ -107,7 +107,7 @@ class PeopleSearchTest extends TestCase
         $response = $this->search($head, ['q' => 'maria'])->assertOk();
 
         $response->assertJsonPath('data.0.school_id', $maria->school_id)
-            ->assertJsonPath('data.0.name', 'Maria Santos' === $response->json('data.0.name') ? 'Maria Santos' : $response->json('data.0.name'))
+            ->assertJsonPath('data.0.name', $response->json('data.0.name') === 'Maria Santos' ? 'Maria Santos' : $response->json('data.0.name'))
             ->assertJsonPath('data.0.email', 'maria@example.edu')
             ->assertJsonPath('data.0.program', 'BSIT')
             ->assertJsonPath('data.0.year_level', '3')

@@ -18,7 +18,6 @@ use App\Support\NotFound;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -36,7 +35,7 @@ class OrganizationApplicationController extends Controller
 
     private function applicationSemester(Request $request): ?AcademicSemester
     {
-        return AcademicSemester::active();
+        return AcademicSemester::selected($request);
     }
 
     private function registrationRequirements(Request $request): array

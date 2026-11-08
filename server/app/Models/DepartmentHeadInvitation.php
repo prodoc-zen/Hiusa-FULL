@@ -59,4 +59,3 @@ class DepartmentHeadInvitation extends Model
         return $this->accepted_at !== null;
     }
 }
-

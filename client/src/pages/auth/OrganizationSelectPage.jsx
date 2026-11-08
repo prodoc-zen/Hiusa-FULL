@@ -114,7 +114,7 @@ export default function OrganizationSelectPage() {
                 Organization records, elections, events, merchandise, and announcements stay grouped under the selected workspace.
               </div>
               <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
-                Every account signs in with its assigned school ID or ID number.
+                Every account signs in with its email or school ID.
               </div>
             </div>
           </div>

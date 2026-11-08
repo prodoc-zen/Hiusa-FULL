@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 import { manilaDate, peso } from '../../../lib/format';
@@ -15,9 +16,6 @@ const TABS = [
   { key: 'finance', label: 'Finance' },
   { key: 'documents', label: 'Documents' },
 ];
-
-const ROLE_LABEL = { ADMIN: 'Org head', SBO_OFFICER: 'Officer', STUDENT: 'Member' };
-const ROLE_TONE = { ADMIN: 'info', SBO_OFFICER: 'info', STUDENT: 'neutral' };
 
 function Loading() {
   return (
@@ -69,37 +67,6 @@ function OverviewTab({ space, onOpen }) {
         </Card>
       </div>
     </div>
-  );
-}
-
-// OrgAccessPanel (components/org/OrgAccessPanel.jsx, props { organizationId, actorRole: 'DEPARTMENT_HEAD' }) replaces the card below when it lands.
-function PeopleTab({ space }) {
-  const columns = [
-    {
-      key: 'name',
-      header: 'Name',
-      render: (member) => (
-        <span className="block min-w-0">
-          <span className="block font-bold text-ink">{member.name}</span>
-          <span className="block break-all text-xs font-medium text-ink-muted">{member.email}</span>
-          <span className="block text-xs font-medium text-ink-soft">ID {member.school_id}</span>
-        </span>
-      ),
-    },
-    { key: 'role', header: 'Access', render: (member) => <StatusBadge status={member.role} label={ROLE_LABEL[member.role] || member.role} tone={ROLE_TONE[member.role]} /> },
-    { key: 'position_title', header: 'Position', render: (member) => member.position_title || <span className="text-ink-soft">None</span> },
-  ];
-
-  return (
-    <Card title="People and access" description={`Everyone who works in ${space.organization.name}.`}>
-      <DataTable
-        columns={columns}
-        rows={space.members}
-        rowKey={(member) => member.profile_id}
-        caption="People with access to this organization"
-        emptyState={<EmptyState title="No one yet" description="People appear here once they are added to this organization." />}
-      />
-    </Card>
   );
 }
 
@@ -273,7 +240,7 @@ export default function OrgSpacePage() {
       <Tabs tabs={TABS.map((entry) => ({ ...entry, panelId: 'org-space-panel' }))} value={tab} onChange={openTab} className="mt-4" />
       <div id="org-space-panel" role="tabpanel" className="mt-6">
         {tab === 'overview' && <OverviewTab space={space} onOpen={openTab} />}
-        {tab === 'people' && <PeopleTab space={space} />}
+        {tab === 'people' && <OrgAccessPanel organizationId={space.organization.id} actorRole="DEPARTMENT_HEAD" />}
         {tab === 'events' && <EventsTab space={space} />}
         {tab === 'finance' && <FinanceTab space={space} />}
         {tab === 'documents' && <DocumentsTab space={space} />}

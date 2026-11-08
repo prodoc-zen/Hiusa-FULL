@@ -167,9 +167,9 @@ class HowToGuideLibrary
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Registrations and organizations', 'detail' => 'Switch to the Active tab.', 'path' => '/dashboard/super-admin/organizations', 'where' => 'Governance → Registrations and organizations → Active'],
-                    ['title' => 'Find the organization marked "Awaiting administrator"', 'detail' => 'Open its actions menu and choose to create the administrator, or add an existing user.', 'path' => '/dashboard/super-admin/organizations', 'where' => 'Active organizations'],
-                    ['title' => 'Enter the President\'s details', 'detail' => 'School ID, name, email, position, and a temporary password. Then save.', 'path' => '/dashboard/super-admin/organizations', 'where' => 'Create administrator form'],
-                    ['title' => 'First login', 'detail' => 'The admin signs in and sets a permanent password. A handover moves admin rights to a new President later.', 'path' => null, 'where' => 'Login page'],
+                    ['title' => 'Find the organization marked "Awaiting administrator"', 'detail' => 'Open its actions menu and choose "Add first administrator".', 'path' => '/dashboard/super-admin/organizations', 'where' => 'Active organizations'],
+                    ['title' => 'Pick the President', 'detail' => 'Type the student\'s name or email and pick them from the list. You never type a school ID. A student without an account signs up first from the sign-up page.', 'path' => '/dashboard/super-admin/organizations', 'where' => 'Add administrator'],
+                    ['title' => 'Save', 'detail' => 'They keep their own password and sign in with their email. No temporary password is created.', 'path' => null, 'where' => 'Login page'],
                 ],
                 'tips' => [],
             ],
@@ -324,12 +324,12 @@ class HowToGuideLibrary
                 'checks' => [],
                 'minutes' => 1,
                 'steps' => [
-                    ['title' => 'Click the Sub-Account pill in the TopBar', 'detail' => 'In the top bar, click the "Dean\'s Office (Master View)" dropdown pill.', 'path' => null, 'where' => 'Top navigation bar'],
-                    ['title' => 'Search or select a student organization', 'detail' => 'Select an organization (for example PSITS-CCS). Your workspace instantly switches to Sub-Account Oversight Mode without logging out.', 'path' => '/dashboard/department-head/organizations', 'where' => 'TopBar → Sub-Account dropdown'],
-                    ['title' => 'Oversee records and compliance', 'detail' => 'Review the organization\'s compliance submissions, events, and rosters under college oversight.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Sub-Account mode'],
-                    ['title' => 'Return to Master View', 'detail' => 'Click "Return to Dean\'s Office" in the top banner or select Dean\'s Office from the dropdown anytime.', 'path' => null, 'where' => 'Top banner / TopBar'],
+                    ['title' => 'Open the workspace switcher', 'detail' => 'In the top bar, click the workspace button. It lists every active organization in your college.', 'path' => null, 'where' => 'Top navigation bar'],
+                    ['title' => 'Pick a student organization', 'detail' => 'Search or pick one, for example PSITS-CCS. The sidebar changes to that organization\'s space without logging out.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Top bar → Workspace switcher'],
+                    ['title' => 'Look at its people, events, finance and documents', 'detail' => 'Use the tabs on the organization page. People and access is where you give a student access to the organization.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Organization space'],
+                    ['title' => 'Go back to your college', 'detail' => 'Click "Back to my college" at the bottom of the sidebar, or pick your college in the workspace switcher.', 'path' => null, 'where' => 'Sidebar / top bar'],
                 ],
-                'tips' => ['Sub-Account mode is non-destructive and lets you view college clubs with zero login friction.'],
+                'tips' => ['Switching is non-destructive: you stay signed in as the Dean.'],
             ],
             [
                 'id' => 'dean-office-staff',
@@ -337,17 +337,17 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Add office staff and delegate a College Secretary',
                 'question' => 'How do I add office staff or delegate a secretary?',
-                'summary' => 'Deans can delegate ADMIN or DEPARTMENT_HEAD authority to college secretaries and office assistants to assist with reviews and operations.',
+                'summary' => 'Deans invite college secretaries and office assistants with a link. They create their own account, so you never type their name, school ID or password.',
                 'keywords' => ['staff', 'secretary', 'college secretary', 'dept sec', 'delegate', 'office assistant', 'add staff', 'assistants', 'office staff'],
                 'checks' => [],
                 'minutes' => 2,
                 'steps' => [
-                    ['title' => 'Open Organizations', 'detail' => 'In the sidebar, open Governance → Organizations.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Organizations'],
-                    ['title' => 'Click "Dean\'s Office Staff & Secretary"', 'detail' => 'Click the staff button in the college header to view your office staff modal.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Organizations → College Header'],
-                    ['title' => 'Add or delegate staff', 'detail' => 'Enter their name, email, school ID, and choose whether to grant Administrator or Department Head access.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Office Staff Modal'],
-                    ['title' => 'Manage or revoke anytime', 'detail' => 'Deans can remove any delegated staff member in 1 click.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Office Staff Modal'],
+                    ['title' => 'Open People', 'detail' => 'In the sidebar, open People and switch to the Office staff tab.', 'path' => '/dashboard/department-head/people', 'where' => 'People → Office staff'],
+                    ['title' => 'Click "Invite staff"', 'detail' => 'Type their position, for example College Secretary. An email is optional and only sends the link for you.', 'path' => '/dashboard/department-head/people', 'where' => 'People → Office staff'],
+                    ['title' => 'Share the link', 'detail' => 'Copy the link and send it to them. It works once and expires in 48 hours. They set up their own account and sign in with their email.', 'path' => '/dashboard/department-head/people', 'where' => 'Invite office staff'],
+                    ['title' => 'Remove access anytime', 'detail' => 'Remove a staff member from the same list. Their account stays and you can invite them again later.', 'path' => '/dashboard/department-head/people', 'where' => 'People → Office staff'],
                 ],
-                'tips' => ['Delegated staff inherit administrative permissions to assist with college reviews and compliance.'],
+                'tips' => ['Office staff can help with college reviews and compliance. Someone who already has an account can be added from Organizations → Office staff by name.'],
             ],
 
             [
@@ -444,16 +444,16 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN', 'SBO_OFFICER'],
                 'title' => 'Add members and officers, and enroll fingerprints',
                 'question' => 'How do I add members or officers?',
-                'summary' => 'Add students and SBO Officers to your organization. Enroll their fingerprints for event check-in.',
+                'summary' => 'Give students in your college access to your organization as members or SBO Officers. Enroll their fingerprints for event check-in.',
                 'keywords' => ['add member', 'add user', 'new user', 'member', 'members', 'officer', 'add officer', 'student account', 'fingerprint', 'biometric', 'enroll'],
                 'checks' => [],
                 'minutes' => 3,
                 'steps' => [
                     ['title' => 'Open People', 'detail' => 'Admin: Members → People. Officer: Members and fingerprints.', 'path' => '/dashboard/admin/users', 'where' => 'Members → People'],
-                    ['title' => 'Click "New User" (or "Add existing user")', 'detail' => 'Admins enter the school ID, name, email, role (STUDENT or SBO_OFFICER), position, program, and section.', 'path' => '/dashboard/admin/users', 'where' => 'People'],
+                    ['title' => 'Click "Add existing student"', 'detail' => 'Type the student\'s name or email and pick them from the list, then choose their role (member or officer). You never type a school ID. A student without an account signs up from the sign-up page first.', 'path' => '/dashboard/admin/users', 'where' => 'People'],
                     ['title' => 'Enroll a fingerprint (optional)', 'detail' => 'Open the member and capture their fingerprint with the reader. Only an encrypted template is stored.', 'path' => '/dashboard/admin/users', 'where' => 'People → member'],
                 ],
-                'tips' => ['Only the Organization Admin can create accounts. Officers can enroll fingerprints.'],
+                'tips' => ['Students create their own accounts. The Organization Admin gives them access. Officers can enroll fingerprints.'],
             ],
             [
                 'id' => 'admin-budget',
@@ -1075,4 +1075,3 @@ class HowToGuideLibrary
         return $union > 0 ? count(array_intersect($ga, $gb)) / $union : 0.0;
     }
 }
-

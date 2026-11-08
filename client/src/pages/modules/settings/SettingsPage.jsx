@@ -7,6 +7,7 @@ import NotificationPreferences from '../../../components/profile/NotificationPre
 import RecentActivity from '../../../components/profile/RecentActivity';
 import { updatePassword, updateProfile } from '../../../services/profileService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { visibleSchoolId } from '../../../utils/schoolId';
 
 function getStoredUser() {
   try {
@@ -54,7 +55,7 @@ export default function SettingsPage() {
   const initials = [currentUser.first_name?.[0], currentUser.last_name?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
   const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'User';
   const organizationName = currentUser.organization?.name || currentUser.organization?.acronym || 'Selected organization';
-  const schoolId = currentUser.school_id || currentUser.id || 'N/A';
+  const schoolId = currentUser.school_id ? visibleSchoolId(currentUser.school_id) : (currentUser.id || 'N/A');
   const profileDirty = profileForm.first_name !== (currentUser.first_name || '')
     || profileForm.last_name !== (currentUser.last_name || '')
     || profileForm.email !== (currentUser.email || '')
@@ -176,13 +177,15 @@ export default function SettingsPage() {
           </div>
 
           <div className="divide-y divide-[#DDE7EF] px-5">
-            <div className="flex gap-3 py-4">
-              <IdCard size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">School ID</p>
-                <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">{schoolId}</p>
+            {schoolId && (
+              <div className="flex gap-3 py-4">
+                <IdCard size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">School ID</p>
+                  <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">{schoolId}</p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex gap-3 py-4">
               <Building2 size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <div className="min-w-0">
@@ -252,7 +255,7 @@ export default function SettingsPage() {
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">School ID (read-only)</span><input type="text" readOnly disabled value={schoolId} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
+                  {schoolId && <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">School ID (read-only)</span><input type="text" readOnly disabled value={schoolId} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>}
                   <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">Role (read-only)</span><input type="text" readOnly disabled value={roleLabel(currentUser.role)} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
                   <label className="space-y-1.5"><span className="text-[13px] font-semibold text-[#64748B]">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'} (read-only)</span><input type="text" readOnly disabled value={organizationName} className="h-11 w-full cursor-not-allowed rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#64748B]" /></label>
                 </div>

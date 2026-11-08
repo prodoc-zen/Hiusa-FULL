@@ -36,6 +36,7 @@ import { Button, NextStep, PageHeader } from "../../../components/ui";
 import { RegistrationNextStep, RegistrationStepper } from "../../../components/organizations/RegistrationFlow";
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
+import { visibleSchoolId } from '../../../utils/schoolId';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 
 const LEADERSHIP_TITLES = [
@@ -74,7 +75,7 @@ function AdminIdentity({ admin }) {
         {formatDisplayText(admin.first_name)} {formatDisplayText(admin.last_name)}
       </p>
       <p className="break-words text-xs text-ink-muted">
-        {admin.email} · {admin.school_id}{admin.contact_number ? ` · ${admin.contact_number}` : ''}
+        {[admin.email, visibleSchoolId(admin.school_id), admin.contact_number].filter(Boolean).join(' · ')}
       </p>
       {!isPrimaryProfile(admin) && <p className="text-xs font-medium text-ink-muted">Added through a profile</p>}
     </div>

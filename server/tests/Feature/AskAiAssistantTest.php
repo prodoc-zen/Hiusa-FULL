@@ -2,14 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\AiOutput;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
 use App\Models\ComplianceRequirementType;
+use App\Models\Merchandise;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Ai\HowToGuideLibrary;
+use App\Services\Dashboard\ClientRouteAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
@@ -242,7 +244,7 @@ class AskAiAssistantTest extends TestCase
             'account_status' => 'active',
         ]);
 
-        \App\Models\Merchandise::factory()->create([
+        Merchandise::factory()->create([
             'organization_id' => $org->id,
             'name' => 'Official PSITS Lanyard',
             'category' => 'Accessories',
@@ -361,8 +363,8 @@ class AskAiAssistantTest extends TestCase
 
     public function test_all_how_to_guide_paths_conform_to_client_route_allowlist(): void
     {
-        $guides = app(\App\Services\Ai\HowToGuideLibrary::class)->all();
-        $routeAccess = app(\App\Services\Dashboard\ClientRouteAccess::class);
+        $guides = app(HowToGuideLibrary::class)->all();
+        $routeAccess = app(ClientRouteAccess::class);
 
         foreach ($guides as $guide) {
             foreach ($guide['steps'] as $stepIndex => $step) {
