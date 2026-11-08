@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
+use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use Illuminate\Database\Eloquent\Builder;
@@ -82,23 +84,16 @@ class AccountProfileController extends Controller
                                 ->orWhereNotIn('college', College::withTrashed()->where(fn ($closed) => $closed->where('is_active', false)->orWhereNotNull('deleted_at'))->select('name')))))));
         }
 
-        // The primary organization identifies the college even for legacy users without a department.
+        // Anyone with an active student profile in a college organization (home or student organization) belongs to the college.
         return User::where('role', '!=', 'SUPER_ADMIN')->where('account_status', 'active')
-            ->where(function ($query) use ($organization) {
-                $query->whereHas('organization', fn ($organizationQuery) => $organizationQuery
-                    ->where('college', $organization->college)->where('organization_type', 'STUDENT_ORGANIZATION'))
-                    ->orWhere(function ($query) use ($organization) {
-                        $query->where('role', 'DEPARTMENT_HEAD')
-                            ->whereHas('organization', fn ($organizationQuery) => $organizationQuery
-                                ->where('organization_type', 'COLLEGE')
-                                ->where('college', $organization->college)
-                                ->whereNotNull('college_id')
-                                ->where('college_id', $organization->college_id));
-                    });
-            })
-            ->where(fn ($query) => $query->whereNull('department')->orWhere('department', '')->orWhere('department', $organization->college))
             ->whereHas('accountProfiles', fn ($query) => $query->where('account_status', 'active')
-                ->whereHas('organization', fn ($query) => $query->where('college', $organization->college)->where('is_active', true)));
+                ->whereIn('role', ['STUDENT', 'SBO_OFFICER', 'ADMIN'])
+                ->whereHas('organization', fn ($organizations) => $organizations->where('is_active', true)
+                    ->whereIn('organization_type', ['STUDENT_ORGANIZATION', 'COLLEGE'])
+                    ->when($organization->college_id,
+                        fn ($colleges) => $colleges->where('college_id', $organization->college_id),
+                        fn ($colleges) => $colleges->where('college', $organization->college))))
+            ->where(fn ($query) => $query->whereNull('department')->orWhere('department', '')->orWhere('department', $organization->college));
     }
 
     public function organizations(Request $request)
@@ -135,6 +130,7 @@ class AccountProfileController extends Controller
             'school_id' => $profile->user_school_id, 'first_name' => $profile->user->first_name,
             'last_name' => $profile->user->last_name, 'email' => $profile->user->email,
             'role' => $profile->role, 'account_status' => $profile->account_status,
+            'position_title' => $profile->position_title, 'modules' => $profile->modules,
             'profiles_count' => $profile->user->account_profiles_count,
             'is_primary' => (int) $profile->organization_id === (int) $profile->user->getRawOriginal('organization_id'),
             'deletion_block_reason' => $this->profileDeletion->permissionFailure($request->user(), $profile),
@@ -179,39 +175,138 @@ class AccountProfileController extends Controller
             ->paginate($data['per_page'] ?? 20, ['school_id', 'first_name', 'last_name', 'email', 'department', 'program']));
     }
 
+    /** Roles the actor may hand out: nobody grants above their own level. */
+    private function grantableRoles(User $actor): array
+    {
+        return match ($actor->role) {
+            'SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN' => ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
+            default => [],
+        };
+    }
+
+    /** An organization head hands out officer and member access; Admin only into a suborganization of theirs, never beside themselves. */
+    private function assertMayGrant(User $actor, string $role, Organization $organization): void
+    {
+        if ($role === 'ADMIN' && $actor->role === 'ADMIN' && (int) $organization->id === (int) $actor->organization_id) {
+            throw ValidationException::withMessages(['role' => ['Only the dean or the SAO can name another organization head.']]);
+        }
+    }
+
+    private function grantRules(User $actor): array
+    {
+        return [
+            'role' => ['required', Rule::in($this->grantableRoles($actor))],
+            'position_title' => ['nullable', 'string', 'max:100'],
+            'modules' => ['nullable', 'array', 'min:1'],
+            'modules.*' => ['string', 'distinct', Rule::in(AccountProfile::MODULES)],
+        ];
+    }
+
+    /** Position and modules for one grant: modules only apply to officers, and a full set is stored as "all". */
+    private function grantDetails(array $data, Organization $organization): array
+    {
+        $title = trim((string) ($data['position_title'] ?? '')) ?: null;
+        if ($data['role'] === 'STUDENT') {
+            $title = null;
+        }
+        if ($title !== null) {
+            $known = SboPosition::where('organization_id', $organization->id)->where('role', $data['role'])
+                ->where('is_active', true)->where('title', $title)->exists();
+            if (! $known) {
+                throw ValidationException::withMessages(['position_title' => ['Choose a position from this organization’s list.']]);
+            }
+        }
+
+        $modules = null;
+        if ($data['role'] === 'SBO_OFFICER' && ! empty($data['modules'])) {
+            $picked = array_values(array_intersect(AccountProfile::MODULES, $data['modules']));
+            $modules = count($picked) === count(AccountProfile::MODULES) ? null : $picked;
+        }
+
+        return ['position_title' => $title, 'modules' => $modules];
+    }
+
+    public function positions(Request $request)
+    {
+        $data = $request->validate(['organization_id' => ['required', 'integer']]);
+        $organization = $this->managedOrganizations($request->user())->findOrFail($data['organization_id']);
+
+        return response()->json(SboPosition::where('organization_id', $organization->id)->where('is_active', true)
+            ->orderBy('role')->orderBy('title')->get(['id', 'role', 'title']));
+    }
+
     public function invite(Request $request)
     {
         $actor = $request->user();
-        $roles = ['STUDENT', 'SBO_OFFICER'];
-        if (in_array($actor->role, ['ADMIN', 'SUPER_ADMIN'], true)) {
-            $roles[] = 'ADMIN';
-        }
         $data = $request->validate([
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
-            'role' => ['required', Rule::in($roles)],
             'organization_id' => ['sometimes', 'required', 'integer'],
+            ...$this->grantRules($actor),
         ]);
 
         $profile = DB::transaction(function () use ($request, $actor, $data) {
             $organization = $this->targetOrganization($request, $data['organization_id'] ?? $actor->organization_id, true);
+            $this->assertMayGrant($actor, $data['role'], $organization);
+            $details = $this->grantDetails($data, $organization);
             $user = $this->eligibleUsers($organization)->lockForUpdate()->find($data['school_id']);
             if (! $user) {
-                throw ValidationException::withMessages(['school_id' => ['Choose an active existing user from this organization’s college.']]);
+                throw ValidationException::withMessages(['school_id' => ['Choose an active student from this organization’s college.']]);
             }
             abort_if($user->accountProfiles()->where('organization_id', $organization->id)->exists(), 409, 'This account already belongs to the organization.');
             $profile = $user->accountProfiles()->create([
-                'organization_id' => $organization->id, 'role' => $data['role'], 'account_status' => 'active',
+                'organization_id' => $organization->id, 'role' => $data['role'], 'account_status' => 'active', ...$details,
             ]);
             AuditLog::create([
                 'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
                 'module' => 'users', 'action' => 'organization_membership_added', 'record_type' => AccountProfile::class,
-                'record_id' => $profile->id, 'new_values' => ['user_school_id' => $user->school_id, 'role' => $data['role']],
+                'record_id' => $profile->id, 'new_values' => ['user_school_id' => $user->school_id, 'role' => $data['role'], ...$details],
                 'description' => 'Added an existing user to the organization.', 'ip_address' => $request->ip(), 'created_at' => now(),
+            ]);
+            $label = $details['position_title'] ?? match ($data['role']) {
+                'ADMIN' => 'Organization head', 'SBO_OFFICER' => 'Officer', default => 'Member',
+            };
+            Notification::create([
+                'organization_id' => $organization->id, 'user_id' => $user->school_id, 'notification_type' => 'general',
+                'title' => 'You have new access', 'message' => "You now have access to {$organization->name} as {$label}.",
+                'reference_type' => 'organization', 'reference_id' => $organization->id, 'is_read' => false, 'sent_at' => now(),
             ]);
 
             return $profile;
         });
 
         return response()->json($profile->load('organization:id,name,acronym,college,parent_organization_id'), 201);
+    }
+
+    public function update(Request $request, AccountProfile $profile)
+    {
+        $actor = $request->user();
+        $data = $request->validate($this->grantRules($actor));
+
+        $profile = DB::transaction(function () use ($request, $actor, $data, $profile) {
+            $organization = $this->targetOrganization($request, $profile->organization_id, true);
+            $profile = AccountProfile::with('user')->lockForUpdate()->findOrFail($profile->id);
+            $this->assertMayGrant($actor, $data['role'], $organization);
+            if ($reason = $this->profileDeletion->permissionFailure($actor, $profile)) {
+                abort(403, $reason);
+            }
+            if ($profile->role === 'ADMIN' && $data['role'] !== 'ADMIN' && $profile->account_status === 'active') {
+                $otherAdmin = AccountProfile::where('organization_id', $organization->id)->where('role', 'ADMIN')
+                    ->where('account_status', 'active')->whereKeyNot($profile->id)
+                    ->whereHas('user', fn ($query) => $query->where('account_status', 'active'))->exists();
+                abort_unless($otherAdmin, 422, 'Assign another active Admin before changing the last one.');
+            }
+            $before = $profile->only(['role', 'position_title', 'modules']);
+            $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization)]);
+            AuditLog::create([
+                'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+                'module' => 'users', 'action' => 'organization_access_changed', 'record_type' => AccountProfile::class,
+                'record_id' => $profile->id, 'old_values' => $before, 'new_values' => $profile->only(['role', 'position_title', 'modules']),
+                'ip_address' => $request->ip(), 'created_at' => now(),
+            ]);
+
+            return $profile;
+        });
+
+        return response()->json($profile->only(['id', 'organization_id', 'role', 'position_title', 'modules', 'account_status']));
     }
 }

@@ -16,6 +16,7 @@ import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositi
 import { getStudentDebts } from '../../../services/financeService';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
+import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
@@ -390,9 +391,11 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
 
 export default function AdminUsersPage() {
   let actorRole = '';
+  let actorOrganizationId = null;
   try {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
+    actorOrganizationId = actor?.organization_id || actor?.organization?.id || null;
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
@@ -1003,6 +1006,8 @@ export default function AdminUsersPage() {
           label="users"
         />
       </section>
+
+      {actorRole === 'ADMIN' && actorOrganizationId && <OrgAccessPanel organizationId={actorOrganizationId} actorRole={actorRole} />}
 
       <Modal
         open={Boolean(profileUser)}

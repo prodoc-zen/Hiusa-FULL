@@ -79,17 +79,19 @@ Route::get('/organization-applications/{application}/edit/documents/{document}',
 Route::get('/department-head-invitations/{token}', [DepartmentHeadInvitationController::class, 'show'])->middleware('throttle:public');
 Route::post('/department-head-invitations/{token}/accept', [DepartmentHeadInvitationController::class, 'accept'])->middleware('throttle:registration');
 
-Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/people/search', [PeopleSearchController::class, 'search'])->middleware(['throttle:people-search', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
-    Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
-    Route::get('/account-profiles/candidates', [AccountProfileController::class, 'candidates'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
-    Route::get('/account-profiles', [AccountProfileController::class, 'members'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
-    Route::delete('/account-profiles/{profile}', [AccountProfileController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN', 'org.writable']);
-    Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
+    Route::get('/account-profiles/candidates', [AccountProfileController::class, 'candidates'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
+    Route::get('/account-profiles/positions', [AccountProfileController::class, 'positions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
+    Route::get('/account-profiles', [AccountProfileController::class, 'members'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
+    Route::put('/account-profiles/{profile}', [AccountProfileController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
+    Route::delete('/account-profiles/{profile}', [AccountProfileController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN', 'org.writable']);
+    Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
 
     // Profile Routes (authenticated user updates own profile/password)
