@@ -9,6 +9,7 @@ import { getApprovalRequests } from '../../../services/approvalService';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
+import { ProcessTracker } from '../../../components/process';
 import { Button, EmptyState } from '../../../components/ui';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
@@ -108,6 +109,7 @@ export default function DepartmentHeadHomePage() {
 
   return (
     <div className="w-full space-y-6">
+      <ProcessTracker />
       <RoleBriefing />
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">

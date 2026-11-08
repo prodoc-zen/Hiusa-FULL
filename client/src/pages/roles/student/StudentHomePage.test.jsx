@@ -6,6 +6,7 @@ import StudentHomePage from './StudentHomePage';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getBriefing } from '../../../services/dashboardService';
 
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../services/studentFeedService', () => ({ getStudentFeed: vi.fn() }));
 vi.mock('../../../services/dashboardService', () => ({
   getBriefing: vi.fn(() => Promise.resolve({ data: { user: { first_name: 'Ana', role: 'STUDENT', organization: { id: 1, name: 'Supreme Student Council' } }, summary: { attention_count: 0, headline: "You're all caught up." }, attention: [], pillars: {}, insights: [] } })),
@@ -119,5 +120,12 @@ describe('StudentHomePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
     expect(screen.queryAllByRole('status')).toHaveLength(0);
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    await screen.findByRole('region', { name: 'Organization feed' });
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });

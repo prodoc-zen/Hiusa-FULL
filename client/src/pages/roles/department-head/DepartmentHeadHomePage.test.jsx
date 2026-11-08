@@ -15,6 +15,7 @@ vi.mock('../../../services/eventService', () => ({ getEvents: mocks.getEvents })
 vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mocks.getAnnouncements }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../components/dashboard', () => ({ RoleBriefing: () => null }));
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
@@ -201,5 +202,12 @@ describe('DepartmentHeadHomePage', () => {
 
       expect(returnedTile()).toHaveTextContent('2');
     });
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });
