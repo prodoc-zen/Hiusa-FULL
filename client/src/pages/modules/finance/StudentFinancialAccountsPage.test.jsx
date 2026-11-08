@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getStudentDebts: vi.fn(), createInvoice: vi.fn(), recordInvoicePayment: vi.fn(), updateInvoiceStatus: vi.fn(),
 }));
 vi.mock('../../../services/financeService', () => mocks);
+const people = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => people);
 
 const invoice = (overrides) => ({
   id: 7, reference: 'INV-ABC123', description: 'Organization fee', amount_due: '300.00', amount_paid: 0, remaining_balance: 300,
@@ -141,6 +143,25 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByText(/Review charges, payments, and student clearance/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add student charge' })).toHaveLength(1);
+  });
+
+  it('adds a charge to a student found by name, without typing a school ID', async () => {
+    people.searchPeople.mockResolvedValue([{ school_id: 2026001, name: 'Ana Reyes', email: 'ana@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
+    mocks.createInvoice.mockResolvedValue({ data: {} });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add student charge' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add Student Charge' });
+    expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Add charge' })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
+    fireEvent.change(within(dialog).getByLabelText(/Amount due/), { target: { value: '150' } });
+    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: 'Organization fee' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add charge' }));
+
+    await waitFor(() => expect(mocks.createInvoice).toHaveBeenCalledWith(expect.objectContaining({ student_id: 2026001, amount_due: '150', description: 'Organization fee' })));
+    expect(mocks.createInvoice.mock.calls[0][0]).not.toHaveProperty('student');
   });
 
   it('explains where accounts come from and links to the members page on first use', async () => {
