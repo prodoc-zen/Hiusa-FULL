@@ -55,6 +55,31 @@ class CollegeOrganizationLifecycleTest extends TestCase
         return OrganizationComplianceSubmission::create(['organization_id' => $organization->id, 'requirement_type_id' => $type->id, 'status' => 'submitted', 'file_path' => $path, 'file_original_name' => 'document.pdf', 'mime_type' => 'application/pdf', 'file_size' => 16, 'submitted_by' => $user->school_id, 'submitted_at' => now()]);
     }
 
+    public function test_archiving_a_college_archives_its_home_organization_and_restoring_brings_it_back(): void
+    {
+        $college = $this->college();
+        $organization = $this->organization($college);
+        $home = $college->homeOrganization;
+        $this->assertSame('active', $home->lifecycle_status);
+
+        $this->postJson('/api/system/colleges/'.$college->id.'/archive')->assertOk();
+        $home = $home->fresh();
+        $this->assertSame('archived', $home->lifecycle_status);
+        $this->assertFalse($home->is_active);
+        $this->assertNotNull($home->archived_at);
+        $this->assertSame($this->sao->school_id, $home->archived_by);
+        $this->assertSame('active', $organization->fresh()->lifecycle_status);
+        $this->assertTrue($organization->fresh()->is_active);
+
+        $this->postJson('/api/system/colleges/'.$college->id.'/restore')->assertOk();
+        $home = $home->fresh();
+        $this->assertSame('active', $home->lifecycle_status);
+        $this->assertTrue($home->is_active);
+        $this->assertNull($home->archived_at);
+        $this->assertNull($home->archived_by);
+        $this->assertSame('active', $organization->fresh()->lifecycle_status);
+    }
+
     public function test_archive_blocks_login_and_existing_sessions_but_sao_keeps_file_access(): void
     {
         $college = $this->college();
