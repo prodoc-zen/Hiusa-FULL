@@ -30,6 +30,12 @@ const PAGE_META = {
     group: 'Governance',
     parents: [{ label: 'Organizations', to: '/dashboard/super-admin/organizations' }],
   },
+  '/dashboard/super-admin/org/:orgId': {
+    title: 'Organization',
+    purpose: 'See everything one student organization does, including its transactions.',
+    group: 'Governance',
+    parents: [{ label: 'Colleges', to: '/dashboard/super-admin/colleges' }],
+  },
   '/dashboard/super-admin/student-records': { title: 'Student records', purpose: 'Load the school records students are matched against when they sign up.', group: 'Governance' },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Governance' },
   '/dashboard/super-admin/admins': {

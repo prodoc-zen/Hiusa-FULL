@@ -553,7 +553,7 @@ describe('SystemOrganizationsPage', () => {
       renderPage('/dashboard/super-admin/organizations?status=archived');
       expect(await screen.findByText('Archived organizations are read-only. Restore to make changes.')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Actions for Main SBO' }));
-      expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/3');
+      expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/org/3');
       expect(screen.getByRole('menuitem', { name: 'Restore organization' })).toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: /Edit|Archive|Review/ })).not.toBeInTheDocument();
     });

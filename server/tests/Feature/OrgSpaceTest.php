@@ -44,6 +44,14 @@ class OrgSpaceTest extends TestCase
         return $this->getJson("/api/college/organizations/{$organization->id}/space");
     }
 
+    private function transactions(User $user, Organization $organization, array $query = [])
+    {
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($user);
+
+        return $this->getJson("/api/college/organizations/{$organization->id}/space/transactions".($query ? '?'.http_build_query($query) : ''));
+    }
+
     public function test_head_reads_the_space_of_an_organization_in_their_college(): void
     {
         ['head' => $head, 'organization' => $organization, 'admin' => $admin] = $this->world();
@@ -88,15 +96,78 @@ class OrgSpaceTest extends TestCase
         $this->getJson('/api/college/organizations/999999/space')->assertNotFound();
     }
 
-    public function test_admin_student_and_sao_cannot_use_the_dean_space_route(): void
+    public function test_organization_members_cannot_use_the_oversight_routes(): void
     {
         ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
         $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        foreach ([$admin, $officer, $student] as $user) {
+            $this->space($user, $organization)->assertForbidden();
+            $this->transactions($user, $organization)->assertForbidden();
+        }
+    }
+
+    public function test_sao_reads_the_space_of_any_organization_in_any_college(): void
+    {
+        ['organization' => $organization, 'other' => $other] = $this->world();
         $sao = User::factory()->superAdmin()->create();
 
-        foreach ([$admin, $student, $sao] as $user) {
-            $this->space($user, $organization)->assertForbidden();
+        $this->space($sao, $organization)->assertOk()->assertJsonPath('organization.name', 'Computing Society');
+        $this->space($sao, $other)->assertOk()->assertJsonPath('organization.id', $other->id);
+    }
+
+    public function test_sao_cannot_open_a_college_home_organization_as_a_space(): void
+    {
+        ['head' => $head] = $this->world();
+        $sao = User::factory()->superAdmin()->create();
+
+        $this->space($sao, Organization::find($head->organization_id))->assertForbidden();
+        $this->transactions($sao, Organization::find($head->organization_id))->assertForbidden();
+    }
+
+    public function test_transactions_are_scoped_paginated_newest_first_and_filterable_by_type(): void
+    {
+        ['head' => $head, 'organization' => $organization, 'other' => $other, 'admin' => $admin] = $this->world();
+        foreach (range(1, 17) as $day) {
+            Transaction::factory()->create([
+                'organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'expense',
+                'amount' => 10, 'description' => "Expense {$day}", 'transaction_date' => now()->subDays(30 - $day),
+            ]);
         }
+        Transaction::factory()->create(['organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'income', 'amount' => 500, 'description' => 'Dues', 'transaction_date' => now()->subDays(60)]);
+        Transaction::factory()->create(['organization_id' => $other->id, 'type' => 'income', 'amount' => 9999, 'description' => 'Not ours']);
+
+        $first = $this->transactions($head, $organization)->assertOk();
+
+        $first->assertJsonPath('meta.total', 18)->assertJsonPath('meta.per_page', 15)->assertJsonPath('meta.last_page', 2);
+        $this->assertCount(15, $first->json('data'));
+        $this->assertSame('Expense 17', $first->json('data.0.description'));
+        $this->assertSame('Ana Reyes', $first->json('data.0.recorded_by'));
+        $this->assertEquals(500, $first->json('summary.income'));
+        $this->assertEquals(170, $first->json('summary.expense'));
+        $this->assertStringNotContainsString('Not ours', $first->getContent());
+
+        $second = $this->transactions($head, $organization, ['page' => 2])->assertOk();
+        $this->assertCount(3, $second->json('data'));
+        $this->assertSame('Dues', $second->json('data.2.description'));
+
+        $income = $this->transactions($head, $organization, ['type' => 'income'])->assertOk();
+        $this->assertSame(['Dues'], array_column($income->json('data'), 'description'));
+        $this->assertEquals(170, $income->json('summary.expense'));
+
+        $this->transactions($head, $organization, ['type' => 'refund'])->assertStatus(422);
+    }
+
+    public function test_transactions_of_another_college_are_closed_to_the_head_and_open_to_the_sao(): void
+    {
+        ['head' => $head, 'otherHead' => $otherHead, 'organization' => $organization] = $this->world();
+        Transaction::factory()->create(['organization_id' => $organization->id, 'type' => 'income', 'amount' => 75, 'description' => 'Sponsor']);
+        $sao = User::factory()->superAdmin()->create();
+
+        $this->transactions($otherHead, $organization)->assertForbidden();
+        $this->transactions($head, $organization)->assertOk()->assertJsonPath('meta.total', 1);
+        $this->transactions($sao, $organization)->assertOk()->assertJsonPath('data.0.description', 'Sponsor');
     }
 
     public function test_events_split_into_upcoming_and_recent_and_skip_other_organizations(): void

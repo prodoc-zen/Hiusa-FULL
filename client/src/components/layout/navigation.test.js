@@ -285,3 +285,9 @@ describe('active item', () => {
     expect(findActiveNavId(getNavLeaves('DEPARTMENT_HEAD'), '/dashboard/approvals')).toBe('approvals');
   });
 });
+
+describe('SAO organization space in the sidebar', () => {
+  it('keeps Colleges current while the SAO is inside an organization', () => {
+    expect(findActiveNavId(getNavLeaves('SUPER_ADMIN'), '/dashboard/super-admin/org/7', '')).toBe('sao-colleges');
+  });
+});
