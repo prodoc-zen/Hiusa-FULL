@@ -38,9 +38,10 @@ class CollegeOrganizationLifecycleTest extends TestCase
 
     private function college(): College
     {
-        $id = $this->postJson('/api/system/colleges', ['name' => 'College of Computing'])->assertCreated()->json('id');
+        $college = College::create(['name' => 'College of Computing', 'is_active' => true]);
+        Organization::factory()->create(['name' => $college->name, 'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE']);
 
-        return College::findOrFail($id);
+        return $college;
     }
 
     private function organization(College $college): Organization
@@ -92,35 +93,6 @@ class CollegeOrganizationLifecycleTest extends TestCase
         $this->assertSame('archived', $organization->fresh()->lifecycle_status);
     }
 
-    public function test_permanent_college_delete_requires_exact_name_and_removes_records_and_files(): void
-    {
-        $college = $this->college();
-        $organization = $this->organization($college);
-        $user = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $submission = $this->submission($organization, $user, "compliance-submissions/{$organization->id}/delete.pdf");
-        $application = OrganizationApplication::create(['college_id' => $college->id, 'name' => 'New Applicant Organization', 'acronym' => 'NAO', 'school_id' => 987001, 'first_name' => 'Applicant', 'last_name' => 'Student', 'email' => 'applicant@example.test', 'position_title' => 'President']);
-        $application->documents()->create(['requirement_type_id' => $submission->requirement_type_id, 'file_path' => 'organization-applications/delete.pdf', 'file_original_name' => 'application.pdf', 'mime_type' => 'application/pdf', 'file_size' => 4]);
-        Storage::disk('local')->put('organization-applications/delete.pdf', 'file');
-        $event = Event::factory()->create(['organization_id' => $organization->id, 'created_by' => $user->school_id]);
-        $college->update(['logo_url' => '/storage/college-logos/delete.png']);
-        Storage::disk('public')->put('college-logos/delete.png', 'logo');
-        $user->createToken('session');
-        $url = '/api/system/colleges/'.$college->id;
-        $this->deleteJson($url, ['mode' => 'permanent', 'confirmation_name' => 'wrong'])->assertUnprocessable()->assertJsonValidationErrors('confirmation_name');
-        Storage::disk('local')->assertExists("compliance-submissions/{$organization->id}/delete.pdf");
-        $this->deleteJson($url, ['mode' => 'permanent', 'confirmation_name' => $college->name])->assertNoContent();
-        $this->assertDatabaseMissing('colleges', ['id' => $college->id]);
-        $this->assertDatabaseMissing('organizations', ['id' => $organization->id]);
-        $this->assertDatabaseMissing('users', ['school_id' => $user->school_id]);
-        $this->assertDatabaseMissing('events', ['id' => $event->id]);
-        $this->assertDatabaseMissing('organization_applications', ['id' => $application->id]);
-        Storage::disk('local')->assertMissing('organization-applications/delete.pdf');
-        Storage::disk('local')->assertMissing("compliance-submissions/{$organization->id}/delete.pdf");
-        Storage::disk('public')->assertMissing('college-logos/delete.png');
-        $this->assertDatabaseCount('pending_file_deletions', 0);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'college_permanently_deleted', 'user_id' => $this->sao->school_id]);
-    }
-
     public function test_organization_delete_keeps_other_colleges_shared_profiles_and_files(): void
     {
         $college = $this->college();
@@ -144,7 +116,7 @@ class CollegeOrganizationLifecycleTest extends TestCase
         Storage::disk('public')->assertExists('logos/shared.png');
     }
 
-    public function test_only_sao_can_archive_restore_or_permanently_delete_and_system_department_is_protected(): void
+    public function test_only_sao_can_archive_restore_or_delete_an_organization_and_system_department_is_protected(): void
     {
         $college = $this->college();
         $organization = $this->organization($college);
@@ -153,7 +125,6 @@ class CollegeOrganizationLifecycleTest extends TestCase
             Sanctum::actingAs(User::factory()->create(['role' => $role, 'organization_id' => $organization->id]));
             $this->postJson('/api/system/colleges/'.$college->id.'/archive')->assertForbidden();
             $this->postJson('/api/system/colleges/'.$college->id.'/restore')->assertForbidden();
-            $this->deleteJson('/api/system/colleges/'.$college->id, ['mode' => 'permanent', 'confirmation_name' => $college->name])->assertForbidden();
             $this->deleteJson('/api/system/organizations/'.$organization->id, ['confirmation_name' => $organization->name])->assertForbidden();
         }
     }
@@ -195,7 +166,7 @@ class CollegeOrganizationLifecycleTest extends TestCase
         $file = $this->submission($organization, $user, "compliance-submissions/{$organization->id}/rollback.pdf");
         $other = Organization::factory()->create();
         $transaction = Transaction::factory()->create(['organization_id' => $other->id, 'recorded_by' => $user->school_id, 'budget_id' => null]);
-        $this->deleteJson('/api/system/colleges/'.$college->id, ['mode' => 'permanent', 'confirmation_name' => $college->name])->assertConflict();
+        $this->deleteJson('/api/system/organizations/'.$organization->id, ['confirmation_name' => $organization->name])->assertConflict();
         $this->assertDatabaseHas('users', ['school_id' => $user->school_id]);
         $this->assertDatabaseHas('organization_compliance_submissions', ['id' => $file->id]);
         $this->assertDatabaseHas('transactions', ['id' => $transaction->id]);
@@ -265,12 +236,10 @@ class CollegeOrganizationLifecycleTest extends TestCase
         $this->assertDatabaseCount('pending_file_deletions', 0);
     }
 
-    public function test_missing_confirmation_invalid_modes_and_unauthenticated_deletes_are_rejected(): void
+    public function test_missing_confirmation_and_unauthenticated_deletes_are_rejected(): void
     {
         $college = $this->college();
         $organization = $this->organization($college);
-        $this->deleteJson('/api/system/colleges/'.$college->id, ['mode' => 'permanent'])->assertUnprocessable()->assertJsonValidationErrors('confirmation_name');
-        $this->deleteJson('/api/system/colleges/'.$college->id, ['mode' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors('mode');
         $this->deleteJson('/api/system/organizations/'.$organization->id)->assertUnprocessable()->assertJsonValidationErrors('confirmation_name');
         $this->deleteJson('/api/system/organizations/'.$organization->id, ['confirmation_name' => [$organization->name]])->assertUnprocessable()->assertJsonValidationErrors('confirmation_name');
         $this->app['auth']->forgetGuards();
