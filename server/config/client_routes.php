@@ -37,6 +37,7 @@ return [
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/organization-approvals',
         '/dashboard/super-admin/organizations/:organizationId',
+        '/dashboard/super-admin/org/:orgId',
         '/dashboard/super-admin/colleges',
         '/dashboard/super-admin/student-records',
         '/dashboard/super-admin/users',

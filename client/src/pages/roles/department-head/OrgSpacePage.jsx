@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
+import OrgTransactions from '../../../components/org/OrgTransactions';
 import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SkeletonCard, SkeletonStat, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 import { manilaDate, peso } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import { getOrganizationSpace } from '../../../services/orgSpaceService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { ROLE_LABELS } from '../../../utils/displayText.js';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+
+const COLLEGES_PATH = '/dashboard/super-admin/colleges';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'people', label: 'People and access' },
   { key: 'events', label: 'Events' },
   { key: 'finance', label: 'Finance' },
+  { key: 'transactions', label: 'Transactions' },
   { key: 'documents', label: 'Documents' },
 ];
 
@@ -28,7 +33,7 @@ function Loading() {
   );
 }
 
-function OverviewTab({ space, onOpen }) {
+function OverviewTab({ space, onOpen, oversight }) {
   const { counts, lifecycle, events, finance } = space;
   const next = events.upcoming[0];
 
@@ -47,6 +52,7 @@ function OverviewTab({ space, onOpen }) {
             {lifecycle.reviewed_at && <span className="text-sm font-medium text-ink-muted">Reviewed {manilaDate(lifecycle.reviewed_at)}</span>}
           </div>
           {lifecycle.review_remarks && <p className="mt-3 text-sm font-medium text-ink">{lifecycle.review_remarks}</p>}
+          {oversight && <Button variant="secondary" size="sm" className="mt-3" to={`/dashboard/super-admin/organizations/${space.organization.id}`}>Registration details</Button>}
         </Card>
         <Card title="Next event" actions={<Button variant="secondary" size="sm" onClick={() => onOpen('events')}>All events</Button>}>
           {next ? (
@@ -67,6 +73,27 @@ function OverviewTab({ space, onOpen }) {
         </Card>
       </div>
     </div>
+  );
+}
+
+function MembersTab({ space }) {
+  const columns = [
+    { key: 'name', header: 'Name', render: (member) => <span className="block min-w-0"><span className="block break-words font-bold">{member.name}</span><span className="block text-xs font-medium text-ink-muted">{member.email}</span></span> },
+    { key: 'position_title', header: 'Position', render: (member) => member.position_title || 'Member' },
+    { key: 'role', header: 'Access', render: (member) => ROLE_LABELS[member.role] || member.role },
+    { key: 'school_id', header: 'ID', render: (member) => <span className="text-xs font-medium text-ink-muted">{member.school_id}</span> },
+  ];
+
+  return (
+    <Card title="People" description="Active members of this organization. Its own Admin gives and removes access.">
+      <DataTable
+        columns={columns}
+        rows={space.members}
+        rowKey={(member) => member.profile_id}
+        caption="Organization members"
+        emptyState={<EmptyState title="No members yet" description="People appear here once they join the organization." />}
+      />
+    </Card>
   );
 }
 
@@ -170,7 +197,7 @@ function DocumentsTab({ space }) {
   );
 }
 
-export default function OrgSpacePage() {
+export default function OrgSpacePage({ oversight = false }) {
   const { orgId } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -190,18 +217,18 @@ export default function OrgSpacePage() {
     } catch (loadError) {
       setSpace(null);
       setError(loadError?.response?.status === 403
-        ? 'This organization is not in your college.'
+        ? (oversight ? 'This is not a student organization.' : 'This organization is not in your college.')
         : getApiErrorMessage(loadError, 'Could not load this organization. Try again.'));
     } finally {
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, oversight]);
 
   useEffect(() => { load(); }, [load]);
 
   const organizationId = space?.organization?.id;
   useEffect(() => {
-    if (organizationId && Number(subAccount?.id) !== Number(organizationId)) enter(space.organization);
+    if (!oversight && organizationId && Number(subAccount?.id) !== Number(organizationId)) enter(space.organization);
     // Only a change of organization opens a space; a later switch back to the college must stay switched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
@@ -222,7 +249,9 @@ export default function OrgSpacePage() {
     <PageHeader
       title={space?.organization?.name || 'Organization'}
       description={space ? `${space.organization.acronym ? `${space.organization.acronym} · ` : ''}${space.organization.college}` : undefined}
-      actions={<Button variant="secondary" onClick={backToCollege}>Back to my college</Button>}
+      actions={oversight
+        ? <Button variant="secondary" to={COLLEGES_PATH}>Back to colleges</Button>
+        : <Button variant="secondary" onClick={backToCollege}>Back to my college</Button>}
     />
   );
 
@@ -239,10 +268,13 @@ export default function OrgSpacePage() {
       {header}
       <Tabs tabs={TABS.map((entry) => ({ ...entry, panelId: 'org-space-panel' }))} value={tab} onChange={openTab} className="mt-4" />
       <div id="org-space-panel" role="tabpanel" className="mt-6">
-        {tab === 'overview' && <OverviewTab space={space} onOpen={openTab} />}
-        {tab === 'people' && <OrgAccessPanel organizationId={space.organization.id} actorRole="DEPARTMENT_HEAD" />}
+        {tab === 'overview' && <OverviewTab space={space} onOpen={openTab} oversight={oversight} />}
+        {tab === 'people' && (oversight
+          ? <MembersTab space={space} />
+          : <OrgAccessPanel organizationId={space.organization.id} actorRole="DEPARTMENT_HEAD" />)}
         {tab === 'events' && <EventsTab space={space} />}
         {tab === 'finance' && <FinanceTab space={space} />}
+        {tab === 'transactions' && <OrgTransactions organizationId={space.organization.id} />}
         {tab === 'documents' && <DocumentsTab space={space} />}
       </div>
     </div>

@@ -203,7 +203,7 @@ describe('SystemAdminsPage', () => {
       const stepper = screen.getByRole('list', { name: 'Registration progress for Chess Club' });
       expect(within(stepper).getAllByText(/^Done:/)).toHaveLength(4);
       expect(within(stepper).queryByText(/Current step/)).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/9');
+      expect(screen.getByRole('link', { name: 'Open organization' })).toHaveAttribute('href', '/dashboard/super-admin/org/9');
     });
 
     it('also reports completion when the administrator is added with the plain button', async () => {
