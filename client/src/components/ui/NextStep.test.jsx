@@ -75,6 +75,20 @@ describe('NextStep', () => {
     expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
+  it('is a plain bordered row with no icon tile and no tinted fill', () => {
+    const { container } = renderStep({ tone: 'action', title: 'Propose the event budget', primary: { label: 'Propose budget', to: '/x' } });
+    expect(container.querySelector('svg')).toBeNull();
+    const row = screen.getByText('Propose the event budget').parentElement.parentElement;
+    expect(row).toHaveClass('border', 'bg-white');
+    expect(row.className).not.toMatch(/bg-(brand|warning|danger|success)/);
+  });
+
+  it('marks only a blocked step in red', () => {
+    renderStep({ tone: 'blocked', title: 'Cancelled' });
+    expect(screen.getByText('Cancelled')).toHaveClass('text-danger-strong');
+    expect(screen.getByRole('alert')).toHaveClass('border-danger/40', 'bg-danger-tint');
+  });
+
   it('renders without a primary', () => {
     renderStep({ tone: 'blocked', title: 'Cancelled', body: 'Nothing more to do.' });
     expect(screen.getByText('Cancelled')).toBeInTheDocument();

@@ -1,5 +1,4 @@
 import HiusaSelect from './ui/Select';
-import FieldIcon from './FieldIcon.jsx';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function PaginationControls({
@@ -31,7 +30,7 @@ export default function PaginationControls({
       <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
         {onPageSizeChange && (
           <label className="flex items-center gap-2 text-xs font-semibold text-ink-muted sm:mr-2">
-           <FieldIcon label="Per page" /> Per page
+            Per page
             <HiusaSelect aria-label={`${label} per page`} value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))} className="h-9 rounded-control border border-line bg-surface px-2 font-bold text-ink">
               {(pageSizeOptions || [10, 25, 50]).map((size) => <option key={size} value={size}>{size}</option>)}
             </HiusaSelect>

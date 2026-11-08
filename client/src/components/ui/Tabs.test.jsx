@@ -53,4 +53,13 @@ describe('Tabs', () => {
     expect(overviewTabs[0].id).toBeTruthy();
     expect(overviewTabs[1].id).toBeTruthy();
   });
+
+  it('keeps one weight across tabs so the indicator never drifts, and has no bold', () => {
+    render(<Tabs tabs={TABS} value="members" onChange={() => {}} />);
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).toHaveClass('font-medium');
+      expect(tab.className).not.toMatch(/font-bold/);
+    }
+    expect(screen.getByRole('tab', { name: 'Members' })).toHaveClass('text-brand-700');
+  });
 });

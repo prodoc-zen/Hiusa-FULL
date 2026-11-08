@@ -3,7 +3,6 @@ import { matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import notify from '../../../lib/notify';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -141,17 +140,17 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         <span className="mt-1 block text-xs text-[#64748B]">Attach the informative letter before submitting for approval. Maximum 10 MB.</span>
       </label>}
       <label className="block">
-        <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Election title *" />Election title *</span>
+        <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Election title *</span>
         <input data-autofocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. HIUSA General Elections 2026" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </label>
       <label className="block"><span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#0F172A]"><MapPin size={14} aria-hidden="true" /> Voting room (optional)</span><input value={form.room || ''} maxLength={120} onChange={(event) => setForm((current) => ({ ...current, room: event.target.value }))} placeholder="Online ballot or room name" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting starts *" />Voting starts *</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Voting starts *</span>
           <DateTimeInput type="datetime-local" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting ends *" />Voting ends *</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Voting ends *</span>
           <DateTimeInput type="datetime-local" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
       </div>

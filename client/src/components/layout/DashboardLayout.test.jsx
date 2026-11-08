@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PageHeader from '../ui/PageHeader';
@@ -35,7 +35,7 @@ function NavigateButton({ to }) {
 }
 
 describe('DashboardLayout', () => {
-  it('wraps routed pages in route-fade-in without remounting matching page components', () => {
+  it('renders routed pages without a fade wrapper and without remounting matching page components', () => {
     mountCount = 0;
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
@@ -53,12 +53,12 @@ describe('DashboardLayout', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Page one').closest('.route-fade-in')).not.toBeNull();
+    expect(screen.getByText('Page one').closest('.route-fade-in')).toBeNull();
     expect(mountCount).toBe(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to /dashboard/other' }));
 
-    expect(screen.getByText('Page two').closest('.route-fade-in')).not.toBeNull();
+    expect(screen.getByText('Page two').closest('.route-fade-in')).toBeNull();
     expect(mountCount).toBe(1);
   });
 
@@ -131,17 +131,17 @@ describe('DashboardLayout page header', () => {
     ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/],
     ['STUDENT', '/dashboard/events/activity-calendar', 'Events', /Browse approved activities/],
     ['SBO_OFFICER', '/dashboard/events/activity-calendar', 'Calendar', /Browse approved activities/],
-  ])('gives a page without a header of its own one h1 and a purpose without cluttering breadcrumbs for %s on %s', (role, path, title, purpose) => {
+  ])('gives a page without a header of its own one h1 and no lead line or breadcrumbs for %s on %s', (role, path, title, purpose) => {
     renderRouted(path, <p>Plain page body</p>, role);
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-    expect(screen.getByText(purpose)).toBeInTheDocument();
+    expect(screen.queryByText(purpose)).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
     expect(screen.getByText('Plain page body')).toBeInTheDocument();
   });
 
-  it('leaves the purpose off a role home, where the briefing already says it', () => {
+  it('prints a role home as a plain title, where the briefing already says the rest', () => {
     renderRouted('/dashboard/admin', <p>Briefing</p>);
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.queryByText(/what needs attention/i)).not.toBeInTheDocument();
@@ -242,7 +242,7 @@ describe('DashboardLayout desktop sidebar width', () => {
     expect(localStorage.getItem('hiusa_desktop_sidebar_collapsed')).toBe('false');
   });
 
-  it('renders onboarding welcome banner for first-time visits and can dismiss it', () => {
+  it('shows no welcome banner or tour entry on a first visit, and stores nothing about one', () => {
     localStorage.clear();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'President', last_name: 'Admin' }));
 
@@ -256,11 +256,12 @@ describe('DashboardLayout desktop sidebar width', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('complementary', { name: 'Welcome and tour guide' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Start 2-Min Tour/i })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss welcome guide' }));
+    expect(screen.getByText('Admin Home Page')).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Welcome and tour guide' })).not.toBeInTheDocument();
-    expect(localStorage.getItem('hiusa_tour_seen_ADMIN')).toBe('true');
+    expect(screen.queryByText(/Start 2-Min Tour|Welcome to your HIUSA Workspace/)).not.toBeInTheDocument();
+
+    act(() => { window.dispatchEvent(new CustomEvent('hiusa-open-onboarding-tour')); });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(localStorage.getItem('hiusa_tour_seen_ADMIN')).toBeNull();
   });
 });

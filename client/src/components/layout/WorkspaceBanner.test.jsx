@@ -32,7 +32,7 @@ describe('WorkspaceBanner', () => {
     expect(screen.getByText('Computing Society')).toBeInTheDocument();
     expect(screen.getByText(/Viewing/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to my college' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to mine' }));
 
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/department-head');
     expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
@@ -53,7 +53,7 @@ describe('WorkspaceBanner', () => {
     renderBanner();
 
     expect(await screen.findByText('Computing Society')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to my account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to mine' }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
   });
@@ -64,7 +64,7 @@ describe('WorkspaceBanner', () => {
     renderBanner();
 
     await waitFor(() => expect(authMocks.getAccountProfiles).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Back to my account' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to mine' })).not.toBeInTheDocument();
   });
 
   it('shows nothing while a student is on their own account', async () => {

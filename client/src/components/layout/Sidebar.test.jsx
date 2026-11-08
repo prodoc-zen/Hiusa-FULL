@@ -122,8 +122,9 @@ describe('desktop sidebar rail', () => {
   ])('prints the band headings of %s as plain text, in order, and no others', (role, bands) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={['/dashboard/student']}><SidebarHarness /></MemoryRouter>);
-    const headings = [...document.querySelectorAll('nav p.uppercase')];
+    const headings = [...document.querySelectorAll('nav p[class~="text-white/60"]:not(.capitalize)')];
     expect(headings.map((node) => node.textContent)).toEqual(bands);
+    headings.forEach((heading) => expect(heading).not.toHaveClass('uppercase', 'tracking-widest'));
     headings.forEach((heading) => expect(heading.closest('a, button')).toBeNull());
   });
 

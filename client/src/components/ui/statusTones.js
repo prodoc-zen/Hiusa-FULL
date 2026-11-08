@@ -4,18 +4,21 @@
 // has to invent its own colors.
 
 export const TONE_STYLES = {
-  success: 'bg-success-tint text-success-strong',
-  warning: 'bg-warning-tint text-warning-strong',
-  danger: 'bg-danger-tint text-danger-strong',
-  info: 'bg-brand-50 text-navy-800',
-  neutral: 'bg-subtle text-ink-muted border border-line',
+  success: 'bg-green-50 text-green-800',
+  warning: 'bg-amber-50 text-amber-800',
+  danger: 'bg-red-50 text-red-800',
+  info: 'bg-brand-600/10 text-brand-800',
+  active: 'bg-brand-600/10 text-brand-800',
+  neutral: 'bg-slate-100 text-slate-700',
 };
 
+// Badges no longer draw a dot. Kept only because the ui barrel still re-exports it.
 export const TONE_DOT = {
   success: 'bg-success-strong',
   warning: 'bg-warning-strong',
   danger: 'bg-danger-strong',
   info: 'bg-brand-600',
+  active: 'bg-brand-600',
   neutral: 'bg-ink-soft',
 };
 

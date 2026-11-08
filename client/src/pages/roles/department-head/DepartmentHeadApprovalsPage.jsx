@@ -1,6 +1,5 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CalendarDays, Coins, Download, FileText, Megaphone, Package, Plus, Search, Vote, Clock, Eye, ExternalLink, RotateCcw } from 'lucide-react';
@@ -87,7 +86,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
         <div className="mt-4"><ApprovalReceipt request={request} organizationName={organizationName} /></div>
         <div className="mt-4 space-y-1.5">
           <label htmlFor="approval-remarks" className="text-[13px] font-semibold text-[#0F172A]">
-           <FieldIcon label="Remarks" /> Remarks {isReject ? '(required)' : '(optional)'}
+            Remarks {isReject ? '(required)' : '(optional)'}
           </label>
           <textarea
             id="approval-remarks"

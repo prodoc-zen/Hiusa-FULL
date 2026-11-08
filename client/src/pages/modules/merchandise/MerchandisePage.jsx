@@ -2,7 +2,6 @@ import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -79,7 +78,7 @@ function CatalogFields({ value, onChange, images, onImagesChange }) {
   const variants = value.variants || [];
   const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
   return <>
-    <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category *" />Category *
+    <label className="block text-[13px] font-semibold text-[#0F172A]">Category *
       <HiusaSelect value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })} required className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm">
         <option value="">Select category</option>
         {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -87,13 +86,13 @@ function CatalogFields({ value, onChange, images, onImagesChange }) {
       {categoryIsCustom && <input value={value.category} onChange={(event) => onChange({ ...value, category: event.target.value, category_custom: true })} placeholder="Enter category name" required className="mt-2 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />}
     </label>
     <div className="grid gap-3 sm:grid-cols-3">
-      <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Low stock at or below" />Low stock at or below
+      <label className="text-[13px] font-semibold text-[#0F172A]">Low stock at or below
         <input type="number" min="1" value={value.low_stock_threshold ?? "9"} onChange={(event) => onChange({ ...value, low_stock_threshold: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
       </label>
-      <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Promo price" />Promo price
+      <label className="text-[13px] font-semibold text-[#0F172A]">Promo price
         <input type="number" min="0" step="0.01" value={value.promotion_price ?? ""} onChange={(event) => onChange({ ...value, promotion_price: event.target.value })} placeholder="Optional" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
       </label>
-      <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="First buyers" />First buyers
+      <label className="text-[13px] font-semibold text-[#0F172A]">First buyers
         <input type="number" min="1" value={value.promotion_buyer_limit ?? ""} onChange={(event) => onChange({ ...value, promotion_buyer_limit: event.target.value })} placeholder="e.g. 100" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
       </label>
     </div>
@@ -305,14 +304,14 @@ function AddStockModal({
           <span className="font-bold text-[#0F172A]">{itemName}</span>.
         </p>
         <div className="mt-4 space-y-1.5">
-          {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Variant" />Variant
+          {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]">Variant
             <HiusaSelect value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
               <option value="">Select variant</option>
               {variants.map((variant) => <option key={variant.id} value={variant.id}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}
             </HiusaSelect>
           </label>}
           <label className="text-[13px] font-semibold text-[#0F172A]">
-           <FieldIcon label="Quantity to Add" /> Quantity to Add
+            Quantity to Add
           </label>
           <input
             type="number"
@@ -321,7 +320,7 @@ function AddStockModal({
             onChange={(event) => onQuantityChange(event.target.value)}
             className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
-          <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Reason for stock addition" />Reason for stock addition
+          <label className="block text-[13px] font-semibold text-[#0F172A]">Reason for stock addition
             <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} required rows={2} className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" placeholder="e.g. New delivery received" />
           </label>
         </div>
@@ -2023,7 +2022,7 @@ export default function MerchandisePage({ initialTab }) {
                       </div>
                       {item.description && <RichTextBody value={item.description} className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500" />}
                       <button type="button" onClick={() => { setCartError(null); setProductPreview(item); }} className="mt-2 w-fit text-xs font-bold text-[#0878B7] hover:underline">View product details</button>
-                      {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]"><FieldIcon label="Size / variant" />Size / variant
+                      {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]">Size / variant
                         <HiusaSelect value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${formatDisplayText(item.name)}`}>
                           <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} available</option>)}
                         </HiusaSelect>
@@ -2507,7 +2506,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="mt-4 space-y-3">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Payment Method" /> Payment Method
+                    Payment Method
                   </label>
                   <HiusaSelect
                     value={checkoutPayment.method}
@@ -2561,7 +2560,7 @@ export default function MerchandisePage({ initialTab }) {
                     )}
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-semibold text-[#0F172A]">
-                       <FieldIcon label="GCash Reference *" /> GCash Reference *
+                        GCash Reference *
                       </label>
                       <input
                         inputMode="numeric"
@@ -2579,7 +2578,7 @@ export default function MerchandisePage({ initialTab }) {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-semibold text-[#0F172A]">
-                       <FieldIcon label="Payment Proof *" /> Payment Proof *
+                        Payment Proof *
                       </label>
                       <input
                         type="file"
@@ -2649,7 +2648,7 @@ export default function MerchandisePage({ initialTab }) {
                 )}
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="13-digit GCash Reference" /> 13-digit GCash Reference
+                    13-digit GCash Reference
                   </label>
                   <input
                     inputMode="numeric"
@@ -2667,7 +2666,7 @@ export default function MerchandisePage({ initialTab }) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Payment Proof" /> Payment Proof
+                    Payment Proof
                   </label>
                   <input
                     type="file"
@@ -3766,7 +3765,7 @@ export default function MerchandisePage({ initialTab }) {
             </div>
             <form onSubmit={handleClaim} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
               <label htmlFor="claim-token" className="min-w-0 flex-1 text-xs font-bold text-[#0F172A]">
-               <FieldIcon label="16-character claim token" /> 16-character claim token
+                16-character claim token
               <input
                 id="claim-token"
                 maxLength={16}
@@ -3908,7 +3907,7 @@ export default function MerchandisePage({ initialTab }) {
             <form className="space-y-4" onSubmit={handleAddItem}>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Item Name *" /> Item Name *
+                  Item Name *
                 </label>
                 <input
                   type="text"
@@ -3922,7 +3921,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Unit Price (₱) *" /> Unit Price (₱) *
+                    Unit Price (₱) *
                   </label>
                   <input
                     type="number"
@@ -3938,7 +3937,7 @@ export default function MerchandisePage({ initialTab }) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Initial Stock *" /> Initial Stock *
+                    Initial Stock *
                   </label>
                   <input
                     type="number"
@@ -3955,7 +3954,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Description" /> Description
+                  Description
                 </label>
                 <RichTextEditor
                   rows={2}
@@ -3969,7 +3968,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Selling Status" /> Selling Status
+                  Selling Status
                 </label>
                 <HiusaSelect
                   value={form.is_active ? "1" : "0"}
@@ -3984,7 +3983,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Product Image" /> Product Image
+                  Product Image
                 </label>
                 <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {imagePreview ? (
@@ -4063,7 +4062,7 @@ export default function MerchandisePage({ initialTab }) {
             <form className="space-y-4" onSubmit={handleUpdateItem}>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Item Name *" /> Item Name *
+                  Item Name *
                 </label>
                 <input
                   type="text"
@@ -4076,13 +4075,13 @@ export default function MerchandisePage({ initialTab }) {
                 />
               </div>
               <CatalogFields value={editForm} onChange={setEditForm} images={variantImages} onImagesChange={setVariantImages} />
-              <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Stock change reason" />Stock change reason
+              <label className="block text-[13px] font-semibold text-[#0F172A]">Stock change reason
                 <textarea value={editForm.stock_note || ""} onChange={(event) => setEditForm({ ...editForm, stock_note: event.target.value })} maxLength={500} rows={2} placeholder="Required when changing product or variant stock" className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" />
               </label>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Unit Price (₱) *" /> Unit Price (₱) *
+                    Unit Price (₱) *
                   </label>
                   <input
                     type="number"
@@ -4098,7 +4097,7 @@ export default function MerchandisePage({ initialTab }) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
-                   <FieldIcon label="Stock *" /> Stock *
+                    Stock *
                   </label>
                   <input
                     type="number"
@@ -4118,7 +4117,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Description" /> Description
+                  Description
                 </label>
                 <RichTextEditor
                   rows={2}
@@ -4132,7 +4131,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Selling Status" /> Selling Status
+                  Selling Status
                 </label>
                 <HiusaSelect
                   value={editForm.is_active ? "1" : "0"}
@@ -4150,7 +4149,7 @@ export default function MerchandisePage({ initialTab }) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
-                 <FieldIcon label="Product Image" /> Product Image
+                  Product Image
                 </label>
                 <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {editImagePreview ? (
@@ -4232,7 +4231,7 @@ export default function MerchandisePage({ initialTab }) {
             )}
             <div className="mt-4 space-y-1.5">
               <label htmlFor="verified-order-amount" className="text-[13px] font-semibold text-[#0F172A]">
-               <FieldIcon label="Amount verified" /> Amount verified
+                Amount verified
               </label>
               <input
                 id="verified-order-amount"
@@ -4304,7 +4303,7 @@ export default function MerchandisePage({ initialTab }) {
               {rejectionModal.order.id}.
             </p>
             <div className="mt-4"><ReceiptDocument order={rejectionModal.order} onViewProof={handleViewPaymentProof} /></div>
-            <label htmlFor="rejection-reason" className="mt-4 block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Rejection reason" />Rejection reason</label>
+            <label htmlFor="rejection-reason" className="mt-4 block text-sm font-semibold text-[#0F172A]">Rejection reason</label>
             <textarea
               id="rejection-reason"
               rows={4}

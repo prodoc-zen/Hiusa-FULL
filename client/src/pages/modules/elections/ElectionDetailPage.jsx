@@ -1,5 +1,4 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { CirclePlus, Trash2 } from 'lucide-react';
@@ -189,11 +188,11 @@ export default function ElectionDetailPage() {
       >
         <form id="add-position-form" onSubmit={handleAddPosition} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Position Title" />Position Title</span>
+            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position Title</span>
             <input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" placeholder="e.g. Treasurer" />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Max Winners" />Max Winners</span>
+            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Max Winners</span>
             <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
           </label>
           {modalError && (

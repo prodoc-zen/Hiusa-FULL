@@ -66,13 +66,13 @@ describe('TopBar notifications', () => {
     expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument();
   });
 
-  it('keeps the admin home header compact above the dashboard briefing', () => {
+  it('keeps the admin home header compact above the dashboard briefing, with no cart', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     const header = screen.getByRole('banner');
     expect(within(header).queryByRole('heading')).not.toBeInTheDocument();
     expect(within(header).queryByText(/welcome back, alex/i)).not.toBeInTheDocument();
-    expect(within(header).getByRole('button', { name: 'Cart' })).toBeInTheDocument();
+    expect(within(header).queryByRole('button', { name: 'Cart' })).not.toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
@@ -113,12 +113,27 @@ describe('TopBar notifications', () => {
     expect(account).not.toHaveTextContent('PSITS');
   });
 
-  it('gives a Department Head no merchandise cart', () => {
-    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Dana', last_name: 'Cruz' }));
+  it('gives a student the merchandise cart and nobody else', () => {
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Cart' })).toBeInTheDocument();
+  });
+
+  it.each(['DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'SUPER_ADMIN'])('gives %s no merchandise cart', (role) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Dana', last_name: 'Cruz' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     const header = screen.getByRole('banner');
     expect(within(header).queryByRole('button', { name: 'Cart' })).not.toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
+  it('has no tour button in the bar or the account menu', () => {
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    expect(screen.queryByText(/Interactive Tour/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Test User' }));
+    const panel = screen.getByRole('region', { name: 'Account and profiles' });
+    expect(within(panel).queryByText(/Walkthrough|Tour/)).not.toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'View profile' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Log out' })).toBeInTheDocument();
   });
 
   it('keeps the dashboard visible when the active period has no academic year', async () => {
@@ -156,11 +171,12 @@ describe('TopBar notifications', () => {
     ['SUPER_ADMIN', '/dashboard/super-admin/organizations/7'],
     ['SBO_OFFICER', '/dashboard/officer'],
     ['STUDENT', '/dashboard/student'],
-  ])('keeps one white header of chrome only, with no title, subtitle or breadcrumb, for %s on %s', (role, path) => {
+  ])('keeps one flat 56px header of chrome only, with no title, subtitle or breadcrumb, for %s on %s', (role, path) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={[path]}><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     const header = screen.getByRole('banner');
-    expect(header).toHaveClass('bg-white', 'border-[#DDE7EF]');
+    expect(header).toHaveClass('h-14', 'bg-white', 'border-b', 'border-line');
+    expect(header).not.toHaveClass('rounded-3xl', 'shadow-sm');
     expect(within(header).queryByRole('heading')).not.toBeInTheDocument();
     expect(within(header).queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
     expect(within(header).queryByText(/Review approval requests|Search the organization directory|Review the agency|Start with deadlines/)).not.toBeInTheDocument();
