@@ -234,14 +234,14 @@ class CollegeHierarchyTest extends TestCase
         $this->assertTrue($loginIds->pluck('organization_type')->contains('SYSTEM_ADMINISTRATION'));
     }
 
-    public function test_the_college_list_is_fixed_so_create_and_delete_stay_closed(): void
+    public function test_the_sao_can_add_and_delete_colleges_but_still_cannot_create_organizations_directly(): void
     {
         $director = $this->director();
         $college = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS']);
         Sanctum::actingAs($director);
 
-        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertStatus(405);
-        $this->deleteJson('/api/system/colleges/'.$college->id)->assertStatus(405);
+        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertCreated();
+        $this->deleteJson('/api/system/colleges/'.College::where('name', 'New College')->value('id'))->assertNoContent();
         $this->postJson('/api/system/organizations', ['name' => 'New Org', 'acronym' => 'NEW', 'college' => $college->name])->assertStatus(405);
 
         $this->assertDatabaseMissing('colleges', ['name' => 'New College']);
