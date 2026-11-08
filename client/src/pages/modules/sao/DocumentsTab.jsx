@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronRight, ExternalLink, FilePenLine, Folder, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
@@ -12,6 +12,7 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { manilaDate } from '../../../lib/format';
+import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
 const FAMILIES = [
   ['registration', 'Registration'], ['semester_renewal', 'Semester renewal'],
@@ -25,34 +26,29 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const { subAccount } = useActiveSubAccount();
+  const previousSubAccountId = useRef(subAccount?.id);
   const [organization, setOrganization] = useState(() => {
     if (/^\d+$/.test(params.get('organization') || '')) {
       return { id: Number(params.get('organization')), name: params.get('name') || `Organization ${params.get('organization')}` };
     }
-    try {
-      const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
-      if (sub?.id) return { id: Number(sub.id), name: sub.name || sub.acronym || `Organization ${sub.id}` };
-    } catch {}
-    return null;
+    return subAccount?.id ? { id: Number(subAccount.id), name: subAccount.name || subAccount.acronym || `Organization ${subAccount.id}` } : null;
   });
-  useEffect(() => {
-    const onSubAccountSwitched = (event) => {
-      const org = event?.detail;
-      if (org?.id) {
-        setOrganization({ id: Number(org.id), name: org.name || org.acronym || `Organization ${org.id}` });
-        setFilePage(1);
-      } else {
-        setOrganization(null);
-      }
-    };
-    window.addEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-    return () => window.removeEventListener('hiusa-subaccount-switched', onSubAccountSwitched);
-  }, []);
   const [fileQuery, setFileQuery] = useState('');
   const [fileSearch, setFileSearch] = useState('');
   const [folderPage, setFolderPage] = useState(1);
   const [filePage, setFilePage] = useState(1);
   const [filePageSize, setFilePageSize] = useState(10);
+  useEffect(() => {
+    if (previousSubAccountId.current === subAccount?.id) return;
+    previousSubAccountId.current = subAccount?.id;
+    if (subAccount?.id) {
+      setOrganization({ id: Number(subAccount.id), name: subAccount.name || subAccount.acronym || `Organization ${subAccount.id}` });
+      setFilePage(1);
+    } else {
+      setOrganization(null);
+    }
+  }, [subAccount]);
   const [family, setFamily] = useState('');
   const [semester, setSemester] = useState('');
   const [periods, setPeriods] = useState([]);

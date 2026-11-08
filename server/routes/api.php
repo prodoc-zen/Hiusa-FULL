@@ -39,6 +39,7 @@ use App\Http\Controllers\ApplicantGrantController;
 use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationApplicationReviewController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrgSpaceController;
 use App\Http\Controllers\PeopleSearchController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\RecordsController;
@@ -189,6 +190,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/staff', [CollegeOrganizationController::class, 'staff'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff/invitations', [DepartmentHeadInvitationController::class, 'inviteStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff', [CollegeOrganizationController::class, 'storeStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);

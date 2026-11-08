@@ -1,0 +1,149 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import OrgSpacePage from './OrgSpacePage';
+import { SUB_ACCOUNT_KEY } from '../../../utils/subAccountStore';
+
+const mocks = vi.hoisted(() => ({ getOrganizationSpace: vi.fn(), openProtectedFile: vi.fn() }));
+
+vi.mock('../../../services/orgSpaceService', () => ({ getOrganizationSpace: mocks.getOrganizationSpace }));
+vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
+
+const space = {
+  organization: { id: 12, name: 'Computing Society', acronym: 'CS', college: 'College of Computing', lifecycle_status: 'active' },
+  lifecycle: { status: 'active', review_remarks: null, reviewed_at: '2026-08-01T00:00:00Z' },
+  counts: { members: 2, officers: 1, upcoming_events: 1, pending_documents: 1 },
+  members: [
+    { profile_id: 1, school_id: 20240001, name: 'Ana Reyes', email: 'ana@school.edu', role: 'ADMIN', position_title: 'President' },
+    { profile_id: 2, school_id: 20240002, name: 'Ben Cruz', email: 'ben@school.edu', role: 'STUDENT', position_title: null },
+  ],
+  events: {
+    upcoming: [{ id: 1, title: 'Hack Night', status: 'approved', start_time: '2027-01-10T10:00:00Z', location: 'Lab 2' }],
+    recent: [{ id: 2, title: 'Orientation', status: 'completed', start_time: '2026-08-10T10:00:00Z', location: null }],
+  },
+  finance: {
+    approved_budget_count: 1, allocated: 1000, income: 200, spent: 300, remaining: 900,
+    budgets: [{ id: 5, title: 'Hack Night budget', allocated: 1000, spent: 300, remaining: 900 }],
+  },
+  documents: [
+    { id: 8, requirement_name: 'By-laws', status: 'submitted', submitted_at: '2026-08-02T00:00:00Z', file_name: 'by-laws.pdf', open_url: '/compliance/submissions/8/document' },
+    { id: 9, requirement_name: 'Roster', status: 'submitted', submitted_at: null, file_name: null, open_url: null },
+  ],
+};
+
+function Where() {
+  return <output data-testid="where">{useLocation().pathname}{useLocation().search}</output>;
+}
+
+function renderPage(path = '/dashboard/department-head/org/12') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/dashboard/department-head/org/:orgId" element={<OrgSpacePage />} />
+        <Route path="/dashboard/department-head" element={<p>College home</p>} />
+      </Routes>
+      <Where />
+    </MemoryRouter>,
+  );
+}
+
+describe('OrgSpacePage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Dana', last_name: 'Cruz' }));
+    mocks.getOrganizationSpace.mockResolvedValue({ data: space });
+  });
+
+  it('shows a loading state, then the overview with counts and the open space remembered for the sidebar', async () => {
+    renderPage();
+    expect(screen.getByRole('status', { name: 'Loading organization' })).toBeInTheDocument();
+
+    expect(await screen.findByRole('heading', { name: 'Computing Society' })).toBeInTheDocument();
+    expect(mocks.getOrganizationSpace).toHaveBeenCalledWith('12');
+    expect(screen.getByText('Documents to review').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Hack Night')).toBeInTheDocument();
+    expect(screen.getByText(/left across 1 approved budget/)).toBeInTheDocument();
+    await waitFor(() => expect(JSON.parse(sessionStorage.getItem(SUB_ACCOUNT_KEY))).toMatchObject({ id: 12, name: 'Computing Society' }));
+  });
+
+  it('lists the people with their access, name first and school ID small', async () => {
+    renderPage('/dashboard/department-head/org/12?tab=people');
+
+    const table = await screen.findByRole('table', { name: 'People with access to this organization' });
+    const rows = within(table).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Ana Reyes');
+    expect(rows[1]).toHaveTextContent('Org head');
+    expect(rows[1]).toHaveTextContent('President');
+    expect(rows[1]).toHaveTextContent('ID 20240001');
+    expect(rows[2]).toHaveTextContent('Member');
+  });
+
+  it('shows upcoming and recent events', async () => {
+    renderPage('/dashboard/department-head/org/12?tab=events');
+
+    expect(await screen.findByText('Orientation')).toBeInTheDocument();
+    expect(screen.getByText('Hack Night')).toBeInTheDocument();
+  });
+
+  it('shows the money with only approved budgets counted', async () => {
+    renderPage('/dashboard/department-head/org/12?tab=finance');
+
+    expect(await screen.findByRole('heading', { name: 'Approved budgets' })).toBeInTheDocument();
+    expect(screen.getAllByText('Hack Night budget').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₱900.00').length).toBeGreaterThan(0);
+  });
+
+  it('opens a submitted file through the protected route and links to records', async () => {
+    renderPage('/dashboard/department-head/org/12?tab=documents');
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Open By-laws' }))[0]);
+
+    expect(mocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/8/document');
+    expect(screen.queryAllByRole('button', { name: 'Open Roster' })).toHaveLength(0);
+    expect(screen.getByRole('link', { name: 'Open records' })).toHaveAttribute('href', '/dashboard/records');
+  });
+
+  it('moves between tabs and keeps the choice in the address', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Computing Society' });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'People and access' }));
+
+    expect(screen.getByTestId('where')).toHaveTextContent('?tab=people');
+    expect(screen.getByRole('tab', { name: 'People and access' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('says plainly when the organization is not in the college and offers a retry', async () => {
+    mocks.getOrganizationSpace.mockRejectedValueOnce({ response: { status: 403 } });
+    renderPage('/dashboard/department-head/org/99');
+
+    expect(await screen.findByText('This organization is not in your college.')).toBeInTheDocument();
+    mocks.getOrganizationSpace.mockResolvedValueOnce({ data: space });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('heading', { name: 'Computing Society' })).toBeInTheDocument();
+  });
+
+  it('shows empty states when there is nothing yet', async () => {
+    mocks.getOrganizationSpace.mockResolvedValue({ data: { ...space, members: [], documents: [], finance: { ...space.finance, budgets: [], approved_budget_count: 0 } } });
+    renderPage('/dashboard/department-head/org/12?tab=people');
+    expect(await screen.findByText('No one yet')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+    expect(screen.getByText('No documents yet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Finance' }));
+    expect(screen.getByText('No approved budget yet')).toBeInTheDocument();
+  });
+
+  it('goes back to the college and closes the space', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Computing Society' });
+    await waitFor(() => expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).not.toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to my college' }));
+
+    expect(await screen.findByText('College home')).toBeInTheDocument();
+    expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
+  });
+});

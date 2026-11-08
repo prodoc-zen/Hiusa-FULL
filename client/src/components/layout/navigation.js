@@ -229,13 +229,52 @@ export function resolveItemPath(item) {
   return getVisibleChildren(item)[0]?.path || '/dashboard';
 }
 
-export function getNavForRole(role) {
-  return NAV_BY_ROLE[role] || [];
+// An officer's access is a list of org modules (account_profiles.modules, null meaning all). Each
+// module owns these pages; a page left out of this map is never hidden.
+const MODULE_BY_NAV_ID = {
+  'manage-users': 'members', 'manage-admins': 'members', 'manage-positions': 'members', 'manage-programs-sections': 'members', 'members-fingerprints': 'members',
+  'budget-allocation': 'finance', 'financial-ledger': 'finance', collections: 'finance', 'student-accounts': 'finance', 'transaction-history': 'finance', 'financial-insights': 'finance',
+  'manage-events': 'events', 'gov-venues': 'events', 'event-planner': 'events', 'check-in': 'events', 'activity-calendar': 'events',
+  'task-board': 'tasks', 'assigned-tasks': 'tasks', 'ai-delegation': 'tasks',
+  'manage-elections': 'elections', 'manage-candidates': 'elections', 'manage-voters': 'elections', 'election-results': 'elections',
+  'manage-inventory': 'merchandise', 'manage-orders': 'merchandise', 'claim-tokens': 'merchandise',
+  'manage-announcements': 'announcements',
+  'gov-compliance': 'compliance', 'submitted-files': 'compliance',
+};
+
+export function filterNavByModules(items, modules) {
+  if (!Array.isArray(modules)) return items;
+  const allowed = new Set(modules);
+  const visible = (item) => !MODULE_BY_NAV_ID[item.id] || allowed.has(MODULE_BY_NAV_ID[item.id]);
+
+  return items.flatMap((item) => {
+    if (!item.children) return visible(item) ? [item] : [];
+    const children = item.children.filter(visible);
+    return children.length > 0 ? [{ ...item, children }] : [];
+  });
+}
+
+// Only an officer's pages are narrowed by modules; an org head always has every module.
+export function getNavForRole(role, modules) {
+  const nav = NAV_BY_ROLE[role] || [];
+  return role === 'SBO_OFFICER' ? filterNavByModules(nav, modules) : nav;
+}
+
+// The sidebar a Department Head sees while working inside one organization's space.
+export function getOrgSpaceNav(organizationId) {
+  const base = `/dashboard/department-head/org/${organizationId}`;
+  return [
+    { id: 'org-overview', label: 'Overview', icon: Home, path: base, exact: true },
+    { id: 'org-people', label: 'People and access', icon: UsersRound, path: `${base}?tab=people` },
+    { id: 'org-events', label: 'Events', icon: CalendarDays, path: `${base}?tab=events` },
+    { id: 'org-finance', label: 'Finance', icon: financePillar.icon, path: `${base}?tab=finance` },
+    { id: 'org-documents', label: 'Documents', icon: FileText, path: `${base}?tab=documents` },
+  ];
 }
 
 // The clickable destinations of the sidebar: a group's children, or the row itself when it has none.
-export function getNavLeaves(role) {
-  return getNavForRole(role).flatMap((item) => (item.children ? item.children : [item]));
+export function getNavLeaves(role, modules) {
+  return getNavForRole(role, modules).flatMap((item) => (item.children ? item.children : [item]));
 }
 
 function splitTarget(target) {
@@ -281,10 +320,10 @@ export function findActiveNavId(items, pathname, search = '') {
 
 // Flattens the role's nav into individual pages for the command palette: leaf pages where a group
 // has children, the row itself otherwise, then the footer and the demoted pages that left the menu.
-export function getFlatPages(role) {
+export function getFlatPages(role, modules) {
   const pages = [];
 
-  getNavForRole(role).forEach((item) => {
+  getNavForRole(role, modules).forEach((item) => {
     const children = getVisibleChildren(item);
     if (children.length > 0) {
       children.forEach((child) => {
