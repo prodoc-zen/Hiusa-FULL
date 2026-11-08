@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, ChevronDown, History, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
+import { Bell, CalendarDays, Check, ChevronDown, History, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Button, Kbd } from '../ui';
@@ -134,6 +134,8 @@ export default function TopBar({ onMenuToggle }) {
   const profileLoading = workspaces.loading;
   const profileError = workspaces.error || workspaces.switchError;
   const switchingProfile = workspaces.switching;
+  // The switcher takes the room the period label needs, so for these users the label folds into the icon below the xl width, the search into its icon and the name into a shorter one below 2xl.
+  const hasSwitcher = workspaces.spaces.length >= 2 && Boolean(workspaces.current);
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active && profile.organization.college_is_active !== false);
 
   useEffect(() => {
@@ -312,14 +314,15 @@ export default function TopBar({ onMenuToggle }) {
         return (
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2" ref={periodRef}>
             {currentDisplayPeriod?.academic_year?.label && (
-              <div className="relative min-w-0">
+              <div className={`relative min-w-0 ${hasSwitcher ? 'max-xl:shrink-0' : ''}`}>
                 <button
                   type="button"
                   onClick={() => setPeriodDropdownOpen((open) => !open)}
                   aria-expanded={periodDropdownOpen}
                   aria-haspopup="listbox"
                   aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
-                  className={`inline-flex h-11 max-w-full items-center gap-1.5 rounded-control border px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 ${
+                  title={`AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
+                  className={`inline-flex h-11 max-w-full items-center gap-1.5 rounded-control border px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 ${hasSwitcher ? 'max-xl:w-11 max-xl:justify-center max-xl:px-0 sm:max-xl:w-10' : ''} ${
                     isAdvanceMode
                       ? 'border-warning/40 bg-warning-tint text-ink hover:bg-warning-tint'
                       : isArchiveMode
@@ -327,11 +330,12 @@ export default function TopBar({ onMenuToggle }) {
                       : 'border-line bg-white text-ink hover:bg-page'
                   }`}
                 >
-                  <span className="truncate sm:hidden">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'}</span>
-                  <span className="hidden truncate sm:inline">AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
-                  {isAdvanceMode && <span className="hidden text-xs font-semibold text-warning-strong min-[480px]:inline">Planning</span>}
-                  {isArchiveMode && <span className="hidden text-xs font-semibold text-ink-muted-strong min-[480px]:inline">Archive</span>}
-                  <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${periodDropdownOpen ? 'rotate-180' : ''}`} />
+                  <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-ink-muted" />
+                  <span className={`truncate sm:hidden ${hasSwitcher ? 'max-xl:hidden' : ''}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'}</span>
+                  <span className={`hidden truncate sm:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                  {isAdvanceMode && <span className={`hidden text-xs font-semibold text-warning-strong min-[480px]:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>Planning</span>}
+                  {isArchiveMode && <span className={`hidden text-xs font-semibold text-ink-muted-strong min-[480px]:inline ${hasSwitcher ? 'max-xl:hidden' : ''}`}>Archive</span>}
+                  <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${hasSwitcher ? 'max-xl:hidden' : ''} ${periodDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {periodDropdownOpen && (
@@ -396,13 +400,15 @@ export default function TopBar({ onMenuToggle }) {
         onClick={() => setPaletteOpen(true)}
         aria-label="Go to page"
         aria-keyshortcuts="Control+K Meta+K"
-        className="hidden h-10 items-center justify-between gap-3 rounded-control border border-line bg-white px-3 text-sm text-ink-muted transition-colors hover:bg-page hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 min-[480px]:flex md:min-w-[210px] lg:min-w-[270px]"
+        className={`hidden h-10 items-center justify-between gap-3 rounded-control border border-line bg-white px-3 text-sm text-ink-muted transition-colors hover:bg-page hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 min-[480px]:flex ${hasSwitcher ? '2xl:min-w-[270px]' : 'md:min-w-[210px] lg:min-w-[270px]'}`}
       >
         <span className="flex items-center gap-2">
           <Search size={16} aria-hidden="true" />
-          <span className="hidden md:inline">Go to page</span>
+          <span className={`hidden ${hasSwitcher ? '2xl:inline' : 'md:inline'}`}>Go to page</span>
         </span>
-        <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
+        <span className={hasSwitcher ? 'hidden 2xl:contents' : 'contents'}>
+          <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
+        </span>
       </button>
 
       {showCart && (
@@ -586,7 +592,7 @@ export default function TopBar({ onMenuToggle }) {
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-700 text-xs font-semibold text-white">
             {initials}
           </div>
-          <p className="hidden max-w-[min(12rem,25vw)] truncate text-sm font-semibold text-ink sm:block" title={fullName}>{fullName}</p>
+          <p className={`hidden truncate text-sm font-semibold text-ink sm:block ${hasSwitcher ? 'max-w-32 2xl:max-w-[min(12rem,25vw)]' : 'max-w-[min(12rem,25vw)]'}`} title={fullName}>{fullName}</p>
           <ChevronDown size={14} aria-hidden="true" className={`hidden text-ink-muted transition-transform motion-reduce:transition-none sm:block ${profileOpen ? 'rotate-180' : ''}`} />
         </button>
 

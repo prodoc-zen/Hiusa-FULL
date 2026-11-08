@@ -316,6 +316,13 @@ jobs:
           # pattern matches only the spec files directly under e2e/, not e2e/journeys/.
           ( cd ../server && php artisan migrate:fresh --seed --force && php artisan cache:clear )
           npx playwright test --project=chromium 'e2e/[^/]+\.spec\.js$'
+          # onboarding (sign-up, invitations, the dean's People page) and walk (every screen the one-pipeline
+          # restructure added, at 390 and 1280 px, failing on console errors and sideways scroll) create their
+          # own people and applications, so they run last, each on its own fresh seed.
+          for spec in onboarding walk; do
+            ( cd ../server && php artisan migrate:fresh --seed --force && php artisan cache:clear )
+            npx playwright test --project=chromium "e2e/journeys/${spec}.spec.js"
+          done
 
       - name: Show server state and logs on failure
         if: failure()

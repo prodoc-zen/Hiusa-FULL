@@ -20,8 +20,8 @@ vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.f
 
 const pageOf = (rows, extra = {}) => ({ data: { data: rows, current_page: 1, last_page: 1, per_page: 25, total: rows.length, ...extra } });
 
-const student = { school_id: 20261234, name: 'Ana Alvarez', email: 'ana@school.test', program: 'BSIT', year_level: '2', status: 'signed_up', organizations: [{ id: 3, name: 'Computing Society', position_title: 'Treasurer' }] };
-const unclaimed = { school_id: 20260001, name: 'Cara Cruz', email: null, program: 'BSIT', year_level: '1', status: 'not_signed_up', organizations: [] };
+const student = { school_id: 20261234, name: 'Ana Alvarez', email: 'ana@school.test', program: 'BSIT', year_level: '2nd Year', status: 'signed_up', organizations: [{ id: 3, name: 'Computing Society', position_title: 'Treasurer' }] };
+const unclaimed = { school_id: 20260001, name: 'Cara Cruz', email: null, program: 'BSIT', year_level: '1st Year', status: 'not_signed_up', organizations: [] };
 const dean = { school_id: 10001, name: 'Dana Dean', email: 'dana@school.test', role: 'DEPARTMENT_HEAD', position_title: 'Dean', is_lead_head: true, is_you: true };
 const secretary = { school_id: 7100101, name: 'Sol Secretary', email: 'sol@school.test', role: 'ADMIN', position_title: 'College Secretary', is_lead_head: false, is_you: false };
 const leader = { school_id: 20269999, name: 'Pia Perez', email: 'pia@school.test', role: 'ADMIN', position_title: 'President', organization: { id: 3, name: 'Computing Society' } };
@@ -44,6 +44,8 @@ describe('College people page', () => {
     expect((await screen.findAllByText('Ana Alvarez')).length).toBeGreaterThan(0);
     expect(people.getCollegePeople).toHaveBeenCalledWith({ tab: 'students', q: undefined, page: 1, per_page: 20 });
     expect(screen.getAllByText('ana@school.test · ID 20261234').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('BSIT · 2nd Year').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Year 2nd Year/)).not.toBeInTheDocument();
     expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
     expect(screen.queryByText('Signed up')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not signed up').length).toBeGreaterThan(0);

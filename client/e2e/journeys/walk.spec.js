@@ -6,7 +6,7 @@ import { allowToApply, ensureOpenSemester, newStudent, submitApplication, unique
 // A rendered walk of the screens added by the one-pipeline restructure: sign-up, invitations, the dean's
 // People page and organization space, Records, applying, the SAO's student records and colleges, and the two
 // access modals. Each screen is opened at 390 and 1280 px and must open with no console error, no uncaught
-// error and no sideways scroll; a screenshot of each is written next to the other live shots.
+// error and no sideways scroll and no workspace chip over the bell or the semester selector; a screenshot of each is written next to the other live shots.
 //
 // Set HIUSA_LIVE_E2E=1 to run it against a seeded local Laravel API.
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
@@ -26,6 +26,25 @@ async function settle(page) {
 
 async function sidewaysOverflow(page) {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+}
+
+// The top bar's workspace chip must never sit over the notification bell or the semester selector, which is how
+// the 390px bar looked when the chip had no room to shrink. Reports the overlap in px, or 0 when either control
+// is not on screen.
+async function topBarOverlap(page) {
+  const bell = page.getByRole('button', { name: 'Notifications' }).first();
+  const chip = page.getByRole('button', { name: /^Workspace:/ }).first();
+  const period = page.getByRole('button', { name: /^Academic Period:/ }).first();
+  if (!(await chip.isVisible())) return 0;
+  const boxOf = async (control) => ((await control.isVisible()) ? control.boundingBox() : null);
+  const area = (a, b) => {
+    if (!a || !b) return 0;
+    const across = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const down = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    return across > 0 && down > 0 ? Math.round(across * down) : 0;
+  };
+  const chipBox = await boxOf(chip);
+  return area(chipBox, await boxOf(bell)) + area(chipBox, await boxOf(period));
 }
 
 async function openContext(browser, viewport, account) {
@@ -50,12 +69,14 @@ async function visit(session, viewport, id, path, steps, expectedStatuses = []) 
     await settle(page);
   }
   const overflow = await sidewaysOverflow(page);
+  const overlap = await topBarOverlap(page);
   const picture = shot(`walk-${id}-${viewport.name}.png`);
   await page.screenshot({ path: picture, fullPage: true });
   const consoleErrors = sink.console.slice(before.console).filter((error) => !expectedStatuses.some((status) => error.text.includes(`status of ${status}`)));
   const pageErrors = sink.pageErrors.slice(before.errors);
-  report.screens.push({ id, width: viewport.name, path, overflow, console: consoleErrors, pageErrors, picture });
+  report.screens.push({ id, width: viewport.name, path, overflow, overlap, console: consoleErrors, pageErrors, picture });
   if (overflow > 1) report.problems.push(`${id} @${viewport.name}: the page scrolls sideways by ${overflow}px`);
+  if (overlap > 0) report.problems.push(`${id} @${viewport.name}: the workspace chip covers the bell or the semester selector (${overlap}px2)`);
   for (const error of consoleErrors) report.problems.push(`${id} @${viewport.name}: console error ${error.text}`);
   for (const error of pageErrors) report.problems.push(`${id} @${viewport.name}: uncaught ${error.text}`);
 }

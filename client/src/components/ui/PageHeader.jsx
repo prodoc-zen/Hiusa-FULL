@@ -50,7 +50,7 @@ export function PageHeaderView({
           {meta && <div className="mt-3 flex flex-wrap items-center gap-3">{meta}</div>}
         </div>
         {(actions || primary) && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">
             {actions}
             {primary}
           </div>
