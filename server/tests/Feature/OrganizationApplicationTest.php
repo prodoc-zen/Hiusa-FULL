@@ -481,6 +481,50 @@ class OrganizationApplicationTest extends TestCase
         $this->assertSame(['Looks complete.', 'Good constitution.'], array_column($history, 'note'));
     }
 
+    private function officeStaff(College $college): User
+    {
+        return User::factory()->admin()->create(['organization_id' => $this->home($college)->id, 'position_title' => 'Department Secretary']);
+    }
+
+    public function test_office_staff_review_applications_of_their_own_college_at_the_dean_stage(): void
+    {
+        $college = $this->college();
+        $student = $this->student($college);
+        $application = $this->submitted($college, $student);
+        $arts = $this->college('College of Arts');
+        $other = $this->submitted($arts, $this->student($arts));
+        $staff = $this->officeStaff($college);
+
+        Sanctum::actingAs($staff);
+        $this->getJson('/api/organization-applications')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $application->id);
+        $this->getJson("/api/organization-applications/{$other->id}")->assertNotFound();
+        $this->comment($application, ['note' => 'Checked the constitution.'])->assertCreated()
+            ->assertJsonPath('history.0.by', trim("{$staff->first_name} {$staff->last_name}"))->assertJsonPath('history.0.stage_label', 'Department Head');
+        $this->review($application, ['action' => 'approve'])->assertUnprocessable()->assertJsonValidationErrors('action');
+        $this->review($application, ['action' => 'return', 'remarks' => 'Sign the last page.'])->assertOk()->assertJsonPath('status', 'returned');
+        $application->refresh();
+        $this->assertSame($staff->school_id, (int) $application->returned_by);
+        $this->assertSame('DEPARTMENT_HEAD', $application->returned_by_role);
+
+        $application->update(['status' => 'pending_dean']);
+        $this->review($application, ['action' => 'endorse'])->assertOk()->assertJsonPath('status', 'pending_sao');
+        $this->assertSame($staff->school_id, (int) $application->fresh()->endorsed_by);
+    }
+
+    public function test_an_organization_admin_outside_the_college_office_cannot_review_applications(): void
+    {
+        $college = $this->college();
+        $application = $this->submitted($college, $this->student($college));
+        $organization = Organization::factory()->create(['college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        $orgAdmin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+
+        Sanctum::actingAs($orgAdmin);
+        $this->getJson('/api/organization-applications')->assertForbidden();
+        $this->getJson("/api/organization-applications/{$application->id}")->assertForbidden();
+        $this->review($application, ['action' => 'endorse'])->assertForbidden();
+        $this->assertSame('pending_dean', $application->fresh()->status);
+    }
+
     public function test_a_note_needs_text_and_only_reviewers_of_the_college_can_add_one(): void
     {
         $college = $this->college();

@@ -22,7 +22,7 @@ const PAGE_META = {
     title: 'Organization applications',
     purpose: 'Review verified applications from your college or decide endorsed applications.',
     group: 'Governance',
-    byRole: { SUPER_ADMIN: { title: 'Applications' }, DEPARTMENT_HEAD: { group: null } },
+    byRole: { SUPER_ADMIN: { title: 'Applications' }, DEPARTMENT_HEAD: { group: null }, ADMIN: { group: null } },
   },
   '/dashboard/super-admin/organizations': { title: 'Organizations', purpose: 'Review registrations and manage student organizations.', group: 'Governance' },
   '/dashboard/super-admin/organizations/:organizationId': {

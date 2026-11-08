@@ -5,6 +5,7 @@ import RouteLoadingFallback from './components/layout/RouteLoadingFallback';
 import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 import SessionExpiry from './components/auth/SessionExpiry';
+import { isOfficeStaff, storedUser } from './utils/collegeIdentity';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const StudentSignUpPage = lazy(() => import('./pages/auth/StudentSignUpPage'));
@@ -16,6 +17,7 @@ const AcceptInvitationPage = lazy(() => import('./pages/auth/AcceptInvitationPag
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
+const OfficeStaffHomePage = lazy(() => import('./pages/roles/admin/OfficeStaffHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin/SaoOrganizationOverviewPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
@@ -184,6 +186,27 @@ function ApprovalsRoute() {
   return <DepartmentHeadApprovalsPage />;
 }
 
+// The role is read when the route renders, not when App renders: App does not re-render after sign-in.
+function RecordsRoute() {
+  return <RecordsPage role={getStoredRole()} />;
+}
+
+function SubmittedFilesRoute() {
+  return <SubmittedFilesPage role={getStoredRole()} />;
+}
+
+// An ADMIN profile on the college home organization is the dean's office staff: their home is the
+// applications queue, not an organization head's setup. The user is read when the route renders.
+function AdminHomeRoute() {
+  return isOfficeStaff(storedUser()) ? <OfficeStaffHomePage /> : <AdminHomePage />;
+}
+
+function OfficeReviewRoute({ children }) {
+  const user = storedUser();
+  if (user?.role === 'ADMIN' && !isOfficeStaff(user)) return <Navigate to="/dashboard/admin" replace />;
+  return children;
+}
+
 function ActivityCalendarRoute() {
   if (getStoredRole() === 'ADMIN') {
     return <Navigate to="/dashboard/events/manage-events?view=calendar" replace />;
@@ -253,18 +276,18 @@ function App() {
           <Route path="super-admin/academic-years" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><AcademicYearsPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<Navigate to="/dashboard/super-admin/compliance?tab=events" replace />} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
-          <Route path="organization-applications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD"]}><OrganizationApplicationsPage /></ProtectedRoute>} />
+          <Route path="organization-applications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><OrganizationApplicationsPage /></OfficeReviewRoute></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
           <Route path="super-admin/notifications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoNotificationsPage /></ProtectedRoute>} />
-          <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomePage /></ProtectedRoute>} />
+          <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomeRoute /></ProtectedRoute>} />
           <Route path="officer" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><DashboardPage /></ProtectedRoute>} />
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="department-head/people" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegePeoplePage /></ProtectedRoute>} />
           <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegeOrganizationsPage /></ProtectedRoute>} />
-          <Route path="records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN", "SBO_OFFICER"]}><RecordsPage role={getStoredRole()} /></ProtectedRoute>} />
+          <Route path="records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN", "SBO_OFFICER"]}><RecordsRoute /></ProtectedRoute>} />
           <Route path="department-head/org/:orgId" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><OrgSpacePage /></ProtectedRoute>} />
-          <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesPage role={getStoredRole()} /></ProtectedRoute>} />
+          <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesRoute /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><ApprovalsRoute /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
           <Route path="super-admin/organization-approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />

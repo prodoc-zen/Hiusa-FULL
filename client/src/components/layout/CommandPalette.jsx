@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import AccessibleOverlay from '../AccessibleOverlay';
 import { getFlatPages } from './navigation';
+import { isOfficeStaff, storedUser } from '../../utils/collegeIdentity';
 import { readUserModules } from '../../utils/userModules';
 
 const RECENT_KEY = 'hiusa_recent_pages';
@@ -58,7 +59,7 @@ export default function CommandPalette({ open, onClose, role }) {
   const listRef = useRef(null);
   const navigate = useNavigate();
 
-  const pages = useMemo(() => getFlatPages(role, readUserModules()), [role]);
+  const pages = useMemo(() => getFlatPages(role === 'ADMIN' && isOfficeStaff(storedUser()) ? 'OFFICE_STAFF' : role, readUserModules()), [role]);
 
   const { results, isRecent } = useMemo(() => {
     const term = query.trim();

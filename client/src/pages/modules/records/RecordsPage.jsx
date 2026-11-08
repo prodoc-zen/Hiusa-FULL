@@ -132,7 +132,7 @@ function OrganizationRecords({ organization, onOpen }) {
             <Row
               key={election.id}
               title={election.title}
-              detail={election.end_time ? `Closed ${manilaDate(election.end_time)}` : null}
+              detail={election.end_time ? `${election.status === 'closed' ? 'Closed' : 'Voting ends'} ${manilaDate(election.end_time)}` : null}
               badge={<StatusBadge status={election.status} />}
             >
               {election.winners && election.winners.some((position) => position.winners.length > 0) && (

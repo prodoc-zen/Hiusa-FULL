@@ -9,6 +9,7 @@ import { getOrganizationApplications } from '../../../services/organizationAppli
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { manilaDate } from '../../../lib/format';
+import { isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
 
 const PANEL_ID = 'organization-applications-panel';
 const LIST_PATH = '/dashboard/organization-applications';
@@ -21,7 +22,8 @@ const TABS = {
 
 function currentRole() {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}').role === 'DEPARTMENT_HEAD' ? 'DEPARTMENT_HEAD' : 'SUPER_ADMIN';
+    // Office staff review at the dean's stage, so they see the Department Head's list.
+    return ['DEPARTMENT_HEAD', 'ADMIN'].includes(JSON.parse(localStorage.getItem('user') || '{}').role) ? 'DEPARTMENT_HEAD' : 'SUPER_ADMIN';
   } catch {
     return 'SUPER_ADMIN';
   }
@@ -69,12 +71,18 @@ export default function OrganizationApplicationsPage() {
   }
 
   const toReview = status === tabs[0][0];
+  // Staff cannot allow anyone to apply, only the dean can, so their wording names the dean.
+  const emptyDescription = role !== 'DEPARTMENT_HEAD'
+    ? 'Applications show here once a Department Head endorses one.'
+    : isOfficeStaff(storedUser())
+      ? 'Applications show here once a student the dean allowed to apply sends one.'
+      : 'Applications show here once a student you allowed to apply sends one.';
   const emptyState = search
     ? <EmptyState kind="filtered" query={search} onClearFilters={() => setQuery('')} />
     : (
       <EmptyState
         title={toReview ? 'No applications to review' : 'No applications in this list'}
-        description={role === 'DEPARTMENT_HEAD' ? 'Applications show here once a student you allowed to apply sends one.' : 'Applications show here once a Department Head endorses one.'}
+        description={emptyDescription}
       />
     );
 

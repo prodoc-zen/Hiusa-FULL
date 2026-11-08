@@ -5,6 +5,7 @@ import {
   TicketCheck, User, Users, UsersRound, Vote, WalletCards,
 } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
+import { isOfficeStaff } from '../../utils/collegeIdentity';
 
 // Single source of truth for the sidebar. Each role has its own ordered list of rows, written in the
 // order the work happens (docs/UX_FLOW.md section 3.2). Sidebar.jsx renders it, CommandPalette.jsx
@@ -140,6 +141,12 @@ const NAV_BY_ROLE = {
     { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
     { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },
   ],
+  // The dean's office staff: an ADMIN profile on the college home organization. Sidebar.jsx and
+  // CommandPalette.jsx pick this list in place of ADMIN's when isOfficeStaff() is true.
+  OFFICE_STAFF: [
+    dashboard('ADMIN'),
+    { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
+  ],
   STUDENT: [
     dashboard('STUDENT'),
     askAi(),
@@ -254,6 +261,9 @@ export function filterNavByModules(items, modules) {
     return children.length > 0 ? [{ ...item, children }] : [];
   });
 }
+
+// The list a signed-in person gets: office staff share the ADMIN role with organization heads but not their pages.
+export const navRoleFor = (user) => (isOfficeStaff(user) ? 'OFFICE_STAFF' : user?.role);
 
 // Only an officer's pages are narrowed by modules; an org head always has every module.
 export function getNavForRole(role, modules) {

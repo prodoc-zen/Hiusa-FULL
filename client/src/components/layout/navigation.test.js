@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dashboardRoutes, roleCanOpen } from '../../test/appRoutes';
-import { findActiveNavId, footerNav, getFlatPages, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath } from './navigation';
+import { findActiveNavId, footerNav, getFlatPages, getNavForRole, getNavLeaves, getVisibleChildren, navRoleFor, resolveItemPath } from './navigation';
 
 const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
 
@@ -289,5 +289,32 @@ describe('active item', () => {
 describe('SAO organization space in the sidebar', () => {
   it('keeps Colleges current while the SAO is inside an organization', () => {
     expect(findActiveNavId(getNavLeaves('SUPER_ADMIN'), '/dashboard/super-admin/org/7', '')).toBe('sao-colleges');
+  });
+});
+
+describe('the dean\'s office staff', () => {
+  const staff = { role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 4 } };
+  const head = { role: 'ADMIN', organization: { organization_type: 'STUDENT_ORGANIZATION', college_id: 4 } };
+
+  it('is told apart from an organization head by the organization the profile sits on', () => {
+    expect(navRoleFor(staff)).toBe('OFFICE_STAFF');
+    expect(navRoleFor(head)).toBe('ADMIN');
+    expect(navRoleFor({ role: 'DEPARTMENT_HEAD', organization: { organization_type: 'COLLEGE' } })).toBe('DEPARTMENT_HEAD');
+  });
+
+  it('gets the dashboard and the applications queue, and no organization setup pages', () => {
+    expect(getNavForRole('OFFICE_STAFF').map((item) => [item.label, item.path])).toEqual([
+      ['Dashboard', '/dashboard/admin'],
+      ['Organization applications', '/dashboard/organization-applications'],
+    ]);
+  });
+
+  it('only links pages its ProtectedRoute lets an ADMIN open', () => {
+    const routes = dashboardRoutes();
+    for (const page of getFlatPages('OFFICE_STAFF')) {
+      const route = routes.find((candidate) => candidate.path === page.path.split('?')[0]);
+      expect(route, `${page.label} is not a route in App.jsx`).toBeDefined();
+      expect(roleCanOpen(route, 'ADMIN'), `ADMIN cannot open ${page.path}`).toBe(true);
+    }
   });
 });

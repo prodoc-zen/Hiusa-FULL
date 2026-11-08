@@ -72,6 +72,17 @@ describe('Records page', () => {
     expect(records.getRecords).toHaveBeenLastCalledWith({ organization_id: 7 });
   });
 
+  it('says an election that has not closed ends later instead of calling it closed', async () => {
+    const upcoming = { id: 32, title: 'Officer election', status: 'upcoming', end_time: '2027-01-05T09:00:00Z', winners: [] };
+    records.getRecords.mockImplementation((params) => Promise.resolve(payload(params.organization_id ? { organization: { ...detail, elections: [detail.elections[0], upcoming] } } : {})));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Code Guild/ }));
+
+    const elections = await screen.findByRole('region', { name: /Elections/ });
+    expect(within(elections).getByText('Voting ends Jan 5, 2027')).toBeInTheDocument();
+    expect(within(elections).getByText('Closed Oct 1, 2026')).toBeInTheDocument();
+  });
+
   it('opens protected files through the authenticated helper and reports a failure', async () => {
     records.getRecords.mockResolvedValue(payload({ organization: detail }));
     renderPage();
