@@ -77,7 +77,7 @@ class ElectionMembershipByProfileTest extends TestCase
 
         $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $outsider->school_id, 'position_id' => $this->position->id])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Only students can be added as candidates.');
+            ->assertJsonPath('message', 'Only students and officers of this organization can be added as candidates.');
 
         $this->assertDatabaseCount('candidates', 0);
     }
@@ -99,19 +99,58 @@ class ElectionMembershipByProfileTest extends TestCase
 
         $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $disabled->school_id, 'position_id' => $this->position->id])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Only students can be added as candidates.');
+            ->assertJsonPath('message', 'Only students and officers of this organization can be added as candidates.');
 
         $this->assertDatabaseCount('candidates', 0);
     }
 
-    public function test_an_officer_seat_holder_is_not_a_candidate(): void
+    public function test_an_officer_of_the_organization_can_be_a_candidate(): void
     {
         $officer = $this->collegeStudent('SBO_OFFICER');
 
         $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $officer->school_id, 'position_id' => $this->position->id])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('candidates', ['election_id' => $this->election->id, 'user_id' => $officer->school_id]);
+    }
+
+    public function test_an_officer_of_another_organization_is_refused(): void
+    {
+        $other = $this->makeCollegeStudentOrganization($this->makeCollege('CAS'));
+        $officer = User::factory()->student()->create(['organization_id' => $this->home->id]);
+        AccountProfile::create([
+            'user_school_id' => $officer->school_id,
+            'organization_id' => $other->id,
+            'role' => 'SBO_OFFICER',
+            'account_status' => 'active',
+        ]);
+
+        $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $officer->school_id, 'position_id' => $this->position->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Only students and officers of this organization can be added as candidates.');
+
+        $this->assertDatabaseCount('candidates', 0);
+    }
+
+    public function test_an_adviser_profile_is_not_a_candidate(): void
+    {
+        $adviser = $this->collegeStudent('ADMIN');
+
+        $this->postJson("/api/elections/{$this->election->id}/candidates", ['user_id' => $adviser->school_id, 'position_id' => $this->position->id])
             ->assertUnprocessable();
 
         $this->assertDatabaseCount('candidates', 0);
+    }
+
+    public function test_a_candidate_can_be_changed_to_an_officer_of_the_organization(): void
+    {
+        $native = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+        $officer = $this->collegeStudent('SBO_OFFICER');
+        $candidate = Candidate::factory()->create(['election_id' => $this->election->id, 'position_id' => $this->position->id, 'user_id' => $native->school_id]);
+
+        $this->putJson("/api/elections/{$this->election->id}/candidates/{$candidate->id}", ['user_id' => $officer->school_id])->assertOk();
+
+        $this->assertSame($officer->school_id, $candidate->fresh()->user_id);
     }
 
     public function test_an_organization_student_whose_account_lives_there_is_still_accepted(): void

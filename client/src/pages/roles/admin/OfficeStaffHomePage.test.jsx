@@ -34,6 +34,14 @@ describe('OfficeStaffHomePage', () => {
     expect(await screen.findByText(/Nothing is waiting for review/)).toBeInTheDocument();
   });
 
+  it('names the dean as the one who allows students to apply, since staff cannot', async () => {
+    mocks.getOrganizationApplications.mockResolvedValue({ data: { data: [], counts: { pending_dean: 0 } } });
+    renderPage();
+
+    expect(await screen.findByText('Nothing is waiting for review. Applications show here once a student the dean allowed to apply sends one.')).toBeInTheDocument();
+    expect(screen.queryByText(/a student you allowed/)).not.toBeInTheDocument();
+  });
+
   it('offers a retry when the count cannot load', async () => {
     mocks.getOrganizationApplications.mockRejectedValue(new Error('offline'));
     renderPage();

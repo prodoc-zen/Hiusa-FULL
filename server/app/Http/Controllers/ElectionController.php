@@ -432,12 +432,12 @@ class ElectionController extends Controller
         return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
     }
 
-    /** A candidate is a student with an active student profile in the organization, wherever their own account lives, and an account that is itself active. */
+    /** A candidate is a student or an officer with an active profile in the organization, wherever their own account lives, and an account that is itself active. */
     private function isStudentOf(int $schoolId, int $organizationId): bool
     {
         return AccountProfile::where('user_school_id', $schoolId)
             ->where('organization_id', $organizationId)
-            ->where('role', 'STUDENT')
+            ->whereIn('role', ['STUDENT', 'SBO_OFFICER'])
             ->where('account_status', 'active')
             ->whereHas('user', fn ($q) => $q->where('account_status', 'active'))
             ->exists();
@@ -775,7 +775,7 @@ class ElectionController extends Controller
         ]);
 
         if (! $this->isStudentOf((int) $data['user_id'], $request->user()->organization_id)) {
-            return response()->json(['message' => 'Only students can be added as candidates.'], 422);
+            return response()->json(['message' => 'Only students and officers of this organization can be added as candidates.'], 422);
         }
 
         $position = ElectionPosition::where('election_id', $election->id)->find($data['position_id']);
@@ -889,7 +889,7 @@ class ElectionController extends Controller
 
         if (array_key_exists('user_id', $data)) {
             if (! $this->isStudentOf((int) $data['user_id'], $request->user()->organization_id)) {
-                return response()->json(['message' => 'Only students can be assigned as candidates.'], 422);
+                return response()->json(['message' => 'Only students and officers of this organization can be assigned as candidates.'], 422);
             }
 
             $alreadyCandidate = Candidate::where('election_id', $candidate->election_id)
