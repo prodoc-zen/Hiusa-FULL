@@ -48,6 +48,21 @@ class ExceptionLoggingTest extends TestCase
         $this->assertStringContainsString('RuntimeException: database exploded', $text);
     }
 
+    public function test_a_secret_path_segment_is_logged_as_the_route_pattern_not_its_value(): void
+    {
+        $token = 'live-invitation-token-9f8e7d6c5b4a';
+        Route::middleware('api')->get('/api/__boom/{token}', fn (string $token) => throw new RuntimeException('invitation lookup failed'));
+        Route::middleware('api')->post('/api/__boom/{token}/accept', fn (string $token) => throw new RuntimeException('accept failed'));
+
+        $this->getJson('/api/__boom/'.$token)->assertStatus(500);
+        $this->postJson('/api/__boom/'.$token.'/accept')->assertStatus(500);
+
+        $text = $this->loggedText();
+        $this->assertStringContainsString('GET /api/__boom/{token} RuntimeException: invitation lookup failed', $text);
+        $this->assertStringContainsString('POST /api/__boom/{token}/accept RuntimeException: accept failed', $text);
+        $this->assertStringNotContainsString($token, $text);
+    }
+
     public function test_expected_client_errors_are_not_written_to_the_exceptions_log(): void
     {
         $this->getJson('/api/events')->assertUnauthorized();

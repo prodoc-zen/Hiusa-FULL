@@ -24,6 +24,8 @@ import { fetchAllPages } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
+// Officers hold only an officer profile in their own organization, so they are candidates too.
+const CANDIDATE_ROLES = ['STUDENT', 'SBO_OFFICER'];
 const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 
 function studentName(user) {
@@ -239,13 +241,13 @@ export default function ManageCandidatesPage() {
       setResourcesLoading(true);
       try {
         // /users is paginated - the candidate-assignment dropdown needs the full
-        // active student roster, not just its first page, so it is walked in full.
+        // active roster of students and officers, not just its first page, so it is walked in full.
         const [allUsers, partylistData] = await Promise.all([
-          fetchAllPages(getUsers, { role: 'STUDENT', account_status: 'active' }),
+          fetchAllPages(getUsers, { role: JSON.stringify(CANDIDATE_ROLES), account_status: 'active' }),
           getPartylists(),
         ]);
         if (!cancelled) {
-          setUsers(allUsers.filter((user) => user.role === 'STUDENT'));
+          setUsers(allUsers.filter((user) => CANDIDATE_ROLES.includes(user.role)));
           setPartylists(Array.isArray(partylistData) ? partylistData : []);
         }
       } catch {

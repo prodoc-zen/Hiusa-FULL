@@ -18,4 +18,13 @@ describe('approval date formatting', () => {
     expect(line).toBe('Voting Jan 5, 2027, 9:00 AM to Jan 5, 2027, 5:00 PM');
     expect(line).not.toContain('pending_approval');
   });
+
+  it('describes an announcement with the audience and category as words and no status code', () => {
+    const line = summaryLine('announcement', { target_role: 'SBO_OFFICER', category: 'training', approval_status: 'pending' });
+
+    expect(line).toBe('Audience: Officer | Category: Training');
+    expect(line).not.toMatch(/SBO_OFFICER|pending|Status/);
+    expect(summaryLine('announcement', { target_role: 'all', category: null, approval_status: 'pending' })).toBe('Audience: Everyone | Category: General');
+    expect(summaryLine('announcement', { target_role: 'DEPARTMENT_HEAD', category: 'events' })).toBe('Audience: Department Head | Category: Events');
+  });
 });

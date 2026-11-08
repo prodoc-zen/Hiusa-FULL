@@ -32,7 +32,7 @@ export default function OfficeStaffHomePage() {
         {!state.loading && !state.error && (
           <p className="mt-2 text-sm text-ink-muted-strong">
             {state.waiting === 0
-              ? 'Nothing is waiting for review. Applications show here once a student you allowed to apply sends one.'
+              ? 'Nothing is waiting for review. Applications show here once a student the dean allowed to apply sends one.'
               : `${state.waiting} ${state.waiting === 1 ? 'application is' : 'applications are'} waiting for your review.`}
           </p>
         )}

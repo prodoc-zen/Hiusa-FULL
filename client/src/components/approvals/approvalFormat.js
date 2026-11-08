@@ -1,3 +1,5 @@
+import { roleLabel } from '../../lib/lifecycle';
+
 // Times are shown in Manila time whatever the browser's clock says, so a request made at 3:51 AM
 // in Manila does not read 7:51 PM the day before.
 const MANILA = 'Asia/Manila';
@@ -33,7 +35,11 @@ export function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'announcement') {
-    return `Audience: ${summary.target_role || 'all'} | Category: ${summary.category || 'general'} | Status: ${summary.approval_status || 'pending'}`;
+    // The row already carries a status badge, so the status is left off; the audience and category
+    // are shown as words, not as the stored codes.
+    const audience = !summary.target_role || summary.target_role === 'all' ? 'Everyone' : roleLabel(String(summary.target_role).toUpperCase()) || 'Everyone';
+    const category = String(summary.category || 'general');
+    return `Audience: ${audience} | Category: ${category.charAt(0).toUpperCase()}${category.slice(1)}`;
   }
 
   if (entityType === 'payment') {

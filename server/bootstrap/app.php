@@ -70,9 +70,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->report(function (Throwable $exception) {
             try {
                 $request = app()->bound('request') ? request() : null;
+                // The route pattern, never the raw path: segments such as an invitation token
+                // are secrets and the log is kept for days.
                 Log::channel('exceptions')->error(sprintf(
                     '%s %s: %s',
-                    $request?->route() ? $request->method().' /'.ltrim($request->path(), '/') : 'console',
+                    $request?->route() ? $request->method().' /'.ltrim($request->route()->uri(), '/') : 'console',
                     $exception::class,
                     $exception->getMessage(),
                 ), [
