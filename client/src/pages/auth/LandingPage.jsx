@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CalendarDays, ClipboardCheck, Users } from 'lucide-react';
+import { CalendarDays, ClipboardCheck, Users } from 'lucide-react';
 import logo from '../../assets/Hiusa Logo.png';
 import campusPhoto from '../../assets/landing-campus.jpg';
 import studentsPhoto from '../../assets/landing-students.jpg';
@@ -11,9 +11,9 @@ const capabilities = [
 ];
 
 const registrationSteps = [
-  { number: '01', title: 'Apply', description: 'An organization representative submits its details and verifies their email.' },
-  { number: '02', title: 'Get endorsed', description: 'The Department Head reviews the application and may endorse it for SAO review.' },
-  { number: '03', title: 'Receive a decision', description: 'SAO makes the final decision. On approval, the applicant receives administrator access.' },
+  { number: '01', title: 'Get permission', description: 'The Department Head allows a student of the college to apply for a new organization.' },
+  { number: '02', title: 'Apply and get endorsed', description: 'The student applies from their own account. The Department Head reviews the files and endorses the application.' },
+  { number: '03', title: 'Receive a decision', description: 'SAO makes the final decision. On approval, the student becomes its administrator.' },
 ];
 
 export default function LandingPage() {
@@ -40,12 +40,10 @@ export default function LandingPage() {
           <div className="relative z-10 flex flex-col justify-center px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
             <p className="text-sm font-semibold text-[#75E5FF]">HIUSA · Student organization management</p>
             <h1 id="landing-title" className="mt-5 max-w-[12ch] text-4xl font-extrabold leading-[1.12] sm:text-5xl lg:text-[3.5rem]">From your first application to everyday campus work.</h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-[#DCEAF5]">Register your organization, then manage members, events, finances, elections, and university requirements in one workspace.</p>
+            <p className="mt-6 max-w-xl text-base leading-7 text-[#DCEAF5]">Members, events, finances, elections, and university requirements for every student organization, in one workspace.</p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link to="/register-organization" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-6 py-3 text-sm font-bold text-white hover:bg-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Register an organization <ArrowRight size={17} aria-hidden="true" /></Link>
-              <Link to="/login" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/70 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Log in</Link>
+              <Link to="/login" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-6 py-3 text-sm font-bold text-white hover:bg-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Log in</Link>
             </div>
-            <Link to="/track-organization" className="mt-5 inline-flex min-h-11 w-fit items-center text-sm font-semibold text-[#DCEAF5] underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Already applied? Track your application</Link>
           </div>
           <div className="relative min-h-64 sm:min-h-80 lg:min-h-full">
             <img src={campusPhoto} alt="Students together outside a university building" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover object-center" />
@@ -80,7 +78,6 @@ export default function LandingPage() {
                 <div><h3 className="text-sm font-bold text-[#0B1831]">{title}</h3><p className="mt-1 text-sm leading-6 text-[#475569]">{description}</p></div>
               </li>)}
             </ol>
-            <Link to="/register-organization" className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[#0878B7] hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Start an application <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
           <img src={studentsPhoto} alt="Two students reviewing a document together" loading="lazy" className="aspect-[4/3] w-full rounded-lg object-cover object-center lg:aspect-[5/4]" />
         </div>

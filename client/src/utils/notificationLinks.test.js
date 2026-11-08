@@ -17,7 +17,7 @@ const REFERENCE_TYPES = [
   'approval_request', 'organization', 'event', 'budget', 'financial_report', 'financial_report_deadline',
   'election', 'announcement', 'task', 'order', 'payment', 'transaction', 'clearance_period',
   'clearance_signature', 'compliance_requirement_type', 'organization_compliance_submission',
-  'venue_booking', 'grievance', 'evaluation_window',
+  'venue_booking', 'grievance', 'evaluation_window', 'organization_application', 'organization_applicant_grant',
 ];
 
 function readAllowedRoutes() {
@@ -34,7 +34,7 @@ const ALLOWED = readAllowedRoutes();
 
 function isAllowed(role, destination) {
   const path = destination.split(/[?#]/)[0];
-  return ALLOWED[role].some((route) => route === path);
+  return ALLOWED[role].some((route) => new RegExp(`^${route.replace(/:[A-Za-z]+/g, '[^/]+')}$`).test(path));
 }
 
 // What each reference type lands on, per role. null means the role has no page for it.
@@ -52,6 +52,20 @@ const EXPECTED = {
     SBO_OFFICER: null,
     DEPARTMENT_HEAD: '/dashboard/department-head/organizations?record=7',
     STUDENT: null,
+  },
+  organization_application: {
+    SUPER_ADMIN: '/dashboard/organization-applications?record=7',
+    ADMIN: null,
+    SBO_OFFICER: null,
+    DEPARTMENT_HEAD: '/dashboard/organization-applications?record=7',
+    STUDENT: '/dashboard/student/organization-applications/7',
+  },
+  organization_applicant_grant: {
+    SUPER_ADMIN: null,
+    ADMIN: null,
+    SBO_OFFICER: null,
+    DEPARTMENT_HEAD: null,
+    STUDENT: '/dashboard/student/apply-organization',
   },
   event: {
     SUPER_ADMIN: null,

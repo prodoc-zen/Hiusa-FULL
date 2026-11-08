@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Services\OrganizationDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 /** SAO decisions over an organization's lifecycle: registration review, archive and restore. */
@@ -62,39 +61,23 @@ class OrganizationLifecycleController extends Controller
                 OrganizationComplianceSubmission::where('organization_id', $locked->id)->where('status', 'submitted')
                     ->update(['status' => 'approved', 'reviewed_by' => $reviewer->school_id, 'reviewed_at' => now()]);
 
-                // Auto-provision Founding Administrator (2-step process)
+                // A registration filed before applications moved to the grant flow may name a
+                // founding administrator. They get a profile only if they already have an account:
+                // nobody is created here and nobody's own role or home organization is changed.
                 if (! empty($locked->admin_payload)) {
                     $payload = $locked->admin_payload;
                     $posTitle = $payload['position_title'] ?? 'President';
-                    $adminUser = User::whereKey($payload['school_id'])->first();
-                    if (! $adminUser) {
-                        $adminUser = User::create([
-                            'school_id' => $payload['school_id'],
-                            'first_name' => $payload['first_name'],
-                            'last_name' => $payload['last_name'],
-                            'email' => $payload['email'],
-                            'role' => 'ADMIN',
-                            'organization_id' => $locked->id,
-                            'account_status' => 'active',
-                            'position_title' => $posTitle,
-                            'password_hash' => Hash::make('Demo@12345'),
-                        ]);
-                    } else {
-                        $adminUser->update([
-                            'organization_id' => $locked->id,
-                            'role' => 'ADMIN',
-                            'account_status' => 'active',
-                            'position_title' => $posTitle,
-                        ]);
+                    $adminUser = User::whereKey($payload['school_id'] ?? 0)->first();
+                    if ($adminUser) {
+                        SboPosition::firstOrCreate(
+                            ['organization_id' => $locked->id, 'role' => 'ADMIN', 'title' => $posTitle],
+                            ['is_active' => true]
+                        );
+                        AccountProfile::firstOrCreate(
+                            ['user_school_id' => $adminUser->school_id, 'organization_id' => $locked->id],
+                            ['role' => 'ADMIN', 'account_status' => 'active', 'position_title' => $posTitle]
+                        );
                     }
-                    SboPosition::firstOrCreate(
-                        ['organization_id' => $locked->id, 'role' => 'ADMIN', 'title' => $posTitle],
-                        ['is_active' => true]
-                    );
-                    AccountProfile::firstOrCreate(
-                        ['user_school_id' => $adminUser->school_id, 'organization_id' => $locked->id],
-                        ['role' => 'ADMIN', 'account_status' => 'active', 'position_title' => $posTitle]
-                    );
                 }
             } else {
                 // Per-file correction remarks when returning

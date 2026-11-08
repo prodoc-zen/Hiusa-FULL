@@ -56,6 +56,12 @@ const PAGE_META = {
   '/dashboard/officer': { title: 'Dashboard', purpose: 'Start with deadlines, then check events, funds, and merchandise queues.', isHome: true },
   '/dashboard/department-head': { title: 'Dashboard', purpose: 'Review approvals, elections, events, and announcements.', isHome: true },
   '/dashboard/student': { title: 'Dashboard', purpose: 'Official updates, events, and elections from your organization.', isHome: true },
+  '/dashboard/student/apply-organization': { title: 'Apply for an organization', purpose: 'Send an application to start a student organization and follow it here.' },
+  '/dashboard/student/organization-applications/:applicationId': {
+    title: 'Your application',
+    purpose: 'See where your application is and what the reviewers noted.',
+    parents: [{ label: 'Apply for an organization', to: '/dashboard/student/apply-organization' }],
+  },
 
   '/dashboard/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },

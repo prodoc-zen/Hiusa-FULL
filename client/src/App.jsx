@@ -9,9 +9,6 @@ import SessionExpiry from './components/auth/SessionExpiry';
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const StudentSignUpPage = lazy(() => import('./pages/auth/StudentSignUpPage'));
 const LandingPage = lazy(() => import('./pages/auth/LandingPage'));
-const RegisterOrganizationPage = lazy(() => import('./pages/auth/RegisterOrganizationPage'));
-const RequestApplicationEditLinkPage = lazy(() => import('./pages/auth/RequestApplicationEditLinkPage'));
-const TrackOrganizationPage = lazy(() => import('./pages/auth/TrackOrganizationPage'));
 const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/OrganizationApplicationsPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
@@ -38,6 +35,8 @@ const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-
 const CollegeOrganizationsPage = lazy(() => import('./pages/roles/department-head/CollegeOrganizationsPage'));
 const SubmitApprovalRequestPage = lazy(() => import('./pages/modules/approvals/SubmitApprovalRequestPage'));
 const StudentHomePage = lazy(() => import('./pages/roles/student/StudentHomePage'));
+const ApplyOrganizationPage = lazy(() => import('./pages/roles/student/ApplyOrganizationPage'));
+const MyOrganizationApplicationPage = lazy(() => import('./pages/roles/student/MyOrganizationApplicationPage'));
 const AdminUsersPage = lazy(() => import('./pages/roles/admin/AdminUsersPage'));
 const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboPositionsPage'));
 const ManageAcademicStructurePage = lazy(() => import('./pages/roles/admin/ManageAcademicStructurePage'));
@@ -215,11 +214,6 @@ function App() {
       <Routes>
       {/* Authentication */}
       <Route path="/" element={<LandingPage />} />
-      <Route path="/register-organization" element={<RegisterOrganizationPage />} />
-      <Route path="/register-organization/edit-link" element={<RequestApplicationEditLinkPage />} />
-      <Route path="/register-organization/edit/:applicationId" element={<RegisterOrganizationPage />} />
-      <Route path="/track-organization" element={<RequestApplicationEditLinkPage tracking />} />
-      <Route path="/track-organization/:applicationId" element={<TrackOrganizationPage />} />
       {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
@@ -276,6 +270,8 @@ function App() {
           <Route path="approval-requests/new/event" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" startEventRequest /></ProtectedRoute>} />
           <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
+          <Route path="student/apply-organization" element={<ProtectedRoute allowedRoles={["STUDENT"]}><ApplyOrganizationPage /></ProtectedRoute>} />
+          <Route path="student/organization-applications/:applicationId" element={<ProtectedRoute allowedRoles={["STUDENT"]}><MyOrganizationApplicationPage /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/admin/positions" replace /></ProtectedRoute>} />
           <Route path="admin/positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />

@@ -36,6 +36,14 @@ const STATUS_MAP = {
   rejected: { tone: 'danger', label: 'Rejected' },
   returned: { tone: 'danger', label: 'Returned' },
 
+  // Organization applications and the per-requirement review (pending_sao, approved, returned and rejected are above)
+  pending_dean: { tone: 'warning', label: 'With the Department Head' },
+  ok: { tone: 'success', label: 'OK' },
+  missing: { tone: 'danger', label: 'Missing' },
+  needs_changes: { tone: 'warning', label: 'Needs changes' },
+  pending_verification: { tone: 'neutral', label: 'Not verified' },
+  expired: { tone: 'neutral', label: 'Expired' },
+
   // Financial accountability (cash advances, collections, remittances)
   verified: { tone: 'success', label: 'Verified' },
   released: { tone: 'success', label: 'Released' },
