@@ -126,11 +126,12 @@ export default function VenueBookingPage() {
 
   const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
 
-  function openRequestForm(offCampus = false, linkedEvent = null) {
+  // Off-campus requests start from the Venue type choice in the form, so no separate entry point.
+  function openRequestForm(linkedEvent = null) {
     setRequestError(null);
     const planned = linkedEvent?.planning_details ?? {};
     setRequestForm({
-      venue_type: offCampus === true || planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
+      venue_type: planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
       venue_id: planned.venue_id ? String(planned.venue_id) : selectedVenueId,
       off_campus_location: planned.venue_type === 'off_campus' ? (linkedEvent.location || '') : '',
       event_id: linkedEvent ? String(linkedEvent.id) : '',
@@ -145,7 +146,7 @@ export default function VenueBookingPage() {
     if (!eventParam || !eventsLoaded || venues.loading || handledEventParam.current === eventParam) return;
     handledEventParam.current = eventParam;
     const linkedEvent = events.find((item) => String(item.id) === eventParam);
-    if (linkedEvent) openRequestForm(false, linkedEvent);
+    if (linkedEvent) openRequestForm(linkedEvent);
     else notify.error('That event is not available for a venue booking.');
   }, [eventParam, eventsLoaded, events, venues.loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -241,7 +242,7 @@ export default function VenueBookingPage() {
         </div>
       ),
     },
-    { key: 'remarks', header: 'SAO remarks', render: (booking) => booking.status === 'rejected' && booking.remarks ? <span className="text-ink-muted">{booking.remarks}</span> : <span className="text-ink-soft">-</span> },
+    { key: 'remarks', header: 'SAO remarks', render: (booking) => booking.status === 'rejected' && booking.remarks ? <span className="text-ink-muted">{booking.remarks}</span> : null },
   ];
 
   function canWithdraw(booking) {
@@ -253,7 +254,6 @@ export default function VenueBookingPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        actions={<Button variant="secondary" onClick={() => openRequestForm(true)}>Request an off-campus venue</Button>}
         primary={firstRun ? undefined : <Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
       />
 
@@ -285,7 +285,7 @@ export default function VenueBookingPage() {
                 <p className="text-sm font-semibold text-ink">{formatDisplayText(selectedVenue.name)}</p>
                 <p className="text-xs text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
               </div>
-              <Button size="sm" variant="secondary" onClick={() => openRequestForm()}>Request this venue</Button>
+              <Button variant="secondary" onClick={() => openRequestForm()}>Request this venue</Button>
             </div>
             {availability.loading ? (
               <p className="text-sm text-ink-muted">Checking availability...</p>
@@ -301,6 +301,7 @@ export default function VenueBookingPage() {
       <Card title="My organization's requests">
         <DataTable
           columns={bookingColumns}
+          caption="Venue booking requests from your organization"
           rows={bookings.items}
           loading={bookings.loading}
           error={bookings.error}

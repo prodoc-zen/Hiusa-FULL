@@ -108,7 +108,7 @@ export default function StudentFinancialAccountsPage() {
 
   return <div className="space-y-6">
     <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-    <PageHeader primary={<Button leftIcon={FilePlus2} onClick={() => { setCharge({ student: null, student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
+    <PageHeader primary={charge || payment || closing ? null : <Button leftIcon={FilePlus2} onClick={() => { setCharge({ student: null, student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
 
     <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
@@ -142,7 +142,7 @@ export default function StudentFinancialAccountsPage() {
       description={selected ? `${selected.student.name} · ${selected.student.school_id}` : ''}
       onClose={() => setSelected(null)}
       width="max-w-2xl"
-      footer={selected && <><Button variant="secondary" onClick={() => setSelected(null)}>Close</Button><Button onClick={() => { setCharge({ student_id: selected.student.school_id, description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add charge</Button></>}
+      footer={selected && <><Button variant="secondary" onClick={() => setSelected(null)}>Close</Button><Button variant="secondary" onClick={() => { setCharge({ student_id: selected.student.school_id, description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add charge</Button></>}
     >
       {selected && <div className="space-y-5">
         <dl className="grid gap-3 sm:grid-cols-2">{[['Department', selected.student.department], ['Course or program', selected.student.program], ['Year and section', [selected.student.year_level, selected.student.section].filter(Boolean).join(' · ')], ['Email', selected.student.email]].map(([label, value]) => <div key={label}><dt className="text-xs font-medium text-ink-muted">{label}</dt><dd className="mt-0.5 break-words text-sm text-ink">{value || 'Not recorded'}</dd></div>)}</dl>

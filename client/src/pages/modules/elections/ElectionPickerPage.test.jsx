@@ -73,9 +73,12 @@ describe('ElectionPickerPage', () => {
   it('opens the creation form when launched from the approval-request selector', async () => {
     render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
 
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Create election' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Create election' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
+    // The list's Create election button is gone, so the form has the only filled button.
+    expect(screen.queryByRole('button', { name: 'Create election' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
   it('shows each election its stage and next action, and keeps Finalize ballot for the workspace', async () => {

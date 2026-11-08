@@ -444,20 +444,25 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     // filter that narrows them down, and every one of them doubles as either a full
     // catalog view or a dropdown option list elsewhere on this page - so they are
     // fetched in full (across every page) rather than left truncated at page one.
+    // The forecast and report lists go second: asking for everything at once opens enough sockets at the
+    // same moment that a busy Windows machine refuses some of them with ERR_NO_BUFFER_SPACE.
+    const fetchLists = () => Promise.all([
+      canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
+      canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
+    ]);
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
-      canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
-      canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       currentUserRole === 'ADMIN' ? getFinancialSemesters() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
-      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, reports, semesterRes, clearanceRes, debtRes]) => {
+      .then(async (first) => [first, await fetchLists()])
+      .then(([[txRes, sumRes, budgetsList, eventsList, receiptRes, invoiceRes, semesterRes, clearanceRes, debtRes], [forecasts, reports]]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -1023,8 +1028,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const selectedReport = activeTab === 'reports' && recordId ? reports.find((report) => String(report.id) === recordId) : null;
   const recordMissing = Boolean(recordId) && !loading && !error && ((activeTab === 'budgets' && !selectedBudget) || (activeTab === 'reports' && !selectedReport));
 
+  // A form drawer carries its own filled button, so the header's one is hidden while it is open.
   let headerPrimary = null;
-  if (activeTab === 'transactions' && canManageLedger) {
+  if (showForm || showBudgetForm) {
+    headerPrimary = null;
+  } else if (activeTab === 'transactions' && canManageLedger) {
     headerPrimary = <Button leftIcon={Plus} onClick={() => openTransactionForm()}>Record transaction</Button>;
   } else if (activeTab === 'budgets' && canProposeBudget) {
     headerPrimary = <Button leftIcon={Plus} onClick={() => openBudgetForm()}>Propose budget</Button>;

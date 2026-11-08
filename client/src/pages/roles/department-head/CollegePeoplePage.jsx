@@ -150,9 +150,6 @@ export default function CollegePeoplePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="People"
-        actions={tab === 'students' && collegeId ? (
-          <Button variant="secondary" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>
-        ) : null}
         primary={tab === 'students' ? (
           <Button leftIcon={UserPlus} onClick={() => setGranting(true)}>Allow a student to apply</Button>
         ) : tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
@@ -176,6 +173,9 @@ export default function CollegePeoplePage() {
           </div>
           {search && (
             <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
+          )}
+          {tab === 'students' && collegeId && (
+            <Button variant="secondary" className="sm:ml-auto" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>
           )}
         </div>
         <div role="tabpanel">

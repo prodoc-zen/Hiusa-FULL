@@ -31,9 +31,11 @@ function renderPage(entry = '/dashboard/approvals') {
   );
 }
 
+// A row carries its actions as visible controls named "<action>: <title>"; "Open ..." is a link, the rest are buttons.
 async function actionFor(title, label) {
-  fireEvent.click((await screen.findAllByRole('button', { name: new RegExp(`^Actions for ${title}$`, 'i') }))[0]);
-  return screen.findByRole('menuitem', { name: label });
+  const source = label instanceof RegExp ? label.source : label;
+  const found = await screen.findAllByRole(source.startsWith('Open') ? 'link' : 'button', { name: new RegExp(`^(${source}): ${title}$`, 'i') });
+  return found[0];
 }
 
 const reportRequest = (summary) => ({
@@ -312,8 +314,8 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     expect(await actionFor('Foundation Day Budget', 'Open budget')).toHaveAttribute('href', '/dashboard/finance/budget-allocation?record=102');
     expect(await actionFor('SBO Election 2026', 'Open election')).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=103');
     expect(await actionFor('September Financial Report', 'Open report')).toHaveAttribute('href', '/dashboard/finance/transaction-history?record=104');
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Pep Rally' }))[0]);
-    expect(screen.queryByRole('menuitem', { name: /^Open/ })).not.toBeInTheDocument();
+    expect(await screen.findAllByRole('button', { name: 'Details: Pep Rally' })).not.toHaveLength(0);
+    expect(screen.queryByRole('link', { name: /^Open.*: Pep Rally$/ })).not.toBeInTheDocument();
   });
 
   it('explains how to submit when nothing has been submitted and links the New request page', async () => {
@@ -526,8 +528,7 @@ describe('DepartmentHeadApprovalsPage entity links stay on routes the role may o
 
     const hrefs = [];
     for (const title of ['Foundation Day', 'Foundation Day Budget', 'SBO Election 2026', 'September Financial Report']) {
-      fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${title}` }))[0]);
-      hrefs.push((await screen.findByRole('menuitem', { name: /^Open/ })).getAttribute('href').split('?')[0]);
+      hrefs.push((await actionFor(title, /Open \w+/)).getAttribute('href').split('?')[0]);
     }
     expect(hrefs).toHaveLength(4);
     hrefs.forEach((href) => expect(allowedFor(role)).toContain(href));

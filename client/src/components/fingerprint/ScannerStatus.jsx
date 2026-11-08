@@ -1,17 +1,22 @@
-import { Fingerprint, RefreshCw, Usb } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import Button from '../ui/Button';
 
 export default function ScannerStatus({ reader }) {
-  const tone = reader.connected ? 'border-success/30 bg-success-tint text-success-strong' : 'border-amber-200 bg-amber-50 text-amber-800';
+  const title = reader.scanning ? 'Waiting for a finger' : reader.connected ? 'Fingerprint reader ready' : 'Fingerprint reader not found';
+  const detail = reader.mock
+    ? 'Development capture mode'
+    : reader.error || (reader.connected ? 'Place one finger flat and centered when prompted.' : 'Connect the reader and start HID Authentication Device Client.');
   return (
-    <div className={`flex items-center gap-3 rounded-lg border p-3 ${tone}`} role="status">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/80">
-        {reader.scanning ? <Fingerprint size={20} /> : <Usb size={20} />}
-      </span>
+    <div className="flex items-center gap-3 rounded-card border border-line bg-white p-3" role="status">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">{reader.scanning ? 'Waiting for a finger...' : reader.connected ? 'DigitalPersona reader ready' : 'Reader unavailable'}</p>
-        <p className="mt-0.5 text-xs">{reader.mock ? 'Development capture mode' : reader.error || (reader.connected ? 'Place one finger flat and centered when prompted.' : 'Connect the reader and make sure HID Authentication Device Client is running.')}</p>
+        <p className="text-sm font-semibold text-ink">{title}</p>
+        <p className="mt-0.5 text-xs text-ink-muted">{detail}</p>
       </div>
-      {!reader.connected && <button type="button" onClick={reader.retry} aria-label="Retry fingerprint reader" className="grid h-11 w-11 shrink-0 place-items-center rounded-control border border-current/20 bg-white/70"><RefreshCw size={15} /></button>}
+      {!reader.connected && (
+        <Button type="button" variant="secondary" size="sm" leftIcon={RefreshCw} onClick={reader.retry} className="min-h-[42px] shrink-0">
+          Try again
+        </Button>
+      )}
     </div>
   );
 }

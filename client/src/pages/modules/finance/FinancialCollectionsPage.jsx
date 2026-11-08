@@ -127,7 +127,7 @@ export default function FinancialCollectionsPage() {
   );
 
   return <div className="space-y-6 pb-8">
-    <PageHeader primary={<Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
+    <PageHeader primary={createOpen || remit ? null : <Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
     {error && !createOpen && !remit && <p role="alert" className="rounded-card border border-line bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-card border border-line bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {!loading && dashboard && (

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import VenueBookingPage from './VenueBookingPage';
@@ -39,5 +39,14 @@ describe('VenueBookingPage', () => {
     expect(await screen.findByText(/Reserved by Your organization/)).toBeInTheDocument();
     await waitFor(() => expect(venueMocks.getVenueAvailability).toHaveBeenCalledWith('8', { from: '2026-10-07', to: '2026-10-14' }));
     expect(screen.getByLabelText('Booking hours, 5 AM to 10 PM')).toBeInTheDocument();
+  });
+
+  it('keeps a single header action so the row fits a phone, with off campus chosen in the form', async () => {
+    render(<MemoryRouter><VenueBookingPage /></MemoryRouter>);
+    await screen.findByText(/Reserved by Your organization/);
+    expect(screen.queryByRole('button', { name: 'Request an off-campus venue' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Request a venue' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Request a venue booking' });
+    expect(within(dialog).getByLabelText('Venue type')).toBeInTheDocument();
   });
 });

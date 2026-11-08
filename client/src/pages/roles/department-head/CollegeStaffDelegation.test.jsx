@@ -168,10 +168,7 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     );
 
     await screen.findAllByText('Philippine IT Society');
-    const actionsBtn = (await screen.findAllByRole('button', { name: /Actions for Philippine IT Society/i }))[0];
-    fireEvent.click(actionsBtn);
-
-    const overseeBtn = await screen.findByRole('menuitem', { name: /Open organization space/i });
+    const overseeBtn = (await screen.findAllByRole('button', { name: /Open organization space for Philippine IT Society/i }))[0];
     expect(overseeBtn).toBeInTheDocument();
 
     fireEvent.click(overseeBtn);
