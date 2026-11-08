@@ -8,7 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AccountProfile extends Model
 {
+    /** The organization areas an officer can be limited to. A null `modules` column means every area. */
+    public const MODULES = ['members', 'events', 'finance', 'tasks', 'merchandise', 'elections', 'compliance', 'announcements'];
+
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return ['modules' => 'array'];
+    }
+
+    public function allowsModule(string $module): bool
+    {
+        return $this->modules === null || in_array($module, $this->modules, true);
+    }
 
     /** The one rule every administrator count follows: an administrator whose profile or user account is disabled or inactive is not counted. */
     public function scopeActiveAdministrators(Builder $query): Builder

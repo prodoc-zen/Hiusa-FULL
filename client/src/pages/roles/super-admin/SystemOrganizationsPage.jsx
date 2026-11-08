@@ -546,16 +546,6 @@ export default function SystemOrganizationsPage() {
                   )}
                   <TableRowActions subject={name} label="Organization actions" actions={[
                     { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
-                    lifecycle === 'active' && {
-                      label: 'Copy admin invite link',
-                      icon: ExternalLink,
-                      disabled: org.college_is_active === false,
-                      onClick: () => {
-                        const url = `${window.location.origin}/register?organization=${org.id}&role=ADMIN`;
-                        navigator.clipboard?.writeText?.(url).catch(() => {});
-                        setNotice(`Admin invite link copied for ${name}.`);
-                      },
-                    },
                     lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
                     needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first Admin account', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setAdminOrganization(org) },
                     lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CacheApiResponse;
+use App\Http\Middleware\EnsureOrganizationModule;
 use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsureRole;
@@ -51,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
             'org.writable' => EnsureOrganizationWritable::class,
+            'org.module' => EnsureOrganizationModule::class,
             'account.profile' => UseAccountProfile::class,
             'password.changed' => EnsurePasswordChanged::class,
         ]);

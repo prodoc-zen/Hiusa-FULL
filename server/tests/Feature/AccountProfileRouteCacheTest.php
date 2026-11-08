@@ -23,7 +23,7 @@ class AccountProfileRouteCacheTest extends TestCase
                 $url = rtrim('/api/account-profiles/'.$endpoint, '/');
                 $route = $this->app['router']->getRoutes()->match(Request::create($url, $method));
                 $this->assertContains('auth:sanctum', $route->gatherMiddleware());
-                $this->assertContains('role:SUPER_ADMIN,ADMIN', $route->gatherMiddleware());
+                $this->assertContains('role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN', $route->gatherMiddleware());
                 $this->json($method, $url)->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
             }
         } finally {

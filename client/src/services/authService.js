@@ -49,3 +49,5 @@ export const deleteAccountProfile = (profileId) => api.delete(`/account-profiles
 
 
 
+export const getProfilePositions = (organizationId) => api.get('/account-profiles/positions', { params: { organization_id: organizationId } });
+export const updateAccountProfile = (profileId, data) => api.put(`/account-profiles/${profileId}`, data);
