@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\College;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,31 @@ class CollegePeopleController extends Controller
         return response()->json($page)->header('Cache-Control', 'no-store, private');
     }
 
+    /** Employee records of the dean's own college that have no account yet, for picking who to invite as office staff. Birth dates never leave the server. */
+    public function staffRecords(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+
+        [$college] = $this->collegeOf($request->user());
+        $available = StudentRegistryEntry::employees()
+            ->where('college_id', $college->id)
+            ->whereNull('claimed_at')
+            ->whereNotExists(fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'));
+
+        $records = (clone $available)
+            ->where(fn ($query) => $this->matchTokens($query, trim((string) ($validated['q'] ?? '')), false))
+            ->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')
+            ->limit(10)
+            ->get()
+            ->map(fn (StudentRegistryEntry $record) => [
+                'school_id' => $record->school_id,
+                'name' => $record->full_name,
+                'position' => $record->position,
+            ]);
+
+        return response()->json(['data' => $records, 'has_records' => $available->exists()])->header('Cache-Control', 'no-store, private');
+    }
+
     private function students(College $college, string $term, int $perPage): array
     {
         $organizationIds = Organization::where('college_id', $college->id)->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -62,6 +88,7 @@ class CollegePeopleController extends Controller
 
         $unclaimed = DB::table('student_registry')
             ->where('student_registry.college_id', $college->id)
+            ->where('student_registry.record_type', StudentRegistryEntry::STUDENT)
             ->whereNull('student_registry.claimed_at')
             ->whereNotExists(fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'))
             ->where(fn ($query) => $this->matchTokens($query, $term, false))

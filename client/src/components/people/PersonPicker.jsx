@@ -9,7 +9,7 @@ import { visibleSchoolId } from '../../utils/schoolId';
 const DEBOUNCE_MS = 250;
 const MIN_CHARS = 2;
 
-function detail(person) {
+function defaultDetail(person) {
   return [person.email, person.program].filter(Boolean).join(' · ');
 }
 
@@ -20,6 +20,8 @@ export default function PersonPicker({
   role,
   onSelect,
   excludeIds = [],
+  search = searchPeople,
+  describe = defaultDetail,
   placeholder = 'Type a name or email',
   value,
   hint,
@@ -62,7 +64,7 @@ export default function PersonPicker({
         if (scope) params.scope = scope;
         if (organizationId) params.organization_id = organizationId;
         if (role) params.role = role;
-        const people = await searchPeople(params);
+        const people = await search(params);
         if (request !== requestRef.current) return;
         const hidden = excluded ? excluded.split(',') : [];
         setResults(people.filter((person) => !hidden.includes(String(person.school_id))));
@@ -76,7 +78,7 @@ export default function PersonPicker({
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [trimmed, scope, organizationId, role, excluded, retry]);
+  }, [trimmed, scope, organizationId, role, excluded, retry, search]);
 
   const choose = useCallback((person) => {
     setInternal(person);
@@ -126,7 +128,7 @@ export default function PersonPicker({
           <Avatar name={selected.name} size="sm" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-ink">{selected.name}</p>
-            <p className="truncate text-xs font-medium text-ink-muted">{detail(selected)}</p>
+            <p className="truncate text-xs font-medium text-ink-muted">{describe(selected)}</p>
           </div>
           <Button variant="secondary" size="sm" onClick={remove} disabled={disabled} aria-label={`Remove ${selected.name}`}>
             Remove
@@ -205,7 +207,7 @@ export default function PersonPicker({
             <Avatar name={person.name} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-ink">{person.name}</p>
-              <p className="truncate text-xs font-medium text-ink-muted">{detail(person)}</p>
+              <p className="truncate text-xs font-medium text-ink-muted">{describe(person)}</p>
             </div>
             {visibleSchoolId(person.school_id) !== null && <span className="shrink-0 text-[11px] font-medium text-ink-soft">{visibleSchoolId(person.school_id)}</span>}
           </div>

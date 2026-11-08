@@ -25,6 +25,11 @@ const staffInvite = {
   college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
 };
 
+const recordInvite = {
+  invitation: { role: 'COLLEGE_STAFF', position_title: 'Department Secretary', expires_at: '2026-11-10T00:00:00Z', record: { school_id: 7100101, first_name: 'Marites', last_name: 'Dizon' } },
+  college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
+};
+
 function renderPage(path = '/accept-invitation?token=valid-secret-token') {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -122,6 +127,33 @@ describe('AcceptInvitationPage', () => {
     expect(mocks.login).toHaveBeenCalledWith({ identifier: 'arthur.dent@example.edu', password: 'Password123!' });
     expect(await screen.findByText('Dean home')).toBeInTheDocument();
     expect(localStorage.getItem('auth_token')).toBe('real-token');
+  });
+
+  it('shows the name and ID number from the school records read only and asks only for email and password', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(recordInvite);
+    mocks.acceptDepartmentHeadInvitation.mockResolvedValue({});
+    mocks.login.mockResolvedValue({ data: { access_token: 't', user: { role: 'ADMIN' } } });
+    renderPage();
+
+    await screen.findByRole('heading', { name: /as office staff/ });
+    expect(screen.getByLabelText('Name')).toHaveValue('Marites Dizon');
+    expect(screen.getByLabelText('Name')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('ID number')).toHaveValue('7100101');
+    expect(screen.getByLabelText('ID number')).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText(/^First name/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Last name/)).not.toBeInTheDocument();
+
+    type(/^Email/, 'Marites@Example.edu');
+    type(/^Password/, 'Password123!');
+    type(/^Confirm password/, 'Password123!');
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', {
+      email: 'marites@example.edu',
+      password: 'Password123!',
+      password_confirmation: 'Password123!',
+    }));
+    expect(await screen.findByText('Staff home')).toBeInTheDocument();
   });
 
   it('greets office staff with their role and sends them to the staff home', async () => {

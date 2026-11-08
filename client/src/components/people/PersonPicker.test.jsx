@@ -154,6 +154,21 @@ describe('PersonPicker', () => {
     await waitFor(() => expect(peopleMocks.searchPeople).toHaveBeenCalledTimes(2));
   });
 
+  it('can search another source and describe each person its own way', async () => {
+    const search = vi.fn().mockResolvedValue([{ school_id: 7100101, name: 'Marites Dizon', position: 'Department Secretary' }]);
+    const onSelect = renderPicker({ search, describe: (person) => person.position });
+
+    type('mar');
+    const option = await screen.findByRole('option', { name: /Marites Dizon/ });
+    expect(option).toHaveTextContent('Department Secretary');
+    expect(search).toHaveBeenCalledWith({ q: 'mar' });
+    expect(peopleMocks.searchPeople).not.toHaveBeenCalled();
+
+    fireEvent.click(option);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ school_id: 7100101 }));
+    expect(screen.getByRole('group')).toHaveTextContent('Department Secretary');
+  });
+
   it('ignores a slow answer to an older query', async () => {
     let releaseFirst;
     peopleMocks.searchPeople
