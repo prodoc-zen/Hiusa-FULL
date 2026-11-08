@@ -84,6 +84,7 @@ const SPEC = {
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
+    { label: 'People', path: '/dashboard/department-head/people' },
     { label: 'College files', path: '/dashboard/department-head/documents' },
     { label: 'College compliance', path: '/dashboard/department-head/compliance' },
     { label: 'Clearance signing', path: '/dashboard/clearances' },
@@ -147,7 +148,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it.each([
     ['ADMIN', 11, 36],
     ['SBO_OFFICER', 10, 25],
-    ['DEPARTMENT_HEAD', 12, 15],
+    ['DEPARTMENT_HEAD', 13, 16],
     ['STUDENT', 8, 12],
     ['SUPER_ADMIN', 7, 16],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {

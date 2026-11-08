@@ -15,6 +15,7 @@ use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\CollegeController;
 use App\Http\Controllers\DepartmentHeadInvitationController;
 use App\Http\Controllers\CollegeOrganizationController;
+use App\Http\Controllers\CollegePeopleController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ComplianceReminderController;
 use App\Http\Controllers\DashboardBriefingController;
@@ -186,6 +187,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::put('/college/organizations/{organization}', [CollegeOrganizationController::class, 'update'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::delete('/college/organizations/{organization}', [CollegeOrganizationController::class, 'destroy'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
+    Route::get('/college/people', [CollegePeopleController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/staff', [CollegeOrganizationController::class, 'staff'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/staff', [CollegeOrganizationController::class, 'storeStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::delete('/college/staff/{user}', [CollegeOrganizationController::class, 'destroyStaff'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
