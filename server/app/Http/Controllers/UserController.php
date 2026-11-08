@@ -60,14 +60,19 @@ class UserController extends Controller
             ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS))])
             ->withExists(['fingerprints as fingerprint_enrolled']);
 
-        // SBO Officers use this directory only to select Students for attendance
-        // and biometric enrollment. Account administration remains Admin-only.
-        if ($request->user()->role === 'SBO_OFFICER') {
-            $query->where('membership.role', 'STUDENT');
-        }
+        $requestedRoles = ! empty($filters['role']) ? FilterValues::values($filters['role']) : [];
 
-        if (! empty($filters['role'])) {
-            $query->whereIn('membership.role', FilterValues::values($filters['role']));
+        // SBO Officers use this directory to select Students for attendance and biometric
+        // enrollment, and fellow officers as election candidates. They never see ADMIN or
+        // higher, and with no role filter they get Students only. Account administration
+        // remains Admin-only.
+        if ($request->user()->role === 'SBO_OFFICER') {
+            $requestedRoles = $requestedRoles === []
+                ? ['STUDENT']
+                : array_values(array_intersect($requestedRoles, ['STUDENT', 'SBO_OFFICER']));
+            $query->whereIn('membership.role', $requestedRoles);
+        } elseif ($requestedRoles !== []) {
+            $query->whereIn('membership.role', $requestedRoles);
         }
 
         if (! empty($filters['account_status'])) {
