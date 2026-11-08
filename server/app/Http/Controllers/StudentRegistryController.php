@@ -17,9 +17,11 @@ use Illuminate\Validation\ValidationException;
 
 class StudentRegistryController extends Controller
 {
-    private const REQUIRED_HEADERS = ['school_id', 'first_name', 'last_name', 'birth_date', 'program', 'year_level'];
+    private const REQUIRED_HEADERS = ['school_id', 'first_name', 'last_name', 'birth_date'];
 
-    private const OPTIONAL_HEADERS = ['section', 'college_code'];
+    private const OPTIONAL_HEADERS = ['program', 'year_level', 'section', 'college_code', 'record_type', 'position'];
+
+    private const LAST_EMPLOYEE_ID = 94999999;
 
     private const MAX_ROWS = 5000;
 
@@ -31,11 +33,14 @@ class StudentRegistryController extends Controller
             'q' => ['nullable', 'string', 'max:100'],
             'college_id' => ['nullable', 'integer', 'min:1'],
             'claimed' => ['nullable', 'in:claimed,unclaimed'],
+            'record_type' => ['nullable', 'in:student,employee'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
         $scopeCollegeId = $this->actorCollegeId($request) ?? ($filters['college_id'] ?? null);
 
-        $scope = StudentRegistryEntry::query()->when($scopeCollegeId, fn ($query) => $query->where('college_id', $scopeCollegeId));
+        $scope = StudentRegistryEntry::query()
+            ->when($scopeCollegeId, fn ($query) => $query->where('college_id', $scopeCollegeId))
+            ->when($filters['record_type'] ?? null, fn ($query, $type) => $query->where('record_type', $type));
         $summary = ['total' => (clone $scope)->count(), 'claimed' => (clone $scope)->whereNotNull('claimed_at')->count()];
 
         $query = (clone $scope)->with('college:id,name,code')
@@ -52,6 +57,8 @@ class StudentRegistryController extends Controller
             'id' => $entry->id,
             'school_id' => $entry->school_id,
             'name' => $entry->full_name,
+            'record_type' => $entry->record_type,
+            'position' => $entry->position,
             'college' => $entry->college ? ['id' => $entry->college->id, 'name' => $entry->college->name, 'code' => $entry->college->code] : null,
             'program' => $entry->program,
             'year_level' => $entry->year_level,
@@ -80,7 +87,7 @@ class StudentRegistryController extends Controller
             'hash' => $hash,
             'preview_token' => $token,
             'counts' => $this->counts($rows),
-            'rows' => array_map(fn (array $row) => Arr::only($row, ['line', 'school_id', 'first_name', 'last_name', 'college_code', 'program', 'year_level', 'section', 'status', 'reason']),
+            'rows' => array_map(fn (array $row) => Arr::only($row, ['line', 'school_id', 'first_name', 'last_name', 'college_code', 'record_type', 'position', 'program', 'year_level', 'section', 'status', 'reason']),
                 array_slice($rows, 0, self::PREVIEW_ROWS)),
             'truncated' => count($rows) > self::PREVIEW_ROWS,
         ]);
@@ -109,8 +116,10 @@ class StudentRegistryController extends Controller
                     continue;
                 }
                 $values = [
+                    'record_type' => $row['record_type'],
                     'first_name' => $row['first_name'], 'last_name' => $row['last_name'], 'birth_date' => $row['birth_date'],
-                    'college_id' => $row['college_id'], 'program' => $row['program'], 'year_level' => $row['year_level'],
+                    'college_id' => $row['college_id'], 'program' => $row['program'] ?: null, 'year_level' => $row['year_level'] ?: null,
+                    'position' => $row['position'] ?: null,
                     'section' => $row['section'] !== '' ? $row['section'] : null,
                 ];
                 if ($row['status'] === 'new') {
@@ -189,7 +198,7 @@ class StudentRegistryController extends Controller
             $headers = array_map(fn ($header) => strtolower(trim(str_replace("\xef\xbb\xbf", '', (string) $header))), $headers);
             $required = $actorCollegeId ? self::REQUIRED_HEADERS : [...self::REQUIRED_HEADERS, 'college_code'];
             if (count($headers) !== count(array_unique($headers)) || array_diff($required, $headers) || array_diff($headers, self::REQUIRED_HEADERS, self::OPTIONAL_HEADERS)) {
-                throw ValidationException::withMessages(['file' => ['Columns must be: '.implode(', ', $required).'. Section is optional.']]);
+                throw ValidationException::withMessages(['file' => ['Columns must be: '.implode(', ', $required).'. Optional: program, year_level, section, record_type, position.']]);
             }
             $rows = [];
             $line = 1;
@@ -205,6 +214,7 @@ class StudentRegistryController extends Controller
                 $rows[] = [
                     'line' => $line, 'school_id' => $row['school_id'] ?? '', 'first_name' => $row['first_name'] ?? '',
                     'last_name' => $row['last_name'] ?? '', 'birth_date' => $row['birth_date'] ?? '', 'program' => $row['program'] ?? '',
+                    'record_type' => strtolower($row['record_type'] ?? '') ?: StudentRegistryEntry::STUDENT, 'position' => $row['position'] ?? '',
                     'year_level' => $row['year_level'] ?? '', 'section' => $row['section'] ?? '', 'college_code' => $row['college_code'] ?? '',
                     'college_id' => $actorCollegeId, 'status' => 'invalid',
                     'reason' => $row ? '' : 'Column count does not match the header.',
@@ -214,7 +224,7 @@ class StudentRegistryController extends Controller
             fclose($handle);
         }
         if (! $rows) {
-            throw ValidationException::withMessages(['file' => ['The CSV has no student rows.']]);
+            throw ValidationException::withMessages(['file' => ['The CSV has no rows.']]);
         }
 
         $colleges = College::where('is_active', true)->get()->keyBy(fn ($college) => strtoupper($college->code));
@@ -228,8 +238,19 @@ class StudentRegistryController extends Controller
                 continue;
             }
             $id = $row['school_id'];
+            if (! in_array($row['record_type'], [StudentRegistryEntry::STUDENT, StudentRegistryEntry::EMPLOYEE], true)) {
+                $row['reason'] = 'Record type must be student or employee.';
+
+                continue;
+            }
+            $isEmployee = $row['record_type'] === StudentRegistryEntry::EMPLOYEE;
             if (! ctype_digit((string) $id) || (int) $id < 1 || (int) $id > 99999999) {
                 $row['reason'] = 'School ID must contain 1 to 8 digits.';
+
+                continue;
+            }
+            if ($isEmployee && (int) $id > self::LAST_EMPLOYEE_ID) {
+                $row['reason'] = 'Employee numbers must be below '.(self::LAST_EMPLOYEE_ID + 1).'.';
 
                 continue;
             }
@@ -258,29 +279,37 @@ class StudentRegistryController extends Controller
                 'first_name' => ['required', 'string', 'max:60'],
                 'last_name' => ['required', 'string', 'max:60'],
                 'birth_date' => ['required', 'date_format:Y-m-d', 'after:1920-01-01', 'before:today'],
-                'program' => ['required', 'string', 'max:120'],
+                'program' => [$isEmployee ? 'nullable' : 'required', 'string', 'max:120'],
                 'section' => ['nullable', 'string', 'max:30'],
+                'position' => ['nullable', 'string', 'max:100'],
             ]);
             if ($fields->fails()) {
                 $row['reason'] = $fields->errors()->has('birth_date')
                     ? 'Birth date must be a real date written as YYYY-MM-DD.'
-                    : 'Names, program and section must be filled in and not too long.';
+                    : 'Names, program, section and position must be filled in where needed and not too long.';
 
                 continue;
             }
-            $yearLevel = $this->yearLevel($row['year_level']);
-            if (! $yearLevel) {
-                $row['reason'] = 'Year level must be 1 to 8, for example 3 or 3rd Year.';
+            if ($isEmployee) {
+                $row['program'] = $row['year_level'] = $row['section'] = '';
+            } else {
+                $yearLevel = $this->yearLevel($row['year_level']);
+                if (! $yearLevel) {
+                    $row['reason'] = 'Year level must be 1 to 8, for example 3 or 3rd Year.';
 
-                continue;
+                    continue;
+                }
+                $row['year_level'] = $yearLevel;
+                $row['position'] = '';
             }
-            $row['year_level'] = $yearLevel;
 
             $entry = $existing->get((int) $id);
             if (! $entry) {
                 $row['status'] = 'new';
             } elseif ($actorCollegeId && (int) $entry->college_id !== $actorCollegeId) {
                 $row['reason'] = "That school ID is in another college's records.";
+            } elseif ($entry->record_type !== $row['record_type']) {
+                $row['reason'] = 'That school ID is already in the records as a '.$entry->record_type.'.';
             } elseif ($entry->claimed_at) {
                 $row['status'] = 'claimed';
                 $row['reason'] = 'Already signed up, so it is left as is.';
@@ -299,8 +328,9 @@ class StudentRegistryController extends Controller
     {
         return $entry->first_name === $row['first_name'] && $entry->last_name === $row['last_name']
             && $entry->birth_date->format('Y-m-d') === Carbon::parse($row['birth_date'])->format('Y-m-d')
-            && (int) $entry->college_id === (int) $row['college_id'] && $entry->program === $row['program']
-            && $entry->year_level === $row['year_level'] && (string) $entry->section === $row['section'];
+            && (int) $entry->college_id === (int) $row['college_id'] && (string) $entry->program === $row['program']
+            && (string) $entry->year_level === $row['year_level'] && (string) $entry->section === $row['section']
+            && (string) $entry->position === $row['position'];
     }
 
     private function yearLevel(string $value): ?string

@@ -46,7 +46,51 @@ describe('StudentRecordsPanel', () => {
     expect(screen.getAllByText('Signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Not yet').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 2600101').length).toBeGreaterThan(0);
-    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20 });
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student' });
+  });
+
+  it('switches to the employee records, which show a position instead of a program', async () => {
+    mocks.getStudentRegistry.mockImplementation(({ record_type: type }) => Promise.resolve(type === 'employee'
+      ? list([entry({ id: 9, school_id: 7100101, name: 'Marites Dizon', record_type: 'employee', position: 'Department Secretary', program: null, year_level: null, section: null })])
+      : list([entry()])));
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'employee' } });
+
+    expect((await screen.findAllByText('Marites Dizon')).length).toBeGreaterThan(0);
+    expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'employee', college_id: 4 });
+    expect(screen.getByRole('columnheader', { name: 'Position' })).toBeInTheDocument();
+    expect(screen.getAllByText('Department Secretary').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ID 7100101').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Hannah Reyes')).not.toBeInTheDocument();
+  });
+
+  it('says there are no employee records yet and points at the record_type column', async () => {
+    mocks.getStudentRegistry.mockResolvedValue(list([]));
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findByText('No student records yet');
+
+    fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'employee' } });
+
+    expect(await screen.findByText('No employee records yet')).toBeInTheDocument();
+    expect(screen.getByText(/record_type set to employee/)).toBeInTheDocument();
+  });
+
+  it('shows the position of employee rows in the file check', async () => {
+    mocks.previewStudentRegistry.mockResolvedValue({
+      ...previewResult,
+      rows: [{ line: 2, school_id: '7100101', first_name: 'Marites', last_name: 'Dizon', record_type: 'employee', position: 'Department Secretary', program: '', year_level: '', section: '', status: 'new', reason: '' }],
+      counts: { created: 1, updated: 0, unchanged: 0, claimed: 0, invalid: 0, duplicate: 0 },
+    });
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.change(screen.getByLabelText('CSV file'), { target: { files: [csv()] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
+
+    expect((await screen.findAllByText('Department Secretary')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Line 2, ID 7100101').length).toBeGreaterThan(0);
   });
 
   it('shows a loading state first', () => {
@@ -81,7 +125,7 @@ describe('StudentRecordsPanel', () => {
     mocks.getStudentRegistry.mockResolvedValue(list([], { total: 2, claimed: 1 }));
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'zzz' } });
 
-    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, q: 'zzz' }));
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'student', q: 'zzz' }));
     expect(await screen.findByText('No results')).toBeInTheDocument();
   });
 
@@ -89,7 +133,7 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel collegeId={4} />);
 
     await screen.findAllByText('Hannah Reyes');
-    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, college_id: 4 });
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student', college_id: 4 });
     expect(screen.queryByRole('columnheader', { name: 'College' })).not.toBeInTheDocument();
     expect(screen.getByText(/birth_date, program, year_level/)).toBeInTheDocument();
     expect(screen.queryByText(/college_code/)).not.toBeInTheDocument();

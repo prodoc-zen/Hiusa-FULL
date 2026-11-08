@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -17,12 +18,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Account links for the people who run a college: one Department Head per college
- * and any number of office staff. The link carries no identity. The person opens it
- * and types their own name, email and password, so nobody else types a school ID,
- * a name or a password for them.
+ * and any number of office staff. A plain link carries no identity: the person types their
+ * own name, email and password. A link made from an employee record in the school records
+ * carries that record's number and name instead, and the person only sets email and password,
+ * so nobody types a school ID and nobody can change one.
  */
 class DepartmentHeadInvitationController extends Controller
 {
@@ -88,19 +91,29 @@ class DepartmentHeadInvitationController extends Controller
         abort_if(! $college || ! $college->is_active, 403, 'Your account is not assigned to a college.');
 
         $data = $request->validate([
-            'position_title' => ['required', 'string', 'max:100'],
+            'registry_school_id' => ['nullable', 'integer', 'min:1'],
+            'position_title' => ['required_without:registry_school_id', 'nullable', 'string', 'max:100'],
             'email' => ['nullable', 'email', 'max:100'],
         ]);
 
-        [$invitation, $magicLink] = DB::transaction(fn () => $this->createInvitation(
-            $request,
-            $college,
-            $home,
-            self::STAFF,
-            trim($data['position_title']),
-            'college_staff_invited',
-            "Created an office staff invitation link for {$college->name}.",
-        ));
+        [$invitation, $magicLink] = DB::transaction(function () use ($request, $college, $home, $data) {
+            $record = null;
+            if (! empty($data['registry_school_id'])) {
+                $record = $this->availableEmployeeRecord($college, (int) $data['registry_school_id'], lock: true);
+                DepartmentHeadInvitation::where('registry_school_id', $record->school_id)->whereNull('accepted_at')->delete();
+            }
+
+            return $this->createInvitation(
+                $request,
+                $college,
+                $home,
+                self::STAFF,
+                $record?->position ?: (isset($data['position_title']) ? trim($data['position_title']) : null),
+                'college_staff_invited',
+                "Created an office staff invitation link for {$college->name}.",
+                $record?->school_id,
+            );
+        });
 
         $emailed = $this->sendLink($data['email'] ?? null, $college, 'office staff', $magicLink);
 
@@ -128,11 +141,18 @@ class DepartmentHeadInvitationController extends Controller
             return response()->json(['message' => 'This link has expired. Ask for a new one.'], 410);
         }
 
+        $record = $invitation->registry_school_id ? StudentRegistryEntry::employees()->where('school_id', $invitation->registry_school_id)->first() : null;
+
         return response()->json([
             'invitation' => [
                 'role' => $invitation->role,
                 'position_title' => $invitation->position_title,
                 'expires_at' => $invitation->expires_at,
+                'record' => $record ? [
+                    'school_id' => $record->school_id,
+                    'first_name' => $record->first_name,
+                    'last_name' => $record->last_name,
+                ] : null,
             ],
             'college' => $invitation->college->only(['id', 'name', 'code']),
         ]);
@@ -155,11 +175,12 @@ class DepartmentHeadInvitationController extends Controller
         }
 
         $request->merge(['email' => is_string($request->input('email')) ? Str::lower(trim($request->input('email'))) : $request->input('email')]);
+        $fromRecord = $invitation->registry_school_id !== null;
         $validated = $request->validate([
-            'first_name' => ['required', 'string', 'max:60'],
-            'last_name' => ['required', 'string', 'max:60'],
+            'first_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
+            'last_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'email' => ['required', 'email', 'max:100', 'unique:users,email'],
-            'school_id' => ['nullable', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id'],
+            'school_id' => [$fromRecord ? 'prohibited' : 'nullable', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
@@ -189,7 +210,7 @@ class DepartmentHeadInvitationController extends Controller
         return DepartmentHeadInvitation::where('token_hash', hash('sha256', $token))->with('college')->first();
     }
 
-    private function createInvitation(Request $request, College $college, Organization $home, string $role, ?string $positionTitle, string $action, string $description): array
+    private function createInvitation(Request $request, College $college, Organization $home, string $role, ?string $positionTitle, string $action, string $description, ?int $registrySchoolId = null): array
     {
         $plainToken = Str::random(64);
 
@@ -197,6 +218,7 @@ class DepartmentHeadInvitationController extends Controller
             'college_id' => $college->id,
             'role' => $role,
             'position_title' => $positionTitle,
+            'registry_school_id' => $registrySchoolId,
             'token_hash' => hash('sha256', $plainToken),
             'invited_by' => $request->user()->school_id,
             'expires_at' => now()->addHours(48),
@@ -210,7 +232,7 @@ class DepartmentHeadInvitationController extends Controller
             'action' => $action,
             'record_type' => DepartmentHeadInvitation::class,
             'record_id' => $invitation->id,
-            'new_values' => ['college_id' => $college->id, 'role' => $role, 'position_title' => $positionTitle],
+            'new_values' => ['college_id' => $college->id, 'role' => $role, 'position_title' => $positionTitle, 'registry_school_id' => $registrySchoolId],
             'description' => $description,
             'ip_address' => $request->ip(),
             'created_at' => now(),
@@ -257,11 +279,21 @@ class DepartmentHeadInvitationController extends Controller
         $role = $isHead ? 'DEPARTMENT_HEAD' : 'ADMIN';
         $positionTitle = $isHead ? null : ($invitation->position_title ?: 'College Secretary');
 
+        if ($invitation->registry_school_id !== null) {
+            $record = $this->availableEmployeeRecord($college, $invitation->registry_school_id, lock: true);
+            $record->update(['claimed_at' => now()]);
+            $identity = ['school_id' => $record->school_id, 'first_name' => $record->first_name, 'last_name' => $record->last_name];
+        } else {
+            $identity = [
+                'school_id' => ! empty($validated['school_id']) ? (int) $validated['school_id'] : $this->nextInternalId(),
+                'first_name' => trim($validated['first_name']),
+                'last_name' => trim($validated['last_name']),
+            ];
+        }
+
         $user = User::create([
-            'school_id' => ! empty($validated['school_id']) ? (int) $validated['school_id'] : $this->nextInternalId(),
+            ...$identity,
             'organization_id' => $home->id,
-            'first_name' => trim($validated['first_name']),
-            'last_name' => trim($validated['last_name']),
             'email' => $validated['email'],
             'password_hash' => Hash::make($validated['password']),
             'role' => $role,
@@ -294,6 +326,19 @@ class DepartmentHeadInvitationController extends Controller
         ]);
 
         return $user;
+    }
+
+    /** An employee record of this college that nobody has used yet, locked so two links cannot claim it at once. */
+    private function availableEmployeeRecord(College $college, int $schoolId, bool $lock = false): StudentRegistryEntry
+    {
+        $query = StudentRegistryEntry::employees()->where('school_id', $schoolId)->where('college_id', $college->id)->whereNull('claimed_at');
+        $record = ($lock ? $query->lockForUpdate() : $query)->first();
+
+        if (! $record || User::whereKey($schoolId)->exists()) {
+            throw ValidationException::withMessages(['registry_school_id' => ['That person is not in the school records of your college, or already has an account.']]);
+        }
+
+        return $record;
     }
 
     /** users.school_id is the primary key, so a person with no student or employee number still needs one. Internal numbers start high so they never meet real ones. */

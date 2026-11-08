@@ -24,10 +24,10 @@ function headline(invitation, college) {
   return `You're invited to lead ${college}`;
 }
 
-function validate(values) {
+function validate(values, fromRecord) {
   const found = {};
-  if (!values.first_name.trim()) found.first_name = 'Enter your first name.';
-  if (!values.last_name.trim()) found.last_name = 'Enter your last name.';
+  if (!fromRecord && !values.first_name.trim()) found.first_name = 'Enter your first name.';
+  if (!fromRecord && !values.last_name.trim()) found.last_name = 'Enter your last name.';
   const email = values.email.trim();
   if (!email) found.email = 'Enter your email.';
   else if (!EMAIL_PATTERN.test(email)) found.email = 'That email does not look right.';
@@ -89,7 +89,7 @@ export default function AcceptInvitationPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const found = validate(values);
+    const found = validate(values, Boolean(record));
     setErrors(found);
     setFormError('');
     if (Object.keys(found).length) return;
@@ -98,8 +98,7 @@ export default function AcceptInvitationPage() {
     const email = values.email.trim().toLowerCase();
     try {
       const body = {
-        first_name: values.first_name.trim(),
-        last_name: values.last_name.trim(),
+        ...(!record && { first_name: values.first_name.trim(), last_name: values.last_name.trim() }),
         email,
         password: values.password,
         password_confirmation: values.password_confirmation,
@@ -130,6 +129,7 @@ export default function AcceptInvitationPage() {
     }
   }
 
+  const record = invite?.invitation?.record || null;
   const college = invite?.college?.name ? formatDisplayText(invite.college.name) : 'your college';
 
   return (
@@ -152,12 +152,21 @@ export default function AcceptInvitationPage() {
           <h1 className="text-[26px] font-extrabold leading-tight text-ink">{headline(invite.invitation, college)}</h1>
           <p className="mt-1.5 text-sm font-medium text-ink-muted">
             {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? `Your role: ${invite.invitation.position_title}. ` : ''}
-            Fill in your details to create your account. You will sign in with your email.
+            {record ? 'Your name and ID number come from the school records. Choose your email and password to create your account.' : 'Fill in your details to create your account.'} You will sign in with your email.
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-            <AuthField label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
-            <AuthField label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
+            {record ? (
+              <>
+                <AuthField label="Name" value={`${record.first_name} ${record.last_name}`} readOnly />
+                <AuthField label="ID number" value={String(record.school_id)} readOnly hint="Given by the school. It cannot be changed." />
+              </>
+            ) : (
+              <>
+                <AuthField label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
+                <AuthField label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
+              </>
+            )}
             <AuthField label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
             <PasswordField label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
             <PasswordField label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />

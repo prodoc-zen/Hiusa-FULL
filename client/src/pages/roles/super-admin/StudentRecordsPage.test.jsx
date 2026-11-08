@@ -22,7 +22,7 @@ describe('StudentRecordsPage', () => {
     render(<MemoryRouter initialEntries={['/dashboard/super-admin/student-records']}><StudentRecordsPage /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Student records' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Upload student records' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Upload school records' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Student records' })).toBeInTheDocument();
     expect(await screen.findByText('No student records yet')).toBeInTheDocument();
   });

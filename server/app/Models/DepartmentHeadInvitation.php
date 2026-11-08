@@ -16,6 +16,7 @@ class DepartmentHeadInvitation extends Model
         'last_name',
         'email',
         'school_id',
+        'registry_school_id',
         'token_hash',
         'invited_by',
         'expires_at',
@@ -26,6 +27,7 @@ class DepartmentHeadInvitation extends Model
         'expires_at' => 'datetime',
         'accepted_at' => 'datetime',
         'school_id' => 'integer',
+        'registry_school_id' => 'integer',
         'college_id' => 'integer',
         'invited_by' => 'integer',
     ];
