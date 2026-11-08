@@ -129,7 +129,7 @@ Fingerprint verification attempts and tokens used for check-in.
 
 ### colleges
 
-The fixed list of colleges.
+The colleges. `CollegeSeeder` gives the starting list. The SAO can add a college, delete one that is empty (no student organizations, no accounts, no live dean or staff link, no application and no school record) and archive or restore any other one (`is_active`).
 
 | Column | Type | Null | Key | References | Default |
 |---|---|---|---|---|---|
