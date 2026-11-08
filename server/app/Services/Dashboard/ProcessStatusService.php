@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * "Where am I in the flow": the handful of steps that take each role from an empty system to a working one.
  * A step is done from real records, never from clicks, and the first step that is not done is the current one.
+ * Done and current steps carry the page they belong to; a step still to do carries none.
  * Every action path is gated through the role's client route allowlist, like the dashboard briefing.
  */
 class ProcessStatusService
@@ -55,7 +56,8 @@ class ProcessStatusService
                     $step[$field] = $definition[$field];
                 }
             }
-            if ($state === 'current' && isset($definition['action'])) {
+            // A step still to do links nowhere; one already visited links to the page where it was done, when this role has such a page.
+            if ($state !== 'todo' && isset($definition['action'])) {
                 $path = $this->actionPath($role, $definition['action'][1], $definition['action'][2] ?? []);
                 if ($path !== null) {
                     $step['action'] = ['label' => $definition['action'][0], 'path' => $path];
@@ -257,6 +259,9 @@ class ProcessStatusService
             if ($index === $current) {
                 $definition['note'] = $note;
                 $definition['action'] = $action;
+            }
+            if ($index >= 1 && $index < $current && $application) {
+                $definition['action'] = ['Open your application', '/dashboard/student/organization-applications/:applicationId', ['applicationId' => $application->id]];
             }
             $definitions[] = array_filter($definition, fn ($value) => $value !== null);
         }

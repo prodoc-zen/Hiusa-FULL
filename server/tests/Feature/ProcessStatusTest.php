@@ -453,6 +453,65 @@ class ProcessStatusTest extends TestCase
         $this->assertTrue($payload['complete']);
     }
 
+    public function test_done_steps_carry_the_page_where_they_were_done_and_steps_still_to_do_do_not(): void
+    {
+        $dean = User::factory()->departmentHead()->create(['organization_id' => $this->computingHome->id]);
+        User::factory()->admin()->create(['organization_id' => $this->computingHome->id]);
+        $this->record($this->computing, 2600001);
+
+        $payload = $this->statusOf($dean)->assertOk()->json();
+        $steps = $this->steps($payload);
+
+        $this->assertSame(['done', 'done', 'current', 'todo', 'todo'], array_column($payload['steps'], 'state'));
+        $this->assertSame('/dashboard/department-head/people', $steps['staff-added']['action']['path']);
+        $this->assertSame('/dashboard/department-head/people', $steps['records-loaded']['action']['path']);
+        $this->assertSame('/dashboard/department-head/organizations', $steps['students-allowed']['action']['path']);
+        $this->assertArrayNotHasKey('action', $steps['applications-reviewed']);
+        $this->assertArrayNotHasKey('action', $steps['organizations-active']);
+    }
+
+    public function test_a_done_step_with_no_page_for_this_role_has_no_action(): void
+    {
+        $admin = User::factory()->admin()->create(['organization_id' => $this->studentOrganization($this->computing)->id]);
+
+        $steps = $this->steps($this->statusOf($admin)->assertOk()->json());
+
+        $this->assertSame('done', $steps['organization-approved']['state']);
+        $this->assertArrayNotHasKey('action', $steps['organization-approved']);
+    }
+
+    public function test_student_steps_already_done_link_to_their_own_application(): void
+    {
+        $student = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        $application = $this->application($this->computing, $student, 'pending_sao', ['endorsed_at' => now()]);
+
+        $payload = $this->statusOf($student)->assertOk()->json();
+
+        $this->assertSame(['done', 'done', 'done', 'current', 'todo'], array_column($payload['steps'], 'state'));
+        $this->assertArrayNotHasKey('action', $payload['steps'][0]);
+        $this->assertSame("/dashboard/student/organization-applications/{$application->id}", $payload['steps'][1]['action']['path']);
+        $this->assertSame("/dashboard/student/organization-applications/{$application->id}", $payload['steps'][2]['action']['path']);
+        $this->assertArrayNotHasKey('action', $payload['steps'][4]);
+    }
+
+    public function test_sao_done_steps_link_where_they_were_done_for_each_college(): void
+    {
+        DepartmentHeadInvitation::create([
+            'college_id' => $this->arts->id, 'role' => 'DEPARTMENT_HEAD', 'token_hash' => hash('sha256', 'arts'),
+            'invited_by' => $this->sao->school_id, 'expires_at' => now()->addDays(3),
+        ]);
+        User::factory()->departmentHead()->create(['organization_id' => $this->computingHome->id]);
+
+        $payload = $this->statusOf($this->sao)->assertOk()->json();
+        $arts = collect($payload['colleges'])->keyBy('name')['College of Arts'];
+        $computing = collect($payload['colleges'])->keyBy('name')['College of Computing'];
+
+        $this->assertSame('done', $this->steps($arts)['dean-invited']['state']);
+        $this->assertSame('/dashboard/super-admin/colleges', $this->steps($arts)['dean-invited']['action']['path']);
+        $this->assertSame('/dashboard/super-admin/colleges', $this->steps($computing)['dean-active']['action']['path']);
+        $this->assertArrayNotHasKey('action', $this->steps($computing)['organizations-active']);
+    }
+
     public function test_student_sees_who_returned_the_application_and_a_rejection_where_it_stopped(): void
     {
         $student = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);

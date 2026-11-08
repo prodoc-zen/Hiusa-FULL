@@ -141,6 +141,8 @@ class DepartmentHeadInvitationController extends Controller
             return response()->json(['message' => 'This link has expired. Ask for a new one.'], 410);
         }
 
+        $inviter = $invitation->inviter;
+
         $record = $invitation->registry_school_id ? StudentRegistryEntry::employees()->where('school_id', $invitation->registry_school_id)->first() : null;
 
         return response()->json([
@@ -148,6 +150,8 @@ class DepartmentHeadInvitationController extends Controller
                 'role' => $invitation->role,
                 'position_title' => $invitation->position_title,
                 'expires_at' => $invitation->expires_at,
+                // The name only: the page says who invited you, and the link holder gets no email or ID.
+                'inviter' => $inviter ? ['name' => trim("{$inviter->first_name} {$inviter->last_name}")] : null,
                 'record' => $record ? [
                     'school_id' => $record->school_id,
                     'first_name' => $record->first_name,

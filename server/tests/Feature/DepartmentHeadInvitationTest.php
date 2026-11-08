@@ -172,6 +172,18 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->assertArrayNotHasKey('first_name', $response->json('invitation'));
     }
 
+    public function test_show_names_who_invited_you_and_nothing_else_about_them(): void
+    {
+        $token = $this->makeLink();
+
+        $response = $this->getJson("/api/department-head-invitations/{$token}");
+
+        $response->assertOk();
+        $this->assertSame(['name' => 'SAO Director'], $response->json('invitation.inviter'));
+        $this->assertStringNotContainsString('sao@example.edu', $response->getContent());
+        $this->assertStringNotContainsString('10000001', $response->getContent());
+    }
+
     public function test_unknown_token_is_not_found(): void
     {
         $this->getJson('/api/department-head-invitations/'.Str::random(64))->assertNotFound();
