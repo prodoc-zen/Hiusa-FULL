@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import EventsPage from './EventsPage';
+import { searchPeople } from '../../../services/peopleService';
+
+vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
 
 const eventMocks = vi.hoisted(() => ({
   getEvents: vi.fn(),
@@ -193,6 +196,27 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByText('Attendance log')).toBeInTheDocument();
     expect(screen.getByText('24%')).toBeInTheDocument();
     expect(eventMocks.getAttendance).toHaveBeenCalledWith(21, { page: 1, per_page: 10 });
+  });
+
+  it('checks a member in by finding their name, never by typing a school ID', async () => {
+    const event = { id: 22, title: 'Orientation', status: 'ongoing', organization_id: 5, start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'Gym', planning_details: {} };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+    eventMocks.recordAttendance.mockResolvedValue({ data: {} });
+    vi.mocked(searchPeople).mockResolvedValue([{ school_id: 2400055, name: 'Ana Reyes', email: 'ana@example.edu', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Orientation' }));
+    await screen.findByText('Manual check-in');
+    expect(screen.queryByPlaceholderText(/school id/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'ana' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Ana Reyes/ }));
+    expect(searchPeople).toHaveBeenCalledWith({ q: 'ana', organization_id: 5 });
+    fireEvent.click(screen.getByRole('button', { name: /Confirm Check-In/i }));
+
+    await waitFor(() => expect(eventMocks.recordAttendance).toHaveBeenCalledWith(22, { user_id: 2400055, method: 'manual', status: 'present' }));
+    expect(await screen.findByText('Check-in recorded.')).toBeInTheDocument();
   });
 
   it('requires operator confirmation and sends optional academic fingerprint filters', async () => {
