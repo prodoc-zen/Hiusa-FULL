@@ -166,7 +166,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::delete('/system/organizations/{organization}', [OrganizationLifecycleController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/logo', [SystemAdministrationController::class, 'uploadOrganizationLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::get('/system/colleges', [CollegeController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/system/colleges', [CollegeController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/colleges/{college}', [CollegeController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/system/colleges/{college}', [CollegeController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/archive', [CollegeController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/restore', [CollegeController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);

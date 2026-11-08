@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\College;
+use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class CollegeController extends Controller
@@ -20,14 +24,112 @@ class CollegeController extends Controller
             ->with('homeOrganization:id,college_id,is_active')
             ->orderBy('name')
             ->get();
+        $inUse = $this->collegesInUse($colleges);
 
         return response()->json(
-            $colleges->each(function (College $college) use ($heads) {
+            $colleges->each(function (College $college) use ($heads, $inUse) {
                 $college->setAttribute('home_organization_id', $college->homeOrganization?->id);
                 $college->unsetRelation('homeOrganization');
                 $college->setAttribute('department_head', $heads[$college->id] ?? null);
+                $college->setAttribute('can_delete', ! $inUse->has($college->id));
             })
         );
+    }
+
+    public function store(Request $request)
+    {
+        $request->merge([
+            'name' => is_string($request->input('name')) ? trim($request->input('name')) : $request->input('name'),
+            'code' => is_string($request->input('code')) ? (trim($request->input('code')) ?: null) : $request->input('code'),
+            'color' => is_string($request->input('color')) ? (trim($request->input('color')) ?: null) : $request->input('color'),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')],
+            'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'description' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        $college = DB::transaction(function () use ($request, $data) {
+            $college = College::create([...$data, 'is_active' => true]);
+            $name = $college->name;
+            for ($suffix = 2; Organization::where('name', $name)->exists(); $suffix++) {
+                $tail = ' (College'.($suffix > 2 ? ' '.$suffix : '').')';
+                $name = mb_substr($college->name, 0, 255 - mb_strlen($tail)).$tail;
+            }
+            $base = rtrim(mb_substr(Str::slug($name), 0, 240), '-') ?: 'college';
+            $slug = $base;
+            for ($suffix = 2; Organization::where('slug', $slug)->exists(); $suffix++) {
+                $slug = $base.'-'.$suffix;
+            }
+            $home = Organization::create([
+                'name' => $name,
+                'slug' => $slug,
+                'college' => $college->name,
+                'college_id' => $college->id,
+                'acronym' => $college->code,
+                'organization_type' => 'COLLEGE',
+                'is_active' => true,
+                'lifecycle_status' => 'active',
+            ]);
+            $this->audit($request, $college, 'created');
+
+            return $college->setAttribute('home_organization_id', $home->id)->setAttribute('can_delete', true);
+        });
+
+        return response()->json($college, 201);
+    }
+
+    /**
+     * Only a college with nothing in it can go. The college row is removed for good, not soft deleted,
+     * because colleges.name and colleges.code are unique and a tombstone would block adding the same
+     * college again after a mistake. The audit row keeps a snapshot.
+     */
+    public function destroy(Request $request, College $college)
+    {
+        try {
+            DB::transaction(function () use ($request, $college) {
+                $college = College::whereKey($college->id)->lockForUpdate()->firstOrFail();
+                abort_if($this->collegesInUse(collect([$college]))->has($college->id), 409, 'This college still has organizations or people. Archive it instead.');
+                Organization::where('organization_type', 'COLLEGE')
+                    ->where(fn ($query) => $query->where('college_id', $college->id)->orWhere('college', $college->name))
+                    ->delete();
+                $this->audit($request, $college, 'deleted');
+                $college->forceDelete();
+            });
+        } catch (QueryException) {
+            abort(409, 'This college still has organizations or people. Archive it instead.');
+        }
+
+        return response()->noContent();
+    }
+
+    /** College ids (as keys) that hold student organizations, any account, a pending dean or staff link, an application or a student record. */
+    private function collegesInUse(Collection $colleges): Collection
+    {
+        if ($colleges->isEmpty()) {
+            return collect();
+        }
+        $ids = $colleges->pluck('id');
+        $idByName = $colleges->pluck('id', 'name');
+        $organizations = Organization::whereIn('college_id', $ids)->orWhereIn('college', $colleges->pluck('name'))
+            ->get(['id', 'college_id', 'college', 'organization_type']);
+        $collegeOf = fn ($organization) => $organization->college_id ?? $idByName[$organization->college] ?? null;
+        $collegeByOrganization = $organizations->mapWithKeys(fn ($organization) => [$organization->id => $collegeOf($organization)]);
+        $organizationIds = $organizations->pluck('id');
+        $people = DB::table('users')->select('organization_id')->whereIn('organization_id', $organizationIds)
+            ->unionAll(DB::table('account_profiles')->select('organization_id')->whereIn('organization_id', $organizationIds))
+            ->pluck('organization_id');
+        $records = DB::table('department_head_invitations')->select('college_id')->whereIn('college_id', $ids)
+            ->whereNull('accepted_at')->where('expires_at', '>', now())
+            ->unionAll(DB::table('organization_applications')->select('college_id')->whereIn('college_id', $ids))
+            ->unionAll(DB::table('student_registry')->select('college_id')->whereIn('college_id', $ids))
+            ->pluck('college_id');
+
+        return $organizations->toBase()->where('organization_type', '!=', 'COLLEGE')->map($collegeOf)
+            ->merge($people->map(fn ($id) => $collegeByOrganization[$id]))
+            ->merge($records)
+            ->filter()->unique()->flip();
     }
 
     public function update(Request $request, College $college)
