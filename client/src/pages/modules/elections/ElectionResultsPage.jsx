@@ -5,11 +5,17 @@ import { Award, BarChart3, Trophy, UsersRound, Vote } from 'lucide-react';
 import { getElectionResults, getElections } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { canViewElectionResults } from '../../../utils/electionAccess';
+import StatusBadge from '../../../components/ui/StatusBadge';
 
 function CandidatePortrait({ candidate, name, className = 'h-12 w-12' }) {
   if (candidate.image_url) return <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className={`${className} shrink-0 rounded-lg border border-[#DDE7EF] object-cover`} />;
   const initials = name.split(' ').map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
   return <div className={`${className} grid shrink-0 place-items-center rounded-lg bg-[#0F2F62] text-sm font-black text-white`}>{initials}</div>;
+}
+
+function isWinnerOf(result, candidate) {
+  if (Array.isArray(result.winner_ids)) return result.winner_ids.includes(candidate.id);
+  return (result.candidates || []).indexOf(candidate) < Number(result.position.max_winners || 1) && candidate.votes > 0;
 }
 
 export default function ElectionResultsPage() {
@@ -50,7 +56,9 @@ export default function ElectionResultsPage() {
       candidates,
       selections: results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0),
       voters: Number(election?.voters_count || 0),
-      winners: isFinal ? results.flatMap((result) => (result.candidates || []).slice(0, Number(result.position.max_winners || 1)).filter((candidate) => candidate.votes > 0).map((candidate) => ({ ...candidate, position: result.position.title }))) : [],
+      winners: isFinal ? results.flatMap((result) => (result.candidates || []).filter((candidate) => isWinnerOf(result, candidate)).map((candidate) => ({ ...candidate, position: result.position.title }))) : [],
+      handedOver: results.some((result) => result.access_handed_over),
+      ties: results.filter((result) => result.tie),
     };
   }, [results, isFinal, election?.voters_count]);
 
@@ -81,6 +89,13 @@ export default function ElectionResultsPage() {
         </div>
       </section>
 
+      {isFinal && (summary.handedOver || summary.ties.length > 0) && (
+        <section aria-label="Officer access" className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
+          {summary.handedOver && <div className="flex flex-wrap items-center gap-2"><StatusBadge status="access_handed_over" /><p className="text-sm text-[#64748B]">Winners now have access to the organization in their positions. Officers they replaced no longer do.</p></div>}
+          {summary.ties.map((result) => <div key={result.position.id} className="flex flex-wrap items-center gap-2"><StatusBadge status="tie" /><p className="text-sm text-[#64748B]">{formatDisplayText(result.position.title)} is tied. Give access to the person you choose from People and access.</p></div>)}
+        </section>
+      )}
+
       {summary.winners.length > 0 && (
         <section>
           <div className="mb-3 flex items-center gap-2"><Trophy size={18} className="text-amber-500" /><h2 className="text-lg font-black text-[#0F172A]">Winner spotlight</h2></div>
@@ -94,14 +109,14 @@ export default function ElectionResultsPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        {positionResults.map(({ position, candidates, totalVotes }) => (
+        {positionResults.map((result) => { const { position, candidates, totalVotes } = result; return (
           <article key={position.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <header className="flex items-start justify-between gap-3 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Ballot position</p><h2 className="mt-1 text-lg font-black text-[#0F172A]">{formatDisplayText(position.title)}</h2></div><div className="text-right"><p className="text-lg font-black text-[#0F172A]">{totalVotes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes cast</p></div></header>
+            <header className="flex items-start justify-between gap-3 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Ballot position</p><h2 className="mt-1 text-lg font-black text-[#0F172A]">{formatDisplayText(position.title)}</h2>{isFinal && result.tie && <div className="mt-2"><StatusBadge status="tie" /></div>}</div><div className="text-right"><p className="text-lg font-black text-[#0F172A]">{totalVotes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes cast</p></div></header>
             {candidates.length > 1 && <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-[#DDE7EF] bg-[#EEF6FB] p-4 text-center">{candidates.slice(0, 2).map((candidate, index) => <div key={candidate.id} className={index === 1 ? 'order-3' : ''}><CandidatePortrait candidate={candidate} name={candidate.name} className="mx-auto h-14 w-14" /><p className="mt-2 truncate text-xs font-bold text-[#0F172A]">{formatDisplayText(candidate.name)}</p><p className="text-xs font-semibold text-[#0878B7]">{totalVotes ? Math.round(candidate.votes / totalVotes * 100) : 0}% · {candidate.votes} votes</p></div>)}<span className="order-2 rounded-full border border-[#DDE7EF] bg-white px-2 py-1 text-xs font-black text-[#0F2F62]">VS</span></div>}
             <div className="divide-y divide-[#DDE7EF]">
-              {candidates.map((candidate, index) => {
+              {candidates.map((candidate) => {
                 const percentage = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
-                const isWinner = isFinal && index < position.max_winners && candidate.votes > 0;
+                const isWinner = isFinal && isWinnerOf(result, candidate);
                 return (
                   <div key={candidate.id} className={`p-4 ${isWinner ? 'bg-[#F8FBFD]' : ''}`}>
                     <div className="flex items-center gap-3"><CandidatePortrait candidate={candidate} name={candidate.name} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-black text-[#0F172A]">{formatDisplayText(candidate.name)}</h3>{isWinner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800"><Trophy size={9} /> WINNER</span>}</div><p className="mt-0.5 truncate text-xs font-semibold text-[#64748B]">{candidate.partylist}</p></div><div className="shrink-0 text-right"><p className="text-lg font-black tabular-nums text-[#0F172A]">{candidate.votes}</p><p className="text-[11px] font-bold text-[#64748B]">{percentage}%</p></div></div>
@@ -112,7 +127,7 @@ export default function ElectionResultsPage() {
               {candidates.length === 0 && <div className="p-8 text-center text-sm text-[#64748B]">No candidate result data is available.</div>}
             </div>
           </article>
-        ))}
+        ); })}
       </section>
       {positionResults.length === 0 && <div className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-8 text-center text-sm font-medium text-[#64748B]">No result data is available for this position.</div>}
     </div>

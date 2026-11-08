@@ -11,6 +11,7 @@ use App\Models\ElectionPosition;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
+use App\Services\ElectionHandoverService;
 use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -391,6 +392,10 @@ class ElectionController extends Controller
             $oldValues,
             $this->auditableElectionValues($freshElection)
         );
+
+        if (app(ElectionHandoverService::class)->handOver($freshElection, $request->user()->school_id, $request->ip())) {
+            $freshElection = $election->fresh();
+        }
 
         return response()->json($this->withApprovalFields($request, [$freshElection->toArray()])[0]);
     }
@@ -1248,7 +1253,10 @@ class ElectionController extends Controller
             ->get()
             ->groupBy('position_id');
 
-        $results = $positions->map(function ($position) use ($allCandidates) {
+        $standings = app(ElectionHandoverService::class)->standings($election)->keyBy(fn (array $row) => $row['position']->id);
+        $handedOver = $election->access_handed_over_at !== null;
+
+        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver) {
             $candidates = $allCandidates->get($position->id, collect())
                 ->map(fn ($c) => [
                     'id' => $c->id,
@@ -1261,10 +1269,15 @@ class ElectionController extends Controller
                 ->sortByDesc('votes')
                 ->values();
 
+            $standing = $standings->get($position->id);
+
             return [
                 'position' => $position,
                 'candidates' => $candidates,
                 'totalVotes' => $candidates->sum('votes'),
+                'winner_ids' => $standing ? $standing['winners']->pluck('id')->values() : [],
+                'tie' => (bool) ($standing['tie'] ?? false),
+                'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty(),
             ];
         })->values();
 
