@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { SAO, PSITS_ADMIN, HEAD_CCS, STUDENT, apiAs, liveEnabled, pdfFile, shot, uiLogin } from '../support/live.js';
+import { allowToApply, endorse, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym, uniqueName } from '../support/pipeline.js';
 
 // UX_FLOW section 9, SUPER_ADMIN journeys. Every journey starts at the SAO home after a real sign-in,
 // counts mouse and tap actions only (typing is free), and ends on an assertion about what is visible.
@@ -92,50 +93,15 @@ function finish(info, width, journeyId, ceiling, clicks) {
 
 // ---------------------------------------------------------------- seeding through the API
 
-async function ensureActiveSemester() {
-  const sao = await apiAs(SAO);
-  const years = await sao.get('/system/academic-years');
-  const year = years.body.find((candidate) => candidate.is_current) || years.body[0];
-  const active = await sao.get('/academic-periods/active');
-  if (!active.body?.id) {
-    let semester = year.semesters.find((candidate) => candidate.status === 'active');
-    if (!semester) {
-      semester = year.semesters[0];
-      if (!semester) {
-        const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
-        expect(created.status, `semester created: ${JSON.stringify(created.body).slice(0, 200)}`).toBe(201);
-        semester = created.body;
-      }
-      const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
-      expect(activated.status, `semester activated: ${JSON.stringify(activated.body).slice(0, 200)}`).toBe(200);
-    }
-  }
-  const requirements = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
-  for (const type of (requirements.body?.data ?? [])) {
-    if (!type.is_active) {
-      await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, template_url: 'https://example.edu/format.pdf' });
-    }
-  }
+// A student of the college applies and the Department Head endorses, so the application waits for the SAO.
+async function seedEndorsedApplication() {
+  const student = await newStudent('Sao');
+  await allowToApply(student);
+  const application = await submitApplication(student, { name: uniqueName('Journey Club'), acronym: uniqueAcronym('JC') });
+  await endorse(application);
+  return application;
 }
 
-// A Department Head registers a new student organization with every file the open semester requires.
-async function registerOrganization(seed) {
-  const head = await apiAs(HEAD_CCS);
-  const requirements = await head.get('/college/organizations/requirements');
-  expect(requirements.body.requirements.length, 'registration requirements are open').toBeGreaterThan(0);
-  const form = new FormData();
-  const name = `Journey Club ${seed}`;
-  form.append('name', name);
-  form.append('acronym', `JC${seed}`.toUpperCase());
-  form.append('description', 'Registered by the SAO acceptance journey.');
-  for (const requirement of requirements.body.requirements) {
-    const file = pdfFile(`${requirement.name}.pdf`, requirement.name);
-    form.append(`files[${requirement.id}]`, new Blob([file.buffer], { type: file.mimeType }), file.name);
-  }
-  const created = await head.post('/college/organizations', form);
-  expect(created.status, `registration filed: ${JSON.stringify(created.body).slice(0, 300)}`).toBe(201);
-  return { id: created.body.id, name, submittedAt: created.body.submitted_at };
-}
 
 // The organization Admin generates a financial report and files it, the Department Head clears the first
 // stage, so it reaches the SAO as a request waiting for the final approval.
@@ -199,7 +165,7 @@ async function signedInContext(browser, account, width, height) {
 }
 
 test.beforeAll(async () => {
-  await ensureActiveSemester();
+  await ensureOpenSemester();
 });
 
 for (const { width, height } of WIDTHS) {
@@ -208,68 +174,51 @@ for (const { width, height } of WIDTHS) {
     test.describe.configure({ timeout: 240_000 });
     test.use({ actionTimeout: 20_000 });
 
-    test('1. Approve a registration and give it an administrator (ceiling 5)', async ({ page, browser }, info) => {
-      const ceiling = 5;
-      const seed = nextSeed();
-      const organization = await registerOrganization(seed);
-      const namePattern = new RegExp(escapeRegExp(organization.name), 'i');
+    test('1. Approve an application (ceiling 4)', async ({ page, browser }, info) => {
+      const ceiling = 4;
+      const application = await seedEndorsedApplication();
+      const namePattern = new RegExp(escapeRegExp(application.name), 'i');
       const counter = tracker();
       const { tap } = counter;
-      const adminId = 9000000 + Math.floor(Math.random() * 900000);
       let clicks = 0;
       try {
         await signInAsSao(page);
 
-        await tap(page.getByRole('link', { name: /registrations awaiting review/i }));
-        const card = page.locator('tr, article, li').filter({ hasText: namePattern });
-        await expect(card).toBeVisible({ timeout: 20000 });
+        await chooseFromMenu(page, tap, width, 'Governance', 'Applications');
+        await tap(page.getByRole('button', { name: `Open application of ${application.name}`, exact: true }));
+        const drawer = page.getByRole('dialog', { name: application.name });
+        await expect(drawer).toBeVisible({ timeout: 20000 });
+        await expect(drawer.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled({ timeout: 20000 });
 
-        await tap(card.getByRole('button', { name: /^Review / }));
-        const drawer = page.getByRole('dialog', { name: 'Review registration' });
-        await expect(drawer).toBeVisible();
-        await expect(drawer.getByRole('button', { name: 'Approve' })).toBeEnabled({ timeout: 20000 });
-
-        await tap(drawer.getByRole('button', { name: 'Approve' }));
-        await expect(drawer.getByText('Add the first Admin account')).toBeVisible({ timeout: 20000 });
-
-        await tap(drawer.getByRole('link', { name: 'Add Admin account' }));
-        const form = page.getByRole('dialog', { name: 'Create administrator' });
-        await expect(form).toBeVisible({ timeout: 20000 });
-        await form.getByLabel(/School ID/).fill(String(adminId));
-        await form.getByLabel(/First name/).fill('Journey');
-        await form.getByLabel(/Last name/).fill(`Admin ${seed}`);
-        await form.getByLabel(/Email address/).fill(`journey.${seed}@example.test`);
-        await form.getByLabel(/^Password/).fill('Journey@12345');
-        await form.getByLabel(/Confirm password/).fill('Journey@12345');
-
-        await tap(form.getByRole('button', { name: 'Create Admin User' }));
+        await tap(drawer.getByRole('button', { name: 'Approve', exact: true }));
         clicks = counter.clicks;
 
-        await expect(page.getByText('New Admin user created with the password set by SAO.')).toBeVisible({ timeout: 20000 });
-        await expect(page.getByText(`Journey Admin ${seed}`, { exact: false }).first()).toBeVisible();
+        await expect(page.getByText('Approved. The organization now exists.')).toBeVisible({ timeout: 20000 });
         expect.soft(clicks, `clicks used (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling);
         await endState(page, width, 'sao-j1');
 
-        // The organization is now Active with one administrator, and its Department Head sees it say so.
+        // The organization exists and is active, with no password or administrator account to set up.
         await page.goto('/dashboard/super-admin/organizations?status=active');
         const activeCard = page.locator('tr, article, li').filter({ hasText: namePattern });
-        await expect(activeCard).toBeVisible({ timeout: 20000 });
-        await expect(activeCard).toContainText(/1 admins/);
-        await expect(activeCard.getByText(/Active/).first()).toBeVisible();
+        await expect(activeCard.first()).toBeVisible({ timeout: 20000 });
+        await expect(activeCard.first().getByText(/Active/).first()).toBeVisible();
+
+        // The applicant is told, and the Department Head sees the organization in the college.
+        const applicant = await signedInContext(browser, application.student, width, height);
+        await applicant.page.goto(`/dashboard/student/organization-applications/${application.id}`);
+        await expect(applicant.page.getByText(new RegExp(`Approved\\. You are now President of ${escapeRegExp(application.name)}`))).toBeVisible({ timeout: 20000 });
+        await applicant.context.close();
 
         const head = await signedInContext(browser, HEAD_CCS, width, height);
         await head.page.goto('/dashboard/department-head/organizations');
         const headRow = onScreen(head.page.locator('article, tr, li').filter({ hasText: namePattern }));
-        await expect(headRow).toContainText(/Administrator can sign in/i, { timeout: 20000 });
+        await expect(headRow).toContainText(/Active/, { timeout: 20000 });
         await head.context.close();
       } finally {
-        try {
-          const sao = await apiAs(SAO);
-          await sao.patch(`/system/organizations/${organization.id}/review`, { decision: 'approve', submitted_at: organization.submittedAt }).catch(() => {});
-        } catch {}
         finish(info, width, 'sao-j1', ceiling, clicks || counter.clicks);
       }
     });
+
 
     test('2. Review compliance (ceiling 4)', async ({ page }, info) => {
       const ceiling = 4;
@@ -329,7 +278,7 @@ for (const { width, height } of WIDTHS) {
         await signInAsSao(page);
 
         await tap(page.getByRole('link', { name: /financial reports to approve/i }));
-        const panel = page.getByRole('tabpanel', { name: 'Financial reports' });
+        const panel = page.getByRole('tabpanel', { name: /Financial Report/i });
         await expect(panel).toBeVisible({ timeout: 20000 });
         const orgFolder = panel.locator('tr, article, li').filter({ hasText: /PSITS|Information Technology Students/i }).getByRole('button').first();
         await orgFolder.waitFor({ state: 'visible', timeout: 10000 }).then(() => orgFolder.click()).catch(() => {});
@@ -360,11 +309,8 @@ for (const { width, height } of WIDTHS) {
       }
     });
 
-    test('4. See who needs attention (ceiling 2)', async ({ page }, info) => {
+    test('4. See the colleges and who leads them (ceiling 2)', async ({ page }, info) => {
       const ceiling = 2;
-      const seed = nextSeed();
-      const pending = await registerOrganization(seed);
-      const pendingPattern = new RegExp(escapeRegExp(pending.name), 'i');
       const counter = tracker();
       const { tap } = counter;
       let clicks = 0;
@@ -374,35 +320,29 @@ for (const { width, height } of WIDTHS) {
         await chooseFromMenu(page, tap, width, 'Governance', 'Colleges');
         clicks = counter.clicks;
 
-        const sections = page.locator('article[aria-labelledby^="college-"], section[aria-labelledby^="college-"]');
+        // The list of colleges is fixed: five of them, with nothing to add or delete.
+        const sections = page.locator('article[aria-labelledby^="college-"]');
         await expect(sections.first()).toBeVisible({ timeout: 20000 });
-        await expect(onScreen(page.getByText(pending.name, { exact: false }))).toBeVisible({ timeout: 20000 });
+        await expect(sections).toHaveCount(5);
+        await expect(page.getByRole('button', { name: /(add|new|create) college/i })).toHaveCount(0);
+        await expect(page.getByRole('menuitem', { name: /delete/i })).toHaveCount(0);
 
-        // Colleges with something to do come before the quiet ones, and inside a college the registration
-        // waiting for review sits above the organizations with nothing waiting.
-        const summaries = await sections.evaluateAll((nodes) => nodes.map((node) => (node.querySelector('header p')?.textContent || '')));
-        const needsAction = summaries.map((text) => {
-          const pendingCount = Number((text.match(/(\d+)\s*pending/) || [])[1] || 0);
-          return pendingCount > 0 || /awaiting administrator/.test(text);
-        });
-        expect(needsAction[0], `first college needs action: ${summaries[0]}`).toBe(true);
-        expect(needsAction.join(','), 'colleges that need action are listed first').toBe([...needsAction].sort((left, right) => Number(right) - Number(left)).join(','));
-        const rows = sections.first().locator('[data-view="table"] tbody tr, [data-view="cards"] > li').filter({ visible: true });
-        await expect(rows.first()).toBeVisible();
-        const rowTexts = await rows.allInnerTexts();
-        const rowNeedsAction = rowTexts.map((text) => !/Nothing waiting/.test(text) || /Provision (an )?administrator|Review this registration|Add the first Admin account/.test(text));
-        const mine = rowTexts.findIndex((text) => pendingPattern.test(text));
-        expect(mine, `the new registration is listed in ${summaries[0]}`).toBeGreaterThanOrEqual(0);
-        expect(rowNeedsAction[mine], 'the new registration is marked as waiting').toBe(true);
-        expect(rowNeedsAction.join(','), 'rows that need action come before quiet ones').toBe([...rowNeedsAction].sort((left, right) => Number(right) - Number(left)).join(','));
+        // Each college says who leads it, or offers the one way to get a leader: a link.
+        const ccs = sections.filter({ hasText: 'College of Computer Studies' });
+        await expect(ccs).toContainText('Ramon Castillo');
+        for (const section of await sections.all()) {
+          await expect(section.getByText(/^Department Head$/)).toBeVisible();
+          if (await section.getByText('No Department Head yet').count()) {
+            await expect(section.getByRole('button', { name: 'Invite Department Head' })).toBeVisible();
+          }
+        }
         expect.soft(clicks, `clicks used (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling);
         await endState(page, width, 'sao-j4');
       } finally {
         finish(info, width, 'sao-j4', ceiling, clicks || counter.clicks);
-        const sao = await apiAs(SAO);
-        await sao.patch(`/system/organizations/${pending.id}/review`, { decision: 'approve', submitted_at: pending.submittedAt });
       }
     });
+
 
     test('5. Answer a grievance (ceiling 6)', async ({ page, browser }, info) => {
       const ceiling = 6;

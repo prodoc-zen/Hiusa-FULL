@@ -60,6 +60,15 @@ describe('PersonPicker', () => {
     expect(option).toHaveTextContent('2100142');
   });
 
+  it('shows nothing for an internal account number', async () => {
+    peopleMocks.searchPeople.mockResolvedValue([{ ...MARIA, school_id: 95000001, name: 'Dean Reyes' }]);
+    renderPicker();
+    type('dea');
+
+    const option = await screen.findByRole('option', { name: /Dean Reyes/ });
+    expect(option).not.toHaveTextContent('95000001');
+  });
+
   it('moves through the results with the arrow keys and picks with Enter', async () => {
     const onSelect = renderPicker();
     type('mar');

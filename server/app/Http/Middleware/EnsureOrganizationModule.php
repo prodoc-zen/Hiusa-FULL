@@ -11,7 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
  * Keeps an officer inside the areas the organization head or the dean ticked for their profile.
  * Only SBO_OFFICER profiles are limited, and only when `modules` is set; Admins and everyone
  * else pass. `org.module:finance` pins one area; plain `org.module` reads the area from the
- * first path segment so no route can be forgotten.
+ * first path segment so no route can be forgotten. Routes an officer uses as an ordinary member
+ * (vote, read the feed, shop, see their own tasks) stay open: the controllers already limit
+ * those to the officer's own records.
  */
 class EnsureOrganizationModule
 {
@@ -29,6 +31,17 @@ class EnsureOrganizationModule
     ];
 
     private const OWN_ROUTES = ['api/transactions/personal-receipts'];
+
+    private const PARTICIPATION_ROUTES = [
+        'GET' => [
+            'api/elections', 'api/elections/{id}', 'api/elections/{id}/candidates', 'api/elections/{id}/results',
+            'api/announcements', 'api/merchandise', 'api/merchandise/gcash-settings', 'api/tasks',
+        ],
+        'POST' => ['api/elections/{id}/vote', 'api/orders', 'api/orders/{id}/payment', 'api/announcements/{id}/view'],
+        'PUT' => ['api/announcements/{id}/reaction'],
+        'DELETE' => ['api/announcements/{id}/reaction'],
+        'PATCH' => ['api/orders/{id}/cancel', 'api/tasks/{id}/status'],
+    ];
 
     public function handle(Request $request, Closure $next, ?string $module = null): Response
     {
@@ -52,10 +65,19 @@ class EnsureOrganizationModule
     {
         $uri = $request->route()?->uri() ?? '';
 
-        if (in_array($uri, self::OWN_ROUTES, true)) {
+        if (in_array($uri, self::OWN_ROUTES, true) || $this->isParticipation($request, $uri)) {
             return null;
         }
 
         return self::SEGMENT_MODULES[explode('/', $uri)[1] ?? ''] ?? null;
+    }
+
+    private function isParticipation(Request $request, string $uri): bool
+    {
+        if ($request->method() === 'GET' && $uri === 'api/orders') {
+            return $request->boolean('mine');
+        }
+
+        return in_array($uri, self::PARTICIPATION_ROUTES[$request->method()] ?? [], true);
     }
 }

@@ -244,6 +244,22 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame('Org Head', $this->profile($head)->position_title);
     }
 
+    public function test_a_winner_with_a_module_limited_profile_gets_every_area(): void
+    {
+        $officer = $this->member('SBO_OFFICER', 'Treasurer');
+        $this->profile($officer)->update(['modules' => ['events']]);
+        $election = $this->closedElection();
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Secretary']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $officer->school_id]);
+        Vote::create(['election_id' => $election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => $this->admin->school_id, 'vote_hash' => 'h3']);
+
+        $this->release($election)->assertOk();
+
+        $profile = $this->profile($officer)->fresh();
+        $this->assertSame('Secretary', $profile->position_title);
+        $this->assertNull($profile->modules);
+    }
+
     public function test_a_second_release_does_nothing_more(): void
     {
         $election = $this->closedElection();

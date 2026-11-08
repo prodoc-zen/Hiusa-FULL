@@ -80,8 +80,8 @@ jobs:
       - name: Membership deployment checks
         working-directory: .
         run: |
-          bash -n scripts/check-membership-routes.sh scripts/deploy-ec2.sh scripts/setup-ec2.sh
-          node --test scripts/check-membership-routes.test.mjs
+          bash -n scripts/check-membership-routes.sh scripts/deploy-ec2.sh scripts/setup-ec2.sh scripts/deploy-lightsail.sh
+          node --test scripts/check-membership-routes.test.mjs scripts/deploy-lightsail.test.mjs
 
       - name: Lint
         run: npm run lint

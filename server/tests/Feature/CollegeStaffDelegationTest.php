@@ -84,6 +84,23 @@ class CollegeStaffDelegationTest extends TestCase
         $this->assertSame($studentOrg->id, $existingUser->fresh()->organization_id);
     }
 
+    public function test_a_person_from_another_college_cannot_be_added_as_staff(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $head = $this->makeCollegeHead($college);
+        $otherCollege = $this->makeCollege('CBA');
+        $otherOrg = $this->makeCollegeStudentOrganization($otherCollege);
+        $outsider = User::factory()->student()->create(['organization_id' => $otherOrg->id]);
+
+        Sanctum::actingAs($head);
+
+        $this->postJson('/api/college/staff', ['school_id' => $outsider->school_id, 'position_title' => 'Clerk'])
+            ->assertUnprocessable()->assertJsonValidationErrors('school_id');
+
+        $home = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->first();
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $outsider->school_id, 'organization_id' => $home->id]);
+    }
+
     public function test_the_same_person_cannot_be_added_twice_and_a_second_dean_cannot_be_made_here(): void
     {
         $college = $this->makeCollege('CCS');

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { HEAD_CCS, PSITS_ADMIN, SAO, apiAs, liveEnabled, minimalPdf, shot, uiLogin } from '../support/live.js';
+import { allowToApply, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym } from '../support/pipeline.js';
 
 // DEPARTMENT_HEAD acceptance journeys, docs/UX_FLOW.md section 9. Each journey starts on the role home
 // after a real sign-in, counts only mouse or tap actions (typing and file choosing are free) and ends
@@ -103,30 +104,6 @@ function listRow(page, text) {
   return page.locator('main').locator('tr, ul[data-view="cards"] > li').filter({ hasText: text }).filter({ visible: true });
 }
 
-async function ensureOpenSemester() {
-  const sao = await apiAs(SAO);
-  const years = await sao.get('/system/academic-years');
-  expect(years.ok, 'the SAO can list academic years').toBe(true);
-  const year = years.body.find((candidate) => candidate.is_current) ?? years.body[0];
-  let semester = year.semesters.find((candidate) => candidate.status === 'active');
-  if (!semester) {
-    semester = year.semesters[0];
-    if (!semester) {
-      const created = await sao.post(`/system/academic-years/${year.id}/semesters`, { number: 1, starts_on: year.starts_on, ends_on: year.ends_on });
-      expect(created.status, JSON.stringify(created.body)).toBe(201);
-      semester = created.body;
-    }
-    const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
-    expect(activated.ok, JSON.stringify(activated.body)).toBe(true);
-  }
-  const requirements = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
-  for (const type of (requirements.body?.data ?? [])) {
-    if (!type.is_active) {
-      await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, template_url: 'https://example.edu/format.pdf' });
-    }
-  }
-}
-
 function eventDate(offsetDays) {
   const day = new Date(Date.now() + offsetDays * 86400000);
   const iso = day.toISOString().slice(0, 10);
@@ -168,74 +145,65 @@ async function submitReport() {
   return approval;
 }
 
-// The Department Head registers an organization through the API with one PDF per open requirement.
-async function registerOrganization(name, acronym) {
-  const head = await apiAs(HEAD_CCS);
-  const requirements = await head.get('/college/organizations/requirements');
-  expect(requirements.body.requirements.length, 'registration requirements are open').toBeGreaterThan(0);
-  const form = new FormData();
-  form.append('name', name);
-  form.append('acronym', acronym);
-  requirements.body.requirements.forEach((requirement) => {
-    form.append(`files[${requirement.id}]`, new Blob([minimalPdf(`${name} ${requirement.name}`)], { type: 'application/pdf' }), `requirement-${requirement.id}.pdf`);
-  });
-  const created = await head.post('/college/organizations', form);
-  expect(created.ok, JSON.stringify(created.body)).toBe(true);
-  const list = await head.get('/college/organizations?per_page=100');
-  const organization = list.body.data.find((item) => item.name === name);
-  expect(organization, `the registration "${name}" is in the college list`).toBeTruthy();
-  return organization;
+// A student of the college applies through the one pipeline: seeded here through the API, so a journey
+// starts from "the application is with the dean".
+async function seedApplication(label) {
+  const student = await newStudent(label);
+  await allowToApply(student);
+  return submitApplication(student, { name: unique(`Journey ${label} Society`), acronym: uniqueAcronym('J') });
 }
 
-// The SAO returns a pending registration to the Department Head, which notifies the head.
-async function returnRegistration(organization, remarks) {
-  const sao = await apiAs(SAO);
-  const reviewed = await sao.patch(`/system/organizations/${organization.id}/review`, { decision: 'return', remarks, submitted_at: organization.submitted_at });
-  expect(reviewed.ok, JSON.stringify(reviewed.body)).toBe(true);
+// The Department Head's Allow a student to apply modal: type a name, pick the person, confirm.
+async function allowThroughModal(page, journey, student) {
+  await journey.tap(page.getByRole('button', { name: 'Allow a student to apply' }).first());
+  const dialog = page.getByRole('dialog', { name: 'Allow a student to apply' });
+  await dialog.getByRole('combobox', { name: 'Student' }).fill(student.firstName);
+  await journey.tap(dialog.getByRole('option', { name: new RegExp(escapeRegExp(student.name)) }));
+  await journey.tap(dialog.getByRole('button', { name: 'Allow to apply' }));
+  await expect(dialog).toBeHidden();
 }
 
-// Puts a returned registration back with the SAO so a journey leaves no returned item on the home page of
-// the next one (the briefing lists only the first few by name). A no-op for one that is no longer returned.
-async function settleRegistration(organization) {
-  const head = await apiAs(HEAD_CCS);
-  const list = await head.get('/college/organizations?per_page=100');
-  const current = list.body.data.find((item) => item.id === organization.id);
-  if (!current || current.lifecycle_status !== 'returned') return;
-  const form = new FormData();
-  form.append('_method', 'PUT');
-  form.append('name', current.name);
-  form.append('acronym', current.acronym);
-  await head.post(`/college/organizations/${organization.id}`, form);
+async function signedInStudent(browser, student, viewport) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  await uiLogin(page, student);
+  return { context, page };
 }
 
-async function seedReturnedRegistration() {
-  const name = unique('Journey Returned Society');
-  const organization = await registerOrganization(name, unique('JR'));
-  await returnRegistration(organization, 'Replace the constitution with the signed copy.');
-  return organization;
+async function openApplicationQueue(page, journey, application) {
+  await goTo(page, journey, 'Organization applications');
+  await journey.tap(page.getByRole('button', { name: `Open application of ${application.name}`, exact: true }));
+  const drawer = page.getByRole('dialog', { name: application.name });
+  await expect(drawer).toBeVisible();
+  return drawer;
 }
+
 
 // Runs before any semester exists: the fresh seed has none, and the next group opens one.
 for (const { label, viewport } of WIDTHS) {
   test.describe(`Department Head with no active semester at ${label}px`, () => {
     test.use({ viewport });
 
-    test(`DH-1b ${label}px: the register form says why it cannot submit`, async ({ page }) => {
-      test.setTimeout(90_000);
-      const head = await apiAs(HEAD_CCS);
-      const open = await head.get('/college/organizations/requirements');
-      expect(open.body.requirements, 'this journey needs a database where the SAO has not opened a semester yet').toHaveLength(0);
+    test(`DH-1b ${label}px: allow a student to apply while applications are closed`, async ({ page, browser }) => {
+      test.setTimeout(120_000);
+      const sao = await apiAs(SAO);
+      const active = await sao.get('/academic-periods/active');
+      expect(active.body?.id ?? null, 'this journey needs a database where the SAO has not opened a semester yet').toBeNull();
 
+      const student = await newStudent('Closed');
       const journey = startJourney();
       await signInAsHead(page);
       try {
         await goTo(page, journey, 'Organizations', organizationsShortcut(page));
-        await journey.tap(page.getByRole('button', { name: 'Register an organization' }).first());
-        const form = page.getByRole('dialog', { name: 'Register an organization' });
-        await expect(form.getByRole('status')).toContainText('The SAO must activate a semester first.');
-        await expect(form.getByRole('button', { name: 'Submit for review' })).toHaveCount(0);
+        await allowThroughModal(page, journey, student);
+
+        const applicant = await signedInStudent(browser, student, viewport);
+        await applicant.page.goto('/dashboard/student/apply-organization');
+        await expect(applicant.page.getByText('Applications are closed')).toBeVisible();
+        await expect(applicant.page.getByLabel('Organization name')).toHaveCount(0);
+        await applicant.context.close();
       } finally {
-        await conclude(page, journey, { id: 'DH-1b', width: viewport.width, ceiling: 3 });
+        await conclude(page, journey, { id: 'DH-1b', width: viewport.width, ceiling: 4 });
       }
     });
   });
@@ -248,35 +216,42 @@ for (const { label, viewport } of WIDTHS) {
       await ensureOpenSemester();
     });
 
-    test(`DH-1 ${label}px: register an organization`, async ({ page }) => {
-      test.setTimeout(120_000);
+    test(`DH-1 ${label}px: allow a student to apply and see the application arrive`, async ({ page, browser }) => {
+      test.setTimeout(150_000);
+      const student = await newStudent('Applicant');
       const name = unique('Journey Registered Society');
-      const acronym = unique('JS');
+      const acronym = uniqueAcronym('JR');
       const journey = startJourney();
       await signInAsHead(page);
       try {
         await goTo(page, journey, 'Organizations', organizationsShortcut(page));
-        await journey.tap(page.getByRole('button', { name: 'Register an organization' }).first());
-        const form = page.getByRole('dialog', { name: 'Register an organization' });
-        await expect(form.getByLabel('Organization name')).toBeVisible();
+        await allowThroughModal(page, journey, student);
+
+        const applicant = await signedInStudent(browser, student, viewport);
+        await applicant.page.goto('/dashboard/student/apply-organization');
+        const form = applicant.page.locator('main');
         await form.getByLabel('Organization name').fill(name);
         await form.getByLabel('Acronym').fill(acronym);
+        await form.getByLabel('Your position').fill('President');
         const pickers = form.locator('input[type="file"]');
         const required = await pickers.count();
         expect(required, 'one file picker per open requirement').toBeGreaterThan(0);
         for (let index = 0; index < required; index += 1) {
           await pickers.nth(index).setInputFiles({ name: `requirement-${index + 1}.pdf`, mimeType: 'application/pdf', buffer: minimalPdf(`${name} ${index + 1}`) });
         }
-        await journey.tap(form.getByRole('button', { name: 'Submit for review' }));
+        await form.getByRole('button', { name: 'Send application' }).click();
+        await expect(applicant.page.getByText('Your Department Head is reviewing it.')).toBeVisible();
+        await applicant.context.close();
 
-        await expect(page.getByRole('dialog', { name: 'Register an organization' })).toBeHidden();
+        await goTo(page, journey, 'Organization applications');
         const row = listRow(page, name);
         await expect(row).toBeVisible();
-        await expect(row).toContainText('Pending review: waiting for SAO review');
+        await expect(row).toContainText('With the Department Head');
       } finally {
-        await conclude(page, journey, { id: 'DH-1', width: viewport.width, ceiling: 3 });
+        await conclude(page, journey, { id: 'DH-1', width: viewport.width, ceiling: 5 });
       }
     });
+
 
     test(`DH-2 ${label}px: approve an item`, async ({ page }) => {
       test.setTimeout(120_000);
@@ -306,26 +281,49 @@ for (const { label, viewport } of WIDTHS) {
       }
     });
 
-    test(`DH-3 ${label}px: follow up a returned registration`, async ({ page }) => {
+    test(`DH-3 ${label}px: endorse an application to the SAO`, async ({ page }) => {
       test.setTimeout(120_000);
-      const organization = await seedReturnedRegistration();
+      const application = await seedApplication('Endorse');
       const journey = startJourney();
       await signInAsHead(page);
       try {
-        await journey.tap(page.getByRole('link', { name: new RegExp(`Registration returned: ${escapeRegExp(organization.name)}`) }));
-        await journey.tap(page.getByRole('button', { name: `Edit and resubmit ${organization.name}`, exact: true }));
-        const form = page.getByRole('dialog', { name: `Edit and resubmit ${organization.name}` });
-        await journey.tap(form.getByRole('button', { name: 'Resubmit to SAO' }));
+        const drawer = await openApplicationQueue(page, journey, application);
+        await journey.tap(drawer.getByRole('button', { name: 'Endorse to SAO' }));
 
-        await expect(form).toBeHidden();
-        const row = listRow(page, organization.name);
-        await expect(row).toBeVisible();
-        await expect(row).toContainText(/waiting for SAO review/i);
+        await expect(page.getByText('Endorsed. The SAO is next.')).toBeVisible();
+        await journey.tap(page.getByRole('tab', { name: /^With the SAO/ }));
+        await expect(listRow(page, application.name)).toContainText('With the SAO');
       } finally {
-        await conclude(page, journey, { id: 'DH-3', width: viewport.width, ceiling: 3 });
-        await settleRegistration(organization);
+        await conclude(page, journey, { id: 'DH-3', width: viewport.width, ceiling: 4 });
       }
     });
+
+    test(`DH-3b ${label}px: return an application, the student fixes it and sends it again`, async ({ page, browser }) => {
+      test.setTimeout(150_000);
+      const application = await seedApplication('Return');
+      const note = 'Replace the constitution with the signed copy.';
+      const journey = startJourney();
+      await signInAsHead(page);
+      try {
+        const drawer = await openApplicationQueue(page, journey, application);
+        await drawer.getByLabel('General note').fill(note);
+        await journey.tap(drawer.getByRole('button', { name: 'Return to applicant' }));
+        await expect(page.getByText('Returned to the applicant.')).toBeVisible();
+
+        const applicant = await signedInStudent(browser, application.student, viewport);
+        await applicant.page.goto(`/dashboard/student/organization-applications/${application.id}`);
+        await expect(applicant.page.getByText(note).first()).toBeVisible();
+        await applicant.page.getByRole('button', { name: 'Send again' }).click();
+        await expect(applicant.page.getByText('Your Department Head is reviewing it.')).toBeVisible();
+        await applicant.context.close();
+
+        await page.reload();
+        await expect(listRow(page, application.name)).toContainText('With the Department Head');
+      } finally {
+        await conclude(page, journey, { id: 'DH-3b', width: viewport.width, ceiling: 4 });
+      }
+    });
+
 
     test(`DH-4a ${label}px: a notification about an event approval opens that approval`, async ({ page }) => {
       test.setTimeout(120_000);
@@ -364,22 +362,20 @@ for (const { label, viewport } of WIDTHS) {
       }
     });
 
-    test(`DH-4c ${label}px: a notification about an organization opens that organization`, async ({ page }) => {
+    test(`DH-4c ${label}px: a notification about an application opens that application`, async ({ page }) => {
       test.setTimeout(120_000);
-      const organization = await seedReturnedRegistration();
+      const application = await seedApplication('Notified');
       const journey = startJourney();
       await signInAsHead(page);
       try {
         await journey.tap(page.getByRole('button', { name: 'Notifications' }));
-        await journey.tap(page.getByRole('region', { name: 'Notifications panel' }).getByRole('button').filter({ hasText: organization.name }));
+        await journey.tap(page.getByRole('region', { name: 'Notifications panel' }).getByRole('button').filter({ hasText: application.name }));
 
-        const drawer = page.getByRole('dialog', { name: organization.name });
+        const drawer = page.getByRole('dialog', { name: application.name });
         await expect(drawer).toBeVisible();
-        await expect(drawer).toContainText('Returned: edit and resubmit');
-        await expect(drawer.getByRole('button', { name: 'Edit and resubmit' })).toBeVisible();
+        await expect(drawer.getByRole('button', { name: 'Endorse to SAO' })).toBeVisible();
       } finally {
         await conclude(page, journey, { id: 'DH-4c', width: viewport.width, ceiling: 2 });
-        await settleRegistration(organization);
       }
     });
   });

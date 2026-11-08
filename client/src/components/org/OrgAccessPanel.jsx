@@ -6,6 +6,7 @@ import { Button, Card, DataTable, EmptyState, Input, StatusBadge } from '../ui';
 import { deleteAccountProfile, getManagedAccountProfiles } from '../../services/authService';
 import { listMeta, unwrapList } from '../../services/pagination';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { visibleSchoolId } from '../../utils/schoolId';
 import GiveAccessModal from './GiveAccessModal';
 import { ACCESS_LEVELS, grantableLevels, modulesLabel } from './orgAccess';
 
@@ -77,7 +78,7 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
       render: (row) => (
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-ink">{`${row.first_name} ${row.last_name}`}</p>
-          <p className="truncate text-xs font-medium text-ink-muted">{`${row.email} · ${row.school_id}`}</p>
+          <p className="truncate text-xs font-medium text-ink-muted">{visibleSchoolId(row.school_id) !== null ? `${row.email} · ${visibleSchoolId(row.school_id)}` : row.email}</p>
         </div>
       ),
     },

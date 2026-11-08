@@ -21,12 +21,48 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('admin user management offers controlled academic dropdowns', async ({ page }) => {
+const jamie = { id: 20260001, school_id: 20260001, first_name: 'Jamie', last_name: 'Student', email: 'jamie@example.test', contact_number: '+63 912 345 6789', role: 'STUDENT', account_status: 'active', department: 'College of Computer Studies', program: '', major: '', year_level: '', section: '' };
+
+async function openEditFor(page, user) {
+  await page.route('**/api/users*', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify([user]) }));
+  await page.route('**/api/finance/student-debts**', (route) => route.fulfill({ contentType: 'application/json', body: '[]' }));
+  await page.goto('/dashboard/admin/users');
+  const trigger = page.getByRole('button', { name: `Open actions for ${user.first_name} ${user.last_name}` });
+  await trigger.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(600);
+  await trigger.click();
+  await page.getByRole('menuitem', { name: `Edit ${user.first_name} ${user.last_name}` }).click();
+  return page.locator('#edit-user-form');
+}
+
+test('admin adds an existing student by name and never types a school ID or a password', async ({ page }) => {
+  let invited = null;
+  await page.route('**/api/account-profiles/organizations', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [{ id: 2, name: 'PSITS-CCS' }] }) }));
+  await page.route('**/api/people/search**', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [
+    { school_id: 20260001, name: 'Jamie Student', email: 'jamie@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] },
+  ] }) }));
+  await page.route('**/api/account-profiles/invite', async (route) => {
+    invited = route.request().postDataJSON();
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { id: 5 } }) });
+  });
+
   await page.goto('/dashboard/admin/users');
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible();
-  await page.getByRole('button', { name: 'New User' }).click();
-  const form = page.locator('#create-user-form');
-  const roleSelect = form.locator('select').first();
+  await expect(page.getByRole('button', { name: 'New User' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add existing student' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add an existing student' });
+  await expect(dialog.getByText('Students without an account sign up themselves with their school ID.')).toBeVisible();
+  await expect(dialog.getByLabel(/school id/i)).toHaveCount(0);
+  await expect(dialog.getByLabel(/password/i)).toHaveCount(0);
+  await dialog.getByRole('combobox', { name: 'Student' }).fill('jamie');
+  await dialog.getByRole('option', { name: /Jamie Student/ }).click();
+  await dialog.getByRole('button', { name: 'Add student' }).click();
+  await expect.poll(() => invited).toMatchObject({ school_id: 20260001, organization_id: 2, role: 'STUDENT' });
+});
+
+test('editing a member offers controlled academic dropdowns', async ({ page }) => {
+  const form = await openEditFor(page, jamie);
+  const roleSelect = form.getByLabel('Role');
   // The position field only exists for roles that hold one.
   await expect(form.getByLabel('Organization Position')).toHaveCount(0);
   await roleSelect.selectOption('SBO_OFFICER');
@@ -48,13 +84,12 @@ test('admin user management offers controlled academic dropdowns', async ({ page
 });
 
 test('section choices keep the letter case they are stored with', async ({ page }) => {
-  await page.goto('/dashboard/admin/users');
-  await page.getByRole('button', { name: 'New User' }).click();
-  const form = page.locator('#create-user-form');
+  const form = await openEditFor(page, jamie);
   await form.getByLabel('Course / Program').selectOption('BS Information Technology');
   await form.getByLabel('Year Level').selectOption('1st Year');
   await expect(form.getByLabel('Section').locator('option')).toHaveText(['Choose a section', '1 - Non Block', '1-A', '1-B']);
 });
+
 
 test('programs and sections is available as an admin setup screen', async ({ page }) => {
   await page.goto('/dashboard/admin/programs-sections');

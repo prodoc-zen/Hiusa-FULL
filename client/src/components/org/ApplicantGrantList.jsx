@@ -4,6 +4,7 @@ import ConfirmModal from '../ConfirmModal';
 import notify from '../../lib/notify';
 import { revokeApplicantGrant } from '../../services/applicantGrantService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { visibleSchoolId } from '../../utils/schoolId';
 import { APPLICATION_LABELS } from './applicationStatus';
 
 const STATE = {
@@ -47,7 +48,7 @@ export default function ApplicantGrantList({ grants, error, onRetry, onChanged }
                   <p className="break-words text-sm font-semibold text-ink">{grant.student?.name || 'Former student'}</p>
                   <p className="break-all text-xs font-medium text-ink-muted">
                     {grant.student?.email}
-                    {grant.student?.school_id ? ` · ID ${grant.student.school_id}` : ''}
+                    {visibleSchoolId(grant.student?.school_id) !== null ? ` · ID ${visibleSchoolId(grant.student?.school_id)}` : ''}
                   </p>
                   {grant.application && <p className="mt-1 text-xs font-medium text-ink-muted">{grant.application.name}: {APPLICATION_LABELS[grant.application.status] || grant.application.status}</p>}
                 </div>

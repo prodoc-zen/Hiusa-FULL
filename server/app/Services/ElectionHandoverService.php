@@ -159,7 +159,7 @@ class ElectionHandoverService
         }
 
         if ($profile) {
-            $profile->update(['role' => $role, 'position_title' => $title, 'account_status' => 'active']);
+            $profile->update(['role' => $role, 'position_title' => $title, 'account_status' => 'active', 'modules' => null]);
         } else {
             AccountProfile::create([
                 'user_school_id' => $schoolId,
@@ -167,6 +167,7 @@ class ElectionHandoverService
                 'role' => $role,
                 'account_status' => 'active',
                 'position_title' => $title,
+                'modules' => null,
             ]);
         }
 
