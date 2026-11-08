@@ -49,3 +49,14 @@ export function replaceIsoDateTimes(value) {
     (dateTime) => formatDateTime(dateTime, dateTime),
   );
 }
+
+// YYYY-MM-DD for the Asia/Manila day, used in download file names so an export made
+// between 00:00 and 08:00 Manila does not carry the previous UTC date.
+export function manilaDateStamp(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}

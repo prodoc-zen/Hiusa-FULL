@@ -27,6 +27,61 @@ function FileButton({ url, children, icon: Icon = FileText }) {
   );
 }
 
+const LINK_BUTTON = 'inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
+
+// The one word on a requirement row. A problem outranks an acceptance, so a row any reviewer
+// flagged never reads as OK. A file nobody has looked at yet is "Not reviewed yet", not a problem.
+function requirementState(requirement) {
+  if (requirement.reviews.some((review) => review.status === 'needs_changes')) return 'needs_changes';
+  if (!requirement.document || requirement.reviews.some((review) => review.status === 'missing')) return 'missing';
+  if (requirement.reviews.length > 0 && requirement.reviews.every((review) => review.status === 'ok')) return 'ok';
+  return '';
+}
+
+// Rows that need nothing from the applicant stay on one line; the rest show their notes and files.
+function needsAction(requirement) {
+  const state = requirementState(requirement);
+  return state === 'needs_changes' || state === 'missing';
+}
+
+function RequirementRow({ requirement }) {
+  const [open, setOpen] = useState(false);
+  const state = requirementState(requirement);
+  const flagged = needsAction(requirement);
+  const hasDetail = requirement.reviews.some((review) => review.note) || requirement.review_files.length > 0;
+  const toggle = !flagged && hasDetail;
+  const expanded = flagged || open;
+
+  return (
+    <li className="px-5 py-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3">
+          <p className="min-w-0 break-words text-sm font-semibold text-ink">{requirement.name}</p>
+          {state ? <StatusBadge status={state} /> : <StatusBadge status="pending" tone="neutral" label="Not reviewed yet" />}
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 sm:justify-end">
+          {requirement.document
+            ? <FileButton url={requirement.document.open_url}>{requirement.document.name}</FileButton>
+            : <p className="text-sm font-medium text-ink-muted">No file yet.</p>}
+          {toggle && (
+            <button type="button" aria-expanded={open} aria-label={`${open ? 'Hide details' : 'Details'} ${requirement.name}`} onClick={() => setOpen(!open)} className={LINK_BUTTON}>{open ? 'Hide details' : 'Details'}</button>
+          )}
+        </div>
+      </div>
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {requirement.reviews.map((review) => (
+            <p key={review.stage} className="min-w-0 text-sm text-ink"><span className="font-semibold">{review.stage_label}:</span> {review.note || (review.status === 'ok' ? 'No problem found.' : 'No note.')}</p>
+          ))}
+          {requirement.review_files.map((file) => (
+            <div key={file.id}><FileButton url={file.open_url} icon={Paperclip}>{file.name} ({file.stage_label})</FileButton></div>
+          ))}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function Note({ who, children }) {
   return (
     <div className="mt-3 border-t border-line pt-3">
@@ -42,6 +97,7 @@ export default function MyOrganizationApplicationPage() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [allFiles, setAllFiles] = useState(false);
 
   const load = useCallback(() => {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -75,6 +131,10 @@ export default function MyOrganizationApplicationPage() {
   const { loading, error, application } = state;
   const returned = application?.status === 'returned';
   const generalFiles = application?.review_files || [];
+  // Only the files that need changes get an upload while sending again. An accepted file stays
+  // attached, and the applicant can still ask for every upload.
+  const uploads = (application?.requirements || []).filter((requirement) => allFiles || needsAction(requirement) || errors[`files.${requirement.id}`]);
+  const hiddenUploads = (application?.requirements?.length || 0) - uploads.length;
   const returnedBy = application?.returned_by_role === 'DEPARTMENT_HEAD' ? 'your Department Head' : 'the SAO';
 
   return (
@@ -103,23 +163,7 @@ export default function MyOrganizationApplicationPage() {
               </div>
             )}
             {application.requirements.length > 0 && <ul className="divide-y divide-line-soft">
-              {application.requirements.map((requirement) => (
-                <li key={requirement.id} className="space-y-2 px-5 py-4">
-                  <p className="text-sm font-semibold text-ink">{requirement.name}</p>
-                  {requirement.document
-                    ? <FileButton url={requirement.document.open_url}>{requirement.document.name}</FileButton>
-                    : <p className="text-sm font-medium text-ink-muted">No file yet.</p>}
-                  {requirement.reviews.map((review) => (
-                    <div key={review.stage} className="flex flex-wrap items-start gap-2">
-                      <StatusBadge status={review.status} />
-                      <p className="min-w-0 text-sm text-ink"><span className="font-semibold">{review.stage_label}:</span> {review.note || (review.status === 'ok' ? 'No problem found.' : 'No note.')}</p>
-                    </div>
-                  ))}
-                  {requirement.review_files.map((file) => (
-                    <div key={file.id}><FileButton url={file.open_url} icon={Paperclip}>{file.name} ({file.stage_label})</FileButton></div>
-                  ))}
-                </li>
-              ))}
+              {application.requirements.map((requirement) => <RequirementRow key={requirement.id} requirement={requirement} />)}
             </ul>}
           </Card>
 
@@ -134,7 +178,14 @@ export default function MyOrganizationApplicationPage() {
           {returned && (
             <Card title="Fix and send again" description="Your files stay attached unless you choose a new one. It goes back to your Department Head first.">
               {formError && <p role="alert" className="mb-4 text-sm font-semibold text-danger-strong">{formError}</p>}
-              <ApplicationForm requirements={application.requirements} initial={application} submitLabel="Send again" busy={busy} errors={errors} onSubmit={resubmit} />
+              {hiddenUploads > 0 && (
+                <p className="mb-4 text-sm text-ink-muted-strong">
+                  {uploads.length === 0 ? 'Every file was accepted.' : `Showing the ${uploads.length === 1 ? '1 file that needs' : `${uploads.length} files that need`} changes.`}
+                  {' '}
+                  <button type="button" onClick={() => setAllFiles(true)} className={LINK_BUTTON}>Show all {application.requirements.length} uploads</button>
+                </p>
+              )}
+              <ApplicationForm requirements={uploads} initial={application} submitLabel="Send again" busy={busy} errors={errors} onSubmit={resubmit} />
             </Card>
           )}
         </>

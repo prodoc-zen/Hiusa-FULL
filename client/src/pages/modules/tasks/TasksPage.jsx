@@ -1,4 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -414,7 +415,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     const rows = exportRows.map((task) => [task.id, task.title, task.description, task.task_type, task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : '', task.assignee?.role, task.assignee?.position_title, task.assignee?.department, task.assignee?.program, task.assignee?.year_level, task.assignee?.section, task.event?.title, task.status, task.progress_percent, task.deadline, task.completed_at, task.creator ? `${task.creator.first_name} ${task.creator.last_name}` : '', task.created_at, task.updated_at]);
     const csv = [header, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tasks-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tasks-${manilaDateStamp()}.csv`; anchor.click(); URL.revokeObjectURL(url);
   }
 
   const workloadByAssignee = allTasks.reduce((acc, t) => {

@@ -171,7 +171,8 @@ describe('OrganizationApplicationsPage', () => {
     mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderPage();
     fireEvent.click((await screen.findAllByRole('link', { name: 'Review application of Chess Club' }))[0]);
-    const select = await screen.findByLabelText('Review of Constitution');
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Constitution' }));
+    const select = screen.getByLabelText('Review of Constitution');
     fireEvent.change(select, { target: { value: 'ok' } });
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));

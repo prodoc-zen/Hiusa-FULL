@@ -72,8 +72,78 @@ describe('MyOrganizationApplicationPage', () => {
     expect(screen.getByText('Note from your Department Head').nextSibling).toHaveTextContent('Please fix the constitution.');
     expect(screen.getByText('Needs changes')).toBeInTheDocument();
     expect(screen.getByText('Sign the last page.')).toBeInTheDocument();
-    expect(screen.getByText('No problem found.')).toBeInTheDocument();
+    // The accepted requirement is one line: the OK badge says it, so no note line repeats it.
+    expect(screen.queryByText('No problem found.')).not.toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
+  });
+
+  it('shows a requirement that needs nothing as one row, and the one that needs changes expanded', async () => {
+    renderPage();
+    await screen.findByText('Sign the last page.');
+
+    const row = (name) => screen.getAllByRole('listitem').find((item) => within(item).queryByText(name));
+    const constitution = row('Constitution');
+    const officers = row('Officer list');
+    expect(within(constitution).getByText('Needs changes')).toBeInTheDocument();
+    expect(within(constitution).getByText('Sign the last page.')).toBeInTheDocument();
+    expect(within(constitution).getByRole('button', { name: /marked-up\.pdf/ })).toBeInTheDocument();
+    expect(within(officers).getByText('OK')).toBeInTheDocument();
+    expect(within(officers).getByRole('button', { name: 'officers.pdf' })).toBeInTheDocument();
+    expect(within(officers).queryByText(/Department Head:/)).not.toBeInTheDocument();
+    expect(within(officers).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps an accepted requirement with a note or attachment to one line until Details is opened', async () => {
+    const accepted = application({ status: 'pending_sao', remarks: null });
+    accepted.requirements[0].reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: 'Clear scan.' }];
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: accepted });
+    renderPage();
+    await screen.findByText('Your Department Head endorsed it. The SAO decides next.');
+
+    expect(screen.queryByText('Clear scan.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /marked-up\.pdf/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Details Constitution' }));
+    expect(screen.getByText('Clear scan.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /marked-up\.pdf \(Department Head\)/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide details Constitution' }));
+    expect(screen.queryByText('Clear scan.')).not.toBeInTheDocument();
+  });
+
+  it('says a file nobody has reviewed yet is not reviewed yet, as one row', async () => {
+    const waiting = application({ status: 'pending_dean', remarks: null });
+    waiting.requirements.forEach((requirement) => { requirement.reviews = []; requirement.review_files = []; });
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: waiting });
+    renderPage();
+    await screen.findByText('Your Department Head is reviewing it.');
+
+    expect(screen.getAllByText('Not reviewed yet')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'constitution.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'officers.pdf' })).toBeInTheDocument();
+  });
+
+  it('expands a requirement with no file and marks it Missing', async () => {
+    const missing = application({ status: 'pending_dean', remarks: null });
+    missing.requirements[1].document = null;
+    missing.requirements[1].reviews = [];
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: missing });
+    renderPage();
+
+    expect(await screen.findByText('No file yet.')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+  });
+
+  it('asks for new files only for requirements that need changes, and can show every upload', async () => {
+    renderPage();
+    await screen.findByText('Sign the last page.');
+
+    expect(screen.getByLabelText(/Constitution/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Officer list/)).not.toBeInTheDocument();
+    expect(screen.getByText('Showing the 1 file that needs changes.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 2 uploads' }));
+
+    expect(screen.getByLabelText(/Officer list/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
   });
 
   it('opens the applicant file and the reviewer attachments through the protected route', async () => {

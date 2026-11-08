@@ -20,6 +20,27 @@ const COLUMNS = [
   { key: 'recorded_by', header: 'Recorded by', render: (row) => row.recorded_by || 'Unknown' },
 ];
 
+// On a phone each transaction is one block of two lines: what and when on the left, the amount and its
+// direction in words on the right. Category and who recorded it stay in the desktop table.
+function TransactionList({ rows }) {
+  return (
+    <ul className="divide-y divide-line-soft md:hidden" aria-label="Organization transactions" data-view="transactions">
+      {rows.map((row) => (
+        <li key={row.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-ink">{row.description || 'No description'}</p>
+            <p className="truncate text-xs text-ink-muted">{manilaDate(row.transaction_date)}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-sm font-medium tabular-nums text-ink">{peso(row.amount)}</p>
+            <p className="text-xs capitalize text-ink-muted">{row.type}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function OrgTransactions({ organizationId }) {
   const [type, setType] = useState('all');
   const [page, setPage] = useState(1);
@@ -48,6 +69,11 @@ export default function OrgTransactions({ organizationId }) {
   }
 
   const meta = result?.meta;
+  const rows = result?.data;
+  const pagination = meta && (
+    <PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="transactions" />
+  );
+  const hasRows = !loading && !error && rows?.length > 0;
 
   return (
     <div className="space-y-4">
@@ -59,22 +85,31 @@ export default function OrgTransactions({ organizationId }) {
         title="Transactions"
         description="Everything this organization recorded. You can read it, not change it."
         actions={<SegmentedControl options={TYPE_OPTIONS} value={type} onChange={changeType} />}
+        bodyClassName="max-md:p-3!"
       >
-        <DataTable
-          columns={COLUMNS}
-          rows={result?.data}
-          caption="Organization transactions"
-          loading={loading}
-          error={error}
-          onRetry={load}
-          filtersActive={type !== 'all'}
-          emptyState={type === 'all'
-            ? <EmptyState title="No transactions yet" description="Income and expenses show up here once the organization records them." />
-            : undefined}
-          pagination={meta && (
-            <PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="transactions" />
-          )}
-        />
+        {hasRows ? (
+          <>
+            <div className="hidden md:block">
+              <DataTable columns={COLUMNS} rows={rows} caption="Organization transactions" pageSize={0} />
+            </div>
+            <TransactionList rows={rows} />
+            {pagination}
+          </>
+        ) : (
+          <DataTable
+            columns={COLUMNS}
+            rows={rows}
+            caption="Organization transactions"
+            loading={loading}
+            error={error}
+            onRetry={load}
+            filtersActive={type !== 'all'}
+            emptyState={type === 'all'
+              ? <EmptyState title="No transactions yet" description="Income and expenses show up here once the organization records them." />
+              : undefined}
+            pagination={pagination}
+          />
+        )}
       </Card>
     </div>
   );

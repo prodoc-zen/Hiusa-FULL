@@ -1,5 +1,6 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { ROLE_LABELS, formatDisplayText } from '../../../utils/displayText.js';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, Plus, Search } from 'lucide-react';
@@ -53,7 +54,7 @@ function downloadCsv(rows, organizationNames) {
   const values = rows.map((item) => [item.id, organizationNames[item.organization_id] || '', item.entity_type, item.title, item.status, item.requester?.school_id, fullName(item.requester), item.requester?.role, item.requester?.position_title, item.requester?.department, item.requester?.program, item.requester?.year_level, item.requester?.section, item.requested_at, fullName(item.reviewer), item.reviewed_at, item.remarks]);
   const csv = [headers, ...values].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = `approval-register-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+  const link = document.createElement('a'); link.href = url; link.download = `approval-register-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
 function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organizationName }) {
