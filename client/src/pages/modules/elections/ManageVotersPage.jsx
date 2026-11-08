@@ -1,11 +1,21 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Users, Search, CheckCircle, Clock } from 'lucide-react';
 import { getElectionVoters } from '../../../services/electionService';
+import DataTable from '../../../components/ui/DataTable';
+import EmptyState from '../../../components/ui/EmptyState';
+import Field from '../../../components/ui/Field';
+import Input from '../../../components/ui/Input';
+import HiusaSelect from '../../../components/ui/Select';
+import StatusBadge from '../../../components/ui/StatusBadge';
 import PaginationControls from '../../../components/PaginationControls';
 
 const EMPTY_SUMMARY = { eligible_total: 0, voted_count: 0, turnout_percent: 0 };
+
+function roleLabel(role) {
+  const text = String(role || '').replaceAll('_', ' ').toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export default function ManageVotersPage() {
   const { election } = useOutletContext();
@@ -57,9 +67,7 @@ export default function ManageVotersPage() {
 
   if (!election) {
     return (
-      <div className="py-20 text-center">
-        <p className="text-sm text-slate-500">Election not found.</p>
-      </div>
+      <EmptyState title="Election not found" description="Go back and choose an election." />
     );
   }
 
@@ -76,151 +84,65 @@ export default function ManageVotersPage() {
   const eligibleTotal = summary.eligible_total;
   const votedCount = summary.voted_count;
   const notVotedCount = Math.max(0, eligibleTotal - votedCount);
+  const filtersActive = Boolean(search) || filterStatus !== 'All';
+  const clearFilters = () => { setSearch(''); setFilterStatus('All'); };
+
+  const columns = [
+    { key: 'name', header: 'Name', render: (voter) => <span className="font-medium">{formatDisplayText(voter.first_name)} {formatDisplayText(voter.last_name)}</span> },
+    { key: 'school_id', header: 'School ID', render: (voter) => <span className="text-ink-muted-strong">{voter.school_id}</span> },
+    { key: 'role', header: 'Role', render: (voter) => roleLabel(voter.role) },
+    { key: 'email', header: 'Email', render: (voter) => <span className="break-all text-ink-muted-strong">{voter.email}</span> },
+    { key: 'vote', header: 'Vote', render: (voter) => (voter.has_voted ? <StatusBadge label="Voted" tone="success" /> : <span className="text-ink-muted">Not yet</span>) },
+  ];
+
+  const filters = (
+    <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end">
+      <Field label="Search voters">
+        <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or school ID" />
+      </Field>
+      <Field label="Vote">
+        <HiusaSelect value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+          <option value="All">All voters</option>
+          <option value="Voted">Voted</option>
+          <option value="Not Yet">Not yet voted</option>
+        </HiusaSelect>
+      </Field>
+      {filtersActive && <button type="button" onClick={clearFilters} className="min-h-10 self-end rounded-control text-left text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
+    </div>
+  );
+
+  const emptyState = eligibleTotal === 0
+    ? <EmptyState title="No voters yet" description="No eligible voters are registered in this organization yet." />
+    : (
+      <EmptyState
+        kind="filtered"
+        title="No voters match"
+        description={eligibleTotal > perPage ? 'Search and filters apply to the current page only.' : 'Try another search or vote status.'}
+        onClearFilters={clearFilters}
+      />
+    );
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Total Voters', value: eligibleTotal, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0F2F62]', border: 'border-[#0B8ED0]/20' } },
-          {
-            label: 'Voted',
-            value: votedCount,
-            sub: `${summary.turnout_percent}% turnout`,
-            icon: CheckCircle,
-            color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' },
-          },
-          {
-            label: 'Not Yet Voted',
-            value: notVotedCount,
-            sub: 'Still pending',
-            icon: Clock,
-            color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' },
-          },
-          {
-            label: 'Election Status',
-            value: election.status,
-            sub: 'Current state',
-            icon: Users,
-            color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0F2F62]', border: 'border-[#DDE7EF]' },
-          },
-        ].map((stat) => (
-          <dl key={stat.label} className="flex items-start gap-4 bg-white p-4 sm:p-5">
-            <div className={`rounded-lg p-2.5 ${stat.color.bg}`}>
-              <stat.icon size={20} className={stat.color.icon} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <dt className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{stat.label}</dt>
-              <dd className="mt-0.5 text-2xl font-black text-[#0F172A] tabular-nums">{stat.value}</dd>
-              {stat.sub && <p className="mt-1 text-xs text-[#64748B]">{stat.sub}</p>}
-            </div>
-          </dl>
-        ))}
-      </div>
+    <div className="space-y-4">
+      {!loading && !error && (
+        <p className="text-sm text-ink-muted-strong">
+          <span className="tabular-nums">{votedCount}</span> of <span className="tabular-nums">{eligibleTotal}</span> eligible {eligibleTotal === 1 ? 'voter has' : 'voters have'} voted ({summary.turnout_percent}% turnout). <span className="tabular-nums">{notVotedCount}</span> still to vote.
+        </p>
+      )}
 
-      <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-        <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
-          <div>
-            <h3 className="text-base font-bold text-[#0F172A]">Voters: {formatDisplayText(election.title)}</h3>
-            <p className="text-sm font-medium text-[#64748B]">
-              {eligibleTotal} eligible {eligibleTotal === 1 ? 'voter' : 'voters'} for this election
-              {eligibleTotal > perPage && ` · showing ${voters.length} on this page`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 p-5 pb-0">
-          <div className="relative min-w-[200px] flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or school ID..."
-              className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] pl-9 pr-4 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 transition"
-            />
-          </div>
-          <div className="flex gap-1.5">
-            {['All', 'Voted', 'Not Yet'].map((s) => (
-              <button
-                key={s}
-                onClick={() => setFilterStatus(s)}
-                className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
-                  filterStatus === s ? 'bg-[#0B1831] text-white' : 'border border-[#DDE7EF] bg-[#F8FBFD] text-slate-600 hover:bg-[#F8FBFD]'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="overflow-x-auto p-5 pt-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-red-600">{error}</p>
-              <button onClick={() => setRetryKey((k) => k + 1)} className="mt-2 text-xs font-semibold text-[#0878B7] hover:underline">Retry</button>
-            </div>
-          ) : (
-            <table className="w-full min-w-[350px] md:min-w-[550px] text-left">
-              <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">School ID</th>
-                  <th className="hidden lg:table-cell px-4 py-3">Role</th>
-                  <th className="hidden md:table-cell px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Vote Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#DDE7EF] text-sm">
-                {filtered.map((voter) => (
-                  <tr key={voter.school_id} className="transition hover:bg-[#F8FBFD]">
-                    <td className="max-w-[200px] px-4 py-3.5">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
-                          {voter.first_name?.[0] ?? ''}{voter.last_name?.[0] ?? ''}
-                        </div>
-                        <span className="truncate font-semibold text-[#0F172A]">{formatDisplayText(voter.first_name)} {formatDisplayText(voter.last_name)}</span>
-                      </div>
-                    </td>
-                    <td className="max-w-[120px] truncate px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>
-                    <td className="hidden lg:table-cell px-4 py-3.5 text-xs font-semibold text-slate-600">{String(voter.role || '').replaceAll('_', ' ')}</td>
-                    <td className="hidden md:table-cell px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
-                    <td className="px-4 py-3.5">
-                      {voter.has_voted ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold text-[#0F2F62]">
-                          <CheckCircle size={11} />
-                          Voted
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-[#94A3B8]">
-                          Not Yet
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
-                      {eligibleTotal === 0
-                        ? 'No eligible voters are registered in this organization yet.'
-                        : eligibleTotal > perPage
-                          ? 'No voters on this page match your search. Search and filters apply to the current page.'
-                          : 'No voters match your search.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {!loading && !error && (
+      <DataTable
+        caption={`Voters for ${formatDisplayText(election.title)}`}
+        columns={columns}
+        rows={filtered}
+        rowKey={(voter) => voter.school_id}
+        loading={loading}
+        error={error}
+        onRetry={() => setRetryKey((key) => key + 1)}
+        filters={filters}
+        filtersActive={filtersActive}
+        onClearFilters={clearFilters}
+        emptyState={emptyState}
+        pagination={!loading && !error ? (
           <PaginationControls
             currentPage={page}
             totalItems={eligibleTotal}
@@ -228,8 +150,8 @@ export default function ManageVotersPage() {
             onPageChange={setPage}
             label="voters"
           />
-        )}
-      </div>
+        ) : null}
+      />
     </div>
   );
 }

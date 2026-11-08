@@ -36,4 +36,10 @@ describe('SegmentedControl', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'This year' }));
     expect(onChange).toHaveBeenCalledWith('year');
   });
+
+  it('uses medium weight and no shadow on the selected pill', () => {
+    const { container } = render(<SegmentedControl options={OPTIONS} value="week" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'This week' })).toHaveClass('font-medium');
+    expect(container.innerHTML).not.toMatch(/font-bold|shadow-card/);
+  });
 });

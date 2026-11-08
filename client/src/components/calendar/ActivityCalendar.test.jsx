@@ -12,7 +12,7 @@ describe('ActivityCalendar', () => {
     render(<ActivityCalendar initialDate={new Date(2026, 8, 1)} events={[event]} onSelectEvent={onSelectEvent} />);
     const day = screen.getByRole('button', { name: /September 29, 2026, 1 event/ });
     expect(day).toBeInTheDocument();
-    expect(day.closest('[role="gridcell"]')).toHaveClass('bg-[#EEF6FB]');
+    expect(day.closest('[role="gridcell"]')).toHaveClass('bg-page');
     fireEvent.click(day);
     expect(onSelectEvent).toHaveBeenCalledWith(expect.objectContaining({ id: 1, image_url: '/storage/event.jpg' }));
   });

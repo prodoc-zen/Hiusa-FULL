@@ -85,7 +85,7 @@ class SetupChecklistService
 
         return [
             $this->step('positions', 'Set up your officer positions', 'Positions decide task delegation and who reviews what.', $scoped('sbo_positions')->where('is_active', true)->exists(), '/dashboard/admin/positions'),
-            $this->step('members', 'Add your members', 'Import a roster from a CSV file, or add people one at a time.', $scoped('users')->where('role', 'STUDENT')->exists(), '/dashboard/admin/users'),
+            $this->step('members', 'Add your members', 'Import a roster from a CSV file, or add people one at a time.', $scoped('users')->where('role', 'STUDENT')->exists() || $scoped('account_profiles')->where('role', 'STUDENT')->exists(), '/dashboard/admin/users'),
             $this->step('academic', 'Set up programs and sections', 'Lets you filter members and target announcements by section.', $scoped('academic_programs')->exists(), '/dashboard/admin/programs-sections'),
             DB::table('compliance_requirement_types')->exists()
                 ? $this->step('compliance', 'Submit your accreditation requirements', 'The Student Affairs Office reviews them for your accreditation.', $scoped('organization_compliance_submissions')->exists(), '/dashboard/compliance')
@@ -99,7 +99,7 @@ class SetupChecklistService
     {
         $collegeId = $user->organization?->organization_type === 'COLLEGE' ? $user->organization?->college_id : null;
         $applications = DB::table('organization_applications')->where('college_id', $collegeId);
-        $awaitingEndorsement = (clone $applications)->where('status', 'pending_endorsement')->count();
+        $awaitingEndorsement = (clone $applications)->where('status', 'pending_dean')->count();
         $reviewed = (clone $applications)->where(fn ($query) => $query->where('endorsed_by', $user->school_id)->orWhere('reviewed_by', $user->school_id))->exists();
 
         return [
@@ -107,8 +107,8 @@ class SetupChecklistService
                 'endorse',
                 'Review organization applications',
                 $awaitingEndorsement > 0
-                    ? "{$awaitingEndorsement} verified application".($awaitingEndorsement === 1 ? '' : 's').' awaiting your endorsement before SAO review.'
-                    : 'Applicants apply from the HIUSA home page. Review their requirements before endorsing them to SAO.',
+                    ? "{$awaitingEndorsement} application".($awaitingEndorsement === 1 ? '' : 's').' awaiting your review before SAO.'
+                    : 'Allow a student to apply from Organizations. Review their requirements before endorsing the application to SAO.',
                 $reviewed,
                 '/dashboard/organization-applications',
             ),

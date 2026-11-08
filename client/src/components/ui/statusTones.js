@@ -4,18 +4,21 @@
 // has to invent its own colors.
 
 export const TONE_STYLES = {
-  success: 'bg-success-tint text-success-strong',
-  warning: 'bg-warning-tint text-warning-strong',
-  danger: 'bg-danger-tint text-danger-strong',
-  info: 'bg-brand-50 text-navy-800',
-  neutral: 'bg-subtle text-ink-muted border border-line',
+  success: 'bg-green-50 text-green-800',
+  warning: 'bg-amber-50 text-amber-800',
+  danger: 'bg-red-50 text-red-800',
+  info: 'bg-brand-600/10 text-brand-800',
+  active: 'bg-brand-600/10 text-brand-800',
+  neutral: 'bg-slate-100 text-slate-700',
 };
 
+// Badges no longer draw a dot. Kept only because the ui barrel still re-exports it.
 export const TONE_DOT = {
   success: 'bg-success-strong',
   warning: 'bg-warning-strong',
   danger: 'bg-danger-strong',
   info: 'bg-brand-600',
+  active: 'bg-brand-600',
   neutral: 'bg-ink-soft',
 };
 
@@ -36,6 +39,14 @@ const STATUS_MAP = {
   rejected: { tone: 'danger', label: 'Rejected' },
   returned: { tone: 'danger', label: 'Returned' },
 
+  // Organization applications and the per-requirement review (pending_sao, approved, returned and rejected are above)
+  pending_dean: { tone: 'warning', label: 'With the Department Head' },
+  ok: { tone: 'success', label: 'OK' },
+  missing: { tone: 'danger', label: 'Missing' },
+  needs_changes: { tone: 'warning', label: 'Needs changes' },
+  pending_verification: { tone: 'neutral', label: 'Not verified' },
+  expired: { tone: 'neutral', label: 'Expired' },
+
   // Financial accountability (cash advances, collections, remittances)
   verified: { tone: 'success', label: 'Verified' },
   released: { tone: 'success', label: 'Released' },
@@ -48,6 +59,13 @@ const STATUS_MAP = {
   paid: { tone: 'success', label: 'Paid' },
   claimed: { tone: 'success', label: 'Claimed' },
   unclaimed: { tone: 'neutral', label: 'Unclaimed' },
+
+  // Student records import preview
+  new: { tone: 'info', label: 'New' },
+  update: { tone: 'warning', label: 'Update' },
+  unchanged: { tone: 'neutral', label: 'No change' },
+  invalid: { tone: 'danger', label: 'Invalid' },
+  duplicate: { tone: 'danger', label: 'Duplicate' },
   purchased: { tone: 'success', label: 'Purchased' },
   not_purchased: { tone: 'neutral', label: 'Not Purchased' },
   cancelled: { tone: 'danger', label: 'Cancelled' },
@@ -57,6 +75,8 @@ const STATUS_MAP = {
   upcoming: { tone: 'info', label: 'Upcoming' },
   voting: { tone: 'success', label: 'Live Voting' },
   closed: { tone: 'neutral', label: 'Closed' },
+  access_handed_over: { tone: 'success', label: 'Access handed over' },
+  tie: { tone: 'warning', label: 'Tie, assign manually' },
 
   // Events / tasks
   planning: { tone: 'neutral', label: 'Planning' },
@@ -76,6 +96,8 @@ const STATUS_MAP = {
   active: { tone: 'success', label: 'Active' },
   inactive: { tone: 'neutral', label: 'Inactive' },
   disabled: { tone: 'danger', label: 'Disabled' },
+  signed_up: { tone: 'success', label: 'Signed up' },
+  not_signed_up: { tone: 'neutral', label: 'Not signed up' },
 
   // Announcements
   published: { tone: 'success', label: 'Published' },

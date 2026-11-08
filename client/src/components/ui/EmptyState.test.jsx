@@ -21,4 +21,32 @@ describe('EmptyState', () => {
     render(<EmptyState kind="filtered" query="budget report" />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+
+  it('treats none-match like the filtered kind and offers a Clear filters link', () => {
+    const onClearFilters = vi.fn();
+    render(<EmptyState kind="none-match" description="Nothing matches." onClearFilters={onClearFilters} />);
+    expect(screen.getByText('No results')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it('is left aligned with a small title and no decorative shape', () => {
+    const { container } = render(<EmptyState title="No applications to review." description="New ones appear here." action={<button type="button">Open list</button>} />);
+    expect(container.firstChild.className).toMatch(/items-start/);
+    expect(container.firstChild.className).not.toMatch(/text-center|py-14/);
+    expect(screen.getByText('No applications to review.')).toHaveClass('text-sm', 'font-semibold');
+    expect(container.querySelector('svg')).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('draws an icon only when the caller passes one, at 24px', () => {
+    const Icon = (props) => <svg data-testid="icon" {...props} />;
+    render(<EmptyState title="No files" icon={Icon} />);
+    expect(screen.getByTestId('icon')).toHaveAttribute('size', '24');
+  });
+
+  it('shows no button for the restricted kind', () => {
+    render(<EmptyState kind="restricted" title="No access" action={<button type="button">Nope</button>} />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
 });

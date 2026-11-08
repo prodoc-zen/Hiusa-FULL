@@ -1,6 +1,6 @@
 import { openProtectedFile } from './openProtectedFile';
 
-export function openRequirementSample(requirement, { publicRegistration = false } = {}) {
+export function openRequirementSample(requirement, { forApplication = false } = {}) {
   if (requirement.template_url) {
     const url = new URL(requirement.template_url);
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid sample link.');
@@ -8,8 +8,8 @@ export function openRequirementSample(requirement, { publicRegistration = false 
     return Promise.resolve();
   }
   const id = requirement.requirement_type_id || requirement.id;
-  const path = publicRegistration
-    ? `/organization-applications/requirements/${id}/template`
+  const path = forApplication
+    ? `/my/organization-applications/requirements/${id}/template`
     : `/compliance/requirement-types/${id}/template`;
   return openProtectedFile(path);
 }

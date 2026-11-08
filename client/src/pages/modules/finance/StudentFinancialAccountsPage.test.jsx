@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getStudentDebts: vi.fn(), createInvoice: vi.fn(), recordInvoicePayment: vi.fn(), updateInvoiceStatus: vi.fn(),
 }));
 vi.mock('../../../services/financeService', () => mocks);
+const people = vi.hoisted(() => ({ searchPeople: vi.fn() }));
+vi.mock('../../../services/peopleService', () => people);
 
 const invoice = (overrides) => ({
   id: 7, reference: 'INV-ABC123', description: 'Organization fee', amount_due: '300.00', amount_paid: 0, remaining_balance: 300,
@@ -35,17 +37,17 @@ describe('StudentFinancialAccountsPage invoice cancellation', () => {
 
   async function openAccount() {
     render(<StudentFinancialAccountsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'View account' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View account' }))[0]);
 
-    return screen.findByRole('dialog', { name: 'Student Financial Account' });
+    return screen.findByRole('dialog', { name: 'Student financial account' });
   }
 
-  // The shared Modal gives every dialog the same title id, so a dialog opened over another is found by position, not by name.
+  // The shared overlays give every dialog the same title id, so a dialog opened over another is found by position, not by name.
   async function openCloseDialog(accountDialog) {
     fireEvent.click(within(accountDialog).getByRole('button', { name: 'Cancel or waive invoice INV-ABC123' }));
     await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(2));
     const form = screen.getAllByRole('dialog')[1];
-    expect(within(form).getByRole('heading', { name: 'Cancel or Waive Invoice' })).toBeInTheDocument();
+    expect(within(form).getByRole('heading', { name: 'Cancel or waive invoice' })).toBeInTheDocument();
 
     return form;
   }
@@ -134,13 +136,33 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     mocks.getStudentDebts.mockResolvedValue(emptyPayload);
   });
 
-  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+  it('uses the shared header: one h1 from the menu label, no lead line and one primary action', async () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Student accounts' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/Review charges, payments, and student clearance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Review charges, payments, and student clearance/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add student charge' })).toHaveLength(1);
+  });
+
+  it('adds a charge to a student found by name, without typing a school ID', async () => {
+    people.searchPeople.mockResolvedValue([{ school_id: 2026001, name: 'Ana Reyes', email: 'ana@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
+    mocks.createInvoice.mockResolvedValue({ data: {} });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add student charge' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add student charge' });
+    expect(screen.queryByRole('button', { name: 'Add student charge' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Add charge' })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
+    fireEvent.change(within(dialog).getByLabelText(/Amount due/), { target: { value: '150' } });
+    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: 'Organization fee' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add charge' }));
+
+    await waitFor(() => expect(mocks.createInvoice).toHaveBeenCalledWith(expect.objectContaining({ student_id: 2026001, amount_due: '150', description: 'Organization fee' })));
+    expect(mocks.createInvoice.mock.calls[0][0]).not.toHaveProperty('student');
   });
 
   it('explains where accounts come from and links to the members page on first use', async () => {
@@ -160,5 +182,15 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(screen.getByPlaceholderText('Name, school ID, email, course...')).toHaveValue('');
     expect(await screen.findByText('No student accounts yet')).toBeInTheDocument();
+  });
+
+  it('says one student with a balance in the singular and keeps View account on one line', async () => {
+    const account = accountWith([invoice()]);
+    mocks.getStudentDebts.mockResolvedValue({ data: { data: [account], summary: { total_outstanding: 300, students_owing: 1, students_cleared: 0, students_overdue: 0, total_students: 1 }, filter_options: { departments: [], programs: [], year_levels: [] }, total: 1, per_page: 10, current_page: 1 } });
+    renderPage();
+
+    expect(await screen.findByText('1 student with a balance')).toBeInTheDocument();
+    expect(screen.getByText('Out of 1 student')).toBeInTheDocument();
+    for (const button of await screen.findAllByRole('button', { name: 'View account' })) expect(button).toHaveClass('whitespace-nowrap');
   });
 });

@@ -101,8 +101,8 @@ describe('SaoCompliancePage', () => {
 
   it('offers a separate catalog for SAO semestral report requirements', async () => {
     renderPage('/dashboard/super-admin/compliance?tab=semestral-requirements');
-    expect(await screen.findByRole('heading', { name: 'Semestral report & financial report requirements' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Semestral report & financial report requirements' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('heading', { name: 'Semestral and financial report requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Semestral and financial report requirements' })).toHaveAttribute('aria-selected', 'true');
     await waitFor(() => expect(mocks.getRequirementTypes).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' })));
     fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
     expect(screen.getByRole('dialog', { name: 'New semestral report requirement' })).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('SaoCompliancePage', () => {
 
   it.each([
     ['events', 'Event requirements', 'Event requirements content'],
-    ['financial', 'Semestral Report & Financial Report', 'Financial reports content'],
+    ['financial', 'Semestral and financial report', 'Financial reports content'],
   ])('opens the %s tab from the query', async (key, label, content) => {
     renderPage(`/dashboard/super-admin/compliance?tab=${key}&organization=7`);
     expect(await screen.findByText(content)).toBeInTheDocument();
@@ -147,7 +147,7 @@ describe('SaoCompliancePage', () => {
     await screen.findAllByText('Computing Society');
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Organizations', 'Renewal', 'Event reviews', 'Semestral Report & Financial Report', 'Requirement settings', 'Organization accreditation', 'Review submissions (1)',
+      'Organizations', 'Renewal', 'Event reviews', 'Semestral and financial report', 'Requirement settings', 'Organization accreditation', 'Review submissions (1)',
     ]);
     expect(screen.queryByRole('tab', { name: 'Documents' })).not.toBeInTheDocument();
   });
@@ -155,8 +155,8 @@ describe('SaoCompliancePage', () => {
   it('shows the accreditation status tones from the shared map', async () => {
     renderPage();
     const pending = (await screen.findAllByText('Pending review'))[0];
-    expect(pending).toHaveClass('bg-brand-50');
-    expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-success-tint');
+    expect(pending).toHaveClass('bg-brand-600/10');
+    expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-green-50');
   });
 
   it('keeps organizations in alphabetical order regardless of review status', async () => {
@@ -222,6 +222,8 @@ describe('SaoCompliancePage', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'View requirements' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Computing Society' });
+    // The drawer moves focus to its close button on the next frame; wait for it so it cannot close the row menu.
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close panel' })).toHaveFocus());
     expect(within(dialog).getByRole('table', { name: 'Requirements for Computing Society' })).toBeInTheDocument();
     expect(within(dialog).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText('No file').length).toBeGreaterThan(0);

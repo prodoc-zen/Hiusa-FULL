@@ -45,7 +45,7 @@ describe('EventRequirementsTab', () => {
     render(<EventRequirementsTab />);
     await screen.findAllByText('Proposal');
     fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Permit' } });
-    fireEvent.change(screen.getByLabelText('Instructions for organizations'), { target: { value: 'Signed by adviser' } });
+    fireEvent.change(screen.getByLabelText(/^Instructions for organizations/), { target: { value: 'Signed by adviser' } });
     fireEvent.change(screen.getByLabelText(/^Sample format/), { target: { value: 'link' } });
     fireEvent.change(screen.getByLabelText(/^Sample link/), { target: { value: 'https://example.edu/permit-format' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));

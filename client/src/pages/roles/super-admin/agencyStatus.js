@@ -11,5 +11,5 @@ export function accreditationBadge(status) {
 }
 
 export function organizationOverviewPath(organizationId) {
-  return `/dashboard/super-admin/organizations/${organizationId}`;
+  return `/dashboard/super-admin/org/${organizationId}`;
 }

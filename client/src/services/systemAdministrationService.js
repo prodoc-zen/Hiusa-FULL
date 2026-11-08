@@ -16,18 +16,16 @@ export const uploadSystemOrganizationLogo = (id, file) => {
 };
 export const getSystemColleges = () => unwrap(api.get('/system/colleges', { cache: false }));
 export const createSystemCollege = (payload) => unwrap(api.post('/system/colleges', payload));
+export const deleteSystemCollege = (id) => unwrap(api.delete(`/system/colleges/${id}`));
 export const updateSystemCollege = (id, payload) => unwrap(api.put(`/system/colleges/${id}`, payload));
 export const uploadSystemCollegeLogo = (id, file) => {
   const data = new FormData();
   data.append('logo', file);
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
-export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
 export const inviteDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/invite-department-head`, payload));
 export const getDepartmentHeadInvitation = (token) => unwrap(api.get(`/department-head-invitations/${token}`));
 export const acceptDepartmentHeadInvitation = (token, payload) => unwrap(api.post(`/department-head-invitations/${token}/accept`, payload));
-export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
-export const permanentlyDeleteCollege = (id, confirmationName) => unwrap(api.delete(`/system/colleges/${id}`, { data: { mode: 'permanent', confirmation_name: confirmationName } }));
 export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));
 export const restoreSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/restore`));
 export const deleteSystemOrganization = (id, confirmationName) => unwrap(api.delete(`/system/organizations/${id}`, { data: { confirmation_name: confirmationName } }));
@@ -49,7 +47,6 @@ export const createSystemAdmin = (payload) => unwrap(api.post('/system/admins', 
 export const updateSystemAdmin = (id, payload) => unwrap(api.put(`/system/admins/${id}`, payload));
 export const deleteSystemAdmin = (id) => unwrap(api.delete(`/system/admins/${id}`));
 export const initiateSystemAdminPasswordReset = (id) => unwrap(api.post(`/system/admins/${id}/password-reset`));
-export const handoverSystemAdmin = (id, payload) => unwrap(api.post(`/system/admins/${id}/handover`, payload));
 export const getSystemOrganizationMembers = (organizationId, params) => unwrap(api.get(`/system/organizations/${organizationId}/members`, { params }));
 export const getGlobalAnnouncements = (params) => unwrap(api.get('/system/announcements', { params }));
 function announcementUpload(payload, updating = false) {

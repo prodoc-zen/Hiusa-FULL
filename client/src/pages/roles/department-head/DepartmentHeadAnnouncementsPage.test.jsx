@@ -19,7 +19,7 @@ async function openForm() {
   fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'Meet in the office.' } });
 }
 async function action(name) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actions for Orientation' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Orientation' }))[0]);
   fireEvent.click(await screen.findByRole('menuitem', { name }));
 }
 describe('Department Head announcements', () => {
@@ -31,14 +31,14 @@ describe('Department Head announcements', () => {
   });
   it('publishes to the chosen organization and refreshes the managed list', async () => {
     renderPage();
-    await screen.findByText('Orientation');
+    await screen.findAllByText('Orientation');
     expect(announcements.getAnnouncements).toHaveBeenCalledWith({ managed: 1, page: 1, per_page: 10 });
     expect(organizations.getCollegeOrganizations).not.toHaveBeenCalled();
     await openForm();
     fireEvent.click(screen.getByRole('button', { name: 'Publish announcement' }));
     await waitFor(() => expect(announcements.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, is_published: true, title: 'College orientation' })));
     expect(await screen.findByText('Announcement published to the selected organization.')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
   it('saves a draft and preserves entered fields after validation fails', async () => {
     announcements.createAnnouncement.mockRejectedValueOnce({ response: { status: 422, data: { message: 'Please correct the title.', errors: { title: ['Title already exists.'] } } } });
@@ -77,5 +77,20 @@ describe('Department Head announcements', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New announcement' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('option', { name: org.name })).toBeInTheDocument();
+  });
+  it('says the college has not written any, points to the feed, and keeps the feed link in the header', async () => {
+    announcements.getAnnouncements.mockResolvedValue(pageOf([]));
+    renderPage();
+    expect(await screen.findByText('You have not written any announcements')).toBeInTheDocument();
+    expect(screen.getByText('Announcements from the organizations in your college are in the feed.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View announcement feed' })).toHaveAttribute('href', '/dashboard/announcements/view-announcements');
+    expect(screen.queryByText('No announcements yet')).not.toBeInTheDocument();
+  });
+  it('marks only a draft, beside its title, and leaves a published row unmarked', async () => {
+    announcements.getAnnouncements.mockResolvedValue(pageOf([post, { ...post, id: 12, title: 'Enrollment', is_published: true }]));
+    renderPage();
+    await screen.findAllByText('Enrollment');
+    expect(screen.getAllByText('Draft')).toHaveLength(2);
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
   });
 });

@@ -15,6 +15,13 @@ class Announcement extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (Announcement $announcement) {
+            $announcement->academic_semester_id ??= AcademicSemester::forNewRecord()?->id;
+        });
+    }
+
     protected function casts(): array
     {
         return [

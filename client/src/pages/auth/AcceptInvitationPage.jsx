@@ -1,227 +1,218 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, ShieldCheck, AlertCircle, Building2 } from 'lucide-react';
-import hiusaLogo from '../../assets/Hiusa Logo.png';
-import { Button, Card, Field, Input } from '../../components/ui';
-import { getDepartmentHeadInvitation, acceptDepartmentHeadInvitation } from '../../services/systemAdministrationService';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import AuthLayout from '../../components/auth/AuthLayout';
+import AuthField from '../../components/auth/AuthField';
+import ErrorSummary from '../../components/auth/ErrorSummary';
+import PasswordField from '../../components/auth/PasswordField';
+import { Button, ErrorState, Skeleton } from '../../components/ui';
+import { acceptDepartmentHeadInvitation, getDepartmentHeadInvitation } from '../../services/systemAdministrationService';
+import { login } from '../../services/authService';
+import { startAuthSession } from '../../utils/authSession';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText.js';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMPTY = { first_name: '', last_name: '', email: '', password: '', password_confirmation: '' };
+const FIELD_KEYS = Object.keys(EMPTY);
+const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
+
+// A dean is invited by someone at the Student Affairs Office, office staff by their Department Head.
+// The server sends the inviter's name only; without it the page names the office.
+function invitedLine(invitation, college) {
+  const name = invitation?.inviter?.name?.trim();
+  const staff = invitation?.role === 'COLLEGE_STAFF';
+  if (!name) return `Invited by ${staff ? `the Department Head of ${college}` : 'the Student Affairs Office'}.`;
+  return staff ? `${name}, the Department Head, invited you to ${college}.` : `${name} from the Student Affairs Office invited you to ${college}.`;
+}
+
+const INVALID_COPY = {
+  expired: { title: 'This invitation link has expired', description: 'Ask the office that sent it for a new one.' },
+  used: { title: 'This invitation link was already used', description: 'Sign in with the account you made.' },
+  incomplete: { title: 'This invitation link is incomplete', description: 'Open the link exactly as it was sent, or ask the office that sent it for a new one.' },
+};
+
+const invalidKind = (cause) => (/already used/i.test(cause?.response?.data?.message || '') ? 'used' : 'expired');
+
+const ROLE_HOME = {
+  DEPARTMENT_HEAD: '/dashboard/department-head',
+  ADMIN: '/dashboard/admin',
+};
+
+function headline(invitation, college) {
+  if (invitation?.role === 'COLLEGE_STAFF') return `You're invited to ${college} as office staff`;
+  return `You're invited to lead ${college}`;
+}
+
+function validate(values, fromRecord) {
+  const found = {};
+  if (!fromRecord && !values.first_name.trim()) found.first_name = 'Enter your first name.';
+  if (!fromRecord && !values.last_name.trim()) found.last_name = 'Enter your last name.';
+  const email = values.email.trim();
+  if (!email) found.email = 'Enter your email.';
+  else if (!EMAIL_PATTERN.test(email)) found.email = 'That email does not look right.';
+  if (!values.password) found.password = 'Choose a password.';
+  else if (values.password.length < 8) found.password = 'Use at least 8 characters.';
+  if (!values.password_confirmation) found.password_confirmation = 'Type the password again.';
+  else if (values.password !== values.password_confirmation) found.password_confirmation = 'The two passwords do not match.';
+  return found;
+}
+
+function InviteSkeleton() {
+  return (
+    <div role="status" aria-label="Loading invitation" aria-busy="true" className="space-y-4">
+      <Skeleton className="h-8 w-4/5" />
+      <Skeleton className="h-4 w-3/5" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  );
+}
 
 export default function AcceptInvitationPage() {
   const [params] = useSearchParams();
   const token = params.get('token');
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [inviteData, setInviteData] = useState(null);
-
-  const [schoolId, setSchoolId] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [formErrors, setFormErrors] = useState({});
+  const [state, setState] = useState(token ? 'loading' : 'invalid');
+  const [loadError, setLoadError] = useState('');
+  const [invalidReason, setInvalidReason] = useState(token ? 'expired' : 'incomplete');
+  const [invite, setInvite] = useState(null);
+  const [values, setValues] = useState(EMPTY);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [submits, setSubmits] = useState(0);
 
   useEffect(() => {
-    if (!token) {
-      setError('No invitation token was provided in the link. Please check your invitation URL.');
-      setLoading(false);
+    if (!token) return undefined;
+    let current = true;
+    setState('loading');
+    getDepartmentHeadInvitation(token)
+      .then((data) => {
+        if (!current) return;
+        setInvite(data);
+        setState('ready');
+      })
+      .catch((cause) => {
+        if (!current) return;
+        setLoadError(getApiErrorMessage(cause, 'The invitation could not be loaded. Try again.'));
+        setInvalidReason(invalidKind(cause));
+        setState(cause.response?.status >= 500 || !cause.response ? 'failed' : 'invalid');
+      });
+    return () => { current = false; };
+  }, [token, attempt]);
+
+  function setField(key, value) {
+    setValues((existing) => ({ ...existing, [key]: value }));
+    setErrors((existing) => ({ ...existing, [key]: undefined }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const found = validate(values, Boolean(record));
+    setErrors(found);
+    setFormError('');
+    if (Object.keys(found).length) {
+      setSubmits((count) => count + 1);
       return;
     }
 
-    getDepartmentHeadInvitation(token)
-      .then((data) => {
-        setInviteData(data);
-        if (data?.invitation?.school_id) {
-          setSchoolId(String(data.invitation.school_id));
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(getApiErrorMessage(err, 'This invitation link is invalid or has expired. Please contact the Student Affairs Office for a new invite.'));
-        setLoading(false);
-      });
-  }, [token]);
-
-  async function handleAccept(e) {
-    e.preventDefault();
-    const errs = {};
-    if (!schoolId.trim()) {
-      errs.school_id = 'School ID is required.';
-    } else if (!/^\d{1,8}$/.test(schoolId.trim()) || Number(schoolId) < 1) {
-      errs.school_id = 'Enter a valid School ID (up to 8 digits).';
-    }
-
-    if (!password) {
-      errs.password = 'Create a secure password.';
-    } else if (password.length < 8) {
-      errs.password = 'Password must be at least 8 characters.';
-    }
-
-    if (!passwordConfirmation) {
-      errs.password_confirmation = 'Confirm your password.';
-    } else if (password !== passwordConfirmation) {
-      errs.password_confirmation = 'Passwords do not match.';
-    }
-
-    setFormErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-
     setSubmitting(true);
+    const email = values.email.trim().toLowerCase();
     try {
-      const res = await acceptDepartmentHeadInvitation(token, {
-        school_id: Number(schoolId),
-        password,
-        password_confirmation: passwordConfirmation,
-      });
+      const body = {
+        ...(!record && { first_name: values.first_name.trim(), last_name: values.last_name.trim() }),
+        email,
+        password: values.password,
+        password_confirmation: values.password_confirmation,
+      };
+      await acceptDepartmentHeadInvitation(token, body);
 
-      if (res?.token) {
-        localStorage.setItem('auth_token', res.token);
+      try {
+        const response = await login({ identifier: email, password: values.password });
+        startAuthSession(response.data);
+        navigate(ROLE_HOME[response.data.user?.role] || '/dashboard', { replace: true });
+      } catch {
+        navigate('/login', { replace: true });
       }
-      if (res?.user) {
-        localStorage.setItem('user', JSON.stringify(res.user));
+    } catch (cause) {
+      const fieldErrors = cause.response?.data?.errors || {};
+      const mapped = Object.fromEntries(Object.entries(fieldErrors).filter(([key]) => FIELD_KEYS.includes(key)).map(([key, messages]) => [key, [].concat(messages)[0]]));
+      setErrors(mapped);
+      setSubmits((count) => count + 1);
+      if (!Object.keys(mapped).length) {
+        const status = cause.response?.status;
+        if (status === 404 || status === 410) {
+          setInvalidReason(invalidKind(cause));
+          setState('invalid');
+        } else {
+          setFormError(getApiErrorMessage(cause, 'We could not create your account. Try again.'));
+        }
       }
-
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/dashboard/department-head');
-      }, 1500);
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not complete your registration. Please try again.'));
       setSubmitting(false);
     }
   }
 
-  const collegeName = inviteData?.college?.name ? formatDisplayText(inviteData.college.name) : 'Your College';
+  const record = invite?.invitation?.record || null;
+  const summaryItems = [
+    ...FIELD_KEYS.filter((key) => errors[key]).map((key) => ({ fieldId: FIELD_IDS[key], message: errors[key] })),
+    ...(formError ? [{ message: formError }] : []),
+  ];
+  const college = invite?.college?.name ? formatDisplayText(invite.college.name) : 'your college';
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#EEF6FB] px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Clean University Header */}
-        <div className="mb-6 text-center">
-          <img src={hiusaLogo} alt="HIUSA Logo" className="mx-auto h-12 w-12 object-contain" />
-          <h1 className="mt-3 text-xl font-black tracking-tight text-[#0B1831]">HIUSA Academic Governance</h1>
-          <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-[#0878B7]">University of Cebu</p>
+    <AuthLayout>
+      {state === 'loading' && <InviteSkeleton />}
+
+      {state === 'invalid' && (
+        <div>
+          <ErrorState title={INVALID_COPY[invalidReason].title} description={INVALID_COPY[invalidReason].description} className="py-0" />
+          {invalidReason === 'used' && (
+            <p className="mt-4 text-sm">
+              <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
+            </p>
+          )}
         </div>
+      )}
 
-        <Card className="rounded-2xl border border-[#DDE7EF] bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8">
-          {loading && (
-            <div className="space-y-4 py-8 text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#0878B7] border-t-transparent" />
-              <p className="text-sm font-semibold text-slate-600">Verifying invitation credentials…</p>
-            </div>
-          )}
+      {state === 'failed' && <ErrorState title="We could not open this invitation" description={loadError} onRetry={() => setAttempt((count) => count + 1)} className="py-0" />}
 
-          {!loading && error && (
-            <div className="space-y-4 text-center">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-100 text-red-600">
-                <AlertCircle size={24} />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-[#0F172A]">Invitation Unavailable</h2>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{error}</p>
-              </div>
-              <div className="pt-2">
-                <Link
-                  to="/"
-                  className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0878B7] px-5 text-xs font-bold text-white transition hover:bg-[#0B1831]"
-                >
-                  Return to Home
-                </Link>
-              </div>
-            </div>
-          )}
+      {state === 'ready' && (
+        <>
+          <h1 className="text-xl font-semibold text-ink sm:text-2xl">{headline(invite.invitation, college)}</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            {invitedLine(invite.invitation, college)}
+            {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? ` Your role: ${invite.invitation.position_title}.` : ''}
+            {record ? ' Your name and ID number come from the school records.' : ''}
+          </p>
 
-          {!loading && !error && success && (
-            <div className="space-y-4 py-4 text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-                <CheckCircle2 size={32} />
-              </div>
-              <div>
-                <h2 className="text-lg font-extrabold text-[#0F172A]">Welcome, Department Head!</h2>
-                <p className="mt-1 text-xs text-slate-600">Your account is ready. Entering your College Workspace…</p>
-              </div>
-            </div>
-          )}
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+            <ErrorSummary items={summaryItems} attempt={submits} />
+            {record ? (
+              <>
+                <AuthField label="Name" value={`${record.first_name} ${record.last_name}`} readOnly />
+                <AuthField label="ID number" value={String(record.school_id)} readOnly hint="Given by the school. It cannot be changed." />
+              </>
+            ) : (
+              <>
+                <AuthField id={FIELD_IDS.first_name} label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
+                <AuthField id={FIELD_IDS.last_name} label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
+              </>
+            )}
+            <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
+            <PasswordField id={FIELD_IDS.password} label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
+            <PasswordField id={FIELD_IDS.password_confirmation} label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
 
-          {!loading && !error && !success && inviteData && (
-            <div>
-              <div className="mb-6 border-b border-[#DDE7EF] pb-5">
-                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-[#0878B7]">
-                  <Building2 size={12} />
-                  <span>Official Appointment</span>
-                </div>
-                <h2 className="text-xl font-extrabold text-[#0F172A]">
-                  Welcome, {inviteData.invitation?.first_name} {inviteData.invitation?.last_name}
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  You have been invited by the Student Affairs Office to serve as <strong>Department Head</strong> for <strong>{collegeName}</strong>.
-                </p>
-              </div>
+            <Button type="submit" loading={submitting} className="w-full">Create account</Button>
+          </form>
 
-              <form onSubmit={handleAccept} className="space-y-4">
-                <Field label="School ID" required error={formErrors.school_id} hint={inviteData.invitation?.school_id ? 'Assigned by SAO' : 'Your 8-digit university ID number'}>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    disabled={Boolean(inviteData.invitation?.school_id)}
-                    value={schoolId}
-                    onChange={(e) => setSchoolId(e.target.value)}
-                    placeholder="e.g. 20261001"
-                  />
-                </Field>
-
-                <Field label="Email address">
-                  <Input
-                    type="email"
-                    disabled
-                    value={inviteData.invitation?.email || ''}
-                    className="bg-slate-50 text-slate-600"
-                  />
-                </Field>
-
-                <Field label="Create password" required error={formErrors.password} hint="At least 8 characters">
-                  <Input
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create your secure password"
-                  />
-                </Field>
-
-                <Field label="Confirm password" required error={formErrors.password_confirmation}>
-                  <Input
-                    type="password"
-                    autoComplete="new-password"
-                    value={passwordConfirmation}
-                    onChange={(e) => setPasswordConfirmation(e.target.value)}
-                    placeholder="Re-enter your password"
-                  />
-                </Field>
-
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    loading={submitting}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0878B7] text-sm font-bold text-white shadow-md transition hover:bg-[#0B1831] active:scale-[0.98]"
-                  >
-                    <span>Activate &amp; Enter Workspace</span>
-                    <ArrowRight size={16} />
-                  </Button>
-                </div>
-              </form>
-
-              <div className="mt-6 flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-600">
-                <ShieldCheck size={13} className="text-[#0878B7]" />
-                <span>Protected by HIUSA Institutional Security</span>
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
-    </main>
+          <p className="mt-4 border-t border-line pt-4 text-sm text-ink-muted">
+            Already have an account? <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
+          </p>
+        </>
+      )}
+    </AuthLayout>
   );
 }
-

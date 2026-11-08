@@ -26,10 +26,23 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Budgets' })).toBeInTheDocument();
   });
 
+  it('sets the title at text-xl, semibold, with no uppercase or extrabold', () => {
+    renderHeader({ title: 'Budgets' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Budgets' });
+    expect(heading).toHaveClass('text-xl', 'sm:text-2xl', 'font-semibold');
+    expect(heading).not.toHaveClass('font-extrabold');
+    expect(heading.className).not.toMatch(/uppercase/);
+  });
+
   it('shows the purpose line in the description slot', () => {
     renderHeader({ title: 'Budgets', purpose: 'Review approval requests awaiting your sign-off.' });
     const purpose = screen.getByText('Review approval requests awaiting your sign-off.');
     expect(purpose).toHaveClass('max-w-[75ch]', 'text-ink-muted-strong');
+  });
+
+  it('renders no lead when the page passes neither description nor purpose', () => {
+    const { container } = renderHeader({ title: 'Budgets' });
+    expect(container.querySelector('p')).toBeNull();
   });
 
   it('keeps a page-written description when purpose is also passed', () => {
@@ -86,6 +99,17 @@ describe('PageHeader', () => {
     const next = screen.getByTestId('next');
     expect(heading.compareDocumentPosition(stepper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(stepper.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('lets the action row wrap inside the page width, so two buttons never push a phone sideways', () => {
+    renderHeader({
+      title: 'College announcements',
+      actions: <button type="button">View announcement feed</button>,
+      primary: <button type="button">New announcement</button>,
+    });
+    const row = screen.getByRole('button', { name: 'View announcement feed' }).parentElement;
+    expect(row).toHaveClass('flex-wrap');
+    expect(row).toHaveClass('max-w-full');
   });
 
   it('still renders with only a title and the original actions prop', () => {

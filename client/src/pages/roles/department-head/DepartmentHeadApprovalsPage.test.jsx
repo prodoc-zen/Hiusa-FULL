@@ -31,9 +31,11 @@ function renderPage(entry = '/dashboard/approvals') {
   );
 }
 
+// A row carries its actions as visible controls named "<action>: <title>"; "Open ..." is a link, the rest are buttons.
 async function actionFor(title, label) {
-  fireEvent.click((await screen.findAllByRole('button', { name: new RegExp(`^Actions for ${title}$`, 'i') }))[0]);
-  return screen.findByRole('menuitem', { name: label });
+  const source = label instanceof RegExp ? label.source : label;
+  const found = await screen.findAllByRole(source.startsWith('Open') ? 'link' : 'button', { name: new RegExp(`^(${source}): ${title}$`, 'i') });
+  return found[0];
 }
 
 const reportRequest = (summary) => ({
@@ -103,12 +105,12 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
       return { data: { data: [row(20 + params.page, 8, `Drama report ${params.page}`)], current_page: params.page, last_page: 3, per_page: 20, total: 45 } };
     });
     renderPage();
-    expect(await screen.findByRole('button', { name: 'Pending (9)' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Pending (9)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '8' } });
 
     expect(await screen.findByText(/drama report 1/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pending (3)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pending (3)' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next page of requests' }));
 
@@ -175,12 +177,35 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     expect(search.closest('label').parentElement).toHaveClass('grid-cols-1');
   });
 
+  it('filters with a search and two selects at most, and clears them with one link', async () => {
+    respondWith(reportRequest({}));
+    renderPage();
+
+    await screen.findByLabelText('Search requests');
+    expect(screen.queryByLabelText('Semester')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search requests'), { target: { value: 'zzz' } });
+    expect(await screen.findByRole('button', { name: 'Clear' })).toBeInTheDocument();
+  });
+
+  it('shows no badge on a request that is still pending, since its stage line says so', async () => {
+    respondWith(reportRequest({}));
+    renderPage();
+
+    const row = (await screen.findByText('October Financial Report')).closest('li');
+    expect(within(row).queryByText('Pending')).not.toBeInTheDocument();
+    expect(within(row).getByRole('progressbar')).toBeInTheDocument();
+  });
+
   it('keeps one list for the Department Head: no tabs and no New request button', async () => {
     respondWith(reportRequest({ submission_status: 'pending_department_head' }));
     renderPage('/dashboard/department-head/approvals');
 
     await screen.findByText('October Financial Report');
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /To review/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Pending/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('link', { name: 'New request' })).not.toBeInTheDocument();
   });
 });
@@ -290,8 +315,21 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     expect(await actionFor('Foundation Day Budget', 'Open budget')).toHaveAttribute('href', '/dashboard/finance/budget-allocation?record=102');
     expect(await actionFor('SBO Election 2026', 'Open election')).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=103');
     expect(await actionFor('September Financial Report', 'Open report')).toHaveAttribute('href', '/dashboard/finance/transaction-history?record=104');
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Pep Rally' }))[0]);
-    expect(screen.queryByRole('menuitem', { name: /^Open/ })).not.toBeInTheDocument();
+    expect(await screen.findAllByRole('button', { name: 'Details: Pep Rally' })).not.toHaveLength(0);
+    expect(screen.queryByRole('link', { name: /^Open.*: Pep Rally$/ })).not.toBeInTheDocument();
+  });
+
+  it('names the requester without a school ID or role code and keeps one secondary action per row', async () => {
+    renderPage('/dashboard/approvals?tab=submitted');
+    await screen.findByText('Foundation Day');
+
+    const row = rowOf('Foundation Day');
+    expect(within(row).getByText(/Requested by Ana Admin ·/)).toBeInTheDocument();
+    expect(within(row).queryByText(/ADM-1/)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/ADMIN/)).not.toBeInTheDocument();
+    expect(within(row).getByText('Admin')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Details: Foundation Day' })).toHaveAttribute('data-variant', 'secondary');
+    expect(within(row).getByRole('link', { name: 'Open event: Foundation Day' })).toHaveAttribute('data-variant', 'ghost');
   });
 
   it('explains how to submit when nothing has been submitted and links the New request page', async () => {
@@ -299,7 +337,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     renderPage('/dashboard/approvals?tab=submitted');
 
     expect(await screen.findByText('Nothing submitted yet')).toBeInTheDocument();
-    expect(screen.getByText(/tracked here, with the stage each one is at/)).toBeInTheDocument();
+    expect(screen.getByText(/show here, with who each one is waiting on/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Start a new request' })).toHaveAttribute('href', '/dashboard/approval-requests/new');
   });
 
@@ -307,9 +345,8 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     serve({ review: [] });
     renderPage();
 
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
-    expect(screen.getByText(/officers submit and student payments/)).toBeInTheDocument();
-    expect(screen.getByText(/Officers send them from their own pages/)).toBeInTheDocument();
+    expect(await screen.findByText('No requests to review')).toBeInTheDocument();
+    expect(screen.getByText('Nothing from your officers or students needs your decision right now.')).toBeInTheDocument();
   });
 
   it('offers to clear filters when the filters hide everything', async () => {
@@ -333,7 +370,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
     renderPage();
 
     expect(await screen.findByText('Approvals are for the Admin and the Department Head')).toBeInTheDocument();
-    expect(screen.queryByText('Failed to load approval requests.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load approval requests.')).not.toBeInTheDocument();
   });
 });
 
@@ -350,7 +387,7 @@ describe('DepartmentHeadApprovalsPage for an SBO officer', () => {
     renderPage();
 
     expect(await screen.findByText('Open House')).toBeInTheDocument();
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Submitted by me' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New request' })).toBeInTheDocument();
     expect(mocks.getApprovalRequests.mock.calls.every(([params]) => params.scope === 'submitted')).toBe(true);
     expect(within(rowOf('Open House')).getByText('Waiting for Admin approval')).toBeInTheDocument();
@@ -504,8 +541,7 @@ describe('DepartmentHeadApprovalsPage entity links stay on routes the role may o
 
     const hrefs = [];
     for (const title of ['Foundation Day', 'Foundation Day Budget', 'SBO Election 2026', 'September Financial Report']) {
-      fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${title}` }))[0]);
-      hrefs.push((await screen.findByRole('menuitem', { name: /^Open/ })).getAttribute('href').split('?')[0]);
+      hrefs.push((await actionFor(title, /Open \w+/)).getAttribute('href').split('?')[0]);
     }
     expect(hrefs).toHaveLength(4);
     hrefs.forEach((href) => expect(allowedFor(role)).toContain(href));
@@ -544,7 +580,8 @@ describe('SAO organization approvals', () => {
       expect(await screen.findByText('Council Election')).toBeInTheDocument();
       expect(mocks.getSystemOrganizations).toHaveBeenCalled();
       expect(mocks.getCollegeOrganizations).not.toHaveBeenCalled();
-      expect(screen.getByText('Review this election')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Review: Council Election' })).toBeInTheDocument();
+      expect(screen.queryByText('Review this election')).not.toBeInTheDocument();
       expect(screen.queryByText('Awaiting Department Head review')).not.toBeInTheDocument();
     } finally { localStorage.clear(); }
   });
@@ -590,7 +627,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
 
     expect(listCalls()).toEqual([expect.objectContaining({ search: 'report', status: 'pending', page: 1 })]);
     expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Pending (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pending (2)' })).toBeInTheDocument();
     expect(loaded()).toBe(true);
     expect(screen.getByLabelText('Search requests')).toHaveValue('report');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -606,7 +643,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
     await act(async () => { await refetchHook.current(); });
 
     expect(screen.getAllByText(/chess report/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText('Failed to load approval requests.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load approval requests.')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(loaded()).toBe(true);
   });
@@ -620,13 +657,13 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
     const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
-    const banner = () => document.querySelector('p.text-red-700');
-    await waitFor(() => expect(banner()).toHaveTextContent('Failed to submit review. Please try again.'));
+    const banner = () => document.querySelector('[role="alert"] p');
+    await waitFor(() => expect(banner()).toHaveTextContent('Could not save your decision. Try again.'));
     mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report'), row(2, 'Drama report')]));
 
     await act(async () => { await refetchHook.current(); });
 
-    expect(banner()).toHaveTextContent('Failed to submit review. Please try again.');
+    expect(banner()).toHaveTextContent('Could not save your decision. Try again.');
     expect(screen.getAllByText(/drama report/i).length).toBeGreaterThan(0);
   });
 

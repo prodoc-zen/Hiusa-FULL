@@ -1,11 +1,12 @@
 import { StrictMode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentHomePage from './StudentHomePage';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getBriefing } from '../../../services/dashboardService';
 
+vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../services/studentFeedService', () => ({ getStudentFeed: vi.fn() }));
 vi.mock('../../../services/dashboardService', () => ({
   getBriefing: vi.fn(() => Promise.resolve({ data: { user: { first_name: 'Ana', role: 'STUDENT', organization: { id: 1, name: 'Supreme Student Council' } }, summary: { attention_count: 0, headline: "You're all caught up." }, attention: [], pillars: {}, insights: [] } })),
@@ -38,7 +39,7 @@ describe('StudentHomePage', () => {
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     expect(screen.getByText('Important')).toBeInTheDocument();
     expect(getStudentFeed).toHaveBeenCalledWith(1, 12);
-    expect(screen.getByText('You’re all caught up.')).toBeInTheDocument();
+    expect(screen.queryByText('You’re all caught up.')).not.toBeInTheDocument();
   });
 
   it('shows owed balance and clearance cues as links, with no Tasks pillar', async () => {
@@ -110,8 +111,31 @@ describe('StudentHomePage', () => {
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: null, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
     render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
 
-    expect(await screen.findByText('Your feed is quiet')).toBeInTheDocument();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Find an event to join' })).toHaveAttribute('href', '/dashboard/events/activity-calendar');
+  });
+
+  it('says what went wrong with the feed and offers one retry', async () => {
+    getStudentFeed.mockRejectedValueOnce({ response: { status: 500 } });
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+
+    expect(await screen.findByText('Could not load your feed')).toBeInTheDocument();
+    getStudentFeed.mockResolvedValueOnce({ organization: null, items: [], sidebar: { active_election: null, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
+  });
+
+  it('offers voting as one plain link while an election is open, and says so after the vote', async () => {
+    getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: false }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
+    const { unmount } = render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByRole('link', { name: 'Vote now' })).toHaveAttribute('href', '/elections/4/vote');
+    unmount();
+
+    getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: true }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByText('Vote submitted')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Vote now' })).not.toBeInTheDocument();
   });
 
   it('finishes loading the feed under the application StrictMode wrapper', async () => {
@@ -119,5 +143,12 @@ describe('StudentHomePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
     expect(screen.queryAllByRole('status')).toHaveLength(0);
+  });
+
+  it('opens with the process tracker above everything else', async () => {
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    await screen.findByRole('region', { name: 'Organization feed' });
+    const tracker = screen.getByTestId('process-tracker');
+    expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });
 });

@@ -10,6 +10,20 @@ const STEPS = [
   { key: 'prepare', label: 'Prepare', state: 'upcoming' },
 ];
 
+describe('FlowStepper default', () => {
+  it('is the one-line compact form unless a caller asks for the full list', () => {
+    render(<FlowStepper steps={STEPS} ariaLabel="Event stage" />);
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Event stage' })).toHaveAttribute('aria-valuetext', 'Step 2 of 4: Approval');
+  });
+
+  it('renders the labelled list only for variant="full"', () => {
+    render(<FlowStepper variant="full" steps={STEPS} ariaLabel="Event stage" />);
+    expect(screen.getByRole('list', { name: 'Event stage' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+});
+
 describe('FlowStepper full variant', () => {
   it('marks a stopped step with the Stopped state word and its note', () => {
     const steps = [
@@ -17,14 +31,14 @@ describe('FlowStepper full variant', () => {
       { key: 'b', label: 'Payment check', state: 'stopped', note: 'Cancelled' },
       { key: 'c', label: 'Claimed', state: 'skipped' },
     ];
-    render(<FlowStepper steps={steps} ariaLabel="Order progress" />);
+    render(<FlowStepper variant="full" steps={steps} ariaLabel="Order progress" />);
     const item = within(screen.getByRole('list', { name: 'Order progress' })).getAllByRole('listitem')[1];
     expect(within(item).getByText(/^Stopped:/)).toHaveClass('sr-only');
     expect(within(item).getByText('Cancelled')).toBeInTheDocument();
   });
 
   it('renders an ordered list with the aria label and one item per step, in order', () => {
-    render(<FlowStepper steps={STEPS} ariaLabel="Event progress" />);
+    render(<FlowStepper variant="full" steps={STEPS} ariaLabel="Event progress" />);
     const list = screen.getByRole('list', { name: 'Event progress' });
     expect(list.tagName).toBe('OL');
     const items = within(list).getAllByRole('listitem');
@@ -38,7 +52,7 @@ describe('FlowStepper full variant', () => {
   });
 
   it('puts a state word in text on every step, hidden visually with sr-only', () => {
-    render(<FlowStepper steps={STEPS} />);
+    render(<FlowStepper variant="full" steps={STEPS} />);
     for (const word of ['Done', 'Current step', 'Blocked', 'Upcoming', 'Skipped']) {
       const node = screen.getByText(new RegExp(`^${word}:`));
       expect(node).toHaveClass('sr-only');
@@ -50,31 +64,54 @@ describe('FlowStepper full variant', () => {
   });
 
   it('marks only the current step with aria-current="step"', () => {
-    render(<FlowStepper steps={STEPS} />);
+    render(<FlowStepper variant="full" steps={STEPS} />);
     const items = screen.getAllByRole('listitem');
     expect(items.map((item) => item.getAttribute('aria-current'))).toEqual([null, null, 'step', null, null]);
   });
 
   it('shows actor and note as visible text', () => {
-    render(<FlowStepper steps={STEPS} />);
+    render(<FlowStepper variant="full" steps={STEPS} />);
     expect(screen.getByText('Department Head')).toBeVisible();
     expect(screen.getByText('Waiting')).toBeVisible();
     expect(screen.getByText('Returned')).toBeVisible();
   });
 
   it('draws no focusable elements, so keyboard order is the page order', () => {
-    const { container } = render(<FlowStepper steps={STEPS} />);
+    const { container } = render(<FlowStepper variant="full" steps={STEPS} />);
     expect(container.querySelectorAll('a, button, [tabindex]')).toHaveLength(0);
   });
 
   it('falls back to an upcoming look for an unknown state instead of throwing', () => {
-    render(<FlowStepper steps={[{ key: 'x', label: 'Odd', state: 'mystery' }]} />);
+    render(<FlowStepper variant="full" steps={[{ key: 'x', label: 'Odd', state: 'mystery' }]} />);
     expect(screen.getByText(/^Upcoming:/)).toHaveClass('sr-only');
   });
 
   it('renders nothing for an empty step list', () => {
-    const { container } = render(<FlowStepper steps={[]} />);
+    const { container } = render(<FlowStepper variant="full" steps={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('FlowStepper step limit', () => {
+  const make = (count, extra = []) => [
+    ...Array.from({ length: count }, (_, index) => ({ key: `s${index}`, label: `Step ${index}`, state: index === 0 ? 'done' : index === 1 ? 'current' : 'upcoming' })),
+    ...extra,
+  ];
+
+  it('lists six steps in full', () => {
+    render(<FlowStepper variant="full" steps={make(6)} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(6);
+  });
+
+  it('falls back to the one-line summary past six counted steps', () => {
+    render(<FlowStepper variant="full" steps={make(7)} ariaLabel="Long flow" />);
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Long flow' })).toHaveAttribute('aria-valuemax', '7');
+  });
+
+  it('does not count skipped steps toward the limit', () => {
+    render(<FlowStepper variant="full" steps={make(6, [{ key: 'x', label: 'Skipped one', state: 'skipped' }])} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(7);
   });
 });
 

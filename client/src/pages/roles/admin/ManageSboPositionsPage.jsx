@@ -1,20 +1,16 @@
-import HiusaSelect from '../../../components/ui/Select';
 import { matchesFilter } from '../../../utils/filterValues';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, PencilLine, Plus, Search, Trash2 } from 'lucide-react';
+import { PencilLine, Plus, Search, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
-import Modal from '../../../components/Modal';
-import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import { createSboPosition, deleteSboPosition, getSboPositions, updateSboPosition } from '../../../services/userService';
 
-const PAGE_SIZE = 10;
 const EMPTY_FORM = { role: 'ADMIN', title: '', description: '', is_active: true };
-const ROLE_LABELS = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
+const ROLE_LABELS = { ADMIN: 'Admin', SBO_OFFICER: 'SBO officer' };
 const ADMIN_TITLES = ['President', 'Department Secretary', 'Secretary', 'Vice President', 'Treasurer', 'Auditor', 'Co-Administrator', 'Executive Secretary', 'Chief of Developer'];
 
 function firstError(error, fallback) {
@@ -27,7 +23,6 @@ export default function ManageSboPositionsPage() {
   const [positions, setPositions] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [page, setPage] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
   const [customTitle, setCustomTitle] = useState(false);
   const [formMode, setFormMode] = useState(null);
@@ -48,18 +43,13 @@ export default function ManageSboPositionsPage() {
 
   useEffect(() => { load(); }, []);
 
+  const filtersActive = Boolean(search.trim() || roleFilter);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return positions.filter((position) => matchesFilter(roleFilter, position.role)
       && (!query || `${position.title} ${position.description || ''}`.toLowerCase().includes(query)));
   }, [positions, roleFilter, search]);
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  useEffect(() => { setPage(1); }, [search, roleFilter]);
-  useEffect(() => {
-    const lastPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    if (page > lastPage) setPage(lastPage);
-  }, [filtered.length, page]);
+  const clearFilters = () => { setSearch(''); setRoleFilter(''); };
 
   const openCreate = () => { setForm(EMPTY_FORM); setCustomTitle(false); setEditingId(null); setFormError(''); setFormMode('create'); };
   const openEdit = (position) => {
@@ -80,7 +70,7 @@ export default function ManageSboPositionsPage() {
       else await createSboPosition(payload);
       await load();
       setFormMode(null); setEditingId(null);
-      setFeedback({ open: true, type: 'success', message: `Position ${formMode === 'edit' ? 'updated' : 'created'} successfully.` });
+      setFeedback({ open: true, type: 'success', message: `Position ${formMode === 'edit' ? 'updated' : 'created'}.` });
     } catch (requestError) { setFormError(firstError(requestError, 'Unable to save this position.')); }
     finally { setBusy(false); }
   };
@@ -92,42 +82,126 @@ export default function ManageSboPositionsPage() {
       await deleteSboPosition(deleteTarget.id);
       await load();
       setDeleteTarget(null);
-      setFeedback({ open: true, type: 'success', message: `${deleteTarget.title} was deleted. Assigned users were safely unassigned.` });
+      setFeedback({ open: true, type: 'success', message: `${deleteTarget.title} was deleted. Assigned users were unassigned.` });
     } catch (requestError) {
       setDeleteTarget(null);
       setFeedback({ open: true, type: 'error', message: firstError(requestError, 'Unable to delete this position.') });
     } finally { setBusy(false); }
   };
 
-  return <div className="space-y-5">
-    <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false, type: 'success', message: '' })} />
-    <section className="flex flex-col gap-4 rounded-3xl border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Organization access structure</p><p className="mt-1 max-w-2xl text-sm text-slate-500">Create and maintain positions separately for Admin and SBO Officer accounts. Students and Department Heads cannot be assigned these positions.</p></div>
-      <button type="button" onClick={openCreate} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62]"><Plus size={16} />Add Position</button>
-    </section>
+  // Responsibilities and the inactive flag sit under the title so a row has no empty cells; the account
+  // role gets a column only while the list holds more than one role.
+  const mixedRoles = new Set(filtered.map((position) => position.role)).size > 1;
+  const columns = [
+    {
+      key: 'title',
+      header: 'Position',
+      render: (position) => (
+        <>
+          <span className="font-medium">{formatDisplayText(position.title)}</span>
+          {!position.is_active && <span className="ml-2 align-middle"><StatusBadge tone="neutral" label="Inactive" /></span>}
+          {position.description && <RichTextBody as="span" value={position.description} className="mt-0.5 line-clamp-2 block max-w-md text-xs text-ink-muted-strong" />}
+        </>
+      ),
+    },
+    ...(mixedRoles ? [{ key: 'role', header: 'Account role', render: (position) => ROLE_LABELS[position.role] || position.role }] : []),
+  ];
 
-    <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-4 sm:flex-row">
-        <label className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3"><Search size={15} className="text-slate-500" /><span className="sr-only">Search positions</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or responsibilities..." className="w-full bg-transparent text-sm outline-none" /></label>
-        <HiusaSelect filter aria-label="Filter positions by account role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All account roles</option><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></HiusaSelect>
+  const filters = (
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative min-w-0 flex-1 sm:max-w-sm">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+        <Input aria-label="Search positions" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or responsibilities" className="pl-9" />
       </div>
-      {error && <p className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left"><thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Position</th><th className="px-5 py-3">Account Role</th><th className="px-5 py-3">Responsibilities</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">
-        {loading ? Array.from({ length: 5 }, (_, index) => <tr key={index}>{Array.from({ length: 5 }, (__, cell) => <td key={cell} className="px-5 py-4"><div className="h-4 animate-pulse rounded bg-slate-100" /></td>)}</tr>) : paged.map((position) => <tr key={position.id} className="hover:bg-[#F8FBFD]"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><BriefcaseBusiness size={16} /></span><strong className="text-sm text-[#0F172A]">{formatDisplayText(position.title)}</strong></div></td><td className="px-5 py-4 text-sm font-semibold text-slate-600">{ROLE_LABELS[position.role] || position.role}</td><td className="max-w-md px-5 py-4 text-sm text-slate-500"><RichTextBody value={position.description || 'No responsibilities recorded.'} /></td><td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${position.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{position.is_active ? 'Active' : 'Inactive'}</span></td><td className="px-5 py-4">{position.role === 'ADMIN' && /^(organization )?advis(e|o)r$/i.test(position.title) ? <span className="text-xs font-semibold text-slate-500">SAO managed</span> : <TableRowActions subject={position.title} label="Position actions" actions={[{ label: 'Edit position', icon: PencilLine, onClick: () => openEdit(position) }, { label: 'Delete position', icon: Trash2, danger: true, onClick: () => setDeleteTarget(position) }]} />}</td></tr>)}
-      </tbody></table></div>
-      {!loading && paged.length === 0 && <p className="p-10 text-center text-sm text-slate-500">No positions match the current filters.</p>}
-      <PaginationControls currentPage={page} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} label="positions" />
-    </section>
+      <Select aria-label="Filter positions by account role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="sm:w-52">
+        <option value="">All account roles</option>
+        <option value="ADMIN">Admin</option>
+        <option value="SBO_OFFICER">SBO officer</option>
+      </Select>
+      {filtersActive && (
+        <button type="button" onClick={clearFilters} className="min-h-11 self-start rounded-control px-1 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 sm:self-auto">Clear</button>
+      )}
+    </div>
+  );
 
-    <Modal open={Boolean(formMode)} title={formMode === 'edit' ? 'Edit Position' : 'Add Position'} description="Positions determine which titles can be assigned in Manage Users." onClose={closeForm} closeOnBackdrop={!busy} closeOnEscape={!busy} footer={<><button type="button" onClick={closeForm} disabled={busy} className="h-11 rounded-full border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600">Cancel</button><button type="submit" form="position-form" disabled={busy || !form.title.trim()} className="h-11 rounded-full bg-[#0878B7] px-5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Saving...' : 'Save Position'}</button></>}>
-      <form id="position-form" onSubmit={submit} className="space-y-5">
-        <div className="rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4"><p className="text-xs font-bold text-[#0F2F62]">Assignment</p><p className="mt-1 text-xs text-slate-500">Choose the account type that may hold this position.</p><label className="mt-3 block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Assignable account role *" />Assignable account role *<HiusaSelect value={form.role} onChange={(event) => { setForm({ ...form, role: event.target.value, title: '' }); setCustomTitle(false); }} required className="mt-1.5 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm"><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></HiusaSelect></label></div>
-        {form.role === 'ADMIN' ? <div className="space-y-3"><label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Position title *" />Position title *<HiusaSelect data-autofocus value={customTitle ? '__other__' : form.title} onChange={(event) => { setCustomTitle(event.target.value === '__other__'); setForm({ ...form, title: event.target.value === '__other__' ? '' : event.target.value }); }} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Choose a title</option><option value="Adviser" disabled>Adviser (SAO only)</option>{ADMIN_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}<option value="__other__">Other position...</option></HiusaSelect></label>{customTitle && <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Other position title *" />Other position title *<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>}</div> : <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Position title *" />Position title *<input data-autofocus value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} placeholder="e.g. President" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>}
-        <div className="block text-sm font-semibold text-[#0F172A]"><label htmlFor="position-responsibilities"><FieldIcon label="Responsibilities" />Responsibilities</label><RichTextEditor id="position-responsibilities" value={form.description} onChange={(description) => setForm({ ...form, description })} maxLength={2000} rows={4} placeholder="Describe this position's responsibilities." /></div>
-        <label className="flex items-center gap-3 rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 accent-[#0B8ED0]" /><FieldIcon label="Available for assignment" />Available for assignment</label>
-        {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{formError}</p>}
-      </form>
-    </Modal>
-    <ConfirmModal open={Boolean(deleteTarget)} title="Delete Position" message="Assigned users will have this position safely cleared before deletion." recordName={deleteTarget ? `${deleteTarget.title} · ${ROLE_LABELS[deleteTarget.role]}` : ''} confirmationText={deleteTarget?.title} confirmText="Delete Position" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={confirmDelete} />
-  </div>;
+  return (
+    <div className="space-y-5">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false, type: 'success', message: '' })} />
+      <PageHeader primary={<Button leftIcon={Plus} onClick={openCreate}>Add position</Button>} />
+
+      <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <DataTable
+          caption="Organization positions"
+          columns={columns}
+          rows={filtered}
+          loading={loading}
+          error={error || null}
+          onRetry={load}
+          filters={filters}
+          filtersActive={filtersActive}
+          onClearFilters={clearFilters}
+          emptyState={positions.length === 0 && !filtersActive ? (
+            <EmptyState
+              title="No positions yet"
+              description="Add the titles your admins and officers can hold."
+              action={<Button variant="secondary" onClick={openCreate}>Add position</Button>}
+            />
+          ) : undefined}
+          actions={(position) => (position.role === 'ADMIN' && /^(organization )?advis(e|o)r$/i.test(position.title)
+            ? <span className="text-xs text-ink-muted">SAO managed</span>
+            : <TableRowActions subject={position.title} label="Position actions" actions={[{ label: 'Edit position', icon: PencilLine, onClick: () => openEdit(position) }, { label: 'Delete position', icon: Trash2, danger: true, onClick: () => setDeleteTarget(position) }]} />)}
+        />
+      </section>
+
+      <Drawer
+        open={Boolean(formMode)}
+        title={formMode === 'edit' ? 'Edit position' : 'Add position'}
+        description="Positions decide which titles can be assigned in People."
+        onClose={closeForm}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={closeForm} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="position-form" disabled={busy || !form.title.trim()} loading={busy}>Save position</Button>
+          </>
+        )}
+      >
+        <form id="position-form" onSubmit={submit} className="space-y-4">
+          <Field label="Account role" hint="Students and department heads cannot hold a position.">
+            <Select value={form.role} onChange={(event) => { setForm({ ...form, role: event.target.value, title: '' }); setCustomTitle(false); }}>
+              <option value="ADMIN">Admin</option>
+              <option value="SBO_OFFICER">SBO officer</option>
+            </Select>
+          </Field>
+          {form.role === 'ADMIN' ? (
+            <>
+              <Field label="Position title">
+                <Select data-autofocus value={customTitle ? '__other__' : form.title} onChange={(event) => { setCustomTitle(event.target.value === '__other__'); setForm({ ...form, title: event.target.value === '__other__' ? '' : event.target.value }); }}>
+                  <option value="">Choose a title</option>
+                  <option value="Adviser" disabled>Adviser (SAO only)</option>
+                  {ADMIN_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}
+                  <option value="__other__">Other position</option>
+                </Select>
+              </Field>
+              {customTitle && (
+                <Field label="Other position title">
+                  <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} />
+                </Field>
+              )}
+            </>
+          ) : (
+            <Field label="Position title">
+              <Input data-autofocus value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} placeholder="e.g. President" />
+            </Field>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="position-responsibilities" className="text-[13px] font-medium text-ink">Responsibilities <span className="font-normal text-ink-muted">(optional)</span></label>
+            <RichTextEditor id="position-responsibilities" value={form.description} onChange={(description) => setForm({ ...form, description })} maxLength={2000} rows={4} placeholder="Describe this position's responsibilities." />
+          </div>
+          <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-ink"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 accent-brand-600" />Available for assignment</label>
+          {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
+        </form>
+      </Drawer>
+      <ConfirmModal open={Boolean(deleteTarget)} title="Delete position" message="Assigned users will have this position cleared before deletion." recordName={deleteTarget ? `${deleteTarget.title} · ${ROLE_LABELS[deleteTarget.role]}` : ''} confirmationText={deleteTarget?.title} confirmText="Delete position" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={confirmDelete} />
+    </div>
+  );
 }

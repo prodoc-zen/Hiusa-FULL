@@ -41,6 +41,14 @@ describe('GeneralAuditLogPage', () => {
     expect(within(table).queryByRole('columnheader', { name: 'Organization' })).not.toBeInTheDocument();
   });
 
+  it('uses a search placeholder short enough to show in full', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<GeneralAuditLogPage />);
+
+    await screen.findByRole('table');
+    expect(screen.getByRole('textbox', { name: 'Search audit log' })).toHaveAttribute('placeholder', 'Search actor, module or record');
+  });
+
   it('names the last column Actions because it holds the row menu', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     render(<GeneralAuditLogPage />);

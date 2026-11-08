@@ -66,6 +66,25 @@ describe('api interceptor password change handling', () => {
     expect(error.isPasswordChangeRequired).toBeUndefined();
   });
 
+  it('signs out and returns to the login page when the profile of the sign-in no longer works', async () => {
+    failWith(403, { message: 'This account profile is unavailable.', error_code: 'PROFILE_UNAVAILABLE' });
+
+    const error = await api.get('/dashboard/briefing').catch((caught) => caught);
+
+    expect(assign).toHaveBeenCalledWith('/login');
+    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(error.isForbidden).toBe(true);
+  });
+
+  it('does not bounce again when already on the login page', async () => {
+    pathname = '/login';
+    failWith(403, { error_code: 'PROFILE_UNAVAILABLE' });
+
+    await api.get('/dashboard/briefing').catch(() => {});
+
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it('returns an expired session to the landing page', async () => {
     failWith(401, { message: 'Unauthenticated.' });
 

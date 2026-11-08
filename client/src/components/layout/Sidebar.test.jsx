@@ -122,8 +122,9 @@ describe('desktop sidebar rail', () => {
   ])('prints the band headings of %s as plain text, in order, and no others', (role, bands) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={['/dashboard/student']}><SidebarHarness /></MemoryRouter>);
-    const headings = [...document.querySelectorAll('nav p.uppercase')];
+    const headings = [...document.querySelectorAll('nav p[class~="text-white/60"]:not(.capitalize)')];
     expect(headings.map((node) => node.textContent)).toEqual(bands);
+    headings.forEach((heading) => expect(heading).not.toHaveClass('uppercase', 'tracking-widest'));
     headings.forEach((heading) => expect(heading.closest('a, button')).toBeNull());
   });
 
@@ -133,6 +134,25 @@ describe('desktop sidebar rail', () => {
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/dashboard/profile');
     expect(screen.queryByRole('link', { name: 'Study objectives' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('pins Profile and Log out below the scrolling menu, with an open group above them', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'Admin' }));
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
+    const scroller = document.querySelector('nav.overflow-y-auto');
+    expect(scroller).not.toBeNull();
+    const profile = screen.getByRole('link', { name: 'Profile' });
+    const logout = screen.getByRole('button', { name: 'Log out' });
+    expect(scroller).not.toContainElement(profile);
+    expect(scroller).not.toContainElement(logout);
+    expect(profile.parentElement.parentElement).toBe(logout.parentElement);
+    expect(logout.parentElement).toHaveClass('shrink-0');
+  });
+
+  it('shows no second copy of the signed-in name in the sidebar', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'Admin' }));
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
+    expect(screen.queryByText('Test Admin')).not.toBeInTheDocument();
   });
 
   it.each([

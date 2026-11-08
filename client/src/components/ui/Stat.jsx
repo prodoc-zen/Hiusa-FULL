@@ -13,10 +13,10 @@ export default function Stat({ label, value, delta, deltaDirection = 'up', delta
 
   const body = (
     <>
-      <p className="text-xs font-semibold text-ink-muted">{label}</p>
-      <p className="mt-1.5 text-2xl font-extrabold tabular-nums text-ink">{value}</p>
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
+      <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{value}</p>
       {(delta || context) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium">
           {delta && (
             <span className={`inline-flex items-center gap-0.5 ${deltaToneClass}`}>
               <DeltaIcon size={13} aria-hidden="true" />

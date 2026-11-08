@@ -12,6 +12,12 @@ it('explains the direct SAO approval path for a unified organization', () => {
   expect(screen.getByText(/SAO approves unified organizations directly/)).toBeInTheDocument();
 });
 
+it('adds no explanation under the steps of a college organization', () => {
+  renderIn(<RegistrationStepper organization={record({ lifecycle_status: 'active' })} viewerRole="DEPARTMENT_HEAD" />);
+  expect(screen.queryByText(/SAO approves unified organizations directly/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Initial setup means/)).not.toBeInTheDocument();
+});
+
 const CASES = [
   ['DEPARTMENT_HEAD', { lifecycle_status: 'pending' }, 'Pending review: waiting for SAO review', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'returned', review_remarks: 'Sign the constitution.' }, 'Returned: edit and resubmit', 'action', 'Edit and resubmit'],

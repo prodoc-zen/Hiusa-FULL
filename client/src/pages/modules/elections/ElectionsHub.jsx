@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import ElectionWorkspaceHeader from '../../../components/elections/ElectionWorkspaceHeader';
+import { SkeletonTable } from '../../../components/ui/Skeleton';
 import ElectionPickerPage from './ElectionPickerPage';
 import CastVoteRedirectPage from './CastVoteRedirectPage';
 import { getElectionDetails } from '../../../services/electionService';
 import useRecordParam from '../../../lib/useRecordParam';
+
+// The picker is the same list for every election screen, so it is told which screen the user asked
+// for. Only the Elections screen manages elections.
+function pickerMode(pathname) {
+  if (pathname.endsWith('/manage-candidates')) return 'candidates';
+  if (pathname.endsWith('/manage-partylists')) return 'partylists';
+  if (pathname.endsWith('/manage-voters')) return 'voters';
+  if (pathname.endsWith('/election-results')) return 'results';
+  return 'manage';
+}
 
 export default function ElectionsHub({ startCreateElection = false }) {
   const navigate = useNavigate();
@@ -125,21 +136,15 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   if (loading) {
     return (
-      <div className="space-y-4" role="status" aria-label="Loading election workspace">
-        <div className="animate-pulse rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <div className="h-4 w-44 rounded bg-slate-200" />
-          <div className="mt-3 h-8 w-2/3 rounded bg-slate-200" />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[1, 2, 3, 4].map((item) => <div key={item} className="h-40 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}
-        </div>
-        <span className="sr-only">Loading election workspace...</span>
+      <div role="status" aria-label="Loading election workspace">
+        <SkeletonTable columns={4} rows={5} />
+        <span className="sr-only">Loading election workspace</span>
       </div>
     );
   }
 
   if (!activeElection) {
-    return <ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} editElectionId={editElectionId} onEditClosed={handleEditClosed} />;
+    return <ElectionPickerPage mode={pickerMode(location.pathname)} onSelect={handleSelect} startCreate={startCreateElection} editElectionId={editElectionId} onEditClosed={handleEditClosed} />;
   }
 
   return (

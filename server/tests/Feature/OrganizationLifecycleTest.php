@@ -72,23 +72,6 @@ class OrganizationLifecycleTest extends TestCase
         return ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('category', 'organization')->pluck('id')->all();
     }
 
-    private function pdfs(array $typeIds): array
-    {
-        return collect($typeIds)->mapWithKeys(fn ($id) => [$id => UploadedFile::fake()->create("requirement-{$id}.pdf", 120, 'application/pdf')])->all();
-    }
-
-    private function registrationPayload(array $typeIds, array $overrides = []): array
-    {
-        return [
-            'name' => 'Robotics Guild',
-            'acronym' => 'ROBO',
-            'description' => 'Builds robots.',
-            'color' => '#1A2B3C',
-            'files' => $this->pdfs($typeIds),
-            ...$overrides,
-        ];
-    }
-
     private function register(array $typeIds, array $overrides = []): int
     {
         Sanctum::actingAs($this->head);
@@ -123,46 +106,6 @@ class OrganizationLifecycleTest extends TestCase
         return $payload + ['submitted_at' => Organization::findOrFail($organizationId)->submitted_at->toIso8601String()];
     }
 
-    public function test_head_registers_an_organization_with_ten_pdf_documents(): void
-    {
-        $typeIds = $this->openSemester();
-        $this->assertCount(10, $typeIds);
-        Sanctum::actingAs($this->head);
-        $response = $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])->assertCreated();
-        $organization = Organization::where('name', 'Robotics Guild')->firstOrFail();
-        $this->assertSame('pending', $organization->lifecycle_status);
-        $this->assertSame($this->ccs->name, $organization->college);
-        $this->assertSame($this->ccs->id, $organization->college_id);
-        $this->assertFalse((bool) $organization->is_active);
-        $this->assertSame($this->head->school_id, (int) $organization->submitted_by);
-        $this->assertNotNull($organization->submitted_at);
-        $this->assertSame($response->json('id'), $organization->id);
-        $submissions = OrganizationComplianceSubmission::where('organization_id', $organization->id)->get();
-        $this->assertCount(10, $submissions);
-        foreach ($submissions as $submission) {
-            $this->assertSame('submitted', $submission->status);
-            $this->assertSame($this->head->school_id, (int) $submission->submitted_by);
-            $this->assertMatchesRegularExpression('#^compliance-submissions/'.$organization->id.'/[0-9a-zA-Z._-]+\.pdf$#', $submission->file_path);
-            $this->assertTrue(Storage::disk('local')->exists($submission->file_path));
-            $this->assertFalse(Storage::disk('public')->exists($submission->file_path));
-        }
-        $this->assertDatabaseHas('audit_logs', ['action' => 'organization_registration_submitted', 'organization_id' => $organization->id, 'user_id' => $this->head->school_id]);
-        $this->assertDatabaseHas('notifications', ['user_id' => $this->director->school_id, 'reference_type' => 'organization', 'reference_id' => $organization->id]);
-    }
-
-    public function test_registration_set_is_the_ten_renewal_items_and_leaves_out_the_semestral_report(): void
-    {
-        $typeIds = $this->openSemester();
-        Sanctum::actingAs($this->head);
-
-        $names = collect($this->getJson('/api/college/organizations/requirements')->assertOk()->json('requirements'));
-
-        $this->assertCount(10, $typeIds);
-        $this->assertCount(10, $names);
-        $this->assertNotContains(ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $names->pluck('name')->all());
-        $this->assertNotContains('Sem Report Cover', $names->pluck('name')->all());
-    }
-
     public function test_registration_responses_never_expose_a_file_path_or_url(): void
     {
         $typeIds = $this->openSemester();
@@ -173,36 +116,6 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertStringNotContainsString('compliance-submissions', $body);
         $this->assertStringNotContainsString('file_path', $body);
         $this->assertSame(10, OrganizationComplianceSubmission::where('organization_id', $id)->count());
-    }
-
-    public function test_registration_requires_every_pdf_a_current_semester_and_unique_names(): void
-    {
-        Sanctum::actingAs($this->head);
-        $this->post('/api/college/organizations', $this->registrationPayload([]), ['Accept' => 'application/json'])
-            ->assertUnprocessable()->assertJsonPath('message', 'Registration is closed. SAO must activate a semester and publish its requirements with sample formats.');
-
-        $typeIds = $this->openSemester();
-        Sanctum::actingAs($this->head);
-        $missing = $this->registrationPayload($typeIds);
-        unset($missing['files'][$typeIds[3]]);
-        $this->post('/api/college/organizations', $missing, ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors("files.{$typeIds[3]}");
-
-        $notPdf = $this->registrationPayload($typeIds);
-        $notPdf['files'][$typeIds[0]] = UploadedFile::fake()->image('scan.png');
-        $this->post('/api/college/organizations', $notPdf, ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors("files.{$typeIds[0]}");
-
-        $oversized = $this->registrationPayload($typeIds);
-        $oversized['files'][$typeIds[1]] = UploadedFile::fake()->create('big.pdf', 10241, 'application/pdf');
-        $this->post('/api/college/organizations', $oversized, ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors("files.{$typeIds[1]}");
-
-        $this->assertDatabaseMissing('organizations', ['acronym' => 'ROBO']);
-        $this->assertSame(0, OrganizationComplianceSubmission::count());
-
-        $existing = Organization::factory()->create(['name' => 'Taken Name', 'slug' => 'taken-name', 'acronym' => 'TAKE']);
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds, ['name' => 'Taken Name']), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds, ['acronym' => 'TAKE']), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('acronym');
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds, ['name' => 'taken-name']), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->assertSame(1, Organization::where('id', $existing->id)->count());
     }
 
     public function test_head_endpoints_are_for_department_heads_and_scoped_to_their_college(): void
@@ -218,15 +131,12 @@ class OrganizationLifecycleTest extends TestCase
 
         Sanctum::actingAs($this->otherHead);
         $this->assertSame([$theirs->id], collect($this->getJson('/api/college/organizations')->assertOk()->json('data'))->pluck('id')->all());
-        Organization::whereKey($id)->update(['lifecycle_status' => 'returned']);
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Hijacked'], ['Accept' => 'application/json'])->assertNotFound();
+        $this->assertContains($this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Hijacked'], ['Accept' => 'application/json'])->status(), [404, 405]);
         $this->assertSame('Robotics Guild', Organization::find($id)->name);
 
         foreach ([User::factory()->admin()->create(['organization_id' => $theirs->id]), $this->director] as $outsider) {
             Sanctum::actingAs($outsider);
             $this->getJson('/api/college/organizations')->assertForbidden();
-            $this->getJson('/api/college/organizations/requirements')->assertForbidden();
-            $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])->assertForbidden();
         }
     }
 
@@ -248,11 +158,6 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertStringEndsWith('.pdf', $pending['registration_requirements'][0]['file_name']);
         $this->assertSame(0, $pending['members_count']);
         $this->assertNull($rows[$active->id]['registration_requirements']);
-
-        $requirements = $this->getJson('/api/college/organizations/requirements')->assertOk();
-        $this->assertCount(10, $requirements->json('requirements'));
-        $this->assertSame(['id', 'name', 'description', 'deadline_at', 'template_original_name', 'template_url', 'allowed_extensions'], array_keys($requirements->json('requirements.0')));
-        $this->assertSame(1, $requirements->json('academic_semester.number'));
     }
 
     public function test_pending_organization_blocks_sign_in_and_admin_creation_until_approval(): void
@@ -282,71 +187,6 @@ class OrganizationLifecycleTest extends TestCase
         $this->postJson('/api/login', ['school_id' => $waiting->school_id, 'password' => 'password'])->assertOk();
     }
 
-    public function test_returned_registration_can_be_edited_and_resubmitted_back_to_pending(): void
-    {
-        $typeIds = $this->openSemester();
-        $id = $this->register($typeIds);
-        $oldPath = OrganizationComplianceSubmission::where('organization_id', $id)->where('requirement_type_id', $typeIds[2])->value('file_path');
-        Sanctum::actingAs($this->head);
-        $edit = ['_method' => 'PUT', 'name' => 'Robotics Guild Revised', 'description' => 'New description.', 'files' => [$typeIds[2] => UploadedFile::fake()->create('replacement.pdf', 90, 'application/pdf')]];
-
-        $this->post("/api/college/organizations/{$id}", $edit, ['Accept' => 'application/json'])->assertStatus(409);
-
-        Sanctum::actingAs($this->director);
-        $this->patchJson("/api/system/organizations/{$id}/review", $this->review($id, ['decision' => 'return']))->assertUnprocessable()->assertJsonValidationErrors('remarks');
-        $this->patchJson("/api/system/organizations/{$id}/review", $this->review($id, ['decision' => 'return', 'remarks' => 'Constitution is unsigned.']))
-            ->assertOk()->assertJsonPath('lifecycle_status', 'returned')->assertJsonPath('review_remarks', 'Constitution is unsigned.')->assertJsonPath('is_active', false);
-        $this->assertDatabaseHas('notifications', ['user_id' => $this->head->school_id, 'reference_type' => 'organization', 'reference_id' => $id]);
-
-        Sanctum::actingAs($this->head);
-        $this->getJson('/api/college/organizations')->assertOk()->assertJsonPath('data.0.review_remarks', 'Constitution is unsigned.')->assertJsonPath('data.0.registration_requirements.0.status', 'submitted');
-        $this->post("/api/college/organizations/{$id}", $edit, ['Accept' => 'application/json'])
-            ->assertOk()->assertJsonPath('lifecycle_status', 'pending')->assertJsonPath('review_remarks', null)->assertJsonPath('name', 'Robotics Guild Revised');
-
-        $organization = Organization::findOrFail($id);
-        $this->assertSame('robotics-guild-revised', $organization->slug);
-        $this->assertFalse($organization->is_active);
-        $this->assertNull($organization->reviewed_at);
-        $replaced = OrganizationComplianceSubmission::where('organization_id', $id)->where('requirement_type_id', $typeIds[2])->first();
-        $this->assertSame('replacement.pdf', $replaced->file_original_name);
-        $this->assertNotSame($oldPath, $replaced->file_path);
-        $this->assertFalse(Storage::disk('local')->exists($oldPath));
-        $this->assertTrue(Storage::disk('local')->exists($replaced->file_path));
-        $this->assertSame(10, OrganizationComplianceSubmission::where('organization_id', $id)->count());
-        $this->assertDatabaseHas('audit_logs', ['action' => 'organization_registration_resubmitted', 'organization_id' => $id]);
-        $this->assertDatabaseHas('notifications', ['user_id' => $this->director->school_id, 'title' => 'Organization registration resubmitted']);
-
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Again'], ['Accept' => 'application/json'])->assertStatus(409);
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'files' => [999999 => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])->assertStatus(409);
-    }
-
-    public function test_head_cannot_edit_a_pending_or_active_organization(): void
-    {
-        $typeIds = $this->openSemester();
-        $id = $this->register($typeIds);
-        $active = Organization::factory()->create(['name' => 'Chess Club', 'college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
-        Sanctum::actingAs($this->head);
-
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Nope'], ['Accept' => 'application/json'])->assertStatus(409);
-        $this->post("/api/college/organizations/{$active->id}", ['_method' => 'PUT', 'name' => 'Nope'], ['Accept' => 'application/json'])->assertStatus(409);
-
-        $this->assertSame('Chess Club', $active->fresh()->name);
-        $this->assertSame('Robotics Guild', Organization::find($id)->name);
-    }
-
-    public function test_resubmission_rejects_files_for_unknown_requirements_and_duplicate_names(): void
-    {
-        $typeIds = $this->openSemester();
-        $id = $this->register($typeIds);
-        Organization::factory()->create(['name' => 'Taken Name', 'slug' => 'taken-name', 'acronym' => 'TAKE']);
-        Organization::whereKey($id)->update(['lifecycle_status' => 'returned', 'review_remarks' => 'Fix it.']);
-        Sanctum::actingAs($this->head);
-
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'files' => [999999 => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])->assertUnprocessable();
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Taken Name'], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->post("/api/college/organizations/{$id}", ['_method' => 'PUT', 'name' => 'Robotics Guild', 'acronym' => 'ROBO'], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('lifecycle_status', 'pending');
-    }
-
     public function test_review_is_sao_only_pending_only_and_refuses_a_stale_submission(): void
     {
         $typeIds = $this->openSemester();
@@ -371,26 +211,6 @@ class OrganizationLifecycleTest extends TestCase
         $this->patchJson("/api/system/organizations/{$id}/review", $this->review($id, ['decision' => 'approve']))->assertOk();
         $this->patchJson("/api/system/organizations/{$id}/review", $this->review($id, ['decision' => 'return', 'remarks' => 'Too late.']))->assertStatus(409);
         $this->assertSame('active', Organization::find($id)->lifecycle_status);
-    }
-
-    public function test_a_college_cannot_have_more_than_ten_registrations_waiting_for_review(): void
-    {
-        $typeIds = $this->openSemester();
-        Organization::factory()->count(10)->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'lifecycle_status' => 'pending', 'is_active' => false]);
-        Organization::factory()->count(3)->create(['college' => $this->cbe->name, 'college_id' => $this->cbe->id, 'lifecycle_status' => 'pending', 'is_active' => false]);
-        Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'lifecycle_status' => 'returned', 'is_active' => false]);
-        Sanctum::actingAs($this->head);
-
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Too many registrations are waiting for SAO review. Wait for a decision before registering more.');
-        $this->assertDatabaseMissing('organizations', ['name' => 'Robotics Guild']);
-
-        Organization::where('college_id', $this->ccs->id)->where('lifecycle_status', 'pending')->first()->update(['lifecycle_status' => 'active']);
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])->assertCreated();
-
-        Sanctum::actingAs($this->otherHead);
-        $this->post('/api/college/organizations', $this->registrationPayload($typeIds, ['name' => 'Other Guild', 'acronym' => 'OTH']), ['Accept' => 'application/json'])->assertCreated();
     }
 
     public function test_a_failing_audit_write_rolls_back_review_archive_and_restore(): void
@@ -845,5 +665,26 @@ class OrganizationLifecycleTest extends TestCase
         }
 
         $this->assertSame($few, $queries());
+    }
+
+    public function test_approving_a_legacy_registration_never_creates_a_user_or_changes_anyones_login(): void
+    {
+        $typeIds = $this->openSemester();
+        $existing = User::factory()->student()->create(['organization_id' => $this->head->getRawOriginal('organization_id')]);
+        $homeId = $existing->getRawOriginal('organization_id');
+        $first = $this->register($typeIds);
+        Organization::whereKey($first)->update(['admin_payload' => ['school_id' => $existing->school_id, 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test', 'position_title' => 'President']]);
+        Sanctum::actingAs($this->director);
+        $this->patchJson("/api/system/organizations/{$first}/review", $this->review($first, ['decision' => 'approve']))->assertOk();
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $existing->school_id, 'organization_id' => $first, 'role' => 'ADMIN', 'position_title' => 'President']);
+        $login = DB::table('users')->where('school_id', $existing->school_id)->first();
+        $this->assertSame($homeId, $login->organization_id);
+        $this->assertSame('STUDENT', $login->role);
+
+        $second = Organization::create(['name' => 'Chess Club', 'slug' => 'chess-club', 'acronym' => 'CHESS', 'college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'pending', 'is_active' => false, 'submitted_at' => now(), 'admin_payload' => ['school_id' => 87000099, 'first_name' => 'No', 'last_name' => 'Account', 'email' => 'noaccount@example.test', 'position_title' => 'President']]);
+        $this->patchJson("/api/system/organizations/{$second->id}/review", ['decision' => 'approve', 'submitted_at' => $second->submitted_at->toIso8601String()])->assertOk();
+        $this->assertDatabaseMissing('users', ['school_id' => 87000099]);
+        $this->assertDatabaseMissing('users', ['email' => 'noaccount@example.test']);
+        $this->assertSame(0, DB::table('account_profiles')->where('organization_id', $second->id)->count());
     }
 }

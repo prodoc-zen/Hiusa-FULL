@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ClipboardCheck, Megaphone } from 'lucide-react';
 import { getBriefing } from '../../services/dashboardService';
+import { useTrackerShown } from '../process/trackerPresence';
 import { ErrorState } from '../ui';
 import AiInsightCard from './AiInsightCard';
 import AttentionList from './AttentionList';
@@ -32,8 +33,15 @@ function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
 }
 
+// The admin home mounts the process tracker above the briefing, and its next-step row owns that page's
+// one filled button. The briefing stays secondary there, for the header action and the checklist alike.
+const PROCESS_LED_ROLES = new Set(['ADMIN']);
+
+// On these homes the process tracker is the one progress widget: while it shows, the first-run checklist stays out.
+const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT']);
+
 const ACTIONS = {
-  ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }],
+  ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],
   DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
 
@@ -42,6 +50,7 @@ function BriefingBody({ data, introduction }) {
   const role = user?.role;
   const userKey = `${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`;
   const [setupHidden, setSetupHidden] = useState(() => readSetupHidden(userKey));
+  const trackerShown = useTrackerShown();
 
   let attention = [...rawAttention].sort((a, b) => Number(REGISTRATION_TYPES.has(b.type)) - Number(REGISTRATION_TYPES.has(a.type)));
   let headline = summary.headline;
@@ -50,7 +59,7 @@ function BriefingBody({ data, introduction }) {
     const withoutTasks = attention.filter((item) => !TASK_TYPES.has(item.type));
     if (withoutTasks.length !== attention.length) {
       attention = withoutTasks;
-      headline = attention.length === 0 ? "You're all caught up." : `${attention.length} ${attention.length === 1 ? 'item needs' : 'items need'} you today.`;
+      headline = attention.length === 0 ? 'Nothing needs you today.' : `${attention.length} ${attention.length === 1 ? 'item needs' : 'items need'} you today.`;
     }
   }
 
@@ -58,9 +67,10 @@ function BriefingBody({ data, introduction }) {
   if (reviewAreas.length > 0) headline = reviewHeadline(reviewAreas);
 
   const setup = shapeSetup(role, data.setup);
-  const setupOpen = Boolean(setup) && setup.completed < setup.total && !setupHidden;
+  const setupOpen = Boolean(setup) && setup.completed < setup.total && !setupHidden && !(trackerShown && TRACKER_OWNS_SETUP.has(role));
 
-  // One filled button leads the page: the SAO's first queue, else the first open setup step, else the role's usual action.
+  // One filled button leads the page: the SAO's first queue, else the first open setup step, else the role's usual action
+  // (an admin's briefing never fills one; the process tracker does).
   let actions = [];
   if (role === 'SUPER_ADMIN') {
     if (reviewAreas[0]?.href) actions = [{ label: reviewAreas[0].action, to: reviewAreas[0].href, icon: ClipboardCheck }];
@@ -68,6 +78,8 @@ function BriefingBody({ data, introduction }) {
     actions = ACTIONS[role] || [];
   }
 
+  // Suggestions from the engines stay out of the SAO and dean journeys; both read plain lists of work.
+  const showInsights = role !== 'SUPER_ADMIN' && role !== 'DEPARTMENT_HEAD';
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;
   const attentionTitle = ATTENTION_TITLE[role] || 'Needs attention';
 
@@ -76,13 +88,13 @@ function BriefingBody({ data, introduction }) {
       setup={setup}
       title={SETUP_TITLE[role]}
       description={setupDescription(role, user?.organization)}
-      primaryFirst={actions.length === 0}
+      primaryFirst={actions.length === 0 && !PROCESS_LED_ROLES.has(role)}
       onHide={() => { writeSetupHidden(userKey); setSetupHidden(true); }}
     />
   );
   const attentionCard = (
     <section aria-labelledby="briefing-attention" className="flex min-h-0 flex-col overflow-hidden rounded-card border border-line bg-surface">
-      <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">{attentionTitle}</h2>
+      <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">{attentionTitle}</h2>
       <div className="max-h-72 overflow-y-auto px-4 sm:px-5">
         {role === 'SUPER_ADMIN' ? <ReviewInbox areas={reviewAreas} /> : <AttentionList items={attention} />}
       </div>
@@ -95,16 +107,16 @@ function BriefingBody({ data, introduction }) {
       {introduction}
       <div className={setupCard ? 'grid items-start gap-4 xl:grid-cols-2' : ''}>{inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}</div>
       {role !== 'SUPER_ADMIN' && <details className="group overflow-hidden rounded-card border border-line bg-surface">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
-          <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+          <ChevronDown size={18} className="shrink-0 text-ink-muted group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
       </details>}
-      {role !== 'SUPER_ADMIN' && insights.length > 0 && (
+      {showInsights && insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
-          <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-bold text-ink sm:px-6">What HIUSA noticed</h2>
-          <div className="divide-y divide-line-soft px-5 sm:px-6">
+          <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">Suggestions from your records</h2>
+          <div className="divide-y divide-line-soft px-4 py-4 sm:px-5">
             {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
           </div>
         </section>
@@ -114,9 +126,9 @@ function BriefingBody({ data, introduction }) {
 }
 
 /**
- * The role-aware briefing that opens every home page: greeting and headline, the first-run
+ * The role-aware briefing that opens every home page: the one-line headline, the first-run
  * checklist (above the work queue until it is finished), what needs this person now, the study's
- * areas, and what the AI noticed (with the "Why?" disclosure). Composed above each home page's own content.
+ * areas, and suggestions from their records (with the "Why?" disclosure). Composed above each home page's own content.
  * A page that shows figures from the same payload (the student account panel) reads them through onData.
  */
 export default function RoleBriefing({ onData, introduction }) {

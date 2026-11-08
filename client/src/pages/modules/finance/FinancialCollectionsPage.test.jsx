@@ -21,27 +21,28 @@ describe('FinancialCollectionsPage', () => {
 
   it('shows custody totals without offering self verification', async () => {
     render(<FinancialCollectionsPage />);
-    expect(await screen.findByText('Membership')).toBeInTheDocument();
+    expect((await screen.findAllByText('Membership')).length).toBeGreaterThan(0);
     expect(screen.getByText('Awaiting remittance')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Verify' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remit' }).length).toBeGreaterThan(0);
   });
 
   it('records a partial remittance against the selected collection', async () => {
     mocks.recordRemittance.mockResolvedValue({ data: { id: 9 } });
     render(<FinancialCollectionsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Remit' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Remit' }))[0]);
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '250' } });
     fireEvent.click(screen.getByRole('button', { name: 'Record remittance' }));
     await waitFor(() => expect(mocks.recordRemittance).toHaveBeenCalledWith(2, { amount: '250' }));
   });
 
-  it('records a collection from the modal and shows validation errors there', async () => {
+  it('records a collection from the drawer and shows validation errors there', async () => {
     mocks.createCollection.mockRejectedValueOnce({ response: { status: 422, data: { errors: { source: ['Source is required.'] } } } })
       .mockResolvedValueOnce({ data: { id: 3 } });
     render(<FinancialCollectionsPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Record collection' }));
     const dialog = screen.getByRole('dialog', { name: 'Record collection' });
+    expect(screen.getAllByRole('button', { name: 'Record collection' })).toHaveLength(1);
     fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'Club fees' } });
     fireEvent.change(screen.getByLabelText('Amount collected'), { target: { value: '125.00' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record collection' }));
@@ -63,12 +64,12 @@ describe('FinancialCollectionsPage header and empty states', () => {
     mocks.getCashAdvances.mockResolvedValue({ data: [] });
   });
 
-  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+  it('uses the shared header: one h1 from the menu label, no lead line and one primary action', async () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Collections and advances' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/Track money received, its verification and remittance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Track money received, its verification and remittance/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Record collection' })).toHaveLength(1);
   });
 
@@ -88,7 +89,7 @@ describe('FinancialCollectionsPage header and empty states', () => {
     expect(await screen.findByText('No collections match this status')).toBeInTheDocument();
     mocks.getCollections.mockResolvedValue({ data: [{ id: 2, source: 'Membership', reference: 'COL-2', status: 'verified', amount_collected: 1000, collected_by: 11, unremitted_balance: 0, total_remitted: 1000 }] });
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
-    expect(await screen.findByText('Membership')).toBeInTheDocument();
+    expect((await screen.findAllByText('Membership')).length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText('Status')[0]).toHaveValue('all');
   });
 });

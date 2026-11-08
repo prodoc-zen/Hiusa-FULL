@@ -21,7 +21,7 @@ describe('AiInsightCard', () => {
     render(<MemoryRouter><AiInsightCard insight={insight} /></MemoryRouter>);
 
     expect(screen.getByText(insight.title)).toBeInTheDocument();
-    expect(screen.getByText('From your records')).toBeInTheDocument();
+    expect(screen.queryByText('From your records')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Why am I seeing this/i })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(/Deterministic budget-advisory engine/)).not.toBeInTheDocument();
   });

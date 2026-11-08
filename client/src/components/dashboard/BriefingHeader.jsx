@@ -1,48 +1,32 @@
-import { formatDisplayText } from '../../utils/displayText.js';
 import Button from '../ui/Button';
-import { greetingFor, manilaDate } from '../../lib/format';
 
-const ROLE_LABELS = {
-  SUPER_ADMIN: 'SAO',
-  ADMIN: 'Organization Admin',
-  SBO_OFFICER: 'SBO Officer',
-  DEPARTMENT_HEAD: 'Department Head',
-  STUDENT: 'Student',
-};
-
+// The page title above is the welcome, so this row carries only the one-sentence summary and the
+// role's actions. The first action is the page's one filled button unless it names its own variant.
 export default function BriefingHeader({ user, summary, actions }) {
-  const roleLabel = ROLE_LABELS[user.role] || user.role;
-  const scopeLabel = user.organization?.name || 'University-wide';
+  const headline = user.role !== 'SUPER_ADMIN' ? summary?.headline : null;
+  const hasActions = Boolean(actions && actions.length > 0);
+
+  if (!headline && !hasActions) return null;
 
   return (
-    <section data-tour="briefing-header" className="border-b border-line pb-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-ink-muted">
-            {manilaDate(new Date(), 'weekday')} &middot; {roleLabel} &middot; {scopeLabel}
-          </p>
-          <h2 className="mt-1.5 text-xl font-bold leading-tight text-ink sm:text-2xl">
-            Good {greetingFor()}, {formatDisplayText(user.first_name)}
-          </h2>
-          {user.role !== 'SUPER_ADMIN' && <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-muted">{summary.headline}</p>}
-        </div>
+    <section aria-label="Today" className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+      {headline ? <p className="min-w-0 text-sm font-medium text-ink">{headline}</p> : <span />}
 
-        {actions && actions.length > 0 && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {actions.map((action, index) => (
-              <Button
-                key={action.label}
-                to={action.to}
-                onClick={action.onClick}
-                leftIcon={action.icon}
-                variant={index === 0 ? 'primary' : 'secondary'}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
+      {hasActions && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions.map((action, index) => (
+            <Button
+              key={action.label}
+              to={action.to}
+              onClick={action.onClick}
+              leftIcon={action.icon}
+              variant={action.variant ?? (index === 0 ? 'primary' : 'secondary')}
+            >
+              {action.label}
+            </Button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

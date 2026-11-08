@@ -9,6 +9,10 @@ export const register = (data) => {
   return api.post('/register', data);
 };
 
+export const lookupStudentRecord = (data) => {
+  return api.post('/register/lookup', data);
+};
+
 export const logout = () => {
   return api.post('/logout').finally(() => {
     clearAuthSession();
@@ -49,3 +53,5 @@ export const deleteAccountProfile = (profileId) => api.delete(`/account-profiles
 
 
 
+export const getProfilePositions = (organizationId) => api.get('/account-profiles/positions', { params: { organization_id: organizationId } });
+export const updateAccountProfile = (profileId, data) => api.put(`/account-profiles/${profileId}`, data);

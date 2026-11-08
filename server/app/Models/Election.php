@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ElectionHandoverService;
 use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -64,6 +65,15 @@ class Election extends Model
             ->where('start_time', '<=', $now)
             ->where('end_time', '>=', $now)
             ->update(['status' => 'active']);
+
+        $service = app(ElectionHandoverService::class);
+        $baseQuery()
+            ->where('status', 'closed')
+            ->where('results_visible', true)
+            ->whereNotNull('finalized_at')
+            ->whereNull('access_handed_over_at')
+            ->get()
+            ->each(fn (Election $election) => $service->handOver($election));
 
         return ['opened' => $opened, 'closed' => $closed];
     }

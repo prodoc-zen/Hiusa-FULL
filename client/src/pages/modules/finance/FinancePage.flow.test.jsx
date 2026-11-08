@@ -130,13 +130,28 @@ describe('FinancePage budget lifecycle', () => {
     }
   });
 
-  it('shows the compact stepper on each budget row, with the step in words', async () => {
-    financeMocks.getBudgets.mockResolvedValue({ data: [budget(), budget({ id: 6, title: 'Foundation day budget', submission_status: 'approved' })] });
+  it('marks a budget row with one status badge only while it is not approved, and keeps the stepper for the detail', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [budget(), budget({ id: 6, title: 'Foundation day budget', submission_status: 'approved', approval_status: 'approved' })] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
-    const waiting = await screen.findByRole('progressbar', { name: 'Budget progress for Sports Fest Budget' });
-    expect(waiting).toHaveAttribute('aria-valuetext', 'Step 1 of 4: Proposed');
-    expect(screen.getByRole('progressbar', { name: 'Budget progress for Foundation Day Budget' })).toHaveAttribute('aria-valuetext', 'Step 3 of 4: Spending');
+    const rows = within(await screen.findByRole('list', { name: 'Budgets' })).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText('Pending')).toBeInTheDocument();
+    expect(within(rows[1]).queryByText('Approved')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.queryByText('Warning at')).not.toBeInTheDocument();
+  });
+
+  it('explains a Remaining figure that sits above Allocated', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [
+      budget({ id: 7, title: 'General operations', allocated_amount: 50000, remaining_amount: 80000, approval_status: 'approved', submission_status: 'approved' }),
+      budget({ id: 8, title: 'Merchandise fund', allocated_amount: 30000, remaining_amount: 26250, approval_status: 'approved', submission_status: 'approved' }),
+    ] });
+    renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
+
+    const [general, merchandise] = within(await screen.findByRole('list', { name: 'Budgets' })).getAllByRole('listitem');
+    expect(within(general).getByText('Remaining includes income recorded against this budget.')).toBeInTheDocument();
+    expect(within(merchandise).queryByText(/Remaining includes income/)).not.toBeInTheDocument();
   });
 
   it('opens the detail from a row, puts the budget in ?record= and closes it again', async () => {
@@ -172,7 +187,7 @@ describe('FinancePage budget lifecycle', () => {
     expect(await screen.findByRole('heading', { name: 'Edit budget' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Sports fest budget')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('5000'), { target: { value: '3500' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Resubmit for Approval' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resubmit for approval' }));
 
     await waitFor(() => expect(financeMocks.updateBudget).toHaveBeenCalledWith(5, expect.objectContaining({ title: 'Sports fest budget', allocated_amount: 3500 })));
     expect(financeMocks.createBudget).not.toHaveBeenCalled();
@@ -196,7 +211,7 @@ describe('FinancePage ?event= handoff', () => {
     const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
     fireEvent.change(amount, { target: { value: '1500' } });
     fireEvent.change(threshold, { target: { value: '200' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Submit for Approval' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
 
     await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledWith(expect.objectContaining({ event_id: '3', allocated_amount: 1500 })));
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('event='));

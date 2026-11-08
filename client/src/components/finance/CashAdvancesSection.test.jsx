@@ -106,10 +106,10 @@ describe('CashAdvancesSection', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Request cash advance' });
     fireEvent.change(within(dialog).getByLabelText(/Amount/), { target: { value: '750' } });
     fireEvent.change(within(dialog).getByLabelText(/Purpose/), { target: { value: '  Sound system rental  ' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit request' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send request' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('does not belong to this organization');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit request' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send request' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Request cash advance' })).not.toBeInTheDocument());
     expect(createCashAdvance).toHaveBeenLastCalledWith({ amount: '750', purpose: 'Sound system rental', notes: null });
   });

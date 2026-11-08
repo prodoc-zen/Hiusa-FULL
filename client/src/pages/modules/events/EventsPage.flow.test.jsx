@@ -443,7 +443,7 @@ describe('Check-in queue on opening', () => {
 });
 
 describe('proposing an event', () => {
-  it('lands on the new event with its stepper and the one next step after Submit proposal', async () => {
+  it('lands on the new event with its stepper and the one next step after Send proposal', async () => {
     const proposed = { ...FIXTURES.awaiting_department_head, id: 77, title: 'Brand New Gala' };
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     eventMocks.createEvent.mockResolvedValue({ data: proposed });
@@ -451,16 +451,17 @@ describe('proposing an event', () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'New event' }));
-    const form = await screen.findByRole('dialog', { name: 'New event' });
-    fireEvent.change(within(form).getByLabelText('Event Name *'), { target: { value: 'Brand New Gala' } });
-    fireEvent.change(form.querySelector('#event-start-date'), { target: { value: '2030-10-01' } });
-    fireEvent.change(form.querySelector('#event-start-time'), { target: { value: '09:00' } });
-    fireEvent.change(form.querySelector('#event-end-date'), { target: { value: '2030-10-01' } });
-    fireEvent.change(form.querySelector('#event-end-time'), { target: { value: '12:00' } });
-    fireEvent.click(within(form).getByRole('button', { name: 'Submit proposal' }));
+    await screen.findByRole('heading', { level: 1, name: 'New event' });
+    const form = within(document.body);
+    fireEvent.change(form.getByLabelText(/^Event name/), { target: { value: 'Brand New Gala' } });
+    fireEvent.change(document.querySelector('#event-start-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(document.querySelector('#event-start-time'), { target: { value: '09:00' } });
+    fireEvent.change(document.querySelector('#event-end-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(document.querySelector('#event-end-time'), { target: { value: '12:00' } });
+    fireEvent.click(form.getByRole('button', { name: 'Send proposal' }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Event details' });
-    expect(screen.queryByRole('dialog', { name: 'New event' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'New event' })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/events/manage-events?record=77'));
     expect(await within(drawer).findByRole('list', { name: 'Event progress' })).toBeInTheDocument();
     expect(await within(drawer).findByText('Waiting for Department Head approval')).toBeInTheDocument();
@@ -476,23 +477,23 @@ describe('proposing an event', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Founders Day' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit event' }));
-    const form = await screen.findByRole('dialog', { name: 'Edit event' });
-    fireEvent.click(within(form).getByRole('button', { name: 'Save Changes' }));
+    await screen.findByRole('heading', { level: 1, name: 'Edit event' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit event' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit event' })).not.toBeInTheDocument());
     expect(screen.queryByRole('dialog', { name: 'Event details' })).not.toBeInTheDocument();
   });
 });
 
 describe('page header and lists', () => {
-  it('shows one h1 and a New event primary action for the Admin, and no stat strip on Planning', async () => {
+  it('shows one h1 and a New event primary action for the Admin, and no stat strip on either screen', async () => {
     useViewer('ADMIN', FIXTURES.approved);
     const { unmount } = renderPage();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Events' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'New event' })).toBeInTheDocument();
-    expect(screen.getByText('Total Events')).toBeInTheDocument();
+    expect(screen.queryByText('Total Events')).not.toBeInTheDocument();
     unmount();
 
     renderPage('/dashboard/events/event-planner', { initialTab: 'tasks' });

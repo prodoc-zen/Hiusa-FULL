@@ -33,10 +33,13 @@ return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/organization-approvals',
         '/dashboard/super-admin/organizations/:organizationId',
+        '/dashboard/super-admin/org/:orgId',
         '/dashboard/super-admin/colleges',
+        '/dashboard/super-admin/student-records',
         '/dashboard/super-admin/users',
         '/dashboard/super-admin/documents',
         '/dashboard/super-admin/file-storage',
@@ -56,6 +59,7 @@ return [
     'ADMIN' => [
         '/dashboard/admin',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/approvals',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
@@ -109,6 +113,7 @@ return [
     'SBO_OFFICER' => [
         '/dashboard/officer',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
         '/dashboard/admin/users',
@@ -143,9 +148,12 @@ return [
         '/dashboard/organization-applications',
         '/dashboard/department-head',
         '/dashboard/ask-ai',
+        '/dashboard/records',
         '/dashboard/department-head/approvals',
         '/dashboard/department-head/announcements',
         '/dashboard/department-head/organizations',
+        '/dashboard/department-head/org/:orgId',
+        '/dashboard/department-head/people',
         '/dashboard/department-head/documents',
         '/dashboard/department-head/compliance',
         '/dashboard/clearances',
@@ -164,6 +172,8 @@ return [
 
     'STUDENT' => [
         '/dashboard/student',
+        '/dashboard/student/apply-organization',
+        '/dashboard/student/organization-applications/:applicationId',
         '/dashboard/ask-ai',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',

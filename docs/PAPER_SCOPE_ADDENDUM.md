@@ -2,7 +2,7 @@
 
 Update (2026-10-06): The in-app Evaluation feature has been removed for all roles. Earlier references below to questionnaire pages, evaluation windows, and in-app survey results describe the retired feature. SO1 and SO4 remain research objectives assessed outside the application; existing survey records are retained without user-facing access.
 
-Update (2026-10-09): After the dean's feedback the system has an agency hierarchy. The SAO is the agency, colleges are a fixed list, a Department Head oversees one college and registers its student organizations for SAO approval, and only an approved organization has members who can sign in. Section 2.4 describes it and the paper changes it needs.
+Update (2026-10-09): After the dean's feedback the system has an agency hierarchy. The SAO is the agency, colleges start from a seeded list that the SAO can add to (an empty college can also be deleted, any other is archived), a Department Head oversees one college and endorses the applications of its student organizations for SAO approval, and only an approved organization has members who can sign in. Section 2.4 describes it and the paper changes it needs.
 
 This addendum records where the running system goes beyond the submitted paper (HIUSA - FINAL), and which decisions settle the places where the paper contradicts itself. Use it to update Chapters I and III before the defense, so the panel never meets a feature or a rule the paper does not mention.
 
@@ -83,8 +83,8 @@ After the dean's feedback the system is organized as an agency, its colleges, an
 
 | Part | What the system does |
 |---|---|
-| SAO as the agency | The SAO (role `SUPER_ADMIN`) sits above every college. It no longer creates colleges or organizations; it reviews registrations, archives and restores organizations, provisions each organization's admin, and sees the agency overview and the read-only organization overview (section 2.1) |
-| Colleges | A fixed list held in the system: College of Computer Studies, Business Education, Teacher Education, Health Sciences and Engineering. Nobody creates, renames or deletes a college through the application. The SAO only views colleges and uploads a college logo. Each college has a home record (organization type COLLEGE) |
+| SAO as the agency | The SAO (role `SUPER_ADMIN`) sits above every college. It adds colleges and deletes empty ones, but no longer creates organizations; it reviews applications, archives and restores organizations, provisions each organization's admin, and sees the agency overview and the read-only organization overview (section 2.1) |
+| Colleges | A seeded starting list: College of Computer Studies, Business Education, Teacher Education, Health Sciences and Engineering. The SAO can add a college, edit it, upload its logo, delete one that is empty, and archive or restore any other. A college with student organizations, accounts, a live dean or staff link, an application or school records cannot be deleted; the system answers "This college still has organizations or people. Archive it instead." Each college has a home record (organization type COLLEGE) |
 | Department Head scope | A Department Head belongs to a college, not to a student organization, and oversees every student organization in that college. Approvals (budget, event, election, financial report), events, budgets, elections, financial reports, finance read access and announcements are college wide |
 | Registration flow | A Department Head creates a student organization in their own college and submits it to the SAO with the registration requirements: the ten renewal documents of the current semester, one PDF each. The SAO approves it or returns it with remarks. A returned registration is edited and resubmitted by the Department Head |
 | Lifecycle states | An organization is pending (awaiting SAO review), returned, active or archived. Only an approved (active) organization has members who can sign in |

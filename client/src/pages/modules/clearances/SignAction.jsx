@@ -26,7 +26,7 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
       setMode(null);
       setRemarksDraft('');
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not save this signature. Please try again.');
+      setError(err.response?.data?.message || 'Could not save this signature. Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -34,7 +34,7 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
 
   return (
     <div className="flex flex-col items-start gap-2">
-      {showStatus && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
+      {showStatus && status !== 'pending' && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
       <TableRowActions subject={roleLabel} actions={[
         { label: status === 'held' ? 'Clear hold' : 'Clear', icon: CircleCheck, onClick: () => setMode('clear') },
         status === 'pending' && { label: 'Hold', icon: PauseCircle, danger: true, onClick: () => setMode('hold') },

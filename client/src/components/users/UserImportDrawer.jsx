@@ -80,20 +80,20 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
       )}
     >
       <div className="space-y-5">
-        <div className="rounded-control border border-line bg-subtle p-4 text-sm font-medium leading-6 text-ink-muted">
+        <div className="text-sm leading-6 text-ink-muted-strong">
           <p>Required columns: <span className="font-semibold text-ink">school_id, first_name, last_name, email, role</span>. Roles can be Student, SBO Officer or Department Head; admin accounts are added one at a time.</p>
           <p className="mt-2">Passwords never go in the file. Each member sets one with Forgot password, using the email you list.</p>
-          <Button variant="secondary" size="sm" className="mt-3" onClick={downloadTemplate}><Download size={15} aria-hidden="true" /> Download template</Button>
+          <Button variant="secondary" className="mt-3" onClick={downloadTemplate}><Download size={15} aria-hidden="true" /> Download template</Button>
         </div>
 
         <div>
-          <label htmlFor="member-import-file" className="text-[13px] font-semibold text-ink">CSV file</label>
+          <label htmlFor="member-import-file" className="text-[13px] font-medium text-ink">CSV file</label>
           <input
             id="member-import-file"
             type="file"
             accept=".csv,text/csv"
             onChange={(event) => { setFile(event.target.files?.[0] ?? null); setCheck(null); setError(''); }}
-            className="mt-1.5 block w-full rounded-control border border-line bg-surface text-sm text-ink file:mr-3 file:h-11 file:border-0 file:bg-subtle file:px-4 file:text-sm file:font-bold file:text-brand-700"
+            className="mt-1.5 block w-full rounded-control border border-line bg-surface text-sm text-ink file:mr-3 file:h-11 file:border-0 file:bg-subtle file:px-4 file:text-sm file:font-semibold file:text-brand-700"
           />
         </div>
 
@@ -104,7 +104,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
             {ready ? (
               <p className="flex items-start gap-2 text-sm font-semibold text-success-strong"><CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> All {check.summary.total} rows are ready to import.</p>
             ) : (
-              <p className="flex items-start gap-2 text-sm font-semibold text-danger-strong"><TriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> {check.summary.invalid} of {check.summary.total} rows need fixing. Nothing has been imported; correct the file and check it again.</p>
+              <p className="flex items-start gap-2 text-sm font-semibold text-danger-strong"><TriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> {check.summary.invalid} of {check.summary.total} rows need fixing. Nothing was imported. Correct the file and check it again.</p>
             )}
             {problems.length > 0 && (
               <ul className="divide-y divide-line-soft rounded-control border border-line">

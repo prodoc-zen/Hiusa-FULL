@@ -40,10 +40,10 @@ describe('SubmitApprovalRequestPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'New request' })).toBeInTheDocument();
     const approver = (name) => within(screen.getByRole('radio', { name: new RegExp(name) }).closest('label'));
-    expect(approver('Event proposal').getByText('Approved by the Department Head, then by the SAO when SAO requirements apply to the event.')).toBeInTheDocument();
-    expect(approver('Budget proposal').getByText('Approved by the Department Head.')).toBeInTheDocument();
-    expect(approver('Election').getByText('Approved by the Department Head.')).toBeInTheDocument();
-    expect(approver('Announcement').getByText(/Announcements from officers are approved by the Admin/)).toBeInTheDocument();
+    expect(approver('Event proposal').getByText('The Department Head approves it, then the SAO if the event has SAO requirements.')).toBeInTheDocument();
+    expect(approver('Budget proposal').getByText('The Department Head approves it.')).toBeInTheDocument();
+    expect(approver('Election').getByText('The Department Head approves it.')).toBeInTheDocument();
+    expect(approver('Announcement').getByText('You publish it yourself.')).toBeInTheDocument();
   });
 
   it('sends each request type to its real creation form', () => {
@@ -64,19 +64,20 @@ describe('SubmitApprovalRequestPage', () => {
     expect(screen.getByRole('link', { name: 'See what I already submitted' })).toHaveAttribute('href', '/dashboard/approvals?tab=submitted');
   });
 
-  it('tells an officer the Admin approves the announcement and offers no link to the Admin tabs', () => {
+  it('sends an officer straight to the announcement form, since there is nothing to choose', () => {
     renderPage('SBO_OFFICER');
 
-    expect(screen.getByText('Approved by the Admin before it is published.')).toBeInTheDocument();
+    expect(screen.getByText('Destination request form')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/approval-requests/new/announcement');
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'See what I already submitted' })).not.toBeInTheDocument();
   });
 
-  it('limits an SBO officer to announcement requests', () => {
-    renderPage('SBO_OFFICER');
+  it('shows an empty state to a role that cannot send requests', () => {
+    renderPage('STUDENT');
 
-    expect(screen.getByText('Announcement')).toBeInTheDocument();
-    expect(screen.queryByText('Budget proposal')).not.toBeInTheDocument();
-    expect(screen.queryByText('Event proposal')).not.toBeInTheDocument();
-    expect(screen.queryByText('Election')).not.toBeInTheDocument();
+    expect(screen.getByText('No request types available')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue to request form/ })).not.toBeInTheDocument();
   });
 });

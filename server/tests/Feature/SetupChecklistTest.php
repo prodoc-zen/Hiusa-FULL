@@ -74,6 +74,25 @@ class SetupChecklistTest extends TestCase
         $this->assertSame(6, $setup['total']);
     }
 
+    public function test_a_student_added_from_another_home_organization_counts_as_a_member(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->create(['role' => 'STUDENT', 'organization_id' => Organization::factory()->create()->id]);
+        DB::table('account_profiles')->insert([
+            'user_school_id' => $student->school_id,
+            'organization_id' => $organization->id,
+            'role' => 'STUDENT',
+            'account_status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $steps = $this->steps($this->checklistFor($admin));
+
+        $this->assertTrue($steps['members']['done']);
+    }
+
     public function test_the_sao_checklist_counts_organizations_without_an_administrator(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
@@ -157,22 +176,22 @@ class SetupChecklistTest extends TestCase
         $this->assertSame(2, $setup['total']);
         $this->assertSame('Review organization applications', $steps['endorse']['label']);
         $this->assertSame('/dashboard/organization-applications', $steps['endorse']['href']);
-        $this->assertStringContainsString('Applicants apply from the HIUSA home page', $steps['endorse']['detail']);
+        $this->assertStringContainsString('Allow a student to apply from Organizations', $steps['endorse']['detail']);
         $this->assertArrayNotHasKey('register', $steps);
     }
 
-    public function test_the_department_head_endorsement_step_tracks_verified_applications_in_its_college(): void
+    public function test_the_department_head_endorsement_step_tracks_applications_in_its_college(): void
     {
         $college = $this->makeCollege('CCS');
         $head = $this->makeCollegeHead($college);
         $otherCollege = $this->makeCollege('CBE');
-        $this->application($otherCollege, 'pending_endorsement');
-        $pending = $this->application($college, 'pending_endorsement');
+        $this->application($otherCollege, 'pending_dean');
+        $pending = $this->application($college, 'pending_dean');
         $steps = $this->steps($this->checklistFor($head));
         $this->assertFalse($steps['endorse']['done']);
-        $this->assertSame('1 verified application awaiting your endorsement before SAO review.', $steps['endorse']['detail']);
+        $this->assertSame('1 application awaiting your review before SAO.', $steps['endorse']['detail']);
 
-        $pending->update(['status' => 'endorsed', 'endorsed_by' => $head->school_id, 'endorsed_at' => now()]);
+        $pending->update(['status' => 'pending_sao', 'endorsed_by' => $head->school_id, 'endorsed_at' => now()]);
         $this->app['auth']->forgetGuards();
         $steps = $this->steps($this->checklistFor($head));
         $this->assertTrue($steps['endorse']['done']);

@@ -235,7 +235,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
   if (!hasData) {
     return (
       <section aria-label={title}>
-        {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+        {title && <h3 className="text-sm font-semibold text-ink">{title}</h3>}
         {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
         <p className="py-8 text-center text-sm font-medium text-ink-muted">No data for this period yet</p>
       </section>
@@ -280,7 +280,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
 
   return (
     <section aria-label={title}>
-      {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+      {title && <h3 className="text-sm font-semibold text-ink">{title}</h3>}
       {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
 
       <div className="mb-3 flex flex-wrap gap-4 text-xs font-semibold text-ink-muted">
@@ -306,7 +306,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             return (
               <g key={value}>
                 <line x1={PAD.left} x2={svgWidth - PAD.right} y1={lineY} y2={lineY} stroke={GRID_LINE} />
-                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="text-[10px]" fill={TEXT_MUTED}>
+                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="text-xs" fill={TEXT_MUTED}>
                   {formatY(value)}
                 </text>
               </g>
@@ -322,7 +322,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             const raw = xRawByKey.get(key);
             const label = truncateLabel(formatX(raw), 10);
             return (
-              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="text-[10px]" fill={TEXT_MUTED}>
+              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="text-xs" fill={TEXT_MUTED}>
                 {label}
                 <title>{formatX(raw)}</title>
               </text>
@@ -386,7 +386,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
               data-end-label={label.key}
               x={label.x}
               y={label.y + 4}
-              className="text-[10px] font-bold"
+              className="text-xs font-semibold"
               fill={label.color}
             >
               {label.text}
@@ -406,7 +406,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
               className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink shadow-card"
               style={{ left: `${leftPct}%`, top: `${topPct}%`, marginTop: '-10px' }}
             >
-              <p className="font-bold">{entry.label}</p>
+              <p className="font-semibold">{entry.label}</p>
               <p className="text-ink-muted">{formatX(point.x)}</p>
               <p className="tabular-nums">{formatY(point.y)}</p>
             </div>

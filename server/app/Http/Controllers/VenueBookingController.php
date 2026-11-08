@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Notification;
@@ -49,6 +50,9 @@ class VenueBookingController extends Controller
             $query->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->whereIn('organization_id', FilterValues::values($id)));
         } else {
             $query->where('organization_id', $request->user()->organization_id);
+        }
+        if ($semester = AcademicSemester::selected($request)) {
+            $query->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id));
         }
         $query
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)))

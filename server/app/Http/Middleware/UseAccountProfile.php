@@ -30,7 +30,7 @@ class UseAccountProfile
         }
 
         if (! $profile || $profile->account_status !== 'active' || ! $profile->organization?->is_active || ! $profile->organization->collegeAllowsAccess() || $user->account_status !== 'active') {
-            return response()->json(['message' => 'This account profile is unavailable.'], 403);
+            return response()->json(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE'], 403);
         }
 
         $user->activateProfile($profile);

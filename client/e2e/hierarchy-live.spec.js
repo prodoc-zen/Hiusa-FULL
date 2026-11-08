@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import { expect, test } from '@playwright/test';
-import { SHOTS, PSITS_ORGANIZATION_ID, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
+import { newStudent, randomPassword } from './support/pipeline.js';
+import { SHOTS, PSITS_ORGANIZATION_ID, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, apiAs, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
 
 // Drives the SAO / college / organization hierarchy end to end in a real browser:
-// semester setup, Department Head registration, SAO review (return, resubmit,
-// approve), administrator provisioning, archive / restore, compliance tabs, the
-// venue calendar, Department Head scoping and the delete controls.
+// semester setup, a student the dean allowed to apply, the dean's and the SAO's review
+// (return, resend, endorse, approve), the applicant becoming the organization head,
+// archive / restore, compliance tabs, the venue calendar, Department Head scoping and
+// the delete controls.
 //
 // Set HIUSA_LIVE_E2E=1 to run it. It writes real rows to the dev database.
 
@@ -16,15 +18,10 @@ test.describe.configure({ mode: 'serial' });
 const SUFFIX = process.env.HIUSA_E2E_SUFFIX || '';
 const ORG_NAME = `Robotics Guild E2E${SUFFIX}`;
 const ORG_ACRONYM = `ROBOE2E${SUFFIX}`;
-const ADMIN_ID = Number(process.env.HIUSA_E2E_ADMIN_ID || 910091);
-const ADMIN_PASSWORD = 'Demo@12345';
-const ADMIN_NEW_PASSWORD = 'Robo@Changed2026';
-const FIRST_NAME = 'Robo';
-const LAST_NAME = `Admin${SUFFIX}`;
 
 const sink = newSink();
 const contexts = {};
-const state = { orgId: null };
+const state = { orgId: null, applicant: null, applicationUrl: null };
 
 async function roleContext(browser, role, account) {
   if (contexts[role]) return contexts[role];
@@ -89,13 +86,7 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
       await dialog.getByRole('button', { name: 'Add semester' }).click();
       await expect(page.getByText('Semester added').first()).toBeVisible({ timeout: 10000 });
     }
-    const activateBtn = page.getByRole('button', { name: 'Set as active' });
-    if (await activateBtn.first().isVisible().catch(() => false)) {
-      await activateBtn.first().click();
-    } else {
-      await page.getByRole('button', { name: /Actions for 1st semester/i }).first().click();
-      await page.getByRole('menuitem', { name: 'Set as active' }).click();
-    }
+    await page.getByRole('switch', { name: /Toggle active status for 1st semester of AY 2026-2027/ }).click();
     await expect(page.getByText('Academic semester activated').first()).toBeVisible({ timeout: 10000 });
   }
   await expect(page.getByText(/1st Semester/).first()).toBeVisible();
@@ -154,161 +145,121 @@ test('Step 2: SAO Colleges and Organizations have no create controls', async ({ 
   await page.screenshot({ path: shot('A2-organizations.png'), fullPage: true });
 });
 
-test('Step 3: Department Head registers an organization with 10 PDFs', async ({ browser }) => {
-  test.setTimeout(120_000);
+
+test('Step 3: Department Head allows a student to apply, the student sends the 10 requirements', async ({ browser }) => {
+  test.setTimeout(150_000);
+  state.applicant = await newStudent('Robo');
   const { page } = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
   await goto(page, '/dashboard/department-head/organizations');
-  await expect(page.getByRole('button', { name: 'Register an organization' })).toBeVisible({ timeout: 15000 });
-  await page.getByRole('button', { name: 'Register an organization' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('input[type=file]')).toHaveCount(10, { timeout: 15000 });
-  await dialog.getByLabel(/^Organization name/).fill(ORG_NAME);
-  await dialog.getByLabel(/^Acronym/).fill(ORG_ACRONYM);
-  await dialog.getByLabel(/^Description/).fill('Builds and competes with small robots. Created by the end to end hierarchy spec.');
-  await dialog.getByLabel(/^Color/).fill('#0B8ED0');
+  await page.getByRole('button', { name: 'Allow a student to apply' }).first().click();
+  const modal = page.getByRole('dialog', { name: 'Allow a student to apply' });
+  await modal.getByRole('combobox', { name: 'Student' }).fill(state.applicant.firstName);
+  await modal.getByRole('option', { name: new RegExp(state.applicant.name) }).click();
+  await modal.getByRole('button', { name: 'Allow to apply' }).click();
+  await expect(modal).toBeHidden({ timeout: 15000 });
+  await expect(page.getByText(state.applicant.name).first()).toBeVisible({ timeout: 15000 });
+  await page.screenshot({ path: shot('A3-head-allowed.png'), fullPage: true });
 
-  const inputs = dialog.locator('input[type=file]');
-  for (let index = 0; index < 9; index += 1) {
+  const student = await roleContext(browser, 'APPLICANT', state.applicant);
+  await goto(student.page, '/dashboard/student/apply-organization');
+  const form = student.page.getByRole('main');
+  await expect(form.locator('input[type=file]')).toHaveCount(10, { timeout: 15000 });
+  await form.getByLabel(/^Organization name/).fill(ORG_NAME);
+  await form.getByLabel(/^Acronym/).fill(ORG_ACRONYM);
+  await form.getByLabel(/^Your position/).fill('President');
+  await form.getByLabel(/^What the organization is for/).fill('Builds and competes with small robots. Created by the end to end hierarchy spec.');
+  const inputs = form.locator('input[type=file]');
+  for (let index = 0; index < 10; index += 1) {
     await inputs.nth(index).setInputFiles(pdfFile(`doc-${index + 1}.pdf`, `Requirement ${index + 1}`));
   }
-  await dialog.getByRole('button', { name: 'Submit for review' }).click();
-  const missing = dialog.getByText(/Attach a (file|PDF) for this requirement\./i);
-  await expect(missing).toHaveCount(1);
-  const lastField = inputs.nth(9).locator('xpath=ancestor::div[.//text()[contains(.,"Attach a") and contains(.,"for this requirement.")]][1]');
-  await expect(lastField).toContainText(/Attach a (file|PDF) for this requirement\./i);
-  await dialog.screenshot({ path: shot('A3-register-validation.png') });
-
-  await inputs.nth(9).setInputFiles(pdfFile('doc-10.pdf', 'Requirement 10'));
-  await expect(dialog.getByText(/Selected: doc-10\.pdf/)).toBeVisible({ timeout: 10000 });
-  await dialog.getByRole('button', { name: 'Submit for review' }).click();
-  await expect(dialog).toBeHidden({ timeout: 60000 });
-  const row = page.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
-  await expect(row).toContainText('Pending review', { timeout: 15000 });
-  await page.screenshot({ path: shot('A3-head-pending.png'), fullPage: true });
+  await form.getByRole('button', { name: 'Send application' }).click();
+  await expect(student.page.getByText('Your Department Head is reviewing it.')).toBeVisible({ timeout: 60000 });
+  state.applicationUrl = student.page.url();
+  await student.page.screenshot({ path: shot('A3-applicant-sent.png'), fullPage: true });
 });
 
-test('Step 4: SAO agency overview, review drawer, open document, return with remarks', async ({ browser, request }) => {
+test('Step 4: Department Head opens a file, marks a requirement and returns the application', async ({ browser }) => {
   test.setTimeout(120_000);
-  const { page, context } = await roleContext(browser, 'SAO', SAO);
-  const session = await apiLogin(request, SAO);
-  state.orgId = await lookupOrgId(request, session.token);
-  expect(state.orgId, 'organization id for the new registration').toBeTruthy();
+  const { page, context } = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
+  await goto(page, '/dashboard/organization-applications');
+  await page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
+  const drawer = page.getByRole('dialog', { name: ORG_NAME });
+  await expect(drawer.getByRole('button', { name: /^doc-\d+\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
 
-  await goto(page, '/dashboard/super-admin/colleges');
-  const ccs = page.locator('main article').filter({ hasText: 'College of Computer Studies' });
-  await expect(ccs).toBeVisible({ timeout: 15000 });
-  const expandBtn = ccs.getByRole('button', { name: /Organizations of /i });
-  if (await expandBtn.getAttribute('aria-expanded') !== 'true') {
-    await expandBtn.click();
-  }
-  const agencyRow = ccs.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
-  await expect(agencyRow).toContainText(/Pending/i);
-  await page.screenshot({ path: shot('A4-agency.png'), fullPage: true });
-
-  await goto(page, '/dashboard/super-admin/organizations');
-  await page.getByRole('tab', { name: /^Pending review/ }).click();
-  await expect(page).toHaveURL(/status=pending/);
-  await page.getByRole('button', { name: `Review ${ORG_NAME}` }).click();
-  const drawer = page.getByRole('dialog').filter({ hasText: 'Review registration' });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole('button', { name: /^Open / })).toHaveCount(10, { timeout: 15000 });
-
-  const opened = await clickAndCaptureOpenedPdf(page, context, () => drawer.getByRole('button', { name: /^Open / }).first().click());
+  const opened = await clickAndCaptureOpenedPdf(page, context, () => drawer.getByRole('button', { name: /^doc-\d+\.pdf$/ }).first().click());
   console.log('REVIEW OPEN', JSON.stringify(opened));
   expect(opened.apiStatus).toBe(200);
   expect(opened.apiType).toContain('application/pdf');
   expect(opened.reachedBlob).toBe(true);
 
-  const reviewRequests = [];
-  page.on('request', (req) => { if (/\/review$/.test(req.url()) && req.method() === 'PATCH') reviewRequests.push(req.url()); });
-  await drawer.getByRole('button', { name: 'Return', exact: true }).click();
-  await expect(drawer.getByText('Add remarks explaining what the Department Head needs to fix.')).toBeVisible();
-  expect(reviewRequests, 'Return with empty remarks must not call the API').toHaveLength(0);
-  await drawer.screenshot({ path: shot('A4-return-empty-remarks.png') });
-
-  await drawer.getByLabel(/Remarks/).fill('Missing charter signature');
-  await drawer.getByRole('button', { name: 'Return', exact: true }).click();
-  await expect(page.getByText(/returned to its Department Head/)).toBeVisible({ timeout: 15000 });
+  // Returning needs a reason: nothing is sent while there is no note and no marked requirement.
+  await expect(drawer.getByRole('button', { name: 'Return to applicant' })).toBeDisabled();
+  const first = drawer.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'doc-1.pdf' }) });
+  await first.getByLabel(/^Review of /).selectOption('needs_changes');
+  await first.getByLabel(/^Note for /).fill('Missing charter signature');
+  await expect(drawer.getByRole('button', { name: 'Endorse to SAO' })).toBeDisabled();
+  await drawer.screenshot({ path: shot('A4-marked-requirement.png') });
+  await drawer.getByRole('button', { name: 'Return to applicant' }).click();
+  await expect(page.getByText('Returned to the applicant.')).toBeVisible({ timeout: 15000 });
   await page.getByRole('tab', { name: /^Returned/ }).click();
-  const card = page.locator('tbody tr').filter({ hasText: ORG_NAME });
-  await expect(card).toContainText('Returned');
-  await expect(card).toContainText('Missing charter signature');
+  await expect(page.locator('tbody tr, ul[data-view="cards"] > li').filter({ hasText: ORG_NAME }).first()).toContainText('Returned');
   await page.screenshot({ path: shot('A4-returned-tab.png'), fullPage: true });
 });
 
-test('Step 5: Department Head sees Returned, edits and resubmits', async ({ browser }) => {
+test('Step 5: the student reads the note and sends the application again', async ({ browser }) => {
   test.setTimeout(120_000);
-  const { page } = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
-  await goto(page, '/dashboard/department-head/organizations');
-  const row = page.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
-  await expect(row).toContainText('Returned', { timeout: 15000 });
-  await expect(row).toContainText('SAO remarks');
-  await expect(row).toContainText('Missing charter signature');
-  await row.getByRole('button', { name: 'Edit and resubmit' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Missing charter signature');
-  await expect(dialog.locator('input[type=file]')).toHaveCount(10);
-  await dialog.locator('input[type=file]').first().setInputFiles(pdfFile('charter-signed.pdf', 'Signed charter'));
-  await expect(dialog).toContainText('charter-signed.pdf');
-  await dialog.screenshot({ path: shot('A5-resubmit-form.png') });
-  await dialog.getByRole('button', { name: 'Resubmit to SAO' }).click();
-  await expect(dialog).toBeHidden({ timeout: 30000 });
-  await expect(page.getByRole('row', { name: new RegExp(ORG_ACRONYM) })).toContainText('Pending review', { timeout: 15000 });
+  const { page } = await roleContext(browser, 'APPLICANT', state.applicant);
+  await goto(page, state.applicationUrl);
+  await expect(page.getByText('Missing charter signature').first()).toBeVisible({ timeout: 15000 });
+  const fix = page.getByRole('main').locator('form');
+  await fix.locator('input[type=file]').first().setInputFiles(pdfFile('charter-signed.pdf', 'Signed charter'));
+  await page.screenshot({ path: shot('A5-resubmit-form.png'), fullPage: true });
+  await fix.getByRole('button', { name: 'Send again' }).click();
+  await expect(page.getByText('Your Department Head is reviewing it.')).toBeVisible({ timeout: 30000 });
 });
 
-test('Step 6: SAO approves and provisions an Administrator', async ({ browser, request }) => {
+test('Step 6: Department Head endorses, the SAO approves and the student becomes the head of the new organization', async ({ browser, request }) => {
   test.setTimeout(150_000);
+  const head = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
+  await goto(head.page, '/dashboard/organization-applications');
+  await head.page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
+  const endorse = head.page.getByRole('dialog', { name: ORG_NAME });
+  await expect(endorse).toContainText('charter-signed.pdf', { timeout: 15000 });
+  await endorse.getByRole('button', { name: 'Endorse to SAO' }).click();
+  await expect(head.page.getByText('Endorsed. The SAO is next.')).toBeVisible({ timeout: 15000 });
+
   const { page } = await roleContext(browser, 'SAO', SAO);
-  await goto(page, '/dashboard/super-admin/organizations?status=pending');
-  await page.getByRole('button', { name: `Review ${ORG_NAME}` }).click();
-  const drawer = page.getByRole('dialog').filter({ hasText: 'Review registration' });
-  await expect(drawer.getByRole('button', { name: /^Open / })).toHaveCount(10, { timeout: 15000 });
+  await goto(page, '/dashboard/organization-applications');
+  await page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
+  const drawer = page.getByRole('dialog', { name: ORG_NAME });
+  await expect(drawer.getByRole('button', { name: /^doc-\d+\.pdf$|^charter-signed\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
   await expect(drawer).toContainText('charter-signed.pdf');
-  await drawer.getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText(/approved and activated/)).toBeVisible({ timeout: 15000 });
-  // Approval leaves the drawer open on the next step: the SAO provisions the organization's administrator.
-  await expect(drawer).toContainText('Add the first Admin account');
-  await drawer.getByRole('link', { name: 'Add Admin account' }).click();
-  await expect(page).toHaveURL(/\/dashboard\/super-admin\/admins\?organization=\d+&create=1$/);
-  const form = page.getByRole('dialog', { name: /Create administrator/ });
-  await form.getByLabel(/School ID/).fill(String(ADMIN_ID));
-  await form.getByLabel(/First name/).fill(FIRST_NAME);
-  await form.getByLabel(/Last name/).fill(LAST_NAME);
-  await form.getByLabel(/Email address/).fill(`robo.admin${ADMIN_ID}@hiusa.local`);
-  await form.getByLabel(/Position title/).fill('President');
-  // Provisioning from the review drawer locks the organization to the one just approved.
-  await expect(form.getByLabel(/Assigned organization/)).toBeDisabled();
-  await expect(form.getByLabel(/Assigned organization/).locator('option:checked')).toHaveText(`${ORG_ACRONYM}: ${ORG_NAME}`);
-  await form.getByLabel(/^Password \*/).fill(ADMIN_PASSWORD);
-  await form.getByLabel(/Confirm password/).fill(ADMIN_PASSWORD);
-  await form.getByRole('button', { name: 'Create Admin User' }).click();
-  await expect(form).toBeHidden({ timeout: 20000 });
-  await expect(page.getByText(String(ADMIN_ID)).first()).toBeVisible({ timeout: 15000 });
-  await page.screenshot({ path: shot('A6-admins.png'), fullPage: true });
+  await drawer.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('Approved. The organization now exists.')).toBeVisible({ timeout: 15000 });
 
   await goto(page, '/dashboard/super-admin/organizations?status=active');
-  await expect(page.locator('tbody tr').filter({ hasText: ORG_NAME })).toContainText('Active', { timeout: 15000 });
-  void request;
+  await expect(page.locator('tbody tr, ul[data-view="cards"] > li').filter({ hasText: ORG_NAME }).first()).toContainText('Active', { timeout: 15000 });
+  state.orgId = await lookupOrgId(request, (await apiLogin(request, SAO)).token);
+  expect(state.orgId, 'the approved application created the organization').toBeTruthy();
+  await page.screenshot({ path: shot('A6-org-active.png'), fullPage: true });
 });
 
-test('Step 7: new Administrator logs in through the UI', async ({ browser }) => {
+test('Step 7: the student keeps their own account and holds the organization head profile', async ({ browser }) => {
   test.setTimeout(90_000);
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  collect(page, 'NEW_ADMIN', sink);
-  // A provisioned account signs in with the password the SAO set, then must choose its own.
-  await uiLogin(page, { schoolId: ADMIN_ID, password: ADMIN_PASSWORD }, { newPassword: ADMIN_NEW_PASSWORD });
-  await expect(page).toHaveURL(/\/dashboard\/admin/);
-  await expect(page.getByRole('main')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(/403|forbidden/i);
-  await page.screenshot({ path: shot('A7-new-admin-dashboard.png'), fullPage: true });
-  await page.getByRole('button', { name: /^Logout/ }).first().click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Log Out' }).click();
-  await page.waitForURL(/\/login/, { timeout: 15000 });
-  await context.close();
+  const { page } = await roleContext(browser, 'APPLICANT', state.applicant);
+  await goto(page, state.applicationUrl);
+  await expect(page.getByText(new RegExp(`You are now President of ${ORG_NAME}`))).toBeVisible({ timeout: 15000 });
+  const me = await apiAs(state.applicant);
+  const profiles = await me.get('/user/profiles');
+  const list = profiles.body.profiles;
+  const held = list.find((profile) => Number(profile.organization_id ?? profile.organization?.id) === state.orgId);
+  expect(held, 'a profile on the new organization').toBeTruthy();
+  expect(held.role).toBe('ADMIN');
+  expect(list.some((profile) => profile.role === 'STUDENT'), 'the student profile is still there').toBe(true);
+  await page.screenshot({ path: shot('A7-applicant-approved.png'), fullPage: true });
 });
 
-test('Step 8: archive, read-only views, login refusal, restore, overview', async ({ browser, request }) => {
+test('Step 8: archive, read-only views, lock-out, restore, overview', async ({ browser, request }) => {
   test.setTimeout(180_000);
   const { page } = await roleContext(browser, 'SAO', SAO);
   await goto(page, '/dashboard/super-admin/organizations?status=active');
@@ -354,20 +305,13 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   await expect(page.getByRole('menu')).toHaveCount(0);
   await page.screenshot({ path: shot('A8-archived-tab.png'), fullPage: true });
 
-  // New Admin login now fails with a clear message
-  const adminContext = await browser.newContext();
-  const adminPage = await adminContext.newPage();
-  collect(adminPage, 'NEW_ADMIN_ARCHIVED', sink);
-  await adminPage.goto('/login');
-  await adminPage.getByLabel(/School ID/i).fill(String(ADMIN_ID));
-  await adminPage.getByLabel(/^Password/i).fill(ADMIN_NEW_PASSWORD);
-  await adminPage.getByRole('button', { name: /^Sign in/ }).click();
-  const alert = adminPage.getByRole('alert').first();
-  await expect(alert).toBeVisible({ timeout: 15000 });
-  console.log('ARCHIVED LOGIN MESSAGE:', (await alert.innerText()).trim());
-  await expect(adminPage).toHaveURL(/\/login/);
-  await adminPage.screenshot({ path: shot('A8-archived-login.png') });
-  await adminContext.close();
+  // The student still signs in with their own account, but the archived organization no longer opens as a workspace.
+  const me = await apiAs(state.applicant);
+  const profiles = await me.get('/user/profiles');
+  const held = profiles.body.profiles.find((profile) => Number(profile.organization_id ?? profile.organization?.id) === state.orgId);
+  const locked = await me.post(`/user/profiles/${held.id}/switch`);
+  console.log('ARCHIVED ORG SWITCH ->', locked.status, JSON.stringify(locked.body).slice(0, 160));
+  expect(locked.ok, 'an archived organization cannot be entered').toBe(false);
 
   // Department Head still sees it as Archived (read only)
   const head = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
@@ -386,13 +330,8 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   await page.getByRole('dialog').getByRole('button', { name: 'Restore organization' }).click();
   await expect(page.getByText(/restored\./)).toBeVisible({ timeout: 15000 });
 
-  const again = await apiLogin(request, { schoolId: ADMIN_ID, password: ADMIN_NEW_PASSWORD });
-  expect(again.status, 'restored Admin can authenticate').toBe(200);
-  const loginContext = await browser.newContext();
-  const loginPage = await loginContext.newPage();
-  await uiLogin(loginPage, { schoolId: ADMIN_ID, password: ADMIN_NEW_PASSWORD });
-  await expect(loginPage).toHaveURL(/\/dashboard\/admin/);
-  await loginContext.close();
+  const again = await me.post(`/user/profiles/${held.id}/switch`);
+  expect(again.ok, 'the restored organization opens again').toBe(true);
 
   // Organization overview
   if (!state.orgId) state.orgId = await lookupOrgId(request, (await apiLogin(request, SAO)).token);
@@ -409,17 +348,19 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   test.setTimeout(150_000);
   const { page, context } = await roleContext(browser, 'SAO', SAO);
   await goto(page, '/dashboard/super-admin/compliance');
+  // [tab, tab inside it (or null), the ?tab= value the page ends on]
   const expected = [
-    ['Organization accreditation', 'accreditation'],
-    ['Review submissions', 'review'],
-    ['Event reviews', 'event-reviews'],
-    ['Financial reports', 'financial'],
-    ['Requirement settings', 'requirements'],
-    ['Event requirements', 'events'],
+    ['Organizations', 'Organization accreditation', 'accreditation'],
+    ['Organizations', 'Review submissions', 'review'],
+    ['Event reviews', null, 'event-reviews'],
+    ['Semestral Report & Financial Report', null, 'financial'],
+    ['Requirement settings', 'Organization requirements', 'requirements'],
+    ['Requirement settings', 'Event requirements', 'events'],
   ];
   const errorsBefore = sink.console.length + sink.pageErrors.length;
-  for (const [label, key] of expected) {
-    await page.getByRole('tab', { name: new RegExp('^' + label + '( [(][0-9]+[)])?$') }).click();
+  for (const [group, inner, key] of expected) {
+    await page.getByRole('tab', { name: group, exact: true }).click();
+    if (inner) await page.getByRole('tab', { name: new RegExp('^' + inner + '( [(][0-9]+[)])?$') }).click();
     await expect(page).toHaveURL(new RegExp(`tab=${key}`));
     const panel = page.getByRole('tabpanel').last();
     await expect(panel).toBeVisible();
@@ -508,7 +449,7 @@ test('Step 11: Department Head scope', async ({ browser, request }) => {
   await goto(page, '/dashboard/department-head/approvals');
   await expect(page.getByLabel('Organization', { exact: true })).toBeVisible({ timeout: 15000 });
   await expect.poll(async () => page.getByLabel('Organization', { exact: true }).locator('option').count(), { timeout: 15000 }).toBeGreaterThan(1);
-  await expect(page.locator('main')).toContainText(/[1-9][0-9]* matching requests?/);
+  await expect(page.locator('main')).toContainText(/Pending [(][1-9][0-9]*[)]/);
   await page.waitForLoadState('networkidle');
   const options = (await page.getByLabel('Organization', { exact: true }).locator('option').allInnerTexts()).map((text) => text.trim());
   console.log('HEAD CCS approvals org filter options', JSON.stringify(options));
@@ -571,9 +512,10 @@ test('Step 12: security spot checks', async ({ request }) => {
   // Sign-ins are throttled per address; apiLogin waits out a 429, which can outlast the 30s default.
   test.setTimeout(90_000);
   const admin = await apiLogin(request, PSITS_ADMIN);
+  const dhPassword = randomPassword();
   const create = await request.post(`${apiUrl}/users`, {
     headers: bearer(admin.token),
-    data: { school_id: 987654, first_name: 'Bad', last_name: 'Head', email: 'bad.head@hiusa.local', role: 'DEPARTMENT_HEAD', password: 'Demo@12345', password_confirmation: 'Demo@12345' },
+    data: { school_id: 987654, first_name: 'Bad', last_name: 'Head', email: 'bad.head@hiusa.local', role: 'DEPARTMENT_HEAD', password: dhPassword, password_confirmation: dhPassword },
   });
   console.log('ADMIN POST /users role=DEPARTMENT_HEAD ->', create.status(), (await create.text()).slice(0, 200));
   expect(create.status()).toBe(422);
@@ -593,17 +535,23 @@ test('Step 12: security spot checks', async ({ request }) => {
   expect(ok.status()).toBe(200);
 });
 
-test('Step 12b: another college head cannot edit this college organization', async ({ request }) => {
+test('Step 12b: another college head cannot reach this college application or organization', async ({ request }) => {
   test.setTimeout(90_000);
   const cbe = await apiLogin(request, HEAD_CBE);
   const sao = await apiLogin(request, SAO);
   const id = state.orgId || await lookupOrgId(request, sao.token);
-  const update = await request.put(`${apiUrl}/college/organizations/${id}`, { headers: bearer(cbe.token), multipart: { name: 'Hijacked', acronym: 'HIJACK' } });
-  console.log('CBE head PUT /college/organizations/{CCS org} ->', update.status());
-  expect([403, 404]).toContain(update.status());
-  const psits = await request.put(`${apiUrl}/college/organizations/${PSITS_ORGANIZATION_ID}`, { headers: bearer(cbe.token), multipart: { name: 'Hijacked', acronym: 'HIJACK' } });
-  console.log('CBE head PUT /college/organizations/PSITS ->', psits.status());
+  const space = await request.get(`${apiUrl}/college/organizations/${id}/space`, { headers: bearer(cbe.token) });
+  console.log('CBE head GET org space of a CCS organization ->', space.status());
+  expect([403, 404]).toContain(space.status());
+  const psits = await request.get(`${apiUrl}/college/organizations/${PSITS_ORGANIZATION_ID}/space`, { headers: bearer(cbe.token) });
+  console.log('CBE head GET org space of PSITS ->', psits.status());
   expect([403, 404]).toContain(psits.status());
+  const queue = await request.get(`${apiUrl}/organization-applications`, { headers: bearer(cbe.token), params: { per_page: 100 } });
+  expect(queue.status()).toBe(200);
+  expect(JSON.stringify(await queue.json())).not.toContain(ORG_NAME);
+  const grant = await request.post(`${apiUrl}/college/applicant-grants`, { headers: bearer(cbe.token), data: { school_id: state.applicant.schoolId } });
+  console.log('CBE head grant to a CCS student ->', grant.status());
+  expect([404, 422]).toContain(grant.status());
 });
 
 test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', async ({ browser, request }) => {

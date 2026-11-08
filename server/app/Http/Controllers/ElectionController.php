@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicSemester;
+use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Candidate;
@@ -11,6 +12,7 @@ use App\Models\ElectionPosition;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
+use App\Services\ElectionHandoverService;
 use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -74,6 +76,17 @@ class ElectionController extends Controller
         }
     }
 
+    private function memberViewOnly(?User $user): bool
+    {
+        if ($user?->role === 'STUDENT') {
+            return true;
+        }
+
+        $profile = $user?->role === 'SBO_OFFICER' ? $user->activeProfile() : null;
+
+        return $profile !== null && ! $profile->allowsModule('elections');
+    }
+
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
@@ -82,12 +95,12 @@ class ElectionController extends Controller
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->whereIn('organization_id', $readableOrgIds);
-        $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
-        if ($request->user()?->role === 'STUDENT') {
+        if ($this->memberViewOnly($request->user())) {
             $query->where(function ($studentQuery) {
                 $studentQuery
                     ->where(function ($openQuery) {
@@ -130,7 +143,7 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($user?->role === 'STUDENT') {
+        if ($this->memberViewOnly($user)) {
             if (! $election->finalized_at || ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible))) {
                 return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }
@@ -157,7 +170,7 @@ class ElectionController extends Controller
 
     public function store(Request $request)
     {
-        $semester = AcademicSemester::active();
+        $semester = AcademicSemester::selected($request);
         if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new elections can be created.'], 409);
         }
@@ -176,7 +189,7 @@ class ElectionController extends Controller
         ]);
         if ($semester && (Carbon::parse($data['start_time'])->toDateString() < $semester->starts_on->toDateString()
             || Carbon::parse($data['end_time'])->toDateString() > $semester->ends_on->toDateString())) {
-            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the active semester.']]);
+            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in.']]);
         }
 
         $imageUrl = $request->hasFile('image') ? $this->storeElectionImage($request) : null;
@@ -392,6 +405,10 @@ class ElectionController extends Controller
             $this->auditableElectionValues($freshElection)
         );
 
+        if (app(ElectionHandoverService::class)->handOver($freshElection, $request->user()->school_id, $request->ip())) {
+            $freshElection = $election->fresh();
+        }
+
         return response()->json($this->withApprovalFields($request, [$freshElection->toArray()])[0]);
     }
 
@@ -405,6 +422,17 @@ class ElectionController extends Controller
         ];
 
         return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
+    }
+
+    /** A candidate is a student with an active student profile in the organization, wherever their own account lives, and an account that is itself active. */
+    private function isStudentOf(int $schoolId, int $organizationId): bool
+    {
+        return AccountProfile::where('user_school_id', $schoolId)
+            ->where('organization_id', $organizationId)
+            ->where('role', 'STUDENT')
+            ->where('account_status', 'active')
+            ->whereHas('user', fn ($q) => $q->where('account_status', 'active'))
+            ->exists();
     }
 
     private function ballotIsLockedResponse(Election $election)
@@ -738,8 +766,7 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
-        $candidateUser = User::find($data['user_id']);
-        if (! $candidateUser || $candidateUser->role !== 'STUDENT' || $candidateUser->organization_id !== $request->user()->organization_id) {
+        if (! $this->isStudentOf((int) $data['user_id'], $request->user()->organization_id)) {
             return response()->json(['message' => 'Only students can be added as candidates.'], 422);
         }
 
@@ -853,8 +880,7 @@ class ElectionController extends Controller
         }
 
         if (array_key_exists('user_id', $data)) {
-            $candidateUser = User::find($data['user_id']);
-            if (! $candidateUser || $candidateUser->role !== 'STUDENT' || $candidateUser->organization_id !== $request->user()->organization_id) {
+            if (! $this->isStudentOf((int) $data['user_id'], $request->user()->organization_id)) {
                 return response()->json(['message' => 'Only students can be assigned as candidates.'], 422);
             }
 
@@ -1198,17 +1224,22 @@ class ElectionController extends Controller
             ->distinct()
             ->pluck('voter_id');
 
-        $votersQuery = User::where('organization_id', $organizationId)
-            ->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT']);
+        // Belonging to the organization is an active profile there, as in the people directory; a member the
+        // head added keeps their own account in the college and still votes and counts here.
+        $votersQuery = User::query()
+            ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
+            ->where('membership.organization_id', $organizationId)
+            ->where('membership.account_status', 'active')
+            ->whereIn('membership.role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
+            ->where('users.account_status', 'active');
 
         $eligibleTotal = (clone $votersQuery)->count();
-        $votedCount = (clone $votersQuery)->whereIn('school_id', $voterIds)->count();
+        $votedCount = (clone $votersQuery)->whereIn('users.school_id', $voterIds)->count();
 
         $paginated = $votersQuery
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->select(['school_id', 'first_name', 'last_name', 'email', 'role'])
+            ->orderBy('users.last_name')
+            ->orderBy('users.first_name')
+            ->select(['users.school_id', 'users.first_name', 'users.last_name', 'users.email', 'membership.role'])
             ->paginate(10)
             ->through(fn ($voter) => array_merge($voter->toArray(), [
                 'has_voted' => $voterIds->contains($voter->school_id),
@@ -1248,7 +1279,10 @@ class ElectionController extends Controller
             ->get()
             ->groupBy('position_id');
 
-        $results = $positions->map(function ($position) use ($allCandidates) {
+        $standings = app(ElectionHandoverService::class)->standings($election)->keyBy(fn (array $row) => $row['position']->id);
+        $handedOver = $election->access_handed_over_at !== null;
+
+        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver) {
             $candidates = $allCandidates->get($position->id, collect())
                 ->map(fn ($c) => [
                     'id' => $c->id,
@@ -1261,10 +1295,15 @@ class ElectionController extends Controller
                 ->sortByDesc('votes')
                 ->values();
 
+            $standing = $standings->get($position->id);
+
             return [
                 'position' => $position,
                 'candidates' => $candidates,
                 'totalVotes' => $candidates->sum('votes'),
+                'winner_ids' => $standing ? $standing['winners']->pluck('id')->values() : [],
+                'tie' => (bool) ($standing['tie'] ?? false),
+                'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty(),
             ];
         })->values();
 

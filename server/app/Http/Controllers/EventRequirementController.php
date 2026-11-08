@@ -26,7 +26,7 @@ class EventRequirementController extends Controller
     public function index(Request $request)
     {
         return response()->json(EventRequirement::query()
-            ->forPeriod(AcademicSemester::active()?->id)
+            ->forPeriod(AcademicSemester::selected($request)?->id)
             ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('is_active', true))
             ->orderBy('sort_order')->orderBy('id')->get());
     }
@@ -36,7 +36,7 @@ class EventRequirementController extends Controller
         $data = $this->validateRequirement($request);
 
         $data['sort_order'] = (int) EventRequirement::max('sort_order') + 1;
-        $data['academic_semester_id'] = AcademicSemester::active()?->id;
+        $data['academic_semester_id'] = AcademicSemester::selected($request)?->id;
 
         $samples = app(RequirementSampleService::class);
 
@@ -45,7 +45,7 @@ class EventRequirementController extends Controller
 
     public function update(Request $request, EventRequirement $requirement)
     {
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $data = $this->validateRequirement($request);
@@ -57,7 +57,7 @@ class EventRequirementController extends Controller
 
     public function uploadTemplate(Request $request, EventRequirement $requirement)
     {
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $request->validate(['template' => ['required', 'file', 'mimes:pdf', 'extensions:pdf', 'max:10240']]);
@@ -67,7 +67,7 @@ class EventRequirementController extends Controller
 
     public function setTemplateLink(Request $request, EventRequirement $requirement)
     {
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
@@ -77,7 +77,7 @@ class EventRequirementController extends Controller
 
     public function removeTemplate(EventRequirement $requirement)
     {
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
 
@@ -108,7 +108,7 @@ class EventRequirementController extends Controller
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['required', 'integer', 'distinct', Rule::exists('event_requirements', 'id')],
         ]);
-        $current = EventRequirement::forPeriod(AcademicSemester::active()?->id)->pluck('id')->sort()->values()->all();
+        $current = EventRequirement::forPeriod(AcademicSemester::selected($request)?->id)->pluck('id')->sort()->values()->all();
         $submitted = collect($data['ids'])->map(fn ($id) => (int) $id)->sort()->values()->all();
         if ($current !== $submitted) {
             return response()->json(['message' => 'Include every requirement exactly once when reordering.'], 422);
@@ -120,17 +120,17 @@ class EventRequirementController extends Controller
             }
         });
 
-        return response()->json(EventRequirement::forPeriod(AcademicSemester::active()?->id)->orderBy('sort_order')->orderBy('id')->get());
+        return response()->json(EventRequirement::forPeriod(AcademicSemester::selected($request)?->id)->orderBy('sort_order')->orderBy('id')->get());
     }
 
     public function destroy(EventRequirement $requirement)
     {
-        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+        if (AcademicSemester::isClosed($requirement->academic_semester_id)) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         DB::transaction(function () use ($requirement) {
             $locked = EventRequirement::whereKey($requirement->id)->lockForUpdate()->firstOrFail();
-            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
+            abort_if(AcademicSemester::isClosed($locked->academic_semester_id), 409, 'Completed semester requirements are read only.');
             abort_if(EventRequirementFile::where('requirement_id', $locked->id)->exists(), 409, 'This requirement has submitted files. Deactivate it to preserve those records.');
             $locked->delete();
             app(RequirementSampleService::class)->deleteAfterCommit($locked->template_path);

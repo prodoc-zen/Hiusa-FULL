@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../utils/displayText.js';
-import { CalendarDays, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../ui/EmptyState';
 import { manilaDate, relativeTime } from '../../lib/format';
@@ -10,19 +10,16 @@ function Row({ item, role }) {
   const waitingOn = getWaitingOnLabel(item);
   const content = (
     <>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-control bg-brand-50 text-brand-600">
-        <CalendarDays size={18} aria-hidden="true" />
-      </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-ink">{formatDisplayText(item.title)}</p>
-        <p className="mt-0.5 text-xs font-medium text-ink-muted">
+        <p className="truncate text-sm font-semibold text-ink">{formatDisplayText(item.title)}</p>
+        <p className="mt-0.5 text-xs text-ink-muted">
           {manilaDate(item.starts_at)} &middot; {relativeTime(item.starts_at)}
           {item.location ? ` · ${item.location}` : ''}
         </p>
-        {waitingOn && <p className="mt-0.5 text-xs font-semibold text-ink-muted">{waitingOn}</p>}
+        {waitingOn && <p className="mt-0.5 text-xs font-medium text-ink-muted">{waitingOn}</p>}
       </div>
       {href && (
-        <span className="flex shrink-0 items-center gap-0.5 text-xs font-bold text-brand-600">
+        <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-brand-700">
           Open
           <ChevronRight size={16} aria-hidden="true" />
         </span>
@@ -52,9 +49,8 @@ export default function AgendaList({ items = [], role = getStoredRole() }) {
     return (
       <EmptyState
         kind="first-run"
-        icon={CalendarDays}
         title="Nothing on the calendar yet"
-        description="Upcoming events and elections closing soon will appear here."
+        description="Upcoming events and elections closing soon show here."
       />
     );
   }

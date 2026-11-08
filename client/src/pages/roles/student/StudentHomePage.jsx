@@ -1,12 +1,13 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, ChevronRight, Inbox, ReceiptText, RefreshCw, ShieldCheck, Vote } from 'lucide-react';
+import { ChevronRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { RoleBriefing } from '../../../components/dashboard';
-import { Button } from '../../../components/ui';
+import { ProcessTracker } from '../../../components/process';
+import { Button, EmptyState, ErrorState, Skeleton } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 
 function formatEventDate(value) {
@@ -18,10 +19,12 @@ function formatEventDate(value) {
 
 function FeedSkeleton() {
   return (
-    <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white" role="status">
-      <div className="flex gap-3 p-4 sm:p-5"><div className="h-11 w-11 animate-pulse rounded-full bg-slate-100" /><div className="flex-1 space-y-2"><div className="h-4 w-44 animate-pulse rounded bg-slate-100" /><div className="h-3 w-28 animate-pulse rounded bg-slate-100" /></div></div>
-      <div className="space-y-3 px-4 pb-4 sm:px-5"><div className="h-5 w-3/4 animate-pulse rounded bg-slate-100" /><div className="h-3 w-full animate-pulse rounded bg-slate-100" /><div className="h-3 w-5/6 animate-pulse rounded bg-slate-100" /></div>
-      <div className="h-56 animate-pulse bg-slate-100" /><span className="sr-only">Loading post</span>
+    <div className="rounded-card border border-line bg-surface p-4 sm:p-5" role="status">
+      <Skeleton className="h-4 w-44" />
+      <Skeleton className="mt-2 h-3 w-28" />
+      <Skeleton className="mt-5 h-3 w-full" />
+      <Skeleton className="mt-2 h-3 w-5/6" />
+      <span className="sr-only">Loading post</span>
     </div>
   );
 }
@@ -113,54 +116,59 @@ export default function StudentHomePage() {
 
   return (
     <div className="w-full space-y-6 overflow-x-hidden">
+      <ProcessTracker />
       <RoleBriefing onData={handleBriefing} />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">Organization feed</h2>
-              <p className="mt-0.5 text-sm text-slate-600">Updates from your organization and the university.</p>
-            </div>
-          </div>
+          <h2 className="text-base font-semibold text-ink">Organization feed</h2>
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
           {!initialLoading && items.map((item) => <FeedPost key={item.key} item={item} organization={organization} />)}
 
           {!initialLoading && items.length === 0 && !error && (
-            <div className="rounded-lg border border-dashed border-[#DDE7EF] bg-white px-5 py-14 text-center">
-              <Inbox size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-black text-[#0F172A]">Your feed is quiet</h2><p className="mt-1 text-sm text-[#64748B]">Official organization updates will appear here when published. In the meantime, find an event to join.</p><Button to="/dashboard/events/activity-calendar" variant="secondary" className="mt-4">Find an event to join</Button>
-            </div>
+            <EmptyState
+              title="No announcements yet"
+              description="Posts from your organization and the university show here."
+              action={<Button to="/dashboard/events/activity-calendar" variant="secondary">Find an event to join</Button>}
+            />
           )}
-          {error && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-white p-5 text-center"><p className="text-sm font-semibold text-red-700">{error}</p><button type="button" onClick={retry} className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><RefreshCw size={15} /> Try again</button></div>
-          )}
+          {error && <ErrorState title="Could not load your feed" description={error} onRetry={retry} />}
           {loadingMore && <FeedSkeleton />}
           <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-          {!initialLoading && items.length > 0 && !hasMore && <p className="py-4 text-center text-xs font-semibold text-[#94A3B8]">You’re all caught up.</p>}
         </section>
 
         <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
           {activeElection && (
-            <section className="rounded-lg border border-[#0B8ED0]/25 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#0878B7]"><Vote size={14} /> Active election</span><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /></div>
-              <h2 className="mt-3 text-base font-black leading-6 text-[#0F172A]">{formatDisplayText(activeElection.title)}</h2>
-              <p className="mt-1 text-xs leading-5 text-[#64748B]">{activeElection.has_voted ? 'Your ballot has been securely submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
-              {activeElection.has_voted ? <span className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 text-xs font-bold text-emerald-700"><ShieldCheck size={15} /> Vote submitted</span> : <Link to={`/elections/${activeElection.id}/vote`} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-sm font-bold text-white hover:bg-[#0F2F62]"><ShieldCheck size={16} /> Enter secure voting</Link>}
+            <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-election-title">
+              <h2 id="student-election-title" className="text-sm font-semibold text-ink">Voting is open</h2>
+              <p className="mt-1 text-sm font-medium text-ink">{formatDisplayText(activeElection.title)}</p>
+              <p className="mt-1 text-xs text-ink-muted-strong">{activeElection.has_voted ? 'Your ballot has been submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
+              {activeElection.has_voted
+                ? <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-success-strong"><ShieldCheck size={16} aria-hidden="true" /> Vote submitted</p>
+                : <Button to={`/elections/${activeElection.id}/vote`} variant="secondary" className="mt-3 w-full">Vote now</Button>}
             </section>
           )}
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-[#0F172A]">Coming up</h2><CalendarDays size={17} className="text-[#0878B7]" /></div>
-            <div className="mt-3 divide-y divide-[#DDE7EF]">
-              {upcomingEvents.length ? upcomingEvents.map((event) => <div key={event.id} className="flex gap-3 py-3 first:pt-1"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] px-1 text-center text-[9px] font-black uppercase text-[#0F2F62]">{formatEventDate(event.start_time)}</span><div className="min-w-0"><p className="line-clamp-2 text-xs font-bold leading-5 text-[#0F172A]">{formatDisplayText(event.title)}</p>{event.location && <p className="mt-0.5 truncate text-[11px] text-[#64748B]">{event.location}</p>}</div></div>) : <p className="py-4 text-xs text-[#64748B]">No upcoming events yet.</p>}
+          <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-events-title">
+            <h2 id="student-events-title" className="text-sm font-semibold text-ink">Coming up</h2>
+            <div className="mt-3 divide-y divide-line-soft">
+              {upcomingEvents.length ? upcomingEvents.map((event) => (
+                <div key={event.id} className="flex gap-3 py-3 first:pt-0">
+                  <span className="w-14 shrink-0 text-xs font-medium text-ink-muted-strong">{formatEventDate(event.start_time)}</span>
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-medium text-ink">{formatDisplayText(event.title)}</p>
+                    {event.location && <p className="mt-0.5 truncate text-xs text-ink-muted">{event.location}</p>}
+                  </div>
+                </div>
+              )) : <p className="py-2 text-sm text-ink-muted">No upcoming events yet.</p>}
             </div>
-            <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex h-10 w-full items-center justify-center gap-1 text-xs font-bold text-[#0878B7] hover:underline">Open activity calendar <ChevronRight size={14} /></Link>
+            <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open activity calendar <ChevronRight size={14} aria-hidden="true" /></Link>
           </section>
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm" aria-labelledby="student-account-title">
-            <div className="flex items-center justify-between gap-3"><h2 id="student-account-title" className="text-sm font-black text-[#0F172A]">Your account</h2><ReceiptText size={17} className="text-[#0878B7]" aria-hidden="true" /></div>
-            <div className="mt-2 divide-y divide-[#DDE7EF]">
-              <Link to="/dashboard/finance/statement-of-account" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">Statement of account</span><span className="block text-[11px] text-[#64748B]">{owedText ?? 'See what you owe and your receipts'}</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
-              <Link to="/dashboard/my-clearance" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">My clearance</span><span className="block text-[11px] text-[#64748B]">{clearanceText ?? 'See which offices have signed'}</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
+          <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-account-title">
+            <h2 id="student-account-title" className="text-sm font-semibold text-ink">Your account</h2>
+            <div className="mt-2 divide-y divide-line-soft">
+              <Link to="/dashboard/finance/statement-of-account" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-subtle"><span className="min-w-0"><span className="block text-sm font-medium text-ink">Statement of account</span><span className="block text-xs text-ink-muted">{owedText ?? 'See what you owe and your receipts'}</span></span><ChevronRight size={14} className="shrink-0 text-ink-soft" aria-hidden="true" /></Link>
+              <Link to="/dashboard/my-clearance" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-subtle"><span className="min-w-0"><span className="block text-sm font-medium text-ink">My clearance</span><span className="block text-xs text-ink-muted">{clearanceText ?? 'See which offices have signed'}</span></span><ChevronRight size={14} className="shrink-0 text-ink-soft" aria-hidden="true" /></Link>
             </div>
           </section>
         </aside>

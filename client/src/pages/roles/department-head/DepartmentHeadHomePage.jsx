@@ -1,35 +1,39 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Vote, BarChart3, AlertTriangle, Archive, Building2, CalendarDays, CheckCircle2, ClipboardCheck, Clock, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
-import { RoleBriefing } from '../../../components/dashboard';
-import { Button, EmptyState } from '../../../components/ui';
+import { ProcessTracker } from '../../../components/process';
+import { Button, Card, EmptyState, ErrorState, Skeleton, SkeletonStat, Stat } from '../../../components/ui';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
+import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
 function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', financial_report: 'Financial Reports' };
-const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'financial_report'];
 const ORGANIZATIONS_PATH = '/dashboard/department-head/organizations';
-const ORGANIZATION_STATUS_ORDER = [
-  { status: 'returned', label: 'Returned', icon: AlertTriangle },
-  { status: 'pending', label: 'Pending review', icon: Clock },
-  { status: 'active', label: 'Active', icon: CheckCircle2 },
-  { status: 'archived', label: 'Archived', icon: Archive },
-];
+
+function ListSkeleton({ rows = 3 }) {
+  return (
+    <div className="space-y-2 p-5" role="status" aria-label="Loading">
+      {Array.from({ length: rows }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}
+    </div>
+  );
+}
+
+function ViewAll({ to }) {
+  return <NavLink to={to} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">View all</NavLink>;
+}
 
 export default function DepartmentHeadHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [], organizations: [] });
+  const [data, setData] = useState({ elections: [], events: [], announcements: [], organizations: [] });
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -49,9 +53,7 @@ export default function DepartmentHeadHomePage() {
       // /events has no status filter, so the full org event list is walked via
       // fetchAllPages - the endpoint also orders oldest-first, so a single
       // page-1 fetch would surface stale events instead of upcoming ones. The
-      // pending-approval queue has no per-type filter either, but it is a
-      // working queue (bounded in practice), so a single generous per_page
-      // captures it in one call while `total` still backs the headline count.
+      // pending-approval queue is only counted, so its `total` backs the tile.
       const [electionsRes, events, announcementsRes, approvalsRes, organizations] = await Promise.all([
         getElections(),
         fetchAllPages((p) => getEvents(p).then((r) => r.data)),
@@ -66,14 +68,13 @@ export default function DepartmentHeadHomePage() {
         elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
         events,
         announcements: unwrapList(announcementsRes?.data),
-        pendingApprovals: unwrapList(approvalsRes?.data),
         organizations,
       };
       setData((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
       setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
       setLoadError('');
     } catch {
-      if (!silent && epoch === loadEpoch.current) setLoadError('Unable to load department oversight data. Your current records have not been replaced with empty results.');
+      if (!silent && epoch === loadEpoch.current) setLoadError('Check your connection and try again.');
     } finally {
       if (!silent && epoch === loadEpoch.current) setLoading(false);
     }
@@ -88,247 +89,93 @@ export default function DepartmentHeadHomePage() {
   const activeElection = data.elections.find((e) => e.status === 'active') || null;
   const upcomingEvents = data.events
     .filter((e) => e.status === 'upcoming' || e.status === 'approved')
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-    .slice(0, 4);
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at)).slice(0, 3);
 
-  const stat = (val) => loading ? '-' : val;
-
   const college = headCollegeName(storedUser());
-  let activeSubId = null;
-  try {
-    const sub = JSON.parse(sessionStorage.getItem('hiusa_active_subaccount') || 'null');
-    activeSubId = sub?.id ? String(sub.id) : null;
-  } catch {
-    activeSubId = null;
-  }
+  const { subAccountId } = useActiveSubAccount();
+  const activeSubId = subAccountId ? String(subAccountId) : null;
   const scopedOrganizations = activeSubId ? data.organizations.filter((o) => String(o.id) === activeSubId) : data.organizations;
   const organizationCount = (status) => scopedOrganizations.filter((o) => o.lifecycle_status === status).length;
 
-  const totalPendingApprovals = pendingApprovalsTotal;
-  const approvalsByType = APPROVAL_TYPE_ORDER
-    .map((type) => ({ type, count: data.pendingApprovals.filter((r) => r.entity_type === type).length }))
-    .filter((row) => row.count > 0);
+  // Returned and pending registrations only exist on older filings, so they ride along as context
+  // on the Active tile instead of taking tiles of their own.
+  const needAttention = [
+    organizationCount('returned') > 0 && `${organizationCount('returned')} returned`,
+    organizationCount('pending') > 0 && `${organizationCount('pending')} pending review`,
+  ].filter(Boolean).join(', ');
+  const noOrganizations = !loading && !loadError && data.organizations.length === 0;
 
   return (
     <div className="w-full space-y-6">
-      <RoleBriefing />
-      {loadError && (
-        <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-semibold">{loadError}</p>
-          <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-bold text-red-700 hover:bg-red-100">
-            Try again
-          </button>
-        </div>
-      )}
+      <ProcessTracker />
+      {loadError && <ErrorState title="Could not load your college overview" description={loadError} onRetry={() => setReloadKey((value) => value + 1)} />}
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] px-5 py-4">
-          <div>
-            <h3 className="text-base font-bold text-[#0F172A]">{college ? `${college} organizations` : 'College organizations'}</h3>
-            <p className="mt-1 text-xs font-medium text-slate-500">Every student organization you oversee, by registration status.</p>
+      <section aria-labelledby="college-overview">
+        <h2 id="college-overview" className="sr-only">{college ? `${college} organizations` : 'College organizations'}</h2>
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((key) => <SkeletonStat key={key} />)}</div>
+        ) : noOrganizations ? (
+          <Card>
+            <EmptyState
+              title="No student organizations yet"
+              description="Allow a student to apply. Their application comes to you for review."
+              action={<Button variant="secondary" to="/dashboard/department-head/people">Allow a student to apply</Button>}
+            />
+          </Card>
+        ) : !loadError && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Stat label="Awaiting your approval" value={pendingApprovalsTotal} to="/dashboard/department-head/approvals" />
+            <Stat label="Active organizations" value={organizationCount('active')} context={needAttention || undefined} to={`${ORGANIZATIONS_PATH}?status=active`} />
+            <Stat label="Upcoming events" value={upcomingEvents.length} to="/dashboard/events" />
           </div>
-          <NavLink to={ORGANIZATIONS_PATH} className="inline-flex min-h-11 items-center text-xs font-bold text-[#0878B7] hover:underline">Manage organizations</NavLink>
-        </div>
-        {!loading && !loadError && data.organizations.length === 0 ? (
-          <EmptyState
-            kind="first-run"
-            icon={Building2}
-            title="No student organizations yet"
-            description="Applicants register from the HIUSA home page. Review their submitted requirements and endorse eligible applications to SAO."
-            action={<Button to="/dashboard/organization-applications">Review applications</Button>}
-          />
-        ) : (
-          <ul className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
-            {ORGANIZATION_STATUS_ORDER.map(({ status, label, icon: Icon }) => {
-              const count = organizationCount(status);
-              const needsAction = !loading && status === 'returned' && count > 0;
-              return (
-                <li key={status} className="bg-white">
-                  <NavLink
-                    to={`${ORGANIZATIONS_PATH}?status=${status}`}
-                    className={`flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0B8ED0] ${needsAction ? 'bg-danger-tint' : 'bg-white'}`}
-                  >
-                    <span className="min-w-0">
-                      <span className={`flex items-center gap-2 text-sm font-semibold ${needsAction ? 'text-danger-strong' : 'text-slate-600'}`}><Icon size={17} className={needsAction ? 'text-danger-strong' : 'text-[#0878B7]'} aria-hidden="true" />{label}</span>
-                      {needsAction && <span className="mt-0.5 block text-xs font-semibold text-danger-strong">Action needed</span>}
-                    </span>
-                    <span className={`text-xl font-black tabular-nums ${needsAction ? 'text-danger-strong' : 'text-[#0F172A]'}`}>{stat(count)}</span>
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
         )}
       </section>
 
-      {!loading && totalPendingApprovals > 0 && (
-        <NavLink
-          to="/dashboard/department-head/approvals"
-          className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:bg-amber-100"
+      {activeElection && (
+        <Card
+          title="Active election"
+          actions={<Button variant="secondary" to="/dashboard/elections/election-results">View results</Button>}
         >
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-white text-amber-600">
-              <ClipboardCheck size={20} />
-            </div>
-            <div>
-              <p className="font-bold text-[#0F172A]">{totalPendingApprovals} item{totalPendingApprovals === 1 ? '' : 's'} awaiting your approval</p>
-              <p className="text-sm text-amber-700">Events, elections, and first-stage financial reports need your sign-off.</p>
-            </div>
-          </div>
-          <span className="shrink-0 text-sm font-bold text-amber-700">Review</span>
-        </NavLink>
+          <p className="text-sm font-semibold text-ink">{formatDisplayText(activeElection.title)}</p>
+          <p className="mt-1 text-sm text-ink-muted">{formatDate(activeElection.start_time)} to {formatDate(activeElection.end_time)}</p>
+        </Card>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="border-b border-[#DDE7EF] px-5 py-4">
-          <h3 className="text-base font-bold text-[#0F172A]">Oversight snapshot</h3>
-          <p className="mt-1 text-xs font-medium text-slate-500">Current election, event, and approval workload.</p>
-        </div>
-        <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
-            { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
-            { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
-            { label: 'Pending Approvals', value: stat(totalPendingApprovals), icon: ClipboardCheck },
-          ].map((item) => (
-            <div key={item.label} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3">
-              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600"><item.icon size={17} className="text-[#0878B7]" />{item.label}</dt>
-              <dd className="text-xl font-black tabular-nums text-[#0F172A]">{item.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 space-y-6">
-          {/* Active Election Card */}
-          {activeElection ? (
-            <section className="rounded-lg border border-[#0B8ED0]/25 bg-[#E6F6FD] p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Active Election</p>
-                  <h3 className="mt-1 text-lg font-black text-[#0F172A]">{formatDisplayText(activeElection.title)}</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {formatDate(activeElection.start_time)} to {formatDate(activeElection.end_time)}
-                  </p>
-                </div>
-                <span className="mt-1 rounded-full bg-[#0878B7] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <NavLink to="/dashboard/elections" className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-[#F8FBFD]">
-                  View Details
-                </NavLink>
-                <NavLink to="/dashboard/elections/election-results" className="rounded-lg bg-[#0878B7] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0F2F62]">
-                  View Results
-                </NavLink>
-              </div>
-            </section>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Card title="Upcoming events" actions={<ViewAll to="/dashboard/events" />} bodyClassName="p-0" className="min-w-0">
+          {loading ? (
+            <ListSkeleton />
+          ) : upcomingEvents.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-ink-muted">No upcoming events.</p>
           ) : (
-            <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-500">
-                  <Vote size={20} />
-                </div>
-                <div>
-                  <p className="font-bold text-[#0F172A]">No Active Election</p>
-                  <p className="text-sm text-slate-500">No elections are currently running.</p>
-                </div>
-              </div>
-            </section>
+            <ul className="divide-y divide-line">
+              {upcomingEvents.slice(0, 4).map((ev) => (
+                <li key={ev.id} className="px-5 py-3">
+                  <p className="truncate text-sm font-semibold text-ink">{formatDisplayText(ev.title)}</p>
+                  <p className="text-xs text-ink-muted">{formatDate(ev.start_time)}{ev.location ? `, ${ev.location}` : ''}</p>
+                </li>
+              ))}
+            </ul>
           )}
+        </Card>
 
-          {/* Upcoming Events */}
-          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="text-base font-bold text-[#0F172A]">Upcoming Events</h3>
-              <NavLink to="/dashboard/events" className="text-xs font-bold text-[#0878B7] hover:underline">View all</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>
-            ) : upcomingEvents.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500">No upcoming events.</p>
-            ) : (
-              <div className="divide-y divide-[#DDE7EF]">
-                {upcomingEvents.map((ev) => (
-                  <div key={ev.id} className="flex items-center gap-4 px-5 py-3.5">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
-                      <CalendarDays size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-[#0F172A]">{formatDisplayText(ev.title)}</p>
-                      <p className="text-xs text-slate-500">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0F2F62]">{ev.status}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="space-y-6">
-          {/* Pending Approvals by Type */}
-          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="text-base font-bold text-[#0F172A]">Pending Approvals by Type</h3>
-              <NavLink to="/dashboard/department-head/approvals" className="text-xs font-bold text-[#0878B7] hover:underline">Review</NavLink>
-            </div>
-            <div className="p-5">
-              {loading ? (
-                <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}</div>
-              ) : totalPendingApprovals === 0 ? (
-                <p className="py-4 text-center text-sm text-slate-500">Nothing awaiting your review.</p>
-              ) : (
-                <div className="space-y-3">
-                  {data.pendingApprovals.slice(0, 3).map((request) => <NavLink key={request.id} to="/dashboard/department-head/approvals" className="block rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"><p className="break-words text-xs font-bold text-[#0F172A]">{formatDisplayText(request.title) || `${APPROVAL_TYPE_LABEL[request.entity_type] || 'Request'} #${request.id}`}</p><p className="mt-1 text-[11px] text-amber-800">{APPROVAL_TYPE_LABEL[request.entity_type] || 'Approval'} · {formatDate(request.requested_at)}</p></NavLink>)}
-                  {approvalsByType.map((row) => {
-                    const pct = Math.round((row.count / totalPendingApprovals) * 100);
-                    return (
-                      <div key={row.type}>
-                        <div className="mb-1 flex items-center justify-between text-xs font-semibold">
-                          <span className="text-[#0F172A]">{APPROVAL_TYPE_LABEL[row.type] || row.type}</span>
-                          <span className="tabular-nums text-slate-500">{row.count} ({pct}%)</span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
-                          <div className="h-2 rounded-full bg-[#0878B7] transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Recent Announcements */}
-          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="text-base font-bold text-[#0F172A]">Recent Announcements</h3>
-              <NavLink to="/dashboard/announcements/view-announcements" className="text-xs font-bold text-[#0878B7] hover:underline">View all</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-            ) : recentAnnouncements.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500">No announcements yet.</p>
-            ) : (
-              <div className="divide-y divide-[#DDE7EF]">
-                {recentAnnouncements.map((a) => (
-                  <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
-                      <Megaphone size={15} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(a.title)}</p>
-                      <p className="line-clamp-2 text-xs text-slate-500">{a.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-        </div>
+        <Card title="Announcements" actions={<ViewAll to="/dashboard/announcements/view-announcements" />} bodyClassName="p-0" className="min-w-0">
+          {loading ? (
+            <ListSkeleton />
+          ) : recentAnnouncements.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-ink-muted">No announcements yet.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {recentAnnouncements.map((a) => (
+                <li key={a.id} className="px-5 py-3">
+                  <p className="truncate text-sm font-semibold text-ink">{formatDisplayText(a.title)}</p>
+                  <p className="line-clamp-2 text-xs text-ink-muted">{a.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
     </div>
   );

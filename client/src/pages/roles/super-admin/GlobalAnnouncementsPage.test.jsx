@@ -68,7 +68,7 @@ describe('Official announcement photos', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText(/^Title/), { target: { value: 'Campus assembly' } });
     const photo = new File(['photo'], 'assembly.png', { type: 'image/png' });
-    fireEvent.change(within(dialog).getByLabelText('Photo (optional)'), { target: { files: [photo] } });
+    fireEvent.change(within(dialog).getByLabelText(/^Photo/), { target: { files: [photo] } });
     expect(await within(dialog).findByRole('img', { name: 'Announcement photo preview' })).toHaveAttribute('src', 'blob:announcement-photo');
     fireEvent.submit(within(dialog).getByLabelText(/^Title/).closest('form'));
     await waitFor(() => expect(createGlobalAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ title: 'Campus assembly', target_scope: 'all_users', image: photo })));

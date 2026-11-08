@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
+use App\Services\Edp\StudentSignup;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
@@ -141,7 +142,7 @@ class UserController extends Controller
         $organizationId = $actor->organization_id;
 
         $validatedData = $request->validate([
-            ...$this->memberRules($organizationId, ['STUDENT', 'SBO_OFFICER', 'ADMIN']),
+            ...$this->memberRules(['STUDENT', 'SBO_OFFICER', 'ADMIN']),
             'password' => 'required|string|min:8|confirmed',
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
             'notification_preferences' => ['nullable', 'array'],
@@ -212,7 +213,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Import up to '.self::IMPORT_LIMIT.' members at a time.'], 422);
         }
 
-        $rules = $this->memberRules($organizationId, self::IMPORTABLE_ROLES);
+        $rules = $this->memberRules(self::IMPORTABLE_ROLES);
         $programsConfigured = AcademicProgram::where('organization_id', $organizationId)->exists();
         $seenIds = [];
         $seenEmails = [];
@@ -359,7 +360,7 @@ class UserController extends Controller
         }
     }
 
-    private function memberRules(int $organizationId, array $roles): array
+    private function memberRules(array $roles): array
     {
         return [
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999', Rule::unique('users', 'school_id')],
@@ -370,7 +371,7 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $organizationId)),
+                Rule::unique('users', 'email'),
             ],
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'role' => ['required', Rule::in($roles)],
@@ -418,9 +419,7 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')
-                    ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
-                    ->ignore($user->school_id, 'school_id'),
+                Rule::unique('users', 'email')->ignore($user->school_id, 'school_id'),
             ],
             'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN',
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
@@ -668,52 +667,39 @@ class UserController extends Controller
         return response()->json(['message' => 'Organization profile removed successfully.', ...$result]);
     }
 
-    public function register(Request $request)
+    public function registerLookup(Request $request, StudentSignup $signup)
     {
-        $validatedData = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)->where('organization_type', 'STUDENT_ORGANIZATION')],
-            'school_id' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:99999999',
-                Rule::unique('users', 'school_id'),
-            ],
-            'first_name' => 'required|string|max:60',
-            'last_name' => 'required|string|max:60',
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:100',
-                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
-            ],
-            'password' => 'required|string|min:8|confirmed',
-            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
-            'role' => 'sometimes|in:STUDENT',
-            'notification_preferences' => ['nullable', 'array'],
-            'department' => ['nullable', 'string', 'max:120'],
-            'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'string', 'max:30'],
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $user = User::create([
-            'organization_id' => $validatedData['organization_id'],
-            'school_id' => $validatedData['school_id'],
-            'first_name' => $validatedData['first_name'],
-            'last_name' => $validatedData['last_name'],
-            'email' => $validatedData['email'],
-            'contact_number' => $validatedData['contact_number'] ?? null,
-            'password_hash' => $validatedData['password'],
-            'must_change_password' => false,
-            'role' => $validatedData['role'] ?? 'STUDENT',
-            'account_status' => 'active',
-            'is_member' => true,
-            'notification_preferences' => $validatedData['notification_preferences'] ?? null,
-        ]);
+        ['record' => $record, 'college' => $college] = $signup->match($data['school_id'], $data['birth_date']);
 
         return response()->json([
-            'user' => $user,
+            'name' => trim($record->firstName.' '.$record->lastName),
+            'college' => $college->name,
+            'program' => $record->program,
+            'year_level' => $record->yearLevel,
+            'section' => $record->section,
+        ]);
+    }
+
+    public function register(Request $request, StudentSignup $signup)
+    {
+        $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
+
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
+            'email' => ['required', 'string', 'email', 'max:100', Rule::unique('users', 'email')],
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $signup->register($data['school_id'], $data['birth_date'], $data['email'], $data['password'], $request);
+
+        return response()->json([
+            'user' => $user->fresh(),
             'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
             'session_expires_in_seconds' => config('sanctum.expiration') * 60,
@@ -723,11 +709,18 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'identifier' => ['required_without:school_id', 'nullable', 'string', 'max:100'],
+            'school_id' => ['nullable'],
             'password' => 'required|string',
         ]);
 
-        $failureKey = 'login-failures:'.$request->school_id;
+        $identifier = User::normalizeIdentifier($request->input('identifier', $request->input('school_id')));
+
+        if ($identifier === null) {
+            throw ValidationException::withMessages(['identifier' => ['Enter your email or school ID.']]);
+        }
+
+        $failureKey = 'login-failures:'.$identifier;
 
         if (RateLimiter::tooManyAttempts($failureKey, self::LOGIN_FAILURE_LIMIT)) {
             return response()->json([
@@ -735,7 +728,7 @@ class UserController extends Controller
             ], 429, ['Retry-After' => RateLimiter::availableIn($failureKey)]);
         }
 
-        $user = User::where('school_id', $request->school_id)->first();
+        $user = User::findByIdentifier($identifier);
 
         $passwordMatches = Hash::check($request->password, $user?->password_hash ?? self::DUMMY_PASSWORD_HASH);
 
@@ -743,7 +736,7 @@ class UserController extends Controller
             RateLimiter::hit($failureKey, self::LOGIN_FAILURE_WINDOW_SECONDS);
 
             throw ValidationException::withMessages([
-                'school_id' => ['The provided credentials are incorrect.'],
+                'identifier' => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -794,16 +787,19 @@ class UserController extends Controller
     public function requestPasswordReset(Request $request)
     {
         $validated = $request->validate([
-            'school_id' => ['nullable', 'required_without:organization_id', 'integer', 'min:1', 'max:99999999'],
-            'organization_id' => ['nullable', 'required_without:school_id', 'integer', 'min:1'],
-            'email' => ['required', 'email'],
+            'identifier' => ['nullable', 'required_without_all:school_id,organization_id', 'string', 'max:100'],
+            'school_id' => ['nullable', 'integer', 'min:1', 'max:99999999'],
+            'organization_id' => ['nullable', 'integer', 'min:1'],
+            'email' => ['nullable', 'required_without:identifier', 'email'],
         ]);
 
-        $user = User::query()
-            ->when(isset($validated['school_id']), fn ($query) => $query->where('school_id', $validated['school_id']))
-            ->when(isset($validated['organization_id']), fn ($query) => $query->where('organization_id', $validated['organization_id']))
-            ->where('email', $validated['email'])
-            ->first();
+        $user = isset($validated['identifier'])
+            ? User::findByIdentifier(User::normalizeIdentifier($validated['identifier']))
+            : User::query()
+                ->when(isset($validated['school_id']), fn ($query) => $query->where('school_id', $validated['school_id']))
+                ->when(isset($validated['organization_id']), fn ($query) => $query->where('organization_id', $validated['organization_id']))
+                ->where('email', $validated['email'])
+                ->first();
 
         // Non-enumerating: an unknown email, a disabled account, and an active
         // account all return the identical body, so an unauthenticated caller
@@ -897,9 +893,7 @@ class UserController extends Controller
                 'required',
                 'email',
                 'max:100',
-                Rule::unique('users', 'email')
-                    ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
-                    ->ignore($user->school_id, 'school_id'),
+                Rule::unique('users', 'email')->ignore($user->school_id, 'school_id'),
             ],
             'notification_preferences' => ['nullable', 'array'],
         ]);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, File, Pencil, ShieldCheck, Upload } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonCard, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonTable, StatusBadge } from '../../../components/ui';
+import ResponsiveTabs from './ResponsiveTabs';
 import { accreditationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import notify from '../../../lib/notify';
 import { manilaDate, relativeTime } from '../../../lib/format';
@@ -30,6 +31,10 @@ function mergeRequirements(statusRequirements, types, submissions) {
     const submission = submissions.find((item) => item.requirement_type?.id === requirement.requirement_type_id);
     return { ...requirement, description: type?.description || null, allowed_extensions: type?.allowed_extensions, template_url: type?.template_url, template_original_name: type?.template_original_name, submission: submission || null };
   });
+}
+
+function hasSample(requirement) {
+  return Boolean(requirement.template_url || requirement.template_original_name);
 }
 
 function deadlineTone(requirement) {
@@ -134,7 +139,7 @@ export default function OrganizationCompliancePage() {
     return (
       <div className="space-y-5">
         <PageHeader />
-        <Card><EmptyState kind="restricted" title="Admin access only" description="Only your organization's admin can manage compliance submissions." /></Card>
+        <EmptyState kind="restricted" title="Admin access only" description="Only your organization's admin can manage compliance submissions." />
       </div>
     );
   }
@@ -150,45 +155,38 @@ export default function OrganizationCompliancePage() {
       <PageHeader
         meta={ready && (
           <>
-            {state.academicYear && <span className="text-xs font-semibold text-ink-muted-strong">Academic year {state.academicYear}</span>}
+            {state.academicYear && <span className="text-xs text-ink-muted-strong">Academic year {state.academicYear}</span>}
             <div className="w-full">
-              <ProgressMeter label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
+              <ProgressMeter kind="progress" label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
             </div>
           </>
         )}
-        stepper={accreditation && <FlowStepper steps={accreditation.steps} ariaLabel="Accreditation progress" />}
+        stepper={accreditation && <FlowStepper variant="full" steps={accreditation.steps} ariaLabel="Accreditation progress" />}
         nextStep={accreditation && <NextStep {...toNextStepProps(accreditation)} primary={undefined} />}
       />
 
-      <Tabs
+      <ResponsiveTabs
+        label="Requirement group"
         value={category}
         onChange={(next) => { setPage(1); setCategory(next); }}
         tabs={[
-          { key: 'organization', label: 'Organization Accreditation' },
-          { key: 'renewal', label: 'Annual Organization Renewal' },
-          { key: 'semestral_report', label: 'Semestral Report & Financial Report' },
+          { key: 'organization', label: 'Organization accreditation' },
+          { key: 'renewal', label: 'Annual organization renewal' },
+          { key: 'semestral_report', label: 'Semestral and financial report' },
         ]}
       />
 
-      {state.loading && (
-        <div className="space-y-3">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
-        </div>
-      )}
+      {state.loading && <SkeletonTable columns={5} rows={5} />}
 
-      {!state.loading && state.error && (
-        <Card><ErrorState description={state.error} onRetry={load} /></Card>
-      )}
+      {!state.loading && state.error && <ErrorState description={state.error} onRetry={load} />}
 
       {!state.loading && !state.error && state.requirements.length === 0 && (
-        <Card>
-          <EmptyState
-            kind="first-run"
-            icon={ShieldCheck}
-            title="No requirements assigned yet"
-            description="The SAO publishes the compliance requirements for each academic year. Once it does, each one appears here for you to upload."
-          />
-        </Card>
+        <EmptyState
+          kind="first-run"
+          icon={ShieldCheck}
+          title="No requirements assigned yet"
+          description="Requirements appear here once the SAO publishes them for this academic year."
+        />
       )}
 
       {!state.loading && !state.error && state.requirements.length > 0 && (
@@ -205,24 +203,24 @@ export default function OrganizationCompliancePage() {
                 header: 'Requirement',
                 render: (requirement) => (
                   <div>
-                    <strong>{requirement.requirement_name}</strong>
+                    <span className="font-medium text-ink">{requirement.requirement_name}</span>
                     {requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}
+                    {hasSample(requirement) && <RequirementSample requirement={requirement} onOpen={viewSample} />}
                     {requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && (
-                      <div className="mt-1.5 rounded border border-danger/30 bg-danger-tint p-2">
-                        <p className="text-xs font-semibold text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>
-                        <Button size="xs" variant="secondary" leftIcon={Pencil} className="mt-1.5" onClick={() => openUpload(requirement)}>
-                          Edit & resubmit
+                      <div className="mt-1.5">
+                        <p className="text-xs text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>
+                        <Button size="sm" variant="secondary" leftIcon={Pencil} className="mt-1.5" onClick={() => openUpload(requirement)}>
+                          Edit and resubmit
                         </Button>
                       </div>
                     )}
                   </div>
                 ),
               },
-              { key: 'sample', header: 'Sample format', render: (requirement) => <RequirementSample requirement={requirement} onOpen={viewSample} /> },
-              { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
+              { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : '' },
               { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
-              { key: 'status', header: 'Status', render: (requirement) => <div className="flex flex-col items-start gap-1"><StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /><span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(requirement)}</span></div> },
-              { key: 'file', header: 'File', render: (requirement) => requirement.file_name ? <span className="inline-flex items-center gap-1 break-all text-xs"><File size={13} aria-hidden="true" />{requirement.file_name}</span> : 'No file' },
+              { key: 'status', header: 'Status', render: (requirement) => <div className="flex flex-col items-start gap-1">{requirement.status !== 'not_submitted' && <StatusBadge status={requirement.status} />}{requirement.status !== 'approved' && <span className="text-xs text-ink-muted-strong">{complianceStageText(requirement)}</span>}</div> },
+              { key: 'file', header: 'File', className: 'min-w-44', render: (requirement) => requirement.file_name ? <span className="flex items-start gap-1.5 break-words text-xs"><File size={13} className="mt-0.5 shrink-0" aria-hidden="true" /><span className="min-w-0">{requirement.file_name}</span></span> : '' },
             ]}
             actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
               (requirement.template_url || requirement.template_original_name) && { label: 'View sample format', icon: Eye, onClick: () => viewSample(requirement) },
@@ -246,18 +244,18 @@ export default function OrganizationCompliancePage() {
         )}
       >
         <div className="space-y-4">
-          {uploadTarget?.description && <p className="text-sm font-medium text-ink-muted">{uploadTarget.description}</p>}
-          {uploadTarget && <RequirementSample requirement={uploadTarget} onOpen={viewSample} />}
+          {uploadTarget?.description && <p className="text-sm text-ink-muted">{uploadTarget.description}</p>}
+          {uploadTarget && hasSample(uploadTarget) && <RequirementSample requirement={uploadTarget} onOpen={viewSample} />}
           {uploadTarget?.status === 'returned' && (uploadTarget.remarks || uploadTarget.submission?.remarks) && (
-            <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">Why this was returned</p>
-              <p className="mt-1 text-sm font-medium text-danger-strong">{uploadTarget.remarks || uploadTarget.submission.remarks}</p>
+            <div className="border-t border-line pt-3">
+              <p className="text-xs font-semibold text-danger-strong">Why this was returned</p>
+              <p className="mt-1 text-sm text-danger-strong">{uploadTarget.remarks || uploadTarget.submission.remarks}</p>
             </div>
           )}
           {uploadTarget?.submission_id && <Button variant="secondary" size="sm" onClick={() => viewFile(uploadTarget)}><Eye size={15} aria-hidden="true" />View current file{uploadTarget.file_name ? `: ${uploadTarget.file_name}` : ''}</Button>}
           <ComplianceDropzone onFileSelected={handleFileSelected} disabled={uploading} error={fileError} allowedExtensions={uploadTarget?.allowed_extensions} />
           {selectedFile && !fileError && (
-            <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <p className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
               <File size={14} aria-hidden="true" /> {selectedFile.name}
             </p>
           )}

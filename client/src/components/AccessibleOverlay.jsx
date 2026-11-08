@@ -33,7 +33,8 @@ export default function AccessibleOverlay({
     document.body.style.overflow = 'hidden';
 
     const frame = window.requestAnimationFrame(() => {
-      const preferred = overlayRef.current?.querySelector(`[data-autofocus], ${FOCUSABLE}`);
+      // A control that asks for focus wins over the first focusable one, which is the close button.
+      const preferred = overlayRef.current?.querySelector('[data-autofocus]') || overlayRef.current?.querySelector(FOCUSABLE);
       preferred?.focus?.();
     });
 
@@ -82,7 +83,7 @@ export default function AccessibleOverlay({
       aria-label={labelledBy ? undefined : label}
       aria-labelledby={labelledBy}
       tabIndex={-1}
-      className={`${baseClassName} backdrop-blur-sm ${className || ''}`}
+      className={`${baseClassName} ${className || ''}`}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onCloseRef.current?.();

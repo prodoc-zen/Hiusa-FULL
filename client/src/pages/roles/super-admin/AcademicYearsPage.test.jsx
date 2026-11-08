@@ -77,7 +77,7 @@ describe('AcademicYearsPage', () => {
     it('offers delete only for semesters that are not active and renders status toggle switches', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       renderPage();
-      expect((await screen.findAllByText('Current'))[0]).toHaveClass('bg-success-tint', 'text-success-strong');
+      expect((await screen.findAllByText('Current'))[0]).toHaveClass('bg-green-50', 'text-green-800');
       expect(screen.getAllByText('Active', { exact: true })[0]).toBeInTheDocument();
       expect(screen.getByRole('switch', { name: 'Toggle active status for 1st semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'false');

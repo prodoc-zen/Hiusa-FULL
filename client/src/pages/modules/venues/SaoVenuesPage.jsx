@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
@@ -23,6 +23,7 @@ import {
 import { rangeParams, todayInManila } from './calendarDates';
 import { ConflictBadge, statusStyle } from './calendarParts';
 import { fetchWindowBookings } from './fetchVenueWindow';
+import useNarrowScreen from './useNarrowScreen';
 import VenueCalendar from './VenueCalendar';
 import { conflictingPendingIds, overlaps } from './venueConflicts';
 import { venueStageText } from './venueStage';
@@ -30,6 +31,12 @@ import EventRequirementsTab from '../sao/EventRequirementsTab';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
+const SECTIONS = [
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'bookings', label: 'Booking requests' },
+  { key: 'venues', label: 'Venue catalog' },
+  { key: 'requirements', label: 'Venue requirements' },
+];
 
 function getCurrentRole() {
   try {
@@ -68,9 +75,9 @@ function BookingDetail({ booking, conflict, onApprove, onReject }) {
       <NextStep {...next} />
       {conflict && <div><ConflictBadge /><p className="mt-1 text-sm font-medium text-danger-strong">This request overlaps another booking for the same venue. Check the calendar before approving.</p></div>}
       <dl className="grid gap-3 text-sm">
-        <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-bold text-ink">{booking.organization?.name || 'Unknown'}</dd></div>
-        <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-bold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
-        <div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-bold text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-semibold text-ink">{booking.organization?.name || 'Unknown'}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-semibold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-semibold text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
         {booking.remarks && <div><dt className="text-xs font-semibold text-ink-muted">Remarks</dt><dd className="font-medium text-ink">{booking.remarks}</dd></div>}
       </dl>
       {booking.status === 'pending' && (
@@ -85,6 +92,7 @@ function BookingDetail({ booking, conflict, onApprove, onReject }) {
 
 export default function SaoVenuesPage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const narrow = useNarrowScreen();
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
 
@@ -327,14 +335,14 @@ export default function SaoVenuesPage() {
   }
 
   const venueColumns = [
-    { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{formatDisplayText(venue.name)}</span> },
+    { key: 'name', header: 'Venue', render: (venue) => <span className="font-semibold text-ink">{formatDisplayText(venue.name)}</span> },
     { key: 'location', header: 'Location' },
     { key: 'capacity', header: 'Capacity', align: 'right' },
     { key: 'is_active', header: 'Status', render: (venue) => <StatusBadge status={venue.is_active ? 'active' : 'inactive'} /> },
   ];
 
   const bookingColumns = [
-    { key: 'organization', header: 'Organization', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-bold text-ink hover:text-brand-700">{booking.organization?.name || 'Unknown'}</button> },
+    { key: 'organization', header: 'Organization', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-semibold text-ink hover:text-brand-700">{booking.organization?.name || 'Unknown'}</button> },
     { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || booking.off_campus_location || 'Unknown' },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
@@ -357,19 +365,16 @@ export default function SaoVenuesPage() {
     <div className="space-y-5 pb-8">
       <PageHeader primary={activeTab === 'venues' && venues.items.length > 0 && <Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>} />
 
-      <Tabs
-        value={activeTab}
-        onChange={setActiveTab}
-        tabs={[
-          { key: 'calendar', label: 'Calendar', icon: CalendarDays },
-          { key: 'bookings', label: 'Booking requests', icon: ClipboardCheck },
-          { key: 'venues', label: 'Venue catalog', icon: Building2 },
-          { key: 'requirements', label: 'Venue requirements', icon: ClipboardCheck },
-        ]}
-      />
+      {narrow ? (
+        <Select aria-label="Section" value={activeTab} onChange={(event) => setActiveTab(event.target.value)}>
+          {SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.label}</option>)}
+        </Select>
+      ) : (
+        <Tabs value={activeTab} onChange={setActiveTab} tabs={SECTIONS} />
+      )}
 
       {activeTab === 'calendar' && (
-        <Card title="Venue calendar" description="Who holds each venue and when. A pending request that overlaps another booking is labelled Conflict.">
+        <Card title="Venue calendar">
           <VenueCalendar
             view={calendarView.view}
             anchor={calendarView.anchor}
@@ -390,9 +395,10 @@ export default function SaoVenuesPage() {
       )}
 
       {activeTab === 'venues' && (
-        <Card title="Venues" description="Capacity, location, and whether an organization can book it.">
+        <Card title="Venues">
           <DataTable
             columns={venueColumns}
+            caption="Venue catalog"
             rows={venues.items}
             loading={venues.loading}
             error={venues.error}
@@ -408,8 +414,8 @@ export default function SaoVenuesPage() {
               <EmptyState
                 kind="first-run"
                 icon={Building2}
-                title="No venues added yet"
-                description="Add a venue so organizations can request bookings against it."
+                title="No venues yet"
+                description="Add a venue so organizations can request it."
                 action={<Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>}
               />
             )}
@@ -422,22 +428,23 @@ export default function SaoVenuesPage() {
       )}
 
       {activeTab === 'bookings' && (
-        <Card title="Booking requests" description="Approve or reject requests. Overlapping bookings are shown before you decide, and clashing requests are labelled Conflict.">
+        <Card title="Booking requests">
           {queueCheck.failed && (
-            <div role="alert" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-warning-strong">
+            <div role="alert" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-warning-strong">
               <span className="inline-flex items-center gap-1.5"><AlertTriangle size={16} aria-hidden="true" />Could not check these requests for conflicts. Conflict labels may be missing.</span>
               <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => setQueueCheck((current) => ({ failed: false, attempt: current.attempt + 1 }))}>Retry</Button>
             </div>
           )}
           <DataTable
             columns={bookingColumns}
+            caption="Venue booking requests"
             rows={bookings.items}
             loading={bookings.loading}
             error={bookings.error}
             onRetry={() => loadBookings(bookingsPage)}
             filtersActive={bookingFiltersActive}
             filters={(
-              <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:items-center sm:p-4">
+              <div className="flex flex-col gap-3 border-b border-line p-3 sm:flex-row sm:items-center sm:p-4">
                 <Select filter aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="sm:w-56">
                   <option value="pending">Awaiting decision</option>
                   <option value="approved">Approved</option>
@@ -470,13 +477,13 @@ export default function SaoVenuesPage() {
               />
             )}
             emptyState={bookingFiltersActive ? (
-              <EmptyState kind="filtered" title="No booking requests match these filters" description="Try another status or venue, or clear the filters." onClearFilters={() => { setStatusFilter('pending'); setVenueFilter(''); }} />
+              <EmptyState kind="filtered" title="No booking requests match" description="Try a different status or venue." onClearFilters={() => { setStatusFilter('pending'); setVenueFilter(''); }} />
             ) : (
               <EmptyState
                 kind="first-run"
                 icon={ClipboardCheck}
-                title="Nothing to review"
-                description="Organization admins and officers request venues from Venue booking. Each request appears here for your decision."
+                title="No booking requests yet"
+                description="Requests from organizations appear here."
               />
             )}
           />
@@ -487,11 +494,10 @@ export default function SaoVenuesPage() {
         {openBooking && <BookingDetail booking={openBooking} conflict={queueConflictIds.has(openBooking.id)} onApprove={() => openReview(openBooking, 'approve')} onReject={() => openReview(openBooking, 'reject')} />}
       </Drawer>
 
-      <Modal
+      <Drawer
         open={Boolean(venueModal)}
         title={venueModal?.mode === 'edit' ? 'Edit venue' : 'New venue'}
         onClose={venueSaving ? undefined : () => setVenueModal(null)}
-        closeOnEscape={!venueSaving}
         footer={(
           <>
             <Button variant="secondary" onClick={() => setVenueModal(null)} disabled={venueSaving}>Cancel</Button>
@@ -499,23 +505,23 @@ export default function SaoVenuesPage() {
           </>
         )}
       >
-        <form onSubmit={handleVenueSubmit} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" required className="sm:col-span-2">
+        <form onSubmit={handleVenueSubmit} className="grid gap-4">
+          <Field label="Name" required>
             <Input data-autofocus placeholder="e.g. Main Gymnasium" value={venueForm.name} onChange={(event) => setVenueForm({ ...venueForm, name: event.target.value })} />
           </Field>
-          <Field label="Location" required className="sm:col-span-2">
+          <Field label="Location" required>
             <Input placeholder="e.g. Building A, Ground Floor" value={venueForm.location} onChange={(event) => setVenueForm({ ...venueForm, location: event.target.value })} />
           </Field>
           <Field label="Capacity" required hint="Number of people this venue can hold">
             <Input type="number" min="0" value={venueForm.capacity} onChange={(event) => setVenueForm({ ...venueForm, capacity: event.target.value })} />
           </Field>
-          <label className="flex items-center gap-2 self-end pb-2.5 text-sm font-semibold text-ink">
+          <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-ink">
             <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={venueForm.is_active} onChange={(event) => setVenueForm({ ...venueForm, is_active: event.target.checked })} />
-            Active (organizations can request this venue)
+            Organizations can request this venue
           </label>
-          {venueFormError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{venueFormError}</p>}
+          {venueFormError && <p role="alert" className="text-sm font-medium text-danger-strong">{venueFormError}</p>}
         </form>
-      </Modal>
+      </Drawer>
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
@@ -549,7 +555,7 @@ export default function SaoVenuesPage() {
           <p role="alert" className="inline-flex items-start gap-1.5 text-sm font-semibold text-warning-strong"><AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Could not check for overlapping bookings. Check the calendar before approving.</p>
         ) : conflicts.items.length > 0 ? (
           <div className="rounded-control border border-warning/30 bg-warning-tint p-3">
-            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} other booking{conflicts.items.length === 1 ? '' : 's'} for this venue</p>
+            <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} other booking{conflicts.items.length === 1 ? '' : 's'} for this venue</p>
             <ul className="mt-2 space-y-1 text-sm font-medium text-warning-strong">
               {conflicts.items.map((slot) => <li key={slot.id}>{statusStyle(slot.status).label}: {slot.reserved_by ? `${slot.reserved_by}, ` : ''}{formatRange(slot.start_time, slot.end_time)}</li>)}
             </ul>
@@ -563,7 +569,7 @@ export default function SaoVenuesPage() {
       <Modal
         open={reviewState?.action === 'reject'}
         title="Reject this booking"
-        description="A remark is required so the organization knows why."
+        description="Tell the organization why."
         onClose={reviewBusy ? undefined : () => { setReviewState(null); setRejectRemarks(''); }}
         closeOnEscape={!reviewBusy}
         footer={(
