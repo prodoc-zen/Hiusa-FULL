@@ -112,7 +112,7 @@ export default function DashboardLayout() {
             <Button variant="secondary" size="sm" onClick={handleReturnToLive}>Back to current semester</Button>
           </aside>
         )}
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
+        <main className="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
           {defaultHeader}
           <PageHeaderRegistryContext value={registry}>
             <div ref={contentRef}>

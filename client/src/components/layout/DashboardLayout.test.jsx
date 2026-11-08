@@ -62,6 +62,21 @@ describe('DashboardLayout', () => {
     expect(mountCount).toBe(1);
   });
 
+  it('makes the scrolling main the containing block, so a hidden file input cannot stretch the document past the shell', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<TrackedPage label="Page one" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const main = screen.getByText('Page one').closest('main');
+    expect(main).toHaveClass('relative', 'overflow-y-auto');
+  });
+
   it('keeps the dashboard shell visible while a lazy route loads', () => {
     const LoadingPage = lazy(() => new Promise(() => {}));
     render(
