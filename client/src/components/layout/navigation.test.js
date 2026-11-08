@@ -111,6 +111,7 @@ const SPEC = {
       label: 'Governance',
       children: [
         ['Colleges', '/dashboard/super-admin/colleges'],
+        ['Student records', '/dashboard/super-admin/student-records'],
         ['Applications', '/dashboard/organization-applications'],
         ['Organizations', '/dashboard/super-admin/organizations?status=pending'],
       ],
@@ -174,7 +175,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it('opens a group on its first page', () => {
     const group = getNavForRole('SUPER_ADMIN').find((item) => item.label === 'Governance');
     expect(resolveItemPath(group)).toBe('/dashboard/super-admin/colleges');
-    expect(getVisibleChildren(group)).toHaveLength(3);
+    expect(getVisibleChildren(group)).toHaveLength(4);
   });
 
   it('names the SAO and the finance slot the same way everywhere', () => {
