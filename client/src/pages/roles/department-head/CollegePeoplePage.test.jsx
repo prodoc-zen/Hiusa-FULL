@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CollegePeoplePage from './CollegePeoplePage';
 
 const people = vi.hoisted(() => ({ getCollegePeople: vi.fn() }));
-const college = vi.hoisted(() => ({ removeCollegeStaff: vi.fn(), inviteCollegeStaff: vi.fn() }));
+const college = vi.hoisted(() => ({ removeCollegeStaff: vi.fn() }));
 vi.mock('../../../services/collegePeopleService', () => people);
 vi.mock('../../../services/collegeOrganizationService', () => college);
+vi.mock('../../../components/people/AddStaffModal', () => ({
+  default: ({ open }) => (open ? <div role="dialog" aria-label="Add office staff" /> : null),
+}));
 vi.mock('../../../components/org/ApplicantGrantModal', () => ({
   default: ({ open }) => (open ? <div role="dialog" aria-label="Allow a student to apply" /> : null),
 }));
@@ -20,7 +23,7 @@ const pageOf = (rows, extra = {}) => ({ data: { data: rows, current_page: 1, las
 const student = { school_id: 20261234, name: 'Ana Alvarez', email: 'ana@school.test', program: 'BSIT', year_level: '2', status: 'signed_up', organizations: [{ id: 3, name: 'Computing Society', position_title: 'Treasurer' }] };
 const unclaimed = { school_id: 20260001, name: 'Cara Cruz', email: null, program: 'BSIT', year_level: '1', status: 'not_signed_up', organizations: [] };
 const dean = { school_id: 10001, name: 'Dana Dean', email: 'dana@school.test', role: 'DEPARTMENT_HEAD', position_title: 'Dean', is_lead_head: true, is_you: true };
-const secretary = { school_id: 10002, name: 'Sol Secretary', email: 'sol@school.test', role: 'ADMIN', position_title: 'College Secretary', is_lead_head: false, is_you: false };
+const secretary = { school_id: 7100101, name: 'Sol Secretary', email: 'sol@school.test', role: 'ADMIN', position_title: 'College Secretary', is_lead_head: false, is_you: false };
 const leader = { school_id: 20269999, name: 'Pia Perez', email: 'pia@school.test', role: 'ADMIN', position_title: 'President', organization: { id: 3, name: 'Computing Society' } };
 
 const byTab = { students: [student, unclaimed], staff: [dean, secretary], leaders: [leader] };
@@ -33,7 +36,6 @@ describe('College people page', () => {
     vi.clearAllMocks();
     people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(byTab[key])));
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', organization: { id: 9, college_id: 5, organization_type: 'COLLEGE' } }));
-    college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/invite/abc' } });
     college.removeCollegeStaff.mockResolvedValue({ data: {} });
   });
 
@@ -46,7 +48,7 @@ describe('College people page', () => {
     expect(screen.getAllByText('Signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Not signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 20260001').length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: 'Invite staff' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add staff' })).not.toBeInTheDocument();
   });
 
   it('shows loading, then an error with a working retry', async () => {
@@ -94,35 +96,25 @@ describe('College people page', () => {
     expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'leaders', q: undefined, page: 1 });
   });
 
-  it('creates an invite link for office staff without asking for any school ID', async () => {
+  it('opens the add staff dialog from the office staff tab only', async () => {
     renderPage();
     await screen.findAllByText('Ana Alvarez');
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
-    fireEvent.click(screen.getByRole('button', { name: 'Invite staff' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Create link' })).toBeDisabled();
-    fireEvent.change(within(dialog).getByLabelText(/Position/), { target: { value: 'College Secretary' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create link' }));
-    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ position_title: 'College Secretary' }));
-    expect(await within(dialog).findByDisplayValue('http://localhost/invite/abc')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add staff' }));
+    expect(await screen.findByRole('dialog', { name: 'Add office staff' })).toBeInTheDocument();
   });
 
-  it('passes the optional email along and shows an error when the link cannot be made', async () => {
-    college.inviteCollegeStaff.mockRejectedValueOnce({ response: { data: { message: 'This college already has a pending link.' } } });
+  it('shows the ID number of staff who came from the school records as small text, but not an internal number', async () => {
+    people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(key === 'staff' ? [dean, secretary, { ...secretary, school_id: 95000007, name: 'Ira Internal', email: 'ira@school.test' }] : byTab[key])));
     renderPage();
     await screen.findAllByText('Ana Alvarez');
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
-    fireEvent.click(screen.getByRole('button', { name: 'Invite staff' }));
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText(/Position/), { target: { value: 'College Secretary' } });
-    fireEvent.change(within(dialog).getByLabelText(/Send it to/), { target: { value: 'sol@school.test' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create link' }));
-    expect(await within(dialog).findByText('This college already has a pending link.')).toBeInTheDocument();
-    expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ position_title: 'College Secretary', email: 'sol@school.test' });
+    expect(screen.getAllByText('sol@school.test · ID 7100101').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ira@school.test').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/95000007/)).not.toBeInTheDocument();
   });
 
   it('opens the student records upload for the own college of the dean, on the students tab only', async () => {
@@ -165,7 +157,7 @@ describe('College people page', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove Sol Secretary' })[0]);
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
-    await waitFor(() => expect(college.removeCollegeStaff).toHaveBeenCalledWith(10002));
+    await waitFor(() => expect(college.removeCollegeStaff).toHaveBeenCalledWith(7100101));
     await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'staff').length).toBe(2));
   });
 });

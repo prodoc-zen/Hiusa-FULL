@@ -7,13 +7,18 @@ import { getApiErrorMessage } from '../../utils/apiError';
 
 const PAGE_SIZE = 20;
 
-const SAO_HEADER = 'school_id,first_name,last_name,birth_date,college_code,program,year_level,section';
-const DEAN_HEADER = 'school_id,first_name,last_name,birth_date,program,year_level,section';
+const SAO_HEADER = 'school_id,first_name,last_name,birth_date,college_code,record_type,position,program,year_level,section';
+const DEAN_HEADER = 'school_id,first_name,last_name,birth_date,record_type,position,program,year_level,section';
+
+const TYPES = {
+  student: { label: 'Students', one: 'Student', empty: 'No student records yet', all: 'All students' },
+  employee: { label: 'Employees', one: 'Employee', empty: 'No employee records yet', all: 'All employees' },
+};
 
 const previewColumns = [
   {
     key: 'student',
-    header: 'Student',
+    header: 'Person',
     render: (row) => (
       <span className="block min-w-0">
         <span className="block font-semibold text-ink">{[row.first_name, row.last_name].filter(Boolean).join(' ') || 'No name'}</span>
@@ -21,7 +26,11 @@ const previewColumns = [
       </span>
     ),
   },
-  { key: 'program', header: 'Program', render: (row) => [row.program, row.year_level].filter(Boolean).join(', ') || 'None' },
+  {
+    key: 'program',
+    header: 'Program or position',
+    render: (row) => (row.record_type === 'employee' ? row.position : [row.program, row.year_level].filter(Boolean).join(', ')) || 'None',
+  },
   {
     key: 'status',
     header: 'Result',
@@ -50,6 +59,7 @@ export default function StudentRecordsPanel({ collegeId }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [claimed, setClaimed] = useState('');
+  const [recordType, setRecordType] = useState('student');
   const [page, setPage] = useState(1);
   const requestId = useRef(0);
 
@@ -61,6 +71,7 @@ export default function StudentRecordsPanel({ collegeId }) {
       const data = await getStudentRegistry({
         page,
         per_page: PAGE_SIZE,
+        record_type: recordType,
         ...(query && { q: query }),
         ...(claimed && { claimed }),
         ...(collegeId && { college_id: collegeId }),
@@ -75,7 +86,7 @@ export default function StudentRecordsPanel({ collegeId }) {
     } finally {
       if (current === requestId.current) setLoading(false);
     }
-  }, [page, query, claimed, collegeId]);
+  }, [page, query, claimed, recordType, collegeId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -128,11 +139,13 @@ export default function StudentRecordsPanel({ collegeId }) {
   const template = `data:text/csv;charset=utf-8,${encodeURIComponent(`${collegeId ? DEAN_HEADER : SAO_HEADER}\n`)}`;
   const columns = collegeId ? 'school_id, first_name, last_name, birth_date, program, year_level' : 'school_id, first_name, last_name, birth_date, college_code, program, year_level';
   const filtersActive = Boolean(query || claimed);
+  const type = TYPES[recordType];
+  const isEmployee = recordType === 'employee';
 
   const tableColumns = [
     {
-      key: 'student',
-      header: 'Student',
+      key: 'person',
+      header: type.one,
       render: (row) => (
         <span className="block min-w-0">
           <span className="block font-semibold text-ink">{row.name}</span>
@@ -141,12 +154,14 @@ export default function StudentRecordsPanel({ collegeId }) {
       ),
     },
     ...(collegeId ? [] : [{ key: 'college', header: 'College', render: (row) => row.college?.code || 'None' }]),
-    { key: 'program', header: 'Program', render: (row) => [row.program, row.year_level, row.section].filter(Boolean).join(', ') },
+    isEmployee
+      ? { key: 'position', header: 'Position', render: (row) => row.position || 'None' }
+      : { key: 'program', header: 'Program', render: (row) => [row.program, row.year_level, row.section].filter(Boolean).join(', ') },
     {
       key: 'claimed',
       header: 'Account',
       render: (row) => (row.claimed
-        ? <StatusBadge status="claimed" label="Signed up" />
+        ? <StatusBadge status="claimed" label={isEmployee ? 'Has account' : 'Signed up'} />
         : <StatusBadge status="unclaimed" label="Not yet" />),
     },
   ];
@@ -154,11 +169,11 @@ export default function StudentRecordsPanel({ collegeId }) {
   return (
     <div className="flex flex-col gap-6">
       <Card
-        title="Upload student records"
-        description="Students are matched against these records when they sign up. Birth dates are only used for that check and are never shown."
+        title="Upload school records"
+        description="Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are only used for that check and are never shown."
       >
         <div className="flex flex-col gap-4">
-          <Field label="CSV file" hint={`Columns: ${columns}. Section is optional.`}>
+          <Field label="CSV file" hint={`Columns: ${columns}. Optional: section, record_type (student or employee), position. Employees need no program or year level.`}>
             <Input key={fileKey} type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); setUploadError(''); }} />
           </Field>
           <a href={template} download="student-records-template.csv" className="inline-flex min-h-11 w-fit items-center text-sm font-bold text-brand-700 hover:text-navy-950">
@@ -205,12 +220,12 @@ export default function StudentRecordsPanel({ collegeId }) {
       </Card>
 
       <Card
-        title="Student records"
-        description={summary.total > 0 ? `${summary.claimed} of ${summary.total} have signed up.` : 'No records loaded yet.'}
+        title={`${type.one} records`}
+        description={summary.total > 0 ? `${summary.claimed} of ${summary.total} ${isEmployee ? 'have an account' : 'have signed up'}.` : 'No records loaded yet.'}
         bodyClassName="p-0"
       >
         <DataTable
-          caption="Student records"
+          caption={`${type.one} records`}
           columns={tableColumns}
           rows={rows}
           rowKey={(row) => row.id}
@@ -224,9 +239,14 @@ export default function StudentRecordsPanel({ collegeId }) {
               <Field label="Search" className="sm:flex-1">
                 <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or school ID" />
               </Field>
+              <Field label="Show" className="sm:w-40">
+                <Select value={recordType} onChange={(event) => { setRecordType(event.target.value); setPage(1); }}>
+                  {Object.entries(TYPES).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}
+                </Select>
+              </Field>
               <Field label="Account" className="sm:w-48">
                 <Select value={claimed} onChange={(event) => { setClaimed(event.target.value); setPage(1); }}>
-                  <option value="">All students</option>
+                  <option value="">{type.all}</option>
                   <option value="claimed">Signed up</option>
                   <option value="unclaimed">Not yet</option>
                 </Select>
@@ -237,11 +257,13 @@ export default function StudentRecordsPanel({ collegeId }) {
             <EmptyState
               kind="first-run"
               icon={GraduationCap}
-              title="No student records yet"
-              description="Upload a CSV above. Students whose school ID and birth date match a record can then create their own account."
+              title={type.empty}
+              description={isEmployee
+                ? 'Upload a CSV above with record_type set to employee. You can then invite office staff from these records.'
+                : 'Upload a CSV above. Students whose school ID and birth date match a record can then create their own account.'}
             />
           )}
-          pagination={<PaginationControls currentPage={page} totalItems={meta.total} pageSize={PAGE_SIZE} onPageChange={setPage} label="students" />}
+          pagination={<PaginationControls currentPage={page} totalItems={meta.total} pageSize={PAGE_SIZE} onPageChange={setPage} label={type.label.toLowerCase()} />}
         />
       </Card>
     </div>
