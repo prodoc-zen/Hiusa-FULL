@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
@@ -112,7 +113,7 @@ class DashboardBriefingService
                 'finance' => $this->financePillar($orgId),
                 'events' => $this->eventsPillar($orgId),
                 'tasks' => $this->tasksPillar($orgId),
-                'elections' => $this->electionsPillar($orgId),
+                'elections' => $this->electionsPillar([$orgId]),
                 'merchandise' => $this->merchandisePillar($orgId),
                 'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
             ],
@@ -185,10 +186,11 @@ class DashboardBriefingService
     private function buildStudent(User $user): array
     {
         $orgId = (int) $user->organization_id;
+        $electionOrgIds = $user->votingOrganizationIds();
         $role = $user->role;
 
         $attention = $this->prioritize(array_merge(
-            $this->unvotedElectionAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
+            $this->unvotedElectionAttention($electionOrgIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
             $this->ordersReadyToClaimAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/merchandise/my-orders')),
             $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks'), $user->id),
             $this->dueSoonTasksAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks')),
@@ -202,14 +204,14 @@ class DashboardBriefingService
             'attention' => $attention,
             'account' => $this->studentAccount($user, $orgId),
             'pillars' => [
-                'elections' => $this->electionsPillar($orgId),
+                'elections' => $this->electionsPillar($electionOrgIds),
                 'events' => $this->eventsPillar($orgId),
                 'merchandise' => $this->myMerchandisePillar($orgId, $user->id),
                 'tasks' => $this->tasksPillar($orgId, $user->id),
                 'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
             ],
             'insights' => [],
-            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
+            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote'), $electionOrgIds),
             'activity' => $this->activityFeed($role, $orgId, $user->id),
         ];
     }
@@ -618,9 +620,10 @@ class DashboardBriefingService
         })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
-    private function unvotedElectionAttention(int $organizationId, int $studentId, ?string $href): array
+    /** @param  array<int, int>  $organizationIds  The organizations the student votes in, not only the workspace they are signed in to. */
+    private function unvotedElectionAttention(array $organizationIds, int $studentId, ?string $href): array
     {
-        $election = DB::table('elections')->where('organization_id', $organizationId)
+        $election = DB::table('elections')->whereIn('organization_id', $organizationIds)
             ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time']);
 
         if (! $election) {
@@ -863,13 +866,14 @@ class DashboardBriefingService
         ];
     }
 
-    private function electionsPillar(int $organizationId): array
+    /** @param  array<int, int>  $organizationIds */
+    private function electionsPillar(array $organizationIds): array
     {
-        $election = DB::table('elections')->where('organization_id', $organizationId)
-            ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time']);
+        $election = DB::table('elections')->whereIn('organization_id', $organizationIds)
+            ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time', 'organization_id']);
 
         if (! $election) {
-            $upcoming = DB::table('elections')->where('organization_id', $organizationId)->where('status', 'upcoming')->count();
+            $upcoming = DB::table('elections')->whereIn('organization_id', $organizationIds)->where('status', 'upcoming')->count();
 
             return [
                 'value' => $upcoming,
@@ -879,8 +883,7 @@ class DashboardBriefingService
             ];
         }
 
-        $eligibleTotal = DB::table('users')->where('organization_id', $organizationId)->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])->count();
+        $eligibleTotal = AccountProfile::votingMembers()->where('account_profiles.organization_id', $election->organization_id)->count();
         $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
         $turnout = $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0;
 
@@ -1048,7 +1051,8 @@ class DashboardBriefingService
     // Agenda / activity / organizations
     // ---------------------------------------------------------------
 
-    private function agenda(int $organizationId, ?string $eventsHref, ?string $electionHref): array
+    /** @param  array<int, int>|null  $electionOrganizationIds  Where the elections come from when that is wider than the events' organization. */
+    private function agenda(int $organizationId, ?string $eventsHref, ?string $electionHref, ?array $electionOrganizationIds = null): array
     {
         $items = collect();
 
@@ -1064,7 +1068,7 @@ class DashboardBriefingService
             ]));
 
         if ($electionHref !== null) {
-            DB::table('elections')->where('organization_id', $organizationId)->where('status', 'active')
+            DB::table('elections')->whereIn('organization_id', $electionOrganizationIds ?? [$organizationId])->where('status', 'active')
                 ->where('end_time', '>=', now())->orderBy('end_time')->limit(self::AGENDA_LIMIT)->get(['id', 'title', 'end_time'])
                 ->each(fn ($row) => $items->push([
                     'id' => 'election-'.$row->id,
