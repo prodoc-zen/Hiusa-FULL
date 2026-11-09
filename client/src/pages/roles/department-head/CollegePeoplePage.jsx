@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
-import { Button, DataTable, EmptyState, Input, PageHeader, StatusBadge, Tabs } from '../../../components/ui';
+import { Search, Upload, UserPlus } from 'lucide-react';
+import { Button, DataTable, Drawer, EmptyState, Input, PageHeader, Select, StatusBadge, Tabs } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import AddStaffModal from '../../../components/people/AddStaffModal';
 import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import PaginationControls from '../../../components/PaginationControls';
-import StudentRecordsPanel from '../../../components/students/StudentRecordsPanel';
+import StudentRecordsUpload from '../../../components/students/StudentRecordsUpload';
 import notify from '../../../lib/notify';
 import { getCollegePeople } from '../../../services/collegePeopleService';
 import { removeCollegeStaff } from '../../../services/collegeOrganizationService';
@@ -20,6 +20,12 @@ const TABS = [
   { key: 'students', label: 'Students' },
   { key: 'staff', label: 'Office staff' },
   { key: 'leaders', label: 'Leaders' },
+];
+
+const SHOW_OPTIONS = [
+  { value: 'all', label: 'All students' },
+  { value: 'signed_up', label: 'Signed up' },
+  { value: 'not_signed_up', label: 'Not signed up' },
 ];
 
 const EMPTY = {
@@ -87,7 +93,8 @@ export default function CollegePeoplePage() {
   const [reload, setReload] = useState(0);
   const [state, setState] = useState({ tab: 'students', loading: true, error: '', rows: [], meta: { total: 0, perPage: PAGE_SIZE } });
   const [inviting, setInviting] = useState(false);
-  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [show, setShow] = useState('all');
+  const [uploading, setUploading] = useState(false);
   const [granting, setGranting] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
@@ -103,15 +110,16 @@ export default function CollegePeoplePage() {
   useEffect(() => {
     let current = true;
     setState((value) => ({ ...value, loading: true, error: '' }));
-    getCollegePeople({ tab, q: query || undefined, page, per_page: PAGE_SIZE })
+    getCollegePeople({ tab, q: query || undefined, show: tab === 'students' && show !== 'all' ? show : undefined, page, per_page: PAGE_SIZE })
       .then((response) => { if (current) setState({ tab, loading: false, error: '', rows: unwrapList(response.data), meta: listMeta(response.data) }); })
       .catch((cause) => { if (current) setState({ tab, loading: false, error: getApiErrorMessage(cause, 'Could not load this list.'), rows: [], meta: { total: 0, perPage: PAGE_SIZE } }); });
     return () => { current = false; };
-  }, [tab, query, page, reload]);
+  }, [tab, query, show, page, reload]);
 
-  function toggleRecords() {
-    if (recordsOpen) setReload((value) => value + 1);
-    setRecordsOpen(!recordsOpen);
+  function recordsSaved() {
+    setShow('all');
+    setPage(1);
+    setReload((value) => value + 1);
   }
 
   function changeTab(next) {
@@ -122,6 +130,7 @@ export default function CollegePeoplePage() {
   function clearSearch() {
     setSearch('');
     setQuery('');
+    setShow('all');
     setPage(1);
   }
 
@@ -141,7 +150,7 @@ export default function CollegePeoplePage() {
 
   const dean = !isOfficeStaff(storedUser());
   const collegeId = dean ? storedUser()?.organization?.college_id || null : null;
-  const filtersActive = Boolean(query);
+  const filtersActive = Boolean(query || (tab === 'students' && show !== 'all'));
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
 
@@ -158,8 +167,6 @@ export default function CollegePeoplePage() {
         ) : tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
       />
 
-      {tab === 'students' && collegeId && recordsOpen && <StudentRecordsPanel collegeId={collegeId} />}
-
       <div className="flex flex-col gap-4">
         <Tabs tabs={TABS} value={tab} onChange={changeTab} />
         <div className="flex flex-wrap items-center gap-3">
@@ -174,11 +181,16 @@ export default function CollegePeoplePage() {
               className="pl-9"
             />
           </div>
-          {search && (
+          {tab === 'students' && (
+            <Select aria-label="Show" value={show} onChange={(event) => { setShow(event.target.value); setPage(1); }} className="w-full sm:w-44">
+              {SHOW_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          )}
+          {(search || filtersActive) && (
             <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
           )}
           {tab === 'students' && collegeId && (
-            <Button variant="secondary" className="sm:ml-auto" aria-expanded={recordsOpen} onClick={toggleRecords}>{recordsOpen ? 'Hide student records' : 'Student records'}</Button>
+            <Button variant="secondary" leftIcon={Upload} className="sm:ml-auto" onClick={() => setUploading(true)}>Upload student records</Button>
           )}
         </div>
         <div role="tabpanel">
@@ -192,12 +204,12 @@ export default function CollegePeoplePage() {
             filtersActive={filtersActive}
             onClearFilters={clearSearch}
             emptyState={filtersActive ? (
-              <EmptyState kind="filtered" query={query} description="Try a different name or email." onClearFilters={clearSearch} />
+              <EmptyState kind="filtered" query={query} description="Try a different name or email, or show all students." onClearFilters={clearSearch} />
             ) : (
               <EmptyState
                 title={EMPTY[tab].title}
                 description={EMPTY[tab].description}
-                action={tab === 'students' && collegeId && !recordsOpen ? <Button variant="secondary" onClick={toggleRecords}>Load student records</Button> : undefined}
+                action={tab === 'students' && collegeId ? <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button> : undefined}
               />
             )}
             actions={tab === 'staff' ? staffActions : undefined}
@@ -210,6 +222,15 @@ export default function CollegePeoplePage() {
         </div>
       </div>
 
+      <Drawer
+        open={uploading}
+        title="Upload student records"
+        description="Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are only used for that check and are never shown."
+        onClose={() => setUploading(false)}
+        width="max-w-2xl"
+      >
+        <StudentRecordsUpload collegeId={collegeId} onSaved={recordsSaved} />
+      </Drawer>
       <AddStaffModal open={inviting} onClose={() => setInviting(false)} />
       <ApplicantGrantModal open={granting} onClose={() => setGranting(false)} onGranted={() => setReload((value) => value + 1)} />
       <ConfirmModal

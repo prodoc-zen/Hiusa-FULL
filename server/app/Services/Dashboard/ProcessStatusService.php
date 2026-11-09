@@ -229,7 +229,7 @@ class ProcessStatusService
 
     private function student(User $user): array
     {
-        $grant = OrganizationApplicantGrant::open()->where('user_school_id', $user->school_id)->exists();
+        $grant = OrganizationApplicantGrant::usable()->where('user_school_id', $user->school_id)->exists();
         $application = OrganizationApplication::where('school_id', $user->school_id)
             ->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)->latest('id')->first(['id', 'status', 'endorsed_at', 'returned_by_role']);
         if (! $grant && ! $application) {

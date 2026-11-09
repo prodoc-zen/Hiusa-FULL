@@ -4,6 +4,7 @@ import { Input } from '../ui';
 export default function AuthField({
   id,
   label,
+  icon: Icon,
   trailing,
   error,
   hint,
@@ -21,11 +22,12 @@ export default function AuthField({
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={controlId} className="text-[13px] font-medium text-ink">
+      <label htmlFor={controlId} className="text-[13px] font-semibold text-ink">
         {label}
         {optional && !required && <span className="ml-1 font-normal text-ink-muted">(optional)</span>}
       </label>
       <div className="relative">
+        {Icon && <Icon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft" size={17} aria-hidden="true" />}
         <Input
           {...inputProps}
           id={controlId}
@@ -33,11 +35,11 @@ export default function AuthField({
           aria-invalid={error ? true : undefined}
           aria-required={required || undefined}
           required={required}
-          className={`${trailing ? 'pr-11' : ''} ${inputClassName}`}
+          className={`${Icon ? 'pl-10' : ''} ${trailing ? 'pr-11' : ''} ${inputClassName}`}
         />
         {trailing}
       </div>
-      {hint && !error && <p id={hintId} className="text-xs text-ink-muted">{hint}</p>}
+      {hint && !error && <p id={hintId} className="text-xs font-medium text-ink-muted">{hint}</p>}
       {error && <p id={errorId} role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>}
     </div>
   );

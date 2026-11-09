@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\College;
 use App\Models\Organization;
+use App\Models\OrganizationApplicantGrant;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,9 +60,11 @@ class PeopleSearchController extends Controller
             ->get();
 
         $colleges = $this->collegeNames($people);
+        // Only a dean can allow a student to apply, so only a dean is told which organization already holds the student.
+        $blocking = $actor->role === 'DEPARTMENT_HEAD' ? OrganizationApplicantGrant::blockingOrganizations($people->pluck('school_id')->map(fn ($id) => (int) $id)->all()) : null;
 
         return response()->json([
-            'data' => $people->map(fn (User $person) => $this->present($person, $colleges, $visibleOrganizationIds))->values(),
+            'data' => $people->map(fn (User $person) => $this->present($person, $colleges, $visibleOrganizationIds, $blocking))->values(),
         ])->header('Cache-Control', 'no-store, private');
     }
 
@@ -145,8 +148,11 @@ class PeopleSearchController extends Controller
         return $ids->isEmpty() ? [] : College::withTrashed()->whereIn('id', $ids)->pluck('name', 'id')->all();
     }
 
-    /** @param array<int, string> $colleges */
-    private function present(User $person, array $colleges, ?array $visibleOrganizationIds): array
+    /**
+     * @param  array<int, string>  $colleges
+     * @param  ?array<int, array{id: int, name: string}>  $blocking  school id => the active organization that stops a new application, or null when the actor is not told
+     */
+    private function present(User $person, array $colleges, ?array $visibleOrganizationIds, ?array $blocking): array
     {
         $homeOrganization = $person->organization;
         $collegeId = $homeOrganization?->college_id
@@ -168,6 +174,7 @@ class PeopleSearchController extends Controller
                     'name' => $profile->organization->name,
                     'position_title' => $profile->position_title,
                 ])->values()->all(),
+            ...($blocking === null ? [] : ['blocked_by' => $blocking[(int) $person->school_id] ?? null]),
         ];
     }
 }

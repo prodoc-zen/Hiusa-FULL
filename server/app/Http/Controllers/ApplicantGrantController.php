@@ -45,6 +45,9 @@ class ApplicantGrantController extends Controller
             if (! $student) {
                 throw ValidationException::withMessages(['school_id' => 'Pick a student of your college who has an account.']);
             }
+            if ($organization = OrganizationApplicantGrant::blockingOrganization($student->school_id)) {
+                throw ValidationException::withMessages(['school_id' => "This student already belongs to {$organization->name}."]);
+            }
             if (OrganizationApplicantGrant::open()->where('college_id', $college->id)->where('user_school_id', $student->school_id)->exists()) {
                 abort(409, "{$student->first_name} {$student->last_name} is already allowed to apply.");
             }

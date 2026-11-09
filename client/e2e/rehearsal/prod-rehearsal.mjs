@@ -490,7 +490,7 @@ await step('records_load', 'Dean loads a synthetic student records CSV (3 studen
     rec.evidence.push('the three students are already listed');
     return;
   }
-  await page.getByRole('button', { name: /Load student records/ }).first().click();
+  await page.getByRole('button', { name: /Upload student records/ }).first().click();
   await shot('dean', 'upload-open', rec);
   await page.locator('input[type="file"]').first().setInputFiles({ name: `rehearsal-records-${SUFFIX}.csv`, mimeType: 'text/csv', buffer: Buffer.from(RECORDS_CSV) });
   await page.getByRole('button', { name: /^Check file/ }).click();
@@ -903,7 +903,26 @@ async function switchToOrganization(who, rec) {
   // A person with a single space has no switcher (it hides under 2 spaces); their own dashboard is that space.
   const hasSwitcher = await switcher.waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
   if (!hasSwitcher) {
-    rec && rec.notes.push(`${who} has a single space and no workspace switcher; stayed on their own dashboard`);
+    // A plain member (STUDENT profiles) has no Workspace switcher; their profiles live in the account menu.
+    await page.getByRole('button', { name: /^Account menu for/ }).click();
+    const panel = page.getByRole('region', { name: 'Account and profiles' });
+    await panel.waitFor({ state: 'visible', timeout: 10000 });
+    const orgProfile = panel.getByRole('button', { name: new RegExp(ORG.name, 'i') });
+    const hasOrgProfile = await orgProfile.first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
+    if (!hasOrgProfile) {
+      await page.keyboard.press('Escape');
+      rec && rec.notes.push(`${who} has no organization profile in the account menu; stayed on their own dashboard`);
+      return page;
+    }
+    if (await orgProfile.first().isDisabled()) {
+      // Already the active profile.
+      await page.keyboard.press('Escape');
+      return page;
+    }
+    rec && (await shot(who, 'profiles-open', rec));
+    await orgProfile.first().click();
+    await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().waitFor({ state: 'visible', timeout: 25000 });
+    await waitSettled(page);
     return page;
   }
   const label = await switcher.innerText();
@@ -1212,6 +1231,11 @@ await step('election_handover', 'In the org: an election for President with cand
   const cast = async (who, pickKey) => {
     const page = people.get(who).page;
     await switchToOrganization(who, rec);
+    // The member votes from the organization profile here; the college profile lists this election too, so this is not the only way in.
+    // The strip under the top bar names the profile in view; a head or officer also has the Workspace switcher.
+    const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().isVisible().catch(() => false)
+      || new RegExp(ORG.name, 'i').test(await page.getByRole('button', { name: /^Workspace:/ }).innerText({ timeout: 2000 }).catch(() => ''));
+    if (!onOrg) rec.defect('app_bug', `${fullName(who)} is not on the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
     await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 8000 }).catch(() => {});
     await waitSettled(page);
@@ -1228,7 +1252,7 @@ await step('election_handover', 'In the org: an election for President with cand
     const start = page.getByRole('button', { name: /Start my ballot/ });
     if (!(await start.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false))) {
       const sees = (await bodyText(page)).includes('No election is open for voting');
-      rec.defect('app_bug', `${fullName(who === 'a' ? 'a' : who)} holds an active member profile in the organization (an eligible voter) and cannot vote: ${sees ? 'the Vote page says "No election is open for voting" while the election is open' : 'there is no ballot to start'}, and a member has no workspace to switch into.`, ['server/app/Http/Controllers/ElectionController.php', 'client/src/pages/elections/']);
+      rec.defect('app_bug', `${fullName(who === 'a' ? 'a' : who)} holds an active member profile in the organization (an eligible voter) and cannot vote: ${sees ? 'the Vote page says "No election is open for voting" while the election is open' : 'there is no ballot to start'}.`, ['server/app/Http/Controllers/ElectionController.php', 'client/src/pages/elections/']);
       return;
     }
     await start.click();
@@ -1246,7 +1270,7 @@ await step('election_handover', 'In the org: an election for President with cand
   await cast('c', 'b');
   rec.evidence.push('A, B and C voted');
 
-  // C is the plain member: a STUDENT profile in the organization, no officer access, found the election and voted from where they land.
+  // C is the plain member: a STUDENT profile in the organization, no officer access, switched into the organization profile and voted there (a member can also vote from the college profile without switching).
   const memberProfile = ((await api('c', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name);
   rec.evidence.push(`member C holds ${memberProfile ? `${memberProfile.role} in the organization` : 'no profile in the organization'} and voted`);
   if (memberProfile?.role !== 'STUDENT') rec.defect('app_bug', `The member C has ${memberProfile?.role ?? 'no'} access, not the plain STUDENT member profile, so the rehearsal did not prove a member can vote.`, ['server/app/Http/Controllers/AccountProfileController.php']);
