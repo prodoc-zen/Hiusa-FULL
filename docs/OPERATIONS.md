@@ -342,12 +342,23 @@ background, notify me when ready" pattern — neither is true today.
 
 ## 4. Where logs are, and what to grep for
 
-Default log location (per `server/.env.example`, `LOG_CHANNEL=stack` /
+Local development logs to one file (per `server/.env.example`, `LOG_CHANNEL=stack` /
 `LOG_STACK=single`):
 
 ```
 server/storage/logs/laravel.log
 ```
+
+Production sets `LOG_CHANNEL=daily` in `server/.env`, which writes one file per day and keeps 14
+days (`LOG_DAILY_DAYS`). Unhandled exceptions also go to `exceptions-<date>.log` whatever the
+channel says. A deploy never rewrites `.env`, so the setting stays.
+
+```
+server/storage/logs/laravel-YYYY-MM-DD.log
+server/storage/logs/exceptions-YYYY-MM-DD.log
+```
+
+In the greps below, use `laravel-*.log` on the server.
 
 Useful greps:
 
