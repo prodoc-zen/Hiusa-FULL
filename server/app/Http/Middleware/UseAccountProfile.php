@@ -33,7 +33,7 @@ class UseAccountProfile
             return response()->json(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE'], 403);
         }
 
-        $user->activateProfile($profile);
+        $user->activateProfile($profile, signedInRequest: true);
 
         return $next($request);
     }

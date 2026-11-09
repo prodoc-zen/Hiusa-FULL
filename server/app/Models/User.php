@@ -29,6 +29,9 @@ class User extends Authenticatable
 
     private ?AccountProfile $activeAccountProfile = null;
 
+    /** True only on the instance a request is signed in as, when that person is the dean's office staff. */
+    private bool $authorizesAsDean = false;
+
     protected static function booted(): void
     {
         static::created(function (User $user): void {
@@ -115,9 +118,34 @@ class User extends Authenticatable
         return $this->school_id;
     }
 
+    /**
+     * The role this account authorizes with. Office staff hold an ADMIN profile on the college home organization but
+     * carry the dean's scope, so on the request they are signed in as, every role check reads DEPARTMENT_HEAD and
+     * behaves exactly as for the dean. Anywhere else (a listing, a profile row, the stored column) it is the stored role.
+     */
     public function getRoleAttribute($value): string
     {
-        return $this->activeAccountProfile?->role ?? $value;
+        $role = $this->profileRole();
+
+        return $this->authorizesAsDean && $role === 'ADMIN' ? 'DEPARTMENT_HEAD' : $role;
+    }
+
+    /** The role stored on the active profile: what the account is, and what the client shows. */
+    public function profileRole(): ?string
+    {
+        return $this->activeAccountProfile?->role ?? $this->attributes['role'] ?? null;
+    }
+
+    /** The client is shown the stored role, never the one a request authorizes with. */
+    public function attributesToArray(): array
+    {
+        $attributes = parent::attributesToArray();
+
+        if ($this->authorizesAsDean) {
+            $attributes['role'] = $this->profileRole();
+        }
+
+        return $attributes;
     }
 
     public function getOrganizationIdAttribute($value): ?int
@@ -143,25 +171,25 @@ class User extends Authenticatable
     /** An ADMIN profile on a college's own home organization: the dean's office staff, not an organization head. */
     public function isCollegeOfficeStaff(): bool
     {
-        return $this->role === 'ADMIN' && $this->organization?->organization_type === 'COLLEGE' && $this->organization->college_id !== null;
+        return $this->profileRole() === 'ADMIN' && $this->organization?->organization_type === 'COLLEGE' && $this->organization->college_id !== null;
     }
 
     /** The dean or the dean's delegate: the two accounts with college-wide reach over every student organization. */
     public function isCollegeOffice(): bool
     {
-        return $this->role === 'DEPARTMENT_HEAD' || $this->isCollegeOfficeStaff();
+        return $this->profileRole() === 'DEPARTMENT_HEAD' || $this->isCollegeOfficeStaff();
     }
 
     /** An ADMIN who runs one organization, not the dean's delegate. */
     public function isOrganizationAdmin(): bool
     {
-        return $this->role === 'ADMIN' && ! $this->isCollegeOfficeStaff();
+        return $this->profileRole() === 'ADMIN' && ! $this->isCollegeOfficeStaff();
     }
 
     /** The role whose approval steps this account works: office staff stand in for the dean. */
     public function approvalRole(): string
     {
-        return $this->isCollegeOfficeStaff() ? 'DEPARTMENT_HEAD' : $this->role;
+        return $this->isCollegeOfficeStaff() ? 'DEPARTMENT_HEAD' : (string) $this->profileRole();
     }
 
     /** The org areas the active profile is limited to; null means every area for the role. */
@@ -181,11 +209,13 @@ class User extends Authenticatable
         'is_active', 'logo_url', 'color', 'lifecycle_status', 'is_university_wide',
     ];
 
-    public function activateProfile(AccountProfile $profile): void
+    /** Only UseAccountProfile passes `$signedInRequest`: it is the one place a request takes on the dean's role for office staff. */
+    public function activateProfile(AccountProfile $profile, bool $signedInRequest = false): void
     {
         $this->activeAccountProfile = $profile;
         $profile->organization?->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS);
         $this->setRelation('organization', $profile->organization?->withoutRelations()->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS));
+        $this->authorizesAsDean = $signedInRequest && $this->isCollegeOfficeStaff();
     }
 
     /** Notification kinds this person chose to hide; always a subset of Notification::MUTABLE_TYPES. */

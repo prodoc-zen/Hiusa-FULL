@@ -604,7 +604,6 @@ class ComplianceController extends Controller
     private function writableSubmissionOrganization(Request $request, OrganizationComplianceSubmission $submission, bool $lock = false): Organization
     {
         $actor = $request->user();
-        abort_if($actor->isCollegeOfficeStaff(), 403, 'Office staff can view submitted files but not replace or delete them.');
         abort_unless($actor->role === 'SUPER_ADMIN' || in_array($submission->organization_id, $actor->scopedOrganizationIds(), true), 404);
         $query = Organization::student()->whereKey($submission->organization_id);
         $organization = ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
