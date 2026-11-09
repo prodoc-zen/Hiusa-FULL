@@ -1,0 +1,9 @@
+# Files that run on Linux (the Lightsail host, GitHub Actions, containers) stay LF
+# on every checkout, so a Windows clone cannot add carriage returns to them.
+*.sh text eol=lf
+.github/**/*.yml text eol=lf
+.github/**/*.yaml text eol=lf
+Dockerfile* text eol=lf
+**/Dockerfile* text eol=lf
+client/Caddyfile.production text eol=lf
+server/docker/** text eol=lf
