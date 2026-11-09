@@ -7,6 +7,7 @@ import AiInsightCard from './AiInsightCard';
 import AttentionList from './AttentionList';
 import BriefingHeader from './BriefingHeader';
 import BriefingSkeleton from './BriefingSkeleton';
+import PhoneFold from './PhoneFold';
 import PillarPulse from './PillarPulse';
 import ReviewInbox from './ReviewInbox';
 import SetupChecklist from './SetupChecklist';
@@ -95,7 +96,7 @@ function BriefingBody({ data, introduction }) {
   const attentionCard = (
     <section aria-labelledby="briefing-attention" className="flex min-h-0 flex-col overflow-hidden rounded-card border border-line bg-surface">
       <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">{attentionTitle}</h2>
-      <div className="max-h-72 overflow-y-auto px-4 sm:px-5">
+      <div className="px-4 sm:max-h-72 sm:overflow-y-auto sm:px-5">
         {role === 'SUPER_ADMIN' ? <ReviewInbox areas={reviewAreas} /> : <AttentionList items={attention} />}
       </div>
     </section>
@@ -116,9 +117,11 @@ function BriefingBody({ data, introduction }) {
       {showInsights && insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
           <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">Suggestions from your records</h2>
-          <div className="divide-y divide-line-soft px-4 py-4 sm:px-5">
-            {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
-          </div>
+          <PhoneFold label={`Show ${insights.length === 1 ? 'the suggestion' : `${insights.length} suggestions`}`} hideLabel="Hide suggestions">
+            <div className="divide-y divide-line-soft px-4 py-4 sm:px-5">
+              {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
+            </div>
+          </PhoneFold>
         </section>
       )}
     </div>
