@@ -3,6 +3,7 @@ import { getMyActivity } from '../../services/profileService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 import { Button, Skeleton } from '../ui';
+import PhoneFold from '../dashboard/PhoneFold';
 
 /** The signed-in person's own recent actions, read from the audit trail. */
 export default function RecentActivity() {
@@ -34,6 +35,7 @@ export default function RecentActivity() {
         <p className="mt-1 text-sm text-ink-muted">What you did in HIUSA, newest first.</p>
       </div>
 
+      <PhoneFold label="Show your recent activity" hideLabel="Hide your recent activity" className="px-5!">
       <div className="p-5 sm:p-6">
         {status === 'loading' && items.length === 0 && (
           <div className="space-y-2" role="status" aria-label="Loading your activity">
@@ -69,6 +71,7 @@ export default function RecentActivity() {
           </div>
         )}
       </div>
+      </PhoneFold>
     </section>
   );
 }

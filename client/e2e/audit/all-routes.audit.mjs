@@ -5,8 +5,10 @@
 //
 //   node client/e2e/audit/all-routes.audit.mjs [--roles=ADMIN,STUDENT] [--match=finance] [--limit=5] [--keep-stack]
 //
-// It never touches the dev database: server/.env is backed up, pointed at the audit sqlite file and restored
-// (also on failure); the audit stack has its own rate limits raised so a 300-page sweep is not answered 429.
+// It never touches the dev database and never writes server/.env or wipes a database in place: it deletes its own
+// sqlite file, runs migrate --seed on the empty file, and hands every override (database, mail, queue, raised
+// rate limits so a 300-page sweep is not answered 429) to artisan and the server through the process
+// environment, which Laravel prefers over the .env file.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,16 +27,19 @@ const API_PORT = 8020;
 const WEB_PORT = 5190;
 const API = `http://127.0.0.1:${API_PORT}/api`;
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
-const ENV_FILE = path.join(SERVER, '.env');
-const ENV_BACKUP = path.join(SERVER, '.env.audit-backup');
 const VIEWPORTS = [
-  { name: '1366x900', width: 1366, height: 900 },
+  { name: '1280x800', width: 1280, height: 800 },
   { name: '390x844', width: 390, height: 844 },
 ];
-// The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1366),
+// The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1280 and 1366),
 // folds into an icon at 1279 and 1024, and stays an icon on a phone (390).
 const SWITCHER_WIDTHS = [1366, 1279, 1024, 390];
-const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
+const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'GUEST'];
+// The routes App.jsx serves outside the dashboard allowlist (the dev-only /dev/ui-kit is not built for production): public pages for a signed-out visitor, and the
+// immersive ballot for the roles that vote. client_routes.php lists neither.
+const GUEST_ROUTES = ['/', '/login', '/sign-up', '/recover-account', '/reset-password', '/accept-invitation', '/change-password'];
+const BALLOT_ROUTE = '/elections/:electionId/vote';
+const BALLOT_ROLES = ['ADMIN', 'SBO_OFFICER', 'STUDENT'];
 
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const onlyRoles = arg('roles')?.split(',');
@@ -46,63 +51,32 @@ const noSemesters = process.argv.includes('--no-semesters'); // leave the databa
 
 const log = (...parts) => console.log('[audit]', ...parts);
 const children = [];
-let envChanged = false;
 
-function setEnvKeys(text, values) {
-  const lines = text.split(/\r?\n/);
-  const remaining = new Map(Object.entries(values));
-  const next = lines.map((line) => {
-    const key = line.split('=')[0].trim();
-    if (remaining.has(key)) {
-      const value = remaining.get(key);
-      remaining.delete(key);
-      return `${key}=${value}`;
-    }
-    return line;
-  });
-  for (const [key, value] of remaining) next.push(`${key}=${value}`);
-  return next.join('\n');
-}
+const HIGH_LIMIT = '100000';
+const STACK_ENV = {
+  DB_CONNECTION: 'sqlite',
+  DB_DATABASE: DB_FILE,
+  APP_ENV: 'local',
+  MAIL_MAILER: 'log',
+  FRONTEND_URL: WEB,
+  FRONTEND_URLS: WEB,
+  QUEUE_CONNECTION: 'sync',
+  SESSION_DRIVER: 'array',
+  CACHE_STORE: 'array',
+  RATE_LIMIT_PUBLIC_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_READ_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_WRITE_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_EXPENSIVE_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_LOGIN_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_PASSWORD_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_REGISTRATION_PER_MINUTE: HIGH_LIMIT,
+};
 
-function prepareEnv() {
-  // A leftover backup means an earlier run died before restoring; it is the original, so restore it first.
-  if (fs.existsSync(ENV_BACKUP)) fs.copyFileSync(ENV_BACKUP, ENV_FILE);
-  else fs.copyFileSync(ENV_FILE, ENV_BACKUP);
-  envChanged = true;
+function resetDatabase() {
   fs.mkdirSync(OUT, { recursive: true });
+  for (const suffix of ['', '-journal', '-wal', '-shm']) fs.rmSync(DB_FILE + suffix, { force: true });
   fs.writeFileSync(DB_FILE, '');
-  const high = '100000';
-  fs.writeFileSync(ENV_FILE, setEnvKeys(fs.readFileSync(ENV_BACKUP, 'utf8'), {
-    DB_CONNECTION: 'sqlite',
-    DB_DATABASE: DB_FILE,
-    APP_ENV: 'local',
-    MAIL_MAILER: 'log',
-    FRONTEND_URL: WEB,
-    FRONTEND_URLS: WEB,
-    QUEUE_CONNECTION: 'sync',
-    SESSION_DRIVER: 'array',
-    CACHE_STORE: 'array',
-    RATE_LIMIT_PUBLIC_PER_MINUTE: high,
-    RATE_LIMIT_READ_PER_MINUTE: high,
-    RATE_LIMIT_WRITE_PER_MINUTE: high,
-    RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE: high,
-    RATE_LIMIT_EXPENSIVE_PER_MINUTE: high,
-    RATE_LIMIT_LOGIN_PER_MINUTE: high,
-    RATE_LIMIT_PASSWORD_PER_MINUTE: high,
-    RATE_LIMIT_REGISTRATION_PER_MINUTE: high,
-  }));
-}
-
-function restoreEnv() {
-  if (!envChanged) return;
-  try {
-    fs.copyFileSync(ENV_BACKUP, ENV_FILE);
-    fs.rmSync(ENV_BACKUP, { force: true });
-    envChanged = false;
-    log('server/.env restored');
-  } catch (error) {
-    console.error('[audit] FAILED TO RESTORE server/.env, copy .env.audit-backup over it by hand:', error.message);
-  }
 }
 
 function stopChildren() {
@@ -120,7 +94,6 @@ function stopChildren() {
 
 function cleanup() {
   if (!keepStack) stopChildren();
-  restoreEnv();
 }
 
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
@@ -139,7 +112,7 @@ async function waitFor(url, label, ms = 120000) {
 }
 
 function artisan(...args) {
-  const result = spawnSync('php', ['artisan', ...args], { cwd: SERVER, encoding: 'utf8', env: { ...process.env, DB_CONNECTION: 'sqlite', DB_DATABASE: DB_FILE, APP_ENV: 'local' } });
+  const result = spawnSync('php', ['artisan', ...args], { cwd: SERVER, encoding: 'utf8', env: { ...process.env, ...STACK_ENV } });
   if (result.status !== 0) throw new Error(`php artisan ${args.join(' ')} failed:\n${(result.stdout || '').slice(-600)}\n${(result.stderr || '').slice(-600)}`);
 }
 
@@ -159,7 +132,9 @@ function seedAcademicSemesters() {
     $next = date('Y-m-d', strtotime($mid . ' +1 day'));
     $semester = $p->prepare("insert into academic_semesters (academic_year_id, number, starts_on, ends_on, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)");
     $semester->execute([$year['id'], 1, $year['starts_on'], $mid, 'active', $now, $now]);
-    $semester->execute([$year['id'], 2, $next, $year['ends_on'], 'upcoming', $now, $now]);`;
+    $semester->execute([$year['id'], 2, $next, $year['ends_on'], 'upcoming', $now, $now]);
+    // The seeded election carries no semester, so the elections list (scoped to the selected semester) hides it and the ballot has no record.
+    $p->prepare("update elections set academic_semester_id = (select id from academic_semesters where status = 'active' order by id limit 1) where academic_semester_id is null")->execute();`;
   const result = spawnSync('php', ['-r', code, DB_FILE], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`could not seed the academic semesters: ${(result.stderr || result.stdout || '').slice(0, 300)}`);
 }
@@ -187,14 +162,14 @@ function seedClosedSchoolYear() {
 }
 
 async function bootStack() {
-  prepareEnv();
-  log('migrate:fresh --seed on', DB_FILE);
-  artisan('migrate:fresh', '--seed', '--force');
+  resetDatabase();
+  log('migrate --seed on', DB_FILE);
+  artisan('migrate', '--seed', '--force');
   if (!noSemesters) {
     seedAcademicSemesters();
     seedClosedSchoolYear();
   }
-  const serverEnv = { ...process.env, FRONTEND_URL: WEB, FRONTEND_URLS: WEB, DB_CONNECTION: 'sqlite', DB_DATABASE: DB_FILE, APP_ENV: 'local', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' };
+  const serverEnv = { ...process.env, ...STACK_ENV };
   children.push(spawn('php', ['artisan', 'serve', '--host=127.0.0.1', `--port=${API_PORT}`, '--no-reload'], { cwd: SERVER, env: serverEnv, stdio: 'ignore', windowsHide: true }));
   children.push(spawn(process.execPath, [path.join(CLIENT, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', String(WEB_PORT), '--strictPort'], {
     cwd: CLIENT, env: { ...process.env, VITE_API_URL: API }, stdio: 'ignore', windowsHide: true,
@@ -262,6 +237,7 @@ async function paramValues(role, session) {
     seedApplication('dean');
     values.applicationId = await firstId(token, ['/organization-applications?status=pending_dean'], (r) => r.name === DEAN_APPLICATION);
   }
+  if (BALLOT_ROLES.includes(role)) values.electionId = await firstId(token, ['/elections']);
   if (role === 'STUDENT') {
     seedApplication('dean');
     values.applicationId = await firstId(token, ['/my/organization-applications'], (r) => r.name === DEAN_APPLICATION);
@@ -383,8 +359,30 @@ function measurePage() {
   });
   const primaries = [...primary].filter(visibleDeep);
 
+  // The part of a text box that a clipping ancestor (overflow other than visible) leaves showing, or null when none shows.
+  const visibleBox = (el, rect) => {
+    let box = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    if (box.right - box.left < 2 || box.bottom - box.top < 2) return null;
+    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
+      const r = node.getBoundingClientRect();
+      box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
+      if (box.right - box.left < 2 || box.bottom - box.top < 2) return null;
+    }
+    return box;
+  };
+  // A sticky or fixed bar (the form's Publish now bar) is meant to sit over content that scrolls beneath it.
+  const isFloating = (el) => {
+    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+      const position = getComputedStyle(node).position;
+      if (position === 'fixed' || position === 'sticky') return true;
+    }
+    return false;
+  };
   const small = [];
   const heavy = [];
+  const textBoxes = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const seenHeavy = new Set();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -392,6 +390,13 @@ function measurePage() {
     const el = node.parentElement;
     if (!el || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName) || !visibleDeep(el)) continue;
     const style = getComputedStyle(el);
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    // One box per rendered line: the bounding box of wrapped text also covers its neighbours.
+    for (const rect of range.getClientRects()) {
+      const box = visibleBox(el, rect);
+      if (box) textBoxes.push({ el, box, floating: isFloating(el) });
+    }
     if (parseFloat(style.fontSize) < 12) small.push(`${parseFloat(style.fontSize)}px ${describe(el)}`);
     if (Number(style.fontWeight) >= 800 && !seenHeavy.has(el)) {
       seenHeavy.add(el);
@@ -399,8 +404,25 @@ function measurePage() {
     }
   }
 
+  // Two pieces of text from different elements that cover each other: the one real overlap that makes a page unreadable.
+  const overlaps = [];
+  const byLeft = textBoxes.sort((a, b) => a.box.left - b.box.left);
+  for (let i = 0; i < byLeft.length && overlaps.length < 6; i++) {
+    for (let j = i + 1; j < byLeft.length && byLeft[j].box.left < byLeft[i].box.right; j++) {
+      const a = byLeft[i];
+      const b = byLeft[j];
+      if (a.el === b.el || a.floating !== b.floating) continue;
+      const w = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+      const h = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+      if (w <= 1 || h <= 1) continue;
+      const smaller = Math.min((a.box.right - a.box.left) * (a.box.bottom - a.box.top), (b.box.right - b.box.left) * (b.box.bottom - b.box.top));
+      if (w * h >= 20 && w * h >= smaller * 0.25) overlaps.push(`${describe(a.el)} over ${describe(b.el)}`);
+    }
+  }
+
   return {
     overflowX,
+    overlaps,
     scrollWidth: root.scrollWidth,
     clientWidth: root.clientWidth,
     wide,
@@ -467,7 +489,14 @@ function reviewInspector(role) {
     if (!(await pass.isDisabled())) problems['review-pass-early'] = `${passLabel} is on before every requirement is Accepted`;
     if (!(await giveBack.isDisabled())) problems['review-return-early'] = 'Return with comments is on with no note';
     if (!(await comment.isVisible())) problems['review-comment-link'] = 'no Add a comment link';
-    if (role === 'SUPER_ADMIN' && !(await page.getByText('Department Head:').first().isVisible().catch(() => false))) problems['review-prior-stage'] = 'the Department Head review is not shown to the SAO';
+    // The SAO reads the Department Head's note on the application and, one row open, the dean's mark on a requirement.
+    if (role === 'SUPER_ADMIN') {
+      const first = rows.first().getByRole('button', { name: /^(Review|Change) / });
+      if (await first.count()) await first.click();
+      const note = await page.getByText('Note from the Department Head', { exact: true }).isVisible().catch(() => false);
+      const mark = await page.getByText('Department Head:').first().isVisible().catch(() => false);
+      if (!note || !mark) problems['review-prior-stage'] = `the Department Head's ${[note ? '' : 'application note', mark ? '' : 'requirement mark'].filter(Boolean).join(' and ')} is not shown to the SAO`;
+    }
 
     // The app shell scrolls inside itself, so a full-page shot stops at the first screen: scroll to the decision first.
     await page.getByRole('heading', { name: 'Decision', exact: true }).scrollIntoViewIfNeeded();
@@ -527,19 +556,26 @@ async function prepareRecords(page, role, result) {
       await page.waitForTimeout(400);
     }
   }
-  if (!(await page.getByText('Read only', { exact: true }).first().isVisible().catch(() => false))) {
+  // The records request for a closed year can outlast networkidle (it is answered after the select settles), so wait for the badge.
+  const badge = await page.getByText('Read only', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+  if (!badge) {
     result.checks['records-read-only'] = 'the closed period does not show the Read only badge';
   }
 }
 
 async function auditRoute(context, viewport, role, route, filledPath, roleRoutes, inspect = null) {
-  const page = await context.newPage();
+  let page;
+  try {
+    page = await context.newPage();
+  } catch (error) {
+    return { role, route, path: filledPath, viewport: viewport.name, checks: { crashed: String(error.message).split('\n')[0] }, screenshot: null };
+  }
   const consoleErrors = [];
   const apiFailures = [];
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text().slice(0, 240)); });
   page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error.message).slice(0, 240)}`));
   page.on('response', (response) => {
-    if (response.url().startsWith(API) && response.status() >= 500) apiFailures.push(`${response.status()} ${response.request().method()} ${response.url().replace(API, '')}`.slice(0, 200));
+    if (response.url().startsWith(API) && response.status() >= 400) apiFailures.push(`${response.status()} ${response.request().method()} ${response.url().replace(API, '')}`.slice(0, 200));
   });
   page.on('requestfailed', (request) => {
     const reason = request.failure()?.errorText || '';
@@ -574,6 +610,7 @@ async function auditRoute(context, viewport, role, route, filledPath, roleRoutes
     if (measured.overflowX) fail('overflow-x', `document ${measured.scrollWidth}/${measured.clientWidth}; ${measured.wide.join(' | ')}`);
     if (consoleErrors.length) fail('console-errors', [...new Set(consoleErrors)].slice(0, 5).join(' | '));
     if (apiFailures.length) fail('api-failed', [...new Set(apiFailures)].slice(0, 5).join(' | '));
+    if (measured.overlaps.length) fail('text-overlap', measured.overlaps.slice(0, 3).join(' | '));
     if (measured.h1Count !== 1) fail('h1-count', `${measured.h1Count} visible h1 ${JSON.stringify(measured.h1Text)}`);
     if (measured.primaryCount > 1) fail('primary-buttons', `${measured.primaryCount} filled primary: ${measured.primaryText.join(' | ')}`);
     if (measured.smallTextCount) fail('font-under-12px', `${measured.smallTextCount} nodes, e.g. ${measured.smallText.slice(0, 4).join(' | ')}`);
@@ -687,8 +724,12 @@ async function main() {
   const accounts = {};
   const roles = ROLES.filter((r) => !onlyRoles || onlyRoles.includes(r));
   for (const role of ROLES) {
-    if (roles.includes(role)) accounts[role] = { ...(await signIn(BY_ROLE[role])), role };
+    if (roles.includes(role) && role !== 'GUEST') accounts[role] = { ...(await signIn(BY_ROLE[role])), role };
   }
+
+  if (roles.includes('GUEST')) accounts.GUEST = { token: null, user: null, expires: null, role: 'GUEST' };
+  routesConfig.GUEST = GUEST_ROUTES;
+  for (const role of BALLOT_ROLES) routesConfig[role] = [...(routesConfig[role] || []), BALLOT_ROUTE];
 
   const results = [];
   const skipped = [];
@@ -709,7 +750,7 @@ async function main() {
     await closeBrowser();
     browser = await chromium.launch({ args: ['--mute-audio'] });
     context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 1 });
-    await context.addInitScript(({ token, user, expires }) => {
+    if (session.token) await context.addInitScript(({ token, user, expires }) => {
       try {
         localStorage.setItem('auth_token', token);
         localStorage.setItem('user', JSON.stringify(user));

@@ -183,7 +183,7 @@ export default function SettingsPage() {
       <div className="divide-y divide-line rounded-card border border-line bg-surface">
         <section className={SECTION} aria-labelledby="account-summary-title">
           <h2 id="account-summary-title" className={SECTION_TITLE}>Your account</h2>
-          <dl className="grid max-w-xl gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+          <dl className="grid max-w-xl grid-cols-2 gap-x-6 gap-y-4 text-sm">
             <div className="min-w-0">
               <dt className="text-xs text-ink-muted">Name</dt>
               <dd className="mt-0.5 break-words font-medium text-ink">{fullName}</dd>

@@ -5,10 +5,13 @@ import { Link } from 'react-router-dom';
 import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { RoleBriefing } from '../../../components/dashboard';
+import { PhoneFold, RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
 import { Button, EmptyState, ErrorState, Skeleton } from '../../../components/ui';
 import { peso } from '../../../lib/format';
+
+// A phone opens on the newest post; the rest of the loaded feed waits behind one tap.
+const PHONE_POSTS = 1;
 
 function formatEventDate(value) {
   if (!value) return '';
@@ -59,6 +62,7 @@ export default function StudentHomePage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [feedExpanded, setFeedExpanded] = useState(false);
   const sentinelRef = useRef(null);
   const requestedPages = useRef(new Set());
   const loadingRef = useRef(false);
@@ -122,7 +126,14 @@ export default function StudentHomePage() {
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           <h2 className="text-base font-semibold text-ink">Organization feed</h2>
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
-          {!initialLoading && items.map((item) => <FeedPost key={item.key} item={item} organization={organization} />)}
+          {!initialLoading && items.map((item, index) => (
+            <div key={item.key} className={!feedExpanded && index >= PHONE_POSTS ? 'max-sm:hidden' : undefined}>
+              <FeedPost item={item} organization={organization} />
+            </div>
+          ))}
+          {!initialLoading && !feedExpanded && items.length > PHONE_POSTS && (
+            <Button variant="secondary" className="w-full sm:hidden" onClick={() => setFeedExpanded(true)}>Show more posts</Button>
+          )}
 
           {!initialLoading && items.length === 0 && !error && (
             <EmptyState
@@ -133,34 +144,38 @@ export default function StudentHomePage() {
           )}
           {error && <ErrorState title="Could not load your feed" description={error} onRetry={retry} />}
           {loadingMore && <FeedSkeleton />}
-          <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+          <div ref={sentinelRef} className={`h-1 ${!feedExpanded && items.length > PHONE_POSTS ? 'max-sm:hidden' : ''}`} aria-hidden="true" />
         </section>
 
         <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
           {activeElection && (
-            <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-election-title">
-              <h2 id="student-election-title" className="text-sm font-semibold text-ink">Voting is open</h2>
-              <p className="mt-1 text-sm font-medium text-ink">{formatDisplayText(activeElection.title)}</p>
-              <p className="mt-1 text-xs text-ink-muted-strong">{activeElection.has_voted ? 'Your ballot has been submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
+            <section className="rounded-card border border-line bg-surface p-4 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:p-3" aria-labelledby="student-election-title">
+              <h2 id="student-election-title" className="text-sm font-semibold text-ink max-sm:sr-only">Voting is open</h2>
+              <p className="mt-1 text-sm font-medium text-ink max-sm:mt-0 max-sm:line-clamp-2 max-sm:min-w-0">{formatDisplayText(activeElection.title)}</p>
+              <p className="mt-1 text-xs text-ink-muted-strong max-sm:hidden">{activeElection.has_voted ? 'Your ballot has been submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
               {activeElection.has_voted
-                ? <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-success-strong"><ShieldCheck size={16} aria-hidden="true" /> Vote submitted</p>
-                : <Button to={`/elections/${activeElection.id}/vote`} variant="secondary" className="mt-3 w-full">Vote now</Button>}
+                ? <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-success-strong max-sm:mt-0 max-sm:shrink-0"><ShieldCheck size={16} aria-hidden="true" /> Vote submitted</p>
+                : <Button to={`/elections/${activeElection.id}/vote`} variant="secondary" className="mt-3 w-full max-sm:mt-0 max-sm:w-auto max-sm:shrink-0">Vote now</Button>}
             </section>
           )}
 
           <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-events-title">
             <h2 id="student-events-title" className="text-sm font-semibold text-ink">Coming up</h2>
-            <div className="mt-3 divide-y divide-line-soft">
-              {upcomingEvents.length ? upcomingEvents.map((event) => (
-                <div key={event.id} className="flex gap-3 py-3 first:pt-0">
-                  <span className="w-14 shrink-0 text-xs font-medium text-ink-muted-strong">{formatEventDate(event.start_time)}</span>
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 text-sm font-medium text-ink">{formatDisplayText(event.title)}</p>
-                    {event.location && <p className="mt-0.5 truncate text-xs text-ink-muted">{event.location}</p>}
-                  </div>
+            {upcomingEvents.length ? (
+              <PhoneFold label={upcomingEvents.length === 1 ? 'Show the next event' : `Show ${upcomingEvents.length} upcoming events`} hideLabel="Hide events" className="mt-1 px-0!">
+                <div className="mt-3 divide-y divide-line-soft">
+                  {upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex gap-3 py-3 first:pt-0">
+                      <span className="w-14 shrink-0 text-xs font-medium text-ink-muted-strong">{formatEventDate(event.start_time)}</span>
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 text-sm font-medium text-ink">{formatDisplayText(event.title)}</p>
+                        {event.location && <p className="mt-0.5 truncate text-xs text-ink-muted">{event.location}</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )) : <p className="py-2 text-sm text-ink-muted">No upcoming events yet.</p>}
-            </div>
+              </PhoneFold>
+            ) : <p className="mt-3 py-2 text-sm text-ink-muted">No upcoming events yet.</p>}
             <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open activity calendar <ChevronRight size={14} aria-hidden="true" /></Link>
           </section>
 
