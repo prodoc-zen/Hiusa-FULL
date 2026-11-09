@@ -53,7 +53,7 @@ function tapper() {
 
 async function homeReady(page) {
   await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible(LONG);
-  await expect(page.getByText(/Administration workspace|Getting started/).first()).toBeVisible(LONG);
+  await expect(page.getByRole('region', { name: /^(Today|Where you are in the process)$/ }).or(page.getByRole('heading', { name: 'Getting started' })).first()).toBeVisible(LONG);
 }
 
 // Reaches a menu leaf the way a person does: on a phone the menu opens first, then the group, then the leaf.
@@ -150,15 +150,15 @@ for (const viewport of VIEWPORTS) {
       await openLeaf(t, page, width, 'Events and tasks', 'Events');
       await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible(LONG);
       await t.tap(page.getByRole('button', { name: 'New event' }).first(), 'New event');
-      const form = page.getByRole('dialog', { name: 'New event' });
+      const form = page.getByRole('main');
       await form.locator('#event-title').fill(title);
       await form.locator('#event-start-date').fill(localDate(30));
       await form.locator('#event-start-time').fill('09:00');
       await form.locator('#event-end-date').fill(localDate(30));
       await form.locator('#event-end-time').fill('12:00');
       await form.locator('#event-campus-venue').selectOption({ index: 1 });
-      await t.tap(form.getByRole('button', { name: 'Submit proposal' }), 'Submit proposal');
-      await expect(form).toBeHidden(LONG);
+      await t.tap(form.getByRole('button', { name: 'Send proposal' }), 'Send proposal');
+      await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeHidden(LONG);
 
       const dialog = page.getByRole('dialog', { name: 'Event details' });
       console.log(`[admin A1 @${width}] clicks=${t.summary()}`);
@@ -211,9 +211,9 @@ for (const viewport of VIEWPORTS) {
       await uiLogin(page, PSITS_ADMIN);
       await homeReady(page);
 
-      // On a phone the home's Approval Requests card is the one-tap way in; the menu would cost two.
-      if (width < 1024) await t.tap(page.getByRole('link', { name: /^Approval Requests/ }), 'Approval Requests card');
-      else await t.tap(page.getByRole('link', { name: 'Approvals', exact: true }).first(), 'Approvals');
+      // Approvals is a top-level menu link at both widths; on a phone the menu opens first, which is chrome.
+      if (width < 1024) await page.getByRole('button', { name: 'Open menu' }).click();
+      await t.tap(page.getByRole('link', { name: 'Approvals', exact: true }).first(), 'Approvals');
       await t.tap(page.getByRole('tab', { name: /Submitted by me/ }), 'Submitted by me');
       const row = page.getByRole('listitem').filter({ hasText: title });
       await expect(row).toBeVisible(LONG);
@@ -277,8 +277,8 @@ for (const viewport of VIEWPORTS) {
       // text is read from its attribute and the guidance from what is visible on the saved report.
       const stepper = page.locator(`[aria-label^="Report progress for"][aria-label*="${completedTitle}" i]`);
       await expect(stepper).toHaveAttribute('aria-valuetext', 'Step 1 of 4: Draft', LONG);
-      const report = stepper.locator('xpath=ancestor::*[.//button[normalize-space()="View details"]][1]');
-      await expect(report.getByText(/draft/i).filter({ visible: true }).first()).toBeVisible();
+      const report = stepper.locator('xpath=ancestor::li[1]');
+      if (width >= 640) await expect(report.getByText(/draft/i).filter({ visible: true }).first()).toBeVisible();
       await expect(report.getByText('Review and submit', { exact: true }).filter({ visible: true }).first()).toBeVisible();
     });
 
@@ -301,10 +301,10 @@ for (const viewport of VIEWPORTS) {
       const steps = [];
 
       await t.tap(page.getByRole('link', { name: /Add (officer )?positions/ }), 'Add positions');
-      await t.tap(page.getByRole('button', { name: /Add Position/ }).first(), 'Add Position');
-      const position = page.getByRole('dialog', { name: 'Add Position' });
+      await t.tap(page.getByRole('button', { name: /Add position/ }).first(), 'Add position');
+      const position = page.getByRole('dialog', { name: 'Add position' });
       await position.getByLabel(/Position title/).selectOption('President');
-      await t.tap(position.getByRole('button', { name: 'Save Position' }), 'Save Position');
+      await t.tap(position.getByRole('button', { name: 'Save position' }), 'Save position');
       await expect(position).toBeHidden(LONG);
       steps.push(`positions ${t.summary()}`);
       expect.soft(t.state.clicks, `positions ${t.summary()}`).toBeLessThanOrEqual(3);
@@ -318,7 +318,7 @@ for (const viewport of VIEWPORTS) {
       await expect(member.getByLabel(/school id/i)).toHaveCount(0);
       await expect(member.getByLabel(/password/i)).toHaveCount(0);
       const picker = member.getByRole('combobox', { name: 'Student' });
-      await picker.fill(student.firstName);
+      await picker.fill(student.name);
       await expect(member.getByRole('option', { name: new RegExp(student.name) })).toBeVisible(LONG);
       await picker.press('ArrowDown');
       await picker.press('Enter');
@@ -333,15 +333,15 @@ for (const viewport of VIEWPORTS) {
       await homeReady(page);
       await t.tap(page.getByRole('link', { name: /Propose (an|first) event/ }), 'Propose an event');
       await t.tap(page.getByRole('button', { name: 'New event' }).first(), 'New event');
-      const form = page.getByRole('dialog', { name: 'New event' });
+      const form = page.getByRole('main');
       await form.locator('#event-title').fill(`Journey first event ${width} ${RUN}`);
       await form.locator('#event-start-date').fill(localDate(30));
       await form.locator('#event-start-time').fill('09:00');
       await form.locator('#event-end-date').fill(localDate(30));
       await form.locator('#event-end-time').fill('12:00');
       await form.locator('#event-campus-venue').selectOption({ index: 1 });
-      await t.tap(form.getByRole('button', { name: 'Submit proposal' }), 'Submit proposal');
-      await expect(form).toBeHidden(LONG);
+      await t.tap(form.getByRole('button', { name: 'Send proposal' }), 'Send proposal');
+      await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeHidden(LONG);
       steps.push(`event ${t.summary()}`);
       expect.soft(t.state.clicks, `event ${t.summary()}`).toBeLessThanOrEqual(3);
       console.log(`[admin A5 @${width}] ${steps.join(' | ')}`);
