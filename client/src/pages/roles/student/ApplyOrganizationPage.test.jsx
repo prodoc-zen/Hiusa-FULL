@@ -141,6 +141,16 @@ describe('ApplyOrganizationPage', () => {
     await waitFor(() => expect(openMocks.openRequirementSample).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), { forApplication: true }));
   });
 
+  it('shows students nothing about a requirement that has no sample format', async () => {
+    mocks.getMyOrganizationApplications.mockResolvedValue(open({ requirements: [{ id: 3, name: 'Adviser letter', description: null, allowed_extensions: ['pdf'] }] }));
+    renderPage();
+    await screen.findByLabelText(/Adviser letter/);
+
+    expect(screen.queryByText(/Sample format not provided/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SAO must attach/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View sample format' })).not.toBeInTheDocument();
+  });
+
   it('sends the details and one file per requirement, then opens the new application', async () => {
     mocks.submitOrganizationApplication.mockResolvedValue({ data: { id: 77 } });
     renderPage();

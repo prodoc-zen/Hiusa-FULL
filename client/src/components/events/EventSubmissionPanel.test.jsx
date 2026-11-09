@@ -63,6 +63,13 @@ describe('EventSubmissionPanel', () => {
     expect(screen.queryByRole('button', { name: 'Submit event files to SAO' })).not.toBeInTheDocument();
   });
 
+  it('does not tell an organization admin that the SAO sample is missing', async () => {
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+    await screen.findByText('Event Proposal', { selector: 'label' });
+    expect(screen.queryByText(/Sample format not provided/)).not.toBeInTheDocument();
+  });
+
   it('allows the admin to upload SAO files after Department Head approval', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
