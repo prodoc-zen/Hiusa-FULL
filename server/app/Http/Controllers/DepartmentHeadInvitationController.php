@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
+use App\Support\AdviserPosition;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,7 +120,7 @@ class DepartmentHeadInvitationController extends Controller
             $email = Str::lower(trim($data['email']));
             $existing = User::where('email', $email)->first();
             if ($existing) {
-                throw ValidationException::withMessages(['email' => [$this->isStudentAccount($existing, strict: true) ? self::NOT_STUDENTS : 'That email already has an account. Pick them from the employee records.']]);
+                throw ValidationException::withMessages(['email' => [$this->isStudentAccount($existing) ? self::NOT_STUDENTS : 'That email already has an account. Pick them from the employee records.']]);
             }
             DepartmentHeadInvitation::where('college_id', $college->id)->where('role', self::STAFF)->where('email', $email)->whereNull('accepted_at')->delete();
 
@@ -507,7 +508,7 @@ class DepartmentHeadInvitationController extends Controller
     private function staffRecord(Organization $home, College $college, int $schoolId): StudentRegistryEntry
     {
         $user = User::whereKey($schoolId)->lockForUpdate()->first();
-        if (StudentRegistryEntry::students()->where('school_id', $schoolId)->exists() || ($user && $this->isStudentAccount($user, strict: false))) {
+        if (StudentRegistryEntry::students()->where('school_id', $schoolId)->exists() || ($user && $this->isStudentAccount($user))) {
             throw ValidationException::withMessages(['registry_school_id' => [self::NOT_STUDENTS]]);
         }
 
@@ -531,21 +532,31 @@ class DepartmentHeadInvitationController extends Controller
     }
 
     /**
-     * A student account: the STUDENT role, a student or officer profile anywhere, or an enrolled student's record
-     * (a student registry row is checked by the caller). With nothing to prove they are an employee (strict), any
-     * active profile in a student organization counts too.
+     * A student account: the STUDENT role, an enrolled student's record, a student or officer profile anywhere, or
+     * any active place in a student organization (an active profile there, or the organization the account sits on)
+     * unless the title is an adviser's. A president with the ADMIN role is still a student; a faculty adviser is not.
      */
-    private function isStudentAccount(User $user, bool $strict): bool
+    private function isStudentAccount(User $user): bool
     {
         if ($user->getRawOriginal('role') === 'STUDENT' || StudentRegistryEntry::students()->where('school_id', $user->school_id)->exists()) {
             return true;
         }
 
         $profiles = $user->accountProfiles()->where('account_status', 'active');
+        if ((clone $profiles)->whereIn('role', ['STUDENT', 'SBO_OFFICER'])->exists()) {
+            return true;
+        }
 
-        return $strict
-            ? $profiles->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'STUDENT_ORGANIZATION'))->exists()
-            : $profiles->whereIn('role', ['STUDENT', 'SBO_OFFICER'])->exists();
+        $inStudentOrganization = (clone $profiles)
+            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'STUDENT_ORGANIZATION'))
+            ->where(fn ($title) => AdviserPosition::whereNot($title, 'account_profiles.position_title'));
+        if ($inStudentOrganization->exists()) {
+            return true;
+        }
+
+        return $user->getRawOriginal('account_status') === 'active'
+            && ! AdviserPosition::is($user->getRawOriginal('position_title'))
+            && Organization::student()->whereKey($user->getRawOriginal('organization_id'))->exists();
     }
 
     /** Only an active office staff or Department Head account of this college's home organization is already on staff. */

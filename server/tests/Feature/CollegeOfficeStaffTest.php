@@ -213,14 +213,46 @@ class CollegeOfficeStaffTest extends TestCase
         User::factory()->student()->create(['school_id' => 70000011, 'organization_id' => $this->psits->id]);
         $this->invite(['registry_school_id' => 70000011])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
 
-        $marco = User::factory()->officer()->create(['school_id' => 900001, 'organization_id' => $this->psits->id, 'first_name' => 'Marco', 'last_name' => 'Dela Cruz']);
-        $this->employee(900001, 'Marco', 'Dela Cruz');
-        $this->invite(['registry_school_id' => 900001])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
+        $officer = User::factory()->officer()->create(['school_id' => 900002, 'organization_id' => $this->psits->id, 'first_name' => 'Olive', 'last_name' => 'Officer']);
+        $this->employee(900002, 'Olive', 'Officer');
+        $this->invite(['registry_school_id' => 900002])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
 
-        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Marco', 'last_name' => 'Dela Cruz', 'email' => $marco->email])
+        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Olive', 'last_name' => 'Officer', 'email' => $officer->email])
             ->assertUnprocessable()->assertJsonPath('errors.email.0', self::NOT_STUDENTS);
 
         $this->assertSame(0, DepartmentHeadInvitation::count());
+    }
+
+    /** The real shape: an ADMIN account with the President title in a student organization, who also has an employee record. */
+    public function test_an_admin_president_of_a_student_organization_is_a_student_and_cannot_be_office_staff(): void
+    {
+        $marco = User::factory()->admin()->create([
+            'school_id' => 900001, 'organization_id' => $this->psits->id, 'position_title' => 'President', 'first_name' => 'Marco', 'last_name' => 'Dela Cruz',
+        ]);
+        $this->employee(900001, 'Marco', 'Dela Cruz');
+
+        $this->invite(['registry_school_id' => 900001])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
+        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Marco', 'last_name' => 'Dela Cruz', 'email' => $marco->email])
+            ->assertUnprocessable()->assertJsonPath('errors.email.0', self::NOT_STUDENTS);
+
+        $found = collect($this->actingAs($this->dean)->getJson('/api/college/staff/records?q=Marco')->assertOk()->json('data'))->pluck('school_id')->all();
+        $this->assertNotContains(900001, $found);
+
+        $this->assertSame(0, DepartmentHeadInvitation::count());
+    }
+
+    public function test_a_link_cannot_be_claimed_by_someone_who_became_a_student_organization_leader_after_it_was_made(): void
+    {
+        $person = User::factory()->adviser()->create(['school_id' => 900003, 'organization_id' => $this->psits->id, 'first_name' => 'Pat', 'last_name' => 'Turned']);
+        $this->employee(900003, 'Pat', 'Turned');
+        $token = $this->token($this->invite(['registry_school_id' => 900003])->assertCreated()->json());
+
+        $person->update(['position_title' => 'President']);
+        AccountProfile::where('user_school_id', 900003)->update(['position_title' => 'President']);
+
+        $this->actingAs($person->fresh())->postJson("/api/department-head-invitations/{$token}/claim")
+            ->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 900003, 'organization_id' => $this->home->id]);
     }
 
     public function test_a_disabled_account_the_sao_and_another_colleges_employee_cannot_be_invited(): void

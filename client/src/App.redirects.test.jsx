@@ -10,6 +10,7 @@ function Where({ name }) {
   return <p data-testid="landed">{name} {pathname}{search}</p>;
 }
 
+vi.mock('./pages/auth/AcceptInvitationPage', () => ({ default: () => <Where name="accept" /> }));
 vi.mock('./pages/modules/tasks/TasksPage', () => ({ default: () => <Where name="tasks" /> }));
 vi.mock('./pages/modules/events/EventsPage', () => ({ default: () => <Where name="events" /> }));
 vi.mock('./pages/roles/admin/ManageSboPositionsPage', () => ({ default: () => <Where name="positions" /> }));
@@ -47,5 +48,11 @@ describe('merged and demoted routes', () => {
   ])('leaves %s on %s, which stays a page for that role', async (role, path, name) => {
     visit(role, path);
     expect(await screen.findByTestId('landed')).toHaveTextContent(`${name} ${path}`);
+  });
+
+  // An employee who already has an account signs in first and then opens the staff link, so a signed-in visit must reach it.
+  it('keeps a signed-in person on the invitation page instead of sending them to the dashboard', async () => {
+    visit('ADMIN', '/accept-invitation?token=abc');
+    expect(await screen.findByTestId('landed')).toHaveTextContent('accept /accept-invitation?token=abc');
   });
 });

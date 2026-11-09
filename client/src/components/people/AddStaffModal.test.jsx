@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AddStaffModal from './AddStaffModal';
+import notifyMock from '../../lib/notify';
 
 const college = vi.hoisted(() => ({
   getStaffRecords: vi.fn(),
@@ -157,5 +158,25 @@ describe('AddStaffModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revoke link for Ramon Cruz' }));
     await waitFor(() => expect(college.revokeStaffInvitation).toHaveBeenCalledWith(5));
     await waitFor(() => expect(screen.queryByText('Ramon Cruz')).not.toBeInTheDocument());
+  });
+
+  it('still shows the new link to copy by hand when the clipboard refuses it', async () => {
+    college.getStaffInvitations.mockResolvedValue({ data: { data: [PENDING] } });
+    college.relinkStaffInvitation.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=new' } });
+    navigator.clipboard.writeText.mockRejectedValue(new Error('NotAllowedError'));
+    renderModal();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy link for Ramon Cruz' }));
+
+    const shown = await screen.findByLabelText('New link for Ramon Cruz');
+    expect(shown).toHaveValue('http://localhost/accept-invitation?token=new');
+    expect(shown).toHaveAttribute('readonly');
+    expect(notifyMock.error).toHaveBeenCalledWith('Could not copy the link. Select it and copy it by hand.');
+
+    // A second try copies the same link; it does not make another and kill this one.
+    navigator.clipboard.writeText.mockResolvedValue();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link for Ramon Cruz' }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('http://localhost/accept-invitation?token=new'));
+    expect(college.relinkStaffInvitation).toHaveBeenCalledTimes(1);
   });
 });

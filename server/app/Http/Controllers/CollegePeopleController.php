@@ -6,6 +6,7 @@ use App\Models\College;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
+use App\Support\AdviserPosition;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -58,15 +59,22 @@ class CollegePeopleController extends Controller
         $account = fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id');
         $profile = fn ($query) => $query->select(DB::raw(1))->from('account_profiles')->whereColumn('account_profiles.user_school_id', 'student_registry.school_id');
         $staffRoles = ['ADMIN', 'DEPARTMENT_HEAD'];
+        // A place in a student organization that an adviser title does not excuse, matching isStudentAccount in the invitation controller.
+        $studentOrganization = fn ($query, string $organizationColumn, string $titleColumn) => $query->select(DB::raw(1))->from('organizations')
+            ->whereColumn('organizations.id', $organizationColumn)->where('organizations.organization_type', 'STUDENT_ORGANIZATION')
+            ->where(fn ($title) => AdviserPosition::whereNot($title, $titleColumn));
 
         $available = StudentRegistryEntry::employees()
             ->where('college_id', $college->id)
-            ->where(function ($eligible) use ($account, $profile, $home, $staffRoles) {
+            ->where(function ($eligible) use ($account, $profile, $home, $staffRoles, $studentOrganization) {
                 $eligible->where(fn ($new) => $new->whereNull('claimed_at')->whereNotExists($account))
                     ->orWhere(fn ($existing) => $existing
                         ->whereExists(fn ($user) => $account($user)->where('users.account_status', 'active')->whereNotIn('users.role', ['STUDENT', 'SUPER_ADMIN'])
-                            ->where(fn ($primary) => $primary->where('users.organization_id', '!=', $home->id)->orWhereNotIn('users.role', $staffRoles)))
-                        ->whereNotExists(fn ($query) => $profile($query)->where('account_profiles.account_status', 'active')->whereIn('account_profiles.role', ['STUDENT', 'SBO_OFFICER']))
+                            ->where(fn ($primary) => $primary->where('users.organization_id', '!=', $home->id)->orWhereNotIn('users.role', $staffRoles))
+                            ->whereNotExists(fn ($organization) => $studentOrganization($organization, 'users.organization_id', 'users.position_title')))
+                        ->whereNotExists(fn ($query) => $profile($query)->where('account_profiles.account_status', 'active')->where(fn ($student) => $student
+                            ->whereIn('account_profiles.role', ['STUDENT', 'SBO_OFFICER'])
+                            ->orWhereExists(fn ($organization) => $studentOrganization($organization, 'account_profiles.organization_id', 'account_profiles.position_title'))))
                         ->whereNotExists(fn ($query) => $profile($query)->where('account_profiles.account_status', 'active')->where('account_profiles.organization_id', $home->id)->whereIn('account_profiles.role', $staffRoles)));
             });
 
