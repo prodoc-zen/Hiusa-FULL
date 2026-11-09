@@ -319,8 +319,8 @@ class DepartmentHeadInvitationTest extends TestCase
     {
         $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
 
-        $response = $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'College Secretary']);
-        $response->assertCreated()->assertJsonStructure(['magic_link']);
+        $response = $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'College Secretary', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'clara@example.edu']);
+        $response->assertCreated()->assertJsonStructure(['magic_link'])->assertJsonPath('emailed', false);
         $token = $this->linkToken($response->json());
 
         $this->assertDatabaseHas('department_head_invitations', ['college_id' => $this->college->id, 'role' => 'COLLEGE_STAFF', 'position_title' => 'College Secretary']);
@@ -340,8 +340,8 @@ class DepartmentHeadInvitationTest extends TestCase
     {
         $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
 
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Secretary'])->assertCreated();
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Secretary', 'first_name' => 'Ana', 'last_name' => 'Lim', 'email' => 'ana@example.edu'])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Ben', 'last_name' => 'Tan', 'email' => 'ben@example.edu'])->assertCreated();
 
         $this->assertSame(2, DepartmentHeadInvitation::where('role', 'COLLEGE_STAFF')->count());
     }
@@ -349,7 +349,7 @@ class DepartmentHeadInvitationTest extends TestCase
     public function test_staff_link_needs_a_position_and_a_dean(): void
     {
         $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertJsonValidationErrors('position_title');
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertJsonValidationErrors(['position_title', 'first_name', 'last_name', 'email']);
 
         $admin = User::factory()->admin()->create(['organization_id' => $this->home->id]);
         $this->actingAs($admin)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->assertForbidden();
@@ -361,7 +361,7 @@ class DepartmentHeadInvitationTest extends TestCase
         $otherHome = Organization::create(['name' => 'College of Arts', 'slug' => 'college-of-arts', 'acronym' => 'CAS', 'college' => 'College of Arts', 'college_id' => $other->id, 'organization_type' => 'COLLEGE', 'is_active' => true, 'lifecycle_status' => 'active']);
         $head = User::factory()->departmentHead()->create(['organization_id' => $otherHome->id]);
 
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'college_id' => $this->college->id])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Ana', 'last_name' => 'Lim', 'email' => 'ana@example.edu', 'college_id' => $this->college->id])->assertCreated();
 
         $this->assertDatabaseHas('department_head_invitations', ['college_id' => $other->id, 'role' => 'COLLEGE_STAFF']);
         $this->assertDatabaseMissing('department_head_invitations', ['college_id' => $this->college->id]);

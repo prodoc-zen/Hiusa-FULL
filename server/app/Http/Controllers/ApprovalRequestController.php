@@ -152,7 +152,7 @@ class ApprovalRequestController extends Controller
     /** Requests waiting on the caller's role, narrowed to the organizations the caller may read. */
     private function scopeToAwaiting(Builder $query, User $user, array $organizationIds): void
     {
-        $query->where('required_role', $user->role)
+        $query->where('required_role', $user->approvalRole())
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
 
         if ($user->role !== 'SUPER_ADMIN') {
@@ -192,7 +192,7 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
         }
 
-        if (! $this->canReview($request->user()->role, $approval->required_role) || ($approval->assigned_approver && $approval->assigned_approver !== $request->user()->school_id)) {
+        if (! $this->canReview($request->user()->approvalRole(), $approval->required_role) || ($approval->assigned_approver && $approval->assigned_approver !== $request->user()->school_id)) {
             return response()->json(['message' => 'You are not authorized to review this request.'], 403);
         }
 
@@ -340,8 +340,8 @@ class ApprovalRequestController extends Controller
         $remaining = $budget->recomputedRemaining();
         $budget->update([
             'submission_status' => 'approved',
-            'department_head_approved_by' => $request->user()->role === 'DEPARTMENT_HEAD' ? $request->user()->school_id : $budget->department_head_approved_by,
-            'department_head_approved_at' => $request->user()->role === 'DEPARTMENT_HEAD' ? now() : $budget->department_head_approved_at,
+            'department_head_approved_by' => $request->user()->approvalRole() === 'DEPARTMENT_HEAD' ? $request->user()->school_id : $budget->department_head_approved_by,
+            'department_head_approved_at' => $request->user()->approvalRole() === 'DEPARTMENT_HEAD' ? now() : $budget->department_head_approved_at,
             'remaining_amount' => $remaining,
             'overspending_risk' => Budget::overspendingRiskFor($remaining, (float) $budget->warning_threshold),
         ]);
@@ -353,7 +353,7 @@ class ApprovalRequestController extends Controller
             ->lockForUpdate()
             ->findOrFail($approval->entity_id);
 
-        if ($request->user()->role === 'DEPARTMENT_HEAD') {
+        if ($request->user()->approvalRole() === 'DEPARTMENT_HEAD') {
             $report->update([
                 'submission_status' => 'pending_sao',
                 'department_head_approved_by' => $request->user()->school_id,

@@ -11,7 +11,7 @@ import { getCollegePeople } from '../../../services/collegePeopleService';
 import { removeCollegeStaff } from '../../../services/collegeOrganizationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { storedUser } from '../../../utils/collegeIdentity';
+import { isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
 import { visibleSchoolId } from '../../../utils/schoolId';
 
 const PAGE_SIZE = 20;
@@ -24,7 +24,7 @@ const TABS = [
 
 const EMPTY = {
   students: { title: 'No students yet', description: 'Students show up here once they sign up, or once the school records for your college are loaded.' },
-  staff: { title: 'No office staff yet', description: 'People who can review applications for your college. Add them from the school records.' },
+  staff: { title: 'No office staff yet', description: 'Faculty or other staff you invite by link. They work on every organization in your college.' },
   leaders: { title: 'No organization leaders yet', description: 'Heads and officers appear here once an organization in your college has them.' },
 };
 
@@ -139,12 +139,13 @@ export default function CollegePeoplePage() {
     }
   }
 
-  const collegeId = storedUser()?.organization?.college_id || null;
+  const dean = !isOfficeStaff(storedUser());
+  const collegeId = dean ? storedUser()?.organization?.college_id || null : null;
   const filtersActive = Boolean(query);
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
 
-  const staffActions = (row) => (row.is_lead_head || row.is_you ? null : (
+  const staffActions = (row) => (!dean || row.is_lead_head || row.is_you ? null : (
     <Button variant="secondary" size="sm" onClick={() => setRemoving(row)} aria-label={`Remove ${row.name}`}>Remove</Button>
   ));
 
@@ -152,7 +153,7 @@ export default function CollegePeoplePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="People"
-        primary={tab === 'students' ? (
+        primary={!dean ? undefined : tab === 'students' ? (
           <Button leftIcon={UserPlus} onClick={() => setGranting(true)}>Allow a student to apply</Button>
         ) : tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
       />

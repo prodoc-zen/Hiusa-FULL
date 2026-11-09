@@ -35,100 +35,22 @@ class CollegeStaffDelegationTest extends TestCase
         ]);
     }
 
-    public function test_staff_endpoint_no_longer_creates_accounts_or_default_passwords(): void
+    public function test_staff_endpoint_no_longer_creates_accounts_or_attaches_anyone(): void
     {
         $college = $this->makeCollege('CCS');
         $head = $this->makeCollegeHead($college);
 
         Sanctum::actingAs($head);
 
-        $response = $this->postJson('/api/college/staff', [
+        $this->postJson('/api/college/staff', [
             'school_id' => 20261199,
             'first_name' => 'Clara',
             'last_name' => 'Secretary',
             'email' => 'clara.sec@university.edu.ph',
             'position_title' => 'College Secretary',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        ])->assertStatus(405);
         $this->assertDatabaseMissing('users', ['school_id' => 20261199]);
         $this->assertDatabaseMissing('users', ['email' => 'clara.sec@university.edu.ph']);
-    }
-
-    public function test_department_head_can_assign_existing_user_as_college_staff(): void
-    {
-        $college = $this->makeCollege('CCS');
-        $head = $this->makeCollegeHead($college);
-        $studentOrg = $this->makeCollegeStudentOrganization($college);
-
-        $existingUser = User::factory()->student()->create([
-            'organization_id' => $studentOrg->id,
-            'first_name' => 'Mark',
-            'last_name' => 'Assistant',
-            'email' => 'mark.assistant@university.edu.ph',
-        ]);
-
-        Sanctum::actingAs($head);
-
-        $response = $this->postJson('/api/college/staff', ['school_id' => $existingUser->school_id, 'position_title' => 'Dean Assistant']);
-        $response->assertStatus(201)->assertJsonFragment(['school_id' => $existingUser->school_id, 'name' => 'Mark Assistant', 'role' => 'ADMIN']);
-
-        $home = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->first();
-        $this->assertDatabaseHas('account_profiles', [
-            'user_school_id' => $existingUser->school_id,
-            'organization_id' => $home->id,
-            'role' => 'ADMIN',
-            'position_title' => 'Dean Assistant',
-        ]);
-        $this->assertDatabaseHas('notifications', ['user_id' => $existingUser->school_id, 'title' => 'College Office Role Assigned']);
-        $this->assertSame($studentOrg->id, $existingUser->fresh()->organization_id);
-    }
-
-    public function test_a_person_from_another_college_cannot_be_added_as_staff(): void
-    {
-        $college = $this->makeCollege('CCS');
-        $head = $this->makeCollegeHead($college);
-        $otherCollege = $this->makeCollege('CBA');
-        $otherOrg = $this->makeCollegeStudentOrganization($otherCollege);
-        $outsider = User::factory()->student()->create(['organization_id' => $otherOrg->id]);
-
-        Sanctum::actingAs($head);
-
-        $this->postJson('/api/college/staff', ['school_id' => $outsider->school_id, 'position_title' => 'Clerk'])
-            ->assertUnprocessable()->assertJsonValidationErrors('school_id');
-
-        $home = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->first();
-        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $outsider->school_id, 'organization_id' => $home->id]);
-    }
-
-    public function test_the_same_person_cannot_be_added_twice_and_a_second_dean_cannot_be_made_here(): void
-    {
-        $college = $this->makeCollege('CCS');
-        $head = $this->makeCollegeHead($college);
-        $studentOrg = $this->makeCollegeStudentOrganization($college);
-        $student = User::factory()->student()->create(['organization_id' => $studentOrg->id]);
-
-        Sanctum::actingAs($head);
-
-        $this->postJson('/api/college/staff', ['school_id' => $student->school_id, 'position_title' => 'Clerk', 'role' => 'DEPARTMENT_HEAD'])
-            ->assertCreated()->assertJsonPath('role', 'ADMIN');
-        $this->postJson('/api/college/staff', ['school_id' => $student->school_id, 'position_title' => 'Clerk'])->assertJsonValidationErrors('school_id');
-        $this->postJson('/api/college/staff', ['school_id' => $head->school_id, 'position_title' => 'Clerk'])->assertJsonValidationErrors('school_id');
-        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'role' => 'DEPARTMENT_HEAD']);
-    }
-
-    public function test_an_inactive_account_or_the_sao_cannot_be_added_as_staff(): void
-    {
-        $college = $this->makeCollege('CCS');
-        $head = $this->makeCollegeHead($college);
-        $studentOrg = $this->makeCollegeStudentOrganization($college);
-        $inactive = User::factory()->student()->create(['organization_id' => $studentOrg->id, 'account_status' => 'disabled']);
-        $sao = User::factory()->superAdmin()->create();
-
-        Sanctum::actingAs($head);
-
-        $this->postJson('/api/college/staff', ['school_id' => $inactive->school_id, 'position_title' => 'Clerk'])->assertJsonValidationErrors('school_id');
-        $this->postJson('/api/college/staff', ['school_id' => $sao->school_id, 'position_title' => 'Clerk'])->assertJsonValidationErrors('school_id');
     }
 
     public function test_department_head_cannot_remove_self_from_college_staff(): void

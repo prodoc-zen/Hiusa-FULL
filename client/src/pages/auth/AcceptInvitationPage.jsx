@@ -5,8 +5,9 @@ import AuthField from '../../components/auth/AuthField';
 import ErrorSummary from '../../components/auth/ErrorSummary';
 import PasswordField from '../../components/auth/PasswordField';
 import { Button, ErrorState, Skeleton } from '../../components/ui';
-import { acceptDepartmentHeadInvitation, getDepartmentHeadInvitation } from '../../services/systemAdministrationService';
-import { login } from '../../services/authService';
+import { acceptDepartmentHeadInvitation, claimStaffInvitation, getDepartmentHeadInvitation } from '../../services/systemAdministrationService';
+import { login, switchAccountProfile } from '../../services/authService';
+import { storedUser } from '../../utils/collegeIdentity';
 import { startAuthSession } from '../../utils/authSession';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText.js';
@@ -93,6 +94,10 @@ export default function AcceptInvitationPage() {
       .then((data) => {
         if (!current) return;
         setInvite(data);
+        if (data.invitation?.prefill) {
+          const { first_name: first = '', last_name: last = '', email = '' } = data.invitation.prefill;
+          setValues((existing) => ({ ...existing, first_name: first, last_name: last, email }));
+        }
         setState('ready');
       })
       .catch((cause) => {
@@ -155,7 +160,30 @@ export default function AcceptInvitationPage() {
     }
   }
 
+  async function handleClaim() {
+    setSubmitting(true);
+    setFormError('');
+    try {
+      const claimed = await claimStaffInvitation(token);
+      const switched = await switchAccountProfile(claimed.profile_id);
+      localStorage.setItem('user', JSON.stringify(switched.data.user));
+      navigate(ROLE_HOME[switched.data.user?.role] || '/dashboard', { replace: true });
+    } catch (cause) {
+      const status = cause.response?.status;
+      if (status === 404 || status === 410) {
+        setInvalidReason(invalidKind(cause));
+        setState('invalid');
+      } else {
+        setFormError(getApiErrorMessage(cause, 'We could not accept this invitation. Try again.'));
+      }
+      setSubmitting(false);
+    }
+  }
+
   const record = invite?.invitation?.record || null;
+  const lockedEmail = Boolean(invite?.invitation?.prefill?.email);
+  const existingAccount = Boolean(invite?.invitation?.existing_account);
+  const signedInAsRecord = existingAccount && Boolean(localStorage.getItem('auth_token')) && Number(storedUser()?.school_id) === Number(record?.school_id);
   const summaryItems = [
     ...FIELD_KEYS.filter((key) => errors[key]).map((key) => ({ fieldId: FIELD_IDS[key], message: errors[key] })),
     ...(formError ? [{ message: formError }] : []),
@@ -188,6 +216,24 @@ export default function AcceptInvitationPage() {
             {record ? ' Your name and ID number come from the school records.' : ''}
           </p>
 
+          {existingAccount ? (
+            <div className="mt-6 space-y-4">
+              {signedInAsRecord ? (
+                <>
+                  <ErrorSummary items={formError ? [{ message: formError }] : []} attempt={submits} />
+                  <p className="text-sm text-ink-muted">You already have an account, so nothing new to set up. Accepting adds this role to it.</p>
+                  <Button onClick={handleClaim} loading={submitting} className="w-full">Accept invitation</Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-ink-muted">
+                    This invitation is for {record ? `${record.first_name} ${record.last_name}` : 'someone'}, who already has an account. Sign in with it, then open this link again.
+                  </p>
+                  <Link to="/login" className="inline-block font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
+                </>
+              )}
+            </div>
+          ) : (
           <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
             <ErrorSummary items={summaryItems} attempt={submits} />
             {record ? (
@@ -201,16 +247,19 @@ export default function AcceptInvitationPage() {
                 <AuthField id={FIELD_IDS.last_name} label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
               </>
             )}
-            <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
+            <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} readOnly={lockedEmail} hint={lockedEmail ? 'The invitation was made for this email.' : undefined} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
             <PasswordField id={FIELD_IDS.password} label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
             <PasswordField id={FIELD_IDS.password_confirmation} label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
 
             <Button type="submit" loading={submitting} className="w-full">Create account</Button>
           </form>
+          )}
 
-          <p className="mt-4 border-t border-line pt-4 text-sm text-ink-muted">
-            Already have an account? <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
-          </p>
+          {!existingAccount && (
+            <p className="mt-4 border-t border-line pt-4 text-sm text-ink-muted">
+              Already have an account? <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
+            </p>
+          )}
         </>
       )}
     </AuthLayout>
