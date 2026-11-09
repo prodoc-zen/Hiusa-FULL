@@ -118,6 +118,7 @@ export default function CastVoteRedirectPage() {
                   <StatusBadge label={state.label} tone={STATE_TONES[state.key]} />
                 </div>
                 <dl className="mt-2 space-y-1 text-sm text-ink-muted">
+                  {election.organization?.name && <div className="flex gap-2"><dt className="sr-only">Organization</dt><dd>{formatDisplayText(election.organization.name)}</dd></div>}
                   <div className="flex gap-2"><dt className="sr-only">Voting period</dt><dd>{formatSchedule(election.start_time, election.end_time)}</dd></div>
                   <div className="flex gap-2"><dt className="sr-only">Room</dt><dd>{election.room || 'Online ballot'}</dd></div>
                 </dl>

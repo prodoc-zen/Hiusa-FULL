@@ -343,7 +343,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election']);
+    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable']);
     Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);

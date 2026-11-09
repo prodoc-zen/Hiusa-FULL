@@ -20,6 +20,7 @@ class StudentFeedController extends Controller
 
         $user = $request->user();
         $organizationId = $user->organization_id;
+        $electionOrganizationIds = $user->votingOrganizationIds();
         $perPage = (int) ($data['per_page'] ?? 12);
 
         $announcements = DB::table('announcements')
@@ -38,7 +39,7 @@ class StudentFeedController extends Controller
 
         $elections = DB::table('elections')
             ->selectRaw("'election' as item_type, id as item_id, created_at as sort_at, 0 as is_pinned")
-            ->where('organization_id', $organizationId)
+            ->whereIn('organization_id', $electionOrganizationIds)
             ->where(function ($query) {
                 $query->where('status', 'active')
                     ->where('start_time', '<=', now())
@@ -66,7 +67,7 @@ class StudentFeedController extends Controller
             ->whereIn('id', $rows->where('item_type', 'event')->pluck('item_id'))
             ->get()->keyBy('id');
         $electionModels = Election::withCount(['positions', 'candidates'])
-            ->where('organization_id', $organizationId)
+            ->whereIn('organization_id', $electionOrganizationIds)
             ->whereIn('id', $rows->where('item_type', 'election')->pluck('item_id'))
             ->get()->keyBy('id');
 
@@ -133,12 +134,16 @@ class StudentFeedController extends Controller
             ];
         })->filter()->values();
 
-        $activeElection = Election::withCount(['positions', 'candidates'])
-            ->where('organization_id', $organizationId)
+        $openElections = fn () => Election::withCount(['positions', 'candidates'])
+            ->whereIn('organization_id', $electionOrganizationIds)
             ->where('status', 'active')
             ->where('start_time', '<=', now())
             ->where('end_time', '>=', now())
-            ->orderBy('end_time')->first();
+            ->orderBy('end_time');
+        $activeElection = $openElections()
+            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
+                ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $user->id))
+            ->first() ?? $openElections()->first();
         if ($activeElection) {
             $activeElection->has_voted = Vote::where('voter_id', $user->id)
                 ->where('election_id', $activeElection->id)->exists();
