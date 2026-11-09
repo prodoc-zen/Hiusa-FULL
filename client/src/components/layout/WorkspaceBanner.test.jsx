@@ -67,11 +67,39 @@ describe('WorkspaceBanner', () => {
     expect(screen.queryByRole('button', { name: 'Back to mine' })).not.toBeInTheDocument();
   });
 
-  it('shows nothing while a student is on their own account', async () => {
-    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+  const studentProfile = (id, name, type) => ({ id, role: 'STUDENT', account_status: 'active', organization: { id: id * 10, name, is_active: true, organization_type: type } });
+  const college = studentProfile(1, 'College of Computer Studies', 'COLLEGE');
+  const psits = studentProfile(2, 'PSITS', 'STUDENT_ORGANIZATION');
+
+  it('shows nothing for a student who holds only the college profile', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', active_profile_id: 1 }));
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [college] } });
     renderBanner();
 
-    expect(authMocks.getAccountProfiles).not.toHaveBeenCalled();
+    await waitFor(() => expect(authMocks.getAccountProfiles).toHaveBeenCalled());
     expect(screen.queryByText(/Viewing/)).not.toBeInTheDocument();
+  });
+
+  it('names the organization a student is on and brings them back to the college profile', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', active_profile_id: 2 }));
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 2, profiles: [college, psits] } });
+    authMocks.switchAccountProfile.mockRejectedValue(new Error('offline'));
+    renderBanner();
+
+    expect(await screen.findByText('PSITS')).toBeInTheDocument();
+    expect(screen.getByText(/Organization profile/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to college' }));
+
+    await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
+  });
+
+  it('names the college when a student with an organization profile is on the college profile', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', active_profile_id: 1 }));
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [college, psits] } });
+    renderBanner();
+
+    expect(await screen.findByText('College of Computer Studies')).toBeInTheDocument();
+    expect(screen.getByText(/College profile/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to college' })).not.toBeInTheDocument();
   });
 });
