@@ -65,6 +65,18 @@ describe('ApplicantGrantModal', () => {
     expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeEnabled();
   });
 
+  it('shows why a student who already belongs to an organization cannot be allowed', async () => {
+    mocks.searchPeople.mockResolvedValue([{ ...ana, organizations: [{ id: 7, name: 'Computing Council', position_title: null }] }]);
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+
+    const dialog = await pickAna();
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Ana Cruz already belongs to Computing Council.');
+    expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Ana Cruz' }));
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('starts empty each time it opens', async () => {
     const { rerender } = render(<ApplicantGrantModal open onClose={() => {}} />);
     await pickAna();
