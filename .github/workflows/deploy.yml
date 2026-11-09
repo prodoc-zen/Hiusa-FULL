@@ -80,8 +80,9 @@ jobs:
         run: |
           set -e
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1 || { echo "::error::DEPLOY_SSH_KEY is not a valid private key. Set it from the key file with gh secret set, never by pasting; see docs/AUTO_DEPLOY.md."; exit 1; }
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
