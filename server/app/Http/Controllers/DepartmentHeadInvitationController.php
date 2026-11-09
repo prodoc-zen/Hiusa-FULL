@@ -261,7 +261,7 @@ class DepartmentHeadInvitationController extends Controller
             'first_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'last_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'email' => ['required', 'email', 'max:100', 'unique:users,email', ...($invitation->email ? [Rule::in([$invitation->email])] : [])],
-            'school_id' => [$fromRecord ? 'prohibited' : 'nullable', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id'],
+            'school_id' => [$fromRecord || $invitation->role === self::STAFF ? 'prohibited' : 'nullable', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], ['email.in' => 'Use the email this invitation was made for.']);
 

@@ -54,7 +54,7 @@ class FinancialReportController extends Controller
         if ($request->user()->role === 'SUPER_ADMIN') {
             $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->whereIn('organization_id', FilterValues::values($organizationId)));
             $query->whereNotNull('department_head_approved_at');
-        } elseif ($request->user()->role === 'DEPARTMENT_HEAD') {
+        } elseif ($request->user()->isCollegeOffice()) {
             $query->whereIn('organization_id', $this->readableOrganizationIds($request))
                 ->whereNotNull('submitted_at');
         } else {
@@ -503,7 +503,7 @@ class FinancialReportController extends Controller
 
     private function canAccessReport(Request $request, FinancialReport $report): bool
     {
-        return match ($request->user()->role) {
+        return match ($request->user()->approvalRole()) {
             'ADMIN', 'SBO_OFFICER' => $report->organization_id === $request->user()->organization_id,
             'DEPARTMENT_HEAD' => in_array($report->organization_id, $request->user()->scopedOrganizationIds(), true)
                 && $report->submitted_at !== null,
