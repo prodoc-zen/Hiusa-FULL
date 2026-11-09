@@ -62,7 +62,7 @@ class OrganizationApplicationController extends Controller
     public function mine(Request $request)
     {
         $user = $request->user();
-        $grant = OrganizationApplicantGrant::open()->where('user_school_id', $user->school_id)->with('college:id,name')->orderBy('id')->first();
+        $grant = OrganizationApplicantGrant::usable()->where('user_school_id', $user->school_id)->with('college:id,name')->orderBy('id')->first();
         [$semester, $types] = $grant ? $this->registrationRequirements($request) : [null, collect()];
         $applications = OrganizationApplication::where('school_id', $user->school_id)->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)
             ->with('college:id,name')->latest('id')->get();
@@ -80,6 +80,9 @@ class OrganizationApplicationController extends Controller
     {
         $user = $request->user();
         abort_unless(OrganizationApplicantGrant::open()->where('user_school_id', $user->school_id)->exists(), 403, 'Ask your Department Head to allow you to apply.');
+        if ($organization = OrganizationApplicantGrant::blockingOrganization($user->school_id)) {
+            return response()->json(['message' => "This student already belongs to {$organization->name}."], 422);
+        }
         [$semester, $types] = $this->registrationRequirements($request);
         if (! $semester || $types->isEmpty()) {
             return response()->json(['message' => self::NO_REQUIREMENTS], 422);
@@ -100,6 +103,9 @@ class OrganizationApplicationController extends Controller
             $application = DB::transaction(function () use ($data, $request, $user, $semester, $types, &$stored) {
                 $grant = OrganizationApplicantGrant::open()->where('user_school_id', $user->school_id)->orderBy('id')->lockForUpdate()->first();
                 abort_unless($grant, 403, 'Ask your Department Head to allow you to apply.');
+                if ($organization = OrganizationApplicantGrant::blockingOrganization($user->school_id)) {
+                    throw ValidationException::withMessages(['name' => "This student already belongs to {$organization->name}."]);
+                }
                 College::whereKey($grant->college_id)->where('is_active', true)->lockForUpdate()->firstOrFail();
                 abort_unless($this->applicationSemester($request)?->id === $semester->id
                     && $this->registrationRequirements($request)[1]->pluck('id')->all() === $types->pluck('id')->all(), 409, 'The requirements changed. Reload the page.');

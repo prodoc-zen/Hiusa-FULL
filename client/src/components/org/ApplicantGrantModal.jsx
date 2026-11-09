@@ -17,6 +17,10 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
     }
   }, [open]);
 
+  // A student who already belongs to a student organization cannot start a new one; the server refuses too.
+  const member = person?.organizations?.[0];
+  const reason = member ? `${person.name} already belongs to ${member.name}.` : '';
+
   async function allow() {
     setBusy(true);
     setError('');
@@ -42,7 +46,7 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={allow} loading={busy} disabled={!person}>Allow to apply</Button>
+          <Button onClick={allow} loading={busy} disabled={!person || Boolean(reason)}>Allow to apply</Button>
         </>
       )}
     >
@@ -56,6 +60,7 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
           value={person}
           onSelect={setPerson}
         />
+        {reason && <p role="alert" className="text-sm font-semibold text-danger-strong">{reason}</p>}
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </div>
     </Drawer>

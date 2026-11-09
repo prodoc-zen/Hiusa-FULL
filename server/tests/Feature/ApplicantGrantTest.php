@@ -52,12 +52,38 @@ class ApplicantGrantTest extends TestCase
         $this->getJson('/api/my/organization-applications')->assertOk()->assertJsonPath('can_apply', true);
     }
 
-    public function test_a_student_holding_a_profile_in_one_of_the_colleges_student_organizations_can_be_picked(): void
+    public function test_a_student_already_in_a_student_organization_cannot_be_granted(): void
     {
-        $organization = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        $organization = Organization::factory()->create(['name' => 'Computing Council', 'college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
         $student = $this->student();
         AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->postJson('/api/college/applicant-grants', ['school_id' => $student->school_id])->assertUnprocessable()
+            ->assertJsonValidationErrors(['school_id' => 'This student already belongs to Computing Council.']);
+        $this->assertDatabaseCount('organization_applicant_grants', 0);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $student->school_id, 'reference_type' => 'organization_applicant_grant']);
+    }
+
+    public function test_a_lapsed_or_archived_membership_does_not_block_a_grant(): void
+    {
+        $archived = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'archived']);
+        $active = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        $student = $this->student();
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $archived->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $active->id, 'role' => 'STUDENT', 'account_status' => 'disabled']);
+
         $this->postJson('/api/college/applicant-grants', ['school_id' => $student->school_id])->assertCreated();
+    }
+
+    public function test_an_open_grant_is_not_honoured_once_the_student_joins_an_organization(): void
+    {
+        $student = $this->student();
+        $this->postJson('/api/college/applicant-grants', ['school_id' => $student->school_id])->assertCreated();
+        $organization = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        Sanctum::actingAs($student);
+        $this->getJson('/api/my/organization-applications')->assertOk()->assertJsonPath('can_apply', false);
     }
 
     public function test_the_grant_is_refused_for_anyone_outside_the_college_or_who_is_not_an_active_student(): void
