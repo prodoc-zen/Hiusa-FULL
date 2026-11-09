@@ -40,7 +40,7 @@ if (/hiusa\.space/i.test(BASE)) {
 }
 fs.mkdirSync(SHOTS, { recursive: true });
 
-const DIGITS = SUFFIX.replace(/\D/g, '') || '0000';
+const DIGITS = SUFFIX.replace(/[^0-9A-Za-z]/g, '').toUpperCase().replace(/^R/, '') || '0000';
 const COLLEGE = { name: `Rehearsal College ${SUFFIX}`, code: `RHR${DIGITS}` };
 const ORG = { name: `Rehearsal Society ${SUFFIX}`, acronym: `RSR${DIGITS}`, purpose: 'Rehearsal organization for the dean check. Synthetic data.' };
 const ID_BASE = Number(process.env.ID_BASE || 25991100);
@@ -1246,20 +1246,25 @@ await step('election_handover', 'In the org: an election for President with cand
   await cast('c', 'b');
   rec.evidence.push('A, B and C voted');
 
+  // C is the plain member: a STUDENT profile in the organization, no officer access, found the election and voted from where they land.
+  const memberProfile = ((await api('c', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name);
+  rec.evidence.push(`member C holds ${memberProfile ? `${memberProfile.role} in the organization` : 'no profile in the organization'} and voted`);
+  if (memberProfile?.role !== 'STUDENT') rec.defect('app_bug', `The member C has ${memberProfile?.role ?? 'no'} access, not the plain STUDENT member profile, so the rehearsal did not prove a member can vote.`, ['server/app/Http/Controllers/AccountProfileController.php']);
+  const voters = (await api('a', 'GET', `/elections/${election.id}/voters`)).body?.summary;
+  if (voters) {
+    rec.evidence.push(`turnout ${voters.voted_count} of ${voters.eligible_total} eligible voters`);
+    if (voters.voted_count !== voters.eligible_total) rec.defect('app_bug', `${voters.eligible_total} members are eligible but ${voters.voted_count} votes were counted.`, ['server/app/Http/Controllers/ElectionController.php', 'server/app/Models/AccountProfile.php']);
+  } else rec.notes.push('the voters summary was not readable by A, so turnout was not compared with the eligible count');
+
   if (process.env.ELECTION_UNTIL === 'vote') return;
 
   // 6. The window ends, the scheduler closes it, A releases the results, the winner gets access.
   const secondsToEnd = Math.max(0, (new Date(election.end_time).getTime() - Date.now()) / 1000);
   rec.notes.push(`waiting ${Math.round(secondsToEnd)}s for the voting window to end`);
-  election = await waitForElection('a', 'closed', secondsToEnd + 150, rec);
-  await openElectionAsAdmin(aPage, rec, election);
-  if (await aPage.getByRole('button', { name: 'Release results' }).count()) {
-    await shot('a', 'before-release', rec);
-    await aPage.getByRole('button', { name: 'Release results' }).click();
-    await waitSettled(aPage);
-    await aPage.waitForTimeout(1500);
-  }
-  await verifyHandover(rec, 'a', aPage);
+  // The close, the released results and the head access for the winner happen in one move, and the outgoing head loses the
+  // workspace in that same move (their API reads answer 403), so the dean watches for the close and the winner checks it.
+  election = await waitForElection('dean', 'closed', secondsToEnd + 150, rec);
+  await verifyHandover(rec, 'c', await switchToOrganization('c', rec));
 });
 
 // ---------------------------------------------------------------- records
