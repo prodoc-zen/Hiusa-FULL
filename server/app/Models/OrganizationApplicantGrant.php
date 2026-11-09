@@ -31,9 +31,33 @@ class OrganizationApplicantGrant extends Model
     /** The active student organization this student already belongs to, if any. Their college home organization does not count. */
     public static function blockingOrganization(int $schoolId): ?Organization
     {
-        $organizationId = self::activeMemberships(DB::query())->where('account_profiles.user_school_id', $schoolId)->orderBy('account_profiles.id')->value('account_profiles.organization_id');
+        $organization = self::blockingOrganizations([$schoolId])[$schoolId] ?? null;
 
-        return $organizationId ? Organization::find($organizationId, ['id', 'name']) : null;
+        return $organization ? (new Organization)->forceFill($organization) : null;
+    }
+
+    /**
+     * The same rule for several students at once, for the people search: school id => ['id', 'name'] of the first
+     * active student organization each belongs to. Students who belong to none are left out.
+     *
+     * @param  array<int, int>  $schoolIds
+     * @return array<int, array{id: int, name: string}>
+     */
+    public static function blockingOrganizations(array $schoolIds): array
+    {
+        if ($schoolIds === []) {
+            return [];
+        }
+
+        $blocking = [];
+        $rows = self::activeMemberships(DB::query())->whereIn('account_profiles.user_school_id', $schoolIds)->orderBy('account_profiles.id')
+            ->get(['account_profiles.user_school_id', 'organizations.id as organization_id', 'organizations.name']);
+
+        foreach ($rows as $row) {
+            $blocking[(int) $row->user_school_id] ??= ['id' => (int) $row->organization_id, 'name' => $row->name];
+        }
+
+        return $blocking;
     }
 
     private static function activeMemberships($query)

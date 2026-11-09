@@ -17,9 +17,9 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
     }
   }, [open]);
 
-  // A student who already belongs to a student organization cannot start a new one; the server refuses too.
-  const member = person?.organizations?.[0];
-  const reason = member ? `${person.name} already belongs to ${member.name}.` : '';
+  // The server names the active organization that stops a new application (blocked_by), by the same rule it applies when saving.
+  const blocker = person?.blocked_by;
+  const reason = blocker ? `${person.name} already belongs to ${blocker.name}.` : '';
 
   async function allow() {
     setBusy(true);

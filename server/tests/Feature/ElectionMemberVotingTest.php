@@ -16,10 +16,10 @@ use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 /**
- * A member joins an organization through a student profile there while their own account stays in the college, so they
- * land on the "My account" workspace (their college home profile), not in the organization. The organization's open
- * election must still be listed for them, readable, and votable from there, and the voter list the officers see must
- * count exactly the people the ballot lets in.
+ * A member joins an organization through a student profile there while their own account stays in the college. Each
+ * profile votes in its own organization only: the member switches into the organization's profile to see, read and
+ * vote in its open election, and their college profile lists only the college-wide election. The voter list the
+ * officers see must count exactly the people the ballot lets in.
  */
 class ElectionMemberVotingTest extends TestCase
 {
@@ -78,15 +78,33 @@ class ElectionMemberVotingTest extends TestCase
         return $member;
     }
 
+    /** The next requests are made as the member's profile in `$organization` (the organization profile after the switch), or as their account when they hold none there. */
+    private function actAsProfileIn(User $member, ?Organization $organization = null): void
+    {
+        $this->app['auth']->forgetGuards();
+        unset($this->defaultHeaders['Authorization']);
+        $profile = AccountProfile::where('user_school_id', $member->school_id)->where('organization_id', ($organization ?? $this->organization)->id)->where('account_status', 'active')->first();
+
+        if (! $profile) {
+            Sanctum::actingAs($member);
+
+            return;
+        }
+
+        $token = $member->createToken('member-voting');
+        $token->accessToken->forceFill(['account_profile_id' => $profile->id])->save();
+        $this->withToken($token->plainTextToken);
+    }
+
     private function ballot(): array
     {
         return ['votes' => [['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id]]];
     }
 
-    public function test_a_member_sees_the_organizations_open_election_from_their_own_workspace(): void
+    public function test_a_member_sees_the_organizations_open_election_from_the_organization_profile(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $response = $this->getJson('/api/elections')->assertOk();
 
@@ -96,7 +114,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_a_member_reads_the_ballot_and_its_candidates(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $this->getJson("/api/elections/{$this->election->id}")
             ->assertOk()
@@ -110,7 +128,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_a_member_casts_one_ballot_and_a_second_is_refused(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk()->assertJsonPath('success', true);
         $this->assertDatabaseHas('votes', ['election_id' => $this->election->id, 'voter_id' => $member->school_id]);
@@ -124,10 +142,21 @@ class ElectionMemberVotingTest extends TestCase
     public function test_after_voting_the_member_sees_their_receipt_on_the_election(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
 
         $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonCount(1, 'my_votes');
+    }
+
+    public function test_the_college_profile_does_not_vote_in_the_organizations_election(): void
+    {
+        $member = $this->collegeMember();
+        Sanctum::actingAs($member);
+
+        $this->assertSame([], $this->getJson('/api/elections')->assertOk()->json());
+        $this->getJson("/api/elections/{$this->election->id}")->assertNotFound();
+        $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertNotFound();
+        $this->assertDatabaseCount('votes', 0);
     }
 
     public function test_a_student_of_the_college_with_no_profile_in_the_organization_cannot_see_or_vote(): void
@@ -163,7 +192,7 @@ class ElectionMemberVotingTest extends TestCase
         $this->assertDatabaseCount('votes', 0);
     }
 
-    public function test_a_member_of_two_organizations_sees_both_elections_and_none_of_a_third(): void
+    public function test_a_member_of_two_organizations_sees_each_election_from_its_own_profile_and_none_of_a_third(): void
     {
         $member = $this->collegeMember();
         $second = $this->makeCollegeStudentOrganization(College::first());
@@ -177,19 +206,19 @@ class ElectionMemberVotingTest extends TestCase
             'organization_id' => $third->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour(),
             'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
         ]);
-        Sanctum::actingAs($member);
 
-        $ids = collect($this->getJson('/api/elections')->assertOk()->json())->pluck('id')->sort()->values()->all();
-
-        $this->assertSame([$this->election->id, $secondElection->id], $ids);
-        $this->getJson("/api/elections/{$thirdElection->id}")->assertNotFound();
+        foreach ([[$this->organization, $this->election], [$second, $secondElection]] as [$organization, $election]) {
+            $this->actAsProfileIn($member, $organization);
+            $this->assertSame([$election->id], collect($this->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
+            $this->getJson("/api/elections/{$thirdElection->id}")->assertNotFound();
+        }
     }
 
     public function test_a_member_still_cannot_see_an_election_that_is_not_open_or_released(): void
     {
         $member = $this->collegeMember();
         $this->election->update(['status' => 'upcoming', 'finalized_at' => null]);
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $this->assertSame([], $this->getJson('/api/elections')->assertOk()->json());
         $this->getJson("/api/elections/{$this->election->id}")->assertForbidden();
@@ -198,7 +227,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_the_members_home_feed_offers_the_organizations_open_election(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $feed = $this->getJson('/api/student/feed')->assertOk();
 
@@ -211,7 +240,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_the_members_briefing_says_to_vote_and_stops_once_they_have(): void
     {
         $member = $this->collegeMember();
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $briefing = $this->getJson('/api/dashboard/briefing')->assertOk();
         $this->assertContains('election-'.$this->election->id, collect($briefing->json('attention'))->pluck('id')->all());
@@ -222,7 +251,7 @@ class ElectionMemberVotingTest extends TestCase
         $this->assertNotContains('election-'.$this->election->id, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('id')->all());
     }
 
-    public function test_voting_in_the_election_that_ends_first_keeps_the_second_open_election_on_the_members_home(): void
+    public function test_voting_in_one_organization_leaves_the_other_organizations_election_open_on_its_own_profile(): void
     {
         $member = $this->collegeMember();
         $second = $this->makeCollegeStudentOrganization(College::first());
@@ -231,13 +260,16 @@ class ElectionMemberVotingTest extends TestCase
             'organization_id' => $second->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHours(5),
             'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
         ]);
-        Sanctum::actingAs($member);
+        $this->actAsProfileIn($member);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
 
         $attention = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('id')->all();
-        $this->assertContains('election-'.$secondElection->id, $attention);
         $this->assertNotContains('election-'.$this->election->id, $attention);
+
+        $this->actAsProfileIn($member, $second);
+        $attention = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('id')->all();
+        $this->assertContains('election-'.$secondElection->id, $attention);
 
         $feed = $this->getJson('/api/student/feed')->assertOk();
         $this->assertSame($secondElection->id, $feed->json('sidebar.active_election.id'));
@@ -278,7 +310,7 @@ class ElectionMemberVotingTest extends TestCase
 
         $admitted = [];
         foreach ($people as $user) {
-            Sanctum::actingAs($user);
+            $this->actAsProfileIn($user);
             if ($this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->status() === 200) {
                 $admitted[] = $user->school_id;
             }
