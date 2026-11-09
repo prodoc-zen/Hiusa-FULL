@@ -245,8 +245,9 @@ function App() {
         <Route path="/sign-up" element={<StudentSignUpPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
+      {/* Outside the signed-out group: an employee who already has an account signs in first, then opens the staff link. */}
+      <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       
 
       {/* Dashboard Pages */}

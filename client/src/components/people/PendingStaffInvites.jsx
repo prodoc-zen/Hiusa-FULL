@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy } from 'lucide-react';
-import { Button, ErrorState, Skeleton } from '../ui';
+import { Button, ErrorState, Input, Skeleton } from '../ui';
 import notify from '../../lib/notify';
 import { getStaffInvitations, relinkStaffInvitation, revokeStaffInvitation } from '../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -13,6 +13,7 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [links, setLinks] = useState({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -24,15 +25,29 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
 
   useEffect(() => { load(); }, [load, reloadKey]);
 
+  // The new link is kept on screen as soon as it exists: making it kills the old one, so if the clipboard refuses
+  // (Safari on a phone often does after a network wait) the dean can still select it and copy it by hand.
   async function copy(invite) {
     setBusyId(invite.id);
+    let link = links[invite.id];
     try {
-      const response = await relinkStaffInvitation(invite.id);
-      await navigator.clipboard.writeText(response.data.magic_link);
-      notify.success(`The link for ${invite.name} is copied. The earlier link no longer works.`);
-      load();
+      if (!link) {
+        const response = await relinkStaffInvitation(invite.id);
+        link = response.data.magic_link;
+        setLinks((existing) => ({ ...existing, [invite.id]: link }));
+        load();
+      }
     } catch (cause) {
-      notify.error(getApiErrorMessage(cause, 'Could not copy the link. Try again.'));
+      notify.error(getApiErrorMessage(cause, 'Could not make a new link. Try again.'));
+      setBusyId(null);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(link);
+      notify.success(`The link for ${invite.name} is copied. The earlier link no longer works.`);
+    } catch {
+      notify.error('Could not copy the link. Select it and copy it by hand.');
     } finally {
       setBusyId(null);
     }
@@ -42,6 +57,7 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
     setBusyId(invite.id);
     try {
       await revokeStaffInvitation(invite.id);
+      setLinks((existing) => Object.fromEntries(Object.entries(existing).filter(([id]) => Number(id) !== invite.id)));
       notify.success(`The link for ${invite.name} no longer works.`);
       load();
     } catch (cause) {
@@ -69,6 +85,11 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
               <Button variant="secondary" size="sm" leftIcon={Copy} loading={busyId === invite.id} onClick={() => copy(invite)} aria-label={`Copy link for ${invite.name}`}>Copy link</Button>
               <Button variant="secondary" size="sm" disabled={busyId === invite.id} onClick={() => revoke(invite)} aria-label={`Revoke link for ${invite.name}`}>Revoke</Button>
             </div>
+            {links[invite.id] && (
+              <div className="w-full">
+                <Input readOnly value={links[invite.id]} aria-label={`New link for ${invite.name}`} onFocus={(event) => event.target.select()} />
+              </div>
+            )}
           </li>
         ))}
       </ul>

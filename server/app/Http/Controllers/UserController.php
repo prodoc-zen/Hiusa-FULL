@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\Edp\StudentSignup;
 use App\Services\PasswordResetService;
+use App\Support\AdviserPosition;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -157,7 +158,7 @@ class UserController extends Controller
             return response()->json(['message' => 'SBO Officers can create Student accounts only.'], 403);
         }
 
-        if ($validatedData['role'] === 'ADMIN' && $this->isAdviserPosition($validatedData['position_title'] ?? null)) {
+        if ($validatedData['role'] === 'ADMIN' && AdviserPosition::is($validatedData['position_title'] ?? null)) {
             return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
@@ -444,7 +445,7 @@ class UserController extends Controller
         }
 
         if ($user->role === 'ADMIN') {
-            if ($this->isAdviserPosition($user->position_title) || (array_key_exists('position_title', $validatedData) && $this->isAdviserPosition($validatedData['position_title']))) {
+            if (AdviserPosition::is($user->position_title) || (array_key_exists('position_title', $validatedData) && AdviserPosition::is($validatedData['position_title']))) {
                 return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
             }
 
@@ -462,7 +463,7 @@ class UserController extends Controller
         }
 
         if (($validatedData['role'] ?? $user->role) === 'ADMIN'
-            && $this->isAdviserPosition($validatedData['position_title'] ?? $user->position_title)) {
+            && AdviserPosition::is($validatedData['position_title'] ?? $user->position_title)) {
             return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
@@ -1034,11 +1035,6 @@ class UserController extends Controller
         $data['position_title'] = $positionTitle;
 
         return $data;
-    }
-
-    private function isAdviserPosition(mixed $title): bool
-    {
-        return in_array(strtolower(trim((string) $title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
     }
 
     private function normalizeAcademicPayload(array $data, User $actor, ?User $existingUser = null): array
