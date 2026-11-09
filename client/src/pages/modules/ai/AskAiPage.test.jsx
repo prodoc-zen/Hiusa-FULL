@@ -171,6 +171,23 @@ describe('AskAiPage', () => {
     expect(screen.getAllByText(/Not submitted: Constitution & By-Laws/i).length).toBeGreaterThan(0);
   });
 
+  it('folds the suggested questions behind a toggle on a phone while the briefing is showing', async () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard/ask-ai']}>
+        <AskAiPage />
+      </MemoryRouter>
+    );
+
+    const toggle = await screen.findByRole('button', { name: 'Show suggested questions' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const suggestion = screen.getAllByRole('button', { name: /Who hasn't submitted requirements\?/i })[0];
+    expect(suggestion.closest('[class~="max-sm:hidden"]')).not.toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Hide suggested questions' })).toHaveAttribute('aria-expanded', 'true');
+    expect(suggestion.closest('[class~="max-sm:hidden"]')).toBeNull();
+  });
+
   it('automatically executes a question passed via the URL query string from the dashboard', async () => {
     render(
       <MemoryRouter

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { PhoneFold } from '../../../components/dashboard';
 import { Button, ErrorState, PageHeader, Skeleton, StatusBadge } from '../../../components/ui';
 import { askAiAssistant, getAiAssistantOverview } from '../../../services/askAiService';
 
@@ -151,25 +152,25 @@ function EvidenceSection({ section, onSelectFollowUp }) {
           </thead>
           <tbody className="block divide-y divide-line sm:table-row-group">
             {rows.map((row) => {
-              const cell = 'flex items-center justify-between gap-3 px-3 py-1.5 before:text-xs before:text-ink-muted before:content-[attr(data-label)] sm:table-cell sm:py-2.5 sm:before:hidden';
+              const cell = 'px-3 py-0 max-sm:px-0 max-sm:empty:hidden sm:table-cell sm:py-2.5';
 
               return (
-                <tr key={row.id} className="block py-2 hover:bg-subtle sm:table-row sm:py-0">
-                  <td data-label="Record" className={`${cell} font-medium text-ink`}>
+                <tr key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 py-3 hover:bg-subtle sm:table-row sm:py-0">
+                  <td data-label="Record" className={`${cell} font-medium text-ink max-sm:col-span-2 max-sm:row-start-1`}>
                     {plainText(row.primary)}
                   </td>
-                  <td data-label="Details" className={`${cell} text-ink-muted-strong`}>
+                  <td data-label="Details" className={`${cell} text-xs text-ink-muted-strong max-sm:col-span-3 max-sm:row-start-2 sm:text-sm`}>
                     {plainText(row.secondary) || ''}
                   </td>
-                  <td data-label="Status" className={cell}>
+                  <td data-label="Status" className={`${cell} max-sm:row-start-3 max-sm:self-center`}>
                     {row.status ? (
                       <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
                     ) : ''}
                   </td>
-                  <td data-label="Count" className={`${cell} tabular-nums text-ink`}>
+                  <td data-label="Count" className={`${cell} tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
                     {plainText(row.meta) || ''}
                   </td>
-                  <td className={`${cell} sm:text-right`}>
+                  <td className={`${cell} max-sm:col-start-3 max-sm:row-start-1 sm:text-right`}>
                     {row.href ? (
                       <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
                         {row.action_label || 'Open'}
@@ -385,6 +386,29 @@ export default function AskAiPage() {
       }
     : null;
 
+  const suggestedQuestionList = (
+    <>
+      <div className="mb-2 mt-2 text-xs text-ink-muted-strong sm:mt-0">
+        Suggested questions
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {suggestedQuestions.map((item) => (
+          <Button
+            key={item.id}
+            variant="secondary"
+            size="sm"
+            disabled={asking}
+            onClick={() => runQuestion(item.question, item.topic)}
+            className="h-auto min-h-9 text-left max-sm:min-h-11"
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+    </>
+  );
+  const answerShowing = turns.length > 0 || Boolean(defaultTurn);
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -423,27 +447,13 @@ export default function AskAiPage() {
           </p>
         )}
 
-        {suggestedQuestions.length > 0 && (
-          <div className="mt-4">
-            <div className="mb-2 text-xs text-ink-muted-strong">
-              Suggested questions
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {suggestedQuestions.map((item) => (
-                <Button
-                  key={item.id}
-                  variant="secondary"
-                  size="sm"
-                  disabled={asking}
-                  onClick={() => runQuestion(item.question, item.topic)}
-                  className="h-auto min-h-9 text-left max-sm:min-h-11"
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+        {suggestedQuestions.length > 0 && (answerShowing ? (
+          <div className="mt-2 sm:mt-4">
+            <PhoneFold label="Show suggested questions" hideLabel="Hide suggested questions" className="px-0!">
+              {suggestedQuestionList}
+            </PhoneFold>
           </div>
-        )}
+        ) : <div className="mt-4">{suggestedQuestionList}</div>)}
       </section>
 
       <div className="space-y-4">

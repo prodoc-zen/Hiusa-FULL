@@ -91,15 +91,17 @@ export default function SaoUsersPage() {
       header: 'User',
       render: (user) => (
         <span className="block min-w-0">
-          <span className="block font-medium text-ink">{fullName(user)}</span>
-          <span className="block break-words text-xs text-ink-muted md:whitespace-nowrap">{user.email}</span>
+          <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">
+            <span className="font-medium text-ink">{fullName(user)}</span>
+            {user.account_status && user.account_status !== 'active' && <StatusBadge status={user.account_status} />}
+          </span>
+          <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]">{user.email}</span>
           {visibleSchoolId(user.school_id) && <span className="block text-xs tabular-nums text-ink-muted">ID {user.school_id}</span>}
         </span>
       ),
     },
-    { key: 'organization', header: 'Organization', render: (user) => user.organization?.name || '' },
+    { key: 'organization', header: 'Organization', className: 'md:min-w-56', render: (user) => user.organization?.name || '' },
     { key: 'role', header: 'Role', render: (user) => [...new Set([user.role, ...(user.profile_roles || [])])].map((role) => ROLE_NAMES[role] || role).join(', ') },
-    { key: 'status', header: 'Status', render: (user) => (user.account_status && user.account_status !== 'active' ? <StatusBadge status={user.account_status} /> : null) },
   ];
 
   return <div className="space-y-5 pb-8">

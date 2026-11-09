@@ -42,6 +42,23 @@ describe('StudentHomePage', () => {
     expect(screen.queryByText('You’re all caught up.')).not.toBeInTheDocument();
   });
 
+  it('opens a phone on the newest post and shows the rest after one tap', async () => {
+    getStudentFeed.mockResolvedValue({
+      organization: { id: 1, name: 'HIUSA Student Council', acronym: 'HIUSA' },
+      items: [1, 2, 3, 4].map((id) => ({ key: `announcement-${id}`, type: 'announcement', sort_at: new Date().toISOString(), is_pinned: false, data: { id, title: `Post number ${id}`, body: 'Body text for the post.', is_important: false } })),
+      sidebar: { active_election: null, upcoming_events: [] },
+      pagination: { current_page: 1, has_more: false, next_page: null },
+    });
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+
+    const hiddenOnPhone = () => screen.getAllByRole('heading', { level: 3 }).filter((heading) => heading.closest('[class~="max-sm:hidden"]'));
+    await screen.findByRole('region', { name: 'Organization feed' });
+    expect(hiddenOnPhone().map((heading) => heading.textContent)).toEqual(['Post Number 2', 'Post Number 3', 'Post Number 4']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more posts' }));
+    expect(hiddenOnPhone()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Show more posts' })).not.toBeInTheDocument();
+  });
+
   it('shows owed balance and clearance cues as links, with no Tasks pillar', async () => {
     vi.mocked(getBriefing).mockResolvedValueOnce({ data: {
       user: { first_name: 'Ana', role: 'STUDENT', organization: { id: 1, name: 'Supreme Student Council' } },
@@ -129,7 +146,9 @@ describe('StudentHomePage', () => {
   it('offers voting as one plain link while an election is open, and says so after the vote', async () => {
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: false }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
     const { unmount } = render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
-    expect(await screen.findByRole('link', { name: 'Vote now' })).toHaveAttribute('href', '/elections/4/vote');
+    const voteLink = await screen.findByRole('link', { name: 'Vote now' });
+    expect(voteLink).toHaveAttribute('href', '/elections/4/vote');
+    expect(voteLink.closest('[class~="max-sm:hidden"]')).toBeNull();
     unmount();
 
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: true }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });

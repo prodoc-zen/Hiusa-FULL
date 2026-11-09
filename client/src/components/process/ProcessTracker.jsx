@@ -121,6 +121,8 @@ function CollegeList({ colleges }) {
 export default function ProcessTracker({ className = '' }) {
   const [state, setState] = useState({ loading: true, error: false, data: null });
   const epoch = useRef(0);
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const stepsId = useId();
 
   const load = useCallback(({ silent = false } = {}) => {
     if (!silent) {
@@ -179,7 +181,20 @@ export default function ProcessTracker({ className = '' }) {
         <h2 className="text-base font-semibold text-ink">{data.title}</h2>
         {position > 0 && <p className="text-xs text-ink-muted-strong">Step {position} of {data.steps.length}</p>}
       </div>
-      <Steps steps={data.steps} ariaLabel={data.title} />
+      {/* On a phone the next-step row below already names the current step, so the full list waits behind a tap. */}
+      <div id={stepsId} className={stepsOpen ? '' : 'max-md:hidden'}>
+        <Steps steps={data.steps} ariaLabel={data.title} />
+      </div>
+      <button
+        type="button"
+        onClick={() => setStepsOpen((value) => !value)}
+        aria-expanded={stepsOpen}
+        aria-controls={stepsId}
+        className="-mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-control px-2 text-sm font-medium text-brand-700 hover:bg-subtle md:hidden"
+      >
+        {stepsOpen ? 'Hide steps' : 'Show all steps'}
+        <ChevronDown size={16} aria-hidden="true" className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${stepsOpen ? 'rotate-180' : ''}`} />
+      </button>
       <NextAction steps={data.steps} />
       {data.colleges?.length > 0 && <CollegeList colleges={data.colleges} />}
     </section>

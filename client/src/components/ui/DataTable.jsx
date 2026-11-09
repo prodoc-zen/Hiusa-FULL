@@ -19,6 +19,10 @@ function isNumeric(column) {
   return column.align === 'right' || column.numeric === true;
 }
 
+function cellValue(column, row) {
+  return column.render ? column.render(row) : row[column.key];
+}
+
 export default function DataTable({
   columns,
   rows,
@@ -172,19 +176,31 @@ export default function DataTable({
       </div>
 
       <ul className="flex flex-col divide-y divide-line-soft md:hidden" data-view="cards">
-        {visibleRows.map((row) => (
-          <li key={rowKey(row)} className="py-3 first:pt-0 last:pb-0">
-            <dl className="flex flex-col gap-2">
-              {columns.map((column) => (
-                <div key={column.key} className="flex items-start justify-between gap-3">
-                  <dt className="text-xs font-semibold text-ink-muted">{column.header}</dt>
-                  <dd className={`text-right text-sm font-normal text-ink ${isNumeric(column) ? 'tabular-nums' : ''}`}>{column.render ? column.render(row) : row[column.key]}</dd>
-                </div>
-              ))}
-            </dl>
-            {actions && <div className="mt-3 flex items-center justify-end gap-2 border-t border-line-soft pt-3">{actions(row)}</div>}
-          </li>
-        ))}
+        {visibleRows.map((row) => {
+          const [primary, ...rest] = columns.filter((column) => column.key !== 'actions');
+          const actionColumn = columns.find((column) => column.key === 'actions');
+          const secondary = rest
+            .map((column) => ({ column, value: cellValue(column, row) }))
+            .filter(({ value }) => value != null && value !== '' && value !== false);
+          return (
+            <li key={rowKey(row)} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="min-w-0 flex-1">
+                <div className="break-words text-sm font-medium text-ink">{cellValue(primary, row)}</div>
+                {secondary.length > 0 && (
+                  <dl className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
+                    {secondary.map(({ column, value }) => (
+                      <div key={column.key} className="flex min-w-0 items-center gap-1">
+                        <dt className="font-semibold">{column.header}</dt>
+                        <dd className={`min-w-0 break-words font-normal text-ink ${isNumeric(column) ? 'tabular-nums' : ''}`}>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+              {(actions || actionColumn) && <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-2">{actions ? actions(row) : cellValue(actionColumn, row)}</div>}
+            </li>
+          );
+        })}
       </ul>
 
       {pagerNode}

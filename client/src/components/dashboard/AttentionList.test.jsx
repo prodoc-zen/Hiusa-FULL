@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import AttentionList from './AttentionList';
@@ -106,5 +106,22 @@ describe('AttentionList', () => {
     );
 
     expect(screen.getByText('Waiting on Department Head')).toBeInTheDocument();
+  });
+
+  it('keeps the first three rows on a phone and reveals the rest behind one tap', () => {
+    const items = Array.from({ length: 5 }, (_, index) => ({ id: `n${index}`, type: 'approval', severity: 'medium', title: `Item ${index}`, detail: 'Detail', due_at: null, href: `/x/${index}` }));
+    render(<MemoryRouter><AttentionList items={items} /></MemoryRouter>);
+
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.slice(0, 3).every((row) => !row.className.includes('max-sm:hidden'))).toBe(true);
+    expect(rows.slice(3).every((row) => row.className.includes('max-sm:hidden'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Show 2 more' }));
+    expect(screen.getAllByRole('listitem').every((row) => !row.className.includes('max-sm:hidden'))).toBe(true);
+    expect(screen.queryByRole('button', { name: /Show .* more/ })).not.toBeInTheDocument();
+  });
+
+  it('offers no Show more when the list already fits', () => {
+    render(<MemoryRouter><AttentionList items={[{ id: 'a', type: 'approval', severity: 'medium', title: 'Only', detail: 'd', due_at: null, href: '/x' }]} /></MemoryRouter>);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
