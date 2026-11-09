@@ -103,7 +103,12 @@ test.beforeAll(async () => {
   expect(deanInvite.status, JSON.stringify(deanInvite.body).slice(0, 200)).toBe(201);
   fixtures.deanToken = new URL(deanInvite.body.magic_link).searchParams.get('token');
 
-  const staffInvite = await dean.post('/college/staff/invitations', { position_title: 'College Secretary' });
+  const staffInvite = await dean.post('/college/staff/invitations', {
+    first_name: 'Walk',
+    last_name: 'Staff',
+    email: `walk.staff.${Date.now()}@journey.test`,
+    position_title: 'College Secretary',
+  });
   expect(staffInvite.status, JSON.stringify(staffInvite.body).slice(0, 200)).toBe(201);
   fixtures.staffToken = new URL(staffInvite.body.magic_link).searchParams.get('token');
 
@@ -168,9 +173,12 @@ for (const viewport of VIEWPORTS) {
         await page.getByRole('tab', { name: 'Office staff' }).click();
         await page.getByRole('button', { name: 'Add staff' }).click();
         const dialog = page.getByRole('dialog', { name: 'Add office staff' });
-        const plainLink = dialog.getByRole('button', { name: /Create a plain invite link/ });
-        await expect(dialog.getByLabel(/^Position/).or(plainLink)).toBeVisible();
-        if (await plainLink.isVisible()) await plainLink.click();
+        const notInRecords = dialog.getByRole('button', { name: 'Not in the records? Invite by name and email' });
+        await expect(dialog.getByLabel(/^First name/).or(notInRecords)).toBeVisible();
+        if (await notInRecords.isVisible()) await notInRecords.click();
+        await dialog.getByLabel(/^First name/).fill('Walk');
+        await dialog.getByLabel(/^Last name/).fill('Modal');
+        await dialog.getByLabel(/^Email/).fill(`walk.modal.${Date.now()}@journey.test`);
         await dialog.getByLabel(/^Position/).fill('College Secretary');
         await dialog.getByRole('button', { name: 'Create invite link' }).click();
         await expect(dialog.getByLabel('Invite link')).toBeVisible({ timeout: 15_000 });
