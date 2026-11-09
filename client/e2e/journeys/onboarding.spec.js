@@ -61,7 +61,10 @@ async function acceptInvitation(page, token, person, landing) {
   await page.goto(`/accept-invitation?token=${encodeURIComponent(token)}`);
   await page.getByLabel('First name').fill(person.firstName);
   await page.getByLabel('Last name').fill(person.lastName);
-  await page.getByLabel('Email').fill(person.email);
+  // A link made for one email (office staff) arrives with it filled in and locked; the dean's link asks for it.
+  const email = page.getByLabel('Email');
+  if (await email.isEditable()) await email.fill(person.email);
+  else await expect(email).toHaveValue(person.email);
   await page.getByLabel('Password', { exact: true }).fill(person.password);
   await page.getByLabel('Confirm password').fill(person.password);
   await retryWhileThrottled(
@@ -164,14 +167,17 @@ for (const { label, viewport } of WIDTHS) {
       await page.getByRole('tab', { name: 'Office staff' }).click();
       await page.getByRole('button', { name: 'Add staff' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add office staff' });
-      // With no employee records loaded the drawer opens on the plain link form; with records it offers it as a link.
-      const plainLink = dialog.getByRole('button', { name: /Create a plain invite link/ });
-      await expect(dialog.getByLabel(/^Position/).or(plainLink)).toBeVisible();
-      if (await plainLink.isVisible()) await plainLink.click();
+      // The dialog offers the employee records first; a person who is not in them is invited by name and email.
+      const notInRecords = dialog.getByRole('button', { name: 'Not in the records? Invite by name and email' });
+      await expect(dialog.getByLabel(/^First name/).or(notInRecords)).toBeVisible();
+      if (await notInRecords.isVisible()) await notInRecords.click();
+      await dialog.getByLabel(/^First name/).fill(staff.firstName);
+      await dialog.getByLabel(/^Last name/).fill(staff.lastName);
+      await dialog.getByLabel(/^Email/).fill(staff.email);
       await dialog.getByLabel(/^Position/).fill('College Secretary');
       await dialog.getByRole('button', { name: 'Create invite link' }).click();
       const link = await dialog.getByLabel('Invite link').inputValue();
-      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
 
       const context = await browser.newContext({ viewport });
       const invited = await context.newPage();
