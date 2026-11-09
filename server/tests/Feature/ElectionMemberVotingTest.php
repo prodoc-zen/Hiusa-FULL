@@ -222,6 +222,28 @@ class ElectionMemberVotingTest extends TestCase
         $this->assertNotContains('election-'.$this->election->id, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('id')->all());
     }
 
+    public function test_voting_in_the_election_that_ends_first_keeps_the_second_open_election_on_the_members_home(): void
+    {
+        $member = $this->collegeMember();
+        $second = $this->makeCollegeStudentOrganization(College::first());
+        AccountProfile::create(['user_school_id' => $member->school_id, 'organization_id' => $second->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $secondElection = Election::factory()->create([
+            'organization_id' => $second->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHours(5),
+            'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
+        ]);
+        Sanctum::actingAs($member);
+
+        $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
+
+        $attention = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('id')->all();
+        $this->assertContains('election-'.$secondElection->id, $attention);
+        $this->assertNotContains('election-'.$this->election->id, $attention);
+
+        $feed = $this->getJson('/api/student/feed')->assertOk();
+        $this->assertSame($secondElection->id, $feed->json('sidebar.active_election.id'));
+        $this->assertFalse($feed->json('sidebar.active_election.has_voted'));
+    }
+
     public function test_the_administrators_turnout_denominator_is_the_voter_list_total(): void
     {
         $this->collegeMember('STUDENT');

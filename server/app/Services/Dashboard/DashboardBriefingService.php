@@ -624,14 +624,12 @@ class DashboardBriefingService
     private function unvotedElectionAttention(array $organizationIds, int $studentId, ?string $href): array
     {
         $election = DB::table('elections')->whereIn('organization_id', $organizationIds)
-            ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time']);
+            ->where('status', 'active')
+            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
+                ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $studentId))
+            ->orderBy('end_time')->first(['id', 'title', 'end_time']);
 
         if (! $election) {
-            return [];
-        }
-
-        $voted = DB::table('votes')->where('election_id', $election->id)->where('voter_id', $studentId)->exists();
-        if ($voted) {
             return [];
         }
 

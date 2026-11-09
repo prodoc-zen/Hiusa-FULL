@@ -134,12 +134,16 @@ class StudentFeedController extends Controller
             ];
         })->filter()->values();
 
-        $activeElection = Election::withCount(['positions', 'candidates'])
+        $openElections = fn () => Election::withCount(['positions', 'candidates'])
             ->whereIn('organization_id', $electionOrganizationIds)
             ->where('status', 'active')
             ->where('start_time', '<=', now())
             ->where('end_time', '>=', now())
-            ->orderBy('end_time')->first();
+            ->orderBy('end_time');
+        $activeElection = $openElections()
+            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
+                ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $user->id))
+            ->first() ?? $openElections()->first();
         if ($activeElection) {
             $activeElection->has_voted = Vote::where('voter_id', $user->id)
                 ->where('election_id', $activeElection->id)->exists();
