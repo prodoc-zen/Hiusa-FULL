@@ -4,7 +4,8 @@
 //
 // Env: BASE_URL (required), SUFFIX (required, goes into emails, the college code and the organization acronym so runs
 // never collide), CREDS_FILE (default D:/Claude/scratch/hiusa-rehearsal/creds.json), ROUND (default 1; names the shots
-// folder), SHOTS_DIR, ONLY (comma list of step keys to run), VIEWPORT_WIDTH/VIEWPORT_HEIGHT (default 1366x900).
+// folder), SHOTS_DIR, ONLY (comma list of step keys to run), VIEWPORT_WIDTH/VIEWPORT_HEIGHT (default 1366x900), ID_BASE (first
+// synthetic school ID minus one, default 25991100; pick an unused 2599xxxx range for every new SUFFIX).
 //
 // The rehearsal SAO account lives in the creds file under "sao". Every account and link the run creates is written back to
 // that file (never to the repo). Passwords are generated at first use and stay in the creds file.
@@ -42,7 +43,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const DIGITS = SUFFIX.replace(/\D/g, '') || '0000';
 const COLLEGE = { name: `Rehearsal College ${SUFFIX}`, code: `RHR${DIGITS}` };
 const ORG = { name: `Rehearsal Society ${SUFFIX}`, acronym: `RSR${DIGITS}`, purpose: 'Rehearsal organization for the dean check. Synthetic data.' };
-const ID_BASE = 25991100;
+const ID_BASE = Number(process.env.ID_BASE || 25991100);
 const SPEC = {
   dean: { first: 'Dario', last: 'Rehearsal', email: `dean.${SUFFIX}@example.com` },
   staff: { first: 'Sela', last: 'Rehearsal', email: `staff.${SUFFIX}@example.com`, schoolId: ID_BASE + 4, birth: '1985-02-11', position: 'Department Secretary' },
@@ -206,6 +207,11 @@ async function shot(who, name, rec) {
 
 async function bodyText(page) {
   return (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+}
+
+// Data lands after the shell settles: wait for the words a person would be looking for before judging the page.
+async function waitForText(page, text, timeout = 15000) {
+  return page.waitForFunction((needle) => document.body.innerText.replace(/\s+/g, ' ').includes(needle), text, { timeout }).then(() => true, () => false);
 }
 
 async function pickPerson(page, text, optionPattern, labelPattern) {
@@ -583,7 +589,7 @@ await step('staff_add', 'Dean adds office staff from the school records (ID and 
   await waitSettled(page);
   await page.getByRole('tab', { name: /Office staff/ }).click();
   await waitSettled(page);
-  const staffListed = (await bodyText(page)).includes(fullName('staff'));
+  const staffListed = await waitForText(page, fullName('staff'));
   await shot('dean', 'staff-listed', rec);
   if (!staffListed) rec.defect('app_bug', 'After the staff member accepts, People > Office staff does not list them.', ['server/app/Http/Controllers/CollegePeopleController.php']);
   else rec.evidence.push('the dean lists the staff member under Office staff');
@@ -789,7 +795,7 @@ await step('dean_review', 'Dean returns the application with a per-requirement n
   }
   if (!/organization-applications\/\d+/.test(aPage.url())) await aPage.goto(`/dashboard/student/organization-applications/${appId()}`);
   await waitSettled(aPage);
-  const sawNote = (await bodyText(aPage)).includes('signed copy');
+  const sawNote = await waitForText(aPage, 'signed copy');
   if (!sawNote) rec.defect('app_bug', 'Student A does not see the dean\'s per-requirement note on the application page.', ['client/src/pages/student/MyOrganizationApplicationPage.jsx']);
   else rec.evidence.push('student A sees the dean note');
   await shot('a', 'sees-return', rec);
@@ -894,7 +900,12 @@ await step('sao_review', 'SAO returns once with a note and an attached file; stu
 async function switchToOrganization(who, rec) {
   const page = people.get(who).page;
   const switcher = page.getByRole('button', { name: /^Workspace:/ });
-  await switcher.waitFor({ state: 'visible', timeout: 15000 });
+  // A person with a single space has no switcher (it hides under 2 spaces); their own dashboard is that space.
+  const hasSwitcher = await switcher.waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
+  if (!hasSwitcher) {
+    rec && rec.notes.push(`${who} has a single space and no workspace switcher; stayed on their own dashboard`);
+    return page;
+  }
   const label = await switcher.innerText();
   if (new RegExp(ORG.name, 'i').test(label)) return page;
   await switcher.click();
@@ -902,7 +913,7 @@ async function switchToOrganization(who, rec) {
   await region.waitFor({ state: 'visible', timeout: 10000 });
   rec && (await shot(who, 'switcher-open', rec));
   await region.getByRole('button', { name: new RegExp(ORG.name, 'i') }).click();
-  await page.waitForURL(/\/dashboard\/(admin|officer|student)/, { timeout: 25000 });
+  await page.getByRole('button', { name: new RegExp(`^Workspace:.*${ORG.name}`, 'i') }).waitFor({ state: 'visible', timeout: 25000 });
   await waitSettled(page);
   return page;
 }
@@ -1022,9 +1033,40 @@ async function openElectionAsAdmin(page, rec, election) {
   await waitSettled(page);
 }
 
+// After the window closes the scheduler hands the head access to the winner. Checked from the results page and the profiles.
+async function verifyHandover(rec, resultsWho, resultsPage) {
+  await resultsPage.goto('/dashboard/elections/election-results');
+  await waitSettled(resultsPage);
+  const listed = resultsPage.getByRole('link', { name: /^Election of officers/i }).or(resultsPage.getByRole('button', { name: /^Election of officers/i })).first();
+  if (await listed.count()) { await listed.click(); await waitSettled(resultsPage); }
+  await resultsPage.getByText(/^Access handed over$/i).waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The results page does not say "Access handed over" after the results were released.', ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
+  await shot(resultsWho, 'results', rec);
+  // Winner C holds the head access; outgoing A holds none for the same position (contract S5).
+  const profilesOf = async (who) => (await api(who, 'GET', '/user/profiles')).body?.profiles ?? [];
+  const cProfiles = await profilesOf('c');
+  const cWon = cProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
+  rec.evidence.push(`winner C: ${cWon ? `${cWon.role} ${cWon.position_title} ${cWon.account_status}` : 'no President profile'}`);
+  if (!cWon || cWon.account_status !== 'active' || cWon.role !== 'ADMIN') rec.defect('app_bug', 'The winner did not get active organization head access for President.', ['server/app/Services/ElectionHandoverService.php']);
+  const aProfiles = await profilesOf('a');
+  const aOld = aProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
+  rec.evidence.push(`outgoing A: ${aOld ? `${aOld.role} ${aOld.position_title} ${aOld.account_status}` : 'no President profile left'}`);
+  if (aOld && aOld.account_status === 'active') rec.defect('app_bug', 'The outgoing President still has active access after the handover.', ['server/app/Services/ElectionHandoverService.php']);
+  const cPage = await switchToOrganization('c', rec);
+  await cPage.getByRole('navigation').getByRole('link', { name: 'Dashboard' }).first().click();
+  await waitSettled(cPage);
+  await shot('c', 'winner-home', rec);
+}
+
 await step('election_handover', 'In the org: an election for President with candidates B and C, members vote, it ends, results are released, the winner gets access and the outgoing holder is handled', async (rec) => {
   for (const who of ['a', 'b', 'c', 'dean']) {
     if (!people.has(who)) { const s = await signIn(who, rec); if (!s.ok) throw new Error(`${who} sign-in ${s.status}`); }
+  }
+  // A re-run after the close finds the outgoing President already inactive: only the handover is left to check.
+  const spent = ((await api('a', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name && item.position_title === 'President' && item.account_status !== 'active');
+  if (spent) {
+    rec.notes.push('the handover already happened in an earlier run; checking it from the winner');
+    await verifyHandover(rec, 'c', await switchToOrganization('c', rec));
+    return;
   }
   const aPage = await switchToOrganization('a', rec);
   await waitSettled(aPage);
@@ -1133,9 +1175,9 @@ await step('election_handover', 'In the org: an election for President with cand
         continue;
       }
       await option.click();
-      await aPage.getByLabel('Position').selectOption({ label: 'President' });
-      const partyValue = await aPage.getByLabel('Party list').locator('option').evaluateAll((nodes) => nodes.find((node) => /Rehearsal Party/.test(node.textContent))?.value);
-      await aPage.getByLabel('Party list').selectOption(partyValue);
+      await aPage.getByRole('dialog').getByLabel('Position').selectOption({ label: 'President' });
+      const partyValue = await aPage.getByRole('dialog').getByLabel('Party list').locator('option').evaluateAll((nodes) => nodes.find((node) => /Rehearsal Party/.test(node.textContent))?.value);
+      await aPage.getByRole('dialog').getByLabel('Party list').selectOption(partyValue);
       await shot('a', `candidate-form-${key}`, rec);
       await aPage.getByRole('dialog').getByRole('button', { name: /^Add candidate/ }).click();
       await aPage.getByText(fullName(key)).first().waitFor({ state: 'visible', timeout: 15000 });
@@ -1171,11 +1213,25 @@ await step('election_handover', 'In the org: an election for President with cand
     const page = people.get(who).page;
     await switchToOrganization(who, rec);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
-    await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 20000 }).catch(() => {});
+    await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 8000 }).catch(() => {});
     await waitSettled(page);
+    // The Vote page lists open elections; a person opens theirs with "Vote in this election".
+    const openElection = page.getByRole('link', { name: /Vote in this election/ }).or(page.getByRole('button', { name: /Vote in this election/ })).first();
+    if (await openElection.count()) {
+      await shot(who, 'vote-list', rec);
+      await openElection.click();
+      await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 20000 }).catch(() => {});
+      await waitSettled(page);
+    }
     await shot(who, 'ballot-overview', rec);
-    if (/Vote already recorded/i.test(await bodyText(page))) { rec.notes.push(`${who} had already voted`); return; }
-    await page.getByRole('button', { name: /Start my ballot/ }).click();
+    if (/Vote already recorded|Your ballot receipt/i.test(await bodyText(page))) { rec.notes.push(`${who} had already voted`); return; }
+    const start = page.getByRole('button', { name: /Start my ballot/ });
+    if (!(await start.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false))) {
+      const sees = (await bodyText(page)).includes('No election is open for voting');
+      rec.defect('app_bug', `${fullName(who === 'a' ? 'a' : who)} holds an active member profile in the organization (an eligible voter) and cannot vote: ${sees ? 'the Vote page says "No election is open for voting" while the election is open' : 'there is no ballot to start'}, and a member has no workspace to switch into.`, ['server/app/Http/Controllers/ElectionController.php', 'client/src/pages/elections/']);
+      return;
+    }
+    await start.click();
     await page.getByRole('radio', { name: new RegExp(fullName(pickKey)) }).or(page.getByRole('button', { name: new RegExp(fullName(pickKey)) })).first().click();
     await shot(who, 'ballot-picked', rec);
     await page.getByRole('button', { name: /Review ballot/ }).click();
@@ -1203,24 +1259,7 @@ await step('election_handover', 'In the org: an election for President with cand
     await waitSettled(aPage);
     await aPage.waitForTimeout(1500);
   }
-  await aPage.goto('/dashboard/elections/election-results');
-  await waitSettled(aPage);
-  await aPage.getByText(/^Access handed over$/i).waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The results page does not say "Access handed over" after the results were released.', ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
-  await shot('a', 'results', rec);
-  // Winner C holds the head access; outgoing A holds none for the same position (contract S5).
-  const profilesOf = async (who) => (await api(who, 'GET', '/user/profiles')).body?.profiles ?? [];
-  const cProfiles = await profilesOf('c');
-  const cWon = cProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
-  rec.evidence.push(`winner C: ${cWon ? `${cWon.role} ${cWon.position_title} ${cWon.account_status}` : 'no President profile'}`);
-  if (!cWon || cWon.account_status !== 'active' || cWon.role !== 'ADMIN') rec.defect('app_bug', 'The winner did not get active organization head access for President.', ['server/app/Services/ElectionHandoverService.php']);
-  const aProfiles = await profilesOf('a');
-  const aOld = aProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
-  rec.evidence.push(`outgoing A: ${aOld ? `${aOld.role} ${aOld.position_title} ${aOld.account_status}` : 'no President profile left'}`);
-  if (aOld && aOld.account_status === 'active') rec.defect('app_bug', 'The outgoing President still has active access after the handover.', ['server/app/Services/ElectionHandoverService.php']);
-  const cPage = people.get('c').page;
-  await cPage.goto('/dashboard/student');
-  await waitSettled(cPage);
-  await shot('c', 'winner-home', rec);
+  await verifyHandover(rec, 'a', aPage);
 });
 
 // ---------------------------------------------------------------- records
@@ -1244,10 +1283,11 @@ await step('records', 'SAO opens School year records for the current semester an
   await waitSettled(page);
   await page.waitForTimeout(800);
   await shot('sao', 'records-org', rec);
+  await waitForText(page, fullName('b'), 8000);
   const text = await bodyText(page);
-  const officers = ['a', 'b'].filter((key) => text.includes(fullName(key)));
+  const officers = ['a', 'b', 'c'].filter((key) => text.includes(fullName(key)));
   rec.evidence.push(`records page shows the organization and officers: ${officers.map(fullName).join(', ') || 'none'}`);
-  if (officers.length < 2) rec.defect('app_bug', 'School year records lists fewer officers than the organization has (expected the head and the officer).', ['server/app/Http/Controllers/RecordsController.php']);
+  if (!officers.includes('b') || !(officers.includes('a') || officers.includes('c'))) rec.defect('app_bug', 'School year records lists fewer officers than the organization has (expected the head and the officer).', ['server/app/Http/Controllers/RecordsController.php']);
   if (!/Read only/i.test(text)) rec.notes.push('the current semester shows no "Read only" badge (expected: it is the live period)');
 
   // Org space, read only.
@@ -1359,6 +1399,8 @@ await step('console_and_layout', 'Zero console errors and unexpected failed API 
   });
   const guest = await person('phone-guest', { viewport: PHONE });
   for (const [name, route] of [['login', '/login'], ['sign-up', '/sign-up'], ['bad-invite', '/accept-invitation?token=x']]) {
+    // The made-up token is meant to answer 404; the page must then show the expired-link message.
+    allowed = name === 'bad-invite' ? [/GET \/api\/department-head-invitations\/x/, /^console Failed to load resource: the server responded with a status of 404/] : [];
     await guest.goto(route);
     await waitSettled(guest);
     await shot('phone-guest', name, rec);
