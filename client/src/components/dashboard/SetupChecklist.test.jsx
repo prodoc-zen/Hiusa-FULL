@@ -69,9 +69,24 @@ describe('SetupChecklist', () => {
     expect(rowLabels()).toHaveLength(3);
   });
 
-  it('offers no Show all when everything already fits', () => {
+  it('offers Show all on a phone only when everything already fits on a wider screen', () => {
     renderChecklist({ setup: { completed: 0, total: 2, steps: setup.steps.slice(1, 2).concat(setup.steps.slice(4, 5)) } });
+    expect(screen.getByRole('button', { name: /Show all/ })).toHaveClass('sm:hidden');
+  });
+
+  it('keeps a lone open step free of any Show all button', () => {
+    renderChecklist({ setup: { completed: 0, total: 1, steps: setup.steps.slice(1, 2) } });
     expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
+  });
+
+  it('shows only the first open step on a phone until the person taps Show all', () => {
+    renderChecklist();
+    const [first, second, third] = screen.getAllByRole('listitem');
+    expect(first).not.toHaveClass('max-sm:hidden');
+    expect(second).toHaveClass('max-sm:hidden');
+    expect(third).toHaveClass('max-sm:hidden');
+    fireEvent.click(screen.getByRole('button', { name: /Show all 6 steps/ }));
+    screen.getAllByRole('listitem').forEach((row) => expect(row).not.toHaveClass('max-sm:hidden'));
   });
 
   it('makes only the first actionable step the filled button, unless the page already has one', () => {
