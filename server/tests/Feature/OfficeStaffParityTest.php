@@ -11,8 +11,10 @@ use App\Models\ApprovalRequest;
 use App\Models\Attendance;
 use App\Models\Budget;
 use App\Models\Candidate;
+use App\Models\CashAdvance;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
+use App\Models\Collection;
 use App\Models\ComplianceRequirementType;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Election;
@@ -21,11 +23,13 @@ use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\Partylist;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
@@ -51,6 +55,24 @@ class OfficeStaffParityTest extends TestCase
         'api/my/organization-applications/{application}/review-files/{file}',
         'api/organization-applications/{application}/documents/{document}',
         'api/organization-applications/{application}/review-files/{file}',
+    ];
+
+    /**
+     * Listings the fixture must keep filled for the dean. A listing that answers the dean 0 rows passes the row-count
+     * half of the walk for any scope, so each named one has to hold at least this many rows for the dean.
+     */
+    private const FLOORS = [
+        '/api/events' => 4,
+        '/api/elections' => 2,
+        '/api/announcements' => 2,
+        '/api/transactions' => 4,
+        '/api/financial-reports' => 1,
+        '/api/approval-requests' => 1,
+        '/api/budgets' => 2,
+        '/api/collections' => 2,
+        '/api/cash-advances' => 2,
+        '/api/forecasts' => 2,
+        '/api/partylists' => 2,
     ];
 
     /**
@@ -86,6 +108,8 @@ class OfficeStaffParityTest extends TestCase
         'PUT api/user/profile',
     ];
 
+    private AcademicSemester $semester;
+
     private User $dean;
 
     private User $staff;
@@ -109,7 +133,7 @@ class OfficeStaffParityTest extends TestCase
         config(['performance.rate_limits.read_per_minute' => 100000, 'performance.rate_limits.write_per_minute' => 100000, 'performance.rate_limits.people_search_per_minute' => 100000]);
 
         $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => now()->subMonths(3)->toDateString(), 'ends_on' => now()->addMonths(6)->toDateString(), 'is_current' => true]);
-        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => now()->subMonths(3)->toDateString(), 'ends_on' => now()->addMonths(6)->toDateString(), 'status' => 'active']);
+        $this->semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => now()->subMonths(3)->toDateString(), 'ends_on' => now()->addMonths(6)->toDateString(), 'status' => 'active']);
 
         $computing = $this->makeCollege('COC');
         $arts = $this->makeCollege('CAS');
@@ -129,11 +153,12 @@ class OfficeStaffParityTest extends TestCase
         $adviser = User::factory()->admin()->create(['organization_id' => $this->psits->id]);
         $compsocAdviser = User::factory()->admin()->create(['organization_id' => $this->compsoc->id]);
         $artsAdviser = User::factory()->admin()->create(['organization_id' => $this->artsClub->id]);
-        $students = User::factory()->student()->count(3)->create(['organization_id' => $this->psits->id]);
+        $students = User::factory()->student()->count(3)->create(['organization_id' => $this->psits->id, 'last_name' => 'Findable']);
 
-        // Events: planning with no approval row, planning that waits on the dean, approved, completed, and another college's.
+        // Events: planning with no approval row, planning that waits on the dean, approved, completed, ongoing, and another college's.
+        // Every one belongs to the active semester, because the listing only shows the selected semester's rows.
         $event = fn (Organization $organization, User $author, array $attributes) => Event::factory()->create([
-            'organization_id' => $organization->id, 'created_by' => $author->school_id,
+            'organization_id' => $organization->id, 'created_by' => $author->school_id, 'academic_semester_id' => $this->semester->id,
             'start_time' => now()->addWeek(), 'end_time' => now()->addWeek()->addHours(2), ...$attributes,
         ]);
         $planning = $event($this->psits, $adviser, ['status' => 'planning', 'title' => 'Planning only']);
@@ -141,7 +166,8 @@ class OfficeStaffParityTest extends TestCase
         $approved = $event($this->psits, $adviser, ['status' => 'approved', 'approved_at' => now(), 'title' => 'Approved']);
         $completed = $event($this->compsoc, $compsocAdviser, ['status' => 'completed', 'start_time' => now()->subWeek(), 'end_time' => now()->subWeek()->addHours(2), 'title' => 'Completed']);
         $foreignEvent = $event($this->artsClub, $artsAdviser, ['status' => 'approved', 'approved_at' => now(), 'title' => 'Foreign']);
-        $this->ids['events'] = [$planning->id, $waiting->id, $approved->id, $completed->id, $foreignEvent->id];
+        $ongoing = $event($this->psits, $adviser, ['status' => 'ongoing', 'approved_at' => now(), 'start_time' => now()->subHour(), 'end_time' => now()->addHour(), 'title' => 'Ongoing']);
+        $this->ids['events'] = [$planning->id, $waiting->id, $approved->id, $completed->id, $foreignEvent->id, $ongoing->id];
         $this->ids['planning'] = $planning->id;
         $this->ids['waiting'] = $waiting->id;
         $this->ids['approved'] = $approved->id;
@@ -170,9 +196,9 @@ class OfficeStaffParityTest extends TestCase
         $this->ids['requirements'] = [$requirement->id];
         $this->ids['requirementFiles'] = [$file->id];
 
-        // Elections: one whose results are still hidden, one released, one in another college.
+        // Elections: one whose results are still hidden, one released, one in another college, all in the active semester.
         $election = fn (Organization $organization, array $attributes) => Election::factory()->create([
-            'organization_id' => $organization->id, 'start_time' => now()->subDay(), 'end_time' => now()->addDay(),
+            'organization_id' => $organization->id, 'academic_semester_id' => $this->semester->id, 'start_time' => now()->subDay(), 'end_time' => now()->addDay(),
             'approved_at' => now()->subDays(2), 'finalized_at' => now()->subDay(), ...$attributes,
         ]);
         $hidden = $election($this->psits, ['status' => 'active', 'results_visible' => false, 'title' => 'Hidden results']);
@@ -190,7 +216,7 @@ class OfficeStaffParityTest extends TestCase
         foreach ([[$this->psits, $adviser], [$this->compsoc, $compsocAdviser], [$this->artsClub, $artsAdviser]] as [$organization, $author]) {
             Announcement::factory()->create([
                 'organization_id' => $organization->id, 'created_by' => $author->id, 'target_role' => 'all', 'is_published' => true,
-                'approval_status' => 'approved', 'published_at' => now(),
+                'approval_status' => 'approved', 'published_at' => now(), 'academic_semester_id' => $this->semester->id,
             ]);
             $budget = Budget::factory()->create([
                 'organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 900,
@@ -198,6 +224,10 @@ class OfficeStaffParityTest extends TestCase
             ]);
             Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => $budget->id, 'recorded_by' => $author->school_id, 'type' => 'expense', 'amount' => 100]);
             Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => null, 'recorded_by' => $author->school_id, 'type' => 'income', 'amount' => 250]);
+            Collection::create(['organization_id' => $organization->id, 'reference' => 'COL-'.$organization->id, 'amount_collected' => 500, 'source' => 'Ticket sales', 'collected_by' => $author->school_id, 'collected_at' => now()]);
+            CashAdvance::create(['organization_id' => $organization->id, 'reference' => 'ADV-'.$organization->id, 'borrower_id' => $author->school_id, 'amount' => 300, 'purpose' => 'Venue deposit']);
+            FinancialForecast::factory()->create(['organization_id' => $organization->id, 'generated_by' => $author->school_id]);
+            Partylist::create(['organization_id' => $organization->id, 'name' => 'Partylist '.$organization->name, 'acronym' => strtoupper(substr($organization->name, 0, 3))]);
         }
         $report = fn (Organization $organization, User $author, bool $submitted) => FinancialReport::create([
             'organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Report '.$organization->name,
@@ -341,6 +371,24 @@ class OfficeStaffParityTest extends TestCase
         return $urls;
     }
 
+    /**
+     * Every URL the walk asks for one route. Most routes are asked bare and with the organization filter; the four
+     * that answer 422 without a query parameter are asked with what they need, so each is measured at 200.
+     *
+     * @return array<int, string>
+     */
+    private function targetsFor(string $uri, string $url): array
+    {
+        $queries = match ($uri) {
+            'api/people/search' => ['?q=Findable', '?q=Findable&scope=all', '?q=Findable&organization_id='.$this->psits->id],
+            'api/college/people' => ['?tab=students', '?tab=staff', '?tab=leaders'],
+            'api/account-profiles/candidates', 'api/account-profiles/positions' => ['?organization_id='.$this->psits->id, '?organization_id='.$this->artsClub->id],
+            default => ['', '?organization_id='.$this->psits->id],
+        };
+
+        return array_map(fn (string $query) => $url.$query, $queries);
+    }
+
     public function test_every_get_route_the_dean_can_reach_answers_office_staff_the_same_and_never_with_more_rows(): void
     {
         $deanOnly = array_filter(EnsureRole::DEAN_ONLY, fn (string $entry) => str_starts_with($entry, 'GET '));
@@ -349,6 +397,7 @@ class OfficeStaffParityTest extends TestCase
         $skipped = [];
         $requests = 0;
         $failures = [];
+        $deanRowsByUrl = [];
 
         foreach ($this->deanGetRoutes() as ['uri' => $uri]) {
             $urls = $this->urlsFor($uri);
@@ -359,11 +408,15 @@ class OfficeStaffParityTest extends TestCase
             }
             $covered[] = $uri;
             foreach ($urls as $url) {
-                foreach ([$url, $url.'?organization_id='.$this->psits->id] as $target) {
+                foreach ($this->targetsFor($uri, $url) as $target) {
                     [$deanStatus, $deanRows] = $this->ask($this->dean, $target);
                     [$staffStatus, $staffRows] = $this->ask($this->staff, $target);
                     $requests += 2;
+                    $deanRowsByUrl[$target] = $deanRows;
 
+                    if ($deanStatus === 422) {
+                        $failures[] = "{$target}: the dean's request was rejected as incomplete, so it measures nothing; add the query it needs to targetsFor()";
+                    }
                     if (in_array($uri, $deanOnly, true)) {
                         if ($staffStatus !== 403 || $deanStatus === 403) {
                             $failures[] = "{$target}: dean-only route answered dean {$deanStatus}, staff {$staffStatus}, expected a refusal for staff only";
@@ -386,6 +439,12 @@ class OfficeStaffParityTest extends TestCase
             "\n[office staff parity] %d GET routes covered, %d requests, %d routes skipped:\n  %s\n",
             count($covered), $requests, count($skipped), $skipped === [] ? '(none)' : implode("\n  ", $skipped),
         ));
+
+        foreach (self::FLOORS as $target => $floor) {
+            if (($deanRowsByUrl[$target] ?? 0) < $floor) {
+                $failures[] = "{$target}: the fixture gives the dean ".($deanRowsByUrl[$target] ?? 0)." rows, expected at least {$floor}; an empty listing proves nothing about scope";
+            }
+        }
 
         $this->assertSame([], array_values(array_diff($skipped, self::UNFILLED)), 'A GET route the dean can reach has a parameter this walk cannot fill; add it to parameterCandidates().');
         $this->assertGreaterThan(60, count($covered));
