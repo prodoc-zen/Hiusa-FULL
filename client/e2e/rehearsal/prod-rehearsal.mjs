@@ -903,7 +903,26 @@ async function switchToOrganization(who, rec) {
   // A person with a single space has no switcher (it hides under 2 spaces); their own dashboard is that space.
   const hasSwitcher = await switcher.waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
   if (!hasSwitcher) {
-    rec && rec.notes.push(`${who} has a single space and no workspace switcher; stayed on their own dashboard`);
+    // A plain member (STUDENT profiles) has no Workspace switcher; their profiles live in the account menu.
+    await page.getByRole('button', { name: /^Account menu for/ }).click();
+    const panel = page.getByRole('region', { name: 'Account and profiles' });
+    await panel.waitFor({ state: 'visible', timeout: 10000 });
+    const orgProfile = panel.getByRole('button', { name: new RegExp(ORG.name, 'i') });
+    const hasOrgProfile = await orgProfile.first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
+    if (!hasOrgProfile) {
+      await page.keyboard.press('Escape');
+      rec && rec.notes.push(`${who} has no organization profile in the account menu; stayed on their own dashboard`);
+      return page;
+    }
+    if (await orgProfile.first().isDisabled()) {
+      // Already the active profile.
+      await page.keyboard.press('Escape');
+      return page;
+    }
+    rec && (await shot(who, 'profiles-open', rec));
+    await orgProfile.first().click();
+    await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().waitFor({ state: 'visible', timeout: 25000 });
+    await waitSettled(page);
     return page;
   }
   const label = await switcher.innerText();
@@ -1213,8 +1232,10 @@ await step('election_handover', 'In the org: an election for President with cand
     const page = people.get(who).page;
     await switchToOrganization(who, rec);
     // Each profile votes in its own organization only, so the ballot is reached from the organization profile, not the college one.
-    const label = await page.getByRole('button', { name: /^Workspace:/ }).innerText().catch(() => '');
-    if (!new RegExp(ORG.name, 'i').test(label)) rec.defect('app_bug', `${fullName(who)} is on "${label || 'a single space'}" and not the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
+    // The strip under the top bar names the profile in view; a head or officer also has the Workspace switcher.
+    const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().isVisible().catch(() => false)
+      || new RegExp(ORG.name, 'i').test(await page.getByRole('button', { name: /^Workspace:/ }).innerText({ timeout: 2000 }).catch(() => ''));
+    if (!onOrg) rec.defect('app_bug', `${fullName(who)} is not on the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
     await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 8000 }).catch(() => {});
     await waitSettled(page);
