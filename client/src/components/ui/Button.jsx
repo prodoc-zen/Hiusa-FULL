@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 const SIZES = {
   sm: 'h-9 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
+  md: 'h-10 px-4 text-sm max-sm:h-[42px]',
   lg: 'h-12 px-5 text-base',
 };
 

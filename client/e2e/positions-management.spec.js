@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { PSITS_ADMIN } from './support/accounts.js';
 import { injectSession, openRowMenu, sessionFor } from './support/live.js';
 
-test('admin manages role-aware positions with ten rows per page', async ({ page }) => {
+test('admin manages role-aware positions on one page', async ({ page }) => {
   const positions = Array.from({ length: 11 }, (_, index) => ({
     id: index + 1,
     organization_id: 1,
@@ -45,29 +45,31 @@ test('admin manages role-aware positions with ten rows per page', async ({ page 
 
   await page.goto('/dashboard/admin/positions');
   await expect(page.getByRole('heading', { name: 'Officer positions', level: 1 })).toBeVisible();
-  await expect(page.locator('tbody tr')).toHaveCount(10);
-  await page.getByRole('button', { name: 'Next page of positions' }).click();
-  await expect(page.locator('tbody tr')).toHaveCount(1);
+  // The list is short, so it is one page: every position shows and there is no pager.
+  await expect(page.locator('tbody tr')).toHaveCount(11);
+  await expect(page.getByRole('button', { name: 'Next page of positions' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Add Position' }).click();
-  await page.getByLabel('Assignable account role').selectOption('ADMIN');
-  // Admin titles come from a list; anything else is typed under "Other position...".
-  await page.getByLabel('Position title').selectOption('__other__');
-  await page.getByLabel('Other position title').fill('Executive Secretary');
-  await page.getByRole('button', { name: 'Save Position' }).click();
-  await expect(page.getByText('Position created successfully.')).toBeVisible();
+  await page.getByRole('button', { name: 'Add position' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Add position' });
+  await drawer.getByLabel('Account role').selectOption('ADMIN');
+  // Admin titles come from a list; anything else is typed under "Other position".
+  await drawer.getByLabel('Position title').selectOption('__other__');
+  await drawer.getByLabel('Other position title').fill('Executive Secretary');
+  await drawer.getByRole('button', { name: 'Save position' }).click();
+  await expect(page.getByText('Position created.')).toBeVisible();
 
   await page.getByLabel('Filter positions by account role').selectOption('ADMIN');
   await openRowMenu(page, page.getByRole('row').filter({ hasText: 'President' }));
   await page.getByRole('menuitem', { name: 'Edit position' }).click();
-  await page.getByLabel('Position title').selectOption('__other__');
-  await page.getByLabel('Other position title').fill('Organization President');
-  await page.getByRole('button', { name: 'Save Position' }).click();
-  await expect(page.getByText('Position updated successfully.')).toBeVisible();
+  const editor = page.getByRole('dialog', { name: 'Edit position' });
+  await editor.getByLabel('Position title').selectOption('__other__');
+  await editor.getByLabel('Other position title').fill('Organization President');
+  await editor.getByRole('button', { name: 'Save position' }).click();
+  await expect(page.getByText('Position updated.')).toBeVisible();
 
   await openRowMenu(page, page.getByRole('row').filter({ hasText: 'Organization President' }));
   await page.getByRole('menuitem', { name: 'Delete position' }).click();
   await page.getByLabel(/^Type Organization President to confirm/).fill('Organization President');
-  await page.getByRole('button', { name: 'Delete Position', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete position', exact: true }).click();
   await expect(page.getByText('Organization President was deleted.')).toBeVisible();
 });

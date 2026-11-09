@@ -785,8 +785,8 @@ async function runJourney(cfg) {
     await page.waitForURL(/\/dashboard\/super-admin\/(org|organizations)\//, { timeout: 20000 });
     await waitSettled();
     await snap('org-space');
-    const body = await page.locator('body').innerText();
-    if (!body.toLowerCase().includes(orgName.toLowerCase())) throw new Error('the organization space does not show the organization');
+    // The space loads behind a skeleton that carries no aria-busy, so wait for the name instead of reading the body once.
+    await expect(page.getByRole('main')).toContainText(new RegExp(orgName, 'i'), { timeout: 20000 });
     await openTransactions();
     await expect(page.getByText('No transactions yet')).toBeVisible({ timeout: 20000 });
     await snap('org-transactions');
