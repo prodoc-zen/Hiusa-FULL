@@ -143,9 +143,15 @@ const NAV_BY_ROLE = {
   ],
   // The dean's office staff: an ADMIN profile on the college home organization. Sidebar.jsx and
   // CommandPalette.jsx pick this list in place of ADMIN's when isOfficeStaff() is true.
+  // They work for the dean across every organization in the college, so they get the dean's review pages and
+  // none of the dean's own controls (granting applicants, managing staff, entering an organization's space).
   OFFICE_STAFF: [
     dashboard('ADMIN'),
     { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
+    { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals' },
+    { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+    { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
+    { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
   ],
   STUDENT: [
     dashboard('STUDENT'),

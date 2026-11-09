@@ -7,13 +7,16 @@ const mocks = vi.hoisted(() => ({
   getDepartmentHeadInvitation: vi.fn(),
   acceptDepartmentHeadInvitation: vi.fn(),
   login: vi.fn(),
+  claimStaffInvitation: vi.fn(),
+  switchAccountProfile: vi.fn(),
 }));
 
 vi.mock('../../services/systemAdministrationService', () => ({
   getDepartmentHeadInvitation: mocks.getDepartmentHeadInvitation,
   acceptDepartmentHeadInvitation: mocks.acceptDepartmentHeadInvitation,
+  claimStaffInvitation: mocks.claimStaffInvitation,
 }));
-vi.mock('../../services/authService', () => ({ login: mocks.login }));
+vi.mock('../../services/authService', () => ({ login: mocks.login, switchAccountProfile: mocks.switchAccountProfile }));
 
 const deanInvite = {
   invitation: { role: 'DEPARTMENT_HEAD', position_title: null, expires_at: '2026-11-10T00:00:00Z' },
@@ -27,6 +30,16 @@ const staffInvite = {
 
 const recordInvite = {
   invitation: { role: 'COLLEGE_STAFF', position_title: 'Department Secretary', expires_at: '2026-11-10T00:00:00Z', record: { school_id: 7100101, first_name: 'Marites', last_name: 'Dizon' } },
+  college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
+};
+
+const existingInvite = {
+  invitation: { role: 'COLLEGE_STAFF', position_title: 'Dean Assistant', existing_account: true, expires_at: '2026-11-10T00:00:00Z', record: { school_id: 7100101, first_name: 'Marites', last_name: 'Dizon' } },
+  college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
+};
+
+const prefilledInvite = {
+  invitation: { role: 'COLLEGE_STAFF', position_title: 'Lab Technician', existing_account: false, prefill: { first_name: 'Ramon', last_name: 'Cruz', email: 'ramon@example.edu' }, expires_at: '2026-11-10T00:00:00Z' },
   college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
 };
 
@@ -283,5 +296,40 @@ describe('AcceptInvitationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(await screen.findByText('Login page')).toBeInTheDocument();
+  });
+
+  it('asks an employee who already has an account to sign in instead of making a second one', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(existingInvite);
+    renderPage();
+
+    expect(await screen.findByText(/who already has an account. Sign in with it/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Password/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('lets the signed-in employee accept, switches to the new office profile and lands on the staff home', async () => {
+    localStorage.setItem('auth_token', 'token');
+    localStorage.setItem('user', JSON.stringify({ school_id: 7100101, role: 'ADMIN' }));
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(existingInvite);
+    mocks.claimStaffInvitation.mockResolvedValue({ profile_id: 44 });
+    mocks.switchAccountProfile.mockResolvedValue({ data: { user: { school_id: 7100101, role: 'ADMIN', organization: { organization_type: 'COLLEGE' } } } });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept invitation' }));
+
+    await waitFor(() => expect(mocks.claimStaffInvitation).toHaveBeenCalledWith('valid-secret-token'));
+    expect(mocks.switchAccountProfile).toHaveBeenCalledWith(44);
+    expect(await screen.findByText('Staff home')).toBeInTheDocument();
+  });
+
+  it('fills in and locks the email the dean typed for someone who is not in the records', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(prefilledInvite);
+    renderPage();
+
+    expect(await screen.findByLabelText(/^Email/)).toHaveValue('ramon@example.edu');
+    expect(screen.getByLabelText(/^Email/)).toHaveAttribute('readonly');
+    expect(screen.getByLabelText(/First name/)).toHaveValue('Ramon');
+    expect(screen.getByLabelText(/Last name/)).toHaveValue('Cruz');
   });
 });

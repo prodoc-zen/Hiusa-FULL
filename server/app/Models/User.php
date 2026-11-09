@@ -146,6 +146,24 @@ class User extends Authenticatable
         return $this->role === 'ADMIN' && $this->organization?->organization_type === 'COLLEGE' && $this->organization->college_id !== null;
     }
 
+    /** The dean or the dean's delegate: the two accounts with college-wide reach over every student organization. */
+    public function isCollegeOffice(): bool
+    {
+        return $this->role === 'DEPARTMENT_HEAD' || $this->isCollegeOfficeStaff();
+    }
+
+    /** An ADMIN who runs one organization, not the dean's delegate. */
+    public function isOrganizationAdmin(): bool
+    {
+        return $this->role === 'ADMIN' && ! $this->isCollegeOfficeStaff();
+    }
+
+    /** The role whose approval steps this account works: office staff stand in for the dean. */
+    public function approvalRole(): string
+    {
+        return $this->isCollegeOfficeStaff() ? 'DEPARTMENT_HEAD' : $this->role;
+    }
+
     /** The org areas the active profile is limited to; null means every area for the role. */
     public function getModulesAttribute(): ?array
     {
@@ -234,7 +252,7 @@ class User extends Authenticatable
     {
         $organizationId = $this->organization_id;
 
-        if ($this->role !== 'DEPARTMENT_HEAD') {
+        if (! $this->isCollegeOffice()) {
             return [$organizationId];
         }
 

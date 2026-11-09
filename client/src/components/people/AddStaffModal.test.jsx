@@ -2,11 +2,18 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AddStaffModal from './AddStaffModal';
 
-const college = vi.hoisted(() => ({ getStaffRecords: vi.fn(), inviteCollegeStaff: vi.fn() }));
+const college = vi.hoisted(() => ({
+  getStaffRecords: vi.fn(),
+  inviteCollegeStaff: vi.fn(),
+  getStaffInvitations: vi.fn(),
+  relinkStaffInvitation: vi.fn(),
+  revokeStaffInvitation: vi.fn(),
+}));
 vi.mock('../../services/collegeOrganizationService', () => college);
 vi.mock('../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
-const MARITES = { school_id: 7100101, name: 'Marites Dizon', position: 'Department Secretary' };
+const MARITES = { school_id: 7100101, name: 'Marites Dizon', position: 'Department Secretary', has_account: false };
+const PENDING = { id: 5, name: 'Ramon Cruz', position_title: 'Lab Technician', email: 'ramon@example.edu', expires_at: '2026-11-11T08:00:00Z' };
 
 const reply = (data, has_records = true) => Promise.resolve({ data: { data, has_records } });
 
@@ -17,24 +24,26 @@ function renderModal() {
 }
 
 const find = async (text) => {
-  fireEvent.change(await screen.findByRole('combobox', { name: /find in the school records/i }), { target: { value: text } });
+  fireEvent.change(await screen.findByRole('combobox', { name: /find in the employee records/i }), { target: { value: text } });
   return screen.findByRole('option', { name: /Marites Dizon/ });
 };
 
 describe('AddStaffModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    college.getStaffRecords.mockImplementation((params) => (params.q ? reply([MARITES]) : reply([MARITES])));
+    college.getStaffRecords.mockImplementation(() => reply([MARITES]));
+    college.getStaffInvitations.mockResolvedValue({ data: { data: [] } });
     college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=abc' } });
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue() } });
   });
 
-  it('shows a loading state, then the search over the school records', async () => {
+  it('shows a loading state while the employee records load', () => {
     college.getStaffRecords.mockReturnValueOnce(new Promise(() => {}));
     renderModal();
-    expect(screen.getByRole('status', { name: 'Loading school records' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading employee records' })).toBeInTheDocument();
   });
 
-  it('picks a person from the records, shows the ID number and position read only, and creates the link from the record', async () => {
+  it('picks an employee, shows the ID number read only, and creates the link from the record', async () => {
     renderModal();
     fireEvent.click(await find('mar'));
 
@@ -43,65 +52,76 @@ describe('AddStaffModal', () => {
     expect(idField).toHaveValue('7100101');
     expect(idField).toHaveAttribute('readonly');
     expect(screen.getByLabelText('Position')).toHaveValue('Department Secretary');
-    expect(screen.getByLabelText('Position')).toHaveAttribute('readonly');
-    expect(screen.queryByLabelText(/school id/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Send it to/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
-    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101 }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Department Secretary' }));
     expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is sent/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
   });
 
-  it('keeps the create button disabled until someone is picked and passes the optional email along', async () => {
+  it('keeps the create button disabled until someone is picked and lets the dean change the position', async () => {
     renderModal();
-    await screen.findByRole('combobox', { name: /find in the school records/i });
+    await screen.findByRole('combobox', { name: /find in the employee records/i });
     expect(screen.getByRole('button', { name: 'Create invite link' })).toBeDisabled();
 
     fireEvent.click(await find('mar'));
-    fireEvent.change(screen.getByLabelText(/Send it to/), { target: { value: 'marites@example.edu' } });
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: 'Registrar Aide' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, email: 'marites@example.edu' }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Registrar Aide' }));
   });
 
-  it('shows the server reason when the link cannot be made', async () => {
-    college.inviteCollegeStaff.mockRejectedValueOnce({ response: { data: { message: 'That person already has an account.' } } });
+  it('tells the dean an employee with an account signs in to accept', async () => {
+    college.getStaffRecords.mockImplementation(() => reply([{ ...MARITES, has_account: true }]));
+    renderModal();
+    fireEvent.click(await find('mar'));
+    expect(screen.getByText(/already have an account. They sign in and accept the link/)).toBeInTheDocument();
+  });
+
+  it('shows the server reason, such as the student refusal, when the link cannot be made', async () => {
+    college.inviteCollegeStaff.mockRejectedValueOnce({ response: { data: { message: 'Students cannot be office staff. Pick someone from the employee records.' } } });
     renderModal();
     fireEvent.click(await find('mar'));
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    expect(await screen.findByText('That person already has an account.')).toBeInTheDocument();
+    expect(await screen.findByText('Students cannot be office staff. Pick someone from the employee records.')).toBeInTheDocument();
   });
 
-  it('falls back to a plain link, with a position, when the person is not in the records', async () => {
+  it('invites a non-student who is not in the records by name, email and position', async () => {
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /Not in the school records\?/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Not in the records\?/ }));
 
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText(/Students cannot be office staff/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create invite link' })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Position/), { target: { value: 'College Secretary' } });
+    fireEvent.change(screen.getByLabelText(/First name/), { target: { value: 'Ramon' } });
+    fireEvent.change(screen.getByLabelText(/Last name/), { target: { value: 'Cruz' } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ramon@example.edu' } });
+    fireEvent.change(screen.getByLabelText(/^Position/), { target: { value: 'Lab Technician' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ position_title: 'College Secretary' }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ first_name: 'Ramon', last_name: 'Cruz', email: 'ramon@example.edu', position_title: 'Lab Technician' }));
     expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
   });
 
-  it('can go back from the plain link to the school records', async () => {
+  it('can go back from the name and email form to the employee records', async () => {
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /Not in the school records\?/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Back to the school records' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Not in the records\?/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the employee records' }));
 
-    expect(await screen.findByRole('combobox', { name: /find in the school records/i })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /find in the employee records/i })).toBeInTheDocument();
   });
 
-  it('goes straight to the plain link when the college has no employee records', async () => {
+  it('goes straight to the name and email form when the college has no employee records', async () => {
     college.getStaffRecords.mockReturnValue(reply([], false));
     renderModal();
 
-    expect(await screen.findByLabelText(/Position/)).toBeInTheDocument();
-    expect(screen.getByText(/No office staff are in the school records/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Email/)).toBeInTheDocument();
+    expect(screen.getByText(/No employee records are loaded/)).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Back to the school records' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to the employee records' })).not.toBeInTheDocument();
   });
 
   it('shows an error with a retry when the records cannot be loaded', async () => {
@@ -110,13 +130,32 @@ describe('AddStaffModal', () => {
 
     expect(await screen.findByText('Records are unavailable.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByRole('combobox', { name: /find in the school records/i })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /find in the employee records/i })).toBeInTheDocument();
   });
 
   it('closes from the cancel button', async () => {
     const onClose = renderModal();
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('lists pending links with Copy link and Revoke', async () => {
+    college.getStaffInvitations.mockResolvedValue({ data: { data: [PENDING] } });
+    college.relinkStaffInvitation.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=new' } });
+    college.revokeStaffInvitation.mockResolvedValue({ data: { message: 'ok' } });
+    renderModal();
+
+    expect(await screen.findByText('Ramon Cruz')).toBeInTheDocument();
+    expect(screen.getByText(/Lab Technician/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link for Ramon Cruz' }));
+    await waitFor(() => expect(college.relinkStaffInvitation).toHaveBeenCalledWith(5));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('http://localhost/accept-invitation?token=new'));
+
+    college.getStaffInvitations.mockResolvedValue({ data: { data: [] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke link for Ramon Cruz' }));
+    await waitFor(() => expect(college.revokeStaffInvitation).toHaveBeenCalledWith(5));
+    await waitFor(() => expect(screen.queryByText('Ramon Cruz')).not.toBeInTheDocument());
   });
 });

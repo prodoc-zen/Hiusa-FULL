@@ -46,28 +46,46 @@ class CollegePeopleController extends Controller
     }
 
     /** Employee records of the dean's own college that have no account yet, for picking who to invite as office staff. Birth dates never leave the server. */
+    /**
+     * Employee records of this college the dean can still make a staff link from: people with no account yet, and
+     * employees whose account is active, not a student's and not already on the college office. Students never appear.
+     */
     public function staffRecords(Request $request): JsonResponse
     {
         $validated = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
 
-        [$college] = $this->collegeOf($request->user());
+        [$college, $home] = $this->collegeOf($request->user());
+        $account = fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id');
+        $profile = fn ($query) => $query->select(DB::raw(1))->from('account_profiles')->whereColumn('account_profiles.user_school_id', 'student_registry.school_id');
+        $staffRoles = ['ADMIN', 'DEPARTMENT_HEAD'];
+
         $available = StudentRegistryEntry::employees()
             ->where('college_id', $college->id)
-            ->whereNull('claimed_at')
-            ->whereNotExists(fn ($user) => $user->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'));
+            ->where(function ($eligible) use ($account, $profile, $home, $staffRoles) {
+                $eligible->where(fn ($new) => $new->whereNull('claimed_at')->whereNotExists($account))
+                    ->orWhere(fn ($existing) => $existing
+                        ->whereExists(fn ($user) => $account($user)->where('users.account_status', 'active')->whereNotIn('users.role', ['STUDENT', 'SUPER_ADMIN'])
+                            ->where(fn ($primary) => $primary->where('users.organization_id', '!=', $home->id)->orWhereNotIn('users.role', $staffRoles)))
+                        ->whereNotExists(fn ($query) => $profile($query)->where('account_profiles.account_status', 'active')->whereIn('account_profiles.role', ['STUDENT', 'SBO_OFFICER']))
+                        ->whereNotExists(fn ($query) => $profile($query)->where('account_profiles.account_status', 'active')->where('account_profiles.organization_id', $home->id)->whereIn('account_profiles.role', $staffRoles)));
+            });
 
         $records = (clone $available)
             ->where(fn ($query) => $this->matchTokens($query, trim((string) ($validated['q'] ?? '')), false))
             ->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')
             ->limit(10)
-            ->get()
-            ->map(fn (StudentRegistryEntry $record) => [
+            ->get();
+        $withAccount = User::whereIn('school_id', $records->pluck('school_id')->all())->pluck('school_id')->all();
+
+        return response()->json([
+            'data' => $records->map(fn (StudentRegistryEntry $record) => [
                 'school_id' => $record->school_id,
                 'name' => $record->full_name,
                 'position' => $record->position,
-            ]);
-
-        return response()->json(['data' => $records, 'has_records' => $available->exists()])->header('Cache-Control', 'no-store, private');
+                'has_account' => in_array($record->school_id, $withAccount, true),
+            ])->values(),
+            'has_records' => $available->exists(),
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     private function students(College $college, string $term, int $perPage): array
