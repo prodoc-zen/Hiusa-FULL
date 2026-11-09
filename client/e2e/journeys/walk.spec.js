@@ -127,8 +127,11 @@ for (const viewport of VIEWPORTS) {
       await visit(session, viewport, 'sign-up-failed-lookup', '/sign-up', async (page) => {
         await page.getByLabel('School ID').fill('12345');
         await page.getByLabel('Birth date').fill('2001-01-01');
-        await page.getByRole('button', { name: 'Find my record' }).click();
-        await expect(page.getByRole('alert').first()).toBeVisible({ timeout: 15_000 });
+        await page.getByLabel('Email').fill('walk.lookup@example.test');
+        await page.getByLabel('Password', { exact: true }).fill('Walk-lookup-2026-x');
+        await page.getByLabel('Confirm password').fill('Walk-lookup-2026-x');
+        await page.getByRole('button', { name: 'Create account' }).click();
+        await expect(page.getByRole('alert').filter({ hasText: "We couldn't match that school ID and birth date with the school records." })).toBeVisible({ timeout: 15_000 });
       }, [422]);
       await visit(session, viewport, 'accept-invitation-dean', `/accept-invitation?token=${fixtures.deanToken}`, async (page) => {
         await expect(page.getByRole('heading', { name: /You're invited to lead/ })).toBeVisible({ timeout: 15_000 });
@@ -137,7 +140,7 @@ for (const viewport of VIEWPORTS) {
         await expect(page.getByRole('heading', { name: /as office staff/ })).toBeVisible({ timeout: 15_000 });
       });
       await visit(session, viewport, 'accept-invitation-bad-link', '/accept-invitation?token=not-a-real-link', async (page) => {
-        await expect(page.getByText('This link does not work')).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText('This invitation link has expired')).toBeVisible({ timeout: 15_000 });
       }, [404]);
       await session.context.close();
       expect(report.problems.slice(mark), report.problems.slice(mark).join('\n')).toEqual([]);
@@ -149,7 +152,7 @@ for (const viewport of VIEWPORTS) {
       await visit(session, viewport, 'dean-people-students', '/dashboard/department-head/people');
       await visit(session, viewport, 'dean-people-student-records', '/dashboard/department-head/people', async (page) => {
         await page.getByRole('button', { name: 'Student records' }).click();
-        await expect(page.getByRole('heading', { name: 'Upload student records' })).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByRole('heading', { name: 'Upload school records' })).toBeVisible({ timeout: 15_000 });
       });
       await visit(session, viewport, 'dean-people-allow-modal', '/dashboard/department-head/people', async (page) => {
         await page.getByRole('button', { name: 'Allow a student to apply' }).click();
@@ -159,18 +162,21 @@ for (const viewport of VIEWPORTS) {
       });
       await visit(session, viewport, 'dean-people-staff', '/dashboard/department-head/people', async (page) => {
         await page.getByRole('tab', { name: 'Office staff' }).click();
-        await expect(page.getByRole('button', { name: 'Invite staff' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Add staff' })).toBeVisible();
       });
       await visit(session, viewport, 'dean-people-invite-modal', '/dashboard/department-head/people', async (page) => {
         await page.getByRole('tab', { name: 'Office staff' }).click();
-        await page.getByRole('button', { name: 'Invite staff' }).click();
-        const dialog = page.getByRole('dialog', { name: 'Invite office staff' });
+        await page.getByRole('button', { name: 'Add staff' }).click();
+        const dialog = page.getByRole('dialog', { name: 'Add office staff' });
+        const plainLink = dialog.getByRole('button', { name: /Create a plain invite link/ });
+        await expect(dialog.getByLabel(/^Position/).or(plainLink)).toBeVisible();
+        if (await plainLink.isVisible()) await plainLink.click();
         await dialog.getByLabel(/^Position/).fill('College Secretary');
-        await dialog.getByRole('button', { name: 'Create link' }).click();
+        await dialog.getByRole('button', { name: 'Create invite link' }).click();
         await expect(dialog.getByLabel('Invite link')).toBeVisible({ timeout: 15_000 });
       });
       await visit(session, viewport, 'dean-people-leaders', '/dashboard/department-head/people', async (page) => {
-        await page.getByRole('tab', { name: 'Organization leaders' }).click();
+        await page.getByRole('tab', { name: 'Leaders' }).click();
         await expect(page.getByRole('tabpanel')).toBeVisible();
       });
       await visit(session, viewport, 'dean-organizations', '/dashboard/department-head/organizations');
@@ -189,7 +195,7 @@ for (const viewport of VIEWPORTS) {
       });
       await visit(session, viewport, 'dean-applications', '/dashboard/organization-applications');
       await visit(session, viewport, 'dean-application-review', `/dashboard/organization-applications?record=${fixtures.application.id}`, async (page) => {
-        await expect(page.getByRole('dialog', { name: fixtures.application.name })).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByRole('main').getByRole('heading', { level: 1, name: fixtures.application.name })).toBeVisible({ timeout: 15_000 });
       });
       await visit(session, viewport, 'dean-records', '/dashboard/records');
       await session.context.close();

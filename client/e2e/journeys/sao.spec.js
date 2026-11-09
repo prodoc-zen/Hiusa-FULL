@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { SAO, PSITS_ADMIN, HEAD_CCS, STUDENT, apiAs, liveEnabled, pdfFile, shot, uiLogin } from '../support/live.js';
 import { allowToApply, endorse, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym, uniqueName } from '../support/pipeline.js';
+import { acceptEveryRequirement, applicationLink } from '../support/review.js';
 
 // UX_FLOW section 9, SUPER_ADMIN journeys. Every journey starts at the SAO home after a real sign-in,
 // counts mouse and tap actions only (typing is free), and ends on an assertion about what is visible.
@@ -21,6 +22,18 @@ const nextSeed = () => { seedCounter += 1; return `${RUN}${String.fromCharCode(9
 
 // The data tables render a table for wide screens and cards for narrow ones; only the one on screen counts.
 const onScreen = (locator) => locator.filter({ visible: true }).first();
+
+// A row of views is tabs from 640 px and one select below it (ResponsiveTabs).
+async function chooseView(page, name, selectLabel) {
+  const tab = page.getByRole('tab', { name });
+  if (await tab.first().isVisible()) {
+    await tab.first().click();
+    return;
+  }
+  const select = page.getByRole('combobox', { name: selectLabel });
+  const option = select.locator('option').filter({ hasText: name }).first();
+  await select.selectOption({ label: (await option.innerText()).trim() });
+}
 
 // A confirmation modal is found by its heading, because a drawer behind it can repeat the same words.
 const modalTitled = (page, title) => page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
@@ -185,23 +198,23 @@ for (const { width, height } of WIDTHS) {
         await signInAsSao(page);
 
         await chooseFromMenu(page, tap, width, 'Governance', 'Applications');
-        await tap(page.getByRole('button', { name: `Open application of ${application.name}`, exact: true }));
-        const drawer = page.getByRole('dialog', { name: application.name });
-        await expect(drawer).toBeVisible({ timeout: 20000 });
-        await expect(drawer.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled({ timeout: 20000 });
+        await tap(applicationLink(page, application.name));
+        const review = page.getByRole('main');
+        await expect(review.getByRole('heading', { level: 1, name: application.name })).toBeVisible({ timeout: 20000 });
+        await acceptEveryRequirement(page);
+        await expect(review.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled({ timeout: 20000 });
 
-        await tap(drawer.getByRole('button', { name: 'Approve', exact: true }));
+        await tap(review.getByRole('button', { name: 'Approve', exact: true }));
         clicks = counter.clicks;
 
-        await expect(page.getByText('Approved. The organization now exists.')).toBeVisible({ timeout: 20000 });
+        await expect(review.getByRole('region', { name: 'Summary' })).toContainText('Approved. The organization now exists.', { timeout: 20000 });
         expect.soft(clicks, `clicks used (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling);
         await endState(page, width, 'sao-j1');
 
         // The organization exists and is active, with no password or administrator account to set up.
         await page.goto('/dashboard/super-admin/organizations?status=active');
-        const activeCard = page.locator('tr, article, li').filter({ hasText: namePattern });
-        await expect(activeCard.first()).toBeVisible({ timeout: 20000 });
-        await expect(activeCard.first().getByText(/Active/).first()).toBeVisible();
+        const activeCard = onScreen(page.getByRole('tabpanel', { name: 'Active' }).locator('tr, article, li').filter({ hasText: namePattern }));
+        await expect(activeCard).toBeVisible({ timeout: 20000 });
 
         // The applicant is told, and the Department Head sees the organization in the college.
         const applicant = await signedInContext(browser, application.student, width, height);
@@ -211,8 +224,9 @@ for (const { width, height } of WIDTHS) {
 
         const head = await signedInContext(browser, HEAD_CCS, width, height);
         await head.page.goto('/dashboard/department-head/organizations');
-        const headRow = onScreen(head.page.locator('article, tr, li').filter({ hasText: namePattern }));
-        await expect(headRow).toContainText(/Active/, { timeout: 20000 });
+        await head.page.getByRole('tab', { name: /^Active/ }).click();
+        const headRow = onScreen(head.page.getByRole('tabpanel', { name: 'Active organizations' }).locator('article, tr, li').filter({ hasText: namePattern }));
+        await expect(headRow).toBeVisible({ timeout: 20000 });
         await head.context.close();
       } finally {
         finish(info, width, 'sao-j1', ceiling, clicks || counter.clicks);
@@ -259,7 +273,7 @@ for (const { width, height } of WIDTHS) {
 
         // The accreditation roll up moved with the decision.
         await drawer.getByRole('button', { name: 'Close panel' }).click();
-        await page.getByRole('tab', { name: 'Accreditation' }).click();
+        await chooseView(page, /Accreditation/i, 'Organizations view');
         const accreditationRow = onScreen(page.locator('tr, article, li').filter({ hasText: organizationName }));
         await expect(accreditationRow).toContainText(`${approvedBefore + 1}/${totalRequirements}`, { timeout: 20000 });
       } finally {
@@ -301,7 +315,7 @@ for (const { width, height } of WIDTHS) {
         // The submitting organization sees the same decision.
         const admin = await signedInContext(browser, PSITS_ADMIN, width, height);
         await admin.page.goto('/dashboard/finance/transaction-history');
-        const adminCard = admin.page.getByRole('button', { name: `View details for ${report.title}` }).locator('xpath=ancestor::div[contains(@class, "p-5")][1]');
+        const adminCard = admin.page.getByRole('list', { name: 'Saved reports' }).getByRole('listitem').filter({ hasText: report.title });
         await expect(adminCard).toContainText(/approved/i, { timeout: 60000 });
         await admin.context.close();
       } finally {
@@ -320,20 +334,31 @@ for (const { width, height } of WIDTHS) {
         await chooseFromMenu(page, tap, width, 'Governance', 'Colleges');
         clicks = counter.clicks;
 
-        // The list of colleges is fixed: five of them, with nothing to add or delete.
+        // The seeded list starts with five colleges. The SAO adds a college from the one primary button; deleting is a row action.
         const sections = page.locator('article[aria-labelledby^="college-"]');
         await expect(sections.first()).toBeVisible({ timeout: 20000 });
         await expect(sections).toHaveCount(5);
-        await expect(page.getByRole('button', { name: /(add|new|create) college/i })).toHaveCount(0);
-        await expect(page.getByRole('menuitem', { name: /delete/i })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Add college', exact: true })).toHaveCount(1);
 
         // Each college says who leads it, or offers the one way to get a leader: a link.
         const ccs = sections.filter({ hasText: 'College of Computer Studies' });
         await expect(ccs).toContainText('Ramon Castillo');
-        for (const section of await sections.all()) {
-          await expect(section.getByText(/^Department Head$/)).toBeVisible();
-          if (await section.getByText('No Department Head yet').count()) {
-            await expect(section.getByRole('button', { name: 'Invite Department Head' })).toBeVisible();
+        if (width >= 768) {
+          for (const section of await sections.all()) {
+            await expect(section.getByText(/^Department Head$/)).toBeVisible();
+            if (await section.getByText('No Department Head yet').count()) {
+              await expect(section.getByRole('button', { name: 'Invite Department Head' })).toBeVisible();
+            }
+          }
+        } else {
+          // On a phone the Department Head sits in the college drawer, one tap from the card, not inline.
+          for (const section of await sections.all()) {
+            await section.getByRole('heading', { level: 2 }).getByRole('button').click();
+            const drawer = page.getByRole('dialog');
+            await expect(drawer.getByText(/^Department Head$/)).toBeVisible();
+            if (await section.getByRole('heading', { level: 2 }).innerText() === 'College of Computer Studies') await expect(drawer).toContainText('Ramon Castillo');
+            await drawer.getByRole('button', { name: 'Close panel' }).click();
+            await expect(drawer).toBeHidden();
           }
         }
         expect.soft(clicks, `clicks used (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling);

@@ -27,7 +27,7 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
 
   await openRowMenu(page, page.getByRole('row').filter({ hasText: 'Sports Fest 2024' }));
   await page.getByRole('menuitem', { name: 'Edit event' }).click();
-  await expect(page.getByRole('dialog', { name: 'Edit event' }).getByRole('heading', { name: 'Edit event' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Edit event', level: 1 })).toBeVisible();
   await expect(page.getByLabel('Vendor Deadlines')).toBeVisible();
   await expect(page.getByLabel('Logistics Checklist')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
@@ -65,8 +65,8 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await page.goto('/dashboard/events/event-planner');
   await expect(page.getByRole('heading', { name: 'Planning', level: 1 })).toBeVisible();
   await page.getByLabel('Event', { exact: true }).selectOption({ label: 'Sports Fest 2024' });
-  await page.getByLabel('Optional planning context').fill('Verify the complete planning workflow.');
-  const createToDoList = page.getByRole('button', { name: 'Draft Editable To-do List' });
+  await page.getByLabel('Planning context').fill('Verify the complete planning workflow.');
+  const createToDoList = page.getByRole('button', { name: 'Draft to-do list' });
   await expect(createToDoList).toBeEnabled();
   await createToDoList.click();
   await expect(page.getByText(/\d+ suggested to-do items/)).toBeVisible();
@@ -94,7 +94,7 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await expect(page.getByRole('heading', { name: 'Check-in', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Open attendance for Sports Fest 2024' }).click();
   await expect(page.getByText('Fingerprint check-in / checkout')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Scan Fingerprint' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Connect reader' })).toBeVisible();
   await expect(page.getByText('Manual check-in', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Attendance status')).toBeVisible();
 
