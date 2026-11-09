@@ -168,7 +168,7 @@ export default function AcceptInvitationPage() {
 
       {state === 'invalid' && (
         <div>
-          <ErrorState title={INVALID_COPY[invalidReason].title} description={INVALID_COPY[invalidReason].description} className="py-0" />
+          <ErrorState pageHeading title={INVALID_COPY[invalidReason].title} description={INVALID_COPY[invalidReason].description} className="py-0" />
           {invalidReason === 'used' && (
             <p className="mt-4 text-sm">
               <Link to="/login" className="font-medium text-brand-700 underline hover:text-brand-800">Sign in</Link>
@@ -177,7 +177,7 @@ export default function AcceptInvitationPage() {
         </div>
       )}
 
-      {state === 'failed' && <ErrorState title="We could not open this invitation" description={loadError} onRetry={() => setAttempt((count) => count + 1)} className="py-0" />}
+      {state === 'failed' && <ErrorState pageHeading title="We could not open this invitation" description={loadError} onRetry={() => setAttempt((count) => count + 1)} className="py-0" />}
 
       {state === 'ready' && (
         <>

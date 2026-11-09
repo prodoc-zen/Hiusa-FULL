@@ -25,6 +25,17 @@ describe('SAO university users', () => {
     people.searchPeople.mockResolvedValue([{ school_id: 78123456, name: 'New Admin', email: 'new@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
+  it('shows no Status column and marks only an account that is not active beside the name', async () => {
+    service.getSystemUsers.mockResolvedValue(page([user, { ...user, school_id: 20265678, first_name: 'Ben', email: 'ben@example.test', account_status: 'disabled' }]));
+    render(<SaoUsersPage />);
+    await screen.findAllByText('Ana Cruz');
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+    const [ben] = screen.getAllByRole('row').filter((row) => within(row).queryByText('Ben Cruz'));
+    expect(within(ben).getByText('Disabled')).toBeInTheDocument();
+    const [ana] = screen.getAllByRole('row').filter((row) => within(row).queryByText('Ana Cruz'));
+    expect(within(ana).queryByText(/^(Active|Disabled|Inactive)$/)).not.toBeInTheDocument();
+  });
+
   it('keeps the user action menu open when the initial search debounce completes', async () => {
     vi.useFakeTimers();
     try {

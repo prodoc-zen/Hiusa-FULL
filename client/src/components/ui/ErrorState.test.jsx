@@ -15,6 +15,13 @@ describe('ErrorState', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('renders the title as the page heading when it is the only content on the page', () => {
+    const { rerender } = render(<ErrorState title="This link has expired" />);
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    rerender(<ErrorState pageHeading title="This link has expired" />);
+    expect(screen.getByRole('heading', { level: 1, name: 'This link has expired' })).toBeInTheDocument();
+  });
+
   it('shows no button without onRetry and honours a custom retry label', () => {
     const { rerender } = render(<ErrorState title="Could not load" />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
