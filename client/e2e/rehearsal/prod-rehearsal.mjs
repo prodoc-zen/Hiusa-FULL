@@ -1212,6 +1212,9 @@ await step('election_handover', 'In the org: an election for President with cand
   const cast = async (who, pickKey) => {
     const page = people.get(who).page;
     await switchToOrganization(who, rec);
+    // Each profile votes in its own organization only, so the ballot is reached from the organization profile, not the college one.
+    const label = await page.getByRole('button', { name: /^Workspace:/ }).innerText().catch(() => '');
+    if (!new RegExp(ORG.name, 'i').test(label)) rec.defect('app_bug', `${fullName(who)} is on "${label || 'a single space'}" and not the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
     await page.waitForURL(/\/elections\/\d+\/vote/, { timeout: 8000 }).catch(() => {});
     await waitSettled(page);
@@ -1228,7 +1231,7 @@ await step('election_handover', 'In the org: an election for President with cand
     const start = page.getByRole('button', { name: /Start my ballot/ });
     if (!(await start.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false))) {
       const sees = (await bodyText(page)).includes('No election is open for voting');
-      rec.defect('app_bug', `${fullName(who === 'a' ? 'a' : who)} holds an active member profile in the organization (an eligible voter) and cannot vote: ${sees ? 'the Vote page says "No election is open for voting" while the election is open' : 'there is no ballot to start'}, and a member has no workspace to switch into.`, ['server/app/Http/Controllers/ElectionController.php', 'client/src/pages/elections/']);
+      rec.defect('app_bug', `${fullName(who === 'a' ? 'a' : who)} holds an active member profile in the organization (an eligible voter) and cannot vote: ${sees ? 'the Vote page says "No election is open for voting" while the election is open' : 'there is no ballot to start'}.`, ['server/app/Http/Controllers/ElectionController.php', 'client/src/pages/elections/']);
       return;
     }
     await start.click();
@@ -1246,7 +1249,7 @@ await step('election_handover', 'In the org: an election for President with cand
   await cast('c', 'b');
   rec.evidence.push('A, B and C voted');
 
-  // C is the plain member: a STUDENT profile in the organization, no officer access, found the election and voted from where they land.
+  // C is the plain member: a STUDENT profile in the organization, no officer access, switched into the organization profile (the college profile lists only the college-wide election) and voted there.
   const memberProfile = ((await api('c', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name);
   rec.evidence.push(`member C holds ${memberProfile ? `${memberProfile.role} in the organization` : 'no profile in the organization'} and voted`);
   if (memberProfile?.role !== 'STUDENT') rec.defect('app_bug', `The member C has ${memberProfile?.role ?? 'no'} access, not the plain STUDENT member profile, so the rehearsal did not prove a member can vote.`, ['server/app/Http/Controllers/AccountProfileController.php']);

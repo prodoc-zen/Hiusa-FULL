@@ -176,15 +176,22 @@ class ProfileScopeTest extends TestCase
         );
     }
 
-    public function test_the_college_profile_lists_the_elections_of_the_organizations_the_student_belongs_to(): void
+    public function test_the_college_profile_lists_only_the_college_wide_election(): void
     {
         $psitsElection = $this->election($this->psits, 'PSITS officers');
         $homeElection = $this->election($this->home, 'College council');
         $elsewhereElection = $this->election($this->elsewhere, 'Elsewhere officers');
 
-        $ids = collect($this->asProfile($this->collegeProfile)->getJson('/api/elections')->assertOk()->json())->pluck('id')->all();
+        $college = $this->asProfile($this->collegeProfile);
+        $this->assertSame([$homeElection->id], collect($college->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
+        $college->getJson("/api/elections/{$psitsElection->id}")->assertNotFound();
+        $this->assertSame(
+            [$homeElection->id],
+            collect($college->getJson('/api/student/feed')->assertOk()->json('items'))->where('type', 'election')->pluck('data.id')->values()->all(),
+        );
 
-        $this->assertEqualsCanonicalizing([$psitsElection->id, $homeElection->id], $ids);
+        $ids = collect($this->asProfile($this->psitsProfile)->getJson('/api/elections')->assertOk()->json())->pluck('id')->all();
+        $this->assertSame([$psitsElection->id], $ids);
         $this->assertNotContains($elsewhereElection->id, $ids);
     }
 
