@@ -50,7 +50,9 @@ export function buildWorkspaces({ role, profiles = [], activeProfileId = null, c
   const active = profilesNow.find((profile) => profile.id === activeProfileId);
   const current = active && ORG_ROLES.includes(active.role) ? orgs.find((space) => space.profile.id === active.id) : main;
 
-  return { spaces, current: current ?? null, main };
+  const activeStudent = students.find((profile) => profile.id === activeProfileId) ?? null;
+
+  return { spaces, current: current ?? null, main, studentProfiles: students, activeStudent };
 }
 
 export default function useWorkspaces({ enabled = true, activeSubAccount = null } = {}) {
