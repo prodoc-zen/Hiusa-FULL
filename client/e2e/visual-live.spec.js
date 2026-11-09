@@ -57,6 +57,31 @@ async function settle(page) {
   await page.waitForTimeout(250);
 }
 
+// The venue sections are a tab row from 640 px and one select below it. The hidden one is not in the
+// accessibility tree, so exactly one of the two matches once the page has loaded.
+async function sectionControl(page, name) {
+  const tab = page.getByRole('tab', { name });
+  const select = page.getByRole('combobox', { name: 'Section' });
+  await expect(tab.or(select)).toBeVisible();
+  return { tab, select, onTabs: (await tab.count()) > 0 };
+}
+
+async function openSection(page, name) {
+  const { tab, select, onTabs } = await sectionControl(page, name);
+  if (onTabs) {
+    await tab.click();
+    return;
+  }
+  const option = select.locator('option').filter({ hasText: name }).first();
+  await select.selectOption({ label: (await option.innerText()).trim() });
+}
+
+async function expectSection(page, name) {
+  const { tab, select, onTabs } = await sectionControl(page, name);
+  if (onTabs) await expect(tab).toHaveAttribute('aria-selected', 'true');
+  else await expect(select.locator('option:checked')).toHaveText(name);
+}
+
 async function measure(page, viewportName) {
   return page.evaluate((isMobile) => {
     const doc = document.documentElement;
@@ -157,7 +182,7 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
       name: 'venues-calendar',
       path: '/dashboard/super-admin/venues',
       after: async (page) => {
-        await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true');
+        await expectSection(page, /^Calendar/);
         await expect(page.getByLabel('Venue to show')).toBeVisible({ timeout: 15000 });
         await settle(page);
       },
@@ -166,8 +191,8 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
       name: 'venues-requests',
       path: '/dashboard/super-admin/venues',
       after: async (page) => {
-        await page.getByRole('tab', { name: /Booking requests/ }).click();
-        await expect(page.getByRole('tab', { name: /Booking requests/ })).toHaveAttribute('aria-selected', 'true');
+        await openSection(page, /^Booking requests/);
+        await expectSection(page, /^Booking requests/);
         await settle(page);
       },
     },
@@ -210,7 +235,7 @@ test('harness control: the measurements can fail', async ({ browser, request }) 
   await page.goto('/dashboard/department-head', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('main')).toBeVisible({ timeout: 20000 });
   await settle(page);
-  await page.addStyleTag({ content: 'body { min-width: 1200px !important; font-family: serif !important; } main button, main a[href] { display: inline-block !important; height: 20px !important; background: rgb(11,142,208) !important; color: #fff !important; }' });
+  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; } body { min-width: 1200px !important; font-family: serif !important; } main button, main a[href] { display: inline-block !important; height: 20px !important; background: rgb(11,142,208) !important; color: #fff !important; }' });
   const result = await measure(page, 'mobile');
   expect(result.scrollWidth).toBeGreaterThan(result.clientWidth);
   expect(result.fontFamily).not.toMatch(/Poppins/i);

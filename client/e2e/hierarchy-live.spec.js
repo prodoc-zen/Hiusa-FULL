@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { expect, test } from '@playwright/test';
 import { newStudent, randomPassword } from './support/pipeline.js';
+import { acceptEveryRequirement, applicationLink, flagRequirement } from './support/review.js';
 import { SHOTS, PSITS_ORGANIZATION_ID, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, apiAs, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
 
 // Drives the SAO / college / organization hierarchy end to end in a real browser:
@@ -89,7 +90,7 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
     await page.getByRole('switch', { name: /Toggle active status for 1st semester of AY 2026-2027/ }).click();
     await expect(page.getByText('Academic semester activated').first()).toBeVisible({ timeout: 10000 });
   }
-  await expect(page.getByText(/1st Semester/).first()).toBeVisible();
+  await expect(page.getByText(/1st semester/i).first()).toBeVisible();
   await expect(page.locator('main')).toContainText(/active/i);
   void semesters;
   // Ensure the 10 organization requirements are active and have sample formats so registration is open for Department Head.
@@ -182,25 +183,24 @@ test('Step 4: Department Head opens a file, marks a requirement and returns the 
   test.setTimeout(120_000);
   const { page, context } = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
   await goto(page, '/dashboard/organization-applications');
-  await page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
-  const drawer = page.getByRole('dialog', { name: ORG_NAME });
-  await expect(drawer.getByRole('button', { name: /^doc-\d+\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
+  await applicationLink(page, ORG_NAME).click();
+  const review = page.getByRole('main');
+  await expect(review.getByRole('button', { name: /^doc-\d+\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
 
-  const opened = await clickAndCaptureOpenedPdf(page, context, () => drawer.getByRole('button', { name: /^doc-\d+\.pdf$/ }).first().click());
+  const opened = await clickAndCaptureOpenedPdf(page, context, () => review.getByRole('button', { name: /^doc-\d+\.pdf$/ }).first().click());
   console.log('REVIEW OPEN', JSON.stringify(opened));
   expect(opened.apiStatus).toBe(200);
   expect(opened.apiType).toContain('application/pdf');
   expect(opened.reachedBlob).toBe(true);
 
   // Returning needs a reason: nothing is sent while there is no note and no marked requirement.
-  await expect(drawer.getByRole('button', { name: 'Return to applicant' })).toBeDisabled();
-  const first = drawer.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'doc-1.pdf' }) });
-  await first.getByLabel(/^Review of /).selectOption('needs_changes');
-  await first.getByLabel(/^Note for /).fill('Missing charter signature');
-  await expect(drawer.getByRole('button', { name: 'Endorse to SAO' })).toBeDisabled();
-  await drawer.screenshot({ path: shot('A4-marked-requirement.png') });
-  await drawer.getByRole('button', { name: 'Return to applicant' }).click();
-  await expect(page.getByText('Returned to the applicant.')).toBeVisible({ timeout: 15000 });
+  await expect(review.getByRole('button', { name: 'Return with comments' })).toBeDisabled();
+  await flagRequirement(page, 'doc-1.pdf', 'Missing charter signature');
+  await expect(review.getByRole('button', { name: 'Endorse', exact: true })).toBeDisabled();
+  await review.screenshot({ path: shot('A4-marked-requirement.png') });
+  await review.getByRole('button', { name: 'Return with comments' }).click();
+  await expect(review.getByRole('region', { name: 'Summary' })).toContainText('Returned to the applicant.', { timeout: 15000 });
+  await review.getByRole('link', { name: 'Back to applications' }).click();
   await page.getByRole('tab', { name: /^Returned/ }).click();
   await expect(page.locator('tbody tr, ul[data-view="cards"] > li').filter({ hasText: ORG_NAME }).first()).toContainText('Returned');
   await page.screenshot({ path: shot('A4-returned-tab.png'), fullPage: true });
@@ -222,23 +222,25 @@ test('Step 6: Department Head endorses, the SAO approves and the student becomes
   test.setTimeout(150_000);
   const head = await roleContext(browser, 'HEAD_CCS', HEAD_CCS);
   await goto(head.page, '/dashboard/organization-applications');
-  await head.page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
-  const endorse = head.page.getByRole('dialog', { name: ORG_NAME });
+  await applicationLink(head.page, ORG_NAME).click();
+  const endorse = head.page.getByRole('main');
   await expect(endorse).toContainText('charter-signed.pdf', { timeout: 15000 });
-  await endorse.getByRole('button', { name: 'Endorse to SAO' }).click();
-  await expect(head.page.getByText('Endorsed. The SAO is next.')).toBeVisible({ timeout: 15000 });
+  await acceptEveryRequirement(head.page);
+  await endorse.getByRole('button', { name: 'Endorse', exact: true }).click();
+  await expect(endorse.getByRole('region', { name: 'Summary' })).toContainText('With the SAO for a decision', { timeout: 15000 });
 
   const { page } = await roleContext(browser, 'SAO', SAO);
   await goto(page, '/dashboard/organization-applications');
-  await page.getByRole('button', { name: `Open application of ${ORG_NAME}` }).click();
-  const drawer = page.getByRole('dialog', { name: ORG_NAME });
-  await expect(drawer.getByRole('button', { name: /^doc-\d+\.pdf$|^charter-signed\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
-  await expect(drawer).toContainText('charter-signed.pdf');
-  await drawer.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(page.getByText('Approved. The organization now exists.')).toBeVisible({ timeout: 15000 });
+  await applicationLink(page, ORG_NAME).click();
+  const decision = page.getByRole('main');
+  await expect(decision.getByRole('button', { name: /^doc-\d+\.pdf$|^charter-signed\.pdf$/ })).toHaveCount(10, { timeout: 15000 });
+  await expect(decision).toContainText('charter-signed.pdf');
+  await acceptEveryRequirement(page);
+  await decision.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(decision.getByRole('region', { name: 'Summary' })).toContainText('Approved. The organization now exists.', { timeout: 15000 });
 
   await goto(page, '/dashboard/super-admin/organizations?status=active');
-  await expect(page.locator('tbody tr, ul[data-view="cards"] > li').filter({ hasText: ORG_NAME }).first()).toContainText('Active', { timeout: 15000 });
+  await expect(page.getByRole('tabpanel', { name: 'Active' }).locator('tbody tr, ul[data-view="cards"] > li').filter({ hasText: ORG_NAME }).first()).toBeVisible({ timeout: 15000 });
   state.orgId = await lookupOrgId(request, (await apiLogin(request, SAO)).token);
   expect(state.orgId, 'the approved application created the organization').toBeTruthy();
   await page.screenshot({ path: shot('A6-org-active.png'), fullPage: true });
@@ -353,7 +355,7 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
     ['Organizations', 'Organization accreditation', 'accreditation'],
     ['Organizations', 'Review submissions', 'review'],
     ['Event reviews', null, 'event-reviews'],
-    ['Semestral Report & Financial Report', null, 'financial'],
+    ['Semestral and financial report', null, 'financial'],
     ['Requirement settings', 'Organization requirements', 'requirements'],
     ['Requirement settings', 'Event requirements', 'events'],
   ];
@@ -621,6 +623,9 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
   await expect(heldDialog).toBeHidden({ timeout: 15000 });
   const bookings = await (await request.get(`${apiUrl}/venue-bookings`, { headers: bearer(admin.token), params: { venue_id: venue.id, per_page: 100 } })).json();
   expect((bookings.data || []).find((item) => item.id === booking.id)?.status, 'cancelling the event releases its venue booking').toBe('withdrawn');
+  // The list reloads after the cancellation; open the row menu only once the row has settled on its new status.
+  await expect(heldRow).toContainText(/cancelled/i, { timeout: 15000 });
+  await page.waitForLoadState('networkidle');
   await openRowMenu(page, heldRow);
   await page.getByRole('menuitem', { name: 'Delete event' }).click();
   await page.getByRole('dialog', { name: 'Delete this event?' }).getByRole('button', { name: 'Delete event' }).click();
@@ -629,16 +634,23 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
 
   await goto(page, '/dashboard/finance/budget-allocation');
   await page.waitForLoadState('networkidle');
-  const budgetCard = page.locator('div').filter({ hasText: budgetTitle }).filter({ has: page.getByRole('button', { name: /^Actions for / }) }).last();
-  await expect(budgetCard).toBeVisible({ timeout: 15000 });
-  await openRowMenu(page, budgetCard);
+  // The budget list is cards, so the row menu is found by its own label (the app title-cases the name).
+  const budgetActions = page.getByRole('button', { name: new RegExp(`^Actions for ${budgetTitle}$`, 'i') });
+  const openBudgetMenu = async () => {
+    await budgetActions.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(600);
+    await budgetActions.click();
+    await page.getByRole('menu').waitFor({ state: 'visible', timeout: 5000 });
+  };
+  await expect(budgetActions).toBeVisible({ timeout: 15000 });
+  await openBudgetMenu();
   await page.getByRole('menuitem', { name: 'Delete budget' }).click();
   const budgetCancel = page.getByRole('dialog', { name: 'Delete this budget?' });
   await expect(budgetCancel).toBeVisible();
   await budgetCancel.getByRole('button', { name: 'Cancel' }).click();
   await expect(budgetCancel).toBeHidden();
   if (budgetResponse.status() === 201 || budgetResponse.status() === 200) {
-    await openRowMenu(page, budgetCard);
+    await openBudgetMenu();
     await page.getByRole('menuitem', { name: 'Delete budget' }).click();
     const dialog = page.getByRole('dialog', { name: 'Delete this budget?' });
     await expect(dialog).toContainText(budgetTitle);

@@ -129,7 +129,7 @@ for (const viewport of WIDTHS) {
       const flow = flowFor();
 
       await openFromMenu(page, flow, 'Events and tasks', 'Check-in');
-      const attendanceCount = page.getByText('Attendance records', { exact: true }).locator('xpath=following-sibling::p[1]');
+      const attendanceCount = page.locator('dt').filter({ hasText: /^Arrivals$/ }).locator('xpath=following-sibling::dd[1]');
       // The only ongoing event is already selected on opening, so the queue is tapped only when it is not.
       const preselected = await attendanceCount.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false);
       if (!preselected) await flow.tap(page.getByRole('button', { name: new RegExp(`^Open attendance for ${escapeRegExp(event.title)}`, 'i') }));
@@ -139,7 +139,7 @@ for (const viewport of WIDTHS) {
       const memberName = `${member.first_name} ${member.last_name}`;
       await page.getByRole('combobox', { name: 'Member' }).fill(memberName);
       await flow.tap(page.getByRole('option', { name: new RegExp(escapeRegExp(memberName)) }).first());
-      await flow.tap(page.getByRole('button', { name: /Confirm Check-In/ }));
+      await flow.tap(page.getByRole('button', { name: /Confirm check-in/i }));
 
       await finish(page, flow, {
         id: 'O1',
@@ -169,9 +169,9 @@ for (const viewport of WIDTHS) {
         await flow.tap(verifyButton);
       } else {
         await openRowActions(page, flow, orderEntry());
-        await flow.tap(page.getByRole('menuitem', { name: 'Verify & submit' }));
+        await flow.tap(page.getByRole('menuitem', { name: 'Verify and submit' }));
       }
-      await flow.tap(page.getByRole('dialog', { name: 'Verify merchandise payment' }).getByRole('button', { name: 'Verify & Submit' }));
+      await flow.tap(page.getByRole('dialog', { name: 'Verify merchandise payment' }).getByRole('button', { name: 'Verify and submit' }));
       await expect(page.getByRole('dialog', { name: 'Verify merchandise payment' })).toBeHidden();
 
       // An officer's verification is only the first review: the Admin approves it and the buyer's token is issued.
@@ -184,7 +184,7 @@ for (const viewport of WIDTHS) {
       await openFromMenu(page, flow, 'Store', 'Claim desk');
       await page.getByLabel('16-character claim token').fill(token);
       await flow.tap(page.getByRole('button', { name: 'Claim', exact: true }));
-      await flow.tap(page.getByRole('button', { name: 'Confirm Claim / Release' }));
+      await flow.tap(page.getByRole('button', { name: 'Confirm release' }));
 
       // The claim desk register only lists orders still waiting, so the stepper is looked for where the order shows it.
       const stepper = page.getByRole('progressbar', { name: `ORD-${orderId} progress` });
@@ -256,10 +256,10 @@ for (const viewport of WIDTHS) {
       await expect(page.getByRole('dialog')).toContainText('Admin approves it before members see it');
       await flow.tap(page.getByRole('dialog').getByRole('button', { name: 'Submit for approval' }));
       const sentHeading = page.getByRole('heading', { level: 2, name: 'Sent to your Admin for approval' });
-      await expect(sentHeading).toBeVisible();
+      await expect(sentHeading).toBeVisible({ timeout: 20_000 });
       const sentScreen = `${await sentHeading.innerText()} | ${await sentHeading.locator('xpath=following-sibling::p[1]').innerText()}`;
 
-      const rowFor = () => page.getByRole('row').filter({ hasText: title });
+      const rowFor = () => page.locator('main').locator('tr, ul[data-view="cards"] > li').filter({ hasText: title }).filter({ visible: true });
       await flow.tap(page.getByRole('link', { name: 'View in Announcements' }));
       await expect(rowFor()).toBeVisible();
 

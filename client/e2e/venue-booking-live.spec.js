@@ -50,7 +50,7 @@ for (const [index, account] of [[1, PSITS_ADMIN], [3, OFFICER]]) {
       await expect(page.getByText(/Pending request from Your organization/)).toBeVisible({ timeout: 15000 });
       await expect(page.getByLabel('Booking hours, 5 AM to 10 PM')).toBeVisible();
 
-      await page.getByRole('button', { name: 'Request this venue' }).click();
+      await page.getByRole('button', { name: 'Request a venue', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Request a venue booking' });
       await dialog.getByLabel(/^Start/).fill(`${day}T10:00`);
       await dialog.getByLabel(/^End/).fill(`${day}T12:00`);
