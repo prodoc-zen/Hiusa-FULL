@@ -13,8 +13,13 @@ vi.mock('../../../components/people/AddStaffModal', () => ({
 vi.mock('../../../components/org/ApplicantGrantModal', () => ({
   default: ({ open }) => (open ? <div role="dialog" aria-label="Allow a student to apply" /> : null),
 }));
-vi.mock('../../../components/students/StudentRecordsPanel', () => ({
-  default: ({ collegeId }) => <p data-testid="records-panel">{`records for college ${collegeId}`}</p>,
+vi.mock('../../../components/students/StudentRecordsUpload', () => ({
+  default: ({ collegeId, onSaved }) => (
+    <div data-testid="records-upload">
+      <p>{`upload for college ${collegeId}`}</p>
+      <button type="button" onClick={onSaved}>Finish upload</button>
+    </div>
+  ),
 }));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
@@ -47,7 +52,7 @@ describe('College people page', () => {
     expect(screen.getAllByText('BSIT · 2nd Year').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Year 2nd Year/)).not.toBeInTheDocument();
     expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Signed up')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('table')).queryByText('Signed up')).not.toBeInTheDocument();
     expect(screen.getAllByText('Not signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 20260001').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Add staff' })).not.toBeInTheDocument();
@@ -154,18 +159,54 @@ describe('College people page', () => {
     expect(screen.queryByText(/95000007/)).not.toBeInTheDocument();
   });
 
-  it('opens the student records upload for the own college of the dean, on the students tab only', async () => {
+  it('is one student list: no second records table, and not signed up students sit in the same list', async () => {
     renderPage();
     await screen.findAllByText('Ana Alvarez');
-    expect(screen.queryByTestId('records-panel')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Student records' }));
-    expect(screen.getByTestId('records-panel')).toHaveTextContent('records for college 5');
-    fireEvent.click(screen.getByRole('button', { name: 'Hide student records' }));
-    expect(screen.queryByTestId('records-panel')).not.toBeInTheDocument();
-    await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'students').length).toBe(2));
+    expect(screen.getAllByRole('table')).toHaveLength(1);
+    expect(screen.getAllByText('Cara Cruz').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not signed up').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Student records' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hide student records' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Student records')).not.toBeInTheDocument();
+  });
+
+  it('opens the student records upload from the students toolbar, for the own college of the dean, on the students tab only', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    expect(screen.queryByTestId('records-upload')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Upload student records' }));
+    expect(await screen.findByRole('dialog', { name: 'Upload student records' })).toBeInTheDocument();
+    expect(screen.getByTestId('records-upload')).toHaveTextContent('upload for college 5');
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    await waitFor(() => expect(screen.queryByTestId('records-upload')).not.toBeInTheDocument());
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
-    expect(screen.queryByRole('button', { name: 'Student records' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload student records' })).not.toBeInTheDocument();
+  });
+
+  it('reloads the list from the first page, showing everyone, after records are saved', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    fireEvent.click(screen.getByRole('button', { name: 'Upload student records' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish upload' }));
+    await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'students').length).toBe(2));
+    expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: undefined, page: 1, per_page: 20 });
+  });
+
+  it('filters the one list to signed up or not signed up students and clears the filter', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    const show = screen.getByLabelText('Show');
+    fireEvent.change(show, { target: { value: 'not_signed_up' } });
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: undefined, show: 'not_signed_up', page: 1, per_page: 20 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: undefined, page: 1, per_page: 20 }));
+    fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'signed_up' } });
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'students', q: undefined, show: 'signed_up', page: 1, per_page: 20 }));
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(screen.queryByLabelText('Show')).not.toBeInTheDocument();
+    expect(people.getCollegePeople).toHaveBeenLastCalledWith({ tab: 'staff', q: undefined, page: 1, per_page: 20 });
   });
 
   it('lets the dean allow a student to apply from the students tab', async () => {
@@ -178,11 +219,12 @@ describe('College people page', () => {
     expect(screen.queryByRole('button', { name: 'Allow a student to apply' })).not.toBeInTheDocument();
   });
 
-  it('offers to load student records when the college has no students yet', async () => {
+  it('offers to upload student records when the college has no students yet', async () => {
     people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(key === 'students' ? [] : byTab[key])));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Load student records' }));
-    expect(screen.getByTestId('records-panel')).toBeInTheDocument();
+    await screen.findByText('No students yet');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Upload student records' }).at(-1));
+    expect(await screen.findByTestId('records-upload')).toBeInTheDocument();
   });
 
   it('removes a staff member after confirming, but never offers it for the dean or yourself', async () => {
