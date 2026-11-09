@@ -34,7 +34,12 @@ const VIEWPORTS = [
 // The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1280 and 1366),
 // folds into an icon at 1279 and 1024, and stays an icon on a phone (390).
 const SWITCHER_WIDTHS = [1366, 1279, 1024, 390];
-const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
+const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'GUEST'];
+// The routes App.jsx serves outside the dashboard allowlist (the dev-only /dev/ui-kit is not built for production): public pages for a signed-out visitor, and the
+// immersive ballot for the roles that vote. client_routes.php lists neither.
+const GUEST_ROUTES = ['/', '/login', '/sign-up', '/recover-account', '/reset-password', '/accept-invitation', '/change-password'];
+const BALLOT_ROUTE = '/elections/:electionId/vote';
+const BALLOT_ROLES = ['ADMIN', 'SBO_OFFICER', 'STUDENT'];
 
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const onlyRoles = arg('roles')?.split(',');
@@ -127,7 +132,9 @@ function seedAcademicSemesters() {
     $next = date('Y-m-d', strtotime($mid . ' +1 day'));
     $semester = $p->prepare("insert into academic_semesters (academic_year_id, number, starts_on, ends_on, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)");
     $semester->execute([$year['id'], 1, $year['starts_on'], $mid, 'active', $now, $now]);
-    $semester->execute([$year['id'], 2, $next, $year['ends_on'], 'upcoming', $now, $now]);`;
+    $semester->execute([$year['id'], 2, $next, $year['ends_on'], 'upcoming', $now, $now]);
+    // The seeded election carries no semester, so the elections list (scoped to the selected semester) hides it and the ballot has no record.
+    $p->prepare("update elections set academic_semester_id = (select id from academic_semesters where status = 'active' order by id limit 1) where academic_semester_id is null")->execute();`;
   const result = spawnSync('php', ['-r', code, DB_FILE], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`could not seed the academic semesters: ${(result.stderr || result.stdout || '').slice(0, 300)}`);
 }
@@ -230,6 +237,7 @@ async function paramValues(role, session) {
     seedApplication('dean');
     values.applicationId = await firstId(token, ['/organization-applications?status=pending_dean'], (r) => r.name === DEAN_APPLICATION);
   }
+  if (BALLOT_ROLES.includes(role)) values.electionId = await firstId(token, ['/elections']);
   if (role === 'STUDENT') {
     seedApplication('dean');
     values.applicationId = await firstId(token, ['/my/organization-applications'], (r) => r.name === DEAN_APPLICATION);
@@ -351,8 +359,30 @@ function measurePage() {
   });
   const primaries = [...primary].filter(visibleDeep);
 
+  // The part of a text box that a clipping ancestor (overflow other than visible) leaves showing, or null when none shows.
+  const visibleBox = (el, rect) => {
+    let box = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    if (box.right - box.left < 2 || box.bottom - box.top < 2) return null;
+    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
+      const r = node.getBoundingClientRect();
+      box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
+      if (box.right - box.left < 2 || box.bottom - box.top < 2) return null;
+    }
+    return box;
+  };
+  // A sticky or fixed bar (the form's Publish now bar) is meant to sit over content that scrolls beneath it.
+  const isFloating = (el) => {
+    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+      const position = getComputedStyle(node).position;
+      if (position === 'fixed' || position === 'sticky') return true;
+    }
+    return false;
+  };
   const small = [];
   const heavy = [];
+  const textBoxes = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const seenHeavy = new Set();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -360,6 +390,13 @@ function measurePage() {
     const el = node.parentElement;
     if (!el || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName) || !visibleDeep(el)) continue;
     const style = getComputedStyle(el);
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    // One box per rendered line: the bounding box of wrapped text also covers its neighbours.
+    for (const rect of range.getClientRects()) {
+      const box = visibleBox(el, rect);
+      if (box) textBoxes.push({ el, box, floating: isFloating(el) });
+    }
     if (parseFloat(style.fontSize) < 12) small.push(`${parseFloat(style.fontSize)}px ${describe(el)}`);
     if (Number(style.fontWeight) >= 800 && !seenHeavy.has(el)) {
       seenHeavy.add(el);
@@ -367,8 +404,25 @@ function measurePage() {
     }
   }
 
+  // Two pieces of text from different elements that cover each other: the one real overlap that makes a page unreadable.
+  const overlaps = [];
+  const byLeft = textBoxes.sort((a, b) => a.box.left - b.box.left);
+  for (let i = 0; i < byLeft.length && overlaps.length < 6; i++) {
+    for (let j = i + 1; j < byLeft.length && byLeft[j].box.left < byLeft[i].box.right; j++) {
+      const a = byLeft[i];
+      const b = byLeft[j];
+      if (a.el === b.el || a.floating !== b.floating) continue;
+      const w = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+      const h = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+      if (w <= 1 || h <= 1) continue;
+      const smaller = Math.min((a.box.right - a.box.left) * (a.box.bottom - a.box.top), (b.box.right - b.box.left) * (b.box.bottom - b.box.top));
+      if (w * h >= 20 && w * h >= smaller * 0.25) overlaps.push(`${describe(a.el)} over ${describe(b.el)}`);
+    }
+  }
+
   return {
     overflowX,
+    overlaps,
     scrollWidth: root.scrollWidth,
     clientWidth: root.clientWidth,
     wide,
@@ -435,7 +489,14 @@ function reviewInspector(role) {
     if (!(await pass.isDisabled())) problems['review-pass-early'] = `${passLabel} is on before every requirement is Accepted`;
     if (!(await giveBack.isDisabled())) problems['review-return-early'] = 'Return with comments is on with no note';
     if (!(await comment.isVisible())) problems['review-comment-link'] = 'no Add a comment link';
-    if (role === 'SUPER_ADMIN' && !(await page.getByText('Department Head:').first().isVisible().catch(() => false))) problems['review-prior-stage'] = 'the Department Head review is not shown to the SAO';
+    // The SAO reads the Department Head's note on the application and, one row open, the dean's mark on a requirement.
+    if (role === 'SUPER_ADMIN') {
+      const first = rows.first().getByRole('button', { name: /^(Review|Change) / });
+      if (await first.count()) await first.click();
+      const note = await page.getByText('Note from the Department Head', { exact: true }).isVisible().catch(() => false);
+      const mark = await page.getByText('Department Head:').first().isVisible().catch(() => false);
+      if (!note || !mark) problems['review-prior-stage'] = `the Department Head's ${[note ? '' : 'application note', mark ? '' : 'requirement mark'].filter(Boolean).join(' and ')} is not shown to the SAO`;
+    }
 
     // The app shell scrolls inside itself, so a full-page shot stops at the first screen: scroll to the decision first.
     await page.getByRole('heading', { name: 'Decision', exact: true }).scrollIntoViewIfNeeded();
@@ -495,19 +556,26 @@ async function prepareRecords(page, role, result) {
       await page.waitForTimeout(400);
     }
   }
-  if (!(await page.getByText('Read only', { exact: true }).first().isVisible().catch(() => false))) {
+  // The records request for a closed year can outlast networkidle (it is answered after the select settles), so wait for the badge.
+  const badge = await page.getByText('Read only', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+  if (!badge) {
     result.checks['records-read-only'] = 'the closed period does not show the Read only badge';
   }
 }
 
 async function auditRoute(context, viewport, role, route, filledPath, roleRoutes, inspect = null) {
-  const page = await context.newPage();
+  let page;
+  try {
+    page = await context.newPage();
+  } catch (error) {
+    return { role, route, path: filledPath, viewport: viewport.name, checks: { crashed: String(error.message).split('\n')[0] }, screenshot: null };
+  }
   const consoleErrors = [];
   const apiFailures = [];
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text().slice(0, 240)); });
   page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error.message).slice(0, 240)}`));
   page.on('response', (response) => {
-    if (response.url().startsWith(API) && response.status() >= 500) apiFailures.push(`${response.status()} ${response.request().method()} ${response.url().replace(API, '')}`.slice(0, 200));
+    if (response.url().startsWith(API) && response.status() >= 400) apiFailures.push(`${response.status()} ${response.request().method()} ${response.url().replace(API, '')}`.slice(0, 200));
   });
   page.on('requestfailed', (request) => {
     const reason = request.failure()?.errorText || '';
@@ -542,6 +610,7 @@ async function auditRoute(context, viewport, role, route, filledPath, roleRoutes
     if (measured.overflowX) fail('overflow-x', `document ${measured.scrollWidth}/${measured.clientWidth}; ${measured.wide.join(' | ')}`);
     if (consoleErrors.length) fail('console-errors', [...new Set(consoleErrors)].slice(0, 5).join(' | '));
     if (apiFailures.length) fail('api-failed', [...new Set(apiFailures)].slice(0, 5).join(' | '));
+    if (measured.overlaps.length) fail('text-overlap', measured.overlaps.slice(0, 3).join(' | '));
     if (measured.h1Count !== 1) fail('h1-count', `${measured.h1Count} visible h1 ${JSON.stringify(measured.h1Text)}`);
     if (measured.primaryCount > 1) fail('primary-buttons', `${measured.primaryCount} filled primary: ${measured.primaryText.join(' | ')}`);
     if (measured.smallTextCount) fail('font-under-12px', `${measured.smallTextCount} nodes, e.g. ${measured.smallText.slice(0, 4).join(' | ')}`);
@@ -655,8 +724,12 @@ async function main() {
   const accounts = {};
   const roles = ROLES.filter((r) => !onlyRoles || onlyRoles.includes(r));
   for (const role of ROLES) {
-    if (roles.includes(role)) accounts[role] = { ...(await signIn(BY_ROLE[role])), role };
+    if (roles.includes(role) && role !== 'GUEST') accounts[role] = { ...(await signIn(BY_ROLE[role])), role };
   }
+
+  if (roles.includes('GUEST')) accounts.GUEST = { token: null, user: null, expires: null, role: 'GUEST' };
+  routesConfig.GUEST = GUEST_ROUTES;
+  for (const role of BALLOT_ROLES) routesConfig[role] = [...(routesConfig[role] || []), BALLOT_ROUTE];
 
   const results = [];
   const skipped = [];
@@ -677,7 +750,7 @@ async function main() {
     await closeBrowser();
     browser = await chromium.launch({ args: ['--mute-audio'] });
     context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 1 });
-    await context.addInitScript(({ token, user, expires }) => {
+    if (session.token) await context.addInitScript(({ token, user, expires }) => {
       try {
         localStorage.setItem('auth_token', token);
         localStorage.setItem('user', JSON.stringify(user));
