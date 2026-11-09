@@ -7,14 +7,12 @@ use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
-use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * A Department Head's view of their own college: its student organizations, read only, and the
