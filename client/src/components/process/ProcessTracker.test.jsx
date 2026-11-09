@@ -65,10 +65,23 @@ describe('ProcessTracker', () => {
     renderTracker();
 
     await screen.findByRole('list', { name: 'Setting up your college' });
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryAllByRole('button').map((button) => button.textContent)).toEqual(['Show all steps']);
+    expect(screen.getByRole('button', { name: 'Show all steps' })).toHaveClass('md:hidden');
     expect(screen.getAllByRole('link')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Load student records' })).toHaveAttribute('data-variant', 'secondary');
     expect(screen.getByRole('region', { name: 'Where you are in the process' }).className).not.toMatch(/border|shadow/);
+  });
+
+  it('keeps the step list behind a tap on a phone and opens it on request', async () => {
+    renderTracker();
+
+    const list = await screen.findByRole('list', { name: 'Setting up your college' });
+    const toggle = screen.getByRole('button', { name: 'Show all steps' });
+    expect(list.parentElement).toHaveClass('max-md:hidden');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(list.parentElement).not.toHaveClass('max-md:hidden');
+    expect(screen.getByRole('button', { name: 'Hide steps' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('says it is waiting when the current step has no action for this person', async () => {
