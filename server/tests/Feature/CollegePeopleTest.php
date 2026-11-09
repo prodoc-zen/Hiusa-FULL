@@ -97,6 +97,19 @@ class CollegePeopleTest extends TestCase
         $this->assertSame('BSIT', $rows[20260001]['program']);
     }
 
+    public function test_students_tab_filters_by_signed_up_and_not_signed_up(): void
+    {
+        $this->student($this->computingHome, ['first_name' => 'Ana', 'last_name' => 'Alvarez']);
+        $this->registryRow(20260001, 'Cara', 'Cruz', $this->computing);
+
+        $names = fn (string $show) => collect($this->people('students', ['show' => $show])->assertOk()->json('data'))->pluck('name')->all();
+
+        $this->assertSame(['Ana Alvarez', 'Cara Cruz'], $names('all'));
+        $this->assertSame(['Ana Alvarez'], $names('signed_up'));
+        $this->assertSame(['Cara Cruz'], $names('not_signed_up'));
+        $this->people('students', ['show' => 'everyone'])->assertStatus(422);
+    }
+
     public function test_students_tab_never_returns_birth_dates_or_credentials(): void
     {
         $this->student($this->computingHome);

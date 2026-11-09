@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
@@ -125,6 +126,20 @@ class OrganizationApplicationTest extends TestCase
         $this->grant($college, $this->student($college));
         $this->apply($student)->assertForbidden();
         $this->assertDatabaseCount('organization_applications', 0);
+    }
+
+    public function test_a_student_already_in_a_student_organization_cannot_apply_even_with_an_open_grant(): void
+    {
+        $college = $this->college();
+        $student = $this->student($college);
+        $this->grant($college, $student);
+        $organization = Organization::factory()->create(['name' => 'Computing Council Alumni', 'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->apply($student)->assertUnprocessable()->assertJsonPath('message', 'This student already belongs to Computing Council Alumni.');
+        $this->assertDatabaseCount('organization_applications', 0);
+        $this->assertDatabaseHas('organization_applicant_grants', ['user_school_id' => $student->school_id, 'used_application_id' => null]);
+        $this->getJson('/api/my/organization-applications')->assertOk()->assertJsonPath('can_apply', false);
     }
 
     public function test_the_application_takes_identity_and_college_from_the_account_and_the_grant(): void

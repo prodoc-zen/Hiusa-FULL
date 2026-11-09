@@ -30,6 +30,7 @@ class CollegePeopleController extends Controller
         $validated = $request->validate([
             'tab' => ['required', Rule::in(['students', 'staff', 'leaders'])],
             'q' => ['nullable', 'string', 'max:100'],
+            'show' => ['nullable', Rule::in(['all', 'signed_up', 'not_signed_up'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -38,7 +39,7 @@ class CollegePeopleController extends Controller
         $perPage = (int) ($validated['per_page'] ?? self::PER_PAGE);
 
         $page = match ($validated['tab']) {
-            'students' => $this->students($college, $term, $perPage),
+            'students' => $this->students($college, $term, $perPage, $validated['show'] ?? 'all'),
             'staff' => $this->paginate($this->staff($home, $term, (int) $request->user()->school_id), $perPage),
             'leaders' => $this->paginate($this->leaders($college, $term), $perPage),
         };
@@ -96,7 +97,7 @@ class CollegePeopleController extends Controller
         ])->header('Cache-Control', 'no-store, private');
     }
 
-    private function students(College $college, string $term, int $perPage): array
+    private function students(College $college, string $term, int $perPage, string $show): array
     {
         $organizationIds = Organization::where('college_id', $college->id)->pluck('id')->map(fn ($id) => (int) $id)->all();
 
@@ -120,7 +121,13 @@ class CollegePeopleController extends Controller
             ->where(fn ($query) => $this->matchTokens($query, $term, false))
             ->select('student_registry.school_id', 'student_registry.first_name', 'student_registry.last_name', DB::raw('NULL as email'), 'student_registry.program', 'student_registry.year_level', DB::raw("'not_signed_up' as account_status"), DB::raw("'registry' as source"));
 
-        $page = DB::query()->fromSub($accounts->unionAll($unclaimed), 'people')
+        $source = match ($show) {
+            'signed_up' => $accounts,
+            'not_signed_up' => $unclaimed,
+            default => $accounts->unionAll($unclaimed),
+        };
+
+        $page = DB::query()->fromSub($source, 'people')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->orderBy('school_id')

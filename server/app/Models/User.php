@@ -266,27 +266,38 @@ class User extends Authenticatable
     }
 
     /**
-     * Open organizations whose elections this person votes in: every one where they are a voting member, not only the
-     * workspace they are signed in to, since a member's own account stays in the college.
+     * Open organizations whose elections this person votes in from the profile they are signed in to. An organization
+     * profile votes in that organization only. The college profile is the member's own account, so it lists the college
+     * home and every organization of that college where they hold a voting profile: a plain member votes without
+     * switching profile. An organization they hold no active voting profile in is never listed.
      *
      * @return array<int, int>
      */
     public function votingOrganizationIds(): array
     {
-        return AccountProfile::votingMembers()
+        $current = $this->organization ?? Organization::find($this->organization_id);
+        if (! $current) {
+            return [];
+        }
+
+        $memberships = AccountProfile::votingMembers()
             ->where('account_profiles.user_school_id', $this->school_id)
             ->with('organization.catalogCollege')
             ->get()
-            ->filter(fn (AccountProfile $profile) => $profile->organization?->isWritable())
-            ->pluck('organization_id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
+            ->filter(fn (AccountProfile $profile) => $profile->organization?->isWritable());
+
+        if ($current->organization_type !== 'COLLEGE' || ! $current->college_id) {
+            $memberships = $memberships->where('organization_id', $current->id);
+        } else {
+            $memberships = $memberships->filter(fn (AccountProfile $profile) => (int) $profile->organization->college_id === (int) $current->college_id);
+        }
+
+        return $memberships->pluck('organization_id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
     /**
-     * Organizations whose elections this person reads: a student reads every one they vote in, anyone else reads
-     * their own scope.
+     * Organizations whose elections this person reads: a student reads the ones the current profile votes in, anyone
+     * else reads their own scope.
      *
      * @return array<int, int>
      */

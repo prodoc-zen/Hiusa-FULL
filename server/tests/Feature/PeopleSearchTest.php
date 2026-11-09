@@ -134,9 +134,40 @@ class PeopleSearchTest extends TestCase
             ->assertJsonMissing(['password']);
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
         $this->assertSame(
-            ['school_id', 'name', 'email', 'role', 'program', 'year_level', 'college', 'organizations'],
+            ['school_id', 'name', 'email', 'role', 'program', 'year_level', 'college', 'organizations', 'blocked_by'],
             array_keys($response->json('data.0')),
         );
+    }
+
+    public function test_the_dean_is_told_which_active_organization_blocks_a_student_by_the_rule_the_grant_uses(): void
+    {
+        $head = $this->computingHead();
+        $archived = $this->makeCollegeStudentOrganization($this->computing, ['name' => 'Old Guild', 'lifecycle_status' => 'archived']);
+        $pending = $this->makeCollegeStudentOrganization($this->computing, ['name' => 'Pending Guild', 'lifecycle_status' => 'pending']);
+        $member = fn (string $last, Organization $organization, string $status = 'active') => tap($this->student($this->computingHome, ['first_name' => 'Bea', 'last_name' => $last]), fn (User $user) => AccountProfile::create([
+            'user_school_id' => $user->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => $status,
+        ]));
+        $member('Active', $this->computingOrg);
+        $member('Archived', $archived);
+        $member('Pending', $pending);
+        $member('Disabled', $this->computingOtherOrg, 'disabled');
+        $this->student($this->computingHome, ['first_name' => 'Bea', 'last_name' => 'Nowhere']);
+
+        $found = collect($this->search($head, ['q' => 'bea'])->assertOk()->json('data'))->keyBy('name');
+
+        $this->assertSame(['id' => $this->computingOrg->id, 'name' => 'Computing Society'], $found['Bea Active']['blocked_by']);
+        foreach (['Bea Archived', 'Bea Pending', 'Bea Disabled', 'Bea Nowhere'] as $name) {
+            $this->assertNull($found[$name]['blocked_by'], $name);
+        }
+        $this->assertSame('Old Guild', $found['Bea Archived']['organizations'][0]['name'], 'the plain membership list still shows it');
+    }
+
+    public function test_only_the_dean_is_told_who_blocks_a_student(): void
+    {
+        $this->student($this->computingOrg, ['first_name' => 'Cleo', 'last_name' => 'Member']);
+        $admin = User::factory()->admin()->create([...$this->pinned(), 'organization_id' => $this->computingOrg->id]);
+
+        $this->assertArrayNotHasKey('blocked_by', $this->search($admin, ['q' => 'cleo'])->assertOk()->json('data.0'));
     }
 
     public function test_the_dean_never_sees_another_colleges_people(): void

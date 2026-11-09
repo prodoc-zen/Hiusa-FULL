@@ -17,6 +17,10 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
     }
   }, [open]);
 
+  // The server names the active organization that stops a new application (blocked_by), by the same rule it applies when saving.
+  const blocker = person?.blocked_by;
+  const reason = blocker ? `${person.name} already belongs to ${blocker.name}.` : '';
+
   async function allow() {
     setBusy(true);
     setError('');
@@ -42,7 +46,7 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={allow} loading={busy} disabled={!person}>Allow to apply</Button>
+          <Button onClick={allow} loading={busy} disabled={!person || Boolean(reason)}>Allow to apply</Button>
         </>
       )}
     >
@@ -56,6 +60,7 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
           value={person}
           onSelect={setPerson}
         />
+        {reason && <p role="alert" className="text-sm font-semibold text-danger-strong">{reason}</p>}
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </div>
     </Drawer>

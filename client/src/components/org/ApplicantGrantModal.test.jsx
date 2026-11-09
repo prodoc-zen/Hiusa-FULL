@@ -7,7 +7,7 @@ vi.mock('../../services/applicantGrantService', () => ({ allowStudentToApply: mo
 vi.mock('../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
 vi.mock('../../lib/notify', () => ({ default: { success: mocks.success, error: vi.fn() } }));
 
-const ana = { school_id: 20260042, name: 'Ana Cruz', email: 'ana.cruz@example.test', role: 'STUDENT', program: 'BSIT', year_level: '3', college: 'College of Engineering', organizations: [] };
+const ana = { school_id: 20260042, name: 'Ana Cruz', email: 'ana.cruz@example.test', role: 'STUDENT', program: 'BSIT', year_level: '3', college: 'College of Engineering', organizations: [], blocked_by: null };
 
 async function pickAna() {
   const dialog = await screen.findByRole('dialog', { name: 'Allow a student to apply' });
@@ -62,6 +62,29 @@ describe('ApplicantGrantModal', () => {
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ana Cruz is already allowed to apply.');
     expect(onClose).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeEnabled();
+  });
+
+  it('shows why a student who already belongs to an organization cannot be allowed', async () => {
+    mocks.searchPeople.mockResolvedValue([{ ...ana, organizations: [{ id: 7, name: 'Computing Council', position_title: null }], blocked_by: { id: 7, name: 'Computing Council' } }]);
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+
+    const dialog = await pickAna();
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Ana Cruz already belongs to Computing Council.');
+    expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Ana Cruz' }));
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows no reason and lets the dean allow a student whose organization is archived or not yet active', async () => {
+    // The server lists every membership under organizations but only names an active one in blocked_by.
+    mocks.searchPeople.mockResolvedValue([{ ...ana, organizations: [{ id: 9, name: 'Old Guild', position_title: null }], blocked_by: null }]);
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+
+    const dialog = await pickAna();
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeEnabled();
   });
 
