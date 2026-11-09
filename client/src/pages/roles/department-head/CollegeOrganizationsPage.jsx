@@ -71,7 +71,7 @@ function CollegeHeader({ overview, onManageStaff }) {
   const user = storedUser();
   const name = overview?.college?.name || headCollegeName(user);
   if (!name) return null;
-  const headName = overview?.head?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
+  const headName = overview?.head?.name || (user?.role === 'DEPARTMENT_HEAD' ? `${user?.first_name || ''} ${user?.last_name || ''}`.trim() : '');
   const logo = overview?.college?.logo_url;
 
   return (
@@ -405,7 +405,7 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState icon={Building2} title="No organizations yet" description="Allow a student to apply. Their application comes to you for review." action={<Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
+              ? <EmptyState icon={Building2} title="No organizations yet" description={dean ? 'Allow a student to apply. Their application comes to you for review.' : 'No student organization in your college has registered yet.'} action={dean ? <Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button> : undefined} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap">

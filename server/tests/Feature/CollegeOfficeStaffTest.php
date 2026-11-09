@@ -7,6 +7,8 @@ use App\Models\ApprovalRequest;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Event;
+use App\Models\EventRequirement;
+use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
@@ -208,7 +210,68 @@ class CollegeOfficeStaffTest extends TestCase
         $this->getJson('/api/college/people?tab=students')->assertForbidden();
     }
 
+    public function test_the_overview_names_the_departments_head_not_the_staff_member_who_asks(): void
+    {
+        $dean = $this->makeCollegeHead($this->arts, ['first_name' => 'Dolores', 'last_name' => 'Deanne']);
+        $staff = User::factory()->admin()->create(['organization_id' => $this->artsHome->id, 'first_name' => 'Sam', 'last_name' => 'Staffer']);
+
+        $this->actingAs($staff)->getJson('/api/college/overview')->assertOk()->assertJsonPath('head.name', 'Dolores Deanne');
+        $this->actingAs($dean)->getJson('/api/college/overview')->assertOk()->assertJsonPath('head.name', 'Dolores Deanne');
+    }
+
+    public function test_office_staff_cannot_open_the_requirement_file_of_an_event_that_was_never_submitted(): void
+    {
+        Storage::fake('local');
+        $author = User::factory()->admin()->create(['organization_id' => $this->psits->id]);
+        $event = Event::factory()->create(['organization_id' => $this->psits->id, 'created_by' => $author->school_id, 'status' => 'planning']);
+        $requirement = EventRequirement::create(['name' => 'Letter', 'venue_type' => 'all', 'allowed_extensions' => ['pdf'], 'is_active' => true, 'is_optional' => false, 'sort_order' => 1]);
+        $path = "event-requirements/{$this->psits->id}/{$event->id}/letter.pdf";
+        Storage::disk('local')->put($path, '%PDF-1.4 test');
+        $file = EventRequirementFile::create([
+            'event_id' => $event->id, 'requirement_id' => $requirement->id, 'organization_id' => $this->psits->id,
+            'path' => $path, 'original_name' => 'letter.pdf', 'uploaded_by' => $author->school_id,
+        ]);
+        $url = "/api/events/{$event->id}/submission/files/{$file->id}";
+
+        $this->actingAs($this->staffMember())->get($url)->assertNotFound();
+        $this->actingAs($this->dean)->get($url)->assertNotFound();
+        $this->actingAs($author)->get($url)->assertOk();
+
+        $this->approval($this->psits, $event->id, $author, 'DEPARTMENT_HEAD');
+        $this->actingAs($this->staffMember())->get($url)->assertOk();
+        $this->actingAs($this->dean)->get($url)->assertOk();
+    }
+
     // ---- S1: only office staff and deans count as already on staff ----
+
+    public function test_removing_a_student_through_the_staff_route_is_refused_and_changes_nothing(): void
+    {
+        $student = User::factory()->student()->create(['school_id' => 78978990, 'organization_id' => $this->home->id]);
+        $profile = AccountProfile::where('user_school_id', $student->school_id)->where('organization_id', $this->home->id)->firstOrFail();
+        $primaryOnly = User::factory()->student()->create(['school_id' => 78978991, 'organization_id' => $this->home->id]);
+        AccountProfile::where('user_school_id', $primaryOnly->school_id)->delete();
+
+        $this->actingAs($this->dean)->deleteJson('/api/college/staff/'.$student->school_id)->assertNotFound();
+        $this->actingAs($this->dean)->deleteJson('/api/college/staff/'.$primaryOnly->school_id)->assertNotFound();
+
+        $this->assertDatabaseHas('account_profiles', ['id' => $profile->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $this->assertSame('active', $student->fresh()->getRawOriginal('account_status'));
+        $this->assertSame('active', $primaryOnly->fresh()->getRawOriginal('account_status'));
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'college_staff_removed']);
+    }
+
+    public function test_the_dean_still_removes_a_staff_profile_and_keeps_the_account_that_has_another_profile(): void
+    {
+        $adviser = User::factory()->adviser()->create(['school_id' => 70000004, 'organization_id' => $this->psits->id]);
+        $adviserProfile = AccountProfile::where('user_school_id', $adviser->school_id)->where('organization_id', $this->psits->id)->firstOrFail();
+        $staffProfile = AccountProfile::create(['user_school_id' => $adviser->school_id, 'organization_id' => $this->home->id, 'role' => 'ADMIN', 'position_title' => 'Clerk', 'account_status' => 'active']);
+
+        $this->actingAs($this->dean)->deleteJson('/api/college/staff/'.$adviser->school_id)->assertOk();
+
+        $this->assertDatabaseMissing('account_profiles', ['id' => $staffProfile->id]);
+        $this->assertDatabaseHas('account_profiles', ['id' => $adviserProfile->id]);
+        $this->assertSame('active', $adviser->fresh()->getRawOriginal('account_status'));
+    }
 
     public function test_a_student_in_the_home_org_is_not_reported_as_already_on_staff(): void
     {

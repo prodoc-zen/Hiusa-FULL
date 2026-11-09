@@ -71,6 +71,19 @@ describe('CollegeOrganizationsPage', () => {
     expect(header.querySelector('img')).toBeNull();
   });
 
+  it('never shows an office staff member their own name as the Department Head', async () => {
+    localStorage.setItem('user', JSON.stringify({ first_name: 'Sam', last_name: 'Staffer', role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 5 } }));
+    try {
+      renderPage();
+
+      const header = await screen.findByRole('region', { name: 'Your college' });
+      expect(await within(header).findByText('Department Head: Eduardo Ramos')).toBeInTheDocument();
+      expect(within(header).queryByText(/Sam Staffer/)).toBeNull();
+    } finally {
+      localStorage.removeItem('user');
+    }
+  });
+
   it('shows the college logo when it has one', async () => {
     mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', logo_url: 'https://example.test/coe.png', color: null }, head: { name: 'Eduardo Ramos' } } });
     renderPage();
@@ -179,6 +192,21 @@ describe('CollegeOrganizationsPage', () => {
     renderPage();
 
     expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Allow a student to apply' }).length).toBeGreaterThan(0);
+  });
+
+  it('gives office staff an empty state with no grant action they cannot use', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 5 } }));
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
+    try {
+      renderPage();
+
+      expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Allow a student to apply' })).toBeNull();
+      expect(screen.queryByText(/Allow a student to apply/)).toBeNull();
+    } finally {
+      localStorage.removeItem('user');
+    }
   });
 
   it('shows the checklist of a pending registration in a drawer', async () => {
