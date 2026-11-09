@@ -41,8 +41,8 @@ const EMPTY_COPY = {
 };
 const EMPTY_HINT = {
   pending: 'A student the Department Head allows applies for an organization. The Department Head reviews the application, then it appears here for your approval.',
-  active: 'Approved registrations appear here. Review the pending ones first.',
-  returned: 'A returned registration waits for its Department Head to edit and resubmit it.',
+  active: 'An organization appears here once you approve its application.',
+  returned: 'A returned application waits for its Department Head to edit and resubmit it.',
   archived: 'Archive an active organization to keep it here as read only.',
 };
 const needsAdministrator = (organization) => organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? organization.administrators?.length ?? 0) === 0;
