@@ -54,7 +54,7 @@ class ComplianceController extends Controller
             ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
             ->when($filters['academic_semester_id'] ?? null, fn ($q, $semId) => $q->where('academic_semester_id', $semId));
 
-        if ($request->user()->role === 'ADMIN') {
+        if ($request->user()->isOrganizationAdmin()) {
             // ADMIN only needs what it must act on: active requirements for
             // the current academic year, never past years or retired types.
             $selected = AcademicSemester::selected($request);
@@ -322,7 +322,7 @@ class ComplianceController extends Controller
         ]);
 
         $user = $request->user();
-        if ($user->role === 'ADMIN') {
+        if ($user->isOrganizationAdmin()) {
             $organizations = Organization::whereKey($user->organization_id)->where('lifecycle_status', 'active')->get();
         } else {
             $scope = $this->scopedOrganizationIds($user);
@@ -376,7 +376,7 @@ class ComplianceController extends Controller
 
         return response()->json([
             'academic_year' => $academicYear,
-            'organizations' => $request->user()->role === 'ADMIN' ? $result->first() : $result->values(),
+            'organizations' => $request->user()->isOrganizationAdmin() ? $result->first() : $result->values(),
         ]);
     }
 
@@ -398,7 +398,7 @@ class ComplianceController extends Controller
         ]);
 
         $user = $request->user();
-        if ($user->role === 'ADMIN') {
+        if ($user->isOrganizationAdmin()) {
             $query->where('organization_id', $user->organization_id);
         } else {
             $scope = $this->scopedOrganizationIds($user);
@@ -788,7 +788,7 @@ class ComplianceController extends Controller
                 ->pluck('id')->all();
         }
 
-        $arguments = [$organizationIds, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role, $filters['family'] ?? null];
+        $arguments = [$organizationIds, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->approvalRole(), $filters['family'] ?? null];
         $perPage = $filters['per_page'] ?? 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
         $options = ['path' => $request->url(), 'query' => $request->query()];

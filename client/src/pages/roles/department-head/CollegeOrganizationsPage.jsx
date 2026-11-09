@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Building2, Plus, UserPlus, Users } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs } from '../../../components/ui';
 import Modal from '../../../components/Modal';
-import PersonPicker from '../../../components/people/PersonPicker';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ApplicantGrantList from '../../../components/org/ApplicantGrantList';
+import StaffInvitePanel from '../../../components/people/StaffInvitePanel';
+import PendingStaffInvites from '../../../components/people/PendingStaffInvites';
 import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getCollegeOverview, getCollegeStaff, addCollegeStaff, removeCollegeStaff } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getCollegeStaff, removeCollegeStaff } from '../../../services/collegeOrganizationService';
 import { getApplicantGrants } from '../../../services/applicantGrantService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
-import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
+import { headCollegeName, isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
 import { visibleSchoolId } from '../../../utils/schoolId';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
@@ -94,10 +95,7 @@ function CollegeStaffModal({ open, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [person, setPerson] = useState(null);
-  const [positionTitle, setPositionTitle] = useState('Department Secretary');
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
 
@@ -123,42 +121,6 @@ function CollegeStaffModal({ open, onClose }) {
     if (open) load();
   }, [open, load]);
 
-  const closeForm = () => {
-    setAdding(false);
-    setPerson(null);
-    setFormError(null);
-  };
-
-  const handleCreateStaff = async (e) => {
-    e.preventDefault();
-    setFormError(null);
-    if (!person || !positionTitle.trim()) {
-      setFormError('Find the person and give their position.');
-      return;
-    }
-    const words = person.name.trim().split(/\s+/);
-    const lastName = words.length > 1 ? words.pop() : words[0];
-    setSubmitting(true);
-    try {
-      await addCollegeStaff({
-        school_id: person.school_id,
-        first_name: words.join(' ') || lastName,
-        last_name: lastName,
-        email: person.email,
-        position_title: positionTitle.trim(),
-        role: 'ADMIN',
-      });
-      notify.success(`${person.name} was added as ${positionTitle.trim()}.`);
-      closeForm();
-      setPositionTitle('Department Secretary');
-      load();
-    } catch (err) {
-      setFormError(getApiErrorMessage(err, 'Could not add this person.'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleRemoveStaff = async () => {
     if (!removeTarget) return;
     setRemoveBusy(true);
@@ -178,7 +140,7 @@ function CollegeStaffModal({ open, onClose }) {
     <Modal
       open={open}
       title="Office staff"
-      description="People who can review applications for your college."
+      description="Faculty or other staff you trust to work on every organization in your college. They are never students."
       onClose={onClose}
       maxWidth="max-w-[680px]"
       footer={
@@ -198,30 +160,9 @@ function CollegeStaffModal({ open, onClose }) {
         </div>
 
         {adding && (
-          <form onSubmit={handleCreateStaff} className="space-y-3 rounded-control border border-line p-4">
-            {formError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-2 text-sm font-medium text-danger-strong">{formError}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <PersonPicker
-                  label="Person"
-                  value={person}
-                  onSelect={setPerson}
-                  excludeIds={staff.map((member) => member.school_id)}
-                  disabled={submitting}
-                  hint="Someone without an account yet is invited by link instead."
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <Field label="Position">
-                  <Input required value={positionTitle} onChange={(e) => setPositionTitle(e.target.value)} placeholder="e.g. Department Secretary" />
-                </Field>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" size="sm" type="button" onClick={closeForm}>Cancel</Button>
-              <Button size="sm" type="submit" loading={submitting} disabled={!person}>Add to office staff</Button>
-            </div>
-          </form>
+          <div className="rounded-control border border-line p-4">
+            <StaffInvitePanel onCreated={() => setReloadKey((count) => count + 1)} onCancel={() => setAdding(false)} />
+          </div>
         )}
 
         {loading ? (
@@ -232,7 +173,7 @@ function CollegeStaffModal({ open, onClose }) {
         ) : error ? (
           <ErrorState description={error} onRetry={load} />
         ) : staff.length === 0 ? (
-          <p className="py-6 text-sm text-ink-muted">No other office staff yet.</p>
+          <p className="py-6 text-sm text-ink-muted">No other office staff yet. Faculty or other staff you add can work on every organization in your college.</p>
         ) : (
           <ul className="divide-y divide-line-soft rounded-control border border-line bg-surface">
             {staff.map((member) => (
@@ -248,6 +189,8 @@ function CollegeStaffModal({ open, onClose }) {
             ))}
           </ul>
         )}
+
+        <PendingStaffInvites reloadKey={reloadKey} />
       </div>
 
       <ConfirmModal
@@ -335,7 +278,10 @@ function OrganizationDetails({ organization, onClose }) {
   );
 }
 
+// The dean's office staff see and review every organization in the college; granting applicants, managing the
+// office and entering an organization's own space stay with the dean.
 export default function CollegeOrganizationsPage() {
+  const dean = !isOfficeStaff(storedUser());
   const [state, setState] = useState({ loading: true, error: null, organizations: [] });
   const [grants, setGrants] = useState({ error: null, rows: [] });
   const [searchParams, setSearchParams] = useSearchParams();
@@ -375,7 +321,7 @@ export default function CollegeOrganizationsPage() {
     .catch((err) => setGrants((current) => ({ ...current, error: getApiErrorMessage(err, 'Could not load the students allowed to apply.') }))), []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadGrants(); }, [loadGrants]);
+  useEffect(() => { if (dean) loadGrants(); }, [dean, loadGrants]);
   useRefetchOnReturn(() => load({ silent: true }));
   useEffect(() => {
     let cancelled = false;
@@ -441,9 +387,9 @@ export default function CollegeOrganizationsPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        primary={state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
+        primary={!dean || state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
       />
-      <CollegeHeader overview={overview} onManageStaff={() => setStaffModalOpen(true)} />
+      <CollegeHeader overview={overview} onManageStaff={dean ? () => setStaffModalOpen(true) : undefined} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-medium text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
@@ -464,7 +410,7 @@ export default function CollegeOrganizationsPage() {
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap">
                 <Button variant="secondary" size="sm" className="min-w-28 max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
-                {organization.lifecycle_status !== 'archived' && (
+                {dean && organization.lifecycle_status !== 'archived' && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -484,15 +430,15 @@ export default function CollegeOrganizationsPage() {
         </div>
       </Card>
 
-      <ApplicantGrantList grants={grants.rows} error={grants.error} onRetry={loadGrants} onChanged={loadGrants} />
+      {dean && <ApplicantGrantList grants={grants.rows} error={grants.error} onRetry={loadGrants} onChanged={loadGrants} />}
 
-      <ApplicantGrantModal open={grantModalOpen} onClose={() => setGrantModalOpen(false)} onGranted={loadGrants} />
+      {dean && <ApplicantGrantModal open={grantModalOpen} onClose={() => setGrantModalOpen(false)} onGranted={loadGrants} />}
 
       <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setRecordId(null)} width="max-w-lg">
         <OrganizationDetails organization={shownDetails} onClose={() => setRecordId(null)} />
       </Drawer>
 
-      <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
+      {dean && <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />}
     </div>
   );
 }

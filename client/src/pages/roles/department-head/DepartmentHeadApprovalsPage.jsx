@@ -20,6 +20,7 @@ import { ENTITY_LABEL, describeApproval, entityLink } from '../../../components/
 import { formatDateTime, fullName, summaryLine } from '../../../components/approvals/approvalFormat';
 import { findApprovalRequest } from '../../modules/approvals/approvalApi';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
+import { isOfficeStaff } from '../../../utils/collegeIdentity';
 
 function getCurrentUser() {
   try {
@@ -150,7 +151,7 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
 
 export default function DepartmentHeadApprovalsPage() {
   const user = useMemo(() => getCurrentUser(), []);
-  const role = user.role || '';
+  const role = (isOfficeStaff(user) ? 'DEPARTMENT_HEAD' : user.role) || '';
   const isDepartmentHead = role === 'DEPARTMENT_HEAD';
   const isSao = role === 'SUPER_ADMIN';
   const isAdmin = role === 'ADMIN';

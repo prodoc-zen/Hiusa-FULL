@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
   getCollegeOverview: vi.fn(),
   getCollegeStaff: vi.fn(),
-  addCollegeStaff: vi.fn(),
+  getStaffRecords: vi.fn(),
+  inviteCollegeStaff: vi.fn(),
+  getStaffInvitations: vi.fn(),
+  relinkStaffInvitation: vi.fn(),
+  revokeStaffInvitation: vi.fn(),
   removeCollegeStaff: vi.fn(),
   getRegistrationRequirements: vi.fn(),
   registerOrganization: vi.fn(),
@@ -16,8 +20,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
-const people = vi.hoisted(() => ({ searchPeople: vi.fn() }));
-vi.mock('../../../services/peopleService', () => people);
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: vi.fn() }));
 
 function LocationProbe() {
@@ -93,17 +95,10 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     });
 
     mocks.getCollegeStaff.mockResolvedValue({ data: mockStaff });
-    mocks.addCollegeStaff.mockResolvedValue({
-      data: {
-        school_id: 20262288,
-        name: 'Alex Assistant',
-        position_title: 'Dean Assistant',
-        role: 'ADMIN',
-        is_lead_head: false,
-      },
-    });
+    mocks.getStaffRecords.mockResolvedValue({ data: { data: [{ school_id: 7100101, name: 'Marites Dizon', position: 'Department Secretary', has_account: false }], has_records: true } });
+    mocks.getStaffInvitations.mockResolvedValue({ data: { data: [] } });
+    mocks.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=abc' } });
     mocks.removeCollegeStaff.mockResolvedValue({ data: { message: 'Removed' } });
-    people.searchPeople.mockResolvedValue([{ school_id: 20262288, name: 'Alex Rivera Assistant', email: 'alex@univ.edu.ph', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
   it('renders the Office staff button and opens the modal', async () => {
@@ -119,13 +114,13 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
     fireEvent.click(staffBtn);
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('People who can review applications for your college.')).toBeInTheDocument();
+    expect(screen.getByText(/Faculty or other staff you trust to work on every organization/)).toBeInTheDocument();
     expect(await screen.findByText('Clara Secretary')).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByText(/^Department Head/)).toBeInTheDocument();
     expect(screen.queryByText('Delegate')).not.toBeInTheDocument();
   });
 
-  it('can open the form to assign a new delegate', async () => {
+  it('adds office staff by link from the employee records and never by instant assignment', async () => {
     render(
       <MemoryRouter>
         <CollegeOrganizationsPage />
@@ -134,29 +129,14 @@ describe('CollegeOrganizationsPage Staff Delegation and Sub-Account Oversight', 
 
     fireEvent.click(await screen.findByRole('button', { name: /^Office staff$/i }));
     expect(await screen.findByText('Clara Secretary')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Add staff$/i }));
 
-    const addBtn = screen.getByRole('button', { name: /^Add staff$/i });
-    fireEvent.click(addBtn);
+    fireEvent.change(await screen.findByRole('combobox', { name: /find in the employee records/i }), { target: { value: 'mar' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Marites Dizon/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    expect(screen.queryByLabelText(/School ID/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/First Name/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/^Position$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add to office staff' })).toBeDisabled();
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Person' }), { target: { value: 'alex' } });
-    fireEvent.click(await screen.findByRole('option', { name: /Alex Rivera Assistant/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add to office staff' }));
-
-    await waitFor(() => {
-      expect(mocks.addCollegeStaff).toHaveBeenCalledWith({
-        school_id: 20262288,
-        first_name: 'Alex Rivera',
-        last_name: 'Assistant',
-        email: 'alex@univ.edu.ph',
-        position_title: 'Department Secretary',
-        role: 'ADMIN',
-      });
-    });
+    await waitFor(() => expect(mocks.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Department Secretary' }));
+    expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
   });
 
   it('opens the organization space from the organization row', async () => {

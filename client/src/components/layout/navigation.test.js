@@ -302,10 +302,14 @@ describe('the dean\'s office staff', () => {
     expect(navRoleFor({ role: 'DEPARTMENT_HEAD', organization: { organization_type: 'COLLEGE' } })).toBe('DEPARTMENT_HEAD');
   });
 
-  it('gets the dashboard and the applications queue, and no organization setup pages', () => {
+  it('gets the review pages of the whole college, and no organization setup pages or dean controls', () => {
     expect(getNavForRole('OFFICE_STAFF').map((item) => [item.label, item.path])).toEqual([
       ['Dashboard', '/dashboard/admin'],
       ['Organization applications', '/dashboard/organization-applications'],
+      ['Approvals', '/dashboard/department-head/approvals'],
+      ['Organizations', '/dashboard/department-head/organizations'],
+      ['People', '/dashboard/department-head/people'],
+      ['College files', '/dashboard/department-head/documents'],
     ]);
   });
 
