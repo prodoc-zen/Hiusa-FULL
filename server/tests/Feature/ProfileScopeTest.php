@@ -176,23 +176,30 @@ class ProfileScopeTest extends TestCase
         );
     }
 
-    public function test_the_college_profile_lists_only_the_college_wide_election(): void
+    public function test_the_college_profile_lists_the_elections_of_the_organizations_the_student_belongs_to(): void
     {
         $psitsElection = $this->election($this->psits, 'PSITS officers');
         $homeElection = $this->election($this->home, 'College council');
         $elsewhereElection = $this->election($this->elsewhere, 'Elsewhere officers');
 
+        $ids = collect($this->asProfile($this->collegeProfile)->getJson('/api/elections')->assertOk()->json())->pluck('id')->all();
+
+        $this->assertEqualsCanonicalizing([$psitsElection->id, $homeElection->id], $ids);
+        $this->assertNotContains($elsewhereElection->id, $ids);
+
+        // Kept visible from the college profile: the member opens the ballot and the feed offers it, without switching.
         $college = $this->asProfile($this->collegeProfile);
-        $this->assertSame([$homeElection->id], collect($college->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
-        $college->getJson("/api/elections/{$psitsElection->id}")->assertNotFound();
-        $this->assertSame(
-            [$homeElection->id],
+        $college->getJson("/api/elections/{$psitsElection->id}")->assertOk();
+        $college->getJson("/api/elections/{$elsewhereElection->id}")->assertNotFound();
+        $this->assertEqualsCanonicalizing(
+            [$psitsElection->id, $homeElection->id],
             collect($college->getJson('/api/student/feed')->assertOk()->json('items'))->where('type', 'election')->pluck('data.id')->values()->all(),
         );
 
-        $ids = collect($this->asProfile($this->psitsProfile)->getJson('/api/elections')->assertOk()->json())->pluck('id')->all();
-        $this->assertSame([$psitsElection->id], $ids);
-        $this->assertNotContains($elsewhereElection->id, $ids);
+        // The organization profile still reads its own organization only.
+        $organization = $this->asProfile($this->psitsProfile);
+        $this->assertSame([$psitsElection->id], collect($organization->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
+        $organization->getJson("/api/elections/{$homeElection->id}")->assertNotFound();
     }
 
     public function test_a_student_cannot_switch_to_a_profile_they_do_not_hold(): void
