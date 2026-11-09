@@ -169,10 +169,12 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-controls', screen.getByRole('tabpanel').id);
     });
 
-    it('opens on the first non-empty tab in the order active, pending, returned, archived', async () => {
+    it('opens on the first non-empty tab in the order pending, active, returned, archived', async () => {
       const cases = [
-        [agency(2), 'active'],
+        [agency(2), 'pending'],
+        [agency(2, { active: 0 }), 'pending'],
         [agency(0), 'active'],
+        [agency(0, { active: 0 }), 'returned'],
         [agency(0, { returned: 0 }), 'active'],
         [agency(0, { returned: 0, active: 0 }), 'archived'],
         [agency(0, { returned: 0, active: 0, archived: 0 }), 'active'],
@@ -197,7 +199,7 @@ describe('SystemOrganizationsPage', () => {
 
     it('waits for the counts and never loads or shows another tab first', async () => {
       let releaseCounts;
-      mocks.getSystemAgency.mockImplementation(() => new Promise((resolve) => { releaseCounts = () => resolve(agency(2)); }));
+      mocks.getSystemAgency.mockImplementation(() => new Promise((resolve) => { releaseCounts = () => resolve(agency(0)); }));
       renderPage();
       await new Promise((resolve) => { setTimeout(resolve, 20); });
       expect(mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined)).toHaveLength(0);
@@ -249,12 +251,12 @@ describe('SystemOrganizationsPage', () => {
       expect(searchCalls()).toEqual(['', 'slow', 'fast']);
     });
 
-    it('defaults to Active while preserving the pending review tab', async () => {
+    it('opens on Pending review when applications wait for the SAO', async () => {
       mocks.getSystemAgency.mockResolvedValue(agency(2));
       renderPage();
-      expect(await rowText('Main SBO')).toBeInTheDocument();
-      expect(lastStatusParam()).toBe('active');
-      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
+      await waitFor(() => expect(lastStatusParam()).toBe('pending'));
+      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=pending'));
+      expect(screen.getByRole('tab', { name: 'Pending review (2)' })).toHaveAttribute('aria-selected', 'true');
     });
 
     it('honours ?status and switches tabs', async () => {
@@ -623,11 +625,12 @@ describe('SystemOrganizationsPage', () => {
     await waitFor(() => expect(screen.getByLabelText('Search organizations')).toHaveValue(''));
   });
 
-  it('names who registers organizations when nothing is waiting for review', async () => {
+  it('describes the apply flow when nothing is waiting for review', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
     renderPage('/dashboard/super-admin/organizations?status=pending');
     expect(await screen.findByText('No organizations are waiting for review.')).toBeInTheDocument();
-    expect(screen.getByText(/Department Heads register the organizations of their college/)).toBeInTheDocument();
+    expect(screen.getByText(/A student the Department Head allows applies for an organization/)).toBeInTheDocument();
+    expect(screen.queryByText(/register/i)).not.toBeInTheDocument();
   });
 
   describe('silent refresh while the tab stays open', () => {
