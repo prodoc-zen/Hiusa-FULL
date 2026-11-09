@@ -86,7 +86,6 @@ const ROUTES = {
   SBO_OFFICER: [
     '/dashboard/officer',
     '/dashboard/ask-ai',
-    '/dashboard/approval-requests/new',
     '/dashboard/approval-requests/new/announcement',
     '/dashboard/admin/users',
     '/dashboard/announcements/manage-announcements',
