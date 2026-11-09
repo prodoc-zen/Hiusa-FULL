@@ -6,6 +6,7 @@ use App\Services\ElectionHandoverService;
 use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Election extends Model
@@ -76,6 +77,11 @@ class Election extends Model
             ->each(fn (Election $election) => $service->handOver($election));
 
         return ['opened' => $opened, 'closed' => $closed];
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     public function positions(): HasMany

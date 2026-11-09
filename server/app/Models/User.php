@@ -247,6 +247,36 @@ class User extends Authenticatable
         return Organization::student()->where('college_id', $home->college_id)->pluck('id')->all();
     }
 
+    /**
+     * Open organizations whose elections this person votes in: every one where they are a voting member, not only the
+     * workspace they are signed in to, since a member's own account stays in the college.
+     *
+     * @return array<int, int>
+     */
+    public function votingOrganizationIds(): array
+    {
+        return AccountProfile::votingMembers()
+            ->where('account_profiles.user_school_id', $this->school_id)
+            ->with('organization.catalogCollege')
+            ->get()
+            ->filter(fn (AccountProfile $profile) => $profile->organization?->isWritable())
+            ->pluck('organization_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Organizations whose elections this person reads: a student reads every one they vote in, anyone else reads
+     * their own scope.
+     *
+     * @return array<int, int>
+     */
+    public function electionOrganizationIds(): array
+    {
+        return $this->role === 'STUDENT' ? $this->votingOrganizationIds() : $this->scopedOrganizationIds();
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(Event::class, 'created_by', 'school_id');

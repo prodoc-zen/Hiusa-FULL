@@ -107,6 +107,31 @@ describe('CastVoteRedirectPage', () => {
     expect(await screen.findByText('Nov 7, 8:00 AM to Nov 15, 2026, 5:30 PM')).toBeInTheDocument();
   });
 
+  it('names the organization on each card, for a member who votes in more than one', async () => {
+    const list = [
+      { ...open, id: 1, title: 'Election of officers', organization: { id: 31, name: 'Rehearsal Society' } },
+      { ...open, id: 2, title: 'Election of officers', organization: { id: 32, name: 'Chess Club' } },
+    ];
+    getElections.mockResolvedValue(list);
+    getElectionDetails.mockImplementation(async (id) => ({ ...list.find((item) => item.id === id), my_votes: [] }));
+    renderPage();
+
+    await screen.findByText('Rehearsal Society');
+    const [first, second] = screen.getAllByRole('article');
+    expect(within(first).getByText('Rehearsal Society')).toBeInTheDocument();
+    expect(within(first).getByRole('link', { name: 'Vote in this election' })).toHaveAttribute('href', '/elections/1/vote');
+    expect(within(second).getByText('Chess Club')).toBeInTheDocument();
+    expect(within(second).getByRole('link', { name: 'Vote in this election' })).toHaveAttribute('href', '/elections/2/vote');
+  });
+
+  it('still lists an election that comes without an organization name', async () => {
+    getElections.mockResolvedValue([{ ...open, id: 1, title: 'Election 1' }]);
+    getElectionDetails.mockResolvedValue({ my_votes: [] });
+    renderPage();
+    expect(await screen.findByText('Election 1')).toBeInTheDocument();
+    expect(screen.queryByText('Organization')).not.toBeInTheDocument();
+  });
+
   it('names what to expect when no election is open', async () => {
     getElections.mockResolvedValue([]);
     renderPage();
