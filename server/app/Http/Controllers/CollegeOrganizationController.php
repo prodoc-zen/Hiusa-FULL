@@ -55,12 +55,19 @@ class CollegeOrganizationController extends Controller
 
     public function overview(Request $request)
     {
-        $user = $request->user();
-        $college = $this->college($user);
+        $college = $this->college($request->user());
+        $home = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->firstOrFail();
+        $head = User::query()
+            ->where(fn ($query) => $query
+                ->whereIn('school_id', AccountProfile::where('organization_id', $home->id)->where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')->select('user_school_id'))
+                ->orWhere(fn ($primary) => $primary->where('organization_id', $home->id)->where('role', 'DEPARTMENT_HEAD')))
+            ->where('account_status', 'active')
+            ->orderBy('school_id')
+            ->first();
 
         return response()->json([
             'college' => $college->only(['id', 'name', 'code', 'logo_url', 'color']),
-            'head' => ['name' => trim("{$user->first_name} {$user->last_name}")],
+            'head' => ['name' => $head ? trim("{$head->first_name} {$head->last_name}") : ''],
         ]);
     }
 
@@ -125,7 +132,7 @@ class CollegeOrganizationController extends Controller
         }
 
         $user = User::whereKey($schoolId)->first();
-        if (! $user) {
+        if (! $user || ! $this->isOnStaff($user, $home)) {
             return response()->json(['message' => 'Staff member not found.'], 404);
         }
 
@@ -163,6 +170,15 @@ class CollegeOrganizationController extends Controller
         });
 
         return response()->json(['message' => 'Staff member removed successfully.']);
+    }
+
+    /** Only an active home-org ADMIN or DEPARTMENT_HEAD profile, or a primary account with one of those roles, is staff; a student of the college is not. */
+    private function isOnStaff(User $user, Organization $home): bool
+    {
+        $roles = ['ADMIN', 'DEPARTMENT_HEAD'];
+
+        return $user->accountProfiles()->where('organization_id', $home->id)->where('account_status', 'active')->whereIn('role', $roles)->exists()
+            || ((int) $user->getRawOriginal('organization_id') === (int) $home->id && $user->getRawOriginal('account_status') === 'active' && in_array($user->getRawOriginal('role'), $roles, true));
     }
 
     private function college(User $user): College

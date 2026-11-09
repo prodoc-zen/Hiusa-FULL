@@ -281,8 +281,8 @@ class EventRequirementController extends Controller
             return false;
         }
 
-        return $request->user()->role === 'ADMIN'
-            || ($request->user()->role === 'DEPARTMENT_HEAD'
+        return $request->user()->isOrganizationAdmin()
+            || ($request->user()->isCollegeOffice()
                 && ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->exists());
     }
 }
