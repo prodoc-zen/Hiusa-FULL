@@ -64,7 +64,7 @@ describe('AcceptInvitationPage', () => {
   it('shows one title and one next step when the link has no code', async () => {
     renderPage('/accept-invitation');
 
-    expect(await screen.findByText('This invitation link is incomplete')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'This invitation link is incomplete' })).toBeInTheDocument();
     expect(screen.getByText(/Open the link exactly as it was sent/)).toBeInTheDocument();
     expect(mocks.getDepartmentHeadInvitation).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
