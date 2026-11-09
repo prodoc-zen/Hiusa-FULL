@@ -151,14 +151,14 @@ function EvidenceSection({ section, onSelectFollowUp }) {
           </thead>
           <tbody className="block divide-y divide-line sm:table-row-group">
             {rows.map((row) => {
-              const cell = 'flex items-center justify-between gap-3 px-3 py-1.5 before:text-xs before:text-ink-muted before:content-[attr(data-label)] sm:table-cell sm:py-2.5 sm:before:hidden';
+              const cell = 'px-3 py-0 max-sm:empty:hidden sm:table-cell sm:py-2.5';
 
               return (
-                <tr key={row.id} className="block py-2 hover:bg-subtle sm:table-row sm:py-0">
-                  <td data-label="Record" className={`${cell} font-medium text-ink`}>
+                <tr key={row.id} className="flex flex-wrap items-center gap-y-1 py-3 hover:bg-subtle sm:table-row sm:py-0">
+                  <td data-label="Record" className={`${cell} w-full font-medium text-ink sm:w-auto`}>
                     {plainText(row.primary)}
                   </td>
-                  <td data-label="Details" className={`${cell} text-ink-muted-strong`}>
+                  <td data-label="Details" className={`${cell} w-full text-xs text-ink-muted-strong sm:w-auto sm:text-sm`}>
                     {plainText(row.secondary) || ''}
                   </td>
                   <td data-label="Status" className={cell}>
@@ -169,7 +169,7 @@ function EvidenceSection({ section, onSelectFollowUp }) {
                   <td data-label="Count" className={`${cell} tabular-nums text-ink`}>
                     {plainText(row.meta) || ''}
                   </td>
-                  <td className={`${cell} sm:text-right`}>
+                  <td className={`${cell} max-sm:ml-auto sm:text-right`}>
                     {row.href ? (
                       <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
                         {row.action_label || 'Open'}

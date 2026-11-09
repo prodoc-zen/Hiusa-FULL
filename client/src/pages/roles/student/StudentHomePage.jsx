@@ -149,7 +149,7 @@ export default function StudentHomePage() {
 
         <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
           {activeElection && (
-            <section className="rounded-card border border-line bg-surface p-4" aria-labelledby="student-election-title">
+            <section className={`rounded-card border border-line bg-surface p-4 ${activeElection.has_voted ? '' : 'max-sm:hidden'}`} aria-labelledby="student-election-title">
               <h2 id="student-election-title" className="text-sm font-semibold text-ink">Voting is open</h2>
               <p className="mt-1 text-sm font-medium text-ink">{formatDisplayText(activeElection.title)}</p>
               <p className="mt-1 text-xs text-ink-muted-strong max-sm:hidden">{activeElection.has_voted ? 'Your ballot has been submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>

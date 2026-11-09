@@ -3,6 +3,7 @@ import { getNotificationPreferences, updateNotificationPreferences } from '../..
 import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
 import { Button, Skeleton } from '../ui';
+import PhoneFold from '../dashboard/PhoneFold';
 
 const KINDS = {
   announcement: { label: 'Announcements', detail: 'New posts from your organization and the Student Affairs Office.' },
@@ -51,6 +52,7 @@ export default function NotificationPreferences() {
         <h2 id="notification-preferences-title" className="text-base font-semibold text-ink">Notifications</h2>
         <p className="mt-1 text-sm text-ink-muted">Choose which updates appear in your notifications. Approvals, tasks, account and payment notices always show, because someone is waiting on them.</p>
       </div>
+      <PhoneFold label="Show notification settings" hideLabel="Hide notification settings" className="px-5!">
       <div className="p-5 sm:p-6">
         {state.status === 'loading' && <div className="space-y-3" role="status" aria-label="Loading notification preferences"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>}
         {state.status === 'error' && (
@@ -82,6 +84,7 @@ export default function NotificationPreferences() {
           </ul>
         )}
       </div>
+      </PhoneFold>
     </section>
   );
 }
