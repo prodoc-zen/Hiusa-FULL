@@ -149,13 +149,13 @@ export default function StudentHomePage() {
 
         <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
           {activeElection && (
-            <section className={`rounded-card border border-line bg-surface p-4 ${activeElection.has_voted ? '' : 'max-sm:hidden'}`} aria-labelledby="student-election-title">
-              <h2 id="student-election-title" className="text-sm font-semibold text-ink">Voting is open</h2>
-              <p className="mt-1 text-sm font-medium text-ink">{formatDisplayText(activeElection.title)}</p>
+            <section className="rounded-card border border-line bg-surface p-4 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:p-3" aria-labelledby="student-election-title">
+              <h2 id="student-election-title" className="text-sm font-semibold text-ink max-sm:sr-only">Voting is open</h2>
+              <p className="mt-1 text-sm font-medium text-ink max-sm:mt-0 max-sm:line-clamp-2 max-sm:min-w-0">{formatDisplayText(activeElection.title)}</p>
               <p className="mt-1 text-xs text-ink-muted-strong max-sm:hidden">{activeElection.has_voted ? 'Your ballot has been submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
               {activeElection.has_voted
-                ? <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-success-strong"><ShieldCheck size={16} aria-hidden="true" /> Vote submitted</p>
-                : <Button to={`/elections/${activeElection.id}/vote`} variant="secondary" className="mt-3 w-full">Vote now</Button>}
+                ? <p className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-success-strong max-sm:mt-0 max-sm:shrink-0"><ShieldCheck size={16} aria-hidden="true" /> Vote submitted</p>
+                : <Button to={`/elections/${activeElection.id}/vote`} variant="secondary" className="mt-3 w-full max-sm:mt-0 max-sm:w-auto max-sm:shrink-0">Vote now</Button>}
             </section>
           )}
 

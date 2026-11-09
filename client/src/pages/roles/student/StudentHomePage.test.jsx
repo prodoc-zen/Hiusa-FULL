@@ -146,7 +146,9 @@ describe('StudentHomePage', () => {
   it('offers voting as one plain link while an election is open, and says so after the vote', async () => {
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: false }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
     const { unmount } = render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
-    expect(await screen.findByRole('link', { name: 'Vote now' })).toHaveAttribute('href', '/elections/4/vote');
+    const voteLink = await screen.findByRole('link', { name: 'Vote now' });
+    expect(voteLink).toHaveAttribute('href', '/elections/4/vote');
+    expect(voteLink.closest('[class~="max-sm:hidden"]')).toBeNull();
     unmount();
 
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: true }, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
