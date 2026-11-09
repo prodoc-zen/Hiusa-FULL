@@ -89,10 +89,12 @@ class ElectionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
-        $readableOrgIds = $this->readableOrganizationIds($request);
+        $user = $request->user();
+        $readableOrgIds = $user->role === 'DEPARTMENT_HEAD' ? $this->readableOrganizationIds($request) : $user->electionOrganizationIds();
         $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
+            ->with('organization:id,name,acronym')
             ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
@@ -124,7 +126,8 @@ class ElectionController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $this->synchronizeScheduledStatuses($user->scopedOrganizationIds(), $id);
+        $organizationIds = $user->electionOrganizationIds();
+        $this->synchronizeScheduledStatuses($organizationIds, $id);
         $with = [
             'positions.candidates.user',
             'positions.candidates.partylist',
@@ -135,7 +138,7 @@ class ElectionController extends Controller
         ];
 
         $election = Election::with($with)
-            ->whereIn('organization_id', $user->scopedOrganizationIds())
+            ->whereIn('organization_id', $organizationIds)
             ->find($id);
 
         if (! $election) {
@@ -740,7 +743,7 @@ class ElectionController extends Controller
 
     public function candidatesIndex(Request $request, $id)
     {
-        $election = Election::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
+        $election = Election::whereIn('organization_id', $request->user()->electionOrganizationIds())->find($id);
 
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -1117,8 +1120,9 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
-        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds(), (int) $id);
-        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        $votingOrganizationIds = $request->user()->votingOrganizationIds();
+        $this->synchronizeScheduledStatuses($votingOrganizationIds, (int) $id);
+        $election = Election::whereIn('organization_id', $votingOrganizationIds)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
@@ -1233,21 +1237,18 @@ class ElectionController extends Controller
             ->pluck('voter_id');
 
         // Belonging to the organization is an active profile there, as in the people directory; a member the
-        // head added keeps their own account in the college and still votes and counts here.
-        $votersQuery = User::query()
-            ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
-            ->where('membership.organization_id', $organizationId)
-            ->where('membership.account_status', 'active')
-            ->whereIn('membership.role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
-            ->where('users.account_status', 'active');
+        // head added keeps their own account in the college and still votes and counts here. The ballot
+        // (`vote`) admits exactly this set, through the same scope.
+        $votersQuery = AccountProfile::votingMembers()->where('account_profiles.organization_id', $organizationId);
 
         $eligibleTotal = (clone $votersQuery)->count();
-        $votedCount = (clone $votersQuery)->whereIn('users.school_id', $voterIds)->count();
+        $votedCount = (clone $votersQuery)->whereIn('account_profiles.user_school_id', $voterIds)->count();
 
         $paginated = $votersQuery
-            ->orderBy('users.last_name')
-            ->orderBy('users.first_name')
-            ->select(['users.school_id', 'users.first_name', 'users.last_name', 'users.email', 'membership.role'])
+            ->join('users as voter', 'voter.school_id', '=', 'account_profiles.user_school_id')
+            ->orderBy('voter.last_name')
+            ->orderBy('voter.first_name')
+            ->select(['voter.school_id', 'voter.first_name', 'voter.last_name', 'voter.email', 'account_profiles.role'])
             ->paginate(10)
             ->through(fn ($voter) => array_merge($voter->toArray(), [
                 'has_voted' => $voterIds->contains($voter->school_id),
@@ -1264,8 +1265,9 @@ class ElectionController extends Controller
 
     public function results(Request $request, $id)
     {
-        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds(), (int) $id);
-        $election = Election::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
+        $organizationIds = $request->user()->electionOrganizationIds();
+        $this->synchronizeScheduledStatuses($organizationIds, (int) $id);
+        $election = Election::whereIn('organization_id', $organizationIds)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
