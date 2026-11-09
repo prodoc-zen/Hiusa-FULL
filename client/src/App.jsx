@@ -265,7 +265,7 @@ function App() {
           <Route path="super-admin/student-records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><StudentRecordsPage /></ProtectedRoute>} />
           <Route path="super-admin/users" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoUsersPage /></ProtectedRoute>} />
           <Route path="super-admin/documents" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoDocumentsPage /></ProtectedRoute>} />
-          <Route path="department-head/documents" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><SaoDocumentsPage role="DEPARTMENT_HEAD" /></ProtectedRoute>} />
+          <Route path="department-head/documents" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><SaoDocumentsPage role="DEPARTMENT_HEAD" /></OfficeReviewRoute></ProtectedRoute>} />
           <Route path="department-head/compliance" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegeCompliancePage /></ProtectedRoute>} />
           <Route path="super-admin/file-storage" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoStoragePage /></ProtectedRoute>} />
           <Route path="super-admin/compliance" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoCompliancePage /></ProtectedRoute>} />
@@ -282,9 +282,9 @@ function App() {
           <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomeRoute /></ProtectedRoute>} />
           <Route path="officer" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><DashboardPage /></ProtectedRoute>} />
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
-          <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
-          <Route path="department-head/people" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegePeoplePage /></ProtectedRoute>} />
-          <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegeOrganizationsPage /></ProtectedRoute>} />
+          <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><DepartmentHeadApprovalsPage /></OfficeReviewRoute></ProtectedRoute>} />
+          <Route path="department-head/people" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><CollegePeoplePage /></OfficeReviewRoute></ProtectedRoute>} />
+          <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><CollegeOrganizationsPage /></OfficeReviewRoute></ProtectedRoute>} />
           <Route path="records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN", "SBO_OFFICER"]}><RecordsRoute /></ProtectedRoute>} />
           <Route path="department-head/org/:orgId" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><OrgSpacePage /></ProtectedRoute>} />
           <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesRoute /></ProtectedRoute>} />

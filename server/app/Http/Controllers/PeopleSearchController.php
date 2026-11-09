@@ -86,7 +86,7 @@ class PeopleSearchController extends Controller
             ? Organization::where('college_id', $home->college_id)->pluck('id')->map(fn ($id) => (int) $id)->all()
             : [(int) $actor->organization_id];
 
-        if ($actor->role === 'DEPARTMENT_HEAD') {
+        if ($actor->isCollegeOffice()) {
             $studentOrganizationIds = $actor->scopedOrganizationIds();
 
             if ($requested !== null) {

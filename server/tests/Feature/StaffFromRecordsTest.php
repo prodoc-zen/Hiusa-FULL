@@ -143,7 +143,7 @@ class StaffFromRecordsTest extends TestCase
 
     public function test_a_plain_link_shows_no_record(): void
     {
-        $response = $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->assertCreated();
+        $response = $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'marites@example.edu'])->assertCreated();
 
         $this->getJson('/api/department-head-invitations/'.$this->token($response->json()))->assertOk()->assertJsonPath('invitation.record', null);
     }
@@ -215,15 +215,13 @@ class StaffFromRecordsTest extends TestCase
         $this->getJson("/api/department-head-invitations/{$second}")->assertOk();
     }
 
-    public function test_a_link_cannot_be_made_for_another_colleges_claimed_or_student_record_or_an_existing_account(): void
+    public function test_a_link_cannot_be_made_for_another_colleges_claimed_or_student_or_missing_record(): void
     {
         $this->employee(7000001, 'Other', 'College', $this->arts);
         $this->employee(7000002, 'Already', 'Claimed', null, ['claimed_at' => now()]);
         $this->student(2600001);
-        $this->employee(7000003, 'Has', 'Account');
-        User::factory()->create(['school_id' => 7000003]);
 
-        foreach ([7000001, 7000002, 2600001, 7000003, 7999999] as $schoolId) {
+        foreach ([7000001, 7000002, 2600001, 7999999] as $schoolId) {
             $this->inviteFromRecord($schoolId)->assertUnprocessable()->assertJsonValidationErrors('registry_school_id');
         }
         $this->assertDatabaseCount('department_head_invitations', 0);
@@ -233,7 +231,7 @@ class StaffFromRecordsTest extends TestCase
     {
         $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', [])->assertJsonValidationErrors('position_title');
 
-        $token = $this->token($this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->json());
+        $token = $this->token($this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'marites@example.edu'])->json());
         $accepted = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->credentials(['first_name' => 'Clara', 'last_name' => 'Cruz']))->assertOk();
 
         $this->assertGreaterThanOrEqual(95000000, $accepted->json('user.school_id'));

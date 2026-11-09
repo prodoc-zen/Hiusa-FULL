@@ -25,6 +25,7 @@ export const uploadSystemCollegeLogo = (id, file) => {
 };
 export const inviteDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/invite-department-head`, payload));
 export const getDepartmentHeadInvitation = (token) => unwrap(api.get(`/department-head-invitations/${token}`));
+export const claimStaffInvitation = (token) => unwrap(api.post(`/department-head-invitations/${token}/claim`));
 export const acceptDepartmentHeadInvitation = (token, payload) => unwrap(api.post(`/department-head-invitations/${token}/accept`, payload));
 export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));
 export const restoreSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/restore`));

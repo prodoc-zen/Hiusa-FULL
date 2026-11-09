@@ -150,6 +150,6 @@ class OrgSpaceController extends Controller
             return;
         }
 
-        abort_unless($user->role === 'DEPARTMENT_HEAD' && in_array($organization->id, $user->scopedOrganizationIds(), true), 403, 'This organization is not in your college.');
+        abort_unless($user->isCollegeOffice() && in_array($organization->id, $user->scopedOrganizationIds(), true), 403, 'This organization is not in your college.');
     }
 }

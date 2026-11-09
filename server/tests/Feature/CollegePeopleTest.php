@@ -210,10 +210,17 @@ class CollegePeopleTest extends TestCase
 
     public function test_only_a_department_head_with_a_college_can_open_the_page_data(): void
     {
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT'] as $role) {
+        foreach (['SBO_OFFICER', 'STUDENT'] as $role) {
             Sanctum::actingAs(User::factory()->create(['organization_id' => $this->computingHome->id, 'role' => $role]));
             $this->getJson('/api/college/people?tab=students')->assertForbidden();
         }
+
+        $club = Organization::factory()->create(['organization_type' => 'STUDENT_ORGANIZATION', 'college_id' => $this->computing->id]);
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $club->id]));
+        $this->getJson('/api/college/people?tab=students')->assertForbidden();
+
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $this->computingHome->id]));
+        $this->getJson('/api/college/people?tab=students')->assertOk();
 
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => $this->computingHome->id]));
         $this->getJson('/api/college/people?tab=students')->assertForbidden();

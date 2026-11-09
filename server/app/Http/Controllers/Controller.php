@@ -21,8 +21,8 @@ abstract class Controller
     }
 
     /**
-     * Organizations a read may span. A Department Head sees the whole college
-     * and may narrow it to one organization with `organization_id`.
+     * Organizations a read may span. A Department Head, or the office staff who work for one, sees the whole
+     * college and may narrow it to one organization with `organization_id`.
      *
      * @return array<int, int>
      */
@@ -31,7 +31,7 @@ abstract class Controller
         $user = $request->user();
         $scoped = $user->scopedOrganizationIds();
 
-        if ($user->role !== 'DEPARTMENT_HEAD') {
+        if (! $user->isCollegeOffice()) {
             return $scoped;
         }
 
