@@ -72,13 +72,16 @@ describe('CollegeOrganizationsPage', () => {
   });
 
   it('never shows an office staff member their own name as the Department Head', async () => {
+    mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', code: 'COE', logo_url: null, color: '#0B8ED0' }, head: { name: '' } } });
     localStorage.setItem('user', JSON.stringify({ first_name: 'Sam', last_name: 'Staffer', role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 5 } }));
     try {
       renderPage();
 
       const header = await screen.findByRole('region', { name: 'Your college' });
-      expect(await within(header).findByText('Department Head: Eduardo Ramos')).toBeInTheDocument();
+      expect(await within(header).findByRole('heading', { name: 'College of Engineering' })).toBeInTheDocument();
+      await waitFor(() => expect(mocks.getCollegeOverview).toHaveBeenCalled());
       expect(within(header).queryByText(/Sam Staffer/)).toBeNull();
+      expect(within(header).queryByText(/Department Head:/)).toBeNull();
     } finally {
       localStorage.removeItem('user');
     }

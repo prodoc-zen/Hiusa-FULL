@@ -5,15 +5,18 @@ namespace Tests\Feature;
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
 use App\Models\Organization;
+use App\Models\OrganizationComplianceSubmission;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -240,6 +243,50 @@ class CollegeOfficeStaffTest extends TestCase
         $this->approval($this->psits, $event->id, $author, 'DEPARTMENT_HEAD');
         $this->actingAs($this->staffMember())->get($url)->assertOk();
         $this->actingAs($this->dean)->get($url)->assertOk();
+    }
+
+    public function test_office_staff_cannot_create_import_edit_disable_or_reactivate_accounts_through_user_management(): void
+    {
+        $student = User::factory()->student()->create(['school_id' => 78978990, 'organization_id' => $this->home->id, 'first_name' => 'Maria']);
+        Sanctum::actingAs($this->staffMember());
+        $before = User::count();
+        $this->postJson('/api/users', ['school_id' => 78978991, 'first_name' => 'New', 'last_name' => 'Staff', 'email' => 'new.staff@example.edu', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertForbidden();
+        $this->postJson('/api/users', ['school_id' => $student->school_id, 'first_name' => 'Maria', 'last_name' => 'Santos', 'email' => 'maria@example.edu', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertForbidden();
+        $this->postJson('/api/users/import', [])->assertForbidden();
+        $this->putJson('/api/users/'.$student->school_id, ['first_name' => 'Changed', 'role' => 'ADMIN'])->assertForbidden();
+        $this->postJson('/api/users/'.$student->school_id.'/disable')->assertForbidden();
+        $this->postJson('/api/users/'.$student->school_id.'/reactivate')->assertForbidden();
+
+        $this->assertSame($before, User::count());
+        $this->assertDatabaseMissing('users', ['school_id' => 78978991]);
+        $this->assertSame('Maria', $student->fresh()->first_name);
+        $this->assertSame('STUDENT', $student->fresh()->role);
+        $this->assertSame('active', $student->fresh()->account_status);
+    }
+
+    public function test_office_staff_can_look_at_compliance_files_but_cannot_replace_or_delete_them(): void
+    {
+        Storage::fake('local');
+        $type = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Constitution', 'deadline_at' => '2026-12-31 23:59:59', 'is_active' => true, 'created_by' => $this->dean->school_id]);
+        $adviser = User::factory()->admin()->create(['organization_id' => $this->psits->id]);
+        $path = 'compliance-submissions/'.$this->psits->id.'/doc.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.4 original');
+        $submission = OrganizationComplianceSubmission::create([
+            'organization_id' => $this->psits->id, 'requirement_type_id' => $type->id, 'status' => 'submitted', 'file_path' => $path,
+            'file_original_name' => 'doc.pdf', 'mime_type' => 'application/pdf', 'file_size' => 17,
+            'submitted_by' => $adviser->school_id, 'submitted_at' => '2026-09-01 08:00:00',
+        ]);
+
+        Sanctum::actingAs($this->staffMember());
+        $this->get("/api/compliance/submissions/{$submission->id}/document")->assertOk();
+        $this->postJson("/api/compliance/submissions/{$submission->id}/document", [
+            'document' => UploadedFile::fake()->create('new.pdf', 10, 'application/pdf'), 'submitted_at' => '2026-09-01 08:00:00',
+        ])->assertForbidden();
+        $this->deleteJson("/api/compliance/submissions/{$submission->id}", ['submitted_at' => '2026-09-01 08:00:00'])->assertForbidden();
+
+        $this->assertDatabaseHas('organization_compliance_submissions', ['id' => $submission->id, 'file_path' => $path]);
+        Storage::disk('local')->assertExists($path);
+        $this->assertSame('%PDF-1.4 original', Storage::disk('local')->get($path));
     }
 
     // ---- S1: only office staff and deans count as already on staff ----

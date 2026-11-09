@@ -129,4 +129,18 @@ describe('SAO submitted files', () => {
     expect(screen.getByRole('menuitem', { name: 'Replace file' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'View file' })).toBeInTheDocument();
   });
+
+  it('lets office staff view college files but never replace or delete them', async () => {
+    localStorage.setItem('user', JSON.stringify({ first_name: 'Sam', last_name: 'Staffer', role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 5 } }));
+    try {
+      render(<MemoryRouter><DocumentsTab role="DEPARTMENT_HEAD" /></MemoryRouter>);
+      await openFolder();
+      fireEvent.click(screen.getByRole('button', { name: 'Actions for bylaws.pdf' }));
+      expect(await screen.findByRole('menuitem', { name: 'View file' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Replace file' })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: 'Delete file' })).toBeNull();
+    } finally {
+      localStorage.removeItem('user');
+    }
+  });
 });
