@@ -19,6 +19,11 @@ class EnsureRole
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        // Office staff stand in for the dean, so they reach only the routes the dean's pages use, never account management.
+        if ($user->isCollegeOfficeStaff() && ! in_array('DEPARTMENT_HEAD', $roles, true) && ! in_array(self::COLLEGE_OFFICE, $roles, true)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $allowed = in_array($user->role, $roles, true) || (in_array(self::COLLEGE_OFFICE, $roles, true) && $user->isCollegeOffice());
 
         if (! $allowed) {

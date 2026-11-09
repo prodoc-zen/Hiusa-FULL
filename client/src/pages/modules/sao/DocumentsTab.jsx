@@ -12,6 +12,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { manilaDate } from '../../../lib/format';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
+import { isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
 import { TABLE, TBODY, TD, TH, THEAD, TR } from './responsiveTable';
 
 const FAMILIES = [
@@ -27,6 +28,8 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const { subAccount } = useActiveSubAccount();
+  // Office staff open the college's files like the dean does but cannot replace or delete them.
+  const canChangeFiles = !isOfficeStaff(storedUser());
   const previousSubAccountId = useRef(subAccount?.id);
   const [organization, setOrganization] = useState(() => {
     if (/^\d+$/.test(params.get('organization') || '')) {
@@ -186,8 +189,8 @@ export default function DocumentsTab({ role = 'SUPER_ADMIN' }) {
       {files.loading ? <SkeletonTable rows={5} columns={5} /> : files.error ? <div role="alert"><ErrorState title="Could not load files" description={files.error} onRetry={loadFiles} /></div> : files.rows.length === 0 ? <EmptyState kind={fileFiltersActive ? 'filtered' : 'first-run'} title={fileFiltersActive ? 'No files in this view' : 'No files yet'} description={fileFiltersActive ? 'Try another document type or semester.' : 'Files this organization submits appear here.'} onClearFilters={fileFiltersActive ? () => { setFamily(''); setSemester(''); setFileQuery(''); setFileSearch(''); setFilePage(1); } : undefined} /> : <div><table className={TABLE}><caption className="sr-only">Files submitted by {organization.name}</caption><thead className={THEAD}><tr><th scope="col" className={TH}>Name</th><th scope="col" className={TH}>Type</th><th scope="col" className={TH}>Submitted</th><th scope="col" className={TH}>Status</th><th scope="col" className={`${TH} text-right`}>Actions</th></tr></thead><tbody className={TBODY}>{files.rows.map((row) => <tr key={`${row.source}-${row.open_url}`} className={TR}><td data-label="Name" className={`${TD} max-w-xs`}><div><span className="block break-words font-medium text-ink">{row.file_name || row.item}</span><span className="block text-xs text-ink-muted">{row.item}{row.parent_title ? ` · ${row.parent_title}` : ''}</span></div></td><td data-label="Type" className={`${TD} text-ink-muted-strong`}>{FAMILY_NAMES[row.family] || row.family}</td><td data-label="Submitted" className={`${TD} text-ink-muted-strong`}>{row.submitted_at ? manilaDate(row.submitted_at, 'long') : ''}</td><td data-label="Status" className={TD}><StatusBadge status={row.status} /></td><td data-label="Actions" className={`${TD} md:text-right`}><TableRowActions subject={row.file_name || row.item} actions={[
         { label: 'View file', icon: ExternalLink, onClick: () => openFile(row) },
         role === 'SUPER_ADMIN' && row.family === 'registration' && row.organization_lifecycle_status === 'pending' && { label: 'Open registration review', icon: ExternalLink, to: `/dashboard/super-admin/organizations?status=pending&review=${organization.id}` },
-        role === 'DEPARTMENT_HEAD' && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Replace file', icon: FilePenLine, onClick: () => { setActionError(''); setReplacement(null); setEditing(row); } },
-        ['SUPER_ADMIN', 'DEPARTMENT_HEAD'].includes(role) && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Delete file', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(row); } },
+        canChangeFiles && role === 'DEPARTMENT_HEAD' && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Replace file', icon: FilePenLine, onClick: () => { setActionError(''); setReplacement(null); setEditing(row); } },
+        canChangeFiles && ['SUPER_ADMIN', 'DEPARTMENT_HEAD'].includes(role) && row.source === 'compliance' && row.organization_lifecycle_status === 'active' && { label: 'Delete file', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(row); } },
       ]} /></td></tr>)}</tbody></table></div>}
       {!files.loading && !files.error && <PaginationControls currentPage={files.meta.currentPage} totalItems={files.meta.total} pageSize={filePageSize} onPageChange={setFilePage} pageSizeOptions={[10, 20, 50]} onPageSizeChange={(size) => { setFilePageSize(size); setFilePage(1); }} label="files" />}
     </section>}
