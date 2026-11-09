@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Building2, ChevronDown, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
+import { Archive, Building2, Eye, ImagePlus, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
 import { Button, Drawer, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonStat, SkeletonTable, Stat, StatusBadge, Textarea } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
@@ -48,16 +48,24 @@ function mergeColleges(colleges, agency) {
 function OrganizationsSummary({ college, awaitingAdministrator }) {
   const counts = college.by_lifecycle_status || {};
   return (
-    <p className="pb-3 pl-7 text-xs font-semibold text-ink-muted">
+    <p className="text-xs font-semibold text-ink-muted">
       <Count value={college.organizations_count} /> {college.organizations_count === 1 ? 'organization' : 'organizations'} · <Count value={counts.pending || 0} /> pending · <Count value={counts.active || 0} /> active · <Count value={counts.returned || 0} /> returned · <Count value={counts.archived || 0} /> archived{hasAdministratorCount(college) && <> · <Count value={college.administrators_count} /> {college.administrators_count === 1 ? 'administrator' : 'administrators'}</>}{awaitingAdministrator > 0 && <> · <Count value={awaitingAdministrator} /> awaiting administrator</>}
     </p>
   );
 }
 
+function waitingSummary(counts, awaitingAdministrator) {
+  return [
+    counts.pending && `${counts.pending} pending`,
+    counts.returned && `${counts.returned} returned`,
+    awaitingAdministrator && `${awaitingAdministrator} awaiting administrator`,
+  ].filter(Boolean).join(' · ');
+}
+
 const DEFAULT_COLLEGE_COLOR = '#0B8ED0';
 const EMPTY_ADD_FORM = { name: '', code: '', color: '' };
 
-function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUpload, onView, onEdit, onInvite, onManage, onArchive, onDelete }) {
+function CollegeCard({ college, uploading, onUpload, onView, onEdit, onInvite, onManage, onArchive, onDelete }) {
   const totalMembers = (college.organizations || []).reduce((sum, org) => sum + Number(org.member_counts?.total || 0), 0);
   const fileInput = useRef(null);
   const name = formatDisplayText(college.name);
@@ -66,20 +74,16 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
   const counts = college.by_lifecycle_status || {};
   const awaitingAdministrator = (college.organizations || []).filter(needsAdministrator).length;
   const waitingCount = (counts.pending || 0) + (counts.returned || 0) + awaitingAdministrator;
-  const needsReview = waitingCount > 0;
-  const [expanded, setExpanded] = useState(needsReview);
-  const panelId = `college-${college.id}-organizations`;
-
-  useEffect(() => {
-    if (needsReview) setExpanded(true);
-  }, [needsReview]);
+  const waiting = waitingSummary(counts, awaitingAdministrator);
+  const organizationsLabel = `${college.organizations_count} ${college.organizations_count === 1 ? 'organization' : 'organizations'}`;
+  const membersLabel = `${totalMembers} ${totalMembers === 1 ? 'member' : 'members'}`;
 
   return (
     <article aria-labelledby={`college-${college.id}`} className="relative overflow-hidden rounded-card border border-line bg-surface">
-      <div className="p-4">
-        <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 p-4 md:items-center md:px-4 md:py-2.5">
+        <div className="flex min-w-0 flex-1 items-start gap-3 md:w-[28%] md:flex-none md:items-center">
           {college.logo_url && (
-            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-control bg-page">
+            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-control bg-page md:h-9 md:w-9">
               <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" />
             </span>
           )}
@@ -87,74 +91,44 @@ function CollegeCard({ college, showAdmins, agencyUnavailable, uploading, onUplo
             <h2 id={`college-${college.id}`} className="text-base font-semibold text-ink">
               <button type="button" onClick={() => onView(college)} className="break-words rounded-control text-left hover:underline hover:underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']">{name}</button>
             </h2>
-            <p className="mt-1 text-xs font-medium text-ink-muted">{college.code || 'No code'} · {college.organizations_count} {college.organizations_count === 1 ? 'organization' : 'organizations'} · {totalMembers} {totalMembers === 1 ? 'member' : 'members'}{!college.is_active && ' · Archived'}{!head && college.is_active && <span className="md:hidden"> · No Department Head</span>}{waitingCount > 0 && <span className="md:hidden"> · {waitingCount} waiting</span>}</p>
-            {college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-ink-muted max-md:hidden" />}
-          </div>
-          <div className="relative z-10 -mr-2 -mt-1 shrink-0">
-            <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
-            <TableRowActions subject={name} actions={[
-              { label: `View ${name}`, icon: Eye, onClick: () => onView(college) },
-              { label: `Edit ${name}`, icon: Pencil, onClick: () => onEdit(college) },
-              { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
-              college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
-              college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
-              { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
-              { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
-              college.can_delete === false
-                ? { label: 'Delete college (has organizations or people)', icon: Trash2, danger: true, disabled: true }
-                : { label: 'Delete college', icon: Trash2, danger: true, onClick: () => onDelete(college) },
-            ]} />
+            <p className="mt-1 text-xs font-medium text-ink-muted md:hidden">{college.code || 'No code'} · {organizationsLabel} · {membersLabel}{!college.is_active && ' · Archived'}{!head && college.is_active && ' · No Department Head'}{waitingCount > 0 && ` · ${waitingCount} waiting`}</p>
+            <p className="text-xs font-medium text-ink-muted max-md:hidden">{college.code || 'No code'}{!college.is_active && ' · Archived'}</p>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 max-md:hidden">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-ink-muted">Department Head</p>
-            {head ? (
-              <>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="break-words text-sm font-semibold text-ink">{formatDisplayText(head.name)}</span>
-                  {!headIsActive && <StatusBadge status={head.account_status} />}
-                </div>
-                <p className="mt-0.5 break-all text-xs font-medium text-ink-muted">{head.email}</p>
-              </>
-            ) : (
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <p className="text-sm text-ink-muted">No Department Head yet</p>
-                {college.is_active && (
-                  <Button size="sm" variant="secondary" className="max-md:min-h-[42px]" onClick={() => onInvite(college)}>
-                    Invite Department Head
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+        <div className="min-w-0 md:w-[38%] md:flex-none max-md:hidden">
+          <span className="sr-only">Department Head</span>
+          {head ? (
+            <>
+              <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-ink"><span className="break-words">{formatDisplayText(head.name)}</span>{!headIsActive && <StatusBadge status={head.account_status} />}</p>
+              <p className="break-all text-xs font-medium text-ink-muted">{head.email}</p>
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-ink-muted">No Department Head yet</p>
+              {college.is_active && <Button size="sm" variant="secondary" className="shrink-0" onClick={() => onInvite(college)}>Invite Department Head</Button>}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 md:flex-1 max-md:hidden">
+          <p className="text-sm text-ink">{organizationsLabel} · {membersLabel}</p>
+          {waiting && <p className="text-xs font-semibold text-ink">{waiting}</p>}
+        </div>
+        <div className="relative z-10 -mr-2 -mt-1 shrink-0 md:mt-0">
+          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
+          <TableRowActions subject={name} actions={[
+            { label: `View ${name}`, icon: Eye, onClick: () => onView(college) },
+            { label: `Edit ${name}`, icon: Pencil, onClick: () => onEdit(college) },
+            { label: `View organizations of ${name}`, icon: Building2, to: `/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}` },
+            college.is_active && head && { label: `Manage Department Head of ${name}`, icon: UserPlus, onClick: () => onManage(college) },
+            college.is_active && !headIsActive && { label: `Invite Department Head to ${name}`, icon: UserPlus, onClick: () => onInvite(college) },
+            { label: uploading ? 'Uploading logo…' : 'Upload logo', icon: ImagePlus, disabled: uploading, onClick: () => fileInput.current?.click() },
+            { label: college.is_active ? 'Archive college' : 'Restore college', icon: college.is_active ? Archive : RotateCcw, onClick: () => onArchive(college) },
+            college.can_delete === false
+              ? { label: 'Delete college (has organizations or people)', icon: Trash2, danger: true, disabled: true }
+              : { label: 'Delete college', icon: Trash2, danger: true, onClick: () => onDelete(college) },
+          ]} />
         </div>
       </div>
-      <header className="border-t border-line px-4 pt-1 max-md:hidden">
-        {agencyUnavailable ? (
-          <p className="py-3 text-sm text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
-        ) : college.organizations_count ? (
-          <>
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={panelId}
-              aria-label={`Organizations of ${name}`}
-              onClick={() => setExpanded((current) => !current)}
-              className="flex min-h-11 items-center gap-2 text-left text-sm font-semibold text-ink"
-            >
-              <ChevronDown size={18} className={`shrink-0 text-brand-700 transition-transform duration-150 ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
-              Organizations
-            </button>
-            <OrganizationsSummary college={college} awaitingAdministrator={awaitingAdministrator} />
-          </>
-        ) : <p className="py-3 text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>}
-      </header>
-      {!agencyUnavailable && college.organizations_count > 0 && expanded && (
-        <div id={panelId} className="border-t border-line max-md:hidden">
-          <OrganizationsTable rows={college.organizations} caption={`Organizations of ${college.name}`} showAdmins={showAdmins} />
-        </div>
-      )}
     </article>
   );
 }
@@ -352,7 +326,7 @@ export default function SystemCollegesPage() {
           {loading ? (
             <section aria-label="Loading colleges"><SkeletonTable columns={4} rows={4} /></section>
           ) : visible.length ? (
-            <section className="space-y-3">{visible.map((college) => <CollegeCard key={college.id} college={college} showAdmins={showAdmins} agencyUnavailable={agencyUnavailable} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onDelete={(item) => { setDeleteError(''); setDeleteTarget(item); }} />)}</section>
+            <section className="space-y-3 md:space-y-2"><div aria-hidden="true" className="flex gap-3 px-4 text-xs font-semibold text-ink-muted max-md:hidden"><span className="w-[28%] shrink-0">College</span><span className="w-[38%] shrink-0">Department Head</span><span className="flex-1">Organizations</span><span className="w-7 shrink-0" /></div>{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onView={setViewing} onEdit={(item) => { setEditing(item); setEditForm({ name: item.name || '', code: item.code || '', description: item.description || '' }); setEditError(''); setEditFieldErrors({}); }} onInvite={(item) => setInviting({ collegeId: item.id })} onManage={setManaging} onArchive={(item) => { setLifecycleError(''); setArchiveTarget(item); }} onDelete={(item) => { setDeleteError(''); setDeleteTarget(item); }} />)}</section>
           ) : (
             colleges.length
               ? <EmptyState kind="filtered" title="No colleges match" description="No college has that name or code." onClearFilters={() => setSearch('')} />
@@ -394,12 +368,20 @@ export default function SystemCollegesPage() {
                 {viewing.department_head?.email && <p className="break-all text-xs text-ink-muted">{viewing.department_head.email}</p>}
               </div>
             </div>
-            {(viewing.organizations || []).length > 0 ? (
+            {viewing.description && <RichTextBody value={viewing.description} className="break-words text-sm text-ink-muted" />}
+            {agencyUnavailable ? (
+              <p className="text-sm text-ink-muted">Organization details are unavailable until the agency overview loads.</p>
+            ) : (
+              <>
+                <OrganizationsSummary college={viewing} awaitingAdministrator={(viewing.organizations || []).filter(needsAdministrator).length} />
+                {(viewing.organizations || []).length > 0 ? (
               <div className="overflow-hidden rounded-card border border-line">
                 <OrganizationsTable rows={viewing.organizations} caption={`Organizations in ${viewing.name}`} showAdmins={showAdmins} />
               </div>
-            ) : (
-              <p className="text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>
+                ) : (
+                  <p className="text-sm text-ink-muted">{NO_ORGANIZATIONS}</p>
+                )}
+              </>
             )}
           </div>
         )}

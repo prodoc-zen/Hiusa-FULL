@@ -552,7 +552,7 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
     case 'pending':
       return finish(buildSteps(REGISTRATION_STAGES, 1), turn(viewerRole, ['SUPER_ADMIN'], {
         title: 'Review the registration',
-        body: 'The Department Head registered this organization. Approve it or return it with remarks.',
+        body: 'The Department Head endorsed this application. Approve it or return it with remarks.',
         label: 'Review registration',
         to: saoHref,
       }, { title: 'Waiting for SAO review' }), 'SUPER_ADMIN', href);

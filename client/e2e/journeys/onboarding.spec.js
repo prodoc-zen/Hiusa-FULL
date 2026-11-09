@@ -84,27 +84,25 @@ for (const { label, viewport } of WIDTHS) {
       await page.goto('/login');
       await expect(page.getByRole('link', { name: /Create your account/ })).toHaveAttribute('href', '/sign-up');
       await page.goto('/sign-up');
+      // One form: the school ID and birth date are matched against the school records when the account is created.
       await page.getByLabel('School ID').fill(String(record.schoolId));
       await page.getByLabel('Birth date').fill(record.birthDate);
+      await page.getByLabel('Email').fill(email);
+      await page.getByLabel('Password', { exact: true }).fill(password);
+      await page.getByLabel('Confirm password').fill(password);
       const found = page.getByRole('region', { name: 'Your school record' });
       await retryWhileThrottled(
         page,
-        () => page.getByRole('button', { name: 'Find my record' }).click(),
-        () => expect(found).toContainText('We found you'),
+        () => page.getByRole('button', { name: 'Create account' }).click(),
+        () => expect(found).toContainText(record.name, { timeout: 20_000 }),
       );
-      await expect(found).toContainText(record.name);
+      await expect(page.getByRole('heading', { name: 'Your account is ready' })).toBeVisible();
       await expect(found).toContainText('College of Computer Studies');
       await noSidewaysScroll(page);
       await page.screenshot({ path: shot(`ON-1-${label}.png`) });
 
-      await page.getByLabel('Email').fill(email);
-      await page.getByLabel('Password', { exact: true }).fill(password);
-      await page.getByLabel('Confirm password').fill(password);
-      await retryWhileThrottled(
-        page,
-        () => page.getByRole('button', { name: 'Create account' }).click(),
-        () => expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20_000 }),
-      );
+      await page.getByRole('button', { name: 'Open my dashboard' }).click();
+      await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20_000 });
       await expect(page.getByRole('navigation').first()).toBeVisible();
     });
 
@@ -113,7 +111,11 @@ for (const { label, viewport } of WIDTHS) {
       await page.goto('/sign-up');
       await page.getByLabel('School ID').fill(String(record.schoolId));
       await page.getByLabel('Birth date').fill('2001-01-01');
-      await page.getByRole('button', { name: 'Find my record' }).click();
+      await page.getByLabel('Email').fill(`mismatch.${runTag}.${label}@journey.test`);
+      const password = randomPassword();
+      await page.getByLabel('Password', { exact: true }).fill(password);
+      await page.getByLabel('Confirm password').fill(password);
+      await page.getByRole('button', { name: 'Create account' }).click();
       await expect(page.getByRole('alert').filter({ hasText: "We couldn't match that school ID and birth date with the school records." })).toBeVisible();
       await expect(page.getByRole('region', { name: 'Your school record' })).toHaveCount(0);
     });
@@ -150,7 +152,7 @@ for (const { label, viewport } of WIDTHS) {
       const stranger = await browser.newContext({ viewport });
       const again = await stranger.newPage();
       await again.goto(`/accept-invitation?token=${encodeURIComponent(tokenOf(link))}`);
-      await expect(again.getByText('This link does not work')).toBeVisible();
+      await expect(again.getByText('This invitation link was already used')).toBeVisible();
       await stranger.close();
     });
 
@@ -160,10 +162,14 @@ for (const { label, viewport } of WIDTHS) {
       await uiLogin(page, HEAD_CCS);
       await page.goto('/dashboard/department-head/people');
       await page.getByRole('tab', { name: 'Office staff' }).click();
-      await page.getByRole('button', { name: 'Invite staff' }).click();
-      const dialog = page.getByRole('dialog', { name: 'Invite office staff' });
+      await page.getByRole('button', { name: 'Add staff' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Add office staff' });
+      // With no employee records loaded the drawer opens on the plain link form; with records it offers it as a link.
+      const plainLink = dialog.getByRole('button', { name: /Create a plain invite link/ });
+      await expect(dialog.getByLabel(/^Position/).or(plainLink)).toBeVisible();
+      if (await plainLink.isVisible()) await plainLink.click();
       await dialog.getByLabel(/^Position/).fill('College Secretary');
-      await dialog.getByRole('button', { name: 'Create link' }).click();
+      await dialog.getByRole('button', { name: 'Create invite link' }).click();
       const link = await dialog.getByLabel('Invite link').inputValue();
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 

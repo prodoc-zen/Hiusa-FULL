@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PSITS_ADMIN } from './support/accounts.js';
-import { injectSession, liveEnabled, openRowMenu, sessionFor } from './support/live.js';
+import { injectSession, liveEnabled, sessionFor } from './support/live.js';
 
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
@@ -32,11 +32,10 @@ test('admin can review paginated student financial accounts', async ({ page }) =
   await expect(page.getByRole('main').getByRole('heading', { name: 'Student accounts', level: 1 })).toBeVisible();
   await expect(page.getByText('Alex Rivera').first()).toBeVisible();
   await expect(page.getByText('₱1,000.00').first()).toBeVisible();
-  await openRowMenu(page, page.getByRole('row').filter({ hasText: 'Alex Rivera' }));
-  await page.getByRole('menuitem', { name: 'View account' }).click();
-  await expect(page.getByRole('heading', { name: 'Student Financial Account', exact: true })).toBeVisible();
+  await page.getByRole('row').filter({ hasText: 'Alex Rivera' }).getByRole('button', { name: 'View account' }).click();
+  await expect(page.getByRole('heading', { name: 'Student financial account', exact: true })).toBeVisible();
   await expect(page.getByText('INV-TEST · Organization fee')).toBeVisible();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Close panel' }).click();
   await page.getByRole('button', { name: 'Next page of student accounts' }).click();
   await expect(page.getByRole('button', { name: 'Page 2 of student accounts' })).toHaveAttribute('aria-current', 'page');
 });
