@@ -37,7 +37,11 @@ const show = (overview) => {
   mocks.getSystemColleges.mockResolvedValue(collegeList(overview));
 };
 const cardOf = (name) => screen.getByRole('heading', { level: 2, name }).closest('article');
-const organizationsTable = async () => (await screen.findAllByRole('table'))[0];
+const openDetails = async (name = 'College of Computing') => {
+  fireEvent.click(await screen.findByRole('button', { name }));
+  return screen.findByRole('dialog', { name });
+};
+const organizationsTable = async (name) => within(await openDetails(name)).getByRole('table');
 
 describe('SystemCollegesPage', () => {
   beforeEach(() => {
@@ -49,7 +53,7 @@ describe('SystemCollegesPage', () => {
   it('offers one primary Add college button beside a secondary Department Head invite, and edit, archive and delete per college', async () => {
     renderPage();
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
-    expect(screen.getByText('COA · 0 organizations · 0 members')).toBeInTheDocument();
+    expect(cardOf('College of Arts').querySelector('h2 + p')).toHaveTextContent('COA · 0 organizations · 0 members');
     expect(screen.getAllByRole('button', { name: 'Invite Department Head' })[0]).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Add college' })).toBeEnabled();
     expect(await findRowAction(/^Edit College of Arts/)).toBeInTheDocument();
@@ -209,6 +213,14 @@ describe('SystemCollegesPage', () => {
     expect(mocks.getSystemColleges).toHaveBeenCalledTimes(2);
   });
 
+  it('says in the details that organization figures are unavailable while the agency read is failing', async () => {
+    mocks.getSystemAgency.mockRejectedValueOnce({ response: { status: 403, data: { message: 'Not allowed.' } } });
+    renderPage();
+    const drawer = await openDetails('College of Arts');
+    expect(within(drawer).getByText('Organization details are unavailable until the agency overview loads.')).toBeInTheDocument();
+    expect(within(drawer).queryByRole('table')).not.toBeInTheDocument();
+  });
+
   it('lets a Department Head be invited while the agency read is failing', async () => {
     mocks.getSystemAgency.mockRejectedValue(new Error('offline'));
     mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', code: 'COA', is_active: true, organizations_count: 0, department_head: null }]);
@@ -232,15 +244,15 @@ describe('SystemCollegesPage', () => {
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
   });
 
-  it('makes each college name the tap target that opens its details, with the head and the organizations table only on larger screens', async () => {
+  it('makes each college name the tap target that opens its details, with the head and the organization figures only on larger screens', async () => {
     show(agency());
     mocks.getSystemColleges.mockResolvedValue(collegeList(agency()).map((college) => (college.id === 1 ? { ...college, department_head: { school_id: 5001, name: 'Maria Cruz', email: 'maria@example.edu', account_status: 'active' } } : college)));
     renderPage();
     const heading = await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
     const card = heading.closest('article');
-    expect(within(card).getByText('Department Head').closest('div.border-t')).toHaveClass('max-md:hidden');
-    expect(within(card).getByRole('table').closest('div.border-t')).toHaveClass('max-md:hidden');
-    expect(within(card).getByRole('button', { name: 'Organizations of College of Computing' }).closest('header')).toHaveClass('max-md:hidden');
+    expect(within(card).getByText('Maria Cruz').closest('div')).toHaveClass('max-md:hidden');
+    expect(within(card).getByText(/^2 organizations/).closest('div')).toHaveClass('max-md:hidden');
+    expect(within(card).queryByRole('table')).not.toBeInTheDocument();
 
     fireEvent.click(within(heading).getByRole('button', { name: 'College of Computing' }));
     const drawer = await screen.findByRole('dialog', { name: 'College of Computing' });
@@ -257,13 +269,12 @@ describe('SystemCollegesPage', () => {
     renderPage();
     await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
     const computingMeta = cardOf('College of Computing').querySelector('h2 + p');
-    const noHead = within(computingMeta).getByText('· No Department Head');
-    expect(noHead).toHaveClass('md:hidden');
-    const waiting = within(computingMeta).getByText('· 3 waiting');
-    expect(waiting).toHaveClass('md:hidden');
+    expect(computingMeta).toHaveClass('md:hidden');
+    expect(computingMeta).toHaveTextContent('· No Department Head');
+    expect(computingMeta).toHaveTextContent('· 3 waiting');
     const artsMeta = cardOf('College of Arts').querySelector('h2 + p');
-    expect(within(artsMeta).queryByText(/No Department Head/)).not.toBeInTheDocument();
-    expect(within(artsMeta).queryByText(/waiting/)).not.toBeInTheDocument();
+    expect(artsMeta).not.toHaveTextContent('No Department Head');
+    expect(artsMeta).not.toHaveTextContent('waiting');
   });
 
   it('adds no mobile cue for an archived college without a head or for a quiet college with one', async () => {
@@ -354,15 +365,15 @@ describe('SystemCollegesPage', () => {
       expect(table.closest('[class*="table-fixed"]').className).toContain('[&_th:nth-child(4)]:w-[17%]');
     });
 
-    it('names the Department Head on the card and counts the administrators in the summary', async () => {
+    it('names the Department Head on the card and counts the administrators in the details', async () => {
       const overview = agency({ colleges: [{ ...agency().colleges[0], administrators_count: 3 }, agency().colleges[1]] });
       show(overview);
       mocks.getSystemColleges.mockResolvedValue(collegeList(overview).map((college) => (college.id === 1 ? { ...college, department_head: { school_id: 5001, name: 'Maria Cruz', email: 'maria@example.edu', account_status: 'active' } } : college)));
       renderPage();
       await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
-      const card = cardOf('College of Computing');
-      expect(within(card).getByText('Maria Cruz')).toBeInTheDocument();
-      expect(within(card).getByText(/administrators/)).toHaveTextContent('3 administrators');
+      expect(within(cardOf('College of Computing')).getByText('Maria Cruz')).toBeInTheDocument();
+      const drawer = await openDetails();
+      expect(within(drawer).getByText(/administrators/)).toHaveTextContent('3 administrators');
     });
 
     it('says so when a college has no Department Head yet, including colleges without organizations', async () => {
@@ -382,9 +393,9 @@ describe('SystemCollegesPage', () => {
     it('matches the agency by name when the college ids differ', async () => {
       mocks.getSystemColleges.mockResolvedValue(collegeList(agency()).map((college) => ({ ...college, id: college.id + 100 })));
       renderPage();
-      const toggle = await screen.findByRole('button', { name: 'Organizations of College of Computing' });
-      expect(toggle).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getAllByText('Computing Society').length).toBeGreaterThan(0);
+      await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
+      expect(cardOf('College of Computing')).toHaveTextContent('2 organizations');
+      expect(within(await organizationsTable()).getByText('Computing Society')).toBeInTheDocument();
     });
 
     it('lists organization figures with no badge on an active organization, one needs-attention cell and an Open link', async () => {
@@ -403,20 +414,21 @@ describe('SystemCollegesPage', () => {
     it('shows a singular needs-attention summary', async () => {
       show(agency({ colleges: [{ id: 1, name: 'College of Computing', code: 'CCS', organizations_count: 1, by_lifecycle_status: { pending: 1, returned: 0, active: 0, archived: 0 }, organizations: [row({ pending_approvals_count: 0, pending_documents_count: 1 })] }] }));
       renderPage();
-      expect((await screen.findAllByText('1 document')).length).toBeGreaterThan(0);
+      expect(within(await organizationsTable()).getByText('1 document')).toBeInTheDocument();
     });
 
     it('links Review to the organization in the review drawer, not the whole list', async () => {
       renderPage();
-      const reviewLinks = await screen.findAllByRole('link', { name: 'Review Robotics Club' });
+      const drawer = await openDetails();
+      const reviewLinks = within(drawer).getAllByRole('link', { name: 'Review Robotics Club' });
       expect(reviewLinks[0]).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=2');
     });
 
     it('marks archived organizations as read only for assistive technology', async () => {
       show(agency({ colleges: [{ id: 1, name: 'College of Computing', code: 'CCS', organizations_count: 1, by_lifecycle_status: { pending: 0, returned: 1, active: 0, archived: 1 }, organizations: [row({ lifecycle_status: 'archived' })] }] }));
       renderPage();
-      const badge = await screen.findAllByLabelText('Archived, read only');
-      expect(badge[0]).toHaveTextContent('Archived');
+      const drawer = await openDetails();
+      expect(within(drawer).getAllByLabelText('Archived, read only')[0]).toHaveTextContent('Archived');
     });
 
     it('orders colleges by pending then returned reviews, then name', async () => {
@@ -428,28 +440,32 @@ describe('SystemCollegesPage', () => {
       expect(order).toEqual(['Delta', 'Gamma', 'Beta', 'Alpha']);
     });
 
-    it('expands colleges that need attention, collapses the rest and lets either toggle', async () => {
+    it('shows one compact row per college with what is waiting, and lists organizations only in the details', async () => {
       const quiet = { id: 5, name: 'College of Law', code: 'LAW', organizations_count: 1, by_lifecycle_status: { pending: 0, returned: 0, active: 1, archived: 0 }, organizations: [row({ id: 50, name: 'Moot Court' })] };
       show(agency({ colleges: [...agency().colleges, quiet] }));
       renderPage();
-      const open = await screen.findByRole('button', { name: 'Organizations of College of Computing' });
-      const closed = screen.getByRole('button', { name: 'Organizations of College of Law' });
-      expect(open).toHaveAttribute('aria-expanded', 'true');
-      expect(closed).toHaveAttribute('aria-expanded', 'false');
+      await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Organizations of/ })).not.toBeInTheDocument();
+      expect(cardOf('College of Computing')).toHaveTextContent('2 organizations · 24 members');
+      expect(cardOf('College of Computing')).toHaveTextContent('1 pending');
+      expect(cardOf('College of Law')).toHaveTextContent('1 organization · 12 members');
+      expect(cardOf('College of Law')).not.toHaveTextContent('pending');
       expect(screen.queryByText('Moot Court')).not.toBeInTheDocument();
-      fireEvent.click(closed);
-      expect(closed).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getAllByText('Moot Court').length).toBeGreaterThan(0);
-      fireEvent.click(open);
-      expect(screen.queryByText('Computing Society')).not.toBeInTheDocument();
+      const drawer = await openDetails('College of Law');
+      expect(within(drawer).getAllByText('Moot Court').length).toBeGreaterThan(0);
     });
 
-    it('shows the empty text and no toggle for a college without organizations', async () => {
+    it('shows zero organizations on the row and the apply flow in the details for a college without organizations', async () => {
       renderPage();
       await screen.findByRole('heading', { level: 2, name: 'College of Arts' });
       const card = cardOf('College of Arts');
-      expect(card).toHaveTextContent('No student organizations yet. The Department Head registers them.');
-      expect(within(card).queryByRole('button', { name: /^Organizations of/ })).not.toBeInTheDocument();
+      expect(card).toHaveTextContent('0 organizations · 0 members');
+      expect(card).not.toHaveTextContent('No student organizations yet');
+      const drawer = await openDetails('College of Arts');
+      expect(within(drawer).getByText('No student organizations yet. A student the Department Head allows applies, the Department Head reviews the application, and you approve it.')).toBeInTheDocument();
+      expect(within(drawer).queryByText(/registers/)).not.toBeInTheDocument();
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }));
       expect(await findRowAction('View organizations of College of Arts', 'College of Arts')).toBeInTheDocument();
     });
 
@@ -462,8 +478,7 @@ describe('SystemCollegesPage', () => {
 
     it('renders zero counts muted and non-zero counts bold, in the agency summary format', async () => {
       renderPage();
-      await screen.findByRole('heading', { level: 2, name: 'College of Computing' });
-      const counts = within(cardOf('College of Computing')).getByText(/pending/).closest('p');
+      const counts = within(await openDetails()).getByText(/pending/).closest('p');
       expect(counts).toHaveTextContent('2 organizations · 1 pending · 1 active · 0 returned · 0 archived');
       const spans = Array.from(counts.querySelectorAll('span'));
       expect(spans.map((span) => span.textContent)).toEqual(['2', '1', '1', '0', '0']);
@@ -497,8 +512,7 @@ describe('SystemCollegesPage', () => {
 
       const order = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
       expect(order).toEqual(['College of Computing', 'College of Arts']);
-      expect(screen.getByRole('button', { name: 'Organizations of College of Computing' })).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getByText(/awaiting administrator/)).toBeInTheDocument();
+      expect(cardOf('College of Computing')).toHaveTextContent('1 awaiting administrator');
     });
 
     it('says what the SAO does next for each lifecycle status', async () => {
@@ -519,9 +533,10 @@ describe('SystemCollegesPage', () => {
       show(agency({ colleges: [college([waiting, quiet], { active: 2 })] }));
       renderPage();
 
-      const link = (await screen.findAllByRole('link', { name: 'Provision administrator for Chess Club' }))[0];
+      const drawer = await openDetails();
+      const link = within(drawer).getAllByRole('link', { name: 'Provision administrator for Chess Club' })[0];
       expect(link).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=3&create=1');
-      expect(screen.queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
     });
   });
 
@@ -757,13 +772,10 @@ describe('SystemCollegesPage', () => {
       expect(screen.queryByRole('region', { name: 'Loading colleges' })).not.toBeInTheDocument();
     });
 
-    it('refreshes the agency read too and keeps a card the user collapsed', async () => {
+    it('refreshes the agency read too and keeps the details the user opened', async () => {
       show(agency());
       renderPage();
-      const toggle = await screen.findByRole('button', { name: 'Organizations of College of Computing' });
-      expect(toggle).toHaveAttribute('aria-expanded', 'true');
-      fireEvent.click(toggle);
-      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await openDetails();
 
       mocks.getSystemAgency.mockResolvedValueOnce(agency({ totals: { colleges: 2, organizations: 5, by_lifecycle_status: { pending: 4, returned: 0, active: 1, archived: 1 } } }));
       await act(async () => { await refetchHook.current(); });
@@ -774,7 +786,7 @@ describe('SystemCollegesPage', () => {
       expect(within(totals).getByText('Pending reviews').nextSibling).toHaveTextContent('4');
       expect(within(totals).getByText('Organizations').nextSibling).toHaveTextContent('5');
       expect(document.querySelector('[aria-busy="true"]')).toBeNull();
-      expect(screen.getByRole('button', { name: 'Organizations of College of Computing' })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.getByRole('dialog', { name: 'College of Computing' })).toBeInTheDocument();
     });
 
     it('keeps the list and shows no error when the silent refresh fails', async () => {
