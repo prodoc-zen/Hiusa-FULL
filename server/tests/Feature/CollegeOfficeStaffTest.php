@@ -7,11 +7,13 @@ use App\Models\ApprovalRequest;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Event;
+use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -130,6 +132,44 @@ class CollegeOfficeStaffTest extends TestCase
             'organization_id' => $organization->id, 'entity_type' => 'event', 'entity_id' => $entityId,
             'requested_by' => $requester->school_id, 'required_role' => $role, 'status' => 'pending', 'requested_at' => now()->subHour(),
         ]);
+    }
+
+    private function report(Organization $organization, User $author, bool $submitted): FinancialReport
+    {
+        return FinancialReport::create([
+            'organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Report '.$organization->name,
+            'source_transaction_ids' => [], 'signatories' => [], 'submission_status' => $submitted ? 'pending_department_head' : 'draft',
+            'generated_by' => $author->school_id, 'generated_at' => now(), 'submitted_at' => $submitted ? now() : null,
+        ]);
+    }
+
+    public function test_office_staff_open_and_list_the_college_financial_reports_the_dean_can_approve(): void
+    {
+        Storage::fake('local');
+        $author = User::factory()->admin()->create(['organization_id' => $this->psits->id]);
+        $submitted = $this->report($this->psits, $author, true);
+        $unsubmitted = $this->report($this->psits, $author, false);
+        $foreign = $this->report($this->artsClub, $author, true);
+        Storage::disk('local')->put("financial-reports/{$submitted->id}/receipt.pdf", 'receipt');
+        $submitted->update(['supporting_documents' => [['name' => 'Receipt', 'mime_type' => 'application/pdf', 'size' => 7, 'path' => "financial-reports/{$submitted->id}/receipt.pdf"]]]);
+
+        Sanctum::actingAs($this->staffMember());
+        $this->getJson("/api/financial-reports/{$submitted->id}")->assertOk();
+        $this->get("/api/financial-reports/{$submitted->id}/pdf")->assertOk();
+        $this->get("/api/financial-reports/{$submitted->id}/documents/0")->assertOk();
+        foreach ([$unsubmitted, $foreign] as $hidden) {
+            $this->getJson("/api/financial-reports/{$hidden->id}")->assertNotFound();
+            $this->get("/api/financial-reports/{$hidden->id}/pdf")->assertNotFound();
+        }
+        $listed = collect($this->getJson('/api/financial-reports')->assertOk()->json('data'))->pluck('id')->all();
+        $this->assertContains($submitted->id, $listed);
+        $this->assertNotContains($unsubmitted->id, $listed);
+        $this->assertNotContains($foreign->id, $listed);
+
+        $adviser = User::factory()->admin()->create(['organization_id' => $this->psits->id]);
+        Sanctum::actingAs($adviser);
+        $this->getJson("/api/financial-reports/{$unsubmitted->id}")->assertOk();
+        $this->getJson("/api/financial-reports/{$foreign->id}")->assertNotFound();
     }
 
     public function test_office_staff_open_the_college_files_and_applications_of_their_own_college_only(): void
@@ -298,6 +338,29 @@ class CollegeOfficeStaffTest extends TestCase
     public function test_a_plain_link_needs_a_name_and_an_email_when_it_is_not_from_a_record(): void
     {
         $this->invite(['position_title' => 'Clerk'])->assertUnprocessable()->assertJsonValidationErrors(['first_name', 'last_name', 'email']);
+    }
+
+    public function test_a_plain_staff_link_never_takes_a_typed_school_id_so_a_student_cannot_become_staff(): void
+    {
+        StudentRegistryEntry::create([
+            'record_type' => 'student', 'school_id' => 70000099, 'first_name' => 'Stu', 'last_name' => 'Dent',
+            'birth_date' => '2004-01-01', 'college_id' => $this->computing->id, 'program' => 'BSIT', 'year_level' => 2,
+        ]);
+        $token = $this->token($this->invite(['position_title' => 'Clerk', 'first_name' => 'Stu', 'last_name' => 'Dent', 'email' => 'stu@example.edu'])->assertCreated()->json());
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", [
+            'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent', 'school_id' => 70000099,
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['school_id']);
+
+        $this->assertDatabaseMissing('users', ['school_id' => 70000099]);
+        $this->assertDatabaseMissing('users', ['email' => 'stu@example.edu']);
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", [
+            'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent',
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+        ])->assertOk();
+        $this->assertGreaterThanOrEqual(95000000, User::where('email', 'stu@example.edu')->value('school_id'));
     }
 
     // ---- S3: link only, nothing attaches until the person accepts ----
