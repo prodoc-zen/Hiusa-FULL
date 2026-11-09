@@ -224,6 +224,9 @@ class CollegeController extends Controller
             abort_if(DB::table('users')->whereIn('organization_id', $organizations->pluck('id'))->where('role', 'SUPER_ADMIN')->exists()
                 || DB::table('account_profiles')->whereIn('organization_id', $organizations->pluck('id'))->where('role', 'SUPER_ADMIN')->exists(), 409, 'A college containing an SAO account cannot be archived.');
             $college->update(['is_active' => ! $archived]);
+            $organizations->where('organization_type', 'COLLEGE')->each(fn (Organization $home) => $home->update($archived
+                ? ['lifecycle_status' => 'archived', 'is_active' => false, 'archived_at' => now(), 'archived_by' => $request->user()->school_id]
+                : ['lifecycle_status' => 'active', 'is_active' => true, 'archived_at' => null, 'archived_by' => null]));
             $profileIds = DB::table('account_profiles')->whereIn('organization_id', $organizations->pluck('id'))->pluck('id');
             $users = DB::table('users')->whereIn('organization_id', $organizations->pluck('id'))->pluck('school_id');
             DB::table('personal_access_tokens')->where(fn ($query) => $query->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $users))->delete();

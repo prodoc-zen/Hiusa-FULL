@@ -179,8 +179,8 @@ test("merchandise management exposes dependent filters, KPIs, detailed columns, 
   await page.getByRole("button", { name: "View purchasers" }).click();
   await expect(page.getByRole("heading", { name: "Purchased users" })).toBeVisible();
   await expect(
-    page.getByRole("cell", { name: "MERCH-ORD-7", exact: true }),
-  ).toBeVisible();
+    page.getByRole("dialog", { name: "Purchased Users" }).getByRole("row").filter({ hasText: "Juan Dela Cruz" }),
+  ).toContainText("HIUSA Shirt");
 });
 
 test("section filter lists section names exactly as they are stored", async ({

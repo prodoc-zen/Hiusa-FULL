@@ -442,6 +442,14 @@ async function studentApplicationInspector(page) {
   return problems;
 }
 
+// A requirement row that needs nothing is one line behind a "Review <name>" or "Change <name>" button; the review
+// select appears once that row is opened. A row that already needs action shows the select at once.
+async function markRequirement(row, value) {
+  const toggle = row.getByRole('button', { name: /^(Review|Change) / });
+  if (await toggle.count()) await toggle.click();
+  await row.getByRole('combobox', { name: /^Review of / }).selectOption(value);
+}
+
 // The review screen: one row per requirement, the passing button off until every row is Accepted, a note field on
 // Needs changes, Return on once there is a note, and the comment-only form behind its link.
 function reviewInspector(role) {
@@ -465,8 +473,7 @@ function reviewInspector(role) {
     await page.getByRole('heading', { name: 'Decision', exact: true }).scrollIntoViewIfNeeded();
     await shot('decision');
 
-    const marks = page.locator('select[aria-label^="Review of "]');
-    await marks.first().selectOption('needs_changes');
+    await markRequirement(rows.first(), 'needs_changes');
     const note = rows.first().locator('textarea');
     if ((await note.count()) !== 1) {
       problems['review-note-field'] = 'Needs changes did not open a note field';
@@ -477,7 +484,7 @@ function reviewInspector(role) {
     }
     await shot('needs-changes');
 
-    for (let i = 0; i < count; i += 1) await marks.nth(i).selectOption('ok');
+    for (let i = 0; i < count; i += 1) await markRequirement(rows.nth(i), 'ok');
     if (!(await pass.isEnabled())) problems['review-pass-late'] = `${passLabel} stays off with every requirement Accepted`;
     await shot('accepted');
 

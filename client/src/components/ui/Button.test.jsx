@@ -32,6 +32,11 @@ describe('Button', () => {
     expect(button).not.toHaveClass('font-bold');
   });
 
+  it('grows to 42px below the sm breakpoint so a phone tap target is never shorter', () => {
+    render(<Button>Save changes</Button>);
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveClass('max-sm:h-[42px]');
+  });
+
   it('renders as a router link when given a "to" prop', () => {
     render(
       <MemoryRouter>

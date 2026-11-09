@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { HEAD_CCS, PSITS_ADMIN, SAO, apiAs, liveEnabled, minimalPdf, shot, uiLogin } from '../support/live.js';
 import { allowToApply, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym } from '../support/pipeline.js';
+import { acceptEveryRequirement, applicationLink, expectApplicationList, openApplicationList } from '../support/review.js';
 
 // DEPARTMENT_HEAD acceptance journeys, docs/UX_FLOW.md section 9. Each journey starts on the role home
 // after a real sign-in, counts only mouse or tap actions (typing and file choosing are free) and ends
@@ -170,12 +171,13 @@ async function signedInStudent(browser, student, viewport) {
   return { context, page };
 }
 
+// The review is a page of its own: the queue row links to it and the decision sits below the requirements.
 async function openApplicationQueue(page, journey, application) {
   await goTo(page, journey, 'Organization applications');
-  await journey.tap(page.getByRole('button', { name: `Open application of ${application.name}`, exact: true }));
-  const drawer = page.getByRole('dialog', { name: application.name });
-  await expect(drawer).toBeVisible();
-  return drawer;
+  await journey.tap(applicationLink(page, application.name));
+  const review = page.getByRole('main');
+  await expect(review.getByRole('heading', { level: 1, name: application.name })).toBeVisible();
+  return review;
 }
 
 
@@ -244,9 +246,8 @@ for (const { label, viewport } of WIDTHS) {
         await applicant.context.close();
 
         await goTo(page, journey, 'Organization applications');
-        const row = listRow(page, name);
-        await expect(row).toBeVisible();
-        await expect(row).toContainText('With the Department Head');
+        await expectApplicationList(page, 'To review');
+        await expect(listRow(page, name)).toBeVisible();
       } finally {
         await conclude(page, journey, { id: 'DH-1', width: viewport.width, ceiling: 5 });
       }
@@ -287,12 +288,15 @@ for (const { label, viewport } of WIDTHS) {
       const journey = startJourney();
       await signInAsHead(page);
       try {
-        const drawer = await openApplicationQueue(page, journey, application);
-        await journey.tap(drawer.getByRole('button', { name: 'Endorse to SAO' }));
+        const review = await openApplicationQueue(page, journey, application);
+        await acceptEveryRequirement(page);
+        await journey.tap(review.getByRole('button', { name: 'Endorse', exact: true }));
 
         await expect(page.getByText('Endorsed. The SAO is next.')).toBeVisible();
-        await journey.tap(page.getByRole('tab', { name: /^With the SAO/ }));
-        await expect(listRow(page, application.name)).toContainText('With the SAO');
+        await expect(review.getByRole('region', { name: 'Summary' })).toContainText('With the SAO for a decision');
+        await review.getByRole('link', { name: 'Back to applications' }).click();
+        await openApplicationList(page, 'With the SAO');
+        await expect(listRow(page, application.name)).toBeVisible();
       } finally {
         await conclude(page, journey, { id: 'DH-3', width: viewport.width, ceiling: 4 });
       }
@@ -305,10 +309,10 @@ for (const { label, viewport } of WIDTHS) {
       const journey = startJourney();
       await signInAsHead(page);
       try {
-        const drawer = await openApplicationQueue(page, journey, application);
-        await drawer.getByLabel('General note').fill(note);
-        await journey.tap(drawer.getByRole('button', { name: 'Return to applicant' }));
-        await expect(page.getByText('Returned to the applicant.')).toBeVisible();
+        const review = await openApplicationQueue(page, journey, application);
+        await review.getByLabel('Comments for the applicant').fill(note);
+        await journey.tap(review.getByRole('button', { name: 'Return with comments' }));
+        await expect(review.getByRole('region', { name: 'Summary' })).toContainText('Returned to the applicant.');
 
         const applicant = await signedInStudent(browser, application.student, viewport);
         await applicant.page.goto(`/dashboard/student/organization-applications/${application.id}`);
@@ -317,8 +321,9 @@ for (const { label, viewport } of WIDTHS) {
         await expect(applicant.page.getByText('Your Department Head is reviewing it.')).toBeVisible();
         await applicant.context.close();
 
-        await page.reload();
-        await expect(listRow(page, application.name)).toContainText('With the Department Head');
+        await page.goto('/dashboard/organization-applications');
+        await expectApplicationList(page, 'To review');
+        await expect(listRow(page, application.name)).toBeVisible();
       } finally {
         await conclude(page, journey, { id: 'DH-3b', width: viewport.width, ceiling: 4 });
       }
@@ -371,9 +376,9 @@ for (const { label, viewport } of WIDTHS) {
         await journey.tap(page.getByRole('button', { name: 'Notifications' }));
         await journey.tap(page.getByRole('region', { name: 'Notifications panel' }).getByRole('button').filter({ hasText: application.name }));
 
-        const drawer = page.getByRole('dialog', { name: application.name });
-        await expect(drawer).toBeVisible();
-        await expect(drawer.getByRole('button', { name: 'Endorse to SAO' })).toBeVisible();
+        const review = page.getByRole('main');
+        await expect(review.getByRole('heading', { level: 1, name: application.name })).toBeVisible();
+        await expect(review.getByRole('button', { name: 'Endorse', exact: true })).toBeVisible();
       } finally {
         await conclude(page, journey, { id: 'DH-4c', width: viewport.width, ceiling: 2 });
       }
