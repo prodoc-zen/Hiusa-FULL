@@ -66,6 +66,7 @@ function FinancialMovement({ rows }) {
 
 export default function AdminHomePage() {
   const [months, setMonths] = useState(6);
+  const [chartOpen, setChartOpen] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -113,15 +114,17 @@ export default function AdminHomePage() {
           <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-base font-semibold text-ink">Financial status</h2>
-              <Field label="Period">
-                <Select aria-label="Financial status period" value={months} onChange={(event) => setMonths(Number(event.target.value))} className="w-36">
-                  <option value={3}>3 months</option>
-                  <option value={6}>6 months</option>
-                  <option value={12}>12 months</option>
-                </Select>
-              </Field>
+              <div className={chartOpen ? undefined : 'max-sm:hidden'}>
+                <Field label="Period">
+                  <Select aria-label="Financial status period" value={months} onChange={(event) => setMonths(Number(event.target.value))} className="w-36">
+                    <option value={3}>3 months</option>
+                    <option value={6}>6 months</option>
+                    <option value={12}>12 months</option>
+                  </Select>
+                </Field>
+              </div>
             </div>
-            <PhoneFold label="Show the chart" hideLabel="Hide the chart" className="mt-2 px-0!">
+            <PhoneFold label="Show the chart" hideLabel="Hide the chart" className="mt-2 px-0!" onOpenChange={setChartOpen}>
               {loading
                 ? <div role="status" className="mt-4"><Skeleton className="h-40 w-full sm:h-56" /><span className="sr-only">Loading financial status</span></div>
                 : error

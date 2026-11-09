@@ -31,6 +31,29 @@ describe('DataTable', () => {
     expect(cardView.querySelectorAll('li')).toHaveLength(2);
   });
 
+  it('lays each phone row out as a name, one detail line and the actions beside them', () => {
+    const columns = [...COLUMNS, { key: 'program', header: 'Program', render: (row) => row.program }];
+    const rows = [{ id: 1, name: 'Maria Santos', role: 'Officer', program: null }];
+    render(<DataTable columns={columns} rows={rows} actions={(row) => <button type="button">Open {row.name}</button>} />);
+
+    const item = document.querySelector('[data-view="cards"] li');
+    expect(within(item).getByText('Maria Santos')).toBeInTheDocument();
+    expect(within(item).getByText('Role').nextElementSibling).toHaveTextContent('Officer');
+    expect(within(item).queryByText('Program')).toBeNull();
+    const button = within(item).getByRole('button', { name: 'Open Maria Santos' });
+    expect(button.parentElement.parentElement).toBe(item);
+  });
+
+  it('puts a column keyed actions beside the row on a phone instead of listing it as a detail', () => {
+    const columns = [...COLUMNS, { key: 'actions', header: 'Actions', render: (row) => <button type="button">Open {row.name}</button> }];
+    render(<DataTable columns={columns} rows={[{ id: 1, name: 'Maria Santos', role: 'Officer' }]} />);
+
+    const item = document.querySelector('[data-view="cards"] li');
+    expect(within(item).queryByText('Actions')).toBeNull();
+    const button = within(item).getByRole('button', { name: 'Open Maria Santos' });
+    expect(button.parentElement.parentElement).toBe(item);
+  });
+
   it('shows a custom empty state when there are no rows', () => {
     render(<DataTable columns={COLUMNS} rows={[]} emptyState={<p>No members yet.</p>} />);
     expect(screen.getByText('No members yet.')).toBeInTheDocument();
