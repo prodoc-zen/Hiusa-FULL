@@ -29,8 +29,9 @@ Do not reuse `hiusa-lightsail.pem`. Make a key that can only be used for deploys
 2. On the server, add `hiusa-deploy.pub` to `/home/ubuntu/.ssh/authorized_keys` (the `ubuntu` user already has passwordless sudo, which the script uses). Then delete the local `hiusa-deploy.pub`.
 3. Get the host key and check its fingerprint against the one in the Lightsail console before trusting it: `ssh-keyscan -t ed25519 13.228.227.182`
 4. In GitHub, Settings, Environments, create `production`. Optional: add yourself as a required reviewer if you want a click before each deploy.
-5. In that environment add the secrets `DEPLOY_HOST` (`13.228.227.182`), `DEPLOY_USER` (`ubuntu`), `DEPLOY_SSH_KEY` (the full private key, the contents of `hiusa-deploy`) and `DEPLOY_KNOWN_HOSTS` (the line from step 3). Optional variable: `DEPLOY_SITE_URL` (for example `https://13.228.227.182`).
-6. Delete the local private key file after pasting it. Never commit it.
+5. In that environment add the secrets `DEPLOY_HOST` (`13.228.227.182`), `DEPLOY_USER` (`ubuntu`), `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` (the line from step 3). Optional variable: `DEPLOY_SITE_URL` (for example `https://13.228.227.182`).
+6. Set the key from the file, never by pasting it: `gh secret set DEPLOY_SSH_KEY --env production -R prodoc-zen/Hiusa-FULL < hiusa-deploy`. A pasted key often picks up carriage returns or loses its last line, and ssh then rejects it. The workflow strips carriage returns and runs `ssh-keygen -y -f` on the key before using it, so a bad secret fails with an error naming `DEPLOY_SSH_KEY`.
+7. Delete the local private key file after setting the secret. Never commit it.
 
 Before the first automatic deploy, the live server must already report `mail.default=log`. A read-only check on 2026-11-08 found it on `smtp`, so the guard would refuse. On the server, set `MAIL_MAILER=log` in `/var/www/hiusa/server/.env`, run `sudo -u www-data hiusa-artisan config:cache`, and confirm `sudo -u www-data hiusa-artisan config:show mail.default` prints `log`.
 
