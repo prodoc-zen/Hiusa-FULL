@@ -6,7 +6,7 @@ import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
-import { RoleBriefing } from '../../../components/dashboard';
+import { PhoneFold, RoleBriefing } from '../../../components/dashboard';
 import { readUserModules } from '../../../utils/userModules';
 import { Button, DataTable, EmptyState, ErrorState, Skeleton, Stat, StatusBadge } from '../../../components/ui';
 
@@ -41,6 +41,27 @@ const TASK_COLUMNS = [
   // Pending is the default state and carries no badge.
   { key: 'status', header: 'Status', render: (task) => (task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />) },
 ];
+
+// A phone gets one line per task instead of the table's stacked cards, so four tasks stay short.
+function UrgentTaskList({ tasks, loading }) {
+  if (loading) {
+    return <div role="status" className="space-y-2 md:hidden"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><span className="sr-only">Loading urgent tasks</span></div>;
+  }
+  if (tasks.length === 0) return <p className="text-sm text-ink-muted md:hidden">No open tasks. Tasks assigned to you show here.</p>;
+  return (
+    <ul className="divide-y divide-line-soft md:hidden" aria-label="Urgent tasks by deadline">
+      {tasks.map((task) => (
+        <li key={task.id} className="py-2.5 first:pt-0 last:pb-0">
+          <p className="truncate text-sm font-medium text-ink">{formatDisplayText(task.title)}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted-strong">
+            {task.deadline && <span>Due {new Date(task.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>}
+            {task.status === 'overdue' && <StatusBadge tone="danger" label="Overdue" />}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 const EMPTY_PAGE = { data: { data: [], total: 0 } };
 
@@ -174,9 +195,9 @@ export default function DashboardPage() {
           <ErrorState title="Your work summary could not load" description="Check your connection and try again." onRetry={retry} />
         </div>
       )}
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Work summary">
+      <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Work summary">
         {statCards.map((stat) => (
-          <Stat key={stat.label} label={stat.label} to={stat.to} value={loading ? '-' : stat.value} />
+          <Stat key={stat.label} className="p-3! sm:p-4!" label={stat.label} to={stat.to} value={loading ? '-' : stat.value} />
         ))}
       </section>
 
@@ -191,18 +212,22 @@ export default function DashboardPage() {
               View all <ChevronRight size={13} aria-hidden="true" />
             </NavLink>
           </div>
-          <DataTable
-            caption="Urgent tasks by deadline"
-            columns={TASK_COLUMNS}
-            rows={urgentTasks}
-            rowKey={(task) => task.id}
-            loading={loading}
-            emptyState={<EmptyState title="No open tasks" description="Tasks assigned to you show here." />}
-          />
+          <div className="max-md:hidden">
+            <DataTable
+              caption="Urgent tasks by deadline"
+              columns={TASK_COLUMNS}
+              rows={urgentTasks}
+              rowKey={(task) => task.id}
+              loading={loading}
+              emptyState={<EmptyState title="No open tasks" description="Tasks assigned to you show here." />}
+            />
+          </div>
+          <UrgentTaskList tasks={urgentTasks} loading={loading} />
         </section>
 
         <section className="self-start rounded-card border border-line bg-surface p-5" aria-labelledby="task-status-title">
-          <h2 id="task-status-title" className="mb-4 text-base font-semibold text-ink">Task status</h2>
+          <h2 id="task-status-title" className="text-base font-semibold text-ink sm:mb-4">Task status</h2>
+          <PhoneFold label="Show task status" hideLabel="Hide task status" className="mt-2 px-0!">
           {loading ? (
             <div role="status" className="space-y-3">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
@@ -228,6 +253,7 @@ export default function DashboardPage() {
               })}
             </ul>
           )}
+          </PhoneFold>
         </section>
       </div>}
     </div>

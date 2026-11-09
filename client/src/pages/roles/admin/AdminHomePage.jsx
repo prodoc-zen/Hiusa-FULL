@@ -4,7 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { getAdminDashboard } from '../../../services/adminDashboardService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
-import { RoleBriefing } from '../../../components/dashboard';
+import { PhoneFold, RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
 import { Button, EmptyState, ErrorState, Field, Select, Skeleton, Stat } from '../../../components/ui';
 
@@ -121,12 +121,14 @@ export default function AdminHomePage() {
                 </Select>
               </Field>
             </div>
-            {loading
-              ? <div role="status" className="mt-4"><Skeleton className="h-40 w-full sm:h-56" /><span className="sr-only">Loading financial status</span></div>
-              : error
-                ? <p className="py-8 text-sm text-ink-muted">Financial data is unavailable.</p>
-                : <FinancialMovement rows={data?.movement || []} />}
-            <NavLink to="/dashboard/finance/financial-ledger" className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open ledger <ArrowRight size={14} aria-hidden="true" /></NavLink>
+            <PhoneFold label="Show the chart" hideLabel="Hide the chart" className="mt-2 px-0!">
+              {loading
+                ? <div role="status" className="mt-4"><Skeleton className="h-40 w-full sm:h-56" /><span className="sr-only">Loading financial status</span></div>
+                : error
+                  ? <p className="py-8 text-sm text-ink-muted">Financial data is unavailable.</p>
+                  : <FinancialMovement rows={data?.movement || []} />}
+              <NavLink to="/dashboard/finance/financial-ledger" className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open ledger <ArrowRight size={14} aria-hidden="true" /></NavLink>
+            </PhoneFold>
           </section>
 
           <section className="rounded-card border border-line bg-surface">
@@ -146,26 +148,28 @@ export default function AdminHomePage() {
 
         <aside className="self-start rounded-card border border-line bg-surface p-4 sm:p-5" aria-label="Announcements">
           <h2 className="text-base font-semibold text-ink">Announcements</h2>
-          {loading ? (
-            <div role="status" className="mt-4 space-y-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading announcements</span></div>
-          ) : error ? (
-            <p className="py-6 text-sm text-ink-muted">Announcements are unavailable.</p>
-          ) : data?.announcements?.length ? (
-            <ul className="mt-2 divide-y divide-line-soft">
-              {data.announcements.map((post, index) => (
-                <li key={post.id} className={`py-3 first:pt-2 sm:py-4 ${index >= 3 ? 'max-sm:hidden' : ''}`}>
-                  <p className="truncate text-xs font-medium text-ink-muted">
-                    {[formatDisplayText(post.source_organization?.name) || 'HIUSA', post.creator && `${post.creator.first_name} ${post.creator.last_name}`, post.published_at && new Date(post.published_at).toLocaleDateString()].filter(Boolean).join(' · ')}
-                  </p>
-                  <h3 className="mt-1 text-sm font-semibold text-ink">{formatDisplayText(post.title)}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-muted-strong sm:line-clamp-3">{post.body}</p>
-                  {post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover max-sm:hidden" />}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState kind="first-run" title="No announcements yet" description="Published announcements show here." />
-          )}
+          <PhoneFold label="Show announcements" hideLabel="Hide announcements" className="mt-2 px-0!">
+            {loading ? (
+              <div role="status" className="mt-4 space-y-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading announcements</span></div>
+            ) : error ? (
+              <p className="py-6 text-sm text-ink-muted">Announcements are unavailable.</p>
+            ) : data?.announcements?.length ? (
+              <ul className="mt-2 divide-y divide-line-soft">
+                {data.announcements.map((post, index) => (
+                  <li key={post.id} className={`py-3 first:pt-2 sm:py-4 ${index >= 3 ? 'max-sm:hidden' : ''}`}>
+                    <p className="truncate text-xs font-medium text-ink-muted">
+                      {[formatDisplayText(post.source_organization?.name) || 'HIUSA', post.creator && `${post.creator.first_name} ${post.creator.last_name}`, post.published_at && new Date(post.published_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                    </p>
+                    <h3 className="mt-1 text-sm font-semibold text-ink">{formatDisplayText(post.title)}</h3>
+                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-ink-muted-strong sm:line-clamp-3">{post.body}</p>
+                    {post.image_url && <img src={resolveAssetUrl(post.image_url)} alt="" loading="lazy" className="mt-3 max-h-28 w-full rounded-card object-cover max-sm:hidden" />}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState kind="first-run" title="No announcements yet" description="Published announcements show here." />
+            )}
+          </PhoneFold>
           <div className="mt-2 flex flex-col items-start border-t border-line pt-2">
             <NavLink to="/dashboard/announcements/manage-announcements" className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Manage announcements</NavLink>
             <NavLink to="/dashboard/announcements/view-announcements" className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">View the feed</NavLink>

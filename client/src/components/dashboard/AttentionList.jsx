@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../ui/EmptyState';
@@ -5,7 +6,10 @@ import StatusBadge from '../ui/StatusBadge';
 import { relativeTime } from '../../lib/format';
 import { getItemHref, getStoredRole, getWaitingOnLabel } from '../../utils/notificationLinks';
 
-function Row({ item, role }) {
+// A phone shows the first three rows; the rest wait behind one tap, so the list never scrolls inside the page.
+const PHONE_ROWS = 3;
+
+function Row({ item, role, className = '' }) {
   const href = getItemHref(item, role);
   const waitingOn = getWaitingOnLabel(item);
 
@@ -30,19 +34,19 @@ function Row({ item, role }) {
     </>
   );
 
-  const className = 'flex min-h-11 items-start gap-3 px-1 py-3';
+  const rowClass = 'flex min-h-11 items-start gap-3 px-1 py-3';
 
   if (href) {
     return (
-      <li>
-        <Link to={href} className={`${className} -mx-1 rounded-control transition-colors duration-150 hover:bg-subtle`}>
+      <li className={className}>
+        <Link to={href} className={`${rowClass} -mx-1 rounded-control transition-colors duration-150 hover:bg-subtle`}>
           {body}
         </Link>
       </li>
     );
   }
 
-  return <li className={className}>{body}</li>;
+  return <li className={`${rowClass} ${className}`}>{body}</li>;
 }
 
 /**
@@ -52,9 +56,24 @@ function Row({ item, role }) {
  * its entity_type and entity_id when it gave none.
  */
 export default function AttentionList({ items = [], role = getStoredRole() }) {
+  const [showAll, setShowAll] = useState(false);
+
   if (items.length === 0) {
     return <EmptyState kind="first-run" title="Nothing needs you right now" description="New approvals and deadlines show here first." />;
   }
 
-  return <ul className="divide-y divide-line-soft">{items.map((item) => <Row key={item.id} item={item} role={role} />)}</ul>;
+  const hidden = items.length - PHONE_ROWS;
+
+  return (
+    <>
+      <ul className="divide-y divide-line-soft">
+        {items.map((item, index) => <Row key={item.id} item={item} role={role} className={!showAll && index >= PHONE_ROWS ? 'max-sm:hidden' : ''} />)}
+      </ul>
+      {hidden > 0 && !showAll && (
+        <button type="button" onClick={() => setShowAll(true)} className="mb-2 min-h-11 rounded-control px-1 text-sm font-semibold text-brand-700 hover:bg-subtle sm:hidden">
+          Show {hidden} more
+        </button>
+      )}
+    </>
+  );
 }

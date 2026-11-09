@@ -8,3 +8,4 @@ export { default as ActivityFeed } from './ActivityFeed';
 export { default as OrganizationsHealthTable } from './OrganizationsHealthTable';
 export { default as RoleBriefing } from './RoleBriefing';
 export { default as AskAiSpotlight } from './AskAiSpotlight';
+export { default as PhoneFold } from './PhoneFold';
