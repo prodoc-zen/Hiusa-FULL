@@ -343,7 +343,7 @@ class OrganizationApplicationReviewController extends Controller
         if ($user->role === 'SUPER_ADMIN') {
             return $query;
         }
-        abort_unless($user->role === 'DEPARTMENT_HEAD' || $user->isCollegeOfficeStaff(), 403, 'Only the college office and the SAO review applications.');
+        abort_unless($user->role === 'DEPARTMENT_HEAD', 403, 'Only the college office and the SAO review applications.');
         $home = $user->organization;
 
         return $home?->organization_type === 'COLLEGE' && $home->college_id ? $query->where('college_id', $home->college_id) : $query->whereRaw('1 = 0');

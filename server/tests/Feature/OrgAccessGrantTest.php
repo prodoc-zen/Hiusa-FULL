@@ -170,7 +170,7 @@ class OrgAccessGrantTest extends TestCase
             $this->grant($staff, [
                 'school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id,
                 'role' => $role, 'position_title' => $role === 'ADMIN' ? 'President' : null,
-            ])->assertNotFound();
+            ])->assertForbidden();
         }
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
     }

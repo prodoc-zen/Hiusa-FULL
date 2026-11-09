@@ -28,6 +28,11 @@ class ProcessStatusService
 
     public function forUser(User $user): array
     {
+        // Office staff take the dean's role, but the setup steps (staff, records, applicant grants) are the dean's own.
+        if ($user->isCollegeOfficeStaff()) {
+            return $this->none();
+        }
+
         return match ($user->role) {
             'SUPER_ADMIN' => $this->sao(),
             'DEPARTMENT_HEAD' => $this->dean($user),
