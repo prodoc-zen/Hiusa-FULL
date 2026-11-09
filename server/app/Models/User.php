@@ -248,10 +248,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Open organizations whose elections this person votes in from the profile they are signed in to. Each profile
-     * votes in its own organization only: an organization profile in that organization, the college profile in the
-     * college home. To vote in an organization's election, sign in to that organization's profile. An organization
-     * they hold no active voting profile in is never listed.
+     * Open organizations whose elections this person votes in from the profile they are signed in to. An organization
+     * profile votes in that organization only. The college profile is the member's own account, so it lists the college
+     * home and every organization of that college where they hold a voting profile: a plain member votes without
+     * switching profile. An organization they hold no active voting profile in is never listed.
      *
      * @return array<int, int>
      */
@@ -268,7 +268,13 @@ class User extends Authenticatable
             ->get()
             ->filter(fn (AccountProfile $profile) => $profile->organization?->isWritable());
 
-        return $memberships->where('organization_id', $current->id)->pluck('organization_id')->map(fn ($id) => (int) $id)->values()->all();
+        if ($current->organization_type !== 'COLLEGE' || ! $current->college_id) {
+            $memberships = $memberships->where('organization_id', $current->id);
+        } else {
+            $memberships = $memberships->filter(fn (AccountProfile $profile) => (int) $profile->organization->college_id === (int) $current->college_id);
+        }
+
+        return $memberships->pluck('organization_id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
     /**

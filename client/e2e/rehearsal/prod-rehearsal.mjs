@@ -490,7 +490,7 @@ await step('records_load', 'Dean loads a synthetic student records CSV (3 studen
     rec.evidence.push('the three students are already listed');
     return;
   }
-  await page.getByRole('button', { name: /Load student records/ }).first().click();
+  await page.getByRole('button', { name: /Upload student records/ }).first().click();
   await shot('dean', 'upload-open', rec);
   await page.locator('input[type="file"]').first().setInputFiles({ name: `rehearsal-records-${SUFFIX}.csv`, mimeType: 'text/csv', buffer: Buffer.from(RECORDS_CSV) });
   await page.getByRole('button', { name: /^Check file/ }).click();
@@ -1231,7 +1231,7 @@ await step('election_handover', 'In the org: an election for President with cand
   const cast = async (who, pickKey) => {
     const page = people.get(who).page;
     await switchToOrganization(who, rec);
-    // Each profile votes in its own organization only, so the ballot is reached from the organization profile, not the college one.
+    // The member votes from the organization profile here; the college profile lists this election too, so this is not the only way in.
     // The strip under the top bar names the profile in view; a head or officer also has the Workspace switcher.
     const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().isVisible().catch(() => false)
       || new RegExp(ORG.name, 'i').test(await page.getByRole('button', { name: /^Workspace:/ }).innerText({ timeout: 2000 }).catch(() => ''));
@@ -1270,7 +1270,7 @@ await step('election_handover', 'In the org: an election for President with cand
   await cast('c', 'b');
   rec.evidence.push('A, B and C voted');
 
-  // C is the plain member: a STUDENT profile in the organization, no officer access, switched into the organization profile (the college profile lists only the college-wide election) and voted there.
+  // C is the plain member: a STUDENT profile in the organization, no officer access, switched into the organization profile and voted there (a member can also vote from the college profile without switching).
   const memberProfile = ((await api('c', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name);
   rec.evidence.push(`member C holds ${memberProfile ? `${memberProfile.role} in the organization` : 'no profile in the organization'} and voted`);
   if (memberProfile?.role !== 'STUDENT') rec.defect('app_bug', `The member C has ${memberProfile?.role ?? 'no'} access, not the plain STUDENT member profile, so the rehearsal did not prove a member can vote.`, ['server/app/Http/Controllers/AccountProfileController.php']);

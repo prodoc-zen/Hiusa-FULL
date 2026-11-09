@@ -56,6 +56,7 @@ describe('WorkspaceBanner', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to mine' }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch profile. Try again.');
   });
 
   it('shows nothing for an officer who has no student side to return to', async () => {
@@ -91,6 +92,7 @@ describe('WorkspaceBanner', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to college' }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch profile. Try again.');
   });
 
   it('names the college when a student with an organization profile is on the college profile', async () => {

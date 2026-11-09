@@ -151,8 +151,8 @@ for (const viewport of VIEWPORTS) {
       const session = await openContext(browser, viewport, HEAD_CCS);
       await visit(session, viewport, 'dean-people-students', '/dashboard/department-head/people');
       await visit(session, viewport, 'dean-people-student-records', '/dashboard/department-head/people', async (page) => {
-        await page.getByRole('button', { name: 'Student records' }).click();
-        await expect(page.getByRole('heading', { name: 'Upload school records' })).toBeVisible({ timeout: 15_000 });
+        await page.getByRole('button', { name: 'Upload student records' }).first().click();
+        await expect(page.getByRole('dialog', { name: 'Upload student records' })).toBeVisible({ timeout: 15_000 });
       });
       await visit(session, viewport, 'dean-people-allow-modal', '/dashboard/department-head/people', async (page) => {
         await page.getByRole('button', { name: 'Allow a student to apply' }).click();

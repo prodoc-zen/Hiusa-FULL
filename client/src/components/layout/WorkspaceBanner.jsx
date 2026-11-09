@@ -5,7 +5,7 @@ import { getStoredRole } from '../../lib/pageMeta';
 import { formatDisplayText } from '../../utils/displayText.js';
 
 // One strip under the top bar: where the person is looking, and one way back to their own view.
-function Banner({ name, kind, actionLabel = 'Back to mine', onAction, busy = false }) {
+function Banner({ name, kind, actionLabel = 'Back to mine', onAction, busy = false, error = '' }) {
   return (
     <aside aria-label="Workspace" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-brand-50 px-4 py-2 text-sm text-ink sm:px-6">
       <p className="min-w-0 break-words">Viewing <strong className="font-semibold">{formatDisplayText(name)}</strong>{kind ? <span className="text-ink-muted-strong"> · {kind}</span> : null}</p>
@@ -17,6 +17,7 @@ function Banner({ name, kind, actionLabel = 'Back to mine', onAction, busy = fal
       >
         {actionLabel}
       </button>}
+      {error && <p role="alert" className="basis-full text-sm font-medium text-danger-strong">{error}</p>}
     </aside>
   );
 }
@@ -44,6 +45,7 @@ export default function WorkspaceBanner() {
       <Banner
         name={workspaces.current.label}
         busy={workspaces.switching}
+        error={workspaces.switchError}
         onAction={() => workspaces.switchProfile(workspaces.main.profile)}
       />
     );
@@ -60,6 +62,7 @@ export default function WorkspaceBanner() {
         kind={isCollege ? 'College profile' : 'Organization profile'}
         actionLabel="Back to college"
         busy={workspaces.switching}
+        error={workspaces.switchError}
         onAction={!isCollege && college ? () => workspaces.switchProfile(college) : undefined}
       />
     );
