@@ -5,8 +5,10 @@
 //
 //   node client/e2e/audit/all-routes.audit.mjs [--roles=ADMIN,STUDENT] [--match=finance] [--limit=5] [--keep-stack]
 //
-// It never touches the dev database: server/.env is backed up, pointed at the audit sqlite file and restored
-// (also on failure); the audit stack has its own rate limits raised so a 300-page sweep is not answered 429.
+// It never touches the dev database and never writes server/.env or wipes a database in place: it deletes its own
+// sqlite file, runs migrate --seed on the empty file, and hands every override (database, mail, queue, raised
+// rate limits so a 300-page sweep is not answered 429) to artisan and the server through the process
+// environment, which Laravel prefers over the .env file.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,13 +27,11 @@ const API_PORT = 8020;
 const WEB_PORT = 5190;
 const API = `http://127.0.0.1:${API_PORT}/api`;
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
-const ENV_FILE = path.join(SERVER, '.env');
-const ENV_BACKUP = path.join(SERVER, '.env.audit-backup');
 const VIEWPORTS = [
-  { name: '1366x900', width: 1366, height: 900 },
+  { name: '1280x800', width: 1280, height: 800 },
   { name: '390x844', width: 390, height: 844 },
 ];
-// The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1366),
+// The widths where a Department Head with the workspace switcher changes shape: the label shows from xl up (1280 and 1366),
 // folds into an icon at 1279 and 1024, and stays an icon on a phone (390).
 const SWITCHER_WIDTHS = [1366, 1279, 1024, 390];
 const ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
@@ -46,63 +46,32 @@ const noSemesters = process.argv.includes('--no-semesters'); // leave the databa
 
 const log = (...parts) => console.log('[audit]', ...parts);
 const children = [];
-let envChanged = false;
 
-function setEnvKeys(text, values) {
-  const lines = text.split(/\r?\n/);
-  const remaining = new Map(Object.entries(values));
-  const next = lines.map((line) => {
-    const key = line.split('=')[0].trim();
-    if (remaining.has(key)) {
-      const value = remaining.get(key);
-      remaining.delete(key);
-      return `${key}=${value}`;
-    }
-    return line;
-  });
-  for (const [key, value] of remaining) next.push(`${key}=${value}`);
-  return next.join('\n');
-}
+const HIGH_LIMIT = '100000';
+const STACK_ENV = {
+  DB_CONNECTION: 'sqlite',
+  DB_DATABASE: DB_FILE,
+  APP_ENV: 'local',
+  MAIL_MAILER: 'log',
+  FRONTEND_URL: WEB,
+  FRONTEND_URLS: WEB,
+  QUEUE_CONNECTION: 'sync',
+  SESSION_DRIVER: 'array',
+  CACHE_STORE: 'array',
+  RATE_LIMIT_PUBLIC_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_READ_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_WRITE_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_EXPENSIVE_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_LOGIN_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_PASSWORD_PER_MINUTE: HIGH_LIMIT,
+  RATE_LIMIT_REGISTRATION_PER_MINUTE: HIGH_LIMIT,
+};
 
-function prepareEnv() {
-  // A leftover backup means an earlier run died before restoring; it is the original, so restore it first.
-  if (fs.existsSync(ENV_BACKUP)) fs.copyFileSync(ENV_BACKUP, ENV_FILE);
-  else fs.copyFileSync(ENV_FILE, ENV_BACKUP);
-  envChanged = true;
+function resetDatabase() {
   fs.mkdirSync(OUT, { recursive: true });
+  for (const suffix of ['', '-journal', '-wal', '-shm']) fs.rmSync(DB_FILE + suffix, { force: true });
   fs.writeFileSync(DB_FILE, '');
-  const high = '100000';
-  fs.writeFileSync(ENV_FILE, setEnvKeys(fs.readFileSync(ENV_BACKUP, 'utf8'), {
-    DB_CONNECTION: 'sqlite',
-    DB_DATABASE: DB_FILE,
-    APP_ENV: 'local',
-    MAIL_MAILER: 'log',
-    FRONTEND_URL: WEB,
-    FRONTEND_URLS: WEB,
-    QUEUE_CONNECTION: 'sync',
-    SESSION_DRIVER: 'array',
-    CACHE_STORE: 'array',
-    RATE_LIMIT_PUBLIC_PER_MINUTE: high,
-    RATE_LIMIT_READ_PER_MINUTE: high,
-    RATE_LIMIT_WRITE_PER_MINUTE: high,
-    RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE: high,
-    RATE_LIMIT_EXPENSIVE_PER_MINUTE: high,
-    RATE_LIMIT_LOGIN_PER_MINUTE: high,
-    RATE_LIMIT_PASSWORD_PER_MINUTE: high,
-    RATE_LIMIT_REGISTRATION_PER_MINUTE: high,
-  }));
-}
-
-function restoreEnv() {
-  if (!envChanged) return;
-  try {
-    fs.copyFileSync(ENV_BACKUP, ENV_FILE);
-    fs.rmSync(ENV_BACKUP, { force: true });
-    envChanged = false;
-    log('server/.env restored');
-  } catch (error) {
-    console.error('[audit] FAILED TO RESTORE server/.env, copy .env.audit-backup over it by hand:', error.message);
-  }
 }
 
 function stopChildren() {
@@ -120,7 +89,6 @@ function stopChildren() {
 
 function cleanup() {
   if (!keepStack) stopChildren();
-  restoreEnv();
 }
 
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
@@ -139,7 +107,7 @@ async function waitFor(url, label, ms = 120000) {
 }
 
 function artisan(...args) {
-  const result = spawnSync('php', ['artisan', ...args], { cwd: SERVER, encoding: 'utf8', env: { ...process.env, DB_CONNECTION: 'sqlite', DB_DATABASE: DB_FILE, APP_ENV: 'local' } });
+  const result = spawnSync('php', ['artisan', ...args], { cwd: SERVER, encoding: 'utf8', env: { ...process.env, ...STACK_ENV } });
   if (result.status !== 0) throw new Error(`php artisan ${args.join(' ')} failed:\n${(result.stdout || '').slice(-600)}\n${(result.stderr || '').slice(-600)}`);
 }
 
@@ -187,14 +155,14 @@ function seedClosedSchoolYear() {
 }
 
 async function bootStack() {
-  prepareEnv();
-  log('migrate:fresh --seed on', DB_FILE);
-  artisan('migrate:fresh', '--seed', '--force');
+  resetDatabase();
+  log('migrate --seed on', DB_FILE);
+  artisan('migrate', '--seed', '--force');
   if (!noSemesters) {
     seedAcademicSemesters();
     seedClosedSchoolYear();
   }
-  const serverEnv = { ...process.env, FRONTEND_URL: WEB, FRONTEND_URLS: WEB, DB_CONNECTION: 'sqlite', DB_DATABASE: DB_FILE, APP_ENV: 'local', MAIL_MAILER: 'log', QUEUE_CONNECTION: 'sync' };
+  const serverEnv = { ...process.env, ...STACK_ENV };
   children.push(spawn('php', ['artisan', 'serve', '--host=127.0.0.1', `--port=${API_PORT}`, '--no-reload'], { cwd: SERVER, env: serverEnv, stdio: 'ignore', windowsHide: true }));
   children.push(spawn(process.execPath, [path.join(CLIENT, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', String(WEB_PORT), '--strictPort'], {
     cwd: CLIENT, env: { ...process.env, VITE_API_URL: API }, stdio: 'ignore', windowsHide: true,
