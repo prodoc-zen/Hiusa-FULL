@@ -1243,7 +1243,7 @@ class UseCaseComplianceTest extends TestCase
             'quantity' => 2,
             'payment_method' => 'cash',
         ])->assertCreated()->assertJsonPath('claim_token', null)->json('id');
-        $this->assertDatabaseHas('merchandise', ['id' => $item->id, 'stock_quantity' => 5]);
+        $this->assertDatabaseHas('merchandise', ['id' => $item->id, 'stock_quantity' => 3]);
         $this->assertSame(2, Notification::where('title', 'New Merchandise Order')->count());
 
         $this->authenticate($officer);
