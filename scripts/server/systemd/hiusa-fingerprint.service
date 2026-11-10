@@ -1,0 +1,15 @@
+[Unit]
+Description=HIUSA private fingerprint matcher
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/hiusa/fingerprint-matcher
+EnvironmentFile=/var/www/hiusa/fingerprint-matcher/.env
+ExecStart=/usr/bin/dotnet /var/www/hiusa/fingerprint-matcher/publish/SourceAfisMatcher.dll
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

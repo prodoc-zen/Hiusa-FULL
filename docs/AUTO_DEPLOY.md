@@ -15,7 +15,7 @@ A push to `main` goes live without anyone logging in to the server. Branches oth
    6. Waits for `/up`, checks every unit is active, and appends a line to `/var/backups/hiusa/deploy-history.log`.
 4. If a repository variable `DEPLOY_SITE_URL` is set, the workflow also checks `/up` from outside.
 
-If it fails before the migrate step, the code goes back to the previous commit by itself. If it fails after, the new code stays (the migrations cannot be undone) and the log prints the backup to restore from. Fix forward with a new commit; that deploys again.
+If it fails before the migrate step, the code goes back to the previous commit by itself. If it fails after, the new code stays (the migrations cannot be undone) and the log prints the backup to restore from. Fix forward with a new commit; that deploys again. If the database is half changed and a fix forward is not possible, follow "Restore after a failed migrate" below; the one-line restore alone is not enough.
 
 ## Nothing goes out
 
@@ -46,7 +46,33 @@ To run a deploy by hand: GitHub, Actions, Deploy, Run workflow (it deploys the c
 | `mail.default is '...'` or `services.edp.driver is '...'` | The server config changed | Put `MAIL_MAILER=log` / `EDP_DRIVER=local` back in `/etc/hiusa/laravel-native.env` or `server/.env`, then run the workflow again |
 | `The server checkout has local edits` | Someone edited tracked files on the server | `git status --short` on the server, keep what matters, then run again |
 | `Another deploy is already running` | A second run started | Wait; the lock clears when the first one ends |
-| `Migrations already ran` | The failure came after the database changed | Fix forward with a new commit, or restore the printed backup |
+| `Migrations already ran` | The failure came after the database changed | Fix forward with a new commit, or follow "Restore after a failed migrate" below |
 | `/up health endpoint did not answer` | The site is down after restart | `sudo journalctl -u php8.3-fpm -u nginx -n 50` on the server; fix forward or restore |
+
+## Restore after a failed migrate
+
+Loading the backup alone is not a restore. The dump recreates the tables it holds and rewinds the `migrations` table, but it does not remove tables the failed release already created. The next deploy then stops at migrate with "Base table or view already exists". Restore like this, on the server, with the backup names the failed deploy printed:
+
+1. Stop the background units and put the site in maintenance mode:
+   `sudo systemctl stop hiusa-queue hiusa-scheduler`
+   `sudo -u www-data /usr/local/bin/hiusa-artisan down`
+2. Empty the database, then load the dump. The dump is owned by root, so both commands need `sudo`:
+   `sudo mysql -e "DROP DATABASE hiusa_db; CREATE DATABASE hiusa_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"`
+   `sudo zcat /var/backups/hiusa/hiusa_db-pre-deploy-<stamp>.sql.gz | sudo mysql hiusa_db`
+3. Put the code back on the release that was live. It is the last `deployed` sha in `/var/backups/hiusa/deploy-history.log` (a failed deploy writes no line, so the last line is the previous release):
+   `tail -n 1 /var/backups/hiusa/deploy-history.log`
+   `cd /var/www/hiusa && git reset --hard <that sha>`
+   `cd /var/www/hiusa/server && composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction`
+   If `client/` changed in the failed release, also run `cd /var/www/hiusa/client && npm ci && npm run build`.
+4. Rebuild the caches with the wrapper, never plain `php artisan`, and reload PHP:
+   `sudo -u www-data /usr/local/bin/hiusa-artisan config:cache`
+   `sudo -u www-data /usr/local/bin/hiusa-artisan route:cache`
+   `sudo systemctl reload php8.3-fpm`
+5. Bring the site back and start the units:
+   `sudo -u www-data /usr/local/bin/hiusa-artisan up`
+   `sudo systemctl start hiusa-queue hiusa-scheduler`
+6. Check: `curl -fsS http://127.0.0.1/up`, and `sudo mysql hiusa_db -e "select count(*) from migrations"` prints a non-zero count.
+
+Anything people saved between the failed migrate and the restore is lost, because the dump was taken before the deploy. Practise this once on a scratch database before you need it, never on the live one. After the restore, fix the problem in a new commit and deploy again.
 
 To stop automatic deploys: disable the Deploy workflow in GitHub Actions, or delete `DEPLOY_SSH_KEY`.

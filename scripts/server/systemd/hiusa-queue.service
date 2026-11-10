@@ -1,0 +1,14 @@
+[Unit]
+Description=HIUSA Laravel queue worker
+After=mysql.service network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/hiusa/server
+ExecStart=/usr/bin/php artisan queue:work database --sleep=3 --tries=3 --timeout=60
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
