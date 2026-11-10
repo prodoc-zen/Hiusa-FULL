@@ -1415,6 +1415,9 @@ await step('election_handover', 'In the org: an election for President with cand
   // The close, the released results and the head access for the winner happen in one move, and the outgoing head loses the
   // workspace in that same move (their API reads answer 403), so the dean watches for the close and the winner checks it.
   election = await waitForElection('dean', 'closed', secondsToEnd + 150, rec);
+  // C is still on the full-screen ballot receipt, which has no top bar; step back to a dashboard before opening the menu.
+  await people.get('c').page.goto('/dashboard/student');
+  await waitSettled(people.get('c').page);
   await verifyHandover(rec, 'c', await switchToOrganization('c', rec));
 });
 
