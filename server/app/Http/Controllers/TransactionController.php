@@ -44,7 +44,7 @@ class TransactionController extends Controller
             'recorder:school_id,first_name,last_name',
             'payer:school_id,first_name,last_name,department,program,year_level',
             'organization:id,name,acronym',
-        ])->withSystemSource()->orderBy('transaction_date', 'desc');
+        ])->withSystemSource()->orderBy('transaction_date', 'desc')->orderByDesc('id');
 
         $query->whereIn('organization_id', $this->readableOrganizationIds($request));
 
@@ -309,6 +309,7 @@ class TransactionController extends Controller
                     ->orWhereNotNull('receipt_file_url');
             })
             ->orderBy('transaction_date', 'desc')
+            ->orderByDesc('id')
             ->get();
 
         return response()->json($receipts);

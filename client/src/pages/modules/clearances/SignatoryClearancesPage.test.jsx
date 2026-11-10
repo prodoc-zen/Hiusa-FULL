@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SignatoryClearancesPage from './SignatoryClearancesPage';
+import notify from '../../../lib/notify';
 
 const mocks = vi.hoisted(() => ({
   getClearancePeriods: vi.fn(),
@@ -14,6 +15,8 @@ vi.mock('../../../services/clearanceService', () => ({
   getClearanceSignatures: mocks.getClearanceSignatures,
   updateClearanceSignature: mocks.updateClearanceSignature,
 }));
+
+vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 function envelope(data) {
   return { data: { data, current_page: 1, last_page: 1, per_page: 20, total: data.length } };
@@ -83,5 +86,72 @@ describe('SignatoryClearancesPage', () => {
     await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledTimes(2));
     expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'cleared' });
     expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(12, { status: 'cleared' });
+  });
+  it('reloads the queue and keeps only the failed signatures selected after a partial bulk failure', async () => {
+    const second = { ...PENDING_ROW, id: 12, student: { first_name: 'Juan', last_name: 'Cruz' }, student_id: 502 };
+    mocks.getClearanceSignatures.mockResolvedValueOnce(envelope([PENDING_ROW, second]));
+    mocks.updateClearanceSignature.mockImplementation((id) => (id === 12
+      ? Promise.reject({ response: { data: { message: 'This clearance line has already been cleared.' } } })
+      : Promise.resolve({ data: { ...PENDING_ROW, status: 'cleared' } })));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    await screen.findAllByText('Maria Santos');
+    fireEvent.click(screen.getByRole('checkbox', { name: /select all pending/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear 2 selected' }));
+
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([second]));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selected' }));
+
+    expect(await screen.findByRole('button', { name: 'Clear 1 selected' })).toBeInTheDocument();
+    expect(mocks.getClearanceSignatures).toHaveBeenCalledTimes(2);
+    expect(notify.error).toHaveBeenCalledWith(expect.stringContaining('1 of 2'));
+    expect(notify.error).toHaveBeenCalledWith(expect.stringContaining('already been cleared'));
+  });
+
+  it('asks for page one once when a filter changes on a later page', async () => {
+    mocks.getClearanceSignatures.mockImplementation((params) => Promise.resolve({ data: { data: [PENDING_ROW], current_page: params.page, last_page: 3, per_page: 20, total: 50 } }));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    await screen.findAllByText('Maria Santos');
+    fireEvent.click(screen.getByRole('button', { name: /next page of signatures/i }));
+    await waitFor(() => expect(mocks.getClearanceSignatures).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })));
+
+    mocks.getClearanceSignatures.mockClear();
+    fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'held' } });
+    await waitFor(() => expect(mocks.getClearanceSignatures).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mocks.getClearanceSignatures.mock.calls.map(([params]) => params)).toEqual([expect.objectContaining({ status: 'held', page: 1 })]);
+  });
+
+  it('shows the answer to the latest filter even when an earlier request lands last', async () => {
+    let releaseFirst;
+    mocks.getClearanceSignatures.mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = () => resolve(envelope([PENDING_ROW])); }));
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([]));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'cleared' } });
+    await screen.findByText('No signatures match these filters');
+
+    releaseFirst();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText('Maria Santos')).not.toBeInTheDocument();
+    expect(screen.getByText('No signatures match these filters')).toBeInTheDocument();
+  });
+
+  it('sends one search request after typing stops instead of one per keystroke', async () => {
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW]));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    await screen.findAllByText('Maria Santos');
+    mocks.getClearanceSignatures.mockClear();
+
+    const box = screen.getByLabelText('Search students');
+    fireEvent.change(box, { target: { value: 'M' } });
+    fireEvent.change(box, { target: { value: 'Ma' } });
+    fireEvent.change(box, { target: { value: 'Mar' } });
+
+    await waitFor(() => expect(mocks.getClearanceSignatures).toHaveBeenCalledWith(expect.objectContaining({ q: 'Mar' })));
+    expect(mocks.getClearanceSignatures).toHaveBeenCalledTimes(1);
   });
 });

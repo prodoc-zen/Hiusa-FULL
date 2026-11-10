@@ -104,4 +104,18 @@ describe('SAO university users', () => {
     fireEvent.click(confirm);
     await waitFor(() => expect(service.deleteSystemUser).toHaveBeenCalledWith(user.school_id));
   });
+  it('shows the answer to the latest filter even when an earlier request lands last', async () => {
+    let releaseFirst;
+    service.getSystemUsers.mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = () => resolve(page([user])); }));
+    service.getSystemUsers.mockResolvedValue(page([]));
+
+    render(<SaoUsersPage />);
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'ADMIN' } });
+    await waitFor(() => expect(service.getSystemUsers).toHaveBeenCalledTimes(2));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+
+    await act(async () => { releaseFirst(); });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText('Ana Cruz')).not.toBeInTheDocument();
+  });
 });

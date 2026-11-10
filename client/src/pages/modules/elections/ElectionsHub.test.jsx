@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useOutletContext } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionsHub from './ElectionsHub';
+import notify from '../../../lib/notify';
 
 const { getElectionDetails, getElections, finalizeElection, updateElection } = vi.hoisted(() => ({
   getElectionDetails: vi.fn(),
@@ -19,6 +20,8 @@ vi.mock('./ElectionPickerPage', () => ({
     </div>
   ),
 }));
+
+vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 vi.mock('./CastVoteRedirectPage', () => ({ default: () => <div>Vote list</div> }));
 
@@ -39,6 +42,11 @@ function LocationProbe() {
   return <p data-testid="location">{location.pathname}{location.search}</p>;
 }
 
+function RefreshProbe() {
+  const { refreshElection } = useOutletContext();
+  return <button type="button" onClick={refreshElection}>Refresh probe</button>;
+}
+
 function renderHub(path, { role = 'ADMIN' } = {}) {
   localStorage.setItem('user', JSON.stringify({ role, school_id: 101, organization_id: 1 }));
   return render(
@@ -48,6 +56,7 @@ function renderHub(path, { role = 'ADMIN' } = {}) {
         <Route path="/dashboard/elections" element={<ElectionsHub />}>
           <Route path="manage-candidates" element={<div>Candidates content</div>} />
           <Route path="manage-elections" element={<div>Overview content</div>} />
+          <Route path="refresh-probe" element={<RefreshProbe />} />
           <Route path="cast-vote" element={<div>Outlet vote</div>} />
         </Route>
         <Route path="/dashboard/elections/election-results" element={<div>Results destination</div>} />
@@ -105,11 +114,37 @@ describe('ElectionsHub', () => {
 
   it('falls back to the picker and forgets a record that cannot be loaded', async () => {
     sessionStorage.setItem('hiusa-election-1-101', '5');
-    getElectionDetails.mockRejectedValue(new Error('not found'));
+    getElectionDetails.mockRejectedValue({ response: { status: 404 } });
     renderHub('/dashboard/elections/manage-elections?record=404');
     expect(await screen.findByText('Election picker')).toBeInTheDocument();
     expect(sessionStorage.getItem('hiusa-election-1-101')).toBeNull();
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record=404'));
+  });
+
+  it('keeps the selection and offers a retry when a load fails for a reason that is not a missing election', async () => {
+    sessionStorage.setItem('hiusa-election-1-101', '5');
+    getElectionDetails.mockRejectedValueOnce({ response: { status: 429 } });
+    renderHub('/dashboard/elections/manage-candidates?record=5');
+
+    expect(await screen.findByText('Could not load this election')).toBeInTheDocument();
+    expect(screen.queryByText('Election picker')).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('hiusa-election-1-101')).toBe('5');
+    expect(screen.getByTestId('location')).toHaveTextContent('record=5');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Candidates content')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load this election')).not.toBeInTheDocument();
+  });
+
+  it('keeps the open workspace and tells the user when a refresh fails', async () => {
+    renderHub('/dashboard/elections/refresh-probe?record=5');
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh probe' }));
+    getElectionDetails.mockRejectedValueOnce(new Error('network'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh probe' }));
+
+    await waitFor(() => expect(notify.error).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Refresh probe' })).toBeInTheDocument();
+    expect(screen.queryByText('Election picker')).not.toBeInTheDocument();
   });
 
   it('keeps the picker, not the workspace, when the Admin is sent to edit a returned election', async () => {
