@@ -14,6 +14,7 @@ use App\Models\OrganizationApplication;
 use App\Models\OrganizationSemesterRecord;
 use App\Models\User;
 use App\Services\Compliance\ComplianceDocumentService;
+use App\Services\ElectionHandoverService;
 use App\Services\Records\SemesterSnapshotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -260,7 +261,8 @@ class RecordsController extends Controller
             ->with('positions')->orderBy('start_time')->limit(self::LIST_LIMIT)->get();
         $showWinners = fn (Election $election) => $election->status === 'closed' && ($election->results_visible || $role !== 'SBO_OFFICER');
         $candidates = Candidate::with('user:school_id,first_name,last_name')->withCount('votes')
-            ->whereIn('election_id', $elections->filter($showWinners)->pluck('id'))->get()->groupBy('position_id');
+            ->whereIn('election_id', $elections->filter($showWinners)->pluck('id'))->get()->keyBy('id');
+        $handover = app(ElectionHandoverService::class);
 
         return $elections->map(fn (Election $election) => [
             'id' => $election->id,
@@ -268,11 +270,12 @@ class RecordsController extends Controller
             'status' => $election->status,
             'start_time' => $election->start_time,
             'end_time' => $election->end_time,
-            'winners' => $showWinners($election) ? $election->positions->map(fn ($position) => [
-                'position' => $position->title,
-                'winners' => $candidates->get($position->id, collect())->where('votes_count', '>', 0)
-                    ->sortByDesc('votes_count')->take($position->max_winners)
+            'winners' => $showWinners($election) ? $handover->standings($election)->map(fn (array $row) => [
+                'position' => $row['position']->title,
+                'winners' => $row['winners']
+                    ->map(fn (Candidate $winner) => $candidates->get($winner->id))
                     ->map(fn (Candidate $candidate) => ['name' => trim(($candidate->user->first_name ?? '').' '.($candidate->user->last_name ?? '')), 'votes' => $candidate->votes_count])->values(),
+                'tie' => $row['tie'],
             ])->values() : null,
         ])->all();
     }

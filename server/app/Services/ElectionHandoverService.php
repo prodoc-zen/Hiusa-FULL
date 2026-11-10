@@ -10,6 +10,7 @@ use App\Models\ElectionPosition;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\SboPosition;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -55,6 +56,14 @@ class ElectionHandoverService
         });
     }
 
+    /** Position titles where a winner's access was skipped in the hand over, so the results can say so. */
+    public function skippedTitles(Election $election): array
+    {
+        $audit = AuditLog::where('record_type', Election::class)->where('record_id', $election->id)->where('action', 'access_handed_over')->latest('id')->first();
+
+        return array_values(array_unique(array_column($audit?->new_values['skipped'] ?? [], 'position_title')));
+    }
+
     public function isReleased(Election $election): bool
     {
         return $election->status === 'closed' && $election->results_visible && $election->finalized_at !== null;
@@ -86,6 +95,7 @@ class ElectionHandoverService
 
             $standings = $this->standings($election);
             $granted = [];
+            $skipped = [];
             $deactivated = [];
             $ties = $standings->where('tie', true)->map(fn (array $row) => $row['position']->title)->values()->all();
             $decided = $standings->reject(fn (array $row) => $row['winners']->isEmpty());
@@ -108,11 +118,16 @@ class ElectionHandoverService
                 $title = $row['position']->title;
                 $role = $this->roleFor($organization->id, $title);
                 foreach ($row['winners'] as $candidate) {
-                    if ($this->grant($organization, $election, (int) $candidate->user_id, $role, $title)) {
+                    $outcome = $this->grant($organization, $election, (int) $candidate->user_id, $role, $title, $deactivated);
+                    if ($outcome === 'granted') {
                         $granted[] = ['school_id' => (int) $candidate->user_id, 'position_title' => $title, 'role' => $role];
+                    } elseif ($outcome === 'skipped') {
+                        $skipped[] = ['school_id' => (int) $candidate->user_id, 'position_title' => $title];
                     }
                 }
             }
+
+            $deactivated = array_values(array_diff($deactivated, array_column($granted, 'school_id')));
 
             AuditLog::create([
                 'organization_id' => $organization->id,
@@ -122,7 +137,7 @@ class ElectionHandoverService
                 'record_type' => Election::class,
                 'record_id' => $election->id,
                 'old_values' => null,
-                'new_values' => ['granted' => $granted, 'deactivated' => $deactivated, 'ties' => $ties],
+                'new_values' => ['granted' => $granted, 'skipped' => $skipped, 'deactivated' => $deactivated, 'ties' => $ties],
                 'ip_address' => $ipAddress,
                 'created_at' => now(),
             ]);
@@ -146,17 +161,31 @@ class ElectionHandoverService
         return Str::lower(trim($title)) === 'president' ? 'ADMIN' : 'SBO_OFFICER';
     }
 
-    private function grant(Organization $organization, Election $election, int $schoolId, string $role, string $title): bool
+    /**
+     * @param  array<int, int>  $retired  holders retired in this run, who may take the seat they won instead
+     * @return 'granted'|'kept'|'skipped'
+     */
+    private function grant(Organization $organization, Election $election, int $schoolId, string $role, string $title, array $retired): string
     {
         $profile = AccountProfile::where('organization_id', $organization->id)->where('user_school_id', $schoolId)->first();
+        $retiredNow = in_array($schoolId, $retired, true);
 
         if ($profile && ! in_array($profile->role, ['ADMIN', 'SBO_OFFICER', 'STUDENT'], true)) {
-            return false;
+            return 'skipped';
+        }
+
+        // A profile or account switched off for cause stays off; only a seat just retired here is taken back.
+        if ($profile && ! $retiredNow && $profile->account_status !== 'active') {
+            return 'skipped';
+        }
+
+        if (! User::where('school_id', $schoolId)->where('account_status', 'active')->exists()) {
+            return 'skipped';
         }
 
         // An org head the dean granted keeps that access when they win a lower seat.
-        if ($profile && $profile->role === 'ADMIN' && $role !== 'ADMIN') {
-            return false;
+        if ($profile && $profile->role === 'ADMIN' && $role !== 'ADMIN' && ! $retiredNow) {
+            return 'kept';
         }
 
         if ($profile) {
@@ -184,6 +213,6 @@ class ElectionHandoverService
             'sent_at' => now(),
         ]);
 
-        return true;
+        return 'granted';
     }
 }

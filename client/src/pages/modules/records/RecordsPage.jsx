@@ -135,12 +135,13 @@ function OrganizationRecords({ organization, onOpen }) {
               detail={election.end_time ? `${election.status === 'closed' ? 'Closed' : 'Voting ends'} ${manilaDate(election.end_time)}` : null}
               badge={<StatusBadge status={election.status} />}
             >
-              {election.winners && election.winners.some((position) => position.winners.length > 0) && (
+              {election.winners && election.winners.some((position) => position.winners.length > 0 || position.tie) && (
                 <ul className="mt-2 flex flex-col gap-1 text-xs text-ink-muted">
-                  {election.winners.filter((position) => position.winners.length > 0).map((position) => (
+                  {election.winners.filter((position) => position.winners.length > 0 || position.tie).map((position) => (
                     <li key={position.position}>
                       <span className="font-medium text-ink">{position.position}:</span>{' '}
                       {position.winners.map((winner) => `${winner.name} (${winner.votes} ${winner.votes === 1 ? 'vote' : 'votes'})`).join(', ')}
+                      {position.tie && (position.winners.length > 0 ? '. The last seat is tied and still open.' : 'Tied, no winner.')}
                     </li>
                   ))}
                 </ul>
