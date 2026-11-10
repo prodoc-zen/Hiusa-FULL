@@ -242,7 +242,7 @@ class CacheApiResponseTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs($admin);
-        $this->putJson('/api/user/profile', ['first_name' => 'Updated', 'last_name' => $admin->last_name, 'email' => $admin->email])->assertOk();
+        $this->putJson('/api/user/profile', ['first_name' => 'Updated', 'last_name' => $admin->last_name, 'email' => $admin->email, 'current_password' => 'password'])->assertOk();
 
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs($superAdmin);
