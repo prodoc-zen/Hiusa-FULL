@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CreateAnnouncementPage from './CreateAnnouncementPage';
-import { createAnnouncement } from '../../../services/announcementService';
+import { createAnnouncement, generateAnnouncementDraft } from '../../../services/announcementService';
 
 vi.mock('../../../services/announcementService', () => ({
   createAnnouncement: vi.fn(),
@@ -59,6 +59,22 @@ describe('CreateAnnouncementPage', () => {
     expect(screen.getByText('24 characters')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('says plainly when the generated text is a template draft', async () => {
+    vi.mocked(generateAnnouncementDraft).mockResolvedValue({ data: {
+      output_text: 'General Assembly. Please be informed.',
+      ai_output_id: 9,
+      is_template: true,
+      notice: 'This is a template draft because the AI writer is not available right now. Add the date, place and other details before you post it.',
+      quota: { limit: 20, used: 4, remaining: 16 },
+    } });
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate draft' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('This is a template draft');
+    expect(screen.getByLabelText(/Content/)).toHaveValue('General Assembly. Please be informed.');
   });
 
   it('words the request route as a request for an Officer and as a new announcement for an Admin', () => {

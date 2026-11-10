@@ -61,6 +61,7 @@ export default function CreateAnnouncementPage() {
   const [body, setBody] = useState('');
   const [aiInstructions, setAiInstructions] = useState('');
   const [aiOutputId, setAiOutputId] = useState(null);
+  const [draftNotice, setDraftNotice] = useState(null);
   const [generationQuota, setGenerationQuota] = useState({ limit: 20, used: 0, remaining: 20 });
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [imageFile, setImageFile] = useState(null);
@@ -115,6 +116,7 @@ export default function CreateAnnouncementPage() {
 
     setGenerating(true);
     setError(null);
+    setDraftNotice(null);
     try {
       const res = await generateAnnouncementDraft({
         title,
@@ -124,6 +126,7 @@ export default function CreateAnnouncementPage() {
       });
       setBody(res.data?.output_text || '');
       setAiOutputId(res.data?.ai_output_id || null);
+      setDraftNotice(res.data?.is_template ? res.data?.notice || 'This is a template draft. Add the details before you post it.' : null);
       if (res.data?.quota) setGenerationQuota(res.data.quota);
     } catch (err) {
       if (err.response?.data?.quota) setGenerationQuota(err.response.data.quota);
@@ -209,6 +212,7 @@ export default function CreateAnnouncementPage() {
               >
                 {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate draft'}
               </Button>
+              {draftNotice && <p role="status" className="text-sm text-ink-muted-strong">{draftNotice}</p>}
             </div>
           </details>
         </section>

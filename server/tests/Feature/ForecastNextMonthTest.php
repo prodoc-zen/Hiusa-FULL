@@ -72,14 +72,21 @@ class ForecastNextMonthTest extends TestCase
             ->assertJsonPath('predicted_expense', '50.00');
     }
 
-    public function test_history_that_includes_the_current_month_forecasts_the_month_after_it(): void
+    public function test_a_partial_current_month_and_future_dated_rows_do_not_change_the_prediction(): void
     {
         $this->engineDown();
-        Carbon::setTestNow(Carbon::parse('2026-10-06 10:00:00', 'Asia/Manila'));
-        $this->seedHistory('2026-07', '2026-08', '2026-09', '2026-10');
+        Carbon::setTestNow(Carbon::parse('2026-10-15 10:00:00', 'Asia/Manila'));
+        $this->seedHistory('2026-07', '2026-08', '2026-09');
+        foreach (['2026-10-03', '2026-11-20'] as $date) {
+            Transaction::create([
+                'organization_id' => $this->admin->organization_id, 'recorded_by' => $this->admin->school_id, 'type' => 'income',
+                'amount' => 10, 'category' => 'General', 'description' => 'Half a month so far', 'transaction_date' => $date.' 12:00:00',
+            ]);
+        }
 
         $this->postJson('/api/forecasts/generate', ['months' => 12])->assertCreated()
             ->assertJsonPath('forecast_period', '2026-11')
+            ->assertJsonPath('model_details.sample_months', 3)
             ->assertJsonPath('predicted_income', '500.00');
     }
 
