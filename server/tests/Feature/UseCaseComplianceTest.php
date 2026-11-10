@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -1497,21 +1498,23 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonMissingPath('votes');
         $this->getJson("/api/elections/{$election->id}/results")
             ->assertOk()
-            ->assertJsonPath('0.candidates.0.votes', 1)
+            ->assertJsonPath('0.candidates.0.votes', null)
+            ->assertJsonPath('0.totalVotes', 1)
             ->assertJsonMissingPath('0.candidates.0.voter_id');
 
         $this->authenticate($student);
         $this->getJson("/api/elections/{$election->id}")
             ->assertOk()
-            ->assertJsonPath("vote_counts.{$candidate->id}", 1)
+            ->assertJsonMissingPath('vote_counts')
             ->assertJsonPath('voters_count', 1)
             ->assertJsonMissingPath('votes');
         $this->getJson("/api/elections/{$election->id}/results")
             ->assertOk()
-            ->assertJsonPath('0.candidates.0.votes', 1)
+            ->assertJsonPath('0.candidates.0.votes', null)
             ->assertJsonMissingPath('0.candidates.0.voter_id');
 
         $election->update(['status' => 'closed']);
+        Cache::flush();
         $this->getJson("/api/elections/{$election->id}/results")
             ->assertOk()
             ->assertJsonPath('0.candidates.0.votes', 1)
