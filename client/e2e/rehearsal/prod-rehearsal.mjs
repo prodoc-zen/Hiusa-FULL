@@ -1,11 +1,12 @@
 // Production rehearsal of the whole HIUSA chain, driven in a real browser as the people who use it.
 //
-//   BASE_URL=https://13.228.227.182 SUFFIX=r1108 node e2e/rehearsal/prod-rehearsal.mjs      (from client/)
+//   BASE_URL=https://13.228.227.182 SUFFIX=r1110 ID_BASE=25991400 node e2e/rehearsal/prod-rehearsal.mjs      (from client/)
 //
 // Env: BASE_URL (required), SUFFIX (required, goes into emails, the college code and the organization acronym so runs
 // never collide), CREDS_FILE (default D:/Claude/scratch/hiusa-rehearsal/creds.json), ROUND (default 1; names the shots
 // folder), SHOTS_DIR, ONLY (comma list of step keys to run), VIEWPORT_WIDTH/VIEWPORT_HEIGHT (default 1366x900), ID_BASE (first
-// synthetic school ID minus one, default 25991100; pick an unused 2599xxxx range for every new SUFFIX).
+// synthetic school ID minus one, default 25991100; pick an unused 2599xxxx range for every new SUFFIX; round r1110 uses
+// ID_BASE=25991400).
 //
 // The rehearsal SAO account lives in the creds file under "sao". Every account and link the run creates is written back to
 // that file (never to the repo). Passwords are generated at first use and stay in the creds file.
@@ -332,7 +333,7 @@ async function acceptAll(page) {
 }
 
 // ------------------------------------------------------------------ step runner
-const ORDER = ['sao_login', 'college_add', 'dean_invite', 'records_load', 'staff_add', 'student_signup', 'allow_apply', 'apply', 'dean_review', 'sao_review', 'officer_access', 'election_handover', 'records', 'console_and_layout'];
+const ORDER = ['sao_login', 'college_add', 'dean_invite', 'records_load', 'staff_add', 'office_staff_walk', 'student_signup', 'allow_apply', 'apply', 'dean_review', 'sao_review', 'officer_access', 'election_handover', 'records', 'console_and_layout'];
 // A partial run (ONLY) keeps what earlier runs recorded for the steps it does not run.
 const results = (() => { try { return JSON.parse(fs.readFileSync(RESULTS, 'utf8')).results ?? []; } catch { return []; } })();
 const skippedOnly = (key) => ONLY.length > 0 && !ONLY.includes(key);
@@ -514,7 +515,7 @@ await step('records_load', 'Dean loads a synthetic student records CSV (3 studen
   }
 });
 
-await step('staff_add', 'Dean adds office staff from the school records (ID and position read only), the staff member accepts and signs in', async (rec) => {
+await step('staff_add', 'Dean adds office staff from the employee records (link only, ID read only, students not offered), the staff member accepts and signs in', async (rec) => {
   const staff = ensureAccount('staff');
   if (staff.created) {
     const probe = await signIn('staff', rec);
@@ -534,49 +535,89 @@ await step('staff_add', 'Dean adds office staff from the school records (ID and 
   let link = readCreds().links?.staff_invite ?? null;
   if (!link) {
     await page.getByRole('button', { name: 'Add staff' }).first().click();
-    await page.getByRole('combobox', { name: /Find in the school records/ }).fill(SPEC.staff.first);
-    const option = page.getByRole('option').filter({ hasText: fullName('staff') }).first();
+    const dialog = page.getByRole('dialog', { name: 'Add office staff' });
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+    const finder = dialog.getByRole('combobox', { name: /Find in the employee records/ });
+    await finder.waitFor({ state: 'visible', timeout: 20000 });
+    // Office staff are employees only: a student record must never be offered. Each student's first name is searched.
+    const answered = () => page.waitForFunction(() => {
+      const list = document.querySelector('[role="listbox"]:not([hidden])');
+      return Boolean(list) && !/Searching/.test(list.textContent) && (list.querySelectorAll('[role="option"]').length > 0 || /No one matches/.test(list.textContent));
+    }, null, { timeout: 10000 }).catch(() => {});
+    const offeredStudents = [];
+    for (const key of ['a', 'b', 'c']) {
+      await finder.fill(SPEC[key].first);
+      await page.waitForTimeout(500);
+      await answered();
+      const offered = await dialog.getByRole('option').allInnerTexts();
+      if (offered.some((text) => text.includes(fullName(key)))) offeredStudents.push(fullName(key));
+    }
+    await shot('dean', 'staff-search-students', rec);
+    if (offeredStudents.length) rec.defect('app_bug', `The employee search offers student records (${offeredStudents.join(', ')}); office staff must come from employees only.`, ['server/app/Http/Controllers/CollegePeopleController.php']);
+    else rec.evidence.push('searching the three student first names offers no student record');
+    await finder.fill(SPEC.staff.first);
+    const option = dialog.getByRole('option').filter({ hasText: fullName('staff') }).first();
     await option.waitFor({ state: 'visible', timeout: 15000 });
     await shot('dean', 'staff-search', rec);
     await option.click();
-    const idField = page.getByLabel('ID number');
+    const idField = dialog.getByLabel('ID number');
     await idField.waitFor({ state: 'visible' });
     const readOnly = await idField.evaluate((node) => node.readOnly || node.disabled);
-    if (!readOnly) rec.defect('app_bug', 'The staff ID number can be edited.', ['client/src/pages/department-head/CollegePeoplePage.jsx']);
-    const positionField = page.getByLabel('Position');
-    const position = await positionField.inputValue().catch(async () => positionField.innerText());
-    rec.evidence.push(`ID shown ${await idField.inputValue()}, position shown "${position}"`);
+    if (!readOnly) rec.defect('app_bug', 'The staff ID number can be edited.', ['client/src/components/people/StaffInvitePanel.jsx']);
+    const idShown = await idField.inputValue();
+    if (idShown !== String(SPEC.staff.schoolId)) rec.defect('app_bug', `The picked record shows ID ${idShown}, expected ${SPEC.staff.schoolId}.`, ['client/src/components/people/StaffInvitePanel.jsx']);
+    // The position starts as the record's own; the dean may reword it in this form, so it is checked for the value, not for read only.
+    const position = await dialog.getByLabel('Position').inputValue();
+    rec.evidence.push(`ID shown ${idShown} (read only), position filled from the record: "${position}"`);
     if (!new RegExp(SPEC.staff.position, 'i').test(position)) rec.defect('app_bug', `The picked record shows position "${position}", expected ${SPEC.staff.position}.`, ['server/app/Http/Controllers/CollegePeopleController.php']);
-    const positionReadOnly = await positionField.evaluate((node) => node.readOnly || node.disabled).catch(() => true);
-    if (!positionReadOnly) rec.defect('app_bug', 'The staff position can be edited on a school-record link.', ['client/src/pages/department-head/CollegePeoplePage.jsx']);
     await shot('dean', 'staff-picked', rec);
-    await page.getByRole('button', { name: 'Create invite link' }).click();
-    const linkInput = page.getByLabel('Invite link');
+    await dialog.getByRole('button', { name: 'Create invite link' }).click();
+    const linkInput = dialog.getByLabel('Invite link');
     await linkInput.waitFor({ state: 'visible', timeout: 20000 });
     link = await linkInput.inputValue();
     saveFact('links', 'staff_invite', link);
+    // The link is not emailed, so the unused link is listed under "Waiting for a reply" until the person accepts.
+    const pending = dialog.getByRole('region', { name: 'Waiting for a reply' });
+    const listedPending = await pending.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+    if (!listedPending) rec.defect('ux_gap', 'After the invite link is made, the drawer does not list it under "Waiting for a reply".', ['client/src/components/people/PendingStaffInvites.jsx']);
+    else if (!(await pending.innerText()).includes(fullName('staff'))) rec.defect('ux_gap', `"Waiting for a reply" does not name ${fullName('staff')}.`, ['client/src/components/people/PendingStaffInvites.jsx']);
+    else rec.evidence.push(`pending list shows: ${(await pending.innerText()).replace(/\s+/g, ' ').slice(0, 160)}`);
     await shot('dean', 'staff-link', rec);
-    await page.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   }
   if (new URL(link).origin !== BASE) rec.defect('app_bug', `The staff invite link points to ${new URL(link).origin.replace(/^https?:\/\//, '')}, not the served address.`, ['server/app/Http/Controllers/DepartmentHeadInvitationController.php']);
+  else rec.evidence.push('the staff invite link points at the served address');
   const sp = await person('staff');
   await sp.goto(`/accept-invitation${new URL(link).search}`);
   await waitSettled(sp);
-  await sp.getByRole('heading', { name: /invited to/i }).waitFor({ state: 'visible', timeout: 20000 });
-  rec.evidence.push(`staff page heading: ${await sp.getByRole('heading', { name: /invited to/i }).first().innerText()}`);
+  const heading = sp.getByRole('heading', { name: /invited to .* as office staff/i });
+  await heading.waitFor({ state: 'visible', timeout: 20000 });
+  rec.evidence.push(`staff page heading: ${await heading.first().innerText()}`);
+  const intro = await bodyText(sp);
+  if (!/Department Head.*invited you|Invited by the Department Head/i.test(intro)) rec.defect('ux_gap', 'The staff invitation page does not say the Department Head invited them.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  if (!new RegExp(`Your role: ${SPEC.staff.position}`, 'i').test(intro)) rec.defect('ux_gap', `The staff invitation page does not show "Your role: ${SPEC.staff.position}".`, ['client/src/pages/auth/AcceptInvitationPage.jsx']);
   await shot('staff', 'invitation', rec);
+  // A link made from an employee record shows the name and ID from the records, locked; the email is the staff member's own.
   const nameField = sp.getByLabel(/^Name$/);
   if (await nameField.count()) {
     const locked = await nameField.evaluate((node) => node.readOnly || node.disabled);
     if (!locked) rec.defect('app_bug', 'The staff name is editable on a school-record link.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
-  }
-  await sp.getByLabel('Email').fill(staff.email);
+  } else rec.defect('app_bug', 'The staff invitation made from an employee record does not show the locked Name from the records.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  const acceptId = sp.getByLabel('ID number');
+  if (await acceptId.count()) {
+    if (!(await acceptId.evaluate((node) => node.readOnly || node.disabled))) rec.defect('app_bug', 'The staff ID number is editable on the invitation page.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+    if ((await acceptId.inputValue()) !== String(SPEC.staff.schoolId)) rec.defect('app_bug', `The invitation page shows ID ${await acceptId.inputValue()}, expected ${SPEC.staff.schoolId}.`, ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  } else rec.defect('app_bug', 'The staff invitation page shows no ID number.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  const acceptEmail = sp.getByLabel('Email');
+  if (await acceptEmail.isEditable()) await acceptEmail.fill(staff.email);
+  else rec.evidence.push(`the invitation locked the email to ${await acceptEmail.inputValue()}`);
   await sp.getByLabel('Password', { exact: true }).fill(staff.password);
   await sp.getByLabel('Confirm password').fill(staff.password);
   await sp.getByRole('button', { name: 'Create account' }).click();
   await sp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await waitSettled(sp);
   patchAccount('staff', { created: true });
+  rec.evidence.push(`after Create account the staff member landed on ${routeOf(sp.url())}`);
   await shot('staff', 'first-dashboard', rec);
   await logOutThroughMenu(sp);
   const session = await signIn('staff', rec, { fresh: false });
@@ -593,6 +634,86 @@ await step('staff_add', 'Dean adds office staff from the school records (ID and 
   await shot('dean', 'staff-listed', rec);
   if (!staffListed) rec.defect('app_bug', 'After the staff member accepts, People > Office staff does not list them.', ['server/app/Http/Controllers/CollegePeopleController.php']);
   else rec.evidence.push('the dean lists the staff member under Office staff');
+});
+
+// Office staff take the dean's role on every request (User::getRoleAttribute) and meet the dean's pages, but the routes in
+// EnsureRole::DEAN_ONLY refuse them with 403 "Only the dean can do this." and the matching controls are not drawn for them.
+await step('office_staff_walk', 'Office staff act as the dean: dashboard, People, Organizations and Approvals read cleanly, the dean-only controls are hidden, a dean-only write is refused with 403, phone shot', async (rec) => {
+  if (!account('staff')?.created) throw new Error('the staff account does not exist yet; run staff_add first');
+  if (!people.has('staff')) { const s = await signIn('staff', rec); if (!s.ok) throw new Error(`staff sign-in ${s.status}`); }
+  const page = people.get('staff').page;
+  await page.goto('/dashboard');
+  await page.waitForURL(/\/dashboard\/(admin|department-head)/, { timeout: 20000 }).catch(() => {});
+  await waitSettled(page);
+  rec.evidence.push(`staff lands on ${routeOf(page.url())}`);
+  if (!/\/dashboard\/(admin|department-head)/.test(page.url())) rec.defect('app_bug', `Office staff landed on ${routeOf(page.url())}, not the college office home.`, ['client/src/App.jsx']);
+  else if (/\/dashboard\/admin/.test(page.url())) {
+    // An ADMIN profile on the college home organization shows the office staff home: the applications queue of the college.
+    const home = await waitForText(page, 'Applications for', 15000);
+    if (!home) rec.defect('app_bug', 'The office staff home does not show "Applications for <college>".', ['client/src/pages/roles/admin/OfficeStaffHomePage.jsx']);
+    else rec.evidence.push('the office staff home shows the college applications queue');
+  }
+  await shot('staff', 'dashboard', rec);
+
+  // The sidebar is the dean's review sections; every row must be there.
+  await openMenuIfDrawer(page);
+  const nav = page.getByRole('navigation');
+  const sections = [/^Organization applications$/, /^Approvals$/, /^Organizations$/, /^People$/, /^College files$/];
+  const missing = [];
+  for (const name of sections) if (!(await nav.getByRole('link', { name }).first().isVisible().catch(() => false))) missing.push(String(name).replace(/[/^$\\]/g, ''));
+  if (missing.length) rec.defect('ux_gap', `The office staff sidebar has no link for: ${missing.join(', ')}.`, ['client/src/components/layout/navigation.js']);
+  else rec.evidence.push('the sidebar shows Organization applications, Approvals, Organizations, People and College files');
+
+  // People, read paths. The dean's controls (Add staff, Remove, Allow a student to apply, Upload student records) must not be drawn.
+  await goSidebar(page, rec, /^People$/, '/dashboard/department-head/people');
+  await waitForText(page, 'Search students', 15000);
+  await shot('staff', 'people-students', rec);
+  const hiddenControls = async (where, names) => {
+    const shown = [];
+    for (const name of names) if (await page.getByRole('button', { name }).count()) shown.push(String(name).replace(/[/^$\\]/g, ''));
+    if (shown.length) rec.defect('ux_gap', `Office staff are shown dean-only controls on ${where}: ${shown.join(', ')}.`, ['client/src/pages/roles/department-head/CollegePeoplePage.jsx']);
+    return shown.length === 0;
+  };
+  const studentsClean = await hiddenControls('People > Students', [/^Allow a student to apply$/, /^Upload student records$/]);
+  await page.getByRole('tab', { name: /Office staff/ }).click();
+  await waitSettled(page);
+  const listed = await waitForText(page, fullName('staff'), 15000);
+  if (!listed) rec.defect('app_bug', 'Office staff do not see themselves under People > Office staff.', ['server/app/Http/Controllers/CollegePeopleController.php']);
+  await shot('staff', 'people-staff', rec);
+  const staffClean = await hiddenControls('People > Office staff', [/^Add staff$/, /^Remove /]);
+  await page.getByRole('tab', { name: /Leaders/ }).click();
+  await waitSettled(page);
+  await shot('staff', 'people-leaders', rec);
+  rec.evidence.push(`People opens on Students, Office staff and Leaders; dean-only controls hidden: ${studentsClean && staffClean ? 'yes' : 'NO'}`);
+
+  // Organizations and Approvals, read paths.
+  await goSidebar(page, rec, /^Organizations$/, '/dashboard/department-head/organizations');
+  await page.waitForTimeout(800);
+  await shot('staff', 'organizations', rec);
+  await goSidebar(page, rec, /^Approvals$/, '/dashboard/department-head/approvals');
+  await page.waitForTimeout(800);
+  await shot('staff', 'approvals', rec);
+  rec.evidence.push('People, Organizations and Approvals opened without console errors or refused reads');
+
+  // One dean-only write that is safe to attempt. POST api/college/staff/invitations is refused by the role gate before the
+  // controller runs, and this body has no email, so the invitation would fail validation even if the gate were open: nothing is created either way.
+  allowed = [/^http 403 POST \/api\/college\/staff\/invitations/, /^console Failed to load resource: the server responded with a status of 403/];
+  const refused = await api('staff', 'POST', '/college/staff/invitations', { first_name: 'Refused', last_name: 'Probe', position_title: 'Probe' });
+  await page.waitForTimeout(500);
+  allowed = [];
+  rec.evidence.push(`staff POST /college/staff/invitations answered ${refused.status}: ${JSON.stringify(refused.body).slice(0, 120)}`);
+  if (refused.status !== 403) rec.defect('app_bug', `Office staff were not refused a dean-only write: POST /college/staff/invitations answered ${refused.status}, expected 403.`, ['server/app/Http/Middleware/EnsureRole.php']);
+  else if (refused.body?.message !== 'Only the dean can do this.') rec.defect('app_bug', `The refusal says "${refused.body?.message}", expected "Only the dean can do this.".`, ['server/app/Http/Middleware/EnsureRole.php']);
+  if (people.has('dean')) {
+    const pendingNow = await api('dean', 'GET', '/college/staff/invitations');
+    const rows = Array.isArray(pendingNow.body?.data) ? pendingNow.body.data : [];
+    if (rows.some((row) => /Refused/.test(String(row.name)))) rec.defect('app_bug', 'The refused staff request still left an invitation behind.', ['server/app/Http/Middleware/EnsureRole.php']);
+    else rec.evidence.push('the refused request left no invitation for the dean');
+  }
+
+  // Phone shot of the staff dashboard.
+  await phoneTour(rec, 'staff', [['dashboard', '/dashboard/admin']]);
+  await closePerson('phone-staff');
 });
 
 // Student sign-up through /sign-up: school ID and birth date, "We found you", then email and password.
@@ -1411,6 +1532,12 @@ await step('console_and_layout', 'Zero console errors and unexpected failed API 
     ['application', `/dashboard/organization-applications?record=${app}`],
     ['approvals', '/dashboard/department-head/approvals'],
     ['org-space', `/dashboard/department-head/org/${orgId}`],
+  ]);
+  await phoneTour(rec, 'staff', [
+    ['dashboard', '/dashboard/admin'],
+    ['people', '/dashboard/department-head/people'],
+    ['organizations', '/dashboard/department-head/organizations'],
+    ['approvals', '/dashboard/department-head/approvals'],
   ]);
   await phoneTour(rec, 'a', [
     ['dashboard', '/dashboard/student'],
