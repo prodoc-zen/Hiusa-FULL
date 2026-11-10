@@ -28,6 +28,7 @@ class TaskAcademicPeriodTest extends TestCase
         Sanctum::actingAs($admin);
         $this->getJson('/api/tasks')->assertOk()->assertJsonPath('total', 1);
         Sanctum::actingAs($sao);
+        $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
         Sanctum::actingAs($admin);
         $this->assertSame($second->id, AcademicSemester::active()?->id);
