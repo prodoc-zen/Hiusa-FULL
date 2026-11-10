@@ -119,10 +119,10 @@ export default function StudentHomePage() {
   const upcomingEvents = Array.isArray(sidebar.upcoming_events) ? sidebar.upcoming_events : [];
 
   return (
-    <div className="w-full space-y-6 overflow-x-hidden">
+    <div className="w-full space-y-4 overflow-x-hidden sm:space-y-6">
       <ProcessTracker />
       <RoleBriefing onData={handleBriefing} />
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
+      <div className="grid items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           <h2 className="text-base font-semibold text-ink">Organization feed</h2>
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
