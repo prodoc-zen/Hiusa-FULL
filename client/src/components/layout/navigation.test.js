@@ -67,7 +67,6 @@ const SPEC = {
         ['Calendar', '/dashboard/events/activity-calendar'],
         ['Venue booking', '/dashboard/venues'],
         ['My tasks', '/dashboard/tasks/assigned-tasks'],
-        ['AI delegation', '/dashboard/tasks/ai-delegation'],
       ],
     },
     { band: 'Manage', label: 'Finance (view only)', children: FINANCE_MANAGER_LEAVES },
@@ -107,6 +106,7 @@ const SPEC = {
   ],
   SUPER_ADMIN: [
     { label: 'Dashboard', path: '/dashboard/super-admin' },
+    { label: 'University users', path: '/dashboard/super-admin/users' },
     { label: 'Ask AI', path: '/dashboard/ask-ai' },
     {
       label: 'Governance',
@@ -133,6 +133,11 @@ const SPEC = {
   ],
 };
 
+const opens = (role, path) => {
+  const route = dashboardRoutes().find((entry) => entry.path === path);
+  return Boolean(route) && !route.redirect && roleCanOpen(route, role);
+};
+
 function outline(role) {
   return getNavForRole(role).map((item) => {
     const row = item.band ? { band: item.band } : {};
@@ -150,10 +155,10 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
 
   it.each([
     ['ADMIN', 11, 37],
-    ['SBO_OFFICER', 11, 26],
+    ['SBO_OFFICER', 11, 25],
     ['DEPARTMENT_HEAD', 14, 17],
     ['STUDENT', 8, 12],
-    ['SUPER_ADMIN', 7, 18],
+    ['SUPER_ADMIN', 8, 19],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -167,10 +172,22 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     }
   });
 
-  it('shares a Profile footer without the removed Study objectives page', () => {
+  it('shares a footer with Study objectives and Profile', () => {
     expect(footerNav.map((item) => [item.label, item.path])).toEqual([
+      ['Study objectives', '/dashboard/objectives'],
       ['Profile', '/dashboard/profile'],
     ]);
+  });
+
+  it.each(ROLES)('lets %s search for Study objectives and open it', (role) => {
+    expect(getFlatPages(role).find((page) => page.path === '/dashboard/objectives')?.label).toBe('Study objectives');
+    expect(opens(role, '/dashboard/objectives')).toBe(true);
+  });
+
+  it('keeps AI delegation to the Organization Admin, who is the only role that can use it', () => {
+    expect(getFlatPages('SBO_OFFICER').some((page) => page.path === '/dashboard/tasks/ai-delegation')).toBe(false);
+    expect(opens('SBO_OFFICER', '/dashboard/tasks/ai-delegation')).toBe(false);
+    expect(opens('ADMIN', '/dashboard/tasks/ai-delegation')).toBe(true);
   });
 
   it('opens a group on its first page', () => {
@@ -241,7 +258,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/objectives' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {

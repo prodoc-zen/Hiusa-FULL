@@ -180,6 +180,7 @@ const PAGE_META = {
   '/dashboard/my-grievances': { title: 'My grievances', purpose: 'File a confidential concern and follow how it is handled.', group: 'Support' },
   '/dashboard/my-clearance': { title: 'My clearance', purpose: 'See which signatures you still need and why a clearance is on hold.', group: 'Support' },
 
+  '/dashboard/objectives': { title: 'Study objectives', purpose: 'See each objective the study set out to prove, next to the evidence the system produces.' },
   '/dashboard/profile': { title: 'Profile', purpose: 'Keep your personal details and account access current.' },
 };
 
