@@ -352,4 +352,67 @@ class ElectionHandoverTest extends TestCase
         $this->assertCount(1, $row['winner_ids']);
         $this->assertSame($winner->first_name, explode(' ', $row['candidates'][0]['name'])[0]);
     }
+
+    private function vote(Election $election, ElectionPosition $position, Candidate $candidate, string $hash): void
+    {
+        Vote::create(['election_id' => $election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => $this->admin->school_id, 'vote_hash' => $hash]);
+    }
+
+    public function test_an_incumbent_head_who_loses_their_seat_but_wins_another_keeps_access_as_the_new_title(): void
+    {
+        $incumbent = $this->member('ADMIN', 'President');
+        $election = $this->closedElection();
+        [$president] = $this->position($election, 'President', [5]);
+        $vice = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Vice President']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $vice->id, 'user_id' => $incumbent->school_id]);
+        $this->vote($election, $vice, $candidate, 'h-vp');
+
+        $this->release($election)->assertOk();
+
+        $profile = $this->profile($incumbent);
+        $this->assertSame('active', $profile->account_status);
+        $this->assertSame('SBO_OFFICER', $profile->role);
+        $this->assertSame('Vice President', $profile->position_title);
+        $this->assertSame('ADMIN', $this->profile($president)->role);
+        $deactivated = AuditLog::where('action', 'access_handed_over')->first()->new_values['deactivated'];
+        $this->assertNotContains($incumbent->school_id, $deactivated);
+    }
+
+    public function test_a_winner_deactivated_for_cause_is_not_reactivated_and_the_results_say_so(): void
+    {
+        $winner = $this->member('STUDENT');
+        AccountProfile::where('user_school_id', $winner->school_id)->update(['account_status' => 'inactive']);
+        $election = $this->closedElection();
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Secretary']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $winner->school_id]);
+        $this->vote($election, $position, $candidate, 'h-sec');
+
+        $this->release($election)->assertOk();
+
+        $profile = $this->profile($winner);
+        $this->assertSame('inactive', $profile->account_status);
+        $this->assertSame('STUDENT', $profile->role);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $winner->school_id, 'title' => 'You now have access to '.$this->organization->name]);
+        $audit = AuditLog::where('action', 'access_handed_over')->first()->new_values;
+        $this->assertSame([], $audit['granted']);
+        $this->assertSame($winner->school_id, $audit['skipped'][0]['school_id']);
+        $row = $this->getJson('/api/elections/'.$election->id.'/results')->assertOk()->json('0');
+        $this->assertSame([$candidate->id], $row['winner_ids']);
+        $this->assertFalse($row['access_handed_over']);
+    }
+
+    public function test_a_winner_whose_own_account_is_deactivated_is_not_given_access(): void
+    {
+        $winner = $this->member('STUDENT');
+        User::where('school_id', $winner->school_id)->update(['account_status' => 'inactive']);
+        $election = $this->closedElection();
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Secretary']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $winner->school_id]);
+        $this->vote($election, $position, $candidate, 'h-sec2');
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
+        $this->assertSame([], AuditLog::where('action', 'access_handed_over')->first()->new_values['granted']);
+    }
 }

@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Jobs\NotifyApproversJob;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Election;
@@ -284,5 +286,85 @@ class ElectionReturnedAndOpeningTest extends TestCase
         $late = $this->openable($organization);
         Sanctum::actingAs($student);
         $this->getJson('/api/elections/'.$late->id)->assertOk()->assertJsonPath('status', 'active');
+    }
+
+    public function test_moving_the_window_of_an_approved_election_sends_it_back_for_approval(): void
+    {
+        ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $election = $this->openable($organization, ['start_time' => now()->addDays(2), 'end_time' => now()->addDays(2)->addHours(8)]);
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/elections/'.$election->id, ['title' => 'Renamed election'])->assertOk()->assertJsonPath('status', 'upcoming');
+        $this->putJson('/api/elections/'.$election->id, [
+            'start_time' => now()->addDays(3)->toIso8601ZuluString(),
+            'end_time' => now()->addDays(24)->toIso8601ZuluString(),
+        ])->assertOk()->assertJsonPath('status', 'pending_approval');
+
+        $fresh = $election->fresh();
+        $this->assertNull($fresh->approved_at);
+        $this->assertNull($fresh->finalized_at);
+        $this->assertSame(1, ApprovalRequest::where('entity_type', 'election')->where('entity_id', $election->id)->where('status', 'pending')->count());
+    }
+
+    public function test_resending_the_same_window_does_not_cost_the_approval(): void
+    {
+        ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $election = $this->openable($organization, ['start_time' => now()->addDays(2), 'end_time' => now()->addDays(2)->addHours(8)]);
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/elections/'.$election->id, [
+            'title' => 'Renamed election',
+            'start_time' => $election->start_time->toIso8601ZuluString(),
+            'end_time' => $election->end_time->toIso8601ZuluString(),
+        ])->assertOk()->assertJsonPath('status', 'upcoming');
+
+        $this->assertNotNull($election->fresh()->approved_at);
+    }
+
+    public function test_the_window_of_an_election_cannot_be_moved_outside_its_semester(): void
+    {
+        ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'active']);
+        $election = Election::factory()->create([
+            'organization_id' => $organization->id,
+            'academic_semester_id' => $semester->id,
+            'status' => 'pending_approval',
+            'start_time' => '2027-02-01 09:00:00',
+            'end_time' => '2027-02-01 17:00:00',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/elections/'.$election->id, [
+            'start_time' => '2027-06-10T01:00:00.000Z',
+            'end_time' => '2027-06-10T09:00:00.000Z',
+        ])->assertUnprocessable()->assertJsonPath('errors.start_time.0', 'The voting period must fall within the semester you are working in (Jan 1, 2027 to May 31, 2027).');
+
+        $this->putJson('/api/elections/'.$election->id, [
+            'start_time' => '2027-03-10T01:00:00.000Z',
+            'end_time' => '2027-03-10T09:00:00.000Z',
+        ])->assertOk();
+    }
+
+    public function test_a_closed_election_whose_access_was_handed_over_cannot_be_reopened(): void
+    {
+        ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $election = $this->openable($organization, ['status' => 'closed', 'end_time' => now()->addHour(), 'access_handed_over_at' => now()]);
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/elections/'.$election->id, ['status' => 'active'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Access was already handed over to the winners, so this election cannot be reopened.');
+
+        $this->assertSame('closed', $election->fresh()->status);
+    }
+
+    public function test_a_closed_election_before_any_hand_over_can_still_be_reopened(): void
+    {
+        ['organization' => $organization, 'admin' => $admin] = $this->world();
+        $election = $this->openable($organization, ['status' => 'closed', 'end_time' => now()->addHour(), 'results_visible' => false]);
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/elections/'.$election->id, ['status' => 'active'])->assertOk()->assertJsonPath('status', 'active');
     }
 }

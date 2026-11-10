@@ -80,7 +80,7 @@ export default function ElectionResultsPage() {
   }), [results, isFinal, election?.voters_count]);
 
   if (!election) return <EmptyState title="Election not found" description="Go back and choose an election." />;
-  if (!resultsAvailable) return <EmptyState title="Election results are not available yet." description="Vote totals appear once the finalized ballot opens. Winners are declared after closing." />;
+  if (!resultsAvailable) return <EmptyState title="Election results are not available yet." description="Turnout appears once the finalized ballot opens. Results appear when the election closes." />;
   if (loading) return <div role="status" aria-label="Loading election results"><SkeletonTable columns={4} rows={5} /><span className="sr-only">Loading election results</span></div>;
   if (error) return <ErrorState title="Results did not load" description={error} onRetry={() => setRetryKey((key) => key + 1)} />;
 
@@ -91,13 +91,13 @@ export default function ElectionResultsPage() {
       {availableElections.length > 1 && (
         <Field label="Election" className="max-w-md">
           <HiusaSelect value={String(election.id)} onChange={(event) => chooseElection(event.target.value)}>
-            {availableElections.map((item) => <option key={item.id} value={String(item.id)}>{formatDisplayText(item.title)} ({item.status === 'closed' ? 'final results' : 'live totals'})</option>)}
+            {availableElections.map((item) => <option key={item.id} value={String(item.id)}>{formatDisplayText(item.title)} ({item.status === 'closed' ? 'final results' : 'voting open'})</option>)}
           </HiusaSelect>
         </Field>
       )}
 
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Live totals. They update while voting is open, and winners are declared after closing.'}</p>
+        <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Voting is open. Only turnout shows now. Results appear when the election closes.'}</p>
         <dl className="flex gap-8">
           <div><dt className="text-xs text-ink-muted">Ballots</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.voters}</dd></div>
           <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>
@@ -125,8 +125,10 @@ export default function ElectionResultsPage() {
         const columns = [
           { key: 'name', header: 'Candidate', render: (candidate) => <CandidateCell candidate={candidate} bold={isFinal && isWinnerOf(result, candidate)} /> },
           { key: 'partylist', header: 'Party list', render: (candidate) => candidate.partylist },
-          { key: 'votes', header: 'Votes', align: 'right', render: (candidate) => candidate.votes },
-          { key: 'share', header: 'Share', align: 'right', render: (candidate) => `${totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0}%` },
+          ...(isFinal ? [
+            { key: 'votes', header: 'Votes', align: 'right', render: (candidate) => candidate.votes },
+            { key: 'share', header: 'Share', align: 'right', render: (candidate) => `${totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0}%` },
+          ] : []),
         ];
         return (
           <section key={position.id} className="border-t border-line pt-4">
