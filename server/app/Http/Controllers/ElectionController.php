@@ -129,10 +129,10 @@ class ElectionController extends Controller
         $organizationIds = $user->electionOrganizationIds();
         $this->synchronizeScheduledStatuses($organizationIds, $id);
         $with = [
-            'positions.candidates.user',
+            'positions.candidates.user:school_id,first_name,last_name,program,year_level',
             'positions.candidates.partylist',
             'positions.candidates.position',
-            'candidates.user',
+            'candidates.user:school_id,first_name,last_name,program,year_level',
             'candidates.partylist',
             'candidates.position',
         ];
@@ -159,10 +159,12 @@ class ElectionController extends Controller
 
         [$data] = $this->withApprovalFields($request, [$election->toArray()]);
         $data['my_votes'] = $myVotes;
-        $data['vote_counts'] = Vote::where('election_id', $id)
-            ->selectRaw('candidate_id, COUNT(*) as vote_count')
-            ->groupBy('candidate_id')
-            ->pluck('vote_count', 'candidate_id');
+        if ($election->status === 'closed' && ($election->results_visible || $user->role === 'ADMIN')) {
+            $data['vote_counts'] = Vote::where('election_id', $id)
+                ->selectRaw('candidate_id, COUNT(*) as vote_count')
+                ->groupBy('candidate_id')
+                ->pluck('vote_count', 'candidate_id');
+        }
         $data['voters_count'] = Vote::where('election_id', $id)
             ->distinct('voter_id')
             ->count('voter_id');
@@ -750,7 +752,7 @@ class ElectionController extends Controller
         }
 
         return response()->json(
-            Candidate::with(['user', 'partylist', 'position'])
+            Candidate::with(['user:school_id,first_name,last_name,program,year_level', 'partylist', 'position'])
                 ->where('election_id', $election->id)
                 ->orderBy('id')
                 ->get()
@@ -841,7 +843,7 @@ class ElectionController extends Controller
             return $candidate === self::ELECTION_GONE ? response()->json(['message' => 'Election not found'], 404) : $candidate;
         }
 
-        $candidate->load(['user', 'partylist', 'position']);
+        $candidate->load(['user:school_id,first_name,last_name,program,year_level', 'partylist', 'position']);
         $this->recordElectionAudit(
             $request,
             'candidate_added',
@@ -932,7 +934,7 @@ class ElectionController extends Controller
             Storage::delete('public/'.ltrim(str_replace('/storage/', '', $oldImageUrl), '/'));
         }
 
-        $freshCandidate = $candidate->fresh()->load(['user', 'partylist', 'position']);
+        $freshCandidate = $candidate->fresh()->load(['user:school_id,first_name,last_name,program,year_level', 'partylist', 'position']);
         $this->recordElectionAudit(
             $request,
             'candidate_updated',
@@ -1292,7 +1294,9 @@ class ElectionController extends Controller
         $standings = app(ElectionHandoverService::class)->standings($election)->keyBy(fn (array $row) => $row['position']->id);
         $handedOver = $election->access_handed_over_at !== null;
 
-        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver) {
+        $closed = $election->status === 'closed';
+
+        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver, $closed) {
             $candidates = $allCandidates->get($position->id, collect())
                 ->map(fn ($c) => [
                     'id' => $c->id,
@@ -1300,9 +1304,9 @@ class ElectionController extends Controller
                     'partylist' => $c->partylist ? $c->partylist->name : 'Independent',
                     'image_url' => $c->image_url,
                     'platform' => $c->platform,
-                    'votes' => $c->votes_count,
+                    'votes' => $closed ? $c->votes_count : null,
                 ])
-                ->sortByDesc('votes')
+                ->when($closed, fn ($rows) => $rows->sortByDesc('votes'))
                 ->values();
 
             $standing = $standings->get($position->id);
@@ -1310,9 +1314,9 @@ class ElectionController extends Controller
             return [
                 'position' => $position,
                 'candidates' => $candidates,
-                'totalVotes' => $candidates->sum('votes'),
-                'winner_ids' => $standing ? $standing['winners']->pluck('id')->values() : [],
-                'tie' => (bool) ($standing['tie'] ?? false),
+                'totalVotes' => $allCandidates->get($position->id, collect())->sum('votes_count'),
+                'winner_ids' => $closed && $standing ? $standing['winners']->pluck('id')->values() : [],
+                'tie' => $closed && (bool) ($standing['tie'] ?? false),
                 'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty(),
             ];
         })->values();
