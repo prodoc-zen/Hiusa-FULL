@@ -9,13 +9,16 @@ const ORG_ROLES = ['ADMIN', 'SBO_OFFICER'];
 
 // Every mounted copy of the hook (the top bar and the banner) reloads on a tab return. They share the one
 // request that is in flight, and each copy still applies the answer to its own state.
+// A request is only shared with someone holding the same sign-in, so a slow answer never reaches the next person.
 let pending = null;
 
 function sharedAccountProfiles() {
-  if (pending) return pending;
+  const token = localStorage.getItem('auth_token');
+  if (pending && pending.token === token) return pending.request;
   const request = Promise.resolve(getAccountProfiles());
-  pending = request;
-  const clear = () => { if (pending === request) pending = null; };
+  const entry = { token, request };
+  pending = entry;
+  const clear = () => { if (pending === entry) pending = null; };
   request.then(clear, clear);
   return request;
 }
