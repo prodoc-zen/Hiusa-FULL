@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
 use App\Models\AuditLog;
+use App\Models\Organization;
 use App\Models\SboPosition;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\Edp\StudentSignup;
@@ -167,6 +169,7 @@ class UserController extends Controller
         }
 
         $this->assertStudentHasProgram($validatedData, AcademicProgram::where('organization_id', $organizationId)->exists());
+        $this->assertStudentIsInRegistry($validatedData, $this->registryCollegeId($organizationId));
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
         $validatedData = $this->normalizePositionPayload($validatedData, $actor);
@@ -225,6 +228,7 @@ class UserController extends Controller
 
         $rules = $this->memberRules(self::IMPORTABLE_ROLES);
         $programsConfigured = AcademicProgram::where('organization_id', $organizationId)->exists();
+        $registryCollegeId = $this->registryCollegeId($organizationId);
         $seenIds = [];
         $seenEmails = [];
         $results = [];
@@ -250,6 +254,7 @@ class UserController extends Controller
                 try {
                     $validated = $validator->validated();
                     $this->assertStudentHasProgram($validated, $programsConfigured);
+                    $this->assertStudentIsInRegistry($validated, $registryCollegeId);
                     $data = $this->normalizePositionPayload($this->normalizeAcademicPayload($validated, $actor), $actor);
                 } catch (ValidationException $exception) {
                     $errors = collect($exception->errors())->flatten()->all();
@@ -366,6 +371,27 @@ class UserController extends Controller
         if (empty($data['program'])) {
             throw ValidationException::withMessages([
                 'program' => ['Choose a course/program for this student.'],
+            ]);
+        }
+    }
+
+    /** The college whose student registry has been loaded for this organization, or null when it has none and nothing can be checked. */
+    private function registryCollegeId(int $organizationId): ?int
+    {
+        $collegeId = Organization::whereKey($organizationId)->value('college_id');
+
+        return $collegeId && StudentRegistryEntry::students()->where('college_id', $collegeId)->exists() ? (int) $collegeId : null;
+    }
+
+    private function assertStudentIsInRegistry(array $data, ?int $registryCollegeId): void
+    {
+        if ($registryCollegeId === null || ! in_array($data['role'], ['STUDENT', 'SBO_OFFICER'], true)) {
+            return;
+        }
+
+        if (! StudentRegistryEntry::students()->where('college_id', $registryCollegeId)->where('school_id', $data['school_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'school_id' => ['This school ID is not in the student registry of your college. Ask the SAO to add the student there first.'],
             ]);
         }
     }

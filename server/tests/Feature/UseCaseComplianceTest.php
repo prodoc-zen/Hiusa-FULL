@@ -679,8 +679,10 @@ class UseCaseComplianceTest extends TestCase
             'user_id' => $candidateUser->school_id,
         ]);
 
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT'] as $role) {
-            $voter = $this->user($role, $organization->id);
+        $voters = collect(['ADMIN', 'SBO_OFFICER', 'STUDENT'])->map(fn ($role) => $this->user($role, $organization->id));
+        $election->update(['finalized_at' => now()]);
+
+        foreach ($voters as $voter) {
             $this->authenticate($voter);
             $this->postJson("/api/elections/{$election->id}/vote", [
                 'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],

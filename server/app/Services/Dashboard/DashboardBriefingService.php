@@ -868,7 +868,7 @@ class DashboardBriefingService
     private function electionsPillar(array $organizationIds): array
     {
         $election = DB::table('elections')->whereIn('organization_id', $organizationIds)
-            ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time', 'organization_id']);
+            ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time', 'organization_id', 'finalized_at']);
 
         if (! $election) {
             $upcoming = DB::table('elections')->whereIn('organization_id', $organizationIds)->where('status', 'upcoming')->count();
@@ -881,7 +881,7 @@ class DashboardBriefingService
             ];
         }
 
-        $eligibleTotal = AccountProfile::votingMembers()->where('account_profiles.organization_id', $election->organization_id)->count();
+        $eligibleTotal = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $election->organization_id)->count();
         $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
         $turnout = $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0;
 
