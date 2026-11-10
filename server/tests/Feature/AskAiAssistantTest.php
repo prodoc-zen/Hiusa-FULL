@@ -2,17 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Models\Announcement;
+use App\Models\Budget;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
 use App\Models\ComplianceRequirementType;
+use App\Models\Event;
 use App\Models\Merchandise;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Ai\HowToGuideLibrary;
 use App\Services\Dashboard\ClientRouteAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -359,6 +364,107 @@ class AskAiAssistantTest extends TestCase
 
         $planRes->assertJsonPath('intent', 'how_to_guide');
         $this->assertStringContainsStringIgnoringCase('advance planning', $planRes->json('title'));
+    }
+
+    public function test_a_student_is_not_shown_budgets_unapproved_events_or_announcements_for_other_roles(): void
+    {
+        $org = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $student = User::factory()->student()->create(['organization_id' => $org->id]);
+
+        Budget::create(['organization_id' => $org->id, 'title' => 'Zorbfest', 'allocated_amount' => 5000, 'remaining_amount' => 5000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        Event::factory()->create(['organization_id' => $org->id, 'created_by' => $admin->school_id, 'title' => 'Quillgate Summit', 'status' => 'planning']);
+        Event::factory()->create(['organization_id' => $org->id, 'created_by' => $admin->school_id, 'title' => 'Marmalade Fair', 'status' => 'approved']);
+        Announcement::factory()->create(['organization_id' => $org->id, 'created_by' => $admin->school_id, 'title' => 'Zephyr Memo', 'target_role' => 'SBO_OFFICER', 'is_published' => true, 'approval_status' => 'approved', 'published_at' => now()]);
+        Announcement::factory()->create(['organization_id' => $org->id, 'created_by' => $admin->school_id, 'title' => 'Zephyr Notice', 'target_role' => 'all', 'is_published' => true, 'approval_status' => 'approved', 'published_at' => now()]);
+
+        Sanctum::actingAs($student);
+
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'Zorbfest Quillgate Marmalade Zephyr',
+            'topic' => 'semantic_rag',
+        ])->assertOk();
+
+        $payload = json_encode(collect($res->json('sections'))->pluck('rows')->flatten(1)->pluck('primary'));
+        $this->assertStringContainsString('Marmalade Fair', $payload);
+        $this->assertStringContainsString('Zephyr Notice', $payload);
+        $this->assertStringNotContainsString('Zorbfest', $payload);
+        $this->assertStringNotContainsString('Quillgate Summit', $payload);
+        $this->assertStringNotContainsString('Zephyr Memo', $payload);
+    }
+
+    public function test_an_officer_limited_to_tasks_is_refused_finance_and_cannot_find_budgets_by_search(): void
+    {
+        $org = Organization::factory()->create();
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $officer->accountProfiles()->update(['modules' => ['tasks']]);
+        Budget::create(['organization_id' => $org->id, 'title' => 'Zorbfest', 'allocated_amount' => 5000, 'remaining_amount' => 4000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+
+        Sanctum::actingAs($officer);
+
+        $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'How is our budget?'])->assertOk();
+        $res->assertJsonPath('intent', 'finance_health');
+        $res->assertJsonPath('sections', []);
+        $this->assertStringNotContainsString('4,000', json_encode($res->json()));
+        $this->assertStringContainsString('does not have access', $res->json('answer'));
+
+        $search = $this->postJson('/api/ai/assistant/ask', ['question' => 'Zorbfest', 'topic' => 'semantic_rag'])->assertOk();
+        $this->assertStringNotContainsString('Zorbfest', json_encode(collect($search->json('sections'))->pluck('rows')->flatten(1)->pluck('primary')));
+
+        $topics = collect($this->getJson('/api/ai/assistant')->assertOk()->json('suggested_questions'))->pluck('topic');
+        $this->assertNotContains('finance_health', $topics->all());
+    }
+
+    public function test_an_officer_with_the_finance_area_or_no_limit_still_gets_the_budget_answer(): void
+    {
+        $org = Organization::factory()->create();
+        $limited = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $limited->accountProfiles()->update(['modules' => ['finance']]);
+        $unlimited = User::factory()->officer()->create(['organization_id' => $org->id]);
+        Budget::create(['organization_id' => $org->id, 'title' => 'Zorbfest', 'allocated_amount' => 5000, 'remaining_amount' => 4000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+
+        foreach ([$limited, $unlimited] as $officer) {
+            Sanctum::actingAs($officer);
+            $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'How is our budget?'])->assertOk();
+            $this->assertStringContainsString('Zorbfest', json_encode($res->json()));
+        }
+    }
+
+    public function test_the_sao_grievance_answer_counts_capitalized_high_and_critical_urgency(): void
+    {
+        $saoOrg = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $sao = User::factory()->superAdmin()->create(['organization_id' => $saoOrg->id]);
+        $student = User::factory()->student()->create();
+        DB::table('grievances')->insert(['organization_id' => $saoOrg->id, 'submitted_by' => $student->school_id, 'title' => 'Chained exit', 'description' => 'The gym exit is chained.', 'urgency' => 'Critical', 'status' => 'submitted', 'created_at' => now(), 'updated_at' => now()]);
+
+        Sanctum::actingAs($sao);
+
+        $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Any grievances?'])->assertOk();
+        $res->assertJsonPath('intent', 'grievances_status');
+        $this->assertStringContainsString('including 1 high or critical', $res->json('answer'));
+        $this->assertSame('1', collect($res->json('highlights'))->firstWhere('label', 'High / critical urgency')['value']);
+        $this->assertSame('danger', $res->json('sections.0.rows.0.status_tone'));
+
+        $daily = $this->postJson('/api/ai/assistant/ask', ['question' => 'What should I do today?', 'topic' => 'daily_priorities'])->assertOk();
+        $this->assertContains('prio-grievances', collect($daily->json('sections.0.rows'))->pluck('id')->all());
+    }
+
+    public function test_the_budget_search_rows_sum_expenses_for_spent_and_leave_out_unapproved_budgets(): void
+    {
+        $org = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $approved = Budget::create(['organization_id' => $org->id, 'title' => 'Zorbfest', 'allocated_amount' => 10000, 'remaining_amount' => 9000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        Budget::create(['organization_id' => $org->id, 'title' => 'Quillgate', 'allocated_amount' => 8000, 'remaining_amount' => 8000, 'warning_threshold' => 100, 'submission_status' => 'pending_department_head']);
+        Transaction::create(['organization_id' => $org->id, 'budget_id' => $approved->id, 'recorded_by' => $admin->school_id, 'type' => 'expense', 'category' => 'venue', 'amount' => 4000, 'description' => 'Hall', 'transaction_date' => now()]);
+        Transaction::create(['organization_id' => $org->id, 'budget_id' => $approved->id, 'recorded_by' => $admin->school_id, 'type' => 'income', 'category' => 'sponsorship', 'amount' => 3000, 'description' => 'Sponsor', 'transaction_date' => now()]);
+
+        Sanctum::actingAs($admin);
+
+        $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Zorbfest Quillgate', 'topic' => 'semantic_rag'])->assertOk();
+
+        $payload = json_encode(collect($res->json('sections'))->pluck('rows')->flatten(1)->map(fn (array $row) => $row['primary'].' '.$row['secondary']), JSON_UNESCAPED_UNICODE);
+        $this->assertStringContainsString('Spent: ₱4,000.00', $payload);
+        $this->assertStringNotContainsString('Quillgate', $payload);
     }
 
     public function test_all_how_to_guide_paths_conform_to_client_route_allowlist(): void

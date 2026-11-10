@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
+use App\Models\Budget;
 use App\Models\ComplianceRequirementType;
 use App\Models\Event;
 use App\Models\EventRequirement;
@@ -25,6 +26,15 @@ use Illuminate\Support\Str;
 class AskAiService
 {
     private const ROW_LIMIT = 12;
+
+    private const INTENT_MODULES = [
+        'missing_submissions' => 'compliance',
+        'submitted_documents' => 'compliance',
+        'clearances_status' => 'compliance',
+        'finance_health' => 'finance',
+        'merchandise_orders' => 'merchandise',
+        'events_attendance' => 'events',
+    ];
 
     public function __construct(
         private readonly AccreditationStatusService $accreditation,
@@ -53,7 +63,10 @@ class AskAiService
                 'priorities' => $this->extractPriorityCards($daily['sections']),
                 'sections' => $daily['sections'],
             ],
-            'suggested_questions' => $this->suggestedQuestions($user->role),
+            'suggested_questions' => array_values(array_filter(
+                $this->suggestedQuestions($user->role),
+                fn (array $question) => $this->intentAllowed($user, $question['topic'])
+            )),
             'recent_queries' => $this->recentQueries($user),
         ];
     }
@@ -285,6 +298,17 @@ class AskAiService
             return $this->answerHowTo($user, $question);
         }
 
+        if (! $this->intentAllowed($user, $intent)) {
+            return $this->enrichWithFormattedBlocksAndCharts([
+                'title' => 'Not available for your access',
+                'answer' => 'Your account does not have access to this part of the organization, so Ask AI cannot answer that. Ask your organization head to add it to your access.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [],
+                'model_name' => null,
+            ], $intent);
+        }
+
         $organizationIds = $this->scopedStudentOrganizationIds($user);
         $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent);
 
@@ -351,6 +375,22 @@ class AskAiService
             .'|process\s+(of|for|to)\b|procedure\s+(for|to)\b|tutorial|instructions?\s+(for|to|on)\b)/',
             $q
         ) === 1;
+    }
+
+    private function moduleAllowed(User $user, string $module): bool
+    {
+        if ($user->role !== 'SBO_OFFICER') {
+            return true;
+        }
+
+        return $user->activeProfile()?->allowsModule($module) ?? true;
+    }
+
+    private function intentAllowed(User $user, string $intent): bool
+    {
+        $module = self::INTENT_MODULES[$intent] ?? null;
+
+        return $module === null || $this->moduleAllowed($user, $module);
     }
 
     private function answerHowTo(User $user, string $question): array
@@ -632,7 +672,7 @@ class AskAiService
             $pendingVenues = DB::table('venue_bookings')->where('status', 'pending')->count();
             $urgentGrievances = DB::table('grievances')
                 ->whereNotIn('status', ['resolved', 'dismissed'])
-                ->whereIn('urgency', ['high', 'critical'])
+                ->whereRaw('LOWER(urgency) in (?, ?)', ['high', 'critical'])
                 ->count();
             $pendingClearances = DB::table('clearance_signatures')
                 ->whereNull('retired_at')
@@ -998,19 +1038,25 @@ class AskAiService
             ? ApprovalRequest::where('required_role', 'ADMIN')->where('organization_id', $orgId)->where('status', 'pending')->count()
             : 0;
 
-        $ordersToVerify = DB::table('orders')
-            ->where('organization_id', $orgId)
-            ->where('status', 'pending')
-            ->where('officer_review_status', 'pending')
-            ->whereNotNull('payment_proof_url')
-            ->count();
+        $ordersToVerify = $this->moduleAllowed($user, 'merchandise')
+            ? DB::table('orders')
+                ->where('organization_id', $orgId)
+                ->where('status', 'pending')
+                ->where('officer_review_status', 'pending')
+                ->whereNotNull('payment_proof_url')
+                ->count()
+            : 0;
 
-        $missingComplianceCount = count($this->missingComplianceRequirementsForOrganization($orgId));
-        $staleEvents = DB::table('events')
-            ->where('organization_id', $orgId)
-            ->whereIn('status', ['approved', 'ongoing'])
-            ->where('end_time', '<', now())
-            ->count();
+        $missingComplianceCount = $this->moduleAllowed($user, 'compliance')
+            ? count($this->missingComplianceRequirementsForOrganization($orgId))
+            : 0;
+        $staleEvents = $this->moduleAllowed($user, 'events')
+            ? DB::table('events')
+                ->where('organization_id', $orgId)
+                ->whereIn('status', ['approved', 'ongoing'])
+                ->where('end_time', '<', now())
+                ->count()
+            : 0;
 
         $rows = [];
         if ($overdueTasks > 0) {
@@ -2225,12 +2271,12 @@ class AskAiService
 
         $openGrievances = DB::table('grievances')
             ->whereNotIn('status', ['resolved', 'dismissed'])
-            ->orderByRaw("CASE WHEN urgency = 'critical' THEN 0 WHEN urgency = 'high' THEN 1 WHEN urgency = 'medium' THEN 2 ELSE 3 END")
+            ->orderByRaw("CASE WHEN LOWER(urgency) = 'critical' THEN 0 WHEN LOWER(urgency) = 'high' THEN 1 WHEN LOWER(urgency) = 'medium' THEN 2 ELSE 3 END")
             ->orderByDesc('created_at')
             ->limit(self::ROW_LIMIT)
             ->get(['id', 'title', 'category', 'urgency', 'status', 'created_at']);
 
-        $urgentCount = $openGrievances->whereIn('urgency', ['high', 'critical'])->count();
+        $urgentCount = $openGrievances->filter(fn ($g) => in_array(Str::lower((string) $g->urgency), ['high', 'critical'], true))->count();
         $href = $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/grievances');
 
         return [
@@ -2251,7 +2297,7 @@ class AskAiService
                         'primary' => $g->title ?: ('Grievance #'.$g->id),
                         'secondary' => 'Category: '.Str::headline($g->category ?: 'General'),
                         'status' => Str::headline($g->urgency ?: 'normal').' urgency',
-                        'status_tone' => in_array($g->urgency, ['high', 'critical'], true) ? 'danger' : 'warning',
+                        'status_tone' => in_array(Str::lower((string) $g->urgency), ['high', 'critical'], true) ? 'danger' : 'warning',
                         'meta' => Str::headline($g->status),
                         'href' => $href,
                         'action_label' => 'Review case',
@@ -2903,25 +2949,30 @@ class AskAiService
         }
 
         // 3. Budgets & Financial Health
-        $budgets = DB::table('budgets')
-            ->join('organizations', 'organizations.id', '=', 'budgets.organization_id')
-            ->whereIn('budgets.organization_id', $orgIds)
-            ->orderByDesc('budgets.updated_at')
-            ->limit(25)
-            ->get([
-                'budgets.id',
-                'budgets.title',
-                'budgets.allocated_amount',
-                'budgets.remaining_amount',
-                'budgets.submission_status',
-                'organizations.name as org_name',
-                'organizations.acronym as org_acronym',
-            ]);
+        $showFinance = $role !== 'STUDENT' && $this->moduleAllowed($user, 'finance');
+        $budgets = $showFinance
+            ? DB::table('budgets')
+                ->join('organizations', 'organizations.id', '=', 'budgets.organization_id')
+                ->whereIn('budgets.organization_id', $orgIds)
+                ->where('budgets.submission_status', 'approved')
+                ->orderByDesc('budgets.updated_at')
+                ->limit(25)
+                ->get([
+                    'budgets.id',
+                    'budgets.title',
+                    'budgets.allocated_amount',
+                    'budgets.remaining_amount',
+                    'budgets.submission_status',
+                    'organizations.name as org_name',
+                    'organizations.acronym as org_acronym',
+                ])
+            : collect();
+        $spentByBudget = Budget::spentAmounts($budgets->pluck('id'));
 
         foreach ($budgets as $b) {
             $allocated = (float) $b->allocated_amount;
             $remaining = (float) $b->remaining_amount;
-            $spent = max(0.0, $allocated - $remaining);
+            $spent = (float) $spentByBudget[$b->id];
             $usedPct = $allocated > 0 ? max(0, min(100, (int) round(($spent / $allocated) * 100))) : 0;
             $orgLabel = $b->org_acronym ?: $b->org_name;
             $budgetTitle = $b->title ?: 'Operational';
@@ -2955,7 +3006,7 @@ class AskAiService
         }
 
         // 4. Ledger Transactions (Income & Expenses)
-        if ($role !== 'STUDENT') {
+        if ($showFinance) {
             $transactions = DB::table('transactions')
                 ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
                 ->whereIn('transactions.organization_id', $orgIds)
@@ -3065,6 +3116,10 @@ class AskAiService
         $events = DB::table('events')
             ->join('organizations', 'organizations.id', '=', 'events.organization_id')
             ->whereIn('events.organization_id', $orgIds)
+            ->when(
+                in_array($role, ['STUDENT', 'SBO_OFFICER'], true),
+                fn ($q) => $q->whereIn('events.status', ['approved', 'ongoing', 'completed'])
+            )
             ->orderByDesc('events.start_time')
             ->limit(25)
             ->get([
@@ -3254,6 +3309,10 @@ class AskAiService
                     ->orWhere('announcements.target_scope', 'university');
             })
             ->where('announcements.is_published', true)
+            ->when(
+                $role === 'STUDENT',
+                fn ($q) => $q->whereIn('announcements.target_role', ['all', $role])
+            )
             ->orderByDesc('announcements.is_pinned')
             ->orderByDesc('announcements.created_at')
             ->limit(20)
