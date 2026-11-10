@@ -28,6 +28,8 @@ use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationApplication;
+use App\Models\OrganizationApplicationDocument;
+use App\Models\OrganizationApplicationReviewFile;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Partylist;
 use App\Models\Transaction;
@@ -49,13 +51,8 @@ class OfficeStaffParityTest extends TestCase
 {
     use CreatesCollegeFixtures, RefreshDatabase;
 
-    /** Routes the walk cannot fill from the fixture: they need an uploaded review document, so they are listed, not hidden. */
-    private const UNFILLED = [
-        'api/my/organization-applications/{application}/documents/{document}',
-        'api/my/organization-applications/{application}/review-files/{file}',
-        'api/organization-applications/{application}/documents/{document}',
-        'api/organization-applications/{application}/review-files/{file}',
-    ];
+    /** Routes the walk cannot fill from the fixture. Empty on purpose: a route that cannot be filled is listed here, not hidden. */
+    private const UNFILLED = [];
 
     /**
      * Listings the fixture must keep filled for the dean. A listing that answers the dean 0 rows passes the row-count
@@ -265,7 +262,24 @@ class OfficeStaffParityTest extends TestCase
             'first_name' => $student->first_name, 'last_name' => $student->last_name, 'email' => $student->email,
             'position_title' => 'President', 'status' => 'pending_dean',
         ]);
-        $this->ids['applications'] = [$application($computingId, 'Computing Council', $students->first())->id, $application($artsId, 'Arts Council', $students->last())->id];
+        $computingApplication = $application($computingId, 'Computing Council', $students->first());
+        $this->ids['applications'] = [$computingApplication->id, $application($artsId, 'Arts Council', $students->last())->id];
+
+        // A submitted requirement document and a reviewer's attached file on the private disk, for the four routes that open them.
+        $documentPath = "organization-applications/{$computingApplication->id}/constitution.pdf";
+        Storage::disk('local')->put($documentPath, '%PDF-1.4 submitted');
+        $document = OrganizationApplicationDocument::create([
+            'organization_application_id' => $computingApplication->id, 'requirement_type_id' => $type->id,
+            'file_path' => $documentPath, 'file_original_name' => 'constitution.pdf', 'mime_type' => 'application/pdf', 'file_size' => 18,
+        ]);
+        $reviewPath = "organization-application-reviews/{$computingApplication->id}/marked-up.pdf";
+        Storage::disk('local')->put($reviewPath, '%PDF-1.4 marked up');
+        $reviewFile = OrganizationApplicationReviewFile::create([
+            'organization_application_id' => $computingApplication->id, 'requirement_type_id' => $type->id, 'round' => 1, 'stage' => 'dean',
+            'uploaded_by' => $this->dean->school_id, 'file_path' => $reviewPath, 'file_original_name' => 'marked-up.pdf', 'mime_type' => 'application/pdf', 'file_size' => 18,
+        ]);
+        $this->ids['applicationDocuments'] = [$document->id];
+        $this->ids['applicationReviewFiles'] = [$reviewFile->id];
 
         $this->ids['organizations'] = [$this->psits->id, $this->compsoc->id, $this->artsClub->id];
         $this->ids['adviser'] = $adviser;
@@ -342,7 +356,11 @@ class OfficeStaffParityTest extends TestCase
             'api/event-requirements/{requirement}' => $this->ids['requirements'],
             'api/elections/{id}' => $this->ids['elections'],
             'api/organization-applications/{application}' => $this->ids['applications'],
+            'api/organization-applications/{application}/documents/{document}' => $this->ids['applicationDocuments'],
+            'api/organization-applications/{application}/review-files/{file}' => $this->ids['applicationReviewFiles'],
             'api/my/organization-applications/{application}' => $this->ids['applications'],
+            'api/my/organization-applications/{application}/documents/{document}' => $this->ids['applicationDocuments'],
+            'api/my/organization-applications/{application}/review-files/{file}' => $this->ids['applicationReviewFiles'],
             'api/my/organization-applications/requirements/{requirementType}' => $this->ids['types'],
             'api/college/organizations/{organization}' => $this->ids['organizations'],
             'api/approval-requests/{approvalRequest}' => $this->ids['approvals'],
