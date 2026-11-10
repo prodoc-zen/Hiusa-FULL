@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\ComplianceRequirementType;
+use App\Models\Election;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\Organization;
@@ -34,6 +35,10 @@ class AcademicSemesterTest extends TestCase
         $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertForbidden();
         Sanctum::actingAs($director);
         $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertUnprocessable();
+        $this->travelTo('2026-11-11');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertUnprocessable()->assertJsonValidationErrors('semester');
+        $this->assertSame('active', $first->fresh()->status);
+        $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
         $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertUnprocessable();
         $this->patchJson("/api/system/academic-semesters/{$second->id}/close")->assertOk();
@@ -53,6 +58,7 @@ class AcademicSemesterTest extends TestCase
         $newYear = AcademicYear::create(['label' => '2027-2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-05-31', 'is_current' => false]);
         $newFirst = AcademicSemester::create(['academic_year_id' => $newYear->id, 'number' => 1, 'starts_on' => '2027-08-01', 'ends_on' => '2027-12-31', 'status' => 'upcoming']);
         Sanctum::actingAs($director);
+        $this->travelTo('2027-08-02');
 
         $this->patchJson("/api/system/academic-semesters/{$newFirst->id}/active")->assertOk();
         $this->assertSame('completed', $oldSecond->fresh()->status);
@@ -83,6 +89,7 @@ class AcademicSemesterTest extends TestCase
         $this->getJson('/api/academic-periods/active')->assertOk()->assertJsonPath('id', $first)->assertJsonPath('academic_year.label', '2026-2027');
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertForbidden();
         Sanctum::actingAs($director);
+        $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertOk();
         $this->assertSame('completed', AcademicSemester::find($first)->status);
         $this->assertSame(1, AcademicSemester::where('status', 'active')->count());
@@ -105,6 +112,7 @@ class AcademicSemesterTest extends TestCase
         $this->postJson('/api/events', ['title' => 'Wrong term', 'start_time' => '2027-02-15 09:00:00', 'end_time' => '2027-02-15 12:00:00'])->assertUnprocessable();
 
         Sanctum::actingAs($director);
+        $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
         Sanctum::actingAs($admin);
         $this->putJson("/api/events/{$event}", ['title' => 'Edited'])->assertStatus(409);
@@ -135,6 +143,7 @@ class AcademicSemesterTest extends TestCase
         Sanctum::actingAs($admin);
         $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 30);
         Sanctum::actingAs($director);
+        $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertOk();
         $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['is_active' => false])->assertStatus(409);
         Sanctum::actingAs($admin);
@@ -143,6 +152,34 @@ class AcademicSemesterTest extends TestCase
             'requirement_type_id' => $requirement->id,
             'document' => UploadedFile::fake()->create('members.pdf', 20, 'application/pdf'),
         ])->assertStatus(409);
+    }
+
+    public function test_rollover_is_refused_while_the_closing_semester_has_an_upcoming_approved_or_active_election(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $org = Organization::factory()->create();
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $election = Election::factory()->create([
+            'organization_id' => $org->id, 'academic_semester_id' => $first->id, 'title' => 'Council Election 2026',
+            'status' => 'active', 'approved_at' => '2026-10-01 08:00:00', 'start_time' => '2026-12-30 08:00:00', 'end_time' => '2027-01-05 17:00:00',
+        ]);
+        $this->travelTo('2027-01-02');
+        Sanctum::actingAs($director);
+
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")
+            ->assertUnprocessable()->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'Council Election 2026'));
+        $this->assertSame('active', $first->fresh()->status);
+
+        $election->update(['status' => 'upcoming']);
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertUnprocessable();
+
+        $election->update(['status' => 'closed']);
+        Election::factory()->create(['organization_id' => $org->id, 'academic_semester_id' => $first->id, 'status' => 'upcoming', 'approved_at' => null]);
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->assertSame('completed', $first->fresh()->status);
     }
 
     public function test_event_pdf_checklists_follow_the_selected_venue_type(): void

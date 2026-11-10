@@ -90,6 +90,7 @@ class SystemUsersController extends Controller
                     abort_unless(User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists(), 409, 'The last active SAO account cannot be deleted.');
                 }
                 $counts = $this->linkedRecordCounts($locked->school_id);
+                abort_if($counts['votes'] > 0 || $counts['candidates'] > 0, 409, 'This user has cast votes or stood as a candidate. Deleting the account would erase those election records. Deactivate the account instead.');
                 $organizationId = $locked->getRawOriginal('organization_id');
                 $role = $locked->getRawOriginal('role');
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
@@ -147,6 +148,8 @@ class SystemUsersController extends Controller
             'orders' => DB::table('orders')->where('student_id', $schoolId)->count(),
             'invoices' => DB::table('invoices')->where('student_id', $schoolId)->count(),
             'event_requirement_files' => DB::table('event_requirement_files')->where('uploaded_by', $schoolId)->count(),
+            'votes' => DB::table('votes')->where('voter_id', $schoolId)->count(),
+            'candidates' => DB::table('candidates')->where('user_id', $schoolId)->count(),
         ];
     }
 
