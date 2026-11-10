@@ -346,6 +346,16 @@ class ElectionController extends Controller
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
 
+        $semester = isset($data['start_time']) || isset($data['end_time']) ? AcademicSemester::find($election->academic_semester_id) : null;
+        if ($semester && ($startTime->toDateString() < $semester->starts_on->toDateString()
+            || $endTime->toDateString() > $semester->ends_on->toDateString())) {
+            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in ('.$semester->starts_on->format('M j, Y').' to '.$semester->ends_on->format('M j, Y').').']]);
+        }
+
+        if ($election->status === 'closed' && ($data['status'] ?? null) === 'active' && $election->access_handed_over_at) {
+            return response()->json(['message' => 'Access was already handed over to the winners, so this election cannot be reopened.'], 422);
+        }
+
         if (($data['status'] ?? null) === 'active' && ! $election->approved_at) {
             return response()->json(['message' => 'Election must be approved before it can be opened.'], 422);
         }
@@ -377,6 +387,16 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election details cannot be changed after votes have been cast.'], 409);
         }
 
+        $windowMoved = $election->approved_at && (
+            (isset($data['start_time']) && $data['start_time']->ne($election->start_time))
+            || (isset($data['end_time']) && $data['end_time']->ne($election->end_time))
+        );
+        if ($windowMoved) {
+            $data['status'] = 'pending_approval';
+            $data['approved_at'] = null;
+            $data['finalized_at'] = null;
+        }
+
         $oldImageUrl = $election->image_url;
         $newImageUrl = null;
         if ($request->hasFile('image')) {
@@ -388,8 +408,17 @@ class ElectionController extends Controller
         unset($data['image'], $data['remove_image']);
 
         try {
-            DB::transaction(function () use ($election, &$data) {
+            DB::transaction(function () use ($election, &$data, $windowMoved, $request) {
                 $election->update($data);
+                if ($windowMoved) {
+                    ApprovalRequest::create([
+                        'organization_id' => $election->organization_id,
+                        'entity_type' => 'election',
+                        'entity_id' => $election->id,
+                        'requested_by' => $request->user()->id,
+                        'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.election')),
+                    ]);
+                }
             });
         } catch (\Throwable $exception) {
             $this->deleteElectionImage($newImageUrl);
@@ -1293,10 +1322,11 @@ class ElectionController extends Controller
 
         $standings = app(ElectionHandoverService::class)->standings($election)->keyBy(fn (array $row) => $row['position']->id);
         $handedOver = $election->access_handed_over_at !== null;
+        $skippedTitles = $handedOver ? app(ElectionHandoverService::class)->skippedTitles($election) : [];
 
         $closed = $election->status === 'closed';
 
-        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver, $closed) {
+        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver, $skippedTitles, $closed) {
             $candidates = $allCandidates->get($position->id, collect())
                 ->map(fn ($c) => [
                     'id' => $c->id,
@@ -1317,7 +1347,7 @@ class ElectionController extends Controller
                 'totalVotes' => $allCandidates->get($position->id, collect())->sum('votes_count'),
                 'winner_ids' => $closed && $standing ? $standing['winners']->pluck('id')->values() : [],
                 'tie' => $closed && (bool) ($standing['tie'] ?? false),
-                'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty(),
+                'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty() && ! in_array($position->title, $skippedTitles, true),
             ];
         })->values();
 
