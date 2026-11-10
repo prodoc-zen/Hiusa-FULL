@@ -374,7 +374,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/notifications', [NotificationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'org.module:announcements']);
 
     // SAO organization compliance and accreditation: requirement types are
     // SAO's per-academic-year catalog; submissions are each org's own

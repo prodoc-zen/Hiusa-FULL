@@ -27,15 +27,22 @@ use Illuminate\Support\Facades\DB;
  */
 class GrievanceController extends Controller
 {
-    private const CRITICAL_KEYWORDS = ['emergency', 'danger', 'harassment', 'assault', 'police', 'threat', 'violence'];
+    /** A keyword ending in "*" is a stem matched at the start of a word; any other keyword is a whole word. */
+    private const CRITICAL_KEYWORDS = [
+        'emergency', 'danger', 'harass*', 'assault*', 'police', 'threat*', 'violen*', 'abus*',
+        'bully', 'bullied', 'bullying', 'banta', 'binantaan', 'gibantaan', 'pagbabanta', 'pananakit', 'sinaktan',
+    ];
 
-    private const HIGH_KEYWORDS = ['urgent', 'fraud', 'stolen', 'corruption', 'embezzlement', 'severe', 'breach'];
+    private const HIGH_KEYWORDS = [
+        'urgent', 'fraud*', 'steal*', 'stole*', 'theft', 'thief', 'brib*', 'corruption', 'corrupt', 'embezzl*', 'severe', 'breach',
+        'nakaw*', 'ninakaw*', 'nagnakaw*', 'nanakaw*', 'kawat', 'gikawat', 'gikawatan',
+    ];
 
     private const MEDIUM_KEYWORDS = ['broken', 'delay', 'missing', 'complaint', 'unfair', 'issue', 'problem'];
 
     private const CATEGORY_KEYWORDS = [
-        'Safety & Security' => ['emergency', 'danger', 'harassment', 'assault', 'police', 'threat', 'violence', 'security', 'unsafe', 'guard', 'theft'],
-        'Financial Integrity' => ['money', 'fund', 'fraud', 'receipt', 'budget', 'embezzlement', 'payment'],
+        'Safety & Security' => [...self::CRITICAL_KEYWORDS, 'security', 'unsafe', 'guard', 'theft'],
+        'Financial Integrity' => ['money', 'fund', 'fraud*', 'receipt', 'budget', 'embezzl*', 'payment', 'steal*', 'stole*', 'brib*'],
         'Facilities & Maintenance' => ['broken', 'facility', 'dirty', 'aircon', 'chair', 'room', 'venue'],
         'Academic / Faculty' => ['grades', 'teacher', 'professor', 'exam', 'class', 'schedule'],
     ];
@@ -355,6 +362,10 @@ class GrievanceController extends Controller
 
     private function matches(string $text, string $keyword): bool
     {
+        if (str_ends_with($keyword, '*')) {
+            return preg_match('/\b'.preg_quote(substr($keyword, 0, -1), '/').'/u', $text) === 1;
+        }
+
         return preg_match('/\b'.preg_quote($keyword, '/').'\b/u', $text) === 1;
     }
 }
