@@ -28,6 +28,7 @@ import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import { visibleSchoolId } from '../../../utils/schoolId';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
+import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 
 const LEADERSHIP_TITLES = [
   "Adviser",
@@ -83,6 +84,7 @@ export default function SystemAdminsPage() {
   const [loadError, setLoadError] = useState("");
   const [success, setSuccess] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
+  const [resetLink, setResetLink] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [membershipUser, setMembershipUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
@@ -308,7 +310,11 @@ export default function SystemAdminsPage() {
     setError("");
     try {
       const response = await initiateSystemAdminPasswordReset(resetTarget.school_id);
-      setSuccess(response.message || "Password reset instructions were sent.");
+      if (response.reset_link) {
+        setResetLink({ link: response.reset_link, name: `${resetTarget.first_name} ${resetTarget.last_name}` });
+      } else {
+        setSuccess(response.message || "Password reset instructions were sent.");
+      }
       setResetTarget(null);
     } catch (requestError) {
       setResetTarget(null);
@@ -543,13 +549,23 @@ export default function SystemAdminsPage() {
       <ConfirmModal
         open={Boolean(resetTarget)}
         title="Initiate password reset"
-        message="A secure reset link will be sent to the administrator's registered email address. Their current password will not be shown."
+        message="A secure reset link will be sent to the administrator's registered email address. If email is off, the link shows here once for you to hand over. Their current password will not be shown."
         recordName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
         confirmText="Send reset link"
         busy={busy}
         onCancel={() => !busy && setResetTarget(null)}
         onConfirm={initiatePasswordReset}
       />
+      {resetLink && (
+        <OneTimeLinkModal
+          title="Reset link ready"
+          description={`Send this to ${resetLink.name}. It lets them choose a new password.`}
+          label="Reset link"
+          hint="Works once and expires in 60 minutes. It is not shown again."
+          link={resetLink.link}
+          onClose={() => { setSuccess(`Reset link created for ${resetLink.name}.`); setResetLink(null); }}
+        />
+      )}
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete administrator" message="This removes the administrator profile. Accounts with linked records cannot be deleted." recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''} confirmText="Delete administrator" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={removeAdmin} />
     </div>
   );

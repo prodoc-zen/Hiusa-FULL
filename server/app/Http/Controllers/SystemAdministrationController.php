@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -366,10 +367,10 @@ class SystemAdministrationController extends Controller
             return response()->json(['message' => 'Activate this administrator before initiating a password reset.'], 422);
         }
 
-        $this->passwordResetService->issue($user);
+        $resetLink = $this->passwordResetService->issue($user);
         $this->audit($request, 'administrator_password_reset_initiated', $user, ['email' => $user->email], 'SAO initiated a secure password reset for an organization Admin.');
 
-        return response()->json(['message' => 'Password reset instructions were sent to the administrator email address.']);
+        return $this->resetResponse($resetLink, 'Password reset instructions were sent to the administrator email address.');
     }
 
     public function updateDepartmentHead(Request $request, User $user)
@@ -425,10 +426,21 @@ class SystemAdministrationController extends Controller
             return response()->json(['message' => 'Activate this Department Head before initiating a password reset.'], 422);
         }
 
-        $this->passwordResetService->issue($user);
+        $resetLink = $this->passwordResetService->issue($user);
         $this->audit($request, 'department_head_password_reset_initiated', $user, ['email' => $user->email], 'SAO initiated a secure password reset for a college Department Head.');
 
-        return response()->json(['message' => 'Password reset instructions were sent to the Department Head email address.']);
+        return $this->resetResponse($resetLink, 'Password reset instructions were sent to the Department Head email address.');
+    }
+
+    /** With mail off the one-time link comes back to the SAO to hand over; it is shown once and never stored. */
+    private function resetResponse(?string $resetLink, string $sentMessage): JsonResponse
+    {
+        if ($resetLink === null) {
+            return response()->json(['message' => $sentMessage]);
+        }
+
+        return response()->json(['message' => 'The reset link is ready. It works once and expires in 60 minutes.', 'reset_link' => $resetLink])
+            ->header('Cache-Control', 'no-store');
     }
 
     private function collegeHomeOfHead(User $user): ?Organization

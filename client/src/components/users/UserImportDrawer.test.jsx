@@ -2,8 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserImportDrawer from './UserImportDrawer';
 import { importUsers } from '../../services/userService';
+import downloadBlob from '../../utils/downloadBlob';
 
 vi.mock('../../services/userService', () => ({ importUsers: vi.fn() }));
+vi.mock('../../utils/downloadBlob', () => ({ default: vi.fn() }));
 vi.mock('../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const roster = new File(['school_id,first_name,last_name,email,role\n'], 'roster.csv', { type: 'text/csv' });
@@ -50,6 +52,37 @@ describe('UserImportDrawer', () => {
 
     await vi.waitFor(() => expect(onImported).toHaveBeenCalled());
     expect(importUsers).toHaveBeenLastCalledWith(roster, false);
+  });
+
+  it('shows each temporary password once, with copy and download, before closing when mail is off', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const onImported = vi.fn();
+    vi.mocked(importUsers)
+      .mockResolvedValueOnce({ imported: false, summary: { total: 1, ready: 1, invalid: 0 }, rows: [] })
+      .mockResolvedValueOnce({
+        imported: true,
+        summary: { total: 1, ready: 1, invalid: 0 },
+        rows: [],
+        credentials: [{ school_id: 20260010, name: 'Ana Reyes', email: 'ana@example.com', temporary_password: 'Abcd1234efGH' }],
+      });
+    render(<UserImportDrawer open onClose={vi.fn()} onImported={onImported} />);
+
+    chooseFile();
+    fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 1 member' }));
+
+    expect(await screen.findByText('Abcd1234efGH')).toBeInTheDocument();
+    expect(screen.getByText(/shown only once/i)).toBeInTheDocument();
+    expect(onImported).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy all' }));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Abcd1234efGH')));
+    fireEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
+    expect(downloadBlob).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onImported).toHaveBeenCalledTimes(1);
   });
 
   it('shows why a file was refused outright', async () => {

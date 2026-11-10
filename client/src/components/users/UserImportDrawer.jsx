@@ -1,9 +1,10 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState } from 'react';
-import { CheckCircle2, Download, TriangleAlert } from 'lucide-react';
+import { Check, CheckCircle2, Copy, Download, TriangleAlert } from 'lucide-react';
 import { importUsers } from '../../services/userService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import downloadBlob from '../../utils/downloadBlob';
+import { buildCsv } from '../../utils/csv';
 import notify from '../../lib/notify';
 import { Button, Drawer } from '../ui';
 
@@ -16,6 +17,9 @@ function downloadTemplate() {
   downloadBlob({ data: new Blob([`${TEMPLATE}\n`], { type: 'text/csv' }), headers: {} }, 'hiusa-member-import-template.csv');
 }
 
+const CREDENTIAL_HEADER = ['school_id', 'name', 'email', 'temporary_password'];
+const credentialRow = (item) => [item.school_id, item.name, item.email, item.temporary_password];
+
 /**
  * Enroll a roster from a CSV file: check first (nothing is written), fix any
  * flagged rows, then import every row at once.
@@ -25,17 +29,41 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
   const [check, setCheck] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [issued, setIssued] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   function reset() {
     setFile(null);
     setCheck(null);
     setBusy('');
     setError('');
+    setIssued(null);
+    setCopied(false);
   }
 
   function close() {
     reset();
     onClose();
+  }
+
+  function finish() {
+    reset();
+    onImported();
+  }
+
+  async function copyAll() {
+    const text = buildCsv(CREDENTIAL_HEADER, issued.map(credentialRow));
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function downloadCredentials() {
+    downloadBlob({ data: new Blob([`${buildCsv(CREDENTIAL_HEADER, issued.map(credentialRow))}\r\n`], { type: 'text/csv' }), headers: {} }, 'hiusa-temporary-passwords.csv');
   }
 
   async function run(dryRun) {
@@ -45,6 +73,11 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
       const result = await importUsers(file, dryRun);
       if (dryRun) {
         setCheck(result);
+      } else if (result.credentials?.length) {
+        setIssued(result.credentials);
+        setCheck(null);
+        setFile(null);
+        notify.success(`${result.summary.total} member account${result.summary.total === 1 ? '' : 's'} created`, { description: 'Copy or download the temporary passwords now. They are not shown again.' });
       } else {
         notify.success(`${result.summary.total} member account${result.summary.total === 1 ? '' : 's'} created`, { description: 'They can set a password with Forgot password, using the email in the file.' });
         reset();
@@ -64,25 +97,51 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
   return (
     <Drawer
       open={open}
-      onClose={close}
-      title="Import members"
-      description="Add a whole roster at once from a CSV file."
+      onClose={issued ? finish : close}
+      title={issued ? 'Temporary passwords' : 'Import members'}
+      description={issued ? 'Hand each member their password. They must change it when they first sign in.' : 'Add a whole roster at once from a CSV file.'}
       width="max-w-lg"
       footer={(
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={close}>Cancel</Button>
-          {ready ? (
-            <Button loading={busy === 'import'} onClick={() => run(false)}>Import {check.summary.total} member{check.summary.total === 1 ? '' : 's'}</Button>
+          {issued ? (
+            <Button onClick={finish}>Done</Button>
           ) : (
-            <Button disabled={!file} loading={busy === 'check'} onClick={() => run(true)}>Check file</Button>
+            <>
+              <Button variant="secondary" onClick={close}>Cancel</Button>
+              {ready ? (
+                <Button loading={busy === 'import'} onClick={() => run(false)}>Import {check.summary.total} member{check.summary.total === 1 ? '' : 's'}</Button>
+              ) : (
+                <Button disabled={!file} loading={busy === 'check'} onClick={() => run(true)}>Check file</Button>
+              )}
+            </>
           )}
         </div>
       )}
     >
+      {issued ? (
+        <div className="space-y-4">
+          <p role="status" className="flex items-start gap-2 text-sm font-semibold text-warning-strong"><TriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> These passwords are shown only once. Copy or download them before you leave.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" leftIcon={copied ? Check : Copy} onClick={copyAll}>{copied ? 'Copied' : 'Copy all'}</Button>
+            <Button variant="secondary" leftIcon={Download} onClick={downloadCredentials}>Download CSV</Button>
+          </div>
+          <ul className="divide-y divide-line-soft rounded-control border border-line">
+            {issued.map((item) => (
+              <li key={item.school_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{formatDisplayText(item.name)}</p>
+                  <p className="truncate text-xs font-medium text-ink-muted">{item.email}</p>
+                </div>
+                <code className="font-mono text-sm text-ink">{item.temporary_password}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
       <div className="space-y-5">
         <div className="text-sm leading-6 text-ink-muted-strong">
           <p>Required columns: <span className="font-semibold text-ink">school_id, first_name, last_name, email, role</span>. Roles can be Student, SBO Officer or Department Head; admin accounts are added one at a time.</p>
-          <p className="mt-2">Passwords never go in the file. Each member sets one with Forgot password, using the email you list.</p>
+          <p className="mt-2">Passwords never go in the file. If email is off, you get a temporary password for each member after the import. Otherwise each member sets one with Forgot password, using the email you list.</p>
           <Button variant="secondary" className="mt-3" onClick={downloadTemplate}><Download size={15} aria-hidden="true" /> Download template</Button>
         </div>
 
@@ -121,6 +180,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
           </section>
         )}
       </div>
+      )}
     </Drawer>
   );
 }

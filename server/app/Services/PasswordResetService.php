@@ -11,7 +11,14 @@ use Illuminate\Support\Str;
 
 class PasswordResetService
 {
-    public function issue(User $user): void
+    /** With the log mail driver nothing leaves the server, so a reset link has to be handed over by a person. */
+    public function mailIsOff(): bool
+    {
+        return config('mail.default') === 'log';
+    }
+
+    /** Returns the reset link when mail is off and no email goes out; null when the link was emailed. */
+    public function issue(User $user): ?string
     {
         $token = Str::random(64);
 
@@ -33,10 +40,16 @@ class PasswordResetService
             'token' => $token,
         ]);
 
+        if ($this->mailIsOff()) {
+            return $resetUrl;
+        }
+
         Mail::to($user->email)->send(new PasswordResetMail(
             $user,
             $resetUrl,
             (int) config('auth.passwords.users.expire', 60),
         ));
+
+        return null;
     }
 }
