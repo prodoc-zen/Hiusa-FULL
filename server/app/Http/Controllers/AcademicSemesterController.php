@@ -145,6 +145,15 @@ class AcademicSemesterController extends Controller
                 throw ValidationException::withMessages(['semester' => ['A completed academic year cannot be reopened.']]);
             }
             if ($semester->status !== 'active') {
+                if ($semester->starts_on->isFuture()) {
+                    throw ValidationException::withMessages(['semester' => ['This semester starts on '.$semester->starts_on->format('M j, Y').'. It cannot be made active before then.']]);
+                }
+                $openElections = Election::whereIn('academic_semester_id', AcademicSemester::where('status', 'active')->select('id'))
+                    ->where(fn ($query) => $query->where('status', 'active')->orWhere(fn ($upcoming) => $upcoming->where('status', 'upcoming')->whereNotNull('approved_at')))
+                    ->orderBy('id')->pluck('title');
+                if ($openElections->isNotEmpty()) {
+                    throw ValidationException::withMessages(['semester' => ['The current semester still has an election that is upcoming or open: '.$openElections->implode(', ').'. Wait for it to close before starting the next semester.']]);
+                }
                 $currentYear = AcademicYear::where('is_current', true)->lockForUpdate()->first();
                 if ($currentYear && $currentYear->id !== $semester->academic_year_id
                     && ($currentYear->semesters()->count() !== 2 || $currentYear->semesters()->where('status', 'upcoming')->exists())) {

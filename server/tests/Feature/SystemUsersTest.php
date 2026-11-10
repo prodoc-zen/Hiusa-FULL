@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Candidate;
+use App\Models\Election;
+use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -72,6 +76,28 @@ class SystemUsersTest extends TestCase
         $this->assertDatabaseMissing('invoices', ['id' => $invoiceId]);
         $this->assertDatabaseMissing('invoice_payments', ['invoice_id' => $invoiceId]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'user_deleted', 'record_id' => $student->school_id]);
+    }
+
+    public function test_a_user_who_ran_in_an_election_cannot_be_deleted_and_the_counts_are_shown(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $organization = Organization::factory()->create();
+        $election = Election::factory()->create(['organization_id' => $organization->id, 'status' => 'closed']);
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id]);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id]);
+        $voter = User::factory()->student()->create();
+        Vote::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => $voter->school_id]);
+        Sanctum::actingAs($sao);
+
+        $this->getJson('/api/system/users/'.$candidate->user_id)->assertOk()->assertJsonPath('linked_records.candidates', 1)->assertJsonPath('linked_records.votes', 0);
+        $this->getJson('/api/system/users/'.$voter->school_id)->assertOk()->assertJsonPath('linked_records.votes', 1)->assertJsonPath('linked_records.candidates', 0);
+        $this->deleteJson('/api/system/users/'.$candidate->user_id, ['school_id' => $candidate->user_id])->assertStatus(409);
+        $this->deleteJson('/api/system/users/'.$voter->school_id, ['school_id' => $voter->school_id])->assertStatus(409);
+
+        $this->assertDatabaseHas('users', ['school_id' => $candidate->user_id]);
+        $this->assertDatabaseHas('users', ['school_id' => $voter->school_id]);
+        $this->assertDatabaseHas('candidates', ['id' => $candidate->id]);
+        $this->assertDatabaseCount('votes', 1);
     }
 
     public function test_another_sao_can_be_deleted_while_the_actor_remains_active(): void

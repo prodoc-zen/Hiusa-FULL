@@ -221,6 +221,7 @@ class SchoolYearRecordsTest extends TestCase
         AccountProfile::updateOrCreate(['user_school_id' => $leader->school_id, 'organization_id' => $this->org->id], ['role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'Secretary']);
         Sanctum::actingAs($this->sao);
 
+        $this->travelTo('2027-08-02');
         $this->patchJson("/api/system/academic-semesters/{$this->upcoming->id}/active")->assertOk();
 
         $record = OrganizationSemesterRecord::where('organization_id', $this->org->id)->where('academic_semester_id', $this->active->id)->firstOrFail();
