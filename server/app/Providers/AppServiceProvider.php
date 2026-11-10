@@ -85,7 +85,7 @@ class AppServiceProvider extends ServiceProvider
 
             if ($identifier = User::normalizeIdentifier($request->input('identifier', $request->input('school_id')))) {
                 $limits[] = Limit::perMinute(max(3, (int) ceil(config('performance.rate_limits.login_per_minute') / 2)))
-                    ->by('account:'.$identifier)
+                    ->by('account:'.$identifier.'|'.$request->ip())
                     ->response($tooManyRequests);
             }
 
