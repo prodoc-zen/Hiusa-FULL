@@ -76,26 +76,9 @@ class AnnouncementController extends Controller
         $version = ((int) AiOutput::where('organization_id', $request->user()->organization_id)
             ->where('feature_type', 'ANNOUNCEMENT_DRAFT')->max('version')) + 1;
 
-        if (! $generated) {
-            AiOutput::create([
-                'organization_id' => $request->user()->organization_id,
-                'feature_type' => 'ANNOUNCEMENT_DRAFT',
-                'reference_type' => 'announcement',
-                'prompt_text' => $prompt,
-                'output_text' => '',
-                'structured_input' => $data,
-                'status' => 'failed',
-                'error_message' => 'Groq was unavailable or returned an invalid response.',
-                'version' => $version,
-                'decision_status' => 'rejected',
-                'requested_by' => $request->user()->id,
-                'created_at' => now(),
-            ]);
-
-            return response()->json([
-                'message' => 'AI service is temporarily unavailable. Unable to generate the announcement draft.',
-                'quota' => $this->announcementGenerationQuota($request),
-            ], 503);
+        $isTemplate = ! $generated;
+        if ($isTemplate) {
+            $generated = ['text' => $this->fallbackAnnouncementDraft($prompt), 'model' => 'template-draft'];
         }
 
         $output = $generated['text'];
@@ -109,7 +92,7 @@ class AnnouncementController extends Controller
             'prompt_text' => $prompt,
             'output_text' => $output,
             'model_name' => $model,
-            'context_version' => 'announcement-v2',
+            'context_version' => $isTemplate ? 'announcement-template-v1' : 'announcement-v2',
             'structured_input' => $data,
             'structured_output' => ['body' => $output],
             'status' => 'completed',
@@ -130,6 +113,8 @@ class AnnouncementController extends Controller
             'output_text' => $output,
             'ai_output_id' => $aiOutput->id,
             'model_name' => $model,
+            'is_template' => $isTemplate,
+            'notice' => $isTemplate ? 'This is a template draft because the AI writer is not available right now. Add the date, place and other details before you post it.' : null,
             'quota' => $this->announcementGenerationQuota($request),
         ]);
     }

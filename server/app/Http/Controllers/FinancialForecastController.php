@@ -63,11 +63,13 @@ class FinancialForecastController extends Controller
         ]);
 
         $months = $data['months'] ?? 12;
-        $targetPeriod = now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m');
+        $currentMonthStart = now('Asia/Manila')->startOfMonth();
+        $targetPeriod = $currentMonthStart->copy()->addMonth()->format('Y-m');
         $rows = Transaction::query()
             ->where('organization_id', $request->user()->organization_id)
             ->excludingCashAdvances()
-            ->whereDate('transaction_date', '>=', now()->startOfMonth()->subMonths($months - 1))
+            ->whereDate('transaction_date', '>=', $currentMonthStart->copy()->subMonths($months)->toDateString())
+            ->whereDate('transaction_date', '<', $currentMonthStart->toDateString())
             ->orderBy('transaction_date')
             ->get(['id', 'type', 'amount', 'transaction_date']);
 
@@ -112,6 +114,7 @@ class FinancialForecastController extends Controller
                 ? 'No transaction history is available. These zero amounts are placeholders, not a reliable forecast.'
                 : 'Only one month has transactions. This projection repeats that month and is not a reliable trend.';
         }
+        $analysis['confidence_note'] = trim(($analysis['confidence_note'] ?? '').' The current unfinished month is left out of the trend.');
         $nextPeriod = $this->periodStart($analysis['forecast_period']);
         $predictedIncome = $analysis['predicted_income'];
         $predictedExpense = $analysis['predicted_expense'];
