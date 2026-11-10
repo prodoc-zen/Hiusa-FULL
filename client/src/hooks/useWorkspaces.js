@@ -7,6 +7,19 @@ import { storedUser } from '../utils/collegeIdentity';
 
 const ORG_ROLES = ['ADMIN', 'SBO_OFFICER'];
 
+// Every mounted copy of the hook (the top bar and the banner) reloads on a tab return. They share the one
+// request that is in flight, and each copy still applies the answer to its own state.
+let pending = null;
+
+function sharedAccountProfiles() {
+  if (pending) return pending;
+  const request = Promise.resolve(getAccountProfiles());
+  pending = request;
+  const clear = () => { if (pending === request) pending = null; };
+  request.then(clear, clear);
+  return request;
+}
+
 const usable = (profile) => profile.account_status === 'active'
   && Boolean(profile.organization?.is_active)
   && profile.organization.college_is_active !== false;
@@ -67,12 +80,16 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
   const [collegeOrganizations, setCollegeOrganizations] = useState([]);
 
   const latestLoad = useRef(0);
+  const inFlight = useRef(false);
+  const latestOrgLoad = useRef(0);
+  const orgInFlight = useRef(false);
 
   const loadProfiles = useCallback(async ({ quiet = false } = {}) => {
     const load = ++latestLoad.current;
+    inFlight.current = true;
     if (!quiet) setLoading(true);
     try {
-      const response = await getAccountProfiles();
+      const response = await sharedAccountProfiles();
       if (load !== latestLoad.current) return;
       setProfiles(response.data.profiles || []);
       setActiveProfileId(response.data.active_profile_id);
@@ -80,7 +97,24 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
     } catch {
       if (!quiet && load === latestLoad.current) setError('Could not load your profiles.');
     } finally {
-      if (!quiet && load === latestLoad.current) setLoading(false);
+      // Whichever load is the latest settles the spinner, so a quiet one that took over never strands it.
+      if (load === latestLoad.current) {
+        inFlight.current = false;
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  const loadCollegeOrganizations = useCallback(async ({ quiet = false } = {}) => {
+    const load = ++latestOrgLoad.current;
+    orgInFlight.current = true;
+    try {
+      const response = await getCollegeOrganizations({ per_page: 100, lifecycle_status: 'active' });
+      if (load === latestOrgLoad.current) setCollegeOrganizations(unwrapList(response?.data));
+    } catch {
+      if (!quiet && load === latestOrgLoad.current) setCollegeOrganizations([]);
+    } finally {
+      if (load === latestOrgLoad.current) orgInFlight.current = false;
     }
   }, []);
 
@@ -92,7 +126,9 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
   useEffect(() => {
     if (!enabled || !role) return undefined;
     const refresh = () => {
-      if (document.visibilityState === 'visible') loadProfiles({ quiet: true });
+      if (document.visibilityState !== 'visible') return;
+      if (!inFlight.current) loadProfiles({ quiet: true });
+      if (role === 'DEPARTMENT_HEAD' && !orgInFlight.current) loadCollegeOrganizations({ quiet: true });
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
@@ -100,14 +136,11 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [enabled, role, loadProfiles]);
+  }, [enabled, role, loadProfiles, loadCollegeOrganizations]);
 
   useEffect(() => {
-    if (!enabled || role !== 'DEPARTMENT_HEAD') return;
-    getCollegeOrganizations({ per_page: 100, lifecycle_status: 'active' })
-      .then((response) => setCollegeOrganizations(unwrapList(response?.data)))
-      .catch(() => setCollegeOrganizations([]));
-  }, [enabled, role]);
+    if (enabled && role === 'DEPARTMENT_HEAD') loadCollegeOrganizations();
+  }, [enabled, role, loadCollegeOrganizations]);
 
   const switchProfile = useCallback(async (profile) => {
     if (switching) return;
