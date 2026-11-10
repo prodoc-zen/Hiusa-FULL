@@ -4,18 +4,23 @@ import re
 
 from app.schemas import GrievanceClassificationRequest
 
-# Keyword sets are deliberately spelled out as whole words (not stems): unlike
-# task_delegation's prefix matching, grievance urgency must not fire on a
-# partial word (e.g. "assaulted" containing "assault" is fine to catch, but we
-# still bound both sides with \b so "grassault" or "assaultive-sounding" noise
-# words can't slip in via a bare substring match).
-CRITICAL_KEYWORDS = ("emergency", "danger", "harassment", "assault", "police", "threat", "violence")
-HIGH_KEYWORDS = ("urgent", "fraud", "stolen", "corruption", "embezzlement", "severe", "breach")
+# A keyword ending in "*" is a stem matched at the start of a word, so "harass*"
+# catches "harassed" and "harassment". Any other keyword is a whole word, which
+# keeps "danger" from firing on "dangerously". The PHP fallback in
+# GrievanceController carries the same lists; AiFallbackParityTest keeps them equal.
+CRITICAL_KEYWORDS = (
+    "emergency", "danger", "harass*", "assault*", "police", "threat*", "violen*", "abus*",
+    "bully", "bullied", "bullying", "banta", "binantaan", "gibantaan", "pagbabanta", "pananakit", "sinaktan",
+)
+HIGH_KEYWORDS = (
+    "urgent", "fraud*", "steal*", "stole*", "theft", "thief", "brib*", "corruption", "corrupt", "embezzl*", "severe", "breach",
+    "nakaw*", "ninakaw*", "nagnakaw*", "nanakaw*", "kawat", "gikawat", "gikawatan",
+)
 MEDIUM_KEYWORDS = ("broken", "delay", "missing", "complaint", "unfair", "issue", "problem")
 
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Safety & Security": CRITICAL_KEYWORDS + ("security", "unsafe", "guard", "theft"),
-    "Financial Integrity": ("money", "fund", "fraud", "receipt", "budget", "embezzlement", "payment"),
+    "Financial Integrity": ("money", "fund", "fraud*", "receipt", "budget", "embezzl*", "payment", "steal*", "stole*", "brib*"),
     "Facilities & Maintenance": ("broken", "facility", "dirty", "aircon", "chair", "room", "venue"),
     "Academic / Faculty": ("grades", "teacher", "professor", "exam", "class", "schedule"),
 }
@@ -24,6 +29,8 @@ DEFAULT_CATEGORY = "General"
 
 
 def _matches(text: str, keyword: str) -> bool:
+    if keyword.endswith("*"):
+        return re.search(rf"\b{re.escape(keyword[:-1])}", text) is not None
     return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
 
 

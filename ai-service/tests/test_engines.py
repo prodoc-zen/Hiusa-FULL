@@ -346,6 +346,40 @@ def test_grievance_classification_word_boundaries_avoid_bare_substrings() -> Non
     assert result["urgency"] != "Critical"
 
 
+@pytest.mark.parametrize(("title", "description", "urgency"), [
+    ("Professor harassed me", "He threatened to fail me and assaulted my classmate", "Critical"),
+    ("I was harassed and threatened by an officer", "It happened after the meeting.", "Critical"),
+    ("Abusive treatment", "A member was bullied and abused by the group.", "Critical"),
+    ("The treasurer has been stealing", "Our collections keep disappearing from the cash box.", "High"),
+    ("Stolen laptop", "Someone stole a laptop from the org room.", "High"),
+    ("Bribery in the election", "A candidate bribed voters.", "High"),
+    ("Binantaan ako ng officer", "Gibantaan ako human sa meeting.", "Critical"),
+    ("Ninakaw ang pera", "Nagnakaw ang treasurer sa pondo.", "High"),
+])
+def test_grievance_classification_catches_natural_wordings_of_serious_complaints(title: str, description: str, urgency: str) -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({"title": title, "description": description}))
+
+    assert result["urgency"] == urgency
+
+
+def test_grievance_classification_stem_matching_does_not_fire_inside_unrelated_words() -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "Bulletin board",
+        "description": "The bulletin board in the ballroom is blank and needs a new banner.",
+    }))
+
+    assert result["urgency"] == "Low"
+
+
+def test_grievance_classification_files_stealing_from_funds_under_financial_integrity() -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "The treasurer has been stealing",
+        "description": "Our collections keep disappearing from the cash box.",
+    }))
+
+    assert result["category"] == "Financial Integrity"
+
+
 def test_grievance_classification_defaults_to_low_urgency_and_general_category() -> None:
     result = classify_grievance(GrievanceClassificationRequest.model_validate({
         "title": "Suggestion for the student lounge",

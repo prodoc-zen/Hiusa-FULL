@@ -92,7 +92,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->postJson('/api/announcements', ['title' => 'Wrong channel', 'body' => 'No', 'target_role' => 'all'])->assertForbidden();
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/users', ['school_id' => 889900, 'first_name' => 'New', 'last_name' => 'Admin', 'email' => 'new-admin@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertCreated();
+        $this->postJson('/api/users', ['school_id' => 889900, 'first_name' => 'New', 'last_name' => 'Admin', 'email' => 'new-admin@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertForbidden();
     }
 
     public function test_sao_cannot_register_directly_but_can_update_an_active_organization_with_target_scoped_audits(): void
