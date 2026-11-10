@@ -43,7 +43,7 @@ function PasswordInput({ visible, onToggle, toggleLabel, ...props }) {
 
 export default function SettingsPage() {
   const [currentUser, setCurrentUser] = useState(getStoredUser);
-  const [passwordVisibility, setPasswordVisibility] = useState({ current: false, next: false, confirmation: false });
+  const [passwordVisibility, setPasswordVisibility] = useState({ profile: false, current: false, next: false, confirmation: false });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
   const [profileForm, setProfileForm] = useState({
@@ -51,6 +51,7 @@ export default function SettingsPage() {
     last_name: currentUser.last_name || '',
     email: currentUser.email || '',
     contact_number: currentUser.contact_number || '',
+    current_password: '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -71,6 +72,9 @@ export default function SettingsPage() {
   const organizationName = currentUser.organization?.name || currentUser.organization?.acronym || '';
   const roleTitle = currentUser.position_title ? formatDisplayText(currentUser.position_title) : roleLabel(currentUser.role);
   const schoolId = currentUser.school_id ? visibleSchoolId(currentUser.school_id) : (currentUser.id || 'N/A');
+  const identityChanged = profileForm.first_name.trim() !== (currentUser.first_name || '')
+    || profileForm.last_name.trim() !== (currentUser.last_name || '')
+    || profileForm.email.trim().toLowerCase() !== (currentUser.email || '').toLowerCase();
   const profileDirty = profileForm.first_name !== (currentUser.first_name || '')
     || profileForm.last_name !== (currentUser.last_name || '')
     || profileForm.email !== (currentUser.email || '')
@@ -88,6 +92,7 @@ export default function SettingsPage() {
       last_name: currentUser.last_name || '',
       email: currentUser.email || '',
       contact_number: currentUser.contact_number || '',
+      current_password: '',
     });
     setProfileError(null);
   }
@@ -102,6 +107,13 @@ export default function SettingsPage() {
       return;
     }
 
+    if (identityChanged && !profileForm.current_password) {
+      const message = 'Enter your current password to change your name or email.';
+      setProfileError(message);
+      showFeedback('error', message);
+      return;
+    }
+
     setProfileSaving(true);
     setProfileError(null);
 
@@ -111,6 +123,7 @@ export default function SettingsPage() {
         last_name: profileForm.last_name.trim(),
         email: profileForm.email.trim(),
         contact_number: profileForm.contact_number.trim() || null,
+        ...(identityChanged && { current_password: profileForm.current_password }),
       });
       const updatedUser = { ...currentUser, ...response.data };
 
@@ -121,6 +134,7 @@ export default function SettingsPage() {
         last_name: updatedUser.last_name || '',
         email: updatedUser.email || '',
         contact_number: updatedUser.contact_number || '',
+        current_password: '',
       });
       showFeedback('success', 'Profile changes saved.');
     } catch (error) {
@@ -224,6 +238,11 @@ export default function SettingsPage() {
             <Field label="Mobile number" optional>
               <Input type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={profileForm.contact_number} onChange={(event) => setProfileForm({ ...profileForm, contact_number: event.target.value })} placeholder="e.g. 0917 123 4567" />
             </Field>
+            {identityChanged && (
+              <Field label="Confirm with your current password" hint="Needed to change your name or email.">
+                <PasswordInput autoComplete="current-password" value={profileForm.current_password} onChange={(event) => setProfileForm({ ...profileForm, current_password: event.target.value })} visible={passwordVisibility.profile} onToggle={() => togglePasswordVisibility('profile')} toggleLabel={passwordVisibility.profile ? 'Hide password to confirm change' : 'Show password to confirm change'} />
+              </Field>
+            )}
             {profileError && <p role="alert" className="text-sm font-medium text-danger-strong">{profileError}</p>}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button variant="secondary" onClick={resetProfileForm} disabled={!profileDirty || profileSaving}>Discard changes</Button>

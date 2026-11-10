@@ -67,6 +67,7 @@ describe('SettingsPage', () => {
     renderPage();
 
     fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Ramona' } });
+    fireEvent.change(screen.getByLabelText('Confirm with your current password'), { target: { value: 'current-secret' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => expect(profileMocks.updateProfile).toHaveBeenCalledWith({
@@ -74,9 +75,35 @@ describe('SettingsPage', () => {
       last_name: 'Castillo',
       email: 'dean.ccs@hiusa.local',
       contact_number: null,
+      current_password: 'current-secret',
     }));
     expect(await screen.findByText('Profile changes saved.')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('user')).first_name).toBe('Ramona');
+    expect(screen.queryByLabelText('Confirm with your current password')).not.toBeInTheDocument();
+  });
+
+  it('asks for the current password before a name or email change is sent', async () => {
+    renderPage();
+    expect(screen.queryByLabelText('Confirm with your current password')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'new.dean@hiusa.local' } });
+    expect(screen.getByLabelText('Confirm with your current password')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your current password to change your name or email.');
+    expect(profileMocks.updateProfile).not.toHaveBeenCalled();
+  });
+
+  it('shows the server message when the current password is wrong', async () => {
+    profileMocks.updateProfile.mockRejectedValue({ response: { status: 422, data: { message: 'The given data was invalid.', errors: { current_password: ['Current password is incorrect.'] } } } });
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Reyes' } });
+    fireEvent.change(screen.getByLabelText('Confirm with your current password'), { target: { value: 'wrong-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    expect(await screen.findAllByText('Current password is incorrect.')).not.toHaveLength(0);
+    expect(JSON.parse(localStorage.getItem('user')).last_name).toBe('Castillo');
   });
 
   it('lets a user add an optional mobile number', async () => {

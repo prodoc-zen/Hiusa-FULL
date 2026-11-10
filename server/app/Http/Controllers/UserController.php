@@ -779,7 +779,7 @@ class UserController extends Controller
             throw ValidationException::withMessages(['identifier' => ['Enter your email or school ID.']]);
         }
 
-        $failureKey = 'login-failures:'.$identifier;
+        $failureKey = 'login-failures:'.$identifier.'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($failureKey, self::LOGIN_FAILURE_LIMIT)) {
             return response()->json([
@@ -966,7 +966,22 @@ class UserController extends Controller
                 Rule::unique('users', 'email')->ignore($user->school_id, 'school_id'),
             ],
             'notification_preferences' => ['nullable', 'array'],
+            'current_password' => ['nullable', 'string'],
         ]);
+
+        $changesIdentity = (array_key_exists('email', $data) && strtolower($data['email']) !== strtolower((string) $user->email))
+            || (array_key_exists('first_name', $data) && $data['first_name'] !== $user->first_name)
+            || (array_key_exists('last_name', $data) && $data['last_name'] !== $user->last_name);
+
+        if ($changesIdentity && ! Hash::check((string) ($data['current_password'] ?? ''), $user->password_hash)) {
+            throw ValidationException::withMessages([
+                'current_password' => [empty($data['current_password'])
+                    ? 'Enter your current password to change your name or email.'
+                    : 'Current password is incorrect.'],
+            ]);
+        }
+
+        unset($data['current_password']);
 
         $user->update($data);
 
