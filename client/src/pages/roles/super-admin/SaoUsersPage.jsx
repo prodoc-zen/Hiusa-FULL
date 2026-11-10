@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, Trash2, UserPlus } from 'lucide-react';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -33,6 +33,7 @@ export default function SaoUsersPage() {
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
   const [existingAdmin, setExistingAdmin] = useState(null);
+  const loadCounter = useRef(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { setFilters((current) => current.search === query.trim() ? current : { ...current, search: query.trim() }); setPage(1); }, 250);
@@ -40,10 +41,12 @@ export default function SaoUsersPage() {
   }, [query]);
 
   const load = useCallback(() => {
+    loadCounter.current += 1;
+    const ticket = loadCounter.current;
     setState((current) => ({ ...current, loading: true, error: '' }));
     getSystemUsers({ page, per_page: 20, search: filters.search || undefined, role: filters.role || undefined, status: filters.status || undefined })
-      .then((data) => setState({ loading: false, error: '', rows: unwrapList(data), meta: listMeta(data) }))
-      .catch((error) => setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(error, 'Could not load users.') })));
+      .then((data) => { if (ticket === loadCounter.current) setState({ loading: false, error: '', rows: unwrapList(data), meta: listMeta(data) }); })
+      .catch((error) => { if (ticket === loadCounter.current) setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(error, 'Could not load users.') })); });
   }, [filters, page]);
   useEffect(() => { load(); }, [load]);
 

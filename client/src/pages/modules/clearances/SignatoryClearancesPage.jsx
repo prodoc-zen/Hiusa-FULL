@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -57,6 +57,7 @@ export default function SignatoryClearancesPage() {
   const [periodId, setPeriodId] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
   const [page, setPage] = useState(1);
@@ -65,6 +66,7 @@ export default function SignatoryClearancesPage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const loadCounter = useRef(0);
 
   useEffect(() => {
     getClearancePeriods({ per_page: 100 }).then((res) => setPeriods(unwrapList(res.data))).catch(() => setPeriods([]));
@@ -73,23 +75,57 @@ export default function SignatoryClearancesPage() {
   const filters = useMemo(() => ({
     clearance_period_id: periodId || undefined,
     status: status || undefined,
-    q: search.trim() || undefined,
-  }), [periodId, status, search]);
+    q: searchQuery || undefined,
+  }), [periodId, status, searchQuery]);
 
   const load = useCallback(() => {
+    loadCounter.current += 1;
+    const ticket = loadCounter.current;
     setLoading(true);
     setError(null);
     return getClearanceSignatures({ ...filters, page })
       .then((res) => {
-        setRows(unwrapList(res.data));
+        if (ticket !== loadCounter.current) return;
+        const fresh = unwrapList(res.data);
+        setRows(fresh);
         setMeta(listMeta(res.data));
+        // A line someone else already acted on is no longer selectable.
+        setSelectedIds((current) => (current.size === 0 ? current : new Set(fresh.filter((row) => row.status === 'pending' && current.has(row.id)).map((row) => row.id))));
       })
-      .catch(() => setError('Failed to load your clearance signing queue.'))
-      .finally(() => setLoading(false));
+      .catch(() => { if (ticket === loadCounter.current) setError('Failed to load your clearance signing queue.'); })
+      .finally(() => { if (ticket === loadCounter.current) setLoading(false); });
   }, [filters, page]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [filters]);
+
+  // A changed filter starts again from page one in the same update, so only one request goes out.
+  function changeFilter(setter) {
+    return (event) => {
+      setter(event.target.value);
+      setPage(1);
+      setSelectedIds(new Set());
+    };
+  }
+
+  function clearFilters() {
+    setPeriodId('');
+    setStatus('');
+    setSearch('');
+    setSearchQuery('');
+    setPage(1);
+    setSelectedIds(new Set());
+  }
+
+  useEffect(() => {
+    const term = search.trim();
+    if (term === searchQuery) return undefined;
+    const timer = setTimeout(() => {
+      setSearchQuery(term);
+      setPage(1);
+      setSelectedIds(new Set());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search, searchQuery]);
 
   const found = recordId ? rows.find((row) => String(row.id) === recordId) : null;
   const selected = recordId ? (found ?? (pinned && String(pinned.id) === recordId ? pinned : null)) : null;
@@ -132,17 +168,20 @@ export default function SignatoryClearancesPage() {
 
   async function confirmBulkClear() {
     setBulkBusy(true);
-    try {
-      await Promise.all(Array.from(selectedIds).map((id) => updateClearanceSignature(id, { status: 'cleared' })));
-      notify.success(`Cleared ${selectedIds.size} signature${selectedIds.size === 1 ? '' : 's'}.`);
-      setSelectedIds(new Set());
-      setBulkOpen(false);
-      load();
-    } catch {
-      notify.error('Some signatures could not be cleared. Check the queue and try again.');
-    } finally {
-      setBulkBusy(false);
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(ids.map((id) => updateClearanceSignature(id, { status: 'cleared' })));
+    const failed = results.map((result, index) => ({ result, id: ids[index] })).filter(({ result }) => result.status === 'rejected');
+    const clearedCount = ids.length - failed.length;
+    if (failed.length === 0) {
+      notify.success(`Cleared ${clearedCount} signature${clearedCount === 1 ? '' : 's'}.`);
+    } else {
+      const reason = failed[0].result.reason?.response?.data?.message;
+      notify.error(`Cleared ${clearedCount} of ${ids.length} signatures. ${failed.length} could not be cleared${reason ? `: ${reason}` : '.'} The queue is up to date, so you can try the rest again.`);
     }
+    setSelectedIds(new Set(failed.map(({ id }) => id)));
+    setBulkOpen(false);
+    setBulkBusy(false);
+    load();
   }
 
   // One period and one role usually cover the whole queue, so those columns appear only when they tell rows apart.
@@ -229,18 +268,18 @@ export default function SignatoryClearancesPage() {
                 <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or school ID" aria-label="Search students" />
               </div>
               <div className="w-full sm:w-48">
-                <Select filter aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
+                <Select filter aria-label="Filter by clearance period" value={periodId} onChange={changeFilter(setPeriodId)}>
                   <option value="">All periods</option>
                   {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}</option>)}
                 </Select>
               </div>
               <div className="w-full sm:w-40">
-                <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <Select filter aria-label="Filter by status" value={status} onChange={changeFilter(setStatus)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
               {(periodId || status || search) && (
-                <button type="button" onClick={() => { setPeriodId(''); setStatus(''); setSearch(''); }} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
+                <button type="button" onClick={clearFilters} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
               )}
               {selectablePendingIds.length > 0 && (
                 <label className="inline-flex min-h-[42px] items-center gap-2 text-sm text-ink">
@@ -255,7 +294,7 @@ export default function SignatoryClearancesPage() {
             </div>
           )}
           emptyState={periodId || status || search ? (
-            <EmptyState kind="filtered" title="No signatures match these filters" description="Try another period or status, or clear the filters." onClearFilters={() => { setPeriodId(''); setStatus(''); setSearch(''); }} />
+            <EmptyState kind="filtered" title="No signatures match these filters" description="Try another period or status, or clear the filters." onClearFilters={clearFilters} />
           ) : (
             <EmptyState
               kind="first-run"
