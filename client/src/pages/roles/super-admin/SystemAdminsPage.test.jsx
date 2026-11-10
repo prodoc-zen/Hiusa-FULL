@@ -84,6 +84,24 @@ describe('SystemAdminsPage', () => {
     expect(await screen.findByText('Password reset instructions were sent.')).toBeInTheDocument();
   });
 
+  it('shows the one-time reset link with a copy button when mail is off', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    serviceMocks.initiateSystemAdminPasswordReset.mockResolvedValue({ message: 'The reset link is ready.', reset_link: 'https://hiusa.example.test/reset-password?token=abc' });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Reset link ready' });
+    expect(within(dialog).getByDisplayValue('https://hiusa.example.test/reset-password?token=abc')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://hiusa.example.test/reset-password?token=abc'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reset link ready' })).not.toBeInTheDocument());
+    expect(screen.queryByDisplayValue(/reset-password/)).not.toBeInTheDocument();
+  });
+
   it('has one h1 from the shared header', async () => {
     renderPage();
     await screen.findAllByText('Ana Reyes');
