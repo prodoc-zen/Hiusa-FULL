@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\FinancialForecastController;
+use App\Http\Controllers\GrievanceController;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Organization;
@@ -728,6 +729,26 @@ class AiFallbackParityTest extends TestCase
                 preg_match_all('/"([^"]+)"/u', $tuple, $values);
                 $this->assertSame($values[1], $phpMap[$area][$field], "PHP '{$area}.{$field}' drifted from the Python engine.");
             }
+        }
+    }
+
+    public function test_the_php_grievance_keyword_lists_equal_the_python_engine_lists(): void
+    {
+        $python = str_replace("\r\n", "\n", file_get_contents(base_path('../ai-service/app/engines/grievance_classification.py')));
+        $quoted = fn (string $tuple): array => preg_match_all('/"([^"]+)"/u', $tuple, $values) ? $values[1] : [];
+
+        foreach (['CRITICAL_KEYWORDS', 'HIGH_KEYWORDS', 'MEDIUM_KEYWORDS'] as $name) {
+            $this->assertSame(1, preg_match('/^'.$name.' = \((.*?)\)$/ms', $python, $tuple), "The Python {$name} tuple was not found.");
+            $this->assertSame($quoted($tuple[1]), (new ReflectionClassConstant(GrievanceController::class, $name))->getValue(), "PHP {$name} drifted from the Python engine.");
+        }
+
+        $critical = (new ReflectionClassConstant(GrievanceController::class, 'CRITICAL_KEYWORDS'))->getValue();
+        $this->assertSame(1, preg_match('/^CATEGORY_KEYWORDS[^=]*=\s*\{(.*?)\n\}/ms', $python, $block), 'The Python CATEGORY_KEYWORDS block was not found.');
+        preg_match_all('/"([^"]+)":\s*(CRITICAL_KEYWORDS \+ )?\(([^)]*)\)/', $block[1], $categories, PREG_SET_ORDER);
+        $phpCategories = (new ReflectionClassConstant(GrievanceController::class, 'CATEGORY_KEYWORDS'))->getValue();
+        $this->assertSame(array_keys($phpCategories), array_column($categories, 1));
+        foreach ($categories as [, $category, $inheritsCritical, $tuple]) {
+            $this->assertSame([...($inheritsCritical !== '' ? $critical : []), ...$quoted($tuple)], $phpCategories[$category], "PHP '{$category}' drifted from the Python engine.");
         }
     }
 

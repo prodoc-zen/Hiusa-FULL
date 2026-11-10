@@ -475,6 +475,33 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('record=41');
   });
 
+  it('shows the server reason inside the decision dialog and reloads the list when the request was already decided', async () => {
+    mocks.reviewApprovalRequest.mockRejectedValue({ response: { status: 409, data: { message: 'This request has already been reviewed.' } } });
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+    const loadsBefore = mocks.getApprovalRequests.mock.calls.length;
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('This request has already been reviewed.');
+    expect(screen.queryByText('Could not save your decision. Try again.')).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.getApprovalRequests.mock.calls.length).toBeGreaterThan(loadsBefore));
+  });
+
+  it('falls back to the plain retry message when the server gives no reason', async () => {
+    mocks.reviewApprovalRequest.mockRejectedValue(new Error('Network Error'));
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('Could not save your decision. Try again.');
+  });
+
   it('reads plain Approved when nothing else is left to clear', async () => {
     mocks.reviewApprovalRequest.mockResolvedValue({ data: { ...budgetRow, status: 'approved', reviewed_at: '2026-10-08T09:00:00+08:00' } });
     renderPage('/dashboard/department-head/approvals?record=42');
@@ -657,7 +684,7 @@ describe('DepartmentHeadApprovalsPage silent refresh while the tab stays open', 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
     const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
-    const banner = () => document.querySelector('[role="alert"] p');
+    const banner = () => within(confirm).queryByRole('alert');
     await waitFor(() => expect(banner()).toHaveTextContent('Could not save your decision. Try again.'));
     mocks.getApprovalRequests.mockResolvedValue(page([row(1, 'Chess report'), row(2, 'Drama report')]));
 

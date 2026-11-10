@@ -123,6 +123,24 @@ class GrievanceTest extends TestCase
             ->assertJsonPath('category', 'Safety & Security');
     }
 
+    public function test_php_fallback_rates_natural_wordings_of_serious_complaints_by_their_stems(): void
+    {
+        Http::fake(['*' => fn () => throw new ConnectionException('Connection refused')]);
+        Sanctum::actingAs($this->user('STUDENT'));
+
+        $this->postJson('/api/grievances', [
+            'title' => 'I was harassed and threatened by an officer',
+            'description' => 'He also assaulted a classmate after the meeting.',
+            'addressed_to' => 'sao',
+        ])->assertCreated()->assertJsonPath('classification_engine', 'php-fallback')->assertJsonPath('urgency', 'Critical');
+
+        $this->postJson('/api/grievances', [
+            'title' => 'The treasurer has been stealing',
+            'description' => 'Our collections keep disappearing from the cash box.',
+            'addressed_to' => 'sao',
+        ])->assertCreated()->assertJsonPath('urgency', 'High')->assertJsonPath('category', 'Financial Integrity');
+    }
+
     public function test_classification_falls_back_to_php_engine_on_401(): void
     {
         Http::fake([

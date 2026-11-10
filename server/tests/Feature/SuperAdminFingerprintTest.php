@@ -27,18 +27,13 @@ class SuperAdminFingerprintTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/users', $this->adminPayload(880001))->assertCreated();
+        $this->postJson('/api/users', $this->adminPayload(880001))->assertForbidden();
 
         Sanctum::actingAs($superAdmin);
         $payload = $this->adminPayload(880002);
         $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])
             ->assertUnprocessable()->assertJsonValidationErrors('role');
-        Sanctum::actingAs($admin);
-        $created = $this->postJson('/api/users', $payload)
-            ->assertCreated()
-            ->assertJsonPath('role', 'ADMIN');
-
-        $createdId = $created->json('school_id');
+        $createdId = User::factory()->admin()->create(['organization_id' => $organization->id])->school_id;
         Sanctum::actingAs($admin);
         $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Blocked'])->assertForbidden();
 

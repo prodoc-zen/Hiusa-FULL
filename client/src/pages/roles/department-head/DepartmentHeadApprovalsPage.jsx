@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Download, Plus, Search } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import notify from '../../../lib/notify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -58,7 +59,7 @@ function downloadCsv(rows, organizationNames) {
   const link = document.createElement('a'); link.href = url; link.download = `approval-register-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
-function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organizationName }) {
+function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organizationName, error }) {
   const [remarks, setRemarks] = useState('');
 
   useEffect(() => {
@@ -86,6 +87,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
             className="resize-none"
           />
         </Field>
+        {error && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
           <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || (isReject && !remarks.trim())}>
@@ -173,6 +175,7 @@ export default function DepartmentHeadApprovalsPage() {
   const [search, setSearch] = useState('');
   const [opened, setOpened] = useState(null);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
+  const [decisionError, setDecisionError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [organizations, setOrganizations] = useState([]);
@@ -317,6 +320,7 @@ export default function DepartmentHeadApprovalsPage() {
   async function handleReview(remarks) {
     const { request, action } = modalState;
     setSubmitting(true);
+    setDecisionError(null);
     try {
       const { data } = await reviewApprovalRequest(request.id, { status: action, remarks: remarks.trim() || null });
       const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
@@ -324,9 +328,11 @@ export default function DepartmentHeadApprovalsPage() {
       setOpened({ id: String(request.id), request: updated, state: 'ready' });
       notify.success(`Request ${action}.`);
       load();
-    } catch {
-      setError('Could not save your decision. Try again.');
-      notify.error('Could not save your decision. Try again.');
+    } catch (cause) {
+      const message = getApiErrorMessage(cause, 'Could not save your decision. Try again.');
+      setDecisionError(message);
+      notify.error(message);
+      if (cause?.response?.status === 409) load();
     } finally {
       setSubmitting(false);
     }
@@ -462,8 +468,9 @@ export default function DepartmentHeadApprovalsPage() {
         request={modalState.request}
         action={modalState.action}
         busy={submitting}
+        error={decisionError}
         organizationName={organizationNames[modalState.request?.organization_id]}
-        onCancel={() => setModalState({ open: false, request: null, action: null })}
+        onCancel={() => { setDecisionError(null); setModalState({ open: false, request: null, action: null }); }}
         onConfirm={handleReview}
       />
 

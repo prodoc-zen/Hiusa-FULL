@@ -38,7 +38,7 @@ class SaoBrandingAndPositionsTest extends TestCase
         $this->withHeader('Accept', 'application/json')->post('/api/system/colleges/'.$college->id.'/logo', ['logo' => UploadedFile::fake()->create('bad.pdf', 10, 'application/pdf')])->assertUnprocessable();
     }
 
-    public function test_organization_admin_appoints_another_admin_and_adviser_positions_remain_protected(): void
+    public function test_organization_admin_cannot_appoint_another_admin_and_adviser_positions_remain_protected(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
@@ -56,14 +56,14 @@ class SaoBrandingAndPositionsTest extends TestCase
             'position_title' => 'President',
             'password' => 'ChangeMe123!',
             'password_confirmation' => 'ChangeMe123!',
-        ])->assertCreated();
+        ])->assertForbidden();
+        $this->assertDatabaseMissing('users', ['school_id' => 87654321]);
+        User::factory()->admin()->create(['school_id' => 87654321, 'organization_id' => $organization->id, 'position_title' => 'President', 'must_change_password' => false]);
 
         $this->assertDatabaseHas('sbo_positions', ['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'President', 'is_active' => true]);
 
         $adviser = SboPosition::create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'Adviser', 'is_active' => true]);
         $admin = User::where('school_id', 87654321)->firstOrFail();
-        $this->assertTrue($admin->must_change_password);
-        $admin->update(['must_change_password' => false]);
         Sanctum::actingAs($admin);
         $this->getJson('/api/sbo-positions')->assertOk()->assertJsonFragment(['title' => 'Adviser']);
         $this->putJson('/api/sbo-positions/'.$adviser->id, ['description' => 'Changed'])->assertForbidden();
