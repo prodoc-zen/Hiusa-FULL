@@ -430,6 +430,7 @@ class AuthRoutesTest extends TestCase
                     'first_name' => 'Updated',
                     'last_name' => str_replace('_', '', ucwords(strtolower($role), '_')),
                     'email' => 'updated-'.strtolower($role).'@example.com',
+                    'current_password' => 'password',
                 ])
                 ->assertOk()
                 ->assertJsonPath('first_name', 'Updated')
