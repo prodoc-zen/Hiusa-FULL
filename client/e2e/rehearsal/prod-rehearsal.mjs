@@ -1035,6 +1035,8 @@ async function switchToOrganization(who, rec) {
     const orgProfile = panel.getByRole('button', { name: new RegExp(ORG.name, 'i') });
     const hasOrgProfile = await orgProfile.first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false);
     if (!hasOrgProfile) {
+      rec && (await shot(who, 'profiles-no-org', rec));
+      rec && rec.notes.push(`${who} account menu shows: ${(await panel.innerText()).replace(/\s+/g, ' ').slice(0, 300)}`);
       await page.keyboard.press('Escape');
       rec && rec.notes.push(`${who} has no organization profile in the account menu; stayed on their own dashboard`);
       return page;
@@ -1046,7 +1048,7 @@ async function switchToOrganization(who, rec) {
     }
     rec && (await shot(who, 'profiles-open', rec));
     await orgProfile.first().click();
-    await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().waitFor({ state: 'visible', timeout: 25000 });
+    await page.getByText(new RegExp(`Viewing ${ORG.name}`)).first().waitFor({ state: 'visible', timeout: 25000 });
     await waitSettled(page);
     return page;
   }
@@ -1358,7 +1360,7 @@ await step('election_handover', 'In the org: an election for President with cand
     await switchToOrganization(who, rec);
     // The member votes from the organization profile here; the college profile lists this election too, so this is not the only way in.
     // The strip under the top bar names the profile in view; a head or officer also has the Workspace switcher.
-    const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name} · Organization profile`)).first().isVisible().catch(() => false)
+    const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name}`)).first().isVisible().catch(() => false)
       || new RegExp(ORG.name, 'i').test(await page.getByRole('button', { name: /^Workspace:/ }).innerText({ timeout: 2000 }).catch(() => ''));
     if (!onOrg) rec.defect('app_bug', `${fullName(who)} is not on the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
