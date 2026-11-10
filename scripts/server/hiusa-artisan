@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Install as /usr/local/bin/hiusa-artisan (root:root, 755). Runs artisan with the native runtime overrides
+# loaded, so config:cache keeps the local AI service URL and key. Run it as www-data:
+#   sudo -u www-data /usr/local/bin/hiusa-artisan config:cache
+set -euo pipefail
+
+OVERRIDES="${HIUSA_NATIVE_ENV:-/etc/hiusa/laravel-native.env}"
+APP_DIR="${HIUSA_APP_DIR:-/var/www/hiusa}"
+
+set -a
+. "$OVERRIDES"
+set +a
+
+cd "$APP_DIR/server"
+exec /usr/bin/php artisan "$@"
