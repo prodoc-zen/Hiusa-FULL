@@ -189,22 +189,26 @@ main() {
         sudo systemctl restart hiusa-ai
     fi
     sudo systemctl reload php8.3-fpm
+    (cd "$APP_DIR/server" && "${ARTISAN[@]}" schedule:clear-cache)
     sudo systemctl start "${BACKGROUND_UNITS[@]}"
     background_stopped=0
     sudo nginx -t
     sudo systemctl reload nginx
 
     echo "== 7. Health"
-    local healthy=0 i
+    local healthy=0 i body
     for i in $(seq 1 12); do
-        if curl -fsSk --max-time 10 https://127.0.0.1/up > /dev/null 2>&1 || curl -fsS --max-time 10 http://127.0.0.1/up > /dev/null 2>&1; then
+        # Exactly 200 over https: curl -f alone would accept the 301 that nginx answers on plain http. The body must
+        # name the commit just deployed, so a request that reaches an older release does not pass.
+        body="$(curl -sSk --max-time 10 -w '|%{http_code}' https://127.0.0.1/api/health 2>/dev/null || true)"
+        if [[ "${body##*|}" == 200 ]] && grep -q "\"database\":\"ok\".*\"sha\":\"$target\"" <<<"$body"; then
             healthy=1
             break
         fi
         sleep 5
     done
     if [[ $healthy -ne 1 ]]; then
-        echo "The /up health endpoint did not answer after the restart." >&2
+        echo "The /api/health check did not return 200 with the database ok and commit ${target:0:9} after the restart." >&2
         exit 1
     fi
     sudo systemctl is-active "${ALL_UNITS[@]}"
