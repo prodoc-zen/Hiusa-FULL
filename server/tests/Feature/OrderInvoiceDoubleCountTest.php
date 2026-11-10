@@ -121,10 +121,10 @@ class OrderInvoiceDoubleCountTest extends TestCase
     {
         $orderId = $this->pendingOrder();
         $invoice = $this->billOrder($orderId);
-        $this->item->update(['stock_quantity' => 0]);
+        $this->item->update(['is_active' => false]);
 
         $this->postJson("/api/invoices/{$invoice['id']}/payments", ['amount' => '300.00'])
-            ->assertStatus(422)->assertJsonPath('message', 'Insufficient stock to approve this order. Only 0 unit(s) remain.');
+            ->assertStatus(422)->assertJsonPath('message', 'This merchandise item is no longer available for payment approval.');
 
         $this->assertSame(0, Transaction::count());
         $this->assertSame(0, InvoicePayment::count());
@@ -149,7 +149,7 @@ class OrderInvoiceDoubleCountTest extends TestCase
         $this->assertNull($order->transaction_id);
         $this->assertSame(0, Transaction::count());
         $this->assertSame(0, ApprovalRequest::count());
-        $this->assertSame(10, $this->item->fresh()->stock_quantity);
+        $this->assertSame(9, $this->item->fresh()->stock_quantity);
     }
 
     public function test_the_approvals_queue_cannot_approve_an_order_billed_on_an_open_invoice(): void
