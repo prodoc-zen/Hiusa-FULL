@@ -7,3 +7,4 @@ Dockerfile* text eol=lf
 **/Dockerfile* text eol=lf
 client/Caddyfile.production text eol=lf
 server/docker/** text eol=lf
+*.php text eol=lf
