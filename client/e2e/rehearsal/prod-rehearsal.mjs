@@ -503,6 +503,10 @@ await step('records_load', 'Dean loads a synthetic student records CSV (3 studen
   await waitSettled(page);
   await page.waitForTimeout(1200);
   await shot('dean', 'upload-saved', rec);
+  // The drawer stays open to show the saved count; close it so its overlay does not block the next click.
+  const drawer = page.getByRole('dialog', { name: /Upload student records/ });
+  await drawer.getByRole('button', { name: /^Close/ }).first().click({ timeout: 5000 }).catch(() => page.keyboard.press('Escape'));
+  await drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => rec.defect('ux_gap', 'The Upload student records drawer cannot be closed with its close button or Escape.', ['client/src/pages/roles/department-head/CollegePeoplePage.jsx']));
   const found = await listed();
   rec.evidence.push(`listed after save: ${found.join(', ') || 'none'}`);
   if (found.length < names.length) {
