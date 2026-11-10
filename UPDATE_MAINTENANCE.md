@@ -3,9 +3,9 @@ git pull
 cd /var/www/hiusa/server
 
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
-sudo -u www-data php artisan migrate --force
-sudo -u www-data php artisan optimize:clear
-sudo -u www-data php artisan optimize
+sudo -u www-data /usr/local/bin/hiusa-artisan migrate --force
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize:clear
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize
 
 cd /var/www/hiusa/client
 
@@ -27,7 +27,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 cd /var/www/hiusa/server
-sudo -u www-data php artisan up
+sudo -u www-data /usr/local/bin/hiusa-artisan up
 sudo systemctl is-active nginx php8.3-fpm mysql hiusa-ai hiusa-fingerprint hiusa-queue hiusa-scheduler
 
 curl -fsS "https://YOUR_STATIC_IP/up"

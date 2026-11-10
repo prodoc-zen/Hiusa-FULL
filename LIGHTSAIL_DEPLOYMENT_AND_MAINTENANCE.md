@@ -388,10 +388,10 @@ Use the existing [UPDATE_MAINTENANCE.md](UPDATE_MAINTENANCE.md) as a short comma
 ```bash
 cd /var/www/hiusa/server
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
-php artisan migrate:status
-php artisan migrate --force
-php artisan optimize:clear
-php artisan optimize
+sudo -u www-data /usr/local/bin/hiusa-artisan migrate:status
+sudo -u www-data /usr/local/bin/hiusa-artisan migrate --force
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize:clear
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize
 ```
 
 ```bash
@@ -429,10 +429,12 @@ Edit `/var/www/hiusa/server/.env` on Lightsail. Laravel often caches configurati
 
 ```bash
 cd /var/www/hiusa/server
-php artisan optimize:clear
-php artisan optimize
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize:clear
+sudo -u www-data /usr/local/bin/hiusa-artisan optimize
 sudo systemctl restart php8.3-fpm hiusa-queue hiusa-scheduler
 ```
+
+Rebuild the caches only with the wrapper, as `www-data`. Plain `php artisan optimize` leaves out the overrides in `/etc/hiusa/laravel-native.env` (the AI address and key), so the AI features quietly stop working, and when run as the login user it leaves cache files that `www-data` cannot replace. A key set in `/etc/hiusa/laravel-native.env` wins over the same key in `server/.env`.
 
 For Python or fingerprint settings, edit their own `.env` files and restart only their respective units. For `VITE_*` values, edit `client/.env.production` and rerun `npm run build`; restarting PHP cannot change already built JavaScript. Never paste passwords or keys into diagnostic output.
 

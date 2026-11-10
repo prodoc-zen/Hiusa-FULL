@@ -50,7 +50,7 @@ sudo -u www-data /usr/local/bin/hiusa-artisan financial-reports:secure-documents
 
 This moves existing financial report supporting documents from the public disk to the private one and removes the public link. It is safe to repeat. It prints how many documents it moved and how many listed files were missing; a missing file is a document that was already gone.
 
-Accounts that existed before this release keep `must_change_password = false`, including class-list students still on the old `<last four digits of the school ID>-uclm` password and demo accounts on `Demo@12345` or `Admin@123456`. Take a database backup first, then run:
+Accounts that existed before this release keep `must_change_password = false`, including class-list students still on the old `<last four digits of the school ID>-uclm` password and demo accounts still on their seeded default password. Take a database backup first, then run:
 
 ```bash
 sudo -u www-data /usr/local/bin/hiusa-artisan users:flag-default-passwords --dry-run

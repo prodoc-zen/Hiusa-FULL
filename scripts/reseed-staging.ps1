@@ -849,7 +849,7 @@ function Write-RunEnd {
         Write-Host 'SAO 990001: step 7 started and no password was reported. The password was probably changed on the server and is unknown. Run the script again with -Execute (it sets a new one).' -ForegroundColor Red
     } elseif ($script:WipeDone) {
         Write-Host ''
-        Write-Host 'SAO 990001 is on the PUBLIC DEFAULT password Admin@123456 (the reseed restored it and step 7 never ran). Run the script again with -Execute, or set a password with the tinker procedure in CLAUDE.md ("Tinker on the server"). Do not leave the site like this.' -ForegroundColor Red
+        Write-Host 'SAO 990001 is on the PUBLIC DEFAULT password (the reseed restored it and step 7 never ran). Run the script again with -Execute, or set a password with the tinker procedure in CLAUDE.md ("Tinker on the server"). Do not leave the site like this.' -ForegroundColor Red
     }
 }
 

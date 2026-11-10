@@ -14,6 +14,8 @@ class UserSeeder extends Seeder
             return;
         }
 
+        $mustChange = ! app()->environment(['local', 'testing']);
+
         $defaultOrganizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');
         $otherOrganizationIds = Organization::where('acronym', '!=', 'PSITS-CCS')
             ->student()
@@ -56,6 +58,7 @@ class UserSeeder extends Seeder
                 array_merge($u, [
                     'organization_id' => $defaultOrganizationId,
                     'password_hash' => 'Demo@12345',
+                    'must_change_password' => $mustChange,
                     'is_member' => true,
                 ])
             );
@@ -73,6 +76,7 @@ class UserSeeder extends Seeder
                 array_merge($u, [
                     'organization_id' => $otherOrganizationIds[$index] ?? $defaultOrganizationId,
                     'password_hash' => 'Demo@12345',
+                    'must_change_password' => $mustChange,
                     'is_member' => true,
                 ])
             );
