@@ -2,6 +2,7 @@
 
 use App\Console\Commands\MarkEventNoShows;
 use App\Console\Commands\MarkOverdueTasks;
+use App\Console\Commands\OpsCheck;
 use App\Console\Commands\PruneExpiredCache;
 use App\Console\Commands\SendEventReminders;
 use App\Console\Commands\SyncElectionStatuses;
@@ -9,6 +10,7 @@ use App\Http\Controllers\GlobalAnnouncementController;
 use App\Services\OrganizationDeletionService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -22,3 +24,4 @@ Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlappin
 Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping();
 Schedule::call(fn () => app(OrganizationDeletionService::class)->cleanup())->name('retry-deleted-organization-files')->hourly()->withoutOverlapping();
 Schedule::call(fn () => app(GlobalAnnouncementController::class)->publishScheduled())->name('publish-scheduled-sao-announcements')->everyMinute()->withoutOverlapping();
+Schedule::call(fn () => Cache::put(OpsCheck::HEARTBEAT_KEY, now()->getTimestamp()))->name('scheduler-heartbeat')->everyMinute();
