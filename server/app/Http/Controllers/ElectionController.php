@@ -1137,6 +1137,14 @@ class ElectionController extends Controller
             return response()->json(['message' => $periodMessage], 422);
         }
 
+        $onVoterRoll = AccountProfile::onVoterRoll($election->finalized_at)
+            ->where('account_profiles.organization_id', $election->organization_id)
+            ->where('account_profiles.user_school_id', $request->user()->school_id)
+            ->exists();
+        if (! $onVoterRoll) {
+            return response()->json(['message' => 'You joined after the voter list was finalized, so you cannot vote in this election.'], 403);
+        }
+
         $request->validate([
             'votes' => 'required|array|min:1',
             'votes.*.position_id' => 'required|distinct|exists:election_positions,id',
@@ -1241,7 +1249,7 @@ class ElectionController extends Controller
         // Belonging to the organization is an active profile there, as in the people directory; a member the
         // head added keeps their own account in the college and still votes and counts here. The ballot
         // (`vote`) admits exactly this set, through the same scope.
-        $votersQuery = AccountProfile::votingMembers()->where('account_profiles.organization_id', $organizationId);
+        $votersQuery = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $organizationId);
 
         $eligibleTotal = (clone $votersQuery)->count();
         $votedCount = (clone $votersQuery)->whereIn('account_profiles.user_school_id', $voterIds)->count();
