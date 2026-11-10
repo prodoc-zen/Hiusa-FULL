@@ -88,6 +88,20 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
     if (enabled && role) loadProfiles();
   }, [enabled, role, loadProfiles]);
 
+  // Access granted while this person is signed in shows up when they come back to the tab, without a reload.
+  useEffect(() => {
+    if (!enabled || !role) return undefined;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') loadProfiles({ quiet: true });
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [enabled, role, loadProfiles]);
+
   useEffect(() => {
     if (!enabled || role !== 'DEPARTMENT_HEAD') return;
     getCollegeOrganizations({ per_page: 100, lifecycle_status: 'active' })
