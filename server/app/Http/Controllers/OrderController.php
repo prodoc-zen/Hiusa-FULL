@@ -416,7 +416,7 @@ class OrderController extends Controller
             $variant = null;
             if ($item->variants()->exists()) {
                 $variant = $item->variants()->where('organization_id', $item->organization_id)
-                    ->whereKey($data['merchandise_variant_id'] ?? 0)->first();
+                    ->whereKey($data['merchandise_variant_id'] ?? 0)->lockForUpdate()->first();
                 if (! $variant) {
                     return response()->json(['message' => 'Select a valid variant for this product.'], 422);
                 }
@@ -460,6 +460,7 @@ class OrderController extends Controller
                     'organization_id' => $request->user()->organization_id,
                 ]);
 
+                $this->fulfillmentService->holdStock($order, $item, $variant);
                 $this->notifyFulfillmentTeam($order);
                 $this->audit($request, 'created', $order);
             } catch (\Throwable $exception) {
@@ -587,6 +588,7 @@ class OrderController extends Controller
                         ? 'Cancelled by buyer: '.$remarks
                         : 'Cancelled by buyer.',
                 ]);
+                $this->fulfillmentService->releaseStock($order);
                 $this->fulfillmentService->cancelInvoiceOfClosedOrder($order, $request->user(), "Order ORD-{$order->id} was cancelled by the buyer.");
                 $this->notifyFulfillmentTeam(
                     $order,
