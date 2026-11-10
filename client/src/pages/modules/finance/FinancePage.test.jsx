@@ -1021,3 +1021,36 @@ describe('FinancePage plain ledger rows and page-level states', () => {
     expect(await screen.findByText('No invoices yet')).toBeInTheDocument();
   });
 });
+
+describe('FinancePage all-time category summary', () => {
+  const ALL_TIME = { total_income: 900, total_expense: 100, net_balance: 800, by_category: [{ category: 'Membership fees', type: 'income', total: 900 }, { category: 'Supplies', type: 'expense', total: 100 }] };
+  const FILTERED = { total_income: 0, total_expense: 100, net_balance: -100, by_category: [{ category: 'Supplies', type: 'expense', total: 100 }] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockImplementation((params) => Promise.resolve({ data: params?.search ? FILTERED : ALL_TIME }));
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  it('keeps the category summary and balance at all time after the ledger is searched', async () => {
+    const tree = (tab) => <MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab={tab} /></MemoryRouter>;
+    const { rerender } = renderUi(tree('transactions'));
+
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith(expect.objectContaining({ search: 'supplies' })));
+
+    rerender(tree('forecasting'));
+
+    expect(await screen.findByText('Membership fees')).toBeInTheDocument();
+    expect(screen.getByText(/Ledger net balance/).textContent).toContain('800');
+  });
+});

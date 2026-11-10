@@ -439,6 +439,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
+  const [rosterError, setRosterError] = useState(false);
+  const [rosterReload, setRosterReload] = useState(0);
   const [attendanceAcademicStructure, setAttendanceAcademicStructure] = useState(null);
   const [attendanceAcademicStructureError, setAttendanceAcademicStructureError] = useState('');
   const [checkInPerson, setCheckInPerson] = useState(null);
@@ -589,17 +591,20 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'attendance' && canManageAttendance && !usersLoaded) {
-      // /users is paginated - check-in search needs the full active roster,
-      // not just its first page.
-      fetchAllPages(getUsers, { account_status: 'active' })
-        .then((data) => {
-          setAllUsers(data);
-          setUsersLoaded(true);
-        })
-        .catch(() => {});
-    }
-  }, [activeTab, canManageAttendance, usersLoaded]);
+    if (activeTab !== 'attendance' || !canManageAttendance || usersLoaded) return undefined;
+    let active = true;
+    setRosterError(false);
+    // /users is paginated - check-in search needs the full active roster,
+    // not just its first page.
+    fetchAllPages(getUsers, { account_status: 'active' })
+      .then((data) => {
+        if (!active) return;
+        setAllUsers(data);
+        setUsersLoaded(true);
+      })
+      .catch(() => { if (active) setRosterError(true); });
+    return () => { active = false; };
+  }, [activeTab, canManageAttendance, usersLoaded, rosterReload]);
 
   useEffect(() => {
     if (activeTab !== 'attendance' || !canManageAttendance) return undefined;
@@ -1709,6 +1714,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
                       <div className="grid items-start gap-6 border-t border-line py-5 lg:grid-cols-2 lg:gap-8">
+                        {rosterError && <ErrorState className="py-0 lg:col-span-2" title="The member list did not load" description="Fingerprint check-in needs it to match a fingerprint to a member. Try again before checking people in." onRetry={() => setRosterReload((count) => count + 1)} />}
                         <div className="flex flex-col gap-3">
                           <h4 className="text-sm font-semibold text-ink">Manual check-in</h4>
                           <PersonPicker
