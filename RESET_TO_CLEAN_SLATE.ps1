@@ -3,6 +3,22 @@ Write-Host "==========================================================" -Foregro
 Write-Host " HIUSA: RESETTING DATABASE TO CLEAN SLATE FOR LIVE DEMO" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
+$envFile = Join-Path $PSScriptRoot "server\.env"
+$dbHost = $env:DB_HOST
+if (-not $dbHost -and (Test-Path $envFile)) {
+    $hostLine = Get-Content $envFile | Where-Object { $_ -match '^\s*DB_HOST\s*=' } | Select-Object -Last 1
+    if ($hostLine) { $dbHost = ($hostLine -replace '^\s*DB_HOST\s*=\s*', '').Trim().Trim('"').Trim("'") }
+}
+if ($dbHost -notin @('127.0.0.1', 'localhost')) {
+    Write-Host "Refusing to run: the database host is '$dbHost', not 127.0.0.1 or localhost. This script wipes the whole database and leaves it empty." -ForegroundColor Red
+    exit 1
+}
+$answer = Read-Host "This wipes the whole database and leaves it empty on $dbHost. Type WIPE to continue"
+if ($answer -cne 'WIPE') {
+    Write-Host "Cancelled. Nothing was changed." -ForegroundColor Yellow
+    exit 1
+}
+
 Push-Location "$PSScriptRoot\server"
 try {
     php artisan migrate:fresh --force
@@ -126,6 +142,5 @@ Write-Host ""
 Write-Host "CLEAN SLATE IS ACTIVE!" -ForegroundColor Green
 Write-Host "  - Academic Years & Semesters: 0 (Ready to create from scratch)"
 Write-Host "  - Student Organizations:      0 (Ready to create from scratch)"
-Write-Host "  - SAO Login:                  990001 / Admin@123456"
-Write-Host "  - CCS Dean Login:             940001 / Demo@12345"
+Write-Host "  - Sign-ins:                   issued privately"
 Write-Host "  - Sample PDFs for Upload:     c:\BSIT\React\Hiusa-FULL\demo-sample-files\"

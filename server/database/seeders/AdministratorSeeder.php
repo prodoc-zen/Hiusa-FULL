@@ -14,6 +14,8 @@ class AdministratorSeeder extends Seeder
             return;
         }
 
+        $mustChange = ! app()->environment(['local', 'testing']);
+
         $saoOrganizationId = Organization::where('acronym', 'SAO')->value('id');
 
         User::updateOrCreate(
@@ -24,6 +26,7 @@ class AdministratorSeeder extends Seeder
                 'last_name' => 'Director',
                 'email' => 'sao.director@hiusa.local',
                 'password_hash' => 'Admin@123456',
+                'must_change_password' => $mustChange,
                 'role' => 'SUPER_ADMIN',
                 'position_title' => 'SAO Director',
             ]
@@ -37,7 +40,7 @@ class AdministratorSeeder extends Seeder
             ->orderBy('id')
             ->get()
             ->values()
-            ->each(function (Organization $organization, int $organizationIndex): void {
+            ->each(function (Organization $organization, int $organizationIndex) use ($mustChange): void {
                 $schoolId = 990002 + ($organizationIndex * 10);
                 $email = $organization->acronym === 'PSITS-CCS'
                     ? 'org.admin@hiusa.local'
@@ -51,6 +54,7 @@ class AdministratorSeeder extends Seeder
                         'last_name' => 'Adviser',
                         'email' => $email,
                         'password_hash' => 'Admin@123456',
+                        'must_change_password' => $mustChange,
                         'role' => 'ADMIN',
                         'position_title' => 'Adviser',
                         'account_status' => 'active',
