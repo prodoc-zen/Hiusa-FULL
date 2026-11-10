@@ -416,6 +416,7 @@ class OfficeStaffParityTest extends TestCase
         $requests = 0;
         $failures = [];
         $deanRowsByUrl = [];
+        $deanStatusByUrl = [];
 
         foreach ($this->deanGetRoutes() as ['uri' => $uri]) {
             $urls = $this->urlsFor($uri);
@@ -431,6 +432,7 @@ class OfficeStaffParityTest extends TestCase
                     [$staffStatus, $staffRows] = $this->ask($this->staff, $target);
                     $requests += 2;
                     $deanRowsByUrl[$target] = $deanRows;
+                    $deanStatusByUrl[$target] = $deanStatus;
 
                     if ($deanStatus === 422) {
                         $failures[] = "{$target}: the dean's request was rejected as incomplete, so it measures nothing; add the query it needs to targetsFor()";
@@ -462,6 +464,12 @@ class OfficeStaffParityTest extends TestCase
             if (($deanRowsByUrl[$target] ?? 0) < $floor) {
                 $failures[] = "{$target}: the fixture gives the dean ".($deanRowsByUrl[$target] ?? 0)." rows, expected at least {$floor}; an empty listing proves nothing about scope";
             }
+        }
+
+        // The two file routes are walked with the seeded document and reviewer file; if the fixture breaks both roles fall to 404 and parity alone would still pass.
+        $applicationUrl = '/api/organization-applications/'.$this->ids['applications'][0];
+        foreach (['/documents/'.$this->ids['applicationDocuments'][0], '/review-files/'.$this->ids['applicationReviewFiles'][0]] as $fileRoute) {
+            $this->assertSame(200, $deanStatusByUrl[$applicationUrl.$fileRoute] ?? null, "the dean must open {$applicationUrl}{$fileRoute}; the walk proves nothing about it otherwise");
         }
 
         $this->assertSame([], array_values(array_diff($skipped, self::UNFILLED)), 'A GET route the dean can reach has a parameter this walk cannot fill; add it to parameterCandidates().');
