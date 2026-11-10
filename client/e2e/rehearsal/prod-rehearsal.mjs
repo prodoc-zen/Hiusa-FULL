@@ -799,7 +799,7 @@ await step('allow_apply', 'Dean allows student A to apply, finding them by name'
   await page.getByRole('tab', { name: /^Students/ }).click();
   await waitSettled(page);
   await page.getByRole('button', { name: 'Allow a student to apply' }).first().click();
-  await pickPerson(page, SPEC.a.first, new RegExp(fullName('a')));
+  await pickPerson(page, SPEC.a.first, new RegExp(fullName('a')), /^Student$/);
   await shot('dean', 'allow-picked', rec);
   await page.getByRole('button', { name: 'Allow to apply' }).click();
   await waitSettled(page);
