@@ -37,6 +37,17 @@ class AccountProfile extends Model
             ->whereHas('user', fn ($user) => $user->where('users.account_status', 'active'));
     }
 
+    /**
+     * The voter roll of an election: the voting members who had a profile in the organization when its ballot was
+     * finalized. A profile created afterwards is never on it, so nobody can be added to vote in a ballot already set.
+     */
+    public function scopeOnVoterRoll(Builder $query, $finalizedAt): Builder
+    {
+        return $finalizedAt
+            ? $query->votingMembers()->where('account_profiles.created_at', '<=', $finalizedAt)
+            : $query->votingMembers();
+    }
+
     /** The one rule every administrator count follows: an administrator whose profile or user account is disabled or inactive is not counted. */
     public function scopeActiveAdministrators(Builder $query): Builder
     {
