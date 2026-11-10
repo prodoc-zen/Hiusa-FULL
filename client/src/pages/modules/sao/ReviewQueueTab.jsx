@@ -44,7 +44,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   const [fileSearch, setFileSearch] = useState('');
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
-  const [queue, setQueue] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
+  const [queue, setQueue] = useState({ loading: true, error: null, loadedPage: 1, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
   const [page, setPage] = useState(1);
   const [openingDocumentId, setOpeningDocumentId] = useState(null);
   const [reviewTarget, setReviewTarget] = useState(null);
@@ -62,7 +62,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       organization_id: organizationId || undefined,
       search: fileSearch.trim() || undefined,
     })
-      .then((response) => setQueue({ loading: false, error: null, items: unwrapList(response.data), meta: listMeta(response.data) }))
+      .then((response) => setQueue({ loading: false, error: null, loadedPage: target, items: unwrapList(response.data), meta: listMeta(response.data) }))
       .catch((err) => setQueue((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load the review queue.') })));
   }, [status, organizationId, fileSearch]);
 
@@ -78,14 +78,15 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
 
   // A deep link can name a submission on a later page, so walk the pages until it turns up.
   useEffect(() => {
-    if (!recordId || openSubmission || queue.loading || queue.error) return;
+    // Right after setPage the queue still holds the previous page, so wait for the requested page to land.
+    if (!recordId || openSubmission || queue.loading || queue.error || queue.loadedPage !== page) return;
     if (page < queue.meta.lastPage) {
       setPage(page + 1);
       return;
     }
     notify.error('That submission is not in the review queue.');
     setRecordId(null);
-  }, [recordId, openSubmission, queue.loading, queue.error, queue.meta.lastPage, page, setRecordId]);
+  }, [recordId, openSubmission, queue.loading, queue.error, queue.loadedPage, queue.meta.lastPage, page, setRecordId]);
 
   async function openDocument(submission) {
     setOpeningDocumentId(submission.id);
