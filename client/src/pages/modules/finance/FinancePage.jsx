@@ -411,6 +411,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [clearances, setClearances] = useState(null);
   const [studentDebt, setStudentDebt] = useState(null);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
+  const [overallSummary, setOverallSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -508,9 +509,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
     ]);
+    // The ledger totals follow the search and filters, but the Reports tab and the category export are all time,
+    // so they read their own summary that carries the organization scope and nothing else.
+    const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
+    const ledgerSummary = canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve(emptySummary);
+    const isNarrowed = Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
+    const allTimeSummary = canViewTransactions && isNarrowed ? getTransactionSummary({ ...organizationScope }) : ledgerSummary;
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
-      canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
+      ledgerSummary,
+      allTimeSummary,
       canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
@@ -520,7 +528,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
       .then(async (first) => [first, await fetchLists()])
-      .then(([[txRes, sumRes, budgetsList, eventsList, receiptRes, invoiceRes, semesterRes, clearanceRes, debtRes], [forecasts, reports]]) => {
+      .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, semesterRes, clearanceRes, debtRes], [forecasts, reports]]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -532,6 +540,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           });
         }
         setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
+        setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setForecasts(forecasts);
         setBudgets(budgetsList);
         setEvents(eventsList);
@@ -976,7 +985,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     const dd = String(today.getDate()).padStart(2, '0');
 
     if (type === 'category') {
-      const rows = (summary.by_category || []).map((c) => ({
+      const rows = (overallSummary.by_category || []).map((c) => ({
         Category: c.category,
         Type: c.type,
         'Total (₱)': Number(c.total).toFixed(2),
@@ -1188,7 +1197,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {canViewTransactions && !error && !inlineBudgetForm && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (
         <p className="text-sm text-ink-muted">
-          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt(summary.net_balance)}</strong>
+          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt(overallSummary.net_balance)}</strong>
         </p>
       )}
 
@@ -1588,7 +1597,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
           <div className="self-start rounded-card border border-line bg-surface p-4 sm:p-5">
             <h2 className="text-base font-semibold text-ink">Summary by category</h2>
-            {(summary.by_category || []).length === 0 ? (
+            {(overallSummary.by_category || []).length === 0 ? (
               <p className="mt-3 text-sm text-ink-muted">No category data available.</p>
             ) : (
               <table className="mt-3 w-full text-sm">
@@ -1601,7 +1610,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </tr>
                 </thead>
                 <tbody>
-                  {(summary.by_category || []).map((cat) => (
+                  {(overallSummary.by_category || []).map((cat) => (
                     <tr key={cat.category + cat.type} className="border-b border-line-soft last:border-b-0">
                       <td className="py-2.5 font-normal text-ink">{cat.category}</td>
                       <td className={`py-2.5 text-xs ${cat.type === 'income' ? 'text-success-strong' : 'text-ink-muted'}`}>{sentence(cat.type)}</td>

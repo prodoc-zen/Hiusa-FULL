@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, DataTable, EmptyState, PageHeader, Select } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
@@ -33,6 +33,7 @@ export default function SaoGrievancesPage() {
   const [error, setError] = useState(null);
   const { selected, open, close, replace } = useGrievanceRecord();
   const [counts, setCounts] = useState(EMPTY_COUNTS);
+  const loadCounter = useRef(0);
 
   const filters = useMemo(() => ({
     status: status || undefined,
@@ -42,19 +43,32 @@ export default function SaoGrievancesPage() {
   const filtersActive = Boolean(status || urgency);
 
   const load = useCallback(() => {
+    loadCounter.current += 1;
+    const ticket = loadCounter.current;
     setLoading(true);
     setError(null);
     return getGrievances({ ...filters, page, per_page: 50 })
       .then((res) => {
+        if (ticket !== loadCounter.current) return;
         setRows(unwrapList(res.data));
         setMeta(listMeta(res.data));
       })
-      .catch(() => setError('Failed to load grievances.'))
-      .finally(() => setLoading(false));
+      .catch(() => { if (ticket === loadCounter.current) setError('Failed to load grievances.'); })
+      .finally(() => { if (ticket === loadCounter.current) setLoading(false); });
   }, [filters, page]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [filters]);
+
+  // A changed filter starts again from page one in the same update, so only one request goes out.
+  function changeStatus(value) {
+    setStatus(value);
+    setPage(1);
+  }
+
+  function changeUrgency(value) {
+    setUrgency(value);
+    setPage(1);
+  }
 
   // The tiles count the queue that needs a person, independent of the status and urgency selects
   // below (which narrow the table). There is no aggregate endpoint, so this is three lightweight
@@ -75,6 +89,7 @@ export default function SaoGrievancesPage() {
   function clearFilters() {
     setStatus('');
     setUrgency('');
+    setPage(1);
   }
 
   async function handleTransition(id, data) {
@@ -129,13 +144,13 @@ export default function SaoGrievancesPage() {
 
       <div className="grid grid-cols-3 gap-3">
         {TILE_STATUSES.map((value) => (
-          <button key={value} type="button" onClick={() => setStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
+          <button key={value} type="button" onClick={() => changeStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
         ))}
         {TILE_URGENCIES.map((value) => (
-          <button key={value} type="button" onClick={() => setUrgency(urgency === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
+          <button key={value} type="button" onClick={() => changeUrgency(urgency === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
           </button>
@@ -156,12 +171,12 @@ export default function SaoGrievancesPage() {
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
               <div className="w-40">
-                <Select filter aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <Select filter aria-label="Filter by status" value={status} onChange={(event) => changeStatus(event.target.value)}>
                   {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>
               <div className="w-40">
-                <Select filter aria-label="Filter by urgency" value={urgency} onChange={(event) => setUrgency(event.target.value)}>
+                <Select filter aria-label="Filter by urgency" value={urgency} onChange={(event) => changeUrgency(event.target.value)}>
                   {URGENCY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </Select>
               </div>

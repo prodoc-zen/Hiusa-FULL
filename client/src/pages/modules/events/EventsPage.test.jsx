@@ -196,6 +196,23 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeDisabled();
   });
 
+  it('shows a retryable error above check-in when the member roster fails to load', async () => {
+    const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: { expected_participants: 200 } };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+    userMocks.getUsers.mockRejectedValueOnce(new Error('network'));
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Foundation Day' }));
+
+    expect(await screen.findByText('The member list did not load')).toBeInTheDocument();
+    const callsBeforeRetry = userMocks.getUsers.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(screen.queryByText('The member list did not load')).not.toBeInTheDocument());
+    expect(userMocks.getUsers.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+  });
+
   it('presents check-in as a live door-management workspace', async () => {
     const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: { expected_participants: 200 } };
     const attendance = {
