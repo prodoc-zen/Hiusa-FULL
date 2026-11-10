@@ -104,7 +104,6 @@ const ROUTES = {
     '/dashboard/merchandise/order-merchandise',
     '/dashboard/merchandise/my-orders',
     '/dashboard/tasks/assigned-tasks',
-    '/dashboard/tasks/ai-delegation',
     '/dashboard/venues',
     '/dashboard/clearances',
     '/dashboard/profile',
