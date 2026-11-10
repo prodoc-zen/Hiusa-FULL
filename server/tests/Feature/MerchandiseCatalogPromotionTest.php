@@ -92,10 +92,10 @@ class MerchandiseCatalogPromotionTest extends TestCase
             'quantity' => 1,
         ])->assertCreated()->assertJsonPath('total_price', '200.00')
             ->assertJsonPath('promotion_applied', false);
-        $competingOrder = $this->postJson('/api/orders', [
+        $this->postJson('/api/orders', [
             'merchandise_id' => $item->id, 'merchandise_variant_id' => $variant->id,
             'quantity' => 5,
-        ])->assertCreated();
+        ])->assertUnprocessable()->assertJsonPath('message', 'Insufficient stock. Only 2 unit(s) available.');
         $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1])
             ->assertUnprocessable();
 
@@ -103,12 +103,8 @@ class MerchandiseCatalogPromotionTest extends TestCase
         $this->patchJson('/api/orders/'.$firstOrder->json('id').'/status', [
             'status' => 'paid', 'verified_amount' => 300,
         ])->assertOk();
-        $this->assertSame(4, $item->fresh()->stock_quantity);
-        $this->assertSame(4, $variant->fresh()->stock_quantity);
-        $this->patchJson('/api/orders/'.$competingOrder->json('id').'/status', [
-            'status' => 'paid', 'verified_amount' => 1000,
-        ])->assertUnprocessable();
-        $this->assertSame(4, $variant->fresh()->stock_quantity);
+        $this->assertSame(2, $item->fresh()->stock_quantity);
+        $this->assertSame(2, $variant->fresh()->stock_quantity);
         $this->assertDatabaseHas('orders', [
             'id' => $firstOrder->json('id'), 'total_price' => 300, 'promotion_applied' => 1,
         ]);
@@ -132,6 +128,6 @@ class MerchandiseCatalogPromotionTest extends TestCase
             'variants' => json_encode([['name' => 'M', 'stock_quantity' => 5]]),
         ])->assertConflict();
         $this->assertSame(0, $item->variants()->count());
-        $this->assertSame(5, $item->fresh()->stock_quantity);
+        $this->assertSame(4, $item->fresh()->stock_quantity);
     }
 }

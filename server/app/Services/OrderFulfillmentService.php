@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\Merchandise;
+use App\Models\MerchandiseVariant;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
@@ -110,6 +111,62 @@ class OrderFulfillmentService
         }
     }
 
+    /** Takes the order's units out of the available stock until the order is cancelled, rejected or claimed. */
+    public function holdStock(Order $order, Merchandise $item, ?MerchandiseVariant $variant, ?User $actor = null): void
+    {
+        $oldStock = $item->stock_quantity;
+        $oldVariantStock = $variant?->stock_quantity;
+
+        $variant?->decrement('stock_quantity', $order->quantity);
+        $item->decrement('stock_quantity', $order->quantity);
+        $order->update(['stock_held' => true]);
+
+        AuditLog::create([
+            'organization_id' => $item->organization_id, 'user_id' => $actor?->school_id,
+            'actor_role' => $actor?->role, 'module' => 'merchandise', 'action' => 'stock_reserved',
+            'description' => 'Stock reserved for order ORD-'.$order->id,
+            'record_type' => Merchandise::class, 'record_id' => $item->id,
+            'old_values' => ['stock_quantity' => $oldStock, 'variant_stock_quantity' => $oldVariantStock],
+            'new_values' => ['stock_quantity' => $item->fresh()->stock_quantity, 'variant_stock_quantity' => $variant?->fresh()->stock_quantity, 'variant_id' => $variant?->id, 'variant_name' => $variant?->name, 'order_id' => $order->id],
+            'created_at' => now(),
+        ]);
+    }
+
+    /** Gives back the units an order was holding. Safe to call twice: only the first call returns anything. */
+    public function releaseStock(Order $order, ?User $actor = null): void
+    {
+        if (! $order->stock_held) {
+            return;
+        }
+
+        $item = Merchandise::withTrashed()->where('organization_id', $order->organization_id)
+            ->whereKey($order->merchandise_id)->lockForUpdate()->first();
+        $variant = $order->merchandise_variant_id
+            ? MerchandiseVariant::where('organization_id', $order->organization_id)->where('merchandise_id', $order->merchandise_id)
+                ->whereKey($order->merchandise_variant_id)->lockForUpdate()->first()
+            : null;
+
+        $oldStock = $item?->stock_quantity;
+        $oldVariantStock = $variant?->stock_quantity;
+        $variant?->increment('stock_quantity', $order->quantity);
+        $item?->increment('stock_quantity', $order->quantity);
+        $order->update(['stock_held' => false]);
+
+        if (! $item) {
+            return;
+        }
+
+        AuditLog::create([
+            'organization_id' => $item->organization_id, 'user_id' => $actor?->school_id,
+            'actor_role' => $actor?->role, 'module' => 'merchandise', 'action' => 'stock_released',
+            'description' => 'Stock returned from order ORD-'.$order->id,
+            'record_type' => Merchandise::class, 'record_id' => $item->id,
+            'old_values' => ['stock_quantity' => $oldStock, 'variant_stock_quantity' => $oldVariantStock],
+            'new_values' => ['stock_quantity' => $item->fresh()->stock_quantity, 'variant_stock_quantity' => $variant?->fresh()->stock_quantity, 'variant_id' => $variant?->id, 'variant_name' => $variant?->name, 'order_id' => $order->id],
+            'created_at' => now(),
+        ]);
+    }
+
     public function approvePayment(Order $order, User $approver, bool $bypassOfficerReview = false): Order
     {
         return DB::transaction(function () use ($order, $approver, $bypassOfficerReview) {
@@ -140,33 +197,22 @@ class OrderFulfillmentService
                     throw new DomainException('This merchandise item is no longer available for payment approval.');
                 }
 
-                if ($item->stock_quantity < $lockedOrder->quantity) {
-                    throw new DomainException("Insufficient stock to approve this order. Only {$item->stock_quantity} unit(s) remain.");
-                }
-
-                $oldStock = $item->stock_quantity;
-                $variant = null;
-                $oldVariantStock = null;
-                if ($item->variants()->exists()) {
-                    $variant = $item->variants()->where('organization_id', $item->organization_id)
-                        ->whereKey($lockedOrder->merchandise_variant_id)->lockForUpdate()->first();
-                    if (! $variant || $variant->stock_quantity < $lockedOrder->quantity) {
-                        throw new DomainException('Insufficient stock for the selected variant.');
+                if (! $lockedOrder->stock_held) {
+                    if ($item->stock_quantity < $lockedOrder->quantity) {
+                        throw new DomainException("Insufficient stock to approve this order. Only {$item->stock_quantity} unit(s) remain.");
                     }
-                    $oldVariantStock = $variant->stock_quantity;
-                    $variant->decrement('stock_quantity', $lockedOrder->quantity);
-                }
 
-                $item->decrement('stock_quantity', $lockedOrder->quantity);
-                AuditLog::create([
-                    'organization_id' => $item->organization_id, 'user_id' => $approver->school_id,
-                    'actor_role' => $approver->role, 'module' => 'merchandise', 'action' => 'stock_reserved',
-                    'description' => 'Stock reserved for order ORD-'.$lockedOrder->id,
-                    'record_type' => Merchandise::class, 'record_id' => $item->id,
-                    'old_values' => ['stock_quantity' => $oldStock, 'variant_stock_quantity' => $oldVariantStock],
-                    'new_values' => ['stock_quantity' => $item->fresh()->stock_quantity, 'variant_stock_quantity' => $variant?->fresh()->stock_quantity, 'variant_id' => $variant?->id, 'variant_name' => $variant?->name, 'order_id' => $lockedOrder->id],
-                    'created_at' => now(),
-                ]);
+                    $variant = null;
+                    if ($item->variants()->exists()) {
+                        $variant = $item->variants()->where('organization_id', $item->organization_id)
+                            ->whereKey($lockedOrder->merchandise_variant_id)->lockForUpdate()->first();
+                        if (! $variant || $variant->stock_quantity < $lockedOrder->quantity) {
+                            throw new DomainException('Insufficient stock for the selected variant.');
+                        }
+                    }
+
+                    $this->holdStock($lockedOrder, $item, $variant, $approver);
+                }
             }
 
             $lockedOrder->update([
@@ -217,6 +263,7 @@ class OrderFulfillmentService
                 'review_remarks' => $remarks,
                 'status' => 'cancelled',
             ]);
+            $this->releaseStock($lockedOrder, $reviewer);
             $this->cancelInvoiceOfClosedOrder($lockedOrder, $reviewer, "Order ORD-{$lockedOrder->id} was rejected.");
             $this->notifyBuyer($lockedOrder, 'Payment Rejected', $remarks);
             $this->audit($lockedOrder->fresh(), $reviewer, 'payment_rejected', $oldOrderValues);
