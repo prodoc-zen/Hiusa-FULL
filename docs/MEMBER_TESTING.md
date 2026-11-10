@@ -21,7 +21,7 @@ Operator (the demo laptop owner):
 
 1. Once only: `cloudflared` must be installed (`winget install --id Cloudflare.cloudflared -e`, or put `cloudflared.exe` in `C:\Users\JM\tools\cloudflared`). No Cloudflare account is needed.
 2. From the repository root run `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Public` (add `-Reset` for a clean seed). It builds the client, starts the throwaway database and the API (both reachable from this laptop only), opens a free Cloudflare quick tunnel and prints the public link in a box. The first run takes a few minutes.
-3. The script prints the link and, in the same box, `SAO 990001 password for this run: ...`. The SAO account gets a new random password on every start, because the link is public and the SAO has full power over the data. It is shown on the operator's console only and saved nowhere. Give it only to the person who plays the SAO, and never put it in a chat group or a document. The documented `Admin@123456` does not work for 990001 on a public copy. After a public run, 990001 keeps that password on later LAN runs until `-Reset`.
+3. The script prints the link and, in the same box, `SAO 990001 password for this run: ...`. The SAO account gets a new random password on every start, because the link is public and the SAO has full power over the data. It is shown on the operator's console only and saved nowhere. Give it only to the person who plays the SAO, and never put it in a chat group or a document. The seeded password does not work for 990001 on a public copy. After a public run, 990001 keeps that password on later LAN runs until `-Reset`.
 4. Send the link to the members. The link changes every time the tunnel starts, so send the new one after each restart. Activating a semester (section 3) is needed on every fresh seed: ask the SAO player to do it first, or do it yourself with the SAO password before sending the link.
 5. Keep the laptop awake and online while members test. When the test ends, run `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop`; the link stops working and the build is removed. If a start fails part way, the script stops everything it started before it shows the error.
 
@@ -33,7 +33,7 @@ Mail and the AI helpers are switched off in the public copy by default: password
 
 To let members try the AI helpers, the operator adds `-EnableAi` (`scripts\serve-lan.ps1 -Public -EnableAi`, optionally with `-Reset`). That turns on Groq-written text (announcement drafts, event plans, budget advice, forecasts, task recommendations and financial report summaries) and starts the local Python AI engine (task delegation advice, forecasts, budget advice, grievance classification; reachable from this laptop only). All of it uses the operator's Groq key from `server/.env`, so every generation a tester starts uses up the operator's quota. Announcement drafts, event plans, budget advice and forecasts are limited to about 5 a minute per user; task recommendations and report summaries are limited only by the general write limit. The box printed at the end says "AI helpers: ON" when it is active. The other documented demo passwords stay public knowledge in this mode too.
 
-Anyone who has the link can open the app and try the demo accounts, so share it only with the team, treat all data as throwaway and never put real student data in it. The documented demo passwords (such as `Demo@12345`) are public knowledge, so anyone holding the link can use every account except the SAO one. Uploaded files are saved on the operator's disk.
+Anyone who has the link can open the app and try the demo accounts, so share it only with the team, treat all data as throwaway and never put real student data in it. Sign-ins for the other demo accounts are issued privately, and anyone holding the link who has one can use that account. Uploaded files are saved on the operator's disk.
 
 ## 2. Demo accounts
 
@@ -41,7 +41,7 @@ Sign in with School ID and password. Which table applies depends on the copy you
 
 ### Development database (not what `serve-lan.ps1` serves)
 
-Password for every account below is `Demo@12345`. These are the accounts as the team recorded them for the development database. They were not re-checked here, because that database was not touched; the seeders do not create 930027.
+Sign-ins are issued privately. These are the accounts as the team recorded them for the development database. They were not re-checked here, because that database was not touched; the seeders do not create 930027.
 
 | Role | School ID | Notes |
 |---|---|---|
@@ -53,16 +53,16 @@ Password for every account below is `Demo@12345`. These are the accounts as the 
 
 ### Fresh seed (`php artisan migrate:fresh --seed`; also what `serve-lan.ps1` serves)
 
-Checked by signing in to a freshly seeded copy through the sign-in API on 11 Oct 2026. Every account below signed in with the password shown and received a token.
+Checked by signing in to a freshly seeded copy through the sign-in API on 11 Oct 2026. Every account below signed in with its issued password and received a token. Sign-ins are issued privately.
 
-| Role | School ID | Password | Notes |
-|---|---|---|---|
-| SAO | 990001 | `Admin@123456` | The only SAO account. 930027 does not exist here and `Demo@12345` is rejected for 990001. On the public link this password is replaced by a per-run one that the operator prints (see "Testing from anywhere"), and 990001 keeps that password on later LAN runs until `-Reset`. |
-| Department Head, College of Computer Studies | 940001 | `Demo@12345` | Also 940002 (Business Education), 940003 (Teacher Education), 940004 (Health Sciences), 940005 (Engineering). On the staging server at https://13.228.227.182 four more colleges were added with `colleges:sync` and each has a head: 940006 (Criminal Justice Education), 940007 (Hospitality, Tourism and Customs Administration), 940008 (Maritime Education), 940009 (Nursing). One head per college. |
-| Admin of PSITS-CCS | 900001 | `Demo@12345` | President. 900002 (Vice President, Internal) and 900003 (Secretary) are also Admins. 920011 is the Admin (President) of JPIA-CBE. |
-| Adviser (an Admin of one organization, assigned by the SAO) | 990002 | `Admin@123456` | PSITS-CCS. 990012 is JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. `Demo@12345` is rejected for these. An adviser has the same role and menu as an Admin. |
-| SBO Officer | 900004 | `Demo@12345` | Treasurer of PSITS-CCS. 900005 (Auditor), 900006 (Public Information Officer), 900007 (Business Manager). |
-| Student | 2100142 | `Demo@12345` | PSITS-CCS. Also 2100217, 2100389, 2200055, 2200134, 2200298, 2200451, 2300078, 2300163, 2300247, 2300312, 2400019, 2400067, 2400093. 2400118 belongs to FES-CTE and 2400133 to EIG-COE. |
+| Role | School ID | Notes |
+|---|---|---|
+| SAO | 990001 | The only SAO account. 930027 does not exist here. On the public link this password is replaced by a per-run one that the operator prints (see "Testing from anywhere"), and 990001 keeps that password on later LAN runs until `-Reset`. |
+| Department Head, College of Computer Studies | 940001 | Also 940002 (Business Education), 940003 (Teacher Education), 940004 (Health Sciences), 940005 (Engineering). On the staging server at https://13.228.227.182 four more colleges were added with `colleges:sync` and each has a head: 940006 (Criminal Justice Education), 940007 (Hospitality, Tourism and Customs Administration), 940008 (Maritime Education), 940009 (Nursing). One head per college. |
+| Admin of PSITS-CCS | 900001 | President. 900002 (Vice President, Internal) and 900003 (Secretary) are also Admins. 920011 is the Admin (President) of JPIA-CBE. |
+| Adviser (an Admin of one organization, assigned by the SAO) | 990002 | PSITS-CCS. 990012 is JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. An adviser has the same role and menu as an Admin. |
+| SBO Officer | 900004 | Treasurer of PSITS-CCS. 900005 (Auditor), 900006 (Public Information Officer), 900007 (Business Manager). |
+| Student | 2100142 | PSITS-CCS. Also 2100217, 2100389, 2200055, 2200134, 2200298, 2200451, 2300078, 2300163, 2300247, 2300312, 2400019, 2400067, 2400093. 2400118 belongs to FES-CTE and 2400133 to EIG-COE. |
 
 These 35 accounts are the complete set on a fresh seed. Only PSITS-CCS has officers and a full student list. NSC-CHS has only its adviser, and JPIA-CBE, FES-CTE and EIG-COE have their adviser plus 920011, 2400118 and 2400133. The sidebar shows an Admin's role as Organization Admin.
 

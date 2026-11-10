@@ -769,7 +769,7 @@ try {
     Write-Host '=================================================================='
     $announced = $true
     Write-Host 'The link changes every time this is started. Anyone who has it can open the app and try the demo accounts: throwaway seeded data only, no real student data.'
-    Write-Warning 'The other demo passwords in docs/MEMBER_TESTING.md (Demo@12345 for the Admin, Department Head, officer and student accounts) are public knowledge: anyone holding the link can use them. Share the link only with the team.'
+    Write-Warning 'The other demo accounts keep their seeded default passwords, which are in the seeder source: anyone holding the link who knows them can use those accounts. Share the link only with the team.'
     if ($EnableAi) {
       Write-Host 'AI helpers: ON (Groq text and the local AI engine). Mail: off.'
       Write-Host "Groq writes announcement drafts, event plans, budget advice, forecasts, task recommendations and financial report summaries with the Groq key in server/.env, so testers use up that quota. Password reset emails do not arrive (this script forces the log mailer)."

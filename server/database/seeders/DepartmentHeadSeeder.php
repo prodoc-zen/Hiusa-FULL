@@ -15,6 +15,8 @@ class DepartmentHeadSeeder extends Seeder
             return;
         }
 
+        $mustChange = ! app()->environment(['local', 'testing']);
+
         $departmentHeads = [
             ['school_id' => 940001, 'college' => 'College of Computer Studies', 'first_name' => 'Ramon',    'last_name' => 'Castillo',   'email' => 'dean.ccs@hiusa.local'],
             ['school_id' => 940002, 'college' => 'College of Business Education', 'first_name' => 'Corazon',  'last_name' => 'Villareal',  'email' => 'dean.cbe@hiusa.local'],
@@ -40,6 +42,7 @@ class DepartmentHeadSeeder extends Seeder
                     'last_name' => $head['last_name'],
                     'email' => $head['email'],
                     'password_hash' => 'Demo@12345',
+                    'must_change_password' => $mustChange,
                     'role' => 'DEPARTMENT_HEAD',
                     'department' => $head['college'],
                     'is_member' => true,
