@@ -162,6 +162,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
+        if ($validatedData['role'] === 'ADMIN' && $actor->role === 'ADMIN') {
+            return response()->json(['message' => 'Only the dean or the SAO can name another organization head.'], 403);
+        }
+
         $this->assertStudentHasProgram($validatedData, AcademicProgram::where('organization_id', $organizationId)->exists());
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
@@ -460,6 +464,10 @@ class UserController extends Controller
             if (array_key_exists('password', $validatedData)) {
                 return response()->json(['message' => 'Only the SAO Director can reset another administrator account.'], 403);
             }
+        }
+
+        if (($validatedData['role'] ?? null) === 'ADMIN' && $user->role !== 'ADMIN' && $request->user()->role === 'ADMIN') {
+            return response()->json(['message' => 'Only the dean or the SAO can name another organization head.'], 403);
         }
 
         if (($validatedData['role'] ?? $user->role) === 'ADMIN'

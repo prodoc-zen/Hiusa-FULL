@@ -222,7 +222,7 @@ class AcademicStructureTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_create_an_admin_but_cannot_create_an_adviser_assignment(): void
+    public function test_admin_cannot_create_another_admin_or_an_adviser_assignment(): void
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -231,7 +231,7 @@ class AcademicStructureTest extends TestCase
         $this->postJson('/api/users', [
             'school_id' => 87654351, 'first_name' => 'Second', 'last_name' => 'Admin', 'email' => 'second.admin@example.test',
             'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'ADMIN',
-        ])->assertCreated()->assertJsonPath('role', 'ADMIN');
+        ])->assertForbidden();
 
         $this->postJson('/api/users', [
             'school_id' => 87654352, 'first_name' => 'Restricted', 'last_name' => 'Adviser', 'email' => 'restricted.adviser@example.test',
