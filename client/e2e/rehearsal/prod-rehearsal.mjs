@@ -547,18 +547,20 @@ await step('staff_add', 'Dean adds office staff from the employee records (link 
     const answered = () => page.waitForFunction(() => {
       const list = document.querySelector('[role="listbox"]:not([hidden])');
       return Boolean(list) && !/Searching/.test(list.textContent) && (list.querySelectorAll('[role="option"]').length > 0 || /No one matches/.test(list.textContent));
-    }, null, { timeout: 10000 }).catch(() => {});
+    }, null, { timeout: 10000 }).then(() => true, () => false);
     const offeredStudents = [];
+    const unanswered = [];
     for (const key of ['a', 'b', 'c']) {
       await finder.fill(SPEC[key].first);
       await page.waitForTimeout(500);
-      await answered();
+      if (!(await answered())) unanswered.push(SPEC[key].first);
       const offered = await dialog.getByRole('option').allInnerTexts();
       if (offered.some((text) => text.includes(fullName(key)))) offeredStudents.push(fullName(key));
     }
     await shot('dean', 'staff-search-students', rec);
     if (offeredStudents.length) rec.defect('app_bug', `The employee search offers student records (${offeredStudents.join(', ')}); office staff must come from employees only.`, ['server/app/Http/Controllers/CollegePeopleController.php']);
-    else rec.evidence.push('searching the three student first names offers no student record');
+    else if (!unanswered.length) rec.evidence.push('searching the three student first names offers no student record');
+    for (const name of unanswered) rec.defect('ux_gap', `The employee search did not answer for ${name}; students-not-offered is unproven.`, ['client/src/components/people/StaffInvitePanel.jsx']);
     await finder.fill(SPEC.staff.first);
     const option = dialog.getByRole('option').filter({ hasText: fullName('staff') }).first();
     await option.waitFor({ state: 'visible', timeout: 15000 });
@@ -646,12 +648,13 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   if (!account('staff')?.created) throw new Error('the staff account does not exist yet; run staff_add first');
   if (!people.has('staff')) { const s = await signIn('staff', rec); if (!s.ok) throw new Error(`staff sign-in ${s.status}`); }
   const page = people.get('staff').page;
+  const walkIssues = issues.length;
   await page.goto('/dashboard');
-  await page.waitForURL(/\/dashboard\/(admin|department-head)/, { timeout: 20000 }).catch(() => {});
+  await page.waitForURL(/\/dashboard\/admin/, { timeout: 20000 }).catch(() => {});
   await waitSettled(page);
   rec.evidence.push(`staff lands on ${routeOf(page.url())}`);
-  if (!/\/dashboard\/(admin|department-head)/.test(page.url())) rec.defect('app_bug', `Office staff landed on ${routeOf(page.url())}, not the college office home.`, ['client/src/App.jsx']);
-  else if (/\/dashboard\/admin/.test(page.url())) {
+  if (!/\/dashboard\/admin/.test(page.url())) rec.defect('app_bug', `Office staff landed on ${routeOf(page.url())}, not /dashboard/admin.`, ['client/src/App.jsx']);
+  else {
     // An ADMIN profile on the college home organization shows the office staff home: the applications queue of the college.
     const home = await waitForText(page, 'Applications for', 15000);
     if (!home) rec.defect('app_bug', 'The office staff home does not show "Applications for <college>".', ['client/src/pages/roles/admin/OfficeStaffHomePage.jsx']);
@@ -693,11 +696,14 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   // Organizations and Approvals, read paths.
   await goSidebar(page, rec, /^Organizations$/, '/dashboard/department-head/organizations');
   await page.waitForTimeout(800);
+  await hiddenControls('Organizations', [/^Allow a student to apply$/, /^Office staff$/, /^Open organization space for /]);
   await shot('staff', 'organizations', rec);
   await goSidebar(page, rec, /^Approvals$/, '/dashboard/department-head/approvals');
   await page.waitForTimeout(800);
   await shot('staff', 'approvals', rec);
-  rec.evidence.push('People, Organizations and Approvals opened without console errors or refused reads');
+  const walkNew = issues.slice(walkIssues).filter((item) => !item.expected).length;
+  if (walkNew) rec.evidence.push(`${walkNew} unexpected issues during the walk`);
+  else rec.evidence.push('People, Organizations and Approvals opened without console errors or refused reads');
 
   // One dean-only write that is safe to attempt. POST api/college/staff/invitations is refused by the role gate before the
   // controller runs, and this body has no email, so the invitation would fail validation even if the gate were open: nothing is created either way.
