@@ -743,6 +743,22 @@ describe('SystemCollegesPage', () => {
       await waitFor(() => expect(mocks.resetDepartmentHeadPassword).toHaveBeenCalledWith(940001));
       expect(await screen.findByRole('status')).toHaveTextContent('Password reset instructions were sent');
     });
+
+    it('shows the one-time reset link with a copy button when mail is off', async () => {
+      const writeText = vi.fn().mockResolvedValue();
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      withHead();
+      mocks.resetDepartmentHeadPassword.mockResolvedValue({ message: 'The reset link is ready.', reset_link: 'https://hiusa.example.test/reset-password?token=abc' });
+      await openManagement();
+      fireEvent.click(screen.getByRole('button', { name: 'Send password reset' }));
+      const confirmation = await screen.findByRole('dialog', { name: 'Send password reset' });
+      fireEvent.click(within(confirmation).getByRole('button', { name: 'Send reset link' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Reset link ready' });
+      expect(within(dialog).getByDisplayValue('https://hiusa.example.test/reset-password?token=abc')).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://hiusa.example.test/reset-password?token=abc'));
+    });
   });
 
   describe('silent refresh while the tab stays open', () => {

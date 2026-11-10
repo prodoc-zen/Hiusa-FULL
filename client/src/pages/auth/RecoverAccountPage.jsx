@@ -11,6 +11,7 @@ export default function RecoverAccountPage() {
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [emailOff, setEmailOff] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event) {
@@ -19,13 +20,31 @@ export default function RecoverAccountPage() {
     setLoading(true);
 
     try {
-      await requestPasswordReset({ identifier: identifier.trim() });
+      const response = await requestPasswordReset({ identifier: identifier.trim() });
+      setEmailOff(response?.data?.email_sent === false);
       setSubmitted(true);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to send reset instructions. Try again in a moment.'));
     } finally {
       setLoading(false);
     }
+  }
+
+  if (submitted && emailOff) {
+    return (
+      <AuthLayout>
+        <h1 className="text-xl font-semibold text-ink sm:text-2xl">Ask for a reset</h1>
+        <p className="mt-2 text-sm text-ink-muted">
+          Password reset by email is not available. Ask your organization Admin or the SAO to reset your password, then sign in with what they give you.
+        </p>
+
+        <div className="mt-6">
+          <Button className="w-full" onClick={() => navigate('/login')}>
+            Back to login
+          </Button>
+        </div>
+      </AuthLayout>
+    );
   }
 
   if (submitted) {

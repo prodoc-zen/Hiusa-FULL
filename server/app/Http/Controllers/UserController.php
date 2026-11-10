@@ -205,6 +205,8 @@ class UserController extends Controller
      * as creating one account; nothing is written unless every row passes, and
      * dry_run only reports. Imported members get a random password and set
      * their own through "Forgot password", so no password travels in a file.
+     * With mail off each member instead gets a one-time temporary password,
+     * returned once to the Admin and never stored or logged in plain text.
      */
     public function import(Request $request)
     {
@@ -280,9 +282,12 @@ class UserController extends Controller
             return response()->json(['imported' => false, 'summary' => $summary, 'rows' => $report], $invalid > 0 && ! $request->boolean('dry_run') ? 422 : 200);
         }
 
-        DB::transaction(function () use ($results, $organizationId, $request) {
+        $handOut = $this->passwordResetService->mailIsOff();
+        $credentials = [];
+        DB::transaction(function () use ($results, $organizationId, $request, $handOut, &$credentials) {
             foreach ($results as $result) {
                 $data = $result['data'];
+                $password = $handOut ? Str::password(12, symbols: false) : Str::password(32);
                 $user = User::create([
                     'organization_id' => $organizationId,
                     'school_id' => (int) $data['school_id'],
@@ -290,7 +295,8 @@ class UserController extends Controller
                     'last_name' => $data['last_name'],
                     'email' => $data['email'],
                     'contact_number' => $data['contact_number'] ?? null,
-                    'password_hash' => Str::password(32),
+                    'password_hash' => $password,
+                    'must_change_password' => $handOut,
                     'role' => $data['role'],
                     'account_status' => 'active',
                     'is_member' => true,
@@ -302,10 +308,23 @@ class UserController extends Controller
                     'section' => $data['section'] ?? null,
                 ]);
                 $this->recordUserAudit($request, 'imported', $user, null, $this->auditableUserValues($user));
+                if ($handOut) {
+                    $credentials[] = [
+                        'school_id' => $user->school_id,
+                        'name' => trim($user->first_name.' '.$user->last_name),
+                        'email' => $user->email,
+                        'temporary_password' => $password,
+                    ];
+                }
             }
         });
 
-        return response()->json(['imported' => true, 'summary' => $summary, 'rows' => $report], 201);
+        if (! $handOut) {
+            return response()->json(['imported' => true, 'summary' => $summary, 'rows' => $report], 201);
+        }
+
+        return response()->json(['imported' => true, 'summary' => $summary, 'rows' => $report, 'credentials' => $credentials], 201)
+            ->header('Cache-Control', 'no-store');
     }
 
     /**
@@ -832,6 +851,17 @@ class UserController extends Controller
             'organization_id' => ['nullable', 'integer', 'min:1'],
             'email' => ['nullable', 'required_without:identifier', 'email'],
         ]);
+
+        // With mail off nothing can be sent, so every request gets the same answer
+        // and no link is made (it would only be written to the log).
+        if ($this->passwordResetService->mailIsOff()) {
+            Hash::make(Str::random(64));
+
+            return response()->json([
+                'message' => 'Password reset by email is not available. Ask your organization Admin or the SAO to reset your password.',
+                'email_sent' => false,
+            ]);
+        }
 
         $user = isset($validated['identifier'])
             ? User::findByIdentifier(User::normalizeIdentifier($validated['identifier']))
