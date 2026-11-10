@@ -78,6 +78,12 @@ class ElectionMemberVotingTest extends TestCase
         return $member;
     }
 
+    /** The roll is whoever had a profile when the ballot was finalized, so a test that adds members finalizes afterwards. */
+    private function finalizeAfterMembersJoined(): void
+    {
+        $this->election->update(['finalized_at' => now()]);
+    }
+
     private function ballot(): array
     {
         return ['votes' => [['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id]]];
@@ -110,6 +116,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_a_member_casts_one_ballot_and_a_second_is_refused(): void
     {
         $member = $this->collegeMember();
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk()->assertJsonPath('success', true);
@@ -124,6 +131,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_after_voting_the_member_sees_their_receipt_on_the_election(): void
     {
         $member = $this->collegeMember();
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
 
@@ -211,6 +219,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_the_members_briefing_says_to_vote_and_stops_once_they_have(): void
     {
         $member = $this->collegeMember();
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
 
         $briefing = $this->getJson('/api/dashboard/briefing')->assertOk();
@@ -231,6 +240,7 @@ class ElectionMemberVotingTest extends TestCase
             'organization_id' => $second->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHours(5),
             'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
         ]);
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
@@ -272,6 +282,7 @@ class ElectionMemberVotingTest extends TestCase
             'native officer' => User::factory()->officer()->create(['organization_id' => $this->organization->id]),
         ];
 
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($this->admin);
         $listed = $this->getJson("/api/elections/{$this->election->id}/voters")->assertOk();
         $eligible = collect($listed->json('data'))->pluck('school_id')->sort()->values()->all();
