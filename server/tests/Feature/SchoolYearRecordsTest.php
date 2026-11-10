@@ -6,9 +6,11 @@ use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\Announcement;
+use App\Models\Candidate;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
+use App\Models\ElectionPosition;
 use App\Models\Event;
 use App\Models\FinancialReport;
 use App\Models\Organization;
@@ -16,6 +18,7 @@ use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\OrganizationSemesterRecord;
 use App\Models\User;
+use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -299,6 +302,27 @@ class SchoolYearRecordsTest extends TestCase
             ->assertJsonPath('organization.elections.0.id', $election->id);
         $this->assertNotNull($response->json('organization.elections.0.winners'));
         $this->assertSame([], $response->json('organization.documents.event_files'));
+    }
+
+    public function test_records_name_no_winner_in_a_tie_the_same_as_the_results_page(): void
+    {
+        $election = Election::factory()->create(['organization_id' => $this->org->id, 'academic_semester_id' => $this->closed->id, 'status' => 'closed', 'results_visible' => true]);
+        $tied = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $clear = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Secretary', 'max_winners' => 1]);
+        foreach ([[$tied, 2], [$tied, 2], [$clear, 3], [$clear, 1]] as [$position, $votes]) {
+            $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => User::factory()->student()->create(['organization_id' => $this->org->id])->school_id]);
+            for ($i = 0; $i < $votes; $i++) {
+                Vote::create(['election_id' => $election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => User::factory()->student()->create(['organization_id' => $this->org->id])->school_id, 'vote_hash' => bin2hex(random_bytes(8))]);
+            }
+        }
+        Sanctum::actingAs($this->sao);
+
+        $rows = collect($this->getJson("/api/records?academic_semester_id={$this->closed->id}&organization_id={$this->org->id}")->assertOk()->json('organization.elections.0.winners'))->keyBy('position');
+
+        $this->assertSame([], $rows['President']['winners']);
+        $this->assertTrue($rows['President']['tie']);
+        $this->assertCount(1, $rows['Secretary']['winners']);
+        $this->assertFalse($rows['Secretary']['tie']);
     }
 
     public function test_the_year_selector_lists_started_years_only(): void

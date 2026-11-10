@@ -43,6 +43,28 @@ describe('ElectionResultsPage', () => {
     expect(within(winners).queryByText('Mia Lopez')).not.toBeInTheDocument();
   });
 
+  it('shows only turnout while voting is open and says results appear when the election closes', async () => {
+    const closed = electionContext.election;
+    electionContext.election = { ...closed, status: 'active', voters_count: 12 };
+    getElectionResults.mockResolvedValue([{
+      position: { id: 1, title: 'President', max_winners: 1 },
+      totalVotes: 12,
+      candidates: [
+        { id: 10, name: 'Ana Reyes', partylist: 'Forward', votes: null },
+        { id: 11, name: 'Luis Cruz', partylist: 'Independent', votes: null },
+      ],
+    }]);
+
+    render(<ElectionResultsPage />);
+    expect(await screen.findByText(/Results appear when the election closes/)).toBeInTheDocument();
+    expect(screen.queryByText(/Live totals/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Votes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Share' })).not.toBeInTheDocument();
+    expect(screen.getByText('Ballots')).toBeInTheDocument();
+    electionContext.election = closed;
+  });
+
   it('does not request unreleased results', () => {
     getElectionResults.mockClear();
     electionContext.election.results_visible = false;
