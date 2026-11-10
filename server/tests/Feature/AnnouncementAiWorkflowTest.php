@@ -51,17 +51,35 @@ class AnnouncementAiWorkflowTest extends TestCase
         $this->assertSame($editedBody, $announcement->json('body'));
     }
 
-    public function test_groq_failure_returns_retryable_error_without_dummy_copy(): void
+    public function test_groq_failure_returns_a_template_draft_labelled_as_such(): void
     {
         config(['services.groq.key' => 'test-key']);
-        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 429)]);
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/announcements/generate-draft', ['title' => 'Assembly', 'target_role' => 'all'])
+            ->assertOk()
+            ->assertJsonPath('is_template', true)
+            ->assertJsonPath('model_name', 'template-draft')
+            ->assertJsonPath('quota.remaining', 19);
+
+        $this->assertStringStartsWith('Assembly', $response->json('output_text'));
+        $this->assertStringContainsString('template draft', strtolower($response->json('notice')));
+        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'ANNOUNCEMENT_DRAFT', 'status' => 'completed', 'model_name' => 'template-draft', 'decision_status' => 'pending']);
+    }
+
+    public function test_a_missing_groq_key_still_returns_a_template_draft(): void
+    {
+        config(['services.groq.key' => '']);
+        Http::fake();
         $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/announcements/generate-draft', ['title' => 'Assembly', 'target_role' => 'all'])
-            ->assertServiceUnavailable()
-            ->assertJsonPath('message', 'AI service is temporarily unavailable. Unable to generate the announcement draft.');
-        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'ANNOUNCEMENT_DRAFT', 'status' => 'failed', 'output_text' => '']);
+            ->assertOk()
+            ->assertJsonPath('is_template', true);
+        Http::assertNothingSent();
     }
 
     public function test_missing_required_context_is_rejected_before_calling_groq(): void

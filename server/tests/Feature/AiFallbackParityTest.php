@@ -247,17 +247,18 @@ class AiFallbackParityTest extends TestCase
     private function assertForecastFallsBackToPhpEngine(): void
     {
         $admin = $this->user('ADMIN');
+        // The unfinished current month is left out, so the history ends last month and the forecast lands two months past it.
         $this->seedMonthlyTransactions($admin, [
             [500, 600], [50, 650], [480, 700], [60, 750], [510, 800], [40, 850],
-        ]);
+        ], 1);
 
         Sanctum::actingAs($admin);
 
-        $response = $this->postJson('/api/forecasts/generate', ['months' => 6]);
+        $response = $this->postJson('/api/forecasts/generate', ['months' => 7]);
 
         $response->assertCreated()
-            ->assertJsonPath('predicted_income', '139.33')
-            ->assertJsonPath('predicted_expense', '900.00')
+            ->assertJsonPath('predicted_income', '101.05')
+            ->assertJsonPath('predicted_expense', '950.00')
             ->assertJsonPath('model_details.engine', 'php-fallback')
             ->assertJsonPath('model_details.sample_months', 6)
             ->assertJsonPath('model_details.fit_quality', 'weak')
@@ -275,21 +276,21 @@ class AiFallbackParityTest extends TestCase
 
         $admin = $this->user('ADMIN');
         // A strictly declining income series (1000 -> 700 -> 400 -> 100) is a
-        // perfect line whose next point is negative; expense is flat. Both
+        // perfect line whose target point is negative; expense is flat. Both
         // engines must clamp predicted_income to 0 while still exposing the
-        // raw -200 the line actually projects.
+        // raw -500 the line actually projects.
         $this->seedMonthlyTransactions($admin, [
             [1000, 200], [700, 200], [400, 200], [100, 200],
-        ]);
+        ], 1);
 
         Sanctum::actingAs($admin);
-        $response = $this->postJson('/api/forecasts/generate', ['months' => 4]);
+        $response = $this->postJson('/api/forecasts/generate', ['months' => 5]);
 
         $response->assertCreated()
             ->assertJsonPath('predicted_income', '0.00')
             ->assertJsonPath('model_details.engine', 'php-fallback')
             ->assertJsonPath('model_details.income_clamped', true)
-            ->assertJsonPath('model_details.raw_predicted_income', -200)
+            ->assertJsonPath('model_details.raw_predicted_income', -500)
             ->assertJsonPath('model_details.expense_clamped', false);
     }
 
@@ -361,7 +362,7 @@ class AiFallbackParityTest extends TestCase
             ['period' => '2030-06', 'income' => 40, 'expense' => 850],
         ];
 
-        $live = app(HiusaAiService::class)->financialForecast($monthly);
+        $live = app(HiusaAiService::class)->financialForecast($monthly, '2030-08');
 
         if ($live === null) {
             $this->markTestSkipped('Live HIUSA AI service at '.config('services.hiusa_ai.url').' is not reachable.');
@@ -370,6 +371,16 @@ class AiFallbackParityTest extends TestCase
         $admin = $this->user('ADMIN');
         $this->seedMonthlyTransactions($admin, [
             [500, 600], [50, 650], [480, 700], [60, 750], [510, 800], [40, 850],
+        ], 1);
+        // A half-recorded current month must not reach either engine.
+        Transaction::create([
+            'organization_id' => $admin->organization_id,
+            'recorded_by' => $admin->school_id,
+            'type' => 'income',
+            'amount' => 5,
+            'category' => 'General',
+            'description' => 'Fallback parity partial month',
+            'transaction_date' => now('Asia/Manila')->startOfMonth()->addDay(),
         ]);
 
         // Now break the connection so the SAME request is served by the PHP
@@ -380,7 +391,7 @@ class AiFallbackParityTest extends TestCase
         ]);
 
         Sanctum::actingAs($admin);
-        $response = $this->postJson('/api/forecasts/generate', ['months' => 6]);
+        $response = $this->postJson('/api/forecasts/generate', ['months' => 7]);
 
         $response->assertCreated()->assertJsonPath('model_details.engine', 'php-fallback');
         $this->assertSame(number_format($live['predicted_income'], 2, '.', ''), $response->json('predicted_income'));

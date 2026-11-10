@@ -61,6 +61,27 @@ class GroqResponsesServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_a_failing_or_slow_groq_is_tried_once_and_capped_at_twelve_seconds(): void
+    {
+        config()->set('services.groq', [
+            'key' => 'test-groq-key',
+            'url' => 'https://api.groq.com/openai/v1/responses',
+            'model' => 'openai/gpt-oss-20b',
+            'timeout' => 30,
+        ]);
+        $timeouts = [];
+        Http::fake(function ($request, $options) use (&$timeouts) {
+            $timeouts[] = $options['timeout'] ?? null;
+
+            return Http::response(['error' => 'rate limited'], 429);
+        });
+
+        $this->assertNull(app(GroqResponsesService::class)->generate('Instructions', 'Input'));
+
+        $this->assertSame([12], $timeouts);
+        Http::assertSentCount(1);
+    }
+
     public function test_it_requests_and_validates_json_schema_output(): void
     {
         config()->set('services.groq', [

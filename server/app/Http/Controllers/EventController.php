@@ -715,25 +715,8 @@ class EventController extends Controller
             ->where('reference_id', $event->id)
             ->max('version')) + 1;
 
-        if (! $generated) {
-            AiOutput::create([
-                'organization_id' => $event->organization_id,
-                'feature_type' => 'EVENT_WORKFLOW',
-                'reference_type' => Event::class,
-                'reference_id' => $event->id,
-                'prompt_text' => 'Structured event workflow generation',
-                'output_text' => '',
-                'structured_input' => $context,
-                'status' => 'failed',
-                'error_message' => 'Groq was unavailable or returned an invalid response.',
-                'version' => $version,
-                'decision_status' => 'rejected',
-                'requested_by' => $request->user()->school_id,
-                'created_at' => now(),
-            ]);
-
-            return response()->json(['message' => 'We could not create a reliable to-do list right now. Please wait a moment and try again.'], 503);
-        }
+        $isTemplate = ! $generated;
+        $generated ??= ['data' => $this->templateWorkflow($event, $context), 'text' => '', 'model' => 'template-draft'];
 
         $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
         if ($workflow === null) {
@@ -770,7 +753,7 @@ class EventController extends Controller
         unset($task);
         $planText = $this->workflowAsText($workflow);
 
-        return DB::transaction(function () use ($request, $event, $context, $workflow, $planText, $generated, $version) {
+        return DB::transaction(function () use ($request, $event, $context, $workflow, $planText, $generated, $version, $isTemplate) {
             $aiOutput = AiOutput::create([
                 'organization_id' => $request->user()->organization_id,
                 'feature_type' => 'EVENT_WORKFLOW',
@@ -779,7 +762,7 @@ class EventController extends Controller
                 'prompt_text' => 'Structured event workflow generation',
                 'output_text' => $planText,
                 'model_name' => $generated['model'],
-                'context_version' => 'event-workflow-v2',
+                'context_version' => $isTemplate ? 'event-workflow-template-v1' : 'event-workflow-v2',
                 'structured_input' => $context,
                 'structured_output' => $workflow,
                 'status' => 'completed',
@@ -804,6 +787,7 @@ class EventController extends Controller
                 'ai_output' => $aiOutput,
                 'plan' => $planText,
                 'workflow' => $workflow,
+                'is_template' => $isTemplate,
                 'tasks' => [],
             ], 201);
         });
@@ -1300,6 +1284,62 @@ class EventController extends Controller
                     ],
                 ],
             ],
+        ];
+    }
+
+    /**
+     * A standard checklist used when Groq cannot answer. It only restates the event's own dates
+     * and active positions, so it passes through normalizeWorkflow like a generated plan.
+     */
+    private function templateWorkflow(Event $event, array $context): array
+    {
+        $now = now();
+        $lead = $event->start_time->timestamp - $now->timestamp;
+        $beforeStart = fn (float $share) => $now->copy()->addSeconds((int) round($lead * $share))->toISOString();
+        $duringEvent = $event->start_time->copy()->addSeconds((int) floor(($event->end_time->timestamp - $event->start_time->timestamp) / 2))->toISOString();
+        $afterEnd = fn (int $days) => $event->end_time->copy()->addDays($days)->toISOString();
+        $roleFor = function (array $preferred) use ($context) {
+            foreach ($preferred as $title) {
+                foreach ($context['allowed_positions'] as $position) {
+                    if (strcasecmp($position, $title) === 0) {
+                        return $position;
+                    }
+                }
+            }
+
+            return null;
+        };
+        $task = fn (string $key, string $title, string $description, string $phase, string $priority, string $deadline, ?string $dependsOn, ?string $role) => [
+            'key' => $key,
+            'title' => $title,
+            'description' => $description,
+            'phase' => $phase,
+            'priority' => $priority,
+            'deadline' => $deadline,
+            'depends_on_key' => $dependsOn,
+            'recommended_role' => $role,
+        ];
+        $tasks = [
+            $task('confirm-plan', 'Confirm the schedule, venue and approvals', 'Check that the date, place and any needed approvals for the event are settled and written down.', 'pre_event', 'high', $beforeStart(0.3), null, $roleFor(['President', 'Vice President'])),
+        ];
+        if ($event->requires_budget) {
+            $tasks[] = $task('confirm-budget', 'Confirm the budget and expected costs', 'List the expected costs and make sure they fit the approved budget before anything is bought.', 'pre_event', 'high', $beforeStart(0.45), 'confirm-plan', $roleFor(['Treasurer', 'Auditor']));
+        }
+        $tasks[] = $task('announce-event', 'Announce the event to the audience', 'Share the event details with the people who should attend and tell them how to take part.', 'pre_event', 'medium', $beforeStart(0.6), 'confirm-plan', $roleFor(['Public Information Officer', 'Public Relations Officer', 'Secretary']));
+        $tasks[] = $task('prepare-venue', 'Prepare the venue, equipment and materials', 'Gather what the event needs and make sure the venue is ready before it starts.', 'pre_event', 'high', $beforeStart(0.9), 'confirm-plan', $roleFor(['Business Manager', 'Vice President']));
+        $tasks[] = $task('run-event', 'Run the event and record attendance', 'Keep the program on schedule, look after participants and record who attended.', 'event_day', 'critical', $duringEvent, 'prepare-venue', $roleFor(['President', 'Vice President', 'Secretary']));
+        $tasks[] = $task('close-out', 'Settle expenses and collect feedback', 'Pay or file what is owed, return borrowed items and ask participants how the event went.', 'post_event', 'medium', $afterEnd(3), 'run-event', $roleFor(['Treasurer', 'Auditor', 'Business Manager']));
+        $tasks[] = $task('wrap-up-report', 'Write the event wrap-up report', 'Record what happened, what was spent and what to do better next time.', 'post_event', 'low', $afterEnd(7), 'close-out', $roleFor(['Secretary', 'Assistant Secretary']));
+
+        return [
+            'overview' => 'Template draft: the AI writer is not available right now, so this is a standard checklist built from the event dates. Review and edit every item before saving.',
+            'preparation_phases' => ['Before the event: confirm the plan, announce it and prepare the venue.', 'On the day: run the program and record attendance.', 'After the event: settle expenses, collect feedback and write the report.'],
+            'timeline' => ['Event starts '.$event->start_time->toISOString(), 'Event ends '.$event->end_time->toISOString()],
+            'resources' => ['Approvals and a confirmed venue', 'Equipment and materials the program needs', 'An attendance record'],
+            'logistics' => ['Location: '.($event->location ?: 'not yet specified'), 'Set up the venue before the event starts and return borrowed items afterwards.'],
+            'risks' => ['Details not yet confirmed, such as the venue, speakers or costs, can delay the preparation tasks.'],
+            'scheduling_conflicts' => collect($context['schedule_conflicts'])->map(fn (array $conflict) => "Overlaps with {$conflict['title']}")->values()->all(),
+            'tasks' => $tasks,
         ];
     }
 
