@@ -40,6 +40,26 @@ describe('password recovery pages', () => {
     expect(screen.getByText(/If an account matches/)).toBeInTheDocument();
   });
 
+  it('tells the person to ask for a reset, without claiming an email was sent, when mail is off', async () => {
+    authMocks.requestPasswordReset.mockResolvedValue({ data: { message: 'Password reset by email is not available. Ask your organization Admin or the SAO to reset your password.', email_sent: false } });
+    render(
+      <MemoryRouter initialEntries={['/recover-account']}>
+        <Routes>
+          <Route path="/recover-account" element={<RecoverAccountPage />} />
+          <Route path="/login" element={<div>Login page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: 'dean@example.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+
+    expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
+    expect(screen.getByText(/Ask your organization Admin or the SAO to reset your password/)).toBeInTheDocument();
+    expect(screen.queryByText(/we sent/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send another email' })).not.toBeInTheDocument();
+  });
+
   it('validates the emailed token and submits a confirmed replacement password', async () => {
     render(
       <MemoryRouter initialEntries={['/reset-password?organization_id=14&email=admin%40example.test&token=secret-token']}>

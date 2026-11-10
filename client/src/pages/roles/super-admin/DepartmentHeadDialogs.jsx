@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, KeyRound, UserCheck, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Modal from '../../../components/Modal';
+import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import { Button, Field, Input, Select, StatusBadge } from '../../../components/ui';
 import { inviteDepartmentHead, resetDepartmentHeadPassword, updateDepartmentHead } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -170,7 +171,7 @@ const CONFIRMS = {
   },
   reset: {
     title: 'Send password reset',
-    message: 'A secure reset link will be sent to their registered email address. Their current password is not shown.',
+    message: 'A secure reset link will be sent to their registered email address. If email is off, the link shows here once for you to hand over. Their current password is not shown.',
     confirmText: 'Send reset link',
     variant: 'primary',
   },
@@ -183,6 +184,7 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
+  const [resetLink, setResetLink] = useState('');
   const formRef = useRef(null);
   const focusFirstInvalid = useFirstInvalidFocus(formRef);
   const collegeName = formatDisplayText(college.name);
@@ -228,6 +230,12 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
     try {
       if (action === 'reset') {
         const response = await resetDepartmentHeadPassword(head.school_id);
+        if (response?.reset_link) {
+          setResetLink(response.reset_link);
+          setConfirming(null);
+          setBusy(false);
+          return;
+        }
         onChanged(null, response?.message || 'Password reset instructions were sent.');
       } else {
         const saved = await updateDepartmentHead(head.school_id, { account_status: action === 'deactivate' ? 'inactive' : 'active' });
@@ -246,7 +254,7 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
   return (
     <>
       <Modal
-        open={!confirming}
+        open={!confirming && !resetLink}
         title="Manage Department Head"
         description={collegeName}
         onClose={busy ? undefined : onClose}
@@ -287,6 +295,16 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
           </div>
         </div>
       </Modal>
+      {resetLink && (
+        <OneTimeLinkModal
+          title="Reset link ready"
+          description={`Send this to ${head.name}. It lets them choose a new password.`}
+          label="Reset link"
+          hint="Works once and expires in 60 minutes. It is not shown again."
+          link={resetLink}
+          onClose={() => { onChanged(null, `Reset link created for ${head.name}.`); onClose(); }}
+        />
+      )}
       <ConfirmModal
         open={Boolean(confirming)}
         title={confirmCopy.title}
