@@ -2,7 +2,7 @@ import {
   Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
-  TicketCheck, User, Users, UsersRound, Vote, WalletCards,
+  Target, TicketCheck, User, Users, UsersRound, Vote, WalletCards,
 } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 import { isOfficeStaff } from '../../utils/collegeIdentity';
@@ -115,7 +115,7 @@ const NAV_BY_ROLE = {
   SBO_OFFICER: [
     dashboard('SBO_OFFICER'),
     askAi(),
-    group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.checkIn, L.calendar, L.venues, L.myTasks, L.aiDelegation], { band: 'Manage' }),
+    group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.checkIn, L.calendar, L.venues, L.myTasks], { band: 'Manage' }),
     group('finance', 'Finance (view only)', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'Manage' }),
     { id: 'members-fingerprints', label: 'Members and fingerprints', icon: Fingerprint, path: '/dashboard/admin/users', aliases: ['Participant Biometrics', 'Manage Users'], band: 'Manage' },
     group('voting', 'Voting', electionsPillar.icon, [L.candidates, L.voters, L.results], { band: 'Community' }),
@@ -168,6 +168,7 @@ const NAV_BY_ROLE = {
   ],
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
+    { id: 'sao-users', label: 'University users', icon: Users, path: '/dashboard/super-admin/users', aliases: ['Users', 'Accounts', 'Find an account'] },
     askAi(),
     group('sao-organizations-group', 'Governance', Building2, [
       leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2, { aliases: ['Agency overview'], also: ['/dashboard/super-admin/org'] }),
@@ -208,8 +209,9 @@ export function withApplicantAccess(items, canApply) {
   return [...items.slice(0, at + 1), APPLY_ORGANIZATION, ...items.slice(at + 1)];
 }
 
-// Every role shares the same footer: the account page and the page that ends the old orphan.
+// Every role shares the same footer: the study objectives page and the account page.
 export const footerNav = [
+  { id: 'study-objectives', label: 'Study objectives', path: '/dashboard/objectives', icon: Target, aliases: ['Study Objectives in Action', 'Objectives'] },
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: User },
 ];
 
@@ -356,7 +358,7 @@ export function getFlatPages(role, modules) {
 
   if (role in NAV_BY_ROLE) {
     footerNav.forEach((item) => {
-      pages.push({ id: item.id, label: item.label, path: item.path, section: 'Account', icon: item.icon || Home, aliases: [] });
+      pages.push({ id: item.id, label: item.label, path: item.path, section: 'Account', icon: item.icon || Home, aliases: item.aliases || [] });
     });
   }
 

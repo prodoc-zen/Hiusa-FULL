@@ -23,6 +23,7 @@ const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const StudentRecordsPage = lazy(() => import('./pages/roles/super-admin/StudentRecordsPage'));
+const StudyObjectivesPage = lazy(() => import('./pages/modules/objectives/StudyObjectivesPage'));
 const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
@@ -353,7 +354,7 @@ function App() {
             <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?new=1" replace /></ProtectedRoute>} />
             <Route path="assigned-tasks" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
             <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?view=progress" replace /></ProtectedRoute>} />
-            <Route path="ai-delegation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><TasksPage initialTab="ai" /></ProtectedRoute>} />
+            <Route path="ai-delegation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="ai" /></ProtectedRoute>} />
           </Route>
 
           {/* Manage Profile */}
@@ -363,7 +364,7 @@ function App() {
           <Route path="my-grievances" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentGrievancesPage /></ProtectedRoute>} />
           <Route path="clearances" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><SignatoryClearancesPage /></ProtectedRoute>} />
           <Route path="my-clearance" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentClearancePage /></ProtectedRoute>} />
-          <Route path="objectives" element={<Navigate to="/dashboard" replace />} />
+          <Route path="objectives" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><StudyObjectivesPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><SettingsPage /></ProtectedRoute>} />
           <Route path="organization" element={<Navigate to="/dashboard/profile" replace />} />
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />
