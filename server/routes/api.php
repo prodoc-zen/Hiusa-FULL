@@ -32,6 +32,7 @@ use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
 use App\Http\Controllers\GrievanceController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\MyActivityController;
 use App\Http\Controllers\NotificationController;
@@ -63,6 +64,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware(['auth:sanctum', 'account.profile', 'throttle:api-read', 'cache.api']);
 
+Route::get('/health', HealthController::class)->middleware('throttle:public');
 Route::post('/register', [UserController::class, 'register'])->middleware('throttle:registration');
 Route::post('/register/lookup', [UserController::class, 'registerLookup'])->middleware('throttle:registration');
 Route::post('/login', [UserController::class, 'login'])->middleware('throttle:login');
