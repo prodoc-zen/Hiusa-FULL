@@ -118,6 +118,24 @@ describe('useWorkspaces after access is granted to someone already signed in', (
     await waitFor(() => expect(banner.result.current.spaces).toHaveLength(2));
   });
 
+  it('never hands an unanswered request from one sign-in to the next person', async () => {
+    localStorage.setItem('auth_token', 'token-a');
+    const slowA = deferred();
+    getAccountProfiles.mockReturnValueOnce(slowA.promise);
+    const a = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(getAccountProfiles).toHaveBeenCalledTimes(1));
+    a.unmount();
+
+    localStorage.setItem('auth_token', 'token-b');
+    getAccountProfiles.mockResolvedValueOnce(studentOnly);
+    const b = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(getAccountProfiles).toHaveBeenCalledTimes(2));
+    await act(async () => { slowA.resolve(studentAndOfficer); });
+
+    await waitFor(() => expect(b.result.current.loading).toBe(false));
+    expect(b.result.current.profiles).toEqual([student]);
+  });
+
   it('shows a college organization approved while a dean is signed in', async () => {
     localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'DEPARTMENT_HEAD' }));
     getAccountProfiles.mockResolvedValue({ data: { profiles: [], active_profile_id: null } });

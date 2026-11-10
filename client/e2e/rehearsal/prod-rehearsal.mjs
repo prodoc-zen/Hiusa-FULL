@@ -675,10 +675,10 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   await goSidebar(page, rec, /^People$/, '/dashboard/department-head/people');
   await waitForText(page, 'Search students', 15000);
   await shot('staff', 'people-students', rec);
-  const hiddenControls = async (where, names) => {
+  const hiddenControls = async (where, names, file = 'client/src/pages/roles/department-head/CollegePeoplePage.jsx') => {
     const shown = [];
     for (const name of names) if (await page.getByRole('button', { name }).count()) shown.push(String(name).replace(/[/^$\\]/g, ''));
-    if (shown.length) rec.defect('ux_gap', `Office staff are shown dean-only controls on ${where}: ${shown.join(', ')}.`, ['client/src/pages/roles/department-head/CollegePeoplePage.jsx']);
+    if (shown.length) rec.defect('ux_gap', `Office staff are shown dean-only controls on ${where}: ${shown.join(', ')}.`, [file]);
     return shown.length === 0;
   };
   const studentsClean = await hiddenControls('People > Students', [/^Allow a student to apply$/, /^Upload student records$/]);
@@ -696,7 +696,7 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   // Organizations and Approvals, read paths.
   await goSidebar(page, rec, /^Organizations$/, '/dashboard/department-head/organizations');
   await page.waitForTimeout(800);
-  await hiddenControls('Organizations', [/^Allow a student to apply$/, /^Office staff$/, /^Open organization space for /]);
+  await hiddenControls('Organizations', [/^Allow a student to apply$/, /^Office staff$/, /^Open organization space for /], 'client/src/pages/roles/department-head/CollegeOrganizationsPage.jsx');
   await shot('staff', 'organizations', rec);
   await goSidebar(page, rec, /^Approvals$/, '/dashboard/department-head/approvals');
   await page.waitForTimeout(800);
