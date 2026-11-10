@@ -19,7 +19,7 @@ Ask the user who made the 22 upstream commits (branches feat/overall-feedback-20
 ## Still true
 Deploy to staging 13.228.227.182 is authorised by the user (backup to /var/backups/hiusa first, git pull --ff-only, build with VITE_API_CACHE_TTL_MS=5000, config:cache, route:cache, reload php8.3-fpm, restart queue and scheduler). Excluded from commits: .claude/settings.json, commit_all_phases.ps1, docs/HANDOFF.md, docs/parked-enable-mail.patch, .vscode, Plant_Talks_Presentation, paper files, docs/diagrams, embed-logo.js, node_modules, scripts/fix.js, scripts/fix_layout.py, test-results, test_write.tmp.
 ## Decisions already made
-Agency overview merged into Colleges (user approved). Mail is parked. Demo of 2026-10-14 was cancelled. Meeting with CCS Dean Janette Q. Tanquis is Friday 2026-10-16. SOP release work waits for the user's go. Never leave Admin@123456 on a public host.
+Agency overview merged into Colleges (user approved). Mail is parked. Demo of 2026-10-14 was cancelled. Meeting with CCS Dean Janette Q. Tanquis is Friday 2026-10-16. SOP release work waits for the user's go. Never leave the seeded default password on a public host.
 
 ## Gotchas
 PowerShell hook blocks cd/Set-Location text in compound commands; write .ps1 files and launch with Start-Process. Piping serve-lan.ps1 output hangs. Run vitest as env -C /c/BSIT/React/Hiusa-FULL/client npx vitest run. Foreground sleep is blocked in Bash. Never touch MariaDB on 3306, 3307, 3399 or hiusa_db. Never read env files. Review leftover notes (non-blocking): members_count can exceed the role-count sum; default-expanded college card is computed once per mount.

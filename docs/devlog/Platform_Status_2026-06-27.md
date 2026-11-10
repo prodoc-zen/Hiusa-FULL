@@ -62,11 +62,11 @@ Replaced every `mockData/` import across all 24 page components with real API ca
 
 | Role | Login Field | Value | Password |
 |------|-------------|-------|----------|
-| Admin | Email | admin@hiusa.local | Admin@123456 |
-| Officer | Email | officer1@hiusa.local | Demo@12345 |
-| Officer | Email | officer2@hiusa.local | Demo@12345 |
-| Adviser | Email | adviser1@hiusa.local | Demo@12345 |
-| Student | Student ID | 2023-00001 | Demo@12345 |
+| Admin | Email | admin@hiusa.local | issued privately |
+| Officer | Email | officer1@hiusa.local | issued privately |
+| Officer | Email | officer2@hiusa.local | issued privately |
+| Adviser | Email | adviser1@hiusa.local | issued privately |
+| Student | Student ID | 2023-00001 | issued privately |
 
 ---
 
