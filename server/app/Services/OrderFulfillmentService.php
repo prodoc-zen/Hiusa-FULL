@@ -112,16 +112,17 @@ class OrderFulfillmentService
 
     public function approvePayment(Order $order, User $approver, bool $bypassOfficerReview = false): Order
     {
-        if ($order->status === 'cancelled') {
-            throw new DomainException('Cancelled orders cannot be approved.');
-        }
-
-        if ($order->status === 'claimed') {
-            throw new DomainException('Claimed orders cannot be reviewed again.');
-        }
-
         return DB::transaction(function () use ($order, $approver, $bypassOfficerReview) {
             $lockedOrder = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedOrder->status === 'cancelled') {
+                throw new DomainException('Cancelled orders cannot be approved.');
+            }
+
+            if ($lockedOrder->status === 'claimed') {
+                throw new DomainException('Claimed orders cannot be reviewed again.');
+            }
+
             $wasPaid = $lockedOrder->status === 'paid';
             $oldOrderValues = $this->auditableOrderValues($lockedOrder);
 
@@ -205,9 +206,11 @@ class OrderFulfillmentService
                 throw new DomainException('Only pending orders can be rejected.');
             }
 
-            $oldOrderValues = $this->auditableOrderValues($lockedOrder);
+            $oldOrderValues = $this->auditableOrderValues($lockedOrder) + ['payment_reference' => $lockedOrder->payment_reference];
 
             $lockedOrder->update([
+                'payment_reference' => null,
+                'payment_reference_key' => null,
                 'processed_by' => $reviewer->school_id,
                 'officer_review_status' => $reviewer->role === 'SBO_OFFICER' ? 'rejected' : $lockedOrder->officer_review_status,
                 'admin_review_status' => $reviewer->role === 'ADMIN' ? 'rejected' : $lockedOrder->admin_review_status,
