@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Log;
 
 class GroqResponsesService
 {
+    // Every caller runs inside a web request, so one short attempt beats a long retry that stalls the page.
+    private const MAX_REQUEST_SECONDS = 12;
+
     /**
      * Generate text with Groq's OpenAI-compatible Responses API.
      *
@@ -159,8 +162,7 @@ class GroqResponsesService
             $response = Http::acceptJson()
                 ->withToken($apiKey)
                 ->connectTimeout(max(1, (int) config('services.groq.connect_timeout', 5)))
-                ->timeout(max(1, (int) config('services.groq.timeout') ?: 25))
-                ->retry(2, 250, throw: false)
+                ->timeout(max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS)))
                 ->post((string) config('services.groq.url'), $body);
 
             if (! $response->successful()) {

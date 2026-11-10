@@ -227,15 +227,10 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertDatabaseCount('tasks', 0);
     }
 
-    public function test_unavailable_or_invalid_groq_output_is_reported_without_fake_workflow_tasks(): void
+    public function test_unavailable_groq_returns_a_template_plan_that_passes_the_same_validation(): void
     {
         config(['services.groq.key' => 'test-groq-key']);
-        Http::fake([
-            '*' => Http::response([
-                'model' => 'test-model',
-                'output_text' => "Timeline:\n- This response omitted the required checklists.",
-            ]),
-        ]);
+        Http::fake(['*' => Http::response(['error' => 'rate limited'], 429)]);
 
         $admin = User::factory()->create([
             'organization_id' => Organization::factory(),
@@ -248,14 +243,46 @@ class EventPlanningWorkflowTest extends TestCase
             'start_time' => now()->addWeek(),
             'end_time' => now()->addWeek()->addHours(2),
         ]);
+        SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
+        User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'Treasurer']);
 
         Sanctum::actingAs($admin);
 
-        $this->postJson("/api/events/{$event->id}/generate-plan", [
+        $response = $this->postJson("/api/events/{$event->id}/generate-plan", [
             'requirements' => 'Require a complete plan.',
-        ])->assertServiceUnavailable()
-            ->assertJsonPath('message', 'We could not create a reliable to-do list right now. Please wait a moment and try again.');
+        ])->assertCreated()
+            ->assertJsonPath('is_template', true)
+            ->assertJsonPath('ai_output.model_name', 'template-draft')
+            ->assertJsonPath('ai_output.status', 'completed')
+            ->assertJsonPath('ai_output.decision_status', 'pending');
 
+        $this->assertStringContainsString('Template draft', $response->json('workflow.overview'));
+        $phases = collect($response->json('workflow.tasks'))->pluck('phase')->unique()->sort()->values()->all();
+        $this->assertSame(['event_day', 'post_event', 'pre_event'], $phases);
+        foreach ($response->json('workflow.tasks') as $task) {
+            $this->assertContains($task['recommended_role'], [null, 'Treasurer']);
+            $this->assertArrayHasKey('recommendation', $task);
+        }
+        $this->assertDatabaseCount('tasks', 0);
+    }
+
+    public function test_an_invalid_groq_workflow_is_still_rejected_without_fake_tasks(): void
+    {
+        config(['services.groq.key' => 'test-groq-key']);
+        Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode(['overview' => 'Thin plan.'])])]);
+
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'planning',
+            'start_time' => now()->addWeek(),
+            'end_time' => now()->addWeek()->addHours(2),
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/events/{$event->id}/generate-plan", [])->assertUnprocessable();
         $this->assertDatabaseCount('tasks', 0);
         $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'EVENT_WORKFLOW', 'status' => 'failed']);
     }
