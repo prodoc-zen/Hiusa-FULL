@@ -88,6 +88,25 @@ class OrderPaymentLifecycleTest extends TestCase
         ], ['Accept' => 'application/json'])->assertUnprocessable();
     }
 
+    public function test_submitting_payment_for_another_buyers_order_looks_the_same_as_a_missing_order(): void
+    {
+        Storage::fake('local');
+        $organization = Organization::factory()->withGcashQr()->create();
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $other = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $item = $this->item($organization, 5);
+        $order = $this->pendingOrder($buyer, $item);
+        $payload = ['payment_reference' => '1234567890123', 'payment_proof' => $this->proof()];
+
+        Sanctum::actingAs($other);
+        $foreign = $this->post("/api/orders/{$order->id}/payment", $payload, ['Accept' => 'application/json']);
+        $missing = $this->post('/api/orders/999999/payment', $payload, ['Accept' => 'application/json']);
+
+        $foreign->assertNotFound()->assertExactJson(['message' => 'Order not found.']);
+        $missing->assertNotFound()->assertExactJson(['message' => 'Order not found.']);
+        $this->assertNull($order->fresh()->payment_proof_url);
+    }
+
     public function test_approving_an_order_cancelled_after_it_was_loaded_is_refused(): void
     {
         $organization = Organization::factory()->create();

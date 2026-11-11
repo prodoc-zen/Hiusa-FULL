@@ -512,7 +512,7 @@ class OrderController extends Controller
                 }
 
                 if ($order->student_id !== $request->user()->id) {
-                    abort(403, 'You can only submit payment for your own order.');
+                    return null;
                 }
 
                 if ($order->status !== 'pending' || $order->officer_review_status !== 'pending') {
