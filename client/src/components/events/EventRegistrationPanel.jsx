@@ -100,7 +100,7 @@ function ParticipantRegistration({ event }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-ink">{status === 'registered' ? 'You are registered' : 'Your registration'}</p>

@@ -33,6 +33,15 @@ describe('EventRegistrationPanel', () => {
     expect(screen.getByText('Registered')).toBeInTheDocument();
   });
 
+  it('stacks the text above the action on a phone so the heading keeps its width', async () => {
+    vi.mocked(getMyEventRegistrations).mockResolvedValue(mine(null));
+    render(<EventRegistrationPanel event={event()} role="STUDENT" />);
+
+    const button = await screen.findByRole('button', { name: 'Register for this event' });
+    expect(button.parentElement).toHaveClass('flex-col', 'sm:flex-row');
+    expect(button.parentElement).not.toHaveClass('flex-wrap');
+  });
+
   it('says "You are registered" and moves the stepper to check-in', async () => {
     vi.mocked(getMyEventRegistrations).mockResolvedValue(mine({ id: 1, event_id: 7, status: 'registered', registered_at: past }));
     render(<EventRegistrationPanel event={event()} role="STUDENT" />);
