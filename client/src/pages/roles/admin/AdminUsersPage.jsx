@@ -21,6 +21,7 @@ import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import UserIdentityCard from '../../../components/users/UserIdentityCard';
+import { buildCsv } from '../../../utils/csv';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const filterRoles = accountRoles;
@@ -33,9 +34,13 @@ const ROLE_LABELS = {
 };
 const ROLE_SHORT = { ...ROLE_LABELS, ADMIN: 'Administrator' };
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const ADVISER_TITLES = ['adviser', 'advisor', 'organization adviser', 'organization advisor'];
+const isAdviser = (user) => ADVISER_TITLES.includes(String(user.position_title ?? '').trim().toLowerCase());
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearNumber = (label) => Number(String(label).match(/^(\d+)/)?.[1]);
 const programYears = (program) => Array.from({ length: Number(program?.duration_years) || 4 }, (_, index) => yearLabel(index + 1));
+
+const EDIT_FIELDS = ['first_name', 'last_name', 'contact_number', 'photo', 'role', 'position_title', 'program', 'year_level', 'section', 'major'];
 
 const emptyEditForm = {
   school_id: '',
@@ -59,7 +64,7 @@ function firstError(error) {
   return error?.response?.data?.message;
 }
 
-export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile, onManageProfiles }) {
+export function UserActionDock({ user, actorRole, actorSchoolId, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile, onManageProfiles }) {
   const menuId = useId();
   const [expanded, setExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
@@ -69,16 +74,19 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const officerCanManageTarget = actorRole !== 'SBO_OFFICER' || user.role === 'STUDENT';
   const canManageAccount = actorRole !== 'SBO_OFFICER' && officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const canManageFingerprint = officerCanManageTarget && user.role !== 'SUPER_ADMIN';
+  // The server refuses edits to a department head or the Adviser, and a status change or delete of an administrator, a department head or the actor's own row.
+  const canEdit = canManageAccount && user.role !== 'DEPARTMENT_HEAD' && !isAdviser(user);
+  const canChangeAccount = canManageAccount && !['ADMIN', 'DEPARTMENT_HEAD'].includes(user.role) && String(user.school_id) !== String(actorSchoolId);
   const actions = [
-    canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, onClick: onEdit },
+    canEdit && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, onClick: onEdit },
     { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, onClick: onView },
     ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onAddProfile && user.role !== 'SUPER_ADMIN' && { key: 'membership', label: `Add ${name} to an organization`, menuLabel: 'Add to organization', title: 'Add organization profile', icon: UserPlus, onClick: onAddProfile },
     ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onManageProfiles && user.role !== 'SUPER_ADMIN' && { key: 'profiles', label: `Manage profiles for ${name}`, menuLabel: 'Manage profiles', title: 'Manage organization profiles', icon: UserPlus, onClick: onManageProfiles },
     canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, onClick: onFingerprint },
     user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, onClick: onVerify },
-    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, onClick: onDeactivate },
-    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, onClick: onReactivate },
-    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete profile', title: 'Delete organization profile', icon: Trash2, onClick: onDelete },
+    canChangeAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, onClick: onDeactivate },
+    canChangeAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, onClick: onReactivate },
+    canChangeAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete profile', title: 'Delete organization profile', icon: Trash2, onClick: onDelete },
   ].filter(Boolean);
 
   useEffect(() => {
@@ -333,12 +341,14 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
 export default function AdminUsersPage() {
   let actorRole = '';
   let actorOrganizationId = null;
+  let actorSchoolId = null;
   try {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
+    actorSchoolId = actor?.school_id ?? null;
     actorOrganizationId = actor?.organization_id || actor?.organization?.id || null;
   } catch {}
-  const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
+  const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles.filter((role) => role !== 'DEPARTMENT_HEAD');
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
   const inRouter = useInRouterContext();
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -471,7 +481,7 @@ export default function AdminUsersPage() {
     const exportRows = await fetchAllPages(getUsers, userQuery);
     const headers = ['School ID', 'Last Name', 'First Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Account Status', 'Created At', 'Updated At'];
     const rows = exportRows.map((user) => [user.school_id, user.last_name, user.first_name, user.email, user.role, user.position_title, user.department, user.program, user.major, user.year_level, user.section, user.account_status, user.created_at, user.updated_at]);
-    const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const csv = buildCsv(headers, rows);
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `user-register-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
   };
@@ -556,8 +566,10 @@ export default function AdminUsersPage() {
       await refreshUsers();
       setFeedback({ open: true, type: photoError ? 'error' : 'success', message: photoError ? 'Account updated, but its profile photo could not be uploaded.' : 'User account updated.' });
     } catch (updateError) {
-      setModalError(firstError(updateError) || 'Unable to update user.');
-      setModalFieldErrors(updateError?.response?.data?.errors || {});
+      const fieldErrors = updateError?.response?.data?.errors || {};
+      const keys = Object.keys(fieldErrors);
+      setModalError(keys.length && keys.every((key) => EDIT_FIELDS.includes(key)) ? '' : firstError(updateError) || 'Unable to update user.');
+      setModalFieldErrors(fieldErrors);
     } finally {
       setBusy(false);
     }
@@ -614,6 +626,7 @@ export default function AdminUsersPage() {
       setDisableTarget(null);
     } catch (disableError) {
       setError(firstError(disableError) || 'Unable to disable user.');
+      setDisableTarget(null);
     } finally {
       setBusy(false);
     }
@@ -735,6 +748,7 @@ export default function AdminUsersPage() {
     <UserActionDock
       user={user}
       actorRole={actorRole}
+      actorSchoolId={actorSchoolId}
       onEdit={() => openEdit(user)}
       onView={() => openProfile(user)}
       onManageProfiles={() => setManagedProfileUser(user)}
@@ -777,12 +791,12 @@ export default function AdminUsersPage() {
     ...(hasAcademic ? [{
       key: 'program',
       header: 'Program',
-      render: (user) => (
+      render: (user) => (user.program || user.year_level || user.section || user.major ? (
         <>
           {user.program}
           {(user.year_level || user.section || user.major) && <span className="block text-xs text-ink-muted">{[user.year_level, user.section, user.major].filter(Boolean).join(' · ')}</span>}
         </>
-      ),
+      ) : null),
     }] : []),
   ];
 
@@ -892,7 +906,7 @@ export default function AdminUsersPage() {
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department], ['Course or program', profileUser.program], ['Year level', profileUser.year_level],
               ['Major or specialization', profileUser.major], ['Section', profileUser.section], ['Organization position', profileUser.position_title], ['Fingerprint', profileUser.fingerprint_enrolled ? 'Enrolled' : 'Not enrolled'],
-            ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-0.5 min-h-5 break-words text-sm text-ink">{value}</dd></div>)}
+            ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-0.5 min-h-5 break-words text-sm text-ink">{value || <span className="text-ink-muted">Not set</span>}</dd></div>)}
           </dl>
           {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section className="border-t border-line pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
