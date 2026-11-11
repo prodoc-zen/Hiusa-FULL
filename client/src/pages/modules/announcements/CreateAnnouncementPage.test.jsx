@@ -124,4 +124,52 @@ describe('CreateAnnouncementPage', () => {
     await waitFor(() => expect(screen.getByText(/Sent to/)).toHaveTextContent('Sent to All Members.'));
     expect(screen.getByRole('link', { name: 'View in announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
   });
+
+  describe('poster picker', () => {
+    function pick(input, file) {
+      fireEvent.change(input, { target: { files: [file] } });
+    }
+    function bigFile(type, bytes) {
+      const file = new File(['x'], 'poster', { type });
+      Object.defineProperty(file, 'size', { value: bytes });
+      return file;
+    }
+
+    it('refuses a file that is not a JPEG, PNG or WebP at once, under the field', () => {
+      const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+      const input = container.querySelector('#announcement-image');
+
+      pick(input, new File(['%PDF'], 'poster.pdf', { type: 'application/pdf' }));
+
+      expect(screen.getByRole('alert')).toHaveTextContent('The poster must be a JPEG, PNG or WebP image.');
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.queryByText('poster.pdf')).not.toBeInTheDocument();
+      expect(screen.getByText('Choose an image')).toBeInTheDocument();
+    });
+
+    it('refuses an image over 5 MB at once and accepts one at exactly 5 MB', async () => {
+      const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+      const input = container.querySelector('#announcement-image');
+
+      pick(input, bigFile('image/png', 5 * 1024 * 1024 + 1));
+      expect(screen.getByRole('alert')).toHaveTextContent('The poster must be 5 MB or smaller.');
+      expect(screen.getByText('Choose an image')).toBeInTheDocument();
+
+      pick(input, bigFile('image/webp', 5 * 1024 * 1024));
+      expect(screen.queryByText('The poster must be 5 MB or smaller.')).not.toBeInTheDocument();
+      expect(screen.getByText('poster')).toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('does not send a refused file when the announcement is saved', async () => {
+      const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+      pick(container.querySelector('#announcement-image'), new File(['GIF'], 'loop.gif', { type: 'image/gif' }));
+      fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+      fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Publish now' }));
+
+      await waitFor(() => expect(createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ imageFile: null })));
+    });
+  });
 });
