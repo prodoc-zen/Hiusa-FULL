@@ -280,6 +280,23 @@ describe('ElectionPickerPage delete rules', () => {
     await waitFor(() => expect(electionMocks.deleteElection).toHaveBeenCalledWith(7));
   });
 
+  it('offers Open voting on a finalized election only once its start time has passed', async () => {
+    const finalized = { ...upcoming, approved_at: '2026-09-01T00:00:00Z', finalized_at: '2026-09-02T00:00:00Z' };
+    const future = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    electionMocks.getElections.mockResolvedValue([{ ...finalized, start_time: future, end_time: new Date(Date.now() + 6 * 86_400_000).toISOString() }]);
+    const waiting = render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText(/^Next: Ballot locked: voting opens on /)).toBeInTheDocument();
+    expect(await findRowAction(/Edit/)).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Open voting/ })).not.toBeInTheDocument();
+    waiting.unmount();
+
+    electionMocks.getElections.mockResolvedValue([finalized]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await rowFor('HIUSA General Election 2026');
+    expect(await findRowAction(/Open voting/)).toBeInTheDocument();
+  });
+
   it('hides Delete for an open election and offers Close instead', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'active', approved_at: '2026-09-01T00:00:00Z', finalized_at: '2026-09-02T00:00:00Z' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);

@@ -214,6 +214,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const [closeTarget, setCloseTarget] = useState(null);
   const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
+  const [now, setNow] = useState(() => Date.now());
   const editRequestHandled = useRef(false);
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
 
@@ -225,6 +226,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   }, [selectedPeriodId]);
 
   useEffect(() => { loadElections(); }, [loadElections]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
   useEffect(() => {
     if (startCreate && canManageElections) {
@@ -334,7 +339,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
       canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
       canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
-      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
+      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && !(Date.parse(election.start_time) > now) && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
       canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
     ].filter(Boolean);
   };
