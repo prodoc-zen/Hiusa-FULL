@@ -9,6 +9,11 @@ class Csv
     {
         $text = (string) $value;
 
+        // A signed amount such as -325.00 is a number, not a formula, so it is exported as it is.
+        if (preg_match('/^[+\-]?\d{1,30}(?:\.\d{1,30})?\z/', $text) === 1) {
+            return $text;
+        }
+
         return preg_match('/^[=+\-@\t\r]/', $text) === 1 ? "'".$text : $text;
     }
 
