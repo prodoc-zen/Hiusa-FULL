@@ -135,6 +135,38 @@ describe('ElectionPickerPage', () => {
   });
 });
 
+describe('ElectionPickerPage editing an approved election', () => {
+  const approved = { ...upcoming, approved_at: '2026-09-20T08:00:00Z', finalized_at: '2026-09-21T08:00:00Z', approval_status: 'approved' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+  });
+
+  it('says before saving that a new schedule needs approval and a new finalize', async () => {
+    electionMocks.getElections.mockResolvedValue([approved]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(screen.getByText(/Changing the schedule sends this election back for approval and un-finalizes the ballot/)).toBeInTheDocument();
+  });
+
+  it('says it again after saving when the election went back to approval', async () => {
+    electionMocks.getElections.mockResolvedValue([approved]);
+    electionMocks.updateElection.mockResolvedValue({ id: 7, title: upcoming.title, status: 'pending_approval', approved_at: null, finalized_at: null });
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Election updated and sent back for approval. Finalize the ballot again once it is approved.')).toBeInTheDocument();
+  });
+
+  it('adds no warning for an election that is not approved yet', async () => {
+    electionMocks.getElections.mockResolvedValue([upcoming]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(screen.queryByText(/Changing the schedule/)).not.toBeInTheDocument();
+  });
+});
+
 describe('ElectionPickerPage empty states', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -267,6 +299,7 @@ describe('ElectionPickerPage delete rules', () => {
     fireEvent.click(await findRowAction(/Close/));
     const dialog = await screen.findByRole('dialog', { name: 'Close election' });
     expect(within(dialog).getByText(/Closing ends voting and cannot be undone/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/The winners become the new officers and the outgoing officers lose their officer access/)).toBeInTheDocument();
     expect(electionMocks.updateElection).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));

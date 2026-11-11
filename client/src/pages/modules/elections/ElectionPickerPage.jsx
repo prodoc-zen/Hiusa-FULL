@@ -148,7 +148,7 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         <Field label="Voting starts" required>
           <Input type="datetime-local" value={form.start_time} onChange={(event) => update({ start_time: event.target.value })} />
         </Field>
-        <Field label="Voting ends" required hint="Times use this device's local timezone.">
+        <Field label="Voting ends" required hint={editing && form.approved_at ? "Times use this device's local timezone. Changing the schedule sends this election back for approval and un-finalizes the ballot, so it must be approved and finalized again." : "Times use this device's local timezone."}>
           <Input type="datetime-local" value={form.end_time} onChange={(event) => update({ end_time: event.target.value })} />
         </Field>
       </div>
@@ -270,7 +270,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
 
   const openEdit = (election) => {
     setFormError('');
-    setEditForm({ id: election.id, title: election.title, room: election.room || '', image_url: election.image_url || '', imageFile: null, remove_image: false, start_time: isoToLocalDateTimeInput(election.start_time), end_time: isoToLocalDateTimeInput(election.end_time), status: election.status });
+    setEditForm({ id: election.id, title: election.title, room: election.room || '', image_url: election.image_url || '', imageFile: null, remove_image: false, start_time: isoToLocalDateTimeInput(election.start_time), end_time: isoToLocalDateTimeInput(election.end_time), status: election.status, approved_at: election.approved_at });
     setShowEdit(true);
   };
 
@@ -292,11 +292,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     const validationError = validateForm(editForm, false);
     if (validationError) { setFormError(validationError); notify.error(validationError); return; }
     const wasReturned = isReturned(elections.find((item) => item.id === editForm.id));
+    const wasApproved = Boolean(editForm.approved_at);
     setSubmitting(true); setFormError('');
     try {
       const updated = await updateElection(editForm.id, { title: editForm.title.trim(), room: editForm.room.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), status: editForm.status, imageFile: editForm.imageFile, remove_image: editForm.remove_image ? 1 : undefined });
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); closeEdit(updated);
-      setFeedback({ open: true, type: 'success', message: wasReturned ? 'Election updated and sent back for approval.' : 'Election updated.' });
+      setFeedback({ open: true, type: 'success', message: wasReturned ? 'Election updated and sent back for approval.' : wasApproved && !updated.approved_at ? 'Election updated and sent back for approval. Finalize the ballot again once it is approved.' : 'Election updated.' });
     } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election.'); setFormError(message); notify.error(message); }
     finally { setSubmitting(false); }
   };
@@ -468,7 +469,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       <Drawer open={showEdit && canManageElections} title="Edit election" description="Update the artwork and schedule." onClose={() => !submitting && closeEdit()} width="max-w-xl" footer={<><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>Save changes</Button></>}>
         <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
       </Drawer>
-      <ConfirmModal open={Boolean(closeTarget)} title="Close election" message="Closing ends voting and cannot be undone. Voters can no longer submit ballots." recordName={closeTarget?.title || ''} confirmText="Close election" variant="danger" onCancel={() => setCloseTarget(null)} onConfirm={handleClose} />
+      <ConfirmModal open={Boolean(closeTarget)} title="Close election" message="Closing ends voting and cannot be undone. Voters can no longer submit ballots. The winners become the new officers and the outgoing officers lose their officer access." recordName={closeTarget?.title || ''} confirmText="Close election" variant="danger" onCancel={() => setCloseTarget(null)} onConfirm={handleClose} />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete election" message="This permanently removes the election setup, candidates, and approval request." recordName={deleteTarget?.title || ''} confirmText="Delete" variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />
     </div>
   );
