@@ -257,6 +257,39 @@ describe('ElectionPickerPage delete rules', () => {
     expect(await findRowAction(/Close/)).toBeInTheDocument();
   });
 
+  it('asks before closing an open election and only closes it on confirm', async () => {
+    const open = { ...upcoming, status: 'active', approved_at: '2026-09-01T00:00:00Z', finalized_at: '2026-09-02T00:00:00Z' };
+    electionMocks.getElections.mockResolvedValue([open]);
+    electionMocks.updateElection.mockResolvedValue({ ...open, status: 'closed' });
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await rowFor('HIUSA General Election 2026');
+
+    fireEvent.click(await findRowAction(/Close/));
+    const dialog = await screen.findByRole('dialog', { name: 'Close election' });
+    expect(within(dialog).getByText(/Closing ends voting and cannot be undone/)).toBeInTheDocument();
+    expect(electionMocks.updateElection).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Close election' })).not.toBeInTheDocument());
+    expect(electionMocks.updateElection).not.toHaveBeenCalled();
+
+    fireEvent.click(await findRowAction(/Close/));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Close election' })).getByRole('button', { name: 'Close election' }));
+    await waitFor(() => expect(electionMocks.updateElection).toHaveBeenCalledWith(7, { status: 'closed' }));
+  });
+
+  it('counts ballots cast, not individual selections, under the name Ballots', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'active', votes_count: 18, voters_count: 9 }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    const table = row.closest('table');
+
+    expect(within(table).getByRole('columnheader', { name: 'Ballots' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Votes' })).not.toBeInTheDocument();
+    expect(within(row).getByText('9')).toBeInTheDocument();
+    expect(within(row).queryByText('18')).not.toBeInTheDocument();
+  });
+
   it('hides Delete for a closed election and for any election that has votes', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'closed' }]);
     const closed = render(<ElectionPickerPage onSelect={vi.fn()} />);

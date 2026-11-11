@@ -211,6 +211,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const [editForm, setEditForm] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [closeTarget, setCloseTarget] = useState(null);
   const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const editRequestHandled = useRef(false);
@@ -311,6 +312,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
+  const handleClose = async () => {
+    const target = closeTarget;
+    setCloseTarget(null);
+    await handleStatusChange(target.id, 'closed');
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget || deleting) return;
     setDeleting(true);
@@ -327,7 +334,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
       canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
       canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
-      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'closed') },
+      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
     ].filter(Boolean);
   };
   const hasRowActions = managing && elections.some((election) => rowActions(election).length > 0);
@@ -373,7 +380,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const countColumns = {
     positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
     candidates_count: { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
-    votes_count: { key: 'votes_count', header: 'Votes', align: 'right', render: (election) => getElectionVoteCount(election) },
+    votes_count: { key: 'votes_count', header: 'Ballots', align: 'right', render: (election) => election.voters_count ?? 0 },
   };
   const shownCounts = { manage: ['positions_count', 'candidates_count', 'votes_count'], candidates: ['candidates_count'], partylists: [], voters: ['votes_count'], results: ['votes_count'] }[mode] || [];
   columns.push(...shownCounts.map((key) => countColumns[key]));
@@ -461,6 +468,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       <Drawer open={showEdit && canManageElections} title="Edit election" description="Update the artwork and schedule." onClose={() => !submitting && closeEdit()} width="max-w-xl" footer={<><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>Save changes</Button></>}>
         <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
       </Drawer>
+      <ConfirmModal open={Boolean(closeTarget)} title="Close election" message="Closing ends voting and cannot be undone. Voters can no longer submit ballots." recordName={closeTarget?.title || ''} confirmText="Close election" variant="danger" onCancel={() => setCloseTarget(null)} onConfirm={handleClose} />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete election" message="This permanently removes the election setup, candidates, and approval request." recordName={deleteTarget?.title || ''} confirmText="Delete" variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />
     </div>
   );

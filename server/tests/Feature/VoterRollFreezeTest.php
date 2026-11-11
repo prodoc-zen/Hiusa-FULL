@@ -103,6 +103,43 @@ class VoterRollFreezeTest extends TestCase
         $this->assertDatabaseCount('votes', 0);
     }
 
+    public function test_the_ballot_read_refuses_a_member_who_joined_after_the_ballot_was_finalized_with_the_vote_message(): void
+    {
+        Sanctum::actingAs($this->member(false));
+
+        $this->getJson("/api/elections/{$this->election->id}")
+            ->assertOk()
+            ->assertJsonPath('ballot_refusal', self::JOINED_LATE);
+    }
+
+    public function test_the_ballot_read_has_no_refusal_for_a_member_on_the_roll(): void
+    {
+        Sanctum::actingAs($this->member(true));
+
+        $this->getJson("/api/elections/{$this->election->id}")
+            ->assertOk()
+            ->assertJsonPath('ballot_refusal', null);
+    }
+
+    public function test_the_elections_list_counts_ballots_as_distinct_voters_not_selections(): void
+    {
+        $second = ElectionPosition::create(['election_id' => $this->election->id, 'title' => 'Treasurer', 'max_winners' => 1]);
+        $secondCandidate = Candidate::create(['election_id' => $this->election->id, 'position_id' => $second->id, 'user_id' => User::factory()->student()->create(['organization_id' => $this->organization->id])->school_id]);
+        $early = $this->member(true);
+        Sanctum::actingAs($early);
+        $this->postJson("/api/elections/{$this->election->id}/vote", ['votes' => [
+            ['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id],
+            ['position_id' => $second->id, 'candidate_id' => $secondCandidate->id],
+        ]])->assertOk();
+        Sanctum::actingAs($this->admin);
+
+        $row = collect($this->getJson('/api/elections')->assertOk()->json())->firstWhere('id', $this->election->id);
+
+        $this->assertSame(2, $row['votes_count']);
+        $this->assertSame(1, $row['voters_count']);
+        $this->getJson("/api/elections/{$this->election->id}")->assertJsonPath('voters_count', 1);
+    }
+
     public function test_a_member_on_the_roll_when_the_ballot_was_finalized_still_votes(): void
     {
         $early = $this->member(true);
