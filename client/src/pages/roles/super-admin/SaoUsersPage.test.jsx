@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoUsersPage from './SaoUsersPage';
 
-const service = vi.hoisted(() => ({ getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), createSystemAdmin: vi.fn() }));
+const service = vi.hoisted(() => ({ getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), resetSystemUserPassword: vi.fn(), createSystemAdmin: vi.fn() }));
 vi.mock('../../../services/systemAdministrationService', () => service);
 const profile = vi.hoisted(() => ({ getProfileOrganizations: vi.fn(), getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn() }));
 vi.mock('../../../services/authService', () => profile);
@@ -18,6 +18,7 @@ describe('SAO university users', () => {
     service.getSystemUsers.mockResolvedValue(page([user]));
     service.getSystemUser.mockResolvedValue({ user: { ...user, profiles: [{ id: 1, role: 'STUDENT', organization: user.organization }] }, clearances: [{ period_id: 3, title: 'First Semester', academic_year: '2026-2027', is_complete: false, signatures: [{ required_role: 'sao', status: 'held' }] }], linked_records: { profiles: 1 } });
     service.deleteSystemUser.mockResolvedValue({ message: 'Deleted.' });
+    service.resetSystemUserPassword.mockResolvedValue({ message: 'The reset link is ready.', reset_link: 'https://hiusa.example.test/reset-password?token=abc' });
     service.createSystemAdmin.mockResolvedValue({ school_id: 78123456, role: 'ADMIN' });
     profile.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Robotics Club', college: 'College of Computing' }] });
     profile.getProfileCandidates.mockResolvedValue({ data: page([user]) });
@@ -104,6 +105,60 @@ describe('SAO university users', () => {
     fireEvent.click(confirm);
     await waitFor(() => expect(service.deleteSystemUser).toHaveBeenCalledWith(user.school_id));
   });
+  it('hands the SAO a one-time reset link for an active student', async () => {
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+    const confirm = screen.getByRole('dialog', { name: 'Reset password' });
+    expect(service.resetSystemUserPassword).not.toHaveBeenCalled();
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Send reset link' }));
+    await waitFor(() => expect(service.resetSystemUserPassword).toHaveBeenCalledWith(user.school_id));
+    const link = await screen.findByRole('dialog', { name: 'Reset link ready' });
+    expect(within(link).getByDisplayValue('https://hiusa.example.test/reset-password?token=abc')).toBeInTheDocument();
+    fireEvent.click(within(link).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByDisplayValue(/reset-password/)).not.toBeInTheDocument();
+    expect(screen.getByText('Reset link created for Ana Cruz.')).toBeInTheDocument();
+  });
+
+  it('shows the confirmation message instead of a link when the reset was emailed', async () => {
+    service.resetSystemUserPassword.mockResolvedValue({ message: 'Password reset instructions were sent to the member email address.' });
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Reset password' })).getByRole('button', { name: 'Send reset link' }));
+    expect(await screen.findByText('Password reset instructions were sent to the member email address.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Reset link ready' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the reset dialog open and says why when the reset fails', async () => {
+    service.resetSystemUserPassword.mockRejectedValue({ response: { data: { message: 'Activate this account before initiating a password reset.' } } });
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+    const confirm = screen.getByRole('dialog', { name: 'Reset password' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Send reset link' }));
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('Activate this account before initiating a password reset.');
+    expect(screen.queryByRole('dialog', { name: 'Reset link ready' })).not.toBeInTheDocument();
+  });
+
+  it('offers a password reset only for active students and officers', async () => {
+    service.getSystemUsers.mockResolvedValue(page([
+      { ...user, school_id: 1, first_name: 'Ben', role: 'SBO_OFFICER' },
+      { ...user, school_id: 2, first_name: 'Cara', account_status: 'inactive' },
+      { ...user, school_id: 3, first_name: 'Dan', role: 'ADMIN' },
+      { ...user, school_id: 4, first_name: 'Eve', role: 'SUPER_ADMIN' },
+    ]));
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ben Cruz' }))[0]);
+    expect(screen.getByRole('menuitem', { name: 'Reset password' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    for (const name of ['Cara', 'Dan', 'Eve']) {
+      fireEvent.click(screen.getAllByRole('button', { name: `Actions for ${name} Cruz` })[0]);
+      expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+    }
+  });
+
   it('shows the answer to the latest filter even when an earlier request lands last', async () => {
     let releaseFirst;
     service.getSystemUsers.mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = () => resolve(page([user])); }));
