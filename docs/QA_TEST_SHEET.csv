@@ -3353,7 +3353,7 @@ General,GEN-072,Errors,"Server problem shows a plain message, not technical text
 General,GEN-073,Errors,Too many requests are met with a calm message and recover,Negative,Low,Laptop,Any time,,The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop.,"1. Press F5 fast and many times in a row (about 40 times within 30 seconds), on a data-heavy page.
 2. Watch for a message or toast.
 3. Stop and wait one minute.
-4. Reload the page.","If the limit is reached, a plain message appears, such as ""Too many requests. Please try again in N seconds."" or ""Too many requests. Please wait a moment and try again."" After a minute the page works again.","VERIFY: whether you can reach the limit this way, since it allows 120 reads a minute.",Not run,,,,,,
+4. Reload the page.","If the limit is reached, a plain message appears, such as ""Too many requests. Please try again in N seconds."" or ""Too many requests. Please wait a moment and try again."" After a minute the page works again.","VERIFY: whether you can reach the limit this way, since it allows 300 reads a minute.",Not run,,,,,,
 General,GEN-074,Errors,Empty list and no matching result messages,Usability,Medium,Any,Any time,,The test copy is running and you have its link. Signed in as the Admin demo account 900001.,"1. Open a list page such as People, Events or Orders.
 2. Type a search text that matches nothing, such as ""zzzzqq"".
 3. Read the result.
