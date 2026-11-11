@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import DashboardLayout from './components/layout/DashboardLayout';
 import RouteLoadingFallback from './components/layout/RouteLoadingFallback';
 import ProtectedRoute from './ProtectedRoute';
@@ -103,6 +103,21 @@ function DashboardIndexRedirect() {
   }
 
   return <Navigate to="/" replace />;
+}
+
+// The election hub shows its own picker before any page below it renders, so the child routes'
+// allowedRoles are never reached for these pages. Keep this list equal to theirs.
+const ELECTION_MANAGE_PAGE_ROLES = {
+  'manage-elections': ['ADMIN'],
+  'manage-candidates': ['ADMIN', 'SBO_OFFICER'],
+  'manage-partylists': ['ADMIN'],
+  'manage-voters': ['SBO_OFFICER'],
+};
+
+function ElectionPageGate({ children }) {
+  const { pathname } = useLocation();
+  const allowedRoles = ELECTION_MANAGE_PAGE_ROLES[pathname.replace(/\/+$/, '').split('/').pop()];
+  return allowedRoles ? <ProtectedRoute allowedRoles={allowedRoles}>{children}</ProtectedRoute> : children;
 }
 
 function ElectionsIndexRedirect() {
@@ -370,7 +385,7 @@ function App() {
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />
 
           {/* Election module - nested routes */}
-          <Route path="elections" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><ElectionsHub /></ProtectedRoute>}>
+          <Route path="elections" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><ElectionPageGate><ElectionsHub /></ElectionPageGate></ProtectedRoute>}>
             <Route index element={<ElectionsIndexRedirect />} />
             <Route path="manage-elections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionDetailPage /></ProtectedRoute>} />
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
