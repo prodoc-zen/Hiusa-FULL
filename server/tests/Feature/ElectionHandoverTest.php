@@ -13,6 +13,8 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -520,5 +522,231 @@ class ElectionHandoverTest extends TestCase
 
         $this->assertSame('STUDENT', $this->profile($winner)->role);
         $this->assertSame([], AuditLog::where('action', 'access_handed_over')->first()->new_values['granted']);
+    }
+
+    /** Hands the organization to the winner of a seat: their profile moves, and their account row keeps the role it had. */
+    private function elected(string $title): User
+    {
+        $election = $this->closedElection();
+        [$winner] = $this->position($election, $title, [5, 2]);
+
+        $this->release($election)->assertOk();
+
+        return $winner;
+    }
+
+    /** Another Admin of the organization, signed in. */
+    private function colleague(): User
+    {
+        $colleague = $this->member('ADMIN', 'Org Head');
+        Sanctum::actingAs($colleague);
+
+        return $colleague;
+    }
+
+    private function accountRowRole(User $user): string
+    {
+        return (string) DB::table('users')->where('school_id', $user->school_id)->value('role');
+    }
+
+    private function resetTokens(User $user): int
+    {
+        return DB::table('password_reset_tokens')->where('email', $user->email)->count();
+    }
+
+    /** @return array{0: string, 1: string, 2: ?string} */
+    private function held(User $user): array
+    {
+        $profile = $this->profile($user)->fresh();
+
+        return [$profile->role, $profile->account_status, $profile->position_title];
+    }
+
+    public function test_an_admin_cannot_start_a_password_reset_for_a_member_just_elected_president(): void
+    {
+        Mail::fake();
+        $president = $this->elected('President');
+        $this->assertSame('STUDENT', $this->accountRowRole($president));
+        $this->assertSame('ADMIN', $this->profile($president)->role);
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$president->school_id.'/password-reset')
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Ask the SAO to reset this password.');
+        $this->assertSame(0, $this->resetTokens($president));
+    }
+
+    public function test_an_active_profile_with_elevated_access_here_makes_the_reset_the_saos_whatever_the_account_row_says(): void
+    {
+        Mail::fake();
+        $this->colleague();
+
+        foreach (['ADMIN', 'DEPARTMENT_HEAD', 'SUPER_ADMIN'] as $role) {
+            $member = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+            $this->profile($member)->update(['role' => $role]);
+
+            $this->postJson('/api/users/'.$member->school_id.'/password-reset')->assertStatus(409);
+            $this->assertSame(0, $this->resetTokens($member), $role);
+        }
+    }
+
+    public function test_a_member_elected_an_officer_can_still_have_their_password_reset_by_the_admin(): void
+    {
+        Mail::fake();
+        $secretary = $this->elected('Secretary');
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$secretary->school_id.'/password-reset')->assertOk();
+        $this->assertSame(1, $this->resetTokens($secretary));
+    }
+
+    public function test_an_officer_the_hand_over_retired_must_be_reactivated_before_a_password_reset(): void
+    {
+        Mail::fake();
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+        $this->release($election)->assertOk();
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$outgoing->school_id.'/password-reset')->assertUnprocessable();
+        $this->assertSame(0, $this->resetTokens($outgoing));
+    }
+
+    public function test_an_admin_can_reactivate_an_officer_the_hand_over_retired(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+        $this->release($election)->assertOk();
+        $this->assertSame('inactive', $this->profile($outgoing)->account_status);
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$outgoing->school_id.'/reactivate')->assertOk();
+
+        $this->assertSame(['SBO_OFFICER', 'active', 'Secretary'], $this->held($outgoing));
+    }
+
+    public function test_editing_a_member_elected_president_answers_with_the_role_they_hold(): void
+    {
+        $president = $this->elected('President');
+        $this->colleague();
+
+        $this->putJson('/api/users/'.$president->school_id, ['first_name' => 'Renamed'])
+            ->assertOk()
+            ->assertJsonPath('first_name', 'Renamed')
+            ->assertJsonPath('role', 'ADMIN')
+            ->assertJsonPath('position_title', 'President');
+
+        $audit = AuditLog::where('module', 'users')->where('action', 'updated')->firstOrFail();
+        $this->assertSame('ADMIN', $audit->old_values['role']);
+        $this->assertSame('ADMIN', $audit->new_values['role']);
+        $this->assertSame('President', $audit->new_values['position_title']);
+    }
+
+    public function test_an_ordinary_edit_never_writes_the_stale_account_role_over_a_hand_over_profile(): void
+    {
+        SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'ADMIN', 'title' => 'Chairperson']);
+        SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer']);
+        $secretary = $this->elected('Secretary');
+        $president = $this->elected('President');
+        $this->colleague();
+
+        $this->putJson('/api/users/'.$president->school_id, ['first_name' => 'Renamed'])->assertOk();
+        $this->putJson('/api/users/'.$secretary->school_id, ['first_name' => 'Renamed'])->assertOk();
+        $this->assertSame(['ADMIN', 'active', 'President'], $this->held($president));
+        $this->assertSame(['SBO_OFFICER', 'active', 'Secretary'], $this->held($secretary));
+
+        $this->putJson('/api/users/'.$president->school_id, ['position_title' => 'Chairperson'])->assertOk();
+        $this->putJson('/api/users/'.$secretary->school_id, ['position_title' => 'Treasurer'])->assertOk();
+        $this->assertSame(['ADMIN', 'active', 'Chairperson'], $this->held($president));
+        $this->assertSame(['SBO_OFFICER', 'active', 'Treasurer'], $this->held($secretary));
+    }
+
+    public function test_disabling_an_officer_the_hand_over_made_keeps_their_role_for_when_they_are_reactivated(): void
+    {
+        $secretary = $this->elected('Secretary');
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$secretary->school_id.'/disable')->assertOk();
+        $this->assertSame(['SBO_OFFICER', 'disabled', 'Secretary'], $this->held($secretary));
+
+        $this->postJson('/api/users/'.$secretary->school_id.'/reactivate')->assertOk();
+        $this->assertSame(['SBO_OFFICER', 'active', 'Secretary'], $this->held($secretary));
+    }
+
+    public function test_a_role_change_reaches_the_profile_when_the_account_row_already_holds_that_role(): void
+    {
+        $secretary = $this->elected('Secretary');
+        $this->assertSame('STUDENT', $this->accountRowRole($secretary));
+        $this->colleague();
+
+        $this->putJson('/api/users/'.$secretary->school_id, ['role' => 'STUDENT'])
+            ->assertOk()
+            ->assertJsonPath('role', 'STUDENT');
+
+        $this->assertSame(['STUDENT', 'active', null], $this->held($secretary));
+    }
+
+    public function test_an_admin_cannot_disable_or_delete_the_member_just_elected_president(): void
+    {
+        $president = $this->elected('President');
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$president->school_id.'/disable')->assertForbidden();
+        $this->deleteJson('/api/users/'.$president->school_id)->assertForbidden();
+
+        $this->assertSame(['ADMIN', 'active', 'President'], $this->held($president));
+    }
+
+    public function test_removing_an_officer_the_hand_over_made_audits_the_role_they_held(): void
+    {
+        $secretary = $this->elected('Secretary');
+        AccountProfile::create(['user_school_id' => $secretary->school_id, 'organization_id' => Organization::factory()->create()->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $this->colleague();
+
+        $this->deleteJson('/api/users/'.$secretary->school_id)->assertOk();
+
+        $this->assertNull($this->profile($secretary));
+        $audit = AuditLog::where('module', 'users')->where('action', 'deleted')->firstOrFail();
+        $this->assertSame('SBO_OFFICER', $audit->old_values['role']);
+        $this->assertSame('Secretary', $audit->old_values['position_title']);
+    }
+
+    public function test_the_last_admin_check_counts_active_admin_profiles_not_account_rows(): void
+    {
+        SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'ADMIN', 'title' => 'Chairperson']);
+        $chair = $this->elected('Chairperson');
+        $this->assertSame('STUDENT', $this->accountRowRole($chair));
+        $dormant = $this->member('ADMIN', 'Treasurer');
+        User::where('school_id', $dormant->school_id)->update(['account_status' => 'inactive']);
+        $this->profile($dormant)->update(['account_status' => 'inactive']);
+        Sanctum::actingAs($this->admin);
+
+        // The president and the chairperson are both active administrators, though only one account row says ADMIN.
+        $this->putJson('/api/users/'.$dormant->school_id, ['account_status' => 'inactive'])->assertOk();
+
+        $this->profile($chair)->update(['account_status' => 'inactive']);
+
+        $this->putJson('/api/users/'.$dormant->school_id, ['account_status' => 'inactive'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Cannot deactivate the last active admin account.');
+    }
+
+    public function test_the_unavailable_message_names_the_hand_over_only_while_it_is_why_the_profile_is_inactive(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+        $this->release($election)->assertOk();
+
+        $this->signIn($outgoing)->assertForbidden()->assertJsonPath('message', $this->endedMessage());
+
+        // Reactivated, then switched off again later for some other reason: the hand over is no longer why.
+        $this->travel(2)->hours();
+        $this->profile($outgoing)->update(['account_status' => 'active']);
+        $this->profile($outgoing)->update(['account_status' => 'inactive']);
+
+        $this->signIn($outgoing)->assertForbidden()->assertJsonPath('message', 'This account profile is unavailable.');
     }
 }

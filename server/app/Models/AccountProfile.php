@@ -57,6 +57,20 @@ class AccountProfile extends Model
             ->whereHas('user', fn ($user) => $user->where('users.account_status', 'active'));
     }
 
+    /**
+     * Active profiles that put the holder's password beyond an Admin's reset, because one password opens every profile:
+     * administrator or higher in any organization, or officer in any organization but the Admin's own.
+     */
+    public function scopeBeyondAdminReset(Builder $query, int $organizationId): Builder
+    {
+        return $query->where('account_profiles.account_status', 'active')
+            ->where(fn (Builder $elevated) => $elevated
+                ->whereIn('account_profiles.role', ['ADMIN', 'DEPARTMENT_HEAD', 'SUPER_ADMIN'])
+                ->orWhere(fn (Builder $elsewhere) => $elsewhere
+                    ->where('account_profiles.organization_id', '!=', $organizationId)
+                    ->where('account_profiles.role', '!=', 'STUDENT')));
+    }
+
     /** The one rule for a profile somebody can work in: it is active, and so are its organization and college. */
     public function isUsable(): bool
     {
@@ -71,10 +85,13 @@ class AccountProfile extends Model
             : self::UNAVAILABLE_MESSAGE;
     }
 
+    /** The hand over is why a profile is inactive only while nothing has touched it since: a later change, like switching it off again, has its own cause. */
     private function retiredByHandover(): bool
     {
         return $this->account_status === 'inactive' && $this->organization !== null
-            && AuditLog::where('organization_id', $this->organization_id)->where('action', 'access_handed_over')->get(['new_values'])
+            && AuditLog::where('organization_id', $this->organization_id)->where('action', 'access_handed_over')
+                ->when($this->updated_at, fn (Builder $audits, $retiredAt) => $audits->where('created_at', '>=', $retiredAt))
+                ->get(['new_values'])
                 ->contains(fn (AuditLog $audit) => in_array((int) $this->user_school_id, array_map('intval', $audit->new_values['deactivated'] ?? []), true));
     }
 
