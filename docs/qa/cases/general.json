@@ -530,7 +530,7 @@
       "3. Type the text \"not-an-email\" in Email or school ID.",
       "4. Choose Request reset again."
     ],
-    "expected": "With the field empty, a red message shows above the button, taken from the server: \"The identifier field is required when none of school id / organization id / email are present.\" You stay on the page and no \"Check your email\" or \"Ask for a reset\" screen appears. VERIFY: the wording. The words \"identifier\" and \"organization id\" are technical and students do not know them, so report this wording as a problem. For \"not-an-email\" the page does not show a red message, because the form does no checking of its own and the server accepts any text up to 100 characters. With email off, you get the \"Ask for a reset\" screen. With email on, you get \"Check your email\", the same as for any unknown account.",
+    "expected": "With the field empty, a red message shows above the button, taken from the server: \"The identifier field is required when none of school id / organization id are present.\" You stay on the page and no \"Check your email\" or \"Ask for a reset\" screen appears. VERIFY: the wording. The words \"identifier\" and \"organization id\" are technical and students do not know them, so report this wording as a problem. For \"not-an-email\" the page does not show a red message, because the form does no checking of its own and the server accepts any text up to 100 characters. With email off, you get the \"Ask for a reset\" screen. With email on, you get \"Check your email\", the same as for any unknown account.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",
