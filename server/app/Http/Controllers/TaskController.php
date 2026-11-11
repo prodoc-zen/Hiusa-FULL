@@ -226,6 +226,17 @@ class TaskController extends Controller
             'preferred_role' => ['nullable', 'string', 'max:100', Rule::exists('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('is_active', true))],
         ]);
 
+        // A planning to-do is saved through TaskDelegationService, where the best officer role only steers the
+        // recommendation, so its preview lists the same officers instead of filtering to that role.
+        if ($request->input('task_type') === 'workflow') {
+            return response()->json(['delegation' => $this->delegation->recommend(
+                $request->user()->organization_id,
+                $request->input('title'),
+                'workflow',
+                $request->input('preferred_role'),
+            )]);
+        }
+
         $this->recommendOfficer($request);
 
         return response()->json(['delegation' => $this->lastDelegation]);
