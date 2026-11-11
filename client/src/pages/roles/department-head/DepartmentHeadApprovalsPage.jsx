@@ -22,6 +22,7 @@ import { formatDateTime, fullName, summaryLine } from '../../../components/appro
 import { findApprovalRequest } from '../../modules/approvals/approvalApi';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 import { isOfficeStaff } from '../../../utils/collegeIdentity';
+import { buildCsv } from '../../../utils/csv';
 
 function getCurrentUser() {
   try {
@@ -54,7 +55,7 @@ const REVIEW_EMPTY = {
 function downloadCsv(rows, organizationNames) {
   const headers = ['Request ID', 'Organization', 'Type', 'Title', 'Status', 'Requester ID', 'Requester', 'Role', 'Position', 'Department', 'Program', 'Year Level', 'Section', 'Requested At', 'Reviewer', 'Reviewed At', 'Remarks'];
   const values = rows.map((item) => [item.id, organizationNames[item.organization_id] || '', item.entity_type, item.title, item.status, item.requester?.school_id, fullName(item.requester), item.requester?.role, item.requester?.position_title, item.requester?.department, item.requester?.program, item.requester?.year_level, item.requester?.section, item.requested_at, fullName(item.reviewer), item.reviewed_at, item.remarks]);
-  const csv = [headers, ...values].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const csv = buildCsv(headers, values);
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = `approval-register-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
 }

@@ -1,4 +1,6 @@
-const escapeXml = (value) => Array.from(String(value ?? ''))
+import { formulaSafe } from './csv';
+
+const escapeXml = (value) => Array.from(formulaSafe(value))
   .filter((character) => character.charCodeAt(0) >= 32 || [9, 10, 13].includes(character.charCodeAt(0)))
   .join('')
   .replace(/&/g, '&amp;')
