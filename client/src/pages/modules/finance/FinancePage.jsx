@@ -236,6 +236,8 @@ function getClampNotice(forecast) {
     : 'The raw projected expense was negative and has been clamped to ₱0.00 for display.';
 }
 
+const REPORT_STATUS_LABELS = { draft: 'Draft', pending_department_head: 'Pending Department Head', pending_sao: 'Pending SAO', approved: 'Approved', rejected: 'Returned' };
+
 function sentence(value) {
   const text = String(value ?? '').replaceAll('_', ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -1718,7 +1720,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </HiusaSelect>
                 </Field>
                 {reportForm.report_type === 'semester' ? <Field label="Semester" required>
-                  <HiusaSelect value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })}><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
+                  <HiusaSelect value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })}><option value="">{semesters.length === 0 ? 'No semester added yet' : 'Select semester'}</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
                 </Field> : null}
                 {reportForm.report_type === 'event' && <Field label="Event" required>
                   <HiusaSelect value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })}>
@@ -1823,7 +1825,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <h2 id="saved-reports-title" className="text-base font-semibold text-ink">Saved reports</h2>
               {reports.length > 0 && <div className="mt-3 flex flex-wrap items-end gap-3">
                 <Input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="min-w-56 flex-1" />
-                <HiusaSelect filter aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="w-52 max-w-full"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{sentence(status)}</option>)}</HiusaSelect>
+                <HiusaSelect filter aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="w-52 max-w-full"><option value="">All statuses</option>{Object.entries(REPORT_STATUS_LABELS).map(([status, label]) => <option key={status} value={status}>{label}</option>)}</HiusaSelect>
                 <HiusaSelect filter aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="w-52 max-w-full"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
                 {reportFiltersActive && visibleReports.length > 0 && <button type="button" onClick={clearReportFilters} className="min-h-10 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear filters</button>}
               </div>}
