@@ -224,7 +224,7 @@ class GrievanceController extends Controller
                 'user_id' => $filer->school_id,
                 'notification_type' => 'general',
                 'title' => 'Your grievance was updated',
-                'message' => "Your grievance \"{$grievance->title}\" is now {$data['status']}.".(! empty($data['remarks']) ? ' Remarks: '.$data['remarks'] : ''),
+                'message' => "Your grievance \"{$grievance->title}\" is now ".str_replace('_', ' ', $data['status']).'.'.(! empty($data['remarks']) ? ' Remarks: '.$data['remarks'] : ''),
                 'reference_type' => 'grievance',
                 'reference_id' => $grievance->id,
                 'is_read' => false,

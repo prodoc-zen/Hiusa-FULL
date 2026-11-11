@@ -254,6 +254,24 @@ class GrievanceTest extends TestCase
         $this->assertNotNull(Grievance::find($grievanceId)->resolved_at);
     }
 
+    public function test_the_filer_notification_names_the_status_in_plain_words(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $student = $this->user('STUDENT');
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Concern', 'description' => 'A concern needing SAO review.', 'addressed_to' => 'sao',
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertOk();
+
+        $message = Notification::where('user_id', $student->school_id)->where('reference_type', 'grievance')
+            ->where('title', 'Your grievance was updated')->value('message');
+        $this->assertSame('Your grievance "Concern" is now under review.', $message);
+    }
+
     public function test_grievance_module_audit_rows_carry_no_identity_and_are_hidden_from_admin_but_visible_to_super_admin(): void
     {
         Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
