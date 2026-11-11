@@ -58,6 +58,39 @@ describe('AddExistingUserModal', () => {
     expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
   });
 
+  it('offers an administrator the head role only for a suborganization they administer', async () => {
+    render(<AddExistingUserModal actorRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '8' } });
+    expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    expect(screen.getByRole('option', { name: 'Organization head' })).toBeInTheDocument();
+    await pickMaria();
+    fireEvent.change(screen.getByLabelText('Role in this organization'), { target: { value: 'ADMIN' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 9, role: 'ADMIN' }));
+  });
+
+  it('does not offer an administrator the head role for a suborganization whose parent they do not administer', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 9, name: 'Computing Club', parent_organization_id: 8, college: organization.college }] });
+    render(<AddExistingUserModal actorRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
+  });
+
+  it('resets the role to member when the chosen organization no longer offers the head role', async () => {
+    render(<AddExistingUserModal actorRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    fireEvent.change(screen.getByLabelText('Role in this organization'), { target: { value: 'ADMIN' } });
+    expect(screen.getByLabelText('Role in this organization')).toHaveValue('ADMIN');
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '8' } });
+    expect(screen.getByLabelText('Role in this organization')).toHaveValue('STUDENT');
+    await pickMaria();
+    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
+  });
+
   it('starts with the person already chosen when opened from a row', () => {
     render(<AddExistingUserModal organization={organization} initialUser={{ school_id: 24001001, first_name: 'maria', last_name: 'reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
     expect(screen.getByText('Maria Reyes')).toBeInTheDocument();
