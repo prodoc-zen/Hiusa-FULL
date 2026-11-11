@@ -550,11 +550,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, appliedSearch, txFilters, organizationFilter]);
 
-  function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter) {
+  // A refresh after a save reads everything again but leaves what is on screen in place until the new data lands.
+  function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter, { refresh = false } = {}) {
     const ticket = ++loadTicket.current;
     const ledgerAtStart = ++ledgerTicket.current;
     setLedgerLoading(false);
-    setLoading(true);
+    if (!refresh) setLoading(true);
     setError(null);
     const { organizationScope, activeFilters } = ledgerScope(filters, organizationId);
     // Budgets, forecasts, reports, and the event dropdown source have no server-side
@@ -608,6 +609,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       });
   }
 
+  function refreshAfterSave(page) {
+    load(page, undefined, undefined, undefined, { refresh: true });
+  }
+
   function askDelete(kind, record) {
     setDeleteError(null);
     setDeleteTarget({ kind, record });
@@ -623,7 +628,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       else await deleteTransaction(record.id);
       showFeedback('success', deleteLabels[kind].done);
       setDeleteTarget(null);
-      load(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+      refreshAfterSave(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, deleteLabels[kind].failed));
     } finally {
@@ -687,7 +692,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
       if (sentFromRequestPage) setProposalSent(true);
       else showFeedback('success', editingBudget ? 'Budget updated and sent back for approval.' : 'Budget proposal submitted for approval.');
-      load(txMeta.current_page);
+      refreshAfterSave(txMeta.current_page);
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to save budget.');
       setBudgetFormError(message);
@@ -768,7 +773,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       setEditingTransaction(null);
       setForm({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
       showFeedback('success', `Transaction ${editingTransaction ? 'updated' : 'recorded'} successfully.`);
-      load(editingTransaction ? txMeta.current_page : 1);
+      refreshAfterSave(editingTransaction ? txMeta.current_page : 1);
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to save transaction.');
       setFormError(message);
@@ -811,7 +816,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     try {
       await generateForecast({ months: 12 });
       showFeedback('success', 'Forecast generated from the ledger history.');
-      load(txMeta.current_page);
+      refreshAfterSave(txMeta.current_page);
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to generate the forecast.');
       setForecastGenError(message);
