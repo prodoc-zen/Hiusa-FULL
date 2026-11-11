@@ -190,7 +190,7 @@ class TransactionController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate($this->rules($request));
+        $data = $request->validate($this->rules($request), $this->messages());
 
         if ($message = $this->validateAndNormalizeLinks($request, $data)) {
             return response()->json(['message' => $message], 422);
@@ -248,7 +248,7 @@ class TransactionController extends Controller
             return response()->json(['message' => $message], 409);
         }
 
-        $data = $request->validate($this->rules($request, true, $transaction));
+        $data = $request->validate($this->rules($request, true, $transaction), $this->messages());
 
         if ($message = $this->validateAndNormalizeLinks($request, $data, $transaction)) {
             return response()->json(['message' => $message], 422);
@@ -427,6 +427,14 @@ class TransactionController extends Controller
         }
 
         return null;
+    }
+
+    private function messages(): array
+    {
+        return [
+            'receipt_reference.unique' => 'This receipt reference is already used. Enter a different one.',
+            'receipt_number.unique' => 'This receipt number is already used for this event. Enter a different one.',
+        ];
     }
 
     private function rules(Request $request, bool $partial = false, ?Transaction $transaction = null): array
