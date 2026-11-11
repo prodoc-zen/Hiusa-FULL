@@ -34,6 +34,18 @@ class AskAiService
         'finance_health' => 'finance',
         'merchandise_orders' => 'merchandise',
         'events_attendance' => 'events',
+        'tasks_workload' => 'tasks',
+    ];
+
+    private const STUDENT_INTENTS = [
+        'daily_priorities',
+        'finance_health',
+        'merchandise_orders',
+        'events_attendance',
+        'clearances_status',
+        'elections_status',
+        'semantic_rag',
+        'how_to_guide',
     ];
 
     public function __construct(
@@ -388,6 +400,10 @@ class AskAiService
 
     private function intentAllowed(User $user, string $intent): bool
     {
+        if ($user->role === 'STUDENT' && ! in_array($intent, self::STUDENT_INTENTS, true)) {
+            return false;
+        }
+
         $module = self::INTENT_MODULES[$intent] ?? null;
 
         return $module === null || $this->moduleAllowed($user, $module);
@@ -2838,6 +2854,7 @@ class AskAiService
         }
 
         $corpus = [];
+        $showCompliance = $role !== 'STUDENT' && $this->moduleAllowed($user, 'compliance');
 
         // 1. Organizations & Accreditation Status
         $organizations = DB::table('organizations')
@@ -2866,7 +2883,7 @@ class AskAiService
                     $org->college ?: ($org->is_university_wide ? 'University-wide' : 'General'),
                     Str::headline((string) $org->lifecycle_status),
                     Str::headline((string) $accStatus),
-                    $org->review_remarks ? " · Remarks: {$org->review_remarks}" : ''
+                    $showCompliance && $org->review_remarks ? " · Remarks: {$org->review_remarks}" : ''
                 ),
                 'status' => Str::headline((string) $org->lifecycle_status),
                 'status_tone' => $org->lifecycle_status === 'active' ? ($accStatus === 'complete' ? 'success' : 'warning') : 'danger',
@@ -2882,7 +2899,7 @@ class AskAiService
                     $org->college,
                     $org->lifecycle_status,
                     $accStatus,
-                    $org->review_remarks,
+                    $showCompliance ? $org->review_remarks : null,
                 ])),
             ];
         }
@@ -3063,6 +3080,7 @@ class AskAiService
             ->join('organizations', 'organizations.id', '=', 'merchandise.organization_id')
             ->whereNull('merchandise.deleted_at')
             ->whereIn('merchandise.organization_id', $orgIds)
+            ->when($role === 'STUDENT', fn ($q) => $q->where('merchandise.is_active', true))
             ->orderBy('merchandise.name')
             ->limit(25)
             ->get([
@@ -3357,22 +3375,24 @@ class AskAiService
         }
 
         // 10. Compliance Submissions
-        $submissions = DB::table('organization_compliance_submissions')
-            ->join('organizations', 'organizations.id', '=', 'organization_compliance_submissions.organization_id')
-            ->join('compliance_requirement_types', 'compliance_requirement_types.id', '=', 'organization_compliance_submissions.requirement_type_id')
-            ->whereIn('organization_compliance_submissions.organization_id', $orgIds)
-            ->orderByDesc('organization_compliance_submissions.submitted_at')
-            ->limit(25)
-            ->get([
-                'organization_compliance_submissions.id',
-                'organization_compliance_submissions.status',
-                'organization_compliance_submissions.remarks',
-                'organization_compliance_submissions.file_original_name',
-                'organizations.name as org_name',
-                'organizations.acronym as org_acronym',
-                'compliance_requirement_types.name as req_name',
-                'compliance_requirement_types.academic_year',
-            ]);
+        $submissions = $showCompliance
+            ? DB::table('organization_compliance_submissions')
+                ->join('organizations', 'organizations.id', '=', 'organization_compliance_submissions.organization_id')
+                ->join('compliance_requirement_types', 'compliance_requirement_types.id', '=', 'organization_compliance_submissions.requirement_type_id')
+                ->whereIn('organization_compliance_submissions.organization_id', $orgIds)
+                ->orderByDesc('organization_compliance_submissions.submitted_at')
+                ->limit(25)
+                ->get([
+                    'organization_compliance_submissions.id',
+                    'organization_compliance_submissions.status',
+                    'organization_compliance_submissions.remarks',
+                    'organization_compliance_submissions.file_original_name',
+                    'organizations.name as org_name',
+                    'organizations.acronym as org_acronym',
+                    'compliance_requirement_types.name as req_name',
+                    'compliance_requirement_types.academic_year',
+                ])
+            : collect();
 
         foreach ($submissions as $sub) {
             $orgLabel = $sub->org_acronym ?: $sub->org_name;
