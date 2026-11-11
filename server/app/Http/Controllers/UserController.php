@@ -596,6 +596,15 @@ class UserController extends Controller
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
+        // One password signs in to every profile, so a link for a member who also holds elevated access elsewhere would hand that access to this Admin.
+        $elevatedElsewhere = AccountProfile::where('user_school_id', $user->school_id)
+            ->where('account_status', 'active')
+            ->where('organization_id', '!=', $organizationId)
+            ->where('role', '!=', 'STUDENT')
+            ->exists();
+        if ($elevatedElsewhere) {
+            return response()->json(['message' => 'Ask the SAO to reset this password.'], 409);
+        }
         if ($user->account_status !== 'active') {
             return response()->json(['message' => 'Activate this member before initiating a password reset.'], 422);
         }
@@ -842,7 +851,6 @@ class UserController extends Controller
 
         RateLimiter::clear($failureKey);
         RateLimiter::clear($accountFailureKey);
-        Cache::put($knownKey, true, now()->addDays(30));
 
         $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status', 'college_id', 'college', 'organization_type']);
 
@@ -868,6 +876,8 @@ class UserController extends Controller
                 'account_status' => $user->account_status,
             ], 403);
         }
+
+        Cache::put($knownKey, true, now()->addDays(30));
 
         return response()->json([
             'user' => $user,
