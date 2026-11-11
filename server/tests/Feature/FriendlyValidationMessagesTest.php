@@ -2,12 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\Organization;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Validator;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class FriendlyValidationMessagesTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_an_empty_sign_in_asks_for_the_email_or_school_id_and_the_password(): void
     {
         $response = $this->postJson('/api/login', [])->assertUnprocessable();
@@ -32,8 +38,33 @@ class FriendlyValidationMessagesTest extends TestCase
 
         $message = $validator->errors()->first('image');
 
-        $this->assertSame('The image is too large. Choose a smaller file.', $message);
+        $this->assertSame('The image must be 5 MB or smaller.', $message);
         $this->assertStringNotContainsString('kilobytes', $message);
+    }
+
+    public function test_a_small_file_limit_is_stated_in_kilobytes_and_other_max_messages_keep_their_numbers(): void
+    {
+        $validator = Validator::make(
+            ['logo' => UploadedFile::fake()->create('big.png', 900, 'image/png'), 'title' => str_repeat('a', 11), 'seats' => 12],
+            ['logo' => ['image', 'max:512'], 'title' => ['max:10'], 'seats' => ['integer', 'max:10']],
+        );
+
+        $this->assertSame('The logo must be 512 KB or smaller.', $validator->errors()->first('logo'));
+        $this->assertSame('Title must not be longer than 10 characters.', $validator->errors()->first('title'));
+        $this->assertSame('Seats must not be greater than 10.', $validator->errors()->first('seats'));
+    }
+
+    public function test_an_upload_endpoint_over_its_limit_names_the_limit_in_megabytes(): void
+    {
+        $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
+        Sanctum::actingAs($admin);
+
+        $response = $this->post('/api/announcements', [
+            'title' => 'Notice', 'body' => 'Body', 'target_role' => 'all',
+            'image' => UploadedFile::fake()->create('big.png', 6000, 'image/png'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable();
+
+        $this->assertSame('The image must be 5 MB or smaller.', $response->json('errors.image.0'));
     }
 
     public function test_a_wrong_file_type_lists_the_types_that_are_allowed(): void
