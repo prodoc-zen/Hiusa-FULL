@@ -542,6 +542,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     loadLedger(1, txFilters, term);
   }
 
+  // Typing applies the search once it pauses, like every other search; Enter still applies it at once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (search.trim() === appliedSearch.trim()) return undefined;
+    const timer = setTimeout(() => applySearch(search), 350);
+    return () => clearTimeout(timer);
+  }, [search, appliedSearch, txFilters, organizationFilter]);
+
   function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter) {
     const ticket = ++loadTicket.current;
     const ledgerAtStart = ++ledgerTicket.current;
