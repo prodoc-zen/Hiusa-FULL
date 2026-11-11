@@ -123,6 +123,15 @@ test('the deploy previews and then holds stock for open orders right after the m
     assert.ok(caches > hold, 'the hold must finish before the caches step');
 });
 
+test('the deploy forgets the cached health commit after the php-fpm reload and before the health check', () => {
+    const reload = deployScript.lastIndexOf('systemctl reload php8.3-fpm');
+    const forget = deployScript.indexOf('cache:forget health:sha');
+    const health = deployScript.indexOf('== 7. Health');
+    assert.ok(forget > 0, 'the health:sha cache:forget step is missing');
+    assert.ok(forget > reload, 'the forget must come after the php-fpm reload');
+    assert.ok(health > forget, 'the forget must come before the health check');
+});
+
 test('the queue and scheduler units set StartLimitIntervalSec in [Unit], where systemd reads it', () => {
     for (const name of ['hiusa-queue', 'hiusa-scheduler']) {
         const unit = readFileSync(resolve(`scripts/server/systemd/${name}.service`), 'utf8');
