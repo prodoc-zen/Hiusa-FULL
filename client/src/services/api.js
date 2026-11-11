@@ -115,8 +115,12 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
-    if (!['get', 'head'].includes(String(response.config?.method || '').toLowerCase())) {
+    const method = String(response.config?.method || '').toLowerCase();
+    if (!['get', 'head'].includes(method)) {
       clearApiCache();
+    }
+    if (method === 'patch' && /^\/notifications\/(read-all|\d+\/read)$/.test(String(response.config?.url || ''))) {
+      window.dispatchEvent(new Event('hiusa-notifications-changed'));
     }
 
     return response;

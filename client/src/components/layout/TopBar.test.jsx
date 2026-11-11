@@ -66,6 +66,18 @@ describe('TopBar notifications', () => {
     expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument();
   });
 
+  it('drops the bell count when notifications are marked read elsewhere on the page', async () => {
+    notificationMocks.getNotifications.mockResolvedValueOnce({ data: { data: [{ id: 1, title: 'Budget review', message: 'Approved', is_read: false }], unread_count: 1 } });
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const bell = await screen.findByRole('button', { name: 'Notifications' });
+    await waitFor(() => expect(within(bell).getByText('1')).toBeInTheDocument());
+
+    notificationMocks.getNotifications.mockResolvedValueOnce({ data: { data: [{ id: 1, title: 'Budget review', message: 'Approved', is_read: true }], unread_count: 0 } });
+    await act(async () => { window.dispatchEvent(new Event('hiusa-notifications-changed')); });
+
+    await waitFor(() => expect(within(bell).queryByText('1')).not.toBeInTheDocument());
+  });
+
   it('keeps the admin home header compact above the dashboard briefing, with no cart', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
