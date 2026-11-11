@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { peso as money } from '../../../lib/format';
 import { HandCoins, Plus } from 'lucide-react';
 import CashAdvancesSection from '../../../components/finance/CashAdvancesSection';
+import ConfirmModal from '../../../components/ConfirmModal';
 import { createCollection, getCollections, getFinancialDashboard, recordRemittance, verifyCollection } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 
-const money = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
 const EMPTY_COLLECTION = { source: '', amount_collected: '', expected_amount: '', notes: '' };
 
 export default function FinancialCollectionsPage() {
@@ -21,6 +22,7 @@ export default function FinancialCollectionsPage() {
   const [createForm, setCreateForm] = useState(EMPTY_COLLECTION);
   const [remit, setRemit] = useState(null);
   const [remitAmount, setRemitAmount] = useState('');
+  const [verifyTarget, setVerifyTarget] = useState(null);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const load = useCallback(async () => {
@@ -58,10 +60,10 @@ export default function FinancialCollectionsPage() {
   }
 
   async function verify(collection) {
-    if (!window.confirm(`Verify ${collection.reference} for ${money(collection.amount_collected)}?`)) return;
     setBusy(true);
     try {
       await verifyCollection(collection.id);
+      setVerifyTarget(null);
       setNotice('Collection verified and added to the ledger.');
       await load();
     } catch (cause) {
@@ -108,7 +110,7 @@ export default function FinancialCollectionsPage() {
   const rowActions = (collection) => (
     <>
       {collection.status === 'pending' && Number(collection.collected_by) !== Number(user.school_id) && (
-        <Button variant="secondary" disabled={busy} onClick={() => verify(collection)}>Verify</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => { setError(''); setVerifyTarget(collection); }}>Verify</Button>
       )}
       {collection.status === 'verified' && Number(collection.unremitted_balance) > 0 && (
         <Button variant="secondary" disabled={busy} onClick={() => { setError(''); setRemit(collection); setRemitAmount(''); }}>Remit</Button>
@@ -128,7 +130,7 @@ export default function FinancialCollectionsPage() {
 
   return <div className="space-y-6 pb-8">
     <PageHeader primary={createOpen || remit ? null : <Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
-    {error && !createOpen && !remit && <p role="alert" className="rounded-card border border-line bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    {error && !createOpen && !remit && !verifyTarget && <p role="alert" className="rounded-card border border-line bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-card border border-line bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {!loading && dashboard && (
       <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -164,6 +166,18 @@ export default function FinancialCollectionsPage() {
       />
     </section>
     <CashAdvancesSection onLedgerChange={load} />
+    <ConfirmModal
+      open={Boolean(verifyTarget)}
+      title="Verify this collection?"
+      message="Verifying adds the amount to the ledger as income."
+      recordName={verifyTarget ? `${verifyTarget.reference} for ${money(verifyTarget.amount_collected)}` : ''}
+      confirmText="Verify collection"
+      variant="primary"
+      busy={busy}
+      error={error}
+      onCancel={() => setVerifyTarget(null)}
+      onConfirm={() => verify(verifyTarget)}
+    />
     {createOpen && (
       <Drawer
         open
