@@ -202,7 +202,7 @@ ADM-200 | Updates > Announcements | Unpublish and publish again | M | Any
 ADM-201 | Updates > Announcements | Delete an announcement | M | Any
 ADM-202 | Updates > Announcements | An SAO announcement cannot be changed by the Admin | M | Any
 ADM-203 | Updates > Announcements | Approve an officer's announcement from the Announcements page | H | Any
-ADM-204 | Updates > Feed | Feed shows published announcements with search, category and likes | M | Any
+ADM-204 | Updates > Feed | Feed shows published announcements with search and category | M | Any
 ADM-205 | Records > Compliance | Compliance page lists the SAO requirements and their status | H | Any
 ADM-206 | Records > Compliance | Upload a compliance document | H | Any
 ADM-207 | Records > Compliance | Compliance file type and size limits | M | Any
@@ -596,7 +596,7 @@ SAO-019 | Organizations > Registrations and organizations | The Review registrat
 SAO-020 | Organizations > Registrations and organizations | Return without remarks is refused | H | Any
 SAO-021 | Organizations > Registrations and organizations | Return a registration with remarks and the Department Head sees it | H | Any
 SAO-022 | Organizations > Registrations and organizations | Approve an application: the organization is created and the founder becomes its administrator | H | Any
-SAO-023 | Organizations > Registrations and organizations | A registration that was already decided cannot be decided again | M | Any
+SAO-023 | Organizations > Registrations and organizations | An application that was already decided cannot be decided again | M | Any
 SAO-024 | Organizations > Registrations and organizations | Edit an active organization | H | Any
 SAO-025 | Organizations > Registrations and organizations | Edit organization refuses empty and duplicate values | M | Any
 SAO-026 | Organizations > Registrations and organizations | Add an existing user to an organization and manage its user profiles | M | Any
@@ -613,8 +613,8 @@ SAO-036 | Organizations > Administrators | Only active organizations can be chos
 SAO-037 | Organizations > Administrators | Edit an administrator | H | Any
 SAO-038 | Organizations > Administrators | The last active administrator of an organization cannot be switched off | H | Any
 SAO-039 | Organizations > Administrators | Send a password reset link to an administrator | M | Any
-SAO-040 | Organizations > Administrators | Hand over the administrator role to an existing member | H | Any
-SAO-041 | Organizations > Administrators | Hand over to a new account and the checks on that form | M | Any
+SAO-040 | Organizations > Administrators | Hand over the administrator role by adding the successor and removing the old administrator | H | Any
+SAO-041 | Organizations > Administrators | Hand over to a new account (not part of the system) | M | Any
 SAO-042 | Organizations > Administrators | Delete an administrator account | M | Any
 SAO-043 | Organizations > Administrators | Administrators of an archived organization cannot be changed | M | Any
 SAO-044 | Organizations > Colleges | The college list, its search and the View organizations link | H | Any
@@ -623,7 +623,7 @@ SAO-046 | Organizations > Colleges | Invite Department Head needs a college (the
 SAO-047 | Organizations > Colleges | Edit a Department Head and send a password reset | M | Any
 SAO-048 | Organizations > Colleges | Deactivate and reactivate a Department Head | H | Any
 SAO-049 | Organizations > Colleges | Upload a college logo | L | Any
-SAO-050 | Reviews > Compliance | The six Compliance tabs open and show their content | H | Any
+SAO-050 | Reviews > Compliance | The five Compliance tabs open and show their content | H | Any
 SAO-051 | Reviews > Compliance | Accreditation tab ranks organizations by what needs attention | H | Any
 SAO-052 | Reviews > Compliance | Add a requirement and see the checks on the form | H | Any
 SAO-053 | Reviews > Compliance | Edit, switch off and delete a requirement | M | Any
@@ -644,7 +644,7 @@ SAO-067 | Reviews > Venues | Edit, switch off and delete a venue | M | Any
 SAO-068 | Reviews > Venues | Booking requests queue: default view, filters and empty states | H | Any
 SAO-069 | Reviews > Venues | Approve a booking request and see overlaps first | H | Any
 SAO-070 | Reviews > Venues | Reject a booking request needs remarks | H | Any
-SAO-071 | Reviews > Venues | Two requests for the same time are flagged as a Conflict | M | Any
+SAO-071 | Reviews > Venues | A second request for the same venue and time is refused, and the SAO guard on overlapping approvals | M | Any
 SAO-072 | Reviews > Grievances | Grievance tiles and filters | H | Any
 SAO-073 | Reviews > Grievances | Open a grievance addressed to the SAO | H | Any
 SAO-074 | Reviews > Grievances | Move a grievance to under review | H | Any
@@ -672,7 +672,7 @@ SAO-095 | Setup and records > Academic years | The Academic years page on a fres
 SAO-096 | Setup and records > Academic years | Add the first semester (the first setup step) | H | Any
 SAO-097 | Setup and records > Academic years | Semester dates are checked | H | Any
 SAO-098 | Setup and records > Academic years | Set a semester as active and see the effect everywhere | H | Any
-SAO-099 | Setup and records > Academic years | A Department Head cannot register before a semester is active | H | R2
+SAO-099 | Setup and records > Academic years | A student cannot apply for an organization before a semester is active | H | R2
 SAO-100 | Setup and records > Academic years | Close a semester and activate the next one | M | R2
 SAO-101 | Setup and records > Academic years | Delete a semester | M | R2
 SAO-102 | Setup and records > Academic years | Add an academic year | H | Any
