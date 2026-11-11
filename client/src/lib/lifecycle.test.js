@@ -253,6 +253,17 @@ describe('electionLifecycle', () => {
     { name: 'closed with results hidden, a student waits', record: { ...open, status: 'closed', finalized_at: 'x', results_visible: false }, viewer: 'STUDENT', current: 'results', tone: 'waiting', title: 'Closed: results not released yet', actorRole: 'ADMIN' },
     { name: 'closed with results released', record: { ...open, status: 'closed', finalized_at: 'x', results_visible: true }, viewer: 'STUDENT', current: null, tone: 'done', title: 'Results released', actorRole: null, label: 'View results', to: '/dashboard/elections/election-results', states: { submitted: 'done', ballot: 'done', locked: 'done', voting: 'done', results: 'done' } },
   ]);
+
+  it('tells the Admin voting opens by itself while the start time is still ahead, with no action to take', () => {
+    const start = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    const result = electionLifecycle({ ...open, start_time: start, status: 'upcoming', finalized_at: '2026-10-30T10:00:00+08:00' }, 'ADMIN');
+    expect(result.nextAction.tone).toBe('waiting');
+    expect(result.nextAction.title).toMatch(/^Ballot locked: voting opens on [A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    expect(result.nextAction.body).toMatch(/^Voting opens by itself on .+ at .+\.$/);
+    expect(result.nextAction.label).toBeUndefined();
+    expect(result.nextAction.to).toBeUndefined();
+    expect(JSON.stringify(result.nextAction)).not.toMatch(/Open it from the election page|open voting when it starts/);
+  });
 });
 
 describe('orderLifecycle', () => {

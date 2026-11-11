@@ -42,7 +42,7 @@ describe('ElectionWorkspaceHeader lifecycle', () => {
     ['building the ballot, Admin', { ...base, status: 'upcoming', finalized_at: null }, 'ADMIN', 'Build ballot', 'Build the ballot'],
     ['building the ballot, Officer', { ...base, status: 'upcoming', finalized_at: null }, 'SBO_OFFICER', 'Build ballot', 'Build the ballot'],
     ['building the ballot, Student', { ...base, status: 'upcoming', finalized_at: null }, 'STUDENT', 'Build ballot', 'Waiting for the ballot to be built'],
-    ['ballot locked, Admin', { ...base, status: 'upcoming', finalized_at: PAST }, 'ADMIN', 'Ballot locked', 'Ballot locked: open voting when it starts'],
+    ['ballot locked, Admin', { ...base, status: 'upcoming', finalized_at: PAST }, 'ADMIN', 'Ballot locked', /^Ballot locked: voting opens on [A-Z][a-z]{2} \d{1,2}, \d{4}$/],
     ['voting open, Student not voted', { ...base, status: 'active', finalized_at: PAST, has_voted: false }, 'STUDENT', 'Voting', 'Cast your ballot'],
     ['voting open, Student voted', { ...base, status: 'active', finalized_at: PAST, has_voted: true }, 'STUDENT', 'Voting', 'You have voted'],
     ['voting open, Officer', { ...base, status: 'active', finalized_at: PAST }, 'SBO_OFFICER', 'Voting', /^Voting is open/],

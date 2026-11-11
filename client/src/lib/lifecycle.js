@@ -1,4 +1,4 @@
-import { manilaDate, peso } from './format';
+import { manilaDate, manilaTime, peso } from './format';
 
 // Pure functions that turn a server record into FlowStepper data and the next action. Every status
 // string below was checked against the controllers and migrations (see docs/UX_FLOW.md section 4);
@@ -441,6 +441,14 @@ export function electionLifecycle(election, viewerRole) {
           label: 'Open ballot setup',
           to: viewerRole === 'SBO_OFFICER' ? '/dashboard/elections/manage-candidates' : href,
         }, { title: 'Waiting for the ballot to be built' }), 'ADMIN', href);
+      }
+      if (el.start_time && Date.parse(el.start_time) > Date.now()) {
+        const opens = `Ballot locked: voting opens on ${manilaDate(el.start_time)}`;
+        return finish(buildSteps(stages, 2), turn(viewerRole, ['ADMIN'], {
+          tone: 'waiting',
+          title: opens,
+          body: `Voting opens by itself on ${manilaDate(el.start_time)} at ${manilaTime(el.start_time)}.`,
+        }, { title: opens }), 'ADMIN', href);
       }
       return finish(buildSteps(stages, 2), turn(viewerRole, ['ADMIN'], {
         title: 'Ballot locked: open voting when it starts',
