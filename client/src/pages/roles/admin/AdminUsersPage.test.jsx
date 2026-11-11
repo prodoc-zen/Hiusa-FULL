@@ -188,3 +188,49 @@ describe('UserActionDock', () => {
     await waitFor(() => expect(fingerprintMocks.removeFingerprint).toHaveBeenCalledWith(2400019));
   });
 });
+
+describe('UserActionDock offers only what the server will do', () => {
+  const open = (user, props = {}) => {
+    render(<UserActionDock user={{ account_status: 'active', first_name: 'Row', last_name: 'Person', ...user }} actorRole="ADMIN" actorSchoolId={900001} onEdit={vi.fn()} onView={vi.fn()} onDeactivate={vi.fn()} onReactivate={vi.fn()} onDelete={vi.fn()} {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Row Person' }));
+  };
+  const has = (name) => screen.queryByRole('menuitem', { name }) !== null;
+
+  it('offers no deactivate or delete on the actor own row, but keeps edit', () => {
+    open({ school_id: 900001, role: 'ADMIN', position_title: 'President' });
+    expect(has('Edit Row Person')).toBe(true);
+    expect(has('Deactivate Row Person')).toBe(false);
+    expect(has('Delete Row Person')).toBe(false);
+  });
+
+  it('offers no deactivate, reactivate or delete on another administrator', () => {
+    open({ school_id: 900002, role: 'ADMIN', position_title: 'Vice President', account_status: 'disabled' });
+    expect(has('Edit Row Person')).toBe(true);
+    expect(has('Deactivate Row Person')).toBe(false);
+    expect(has('Reactivate Row Person')).toBe(false);
+    expect(has('Delete Row Person')).toBe(false);
+  });
+
+  it('offers no edit, deactivate or delete on the Adviser', () => {
+    open({ school_id: 990002, role: 'ADMIN', position_title: 'Adviser' });
+    expect(has('View Row Person')).toBe(true);
+    expect(has('Edit Row Person')).toBe(false);
+    expect(has('Deactivate Row Person')).toBe(false);
+    expect(has('Delete Row Person')).toBe(false);
+  });
+
+  it('offers no account actions on a department head, whom only the SAO manages', () => {
+    open({ school_id: 800001, role: 'DEPARTMENT_HEAD' });
+    expect(has('View Row Person')).toBe(true);
+    expect(has('Edit Row Person')).toBe(false);
+    expect(has('Deactivate Row Person')).toBe(false);
+    expect(has('Delete Row Person')).toBe(false);
+  });
+
+  it('still offers every account action on a student', () => {
+    open({ school_id: 2400019, role: 'STUDENT' });
+    expect(has('Edit Row Person')).toBe(true);
+    expect(has('Deactivate Row Person')).toBe(true);
+    expect(has('Delete Row Person')).toBe(true);
+  });
+});
