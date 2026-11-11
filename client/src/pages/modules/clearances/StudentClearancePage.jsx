@@ -1,10 +1,13 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardCheck, PauseCircle, CircleDashed } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ClipboardCheck, PauseCircle, CircleDashed, Wallet } from 'lucide-react';
 import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard } from '../../../components/ui';
 import { getMyClearances } from '../../../services/clearanceService';
+import { getStudentDebts } from '../../../services/financeService';
+import { debtRowFrom, owedSentence } from '../finance/accountDebt';
 import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
-import { manilaDate } from '../../../lib/format';
+import { manilaDate, peso } from '../../../lib/format';
 import { humanizeRole, whoToSee } from './clearanceLabels';
 
 // The stepper above already shows every signatory and its state, so the list holds only what the student can act on.
@@ -39,12 +42,15 @@ export default function StudentClearancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedId, setSelectedId] = useState('');
+  const [owed, setOwed] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    return getMyClearances()
-      .then((res) => {
+    // The Statement of account reads the same rule, so a debt that holds the clearance there shows here too.
+    return Promise.all([getMyClearances(), getStudentDebts().catch(() => null)])
+      .then(([res, debts]) => {
+        setOwed(owedSentence(debtRowFrom(debts), peso));
         const list = Array.isArray(res.data) ? res.data : [];
         setPeriods(list);
         // "Current" is the most recent period still incomplete; if every
@@ -102,6 +108,19 @@ export default function StudentClearancePage() {
             ))}
           </Select>
         </div>
+      )}
+
+      {showing && owed && (
+        <Card>
+          <div className="flex items-start gap-3">
+            <Wallet size={20} className="mt-0.5 shrink-0 text-warning-strong" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">Financial clearance is on hold</p>
+              <p className="mt-1 text-sm text-ink">{owed}</p>
+              <Link to="/dashboard/finance/statement-of-account" className="mt-1 inline-flex min-h-10 items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Open Statement of account</Link>
+            </div>
+          </div>
+        </Card>
       )}
 
       {showing && (showing.is_complete ? (

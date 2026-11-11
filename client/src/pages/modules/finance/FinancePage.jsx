@@ -50,6 +50,7 @@ import { getEvents } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getMyClearances } from '../../../services/clearanceService';
 import { humanizeRole } from '../clearances/clearanceLabels';
+import { debtBreakdown, debtRowFrom, owedSentence } from './accountDebt';
 import { fetchAllPages } from '../../../services/pagination';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -140,12 +141,9 @@ const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 function accountHolds(debt, clearances) {
   const total = Number(debt?.total_debt) || 0;
   const owing = debt ? debt.clearance_status === 'pending_clearance' : false;
-  const parts = [];
-  if (Number(debt?.unpaid_invoice_count) > 0) parts.push(plural(Number(debt.unpaid_invoice_count), 'unpaid invoice'));
-  if (Number(debt?.pending_order_count) > 0) parts.push(plural(Number(debt.pending_order_count), 'reserved order'));
-  const breakdown = parts.join(' and ');
+  const breakdown = debtBreakdown(debt);
   const reasons = [];
-  if (owing) reasons.push(`You owe ${fmt(total)}${breakdown ? `: ${breakdown}` : ''}.`);
+  if (owing) reasons.push(owedSentence(debt, fmt));
   const current = clearances ? currentClearance(clearances) : null;
   const held = current && !current.is_complete ? current.signatures.filter((signature) => signature.status === 'held') : [];
   held.forEach((signature) => reasons.push(`${humanizeRole(signature.required_role)} clearance is on hold${signature.remarks ? `: ${signature.remarks}` : '.'}`));
@@ -592,8 +590,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setReports(reports);
         setSemesters(semesterRes.data || []);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
-        const debtRows = Array.isArray(debtRes.data) ? debtRes.data : debtRes.data?.data;
-        setStudentDebt(Array.isArray(debtRows) && debtRows.length > 0 ? debtRows[0] : null);
+        setStudentDebt(debtRowFrom(debtRes));
       })
       .catch(() => {
         if (ticket === loadTicket.current) setError('Failed to load financial data.');
