@@ -283,6 +283,12 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
         <div className="min-w-0 text-left">
           <p className="break-words font-medium text-ink">{formatDisplayText(requirement.name)}</p>
           {requirement.description && <RichTextBody value={requirement.description} className="mt-1 break-words text-xs text-ink-muted" />}
+          <p className="mt-1 break-words text-xs text-ink-muted">{`PDF · ${VENUE_TYPE_LABEL[requirement.venue_type] || 'All venues'} · ${requirement.is_active ? (requirement.is_optional ? 'If applicable' : 'Required') : 'Inactive'}`}</p>
+          <p className="mt-0.5 break-words text-xs">
+            {requirement.template_url
+              ? <span className="text-ink-muted">Sample: link</span>
+              : requirement.template_original_name ? <span className="text-ink-muted">Sample: PDF file</span> : <span className="font-semibold text-danger-strong">Sample format required</span>}
+          </p>
         </div>
       ),
     },
@@ -298,14 +304,6 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
         />
       ),
     },
-    {
-      key: 'details',
-      header: 'Details',
-      render: (requirement) => `PDF · ${VENUE_TYPE_LABEL[requirement.venue_type] || 'All venues'} · ${requirement.is_active ? (requirement.is_optional ? 'If applicable' : 'Required') : 'Inactive'}`,
-    },
-    { key: 'template', header: 'Sample', render: (requirement) => requirement.template_url
-      ? <span className="text-ink-muted">Link</span>
-      : requirement.template_original_name ? <span className="text-ink-muted">PDF file</span> : <span className="font-semibold text-danger-strong">Sample format required</span> },
   ];
   const editingRequirement = requirements.find((item) => item.id === editingId);
 

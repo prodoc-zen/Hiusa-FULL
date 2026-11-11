@@ -40,6 +40,16 @@ describe('EventRequirementsTab', () => {
     expect(screen.queryByRole('button', { name: 'Move Proposal down' })).not.toBeInTheDocument();
   });
 
+  it('keeps the requirements table to the columns that fit its card and shows the details under the name', async () => {
+    mocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Proposal', description: '', allowed_extensions: ['pdf'], venue_type: 'on_campus', is_optional: false, is_active: true }] });
+    render(<EventRequirementsTab />);
+    await screen.findAllByText('Proposal');
+    const table = screen.getByRole('table', { name: 'Event requirements' });
+    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['#', 'File', 'Status', 'Actions']);
+    expect(within(table).getByText('PDF · On campus · Required')).toBeInTheDocument();
+    expect(within(table).getByText('Sample format required')).toBeInTheDocument();
+  });
+
   it('sends the description when adding a requirement', async () => {
     mocks.createEventRequirement.mockResolvedValue({ data: { id: 3 } });
     render(<EventRequirementsTab />);
