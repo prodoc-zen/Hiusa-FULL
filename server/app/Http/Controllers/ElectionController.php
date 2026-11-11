@@ -810,7 +810,7 @@ class ElectionController extends Controller
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string', 'max:2000'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
-        ]);
+        ], [], ['image' => 'candidate photo']);
 
         if (! $this->isStudentOf((int) $data['user_id'], $request->user()->organization_id)) {
             return response()->json(['message' => 'Only students and officers of this organization can be added as candidates.'], 422);
@@ -915,7 +915,7 @@ class ElectionController extends Controller
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string', 'max:2000'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
-        ]);
+        ], [], ['image' => 'candidate photo']);
 
         if (array_key_exists('position_id', $data)) {
             $position = ElectionPosition::where('election_id', $candidate->election_id)->find($data['position_id']);
