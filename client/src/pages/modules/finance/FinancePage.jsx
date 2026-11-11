@@ -125,7 +125,7 @@ const invoiceColumns = [
   { key: 'due_date', header: 'Due date', render: (invoice) => (invoice.due_date ? formatLedgerDate(invoice.due_date) : 'Not set') },
   { key: 'status', header: 'Status', render: (invoice) => sentence(invoice.status) },
   { key: 'amount_due', header: 'Amount due', align: 'right', render: (invoice) => fmt(invoice.amount_due) },
-  { key: 'amount_paid', header: 'Paid', align: 'right', render: (invoice) => <span className="text-success-strong">{fmt(invoice.amount_paid)}</span> },
+  { key: 'amount_paid', header: 'Paid', align: 'right', render: (invoice) => <span className={Number(invoice.amount_paid) > 0 ? 'text-success-strong' : 'text-ink'}>{fmt(invoice.amount_paid)}</span> },
   { key: 'remaining_balance', header: 'Balance', align: 'right', render: (invoice) => <span className={`font-semibold ${Number(invoice.remaining_balance) > 0 ? 'text-danger-strong' : 'text-ink'}`}>{fmt(invoice.remaining_balance)}</span> },
 ];
 

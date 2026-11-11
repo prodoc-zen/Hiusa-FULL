@@ -942,6 +942,17 @@ describe('FinancePage statement of account for a student', () => {
     expect(table.getByText('₱60.00', { selector: 'span.font-semibold' })).toHaveClass('text-danger-strong');
   });
 
+  it('colours a paid amount green only once something has been paid', async () => {
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice({ id: 3, description: 'Paid shirt', status: 'paid', amount_due: '100.00', amount_paid: 100, remaining_balance: 0 }), invoice({ id: 4, description: 'Unpaid cap', amount_due: '60.00', remaining_balance: 60 })] });
+    const { container } = render(<FinancePage initialTab="invoices" />);
+
+    await screen.findByRole('region', { name: 'Account summary' });
+    const table = within(container.querySelector('[data-view="table"]'));
+    expect(table.getByText('₱100.00', { selector: 'span.text-success-strong' })).toBeInTheDocument();
+    expect(table.queryByText('₱0.00', { selector: 'span.text-success-strong' })).not.toBeInTheDocument();
+    expect(table.getAllByText('₱0.00', { selector: 'span.text-ink' })).toHaveLength(2);
+  });
+
   it('prints an invoice due date as a calendar day, not the raw timestamp', async () => {
     financeMocks.getInvoices.mockResolvedValue({ data: [invoice({ due_date: '2026-11-18T00:00:00+08:00' })] });
     render(<FinancePage initialTab="invoices" />);
