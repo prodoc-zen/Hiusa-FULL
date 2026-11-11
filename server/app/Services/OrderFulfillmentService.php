@@ -222,6 +222,7 @@ class OrderFulfillmentService
                 'processed_by' => $approver->school_id,
                 'review_remarks' => null,
                 'status' => 'paid',
+                'payment_method' => $lockedOrder->payment_method ?? 'cash',
             ]);
 
             $this->ensureReceipt($lockedOrder->fresh(), $approver);

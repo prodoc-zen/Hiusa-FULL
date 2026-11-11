@@ -107,6 +107,42 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->assertNull($order->fresh()->payment_proof_url);
     }
 
+    public function test_an_approved_order_comes_back_with_the_same_details_as_the_order_list(): void
+    {
+        $organization = Organization::factory()->create();
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id, 'department' => 'College of Computing', 'program' => 'BS Information Technology']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $item = $this->item($organization, 5);
+        $item->update(['category' => 'Accessories']);
+        $order = $this->pendingOrder($buyer, $item);
+
+        Sanctum::actingAs($admin);
+        $approved = $this->patchJson("/api/orders/{$order->id}/status", ['status' => 'paid', 'verified_amount' => 100])->assertOk();
+        $listed = $this->getJson("/api/orders/{$order->id}")->assertOk();
+
+        $this->assertSame('STUDENT', $approved->json('student.role'));
+        $this->assertSame('College of Computing', $approved->json('student.department'));
+        $this->assertSame('BS Information Technology', $approved->json('student.program'));
+        $this->assertSame('Accessories', $approved->json('merchandise.category'));
+        $this->assertSame($listed->json('student'), $approved->json('student'));
+        $this->assertSame($listed->json('merchandise'), $approved->json('merchandise'));
+        $this->assertNotEmpty($approved->json('claim_token'));
+    }
+
+    public function test_approving_an_order_with_no_method_and_no_proof_records_it_as_cash(): void
+    {
+        $organization = Organization::factory()->create();
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $order = $this->pendingOrder($buyer, $this->item($organization, 5));
+        $order->update(['payment_method' => null]);
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/orders/{$order->id}/status", ['status' => 'paid'])->assertOk()
+            ->assertJsonPath('payment_method', 'cash');
+        $this->assertSame('cash', $order->fresh()->payment_method);
+    }
+
     public function test_approving_an_order_cancelled_after_it_was_loaded_is_refused(): void
     {
         $organization = Organization::factory()->create();
