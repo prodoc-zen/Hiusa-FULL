@@ -23,6 +23,12 @@ function personFromUser(user) {
   };
 }
 
+function mayNameHead(actorRole, target, organizations) {
+  if (ADMIN_GRANTORS.includes(actorRole)) return true;
+  if (actorRole !== 'ADMIN' || !target?.parent_organization_id) return false;
+  return organizations.some((item) => String(item.id) === String(target.parent_organization_id));
+}
+
 function scopeFor(actorRole, target) {
   if (actorRole === 'SUPER_ADMIN') return 'all';
   if (actorRole === 'DEPARTMENT_HEAD') return undefined;
@@ -42,6 +48,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   const [retry, setRetry] = useState(0);
   const headMode = initialRole === 'ADMIN';
   const target = organizations.find((item) => String(item.id) === organizationId);
+  const headOffered = mayNameHead(actorRole, target, organizations);
 
   useEffect(() => {
     if (organization) return undefined;
@@ -89,7 +96,12 @@ export default function AddExistingUserModal({ organization = null, initialUser 
           <p className="text-sm font-semibold text-ink">{formatDisplayText(organization.name)}</p>
         ) : (
           <Field label="Organization" required>
-            <Select value={organizationId} disabled={busy || optionsLoading} onChange={(event) => { setOrganizationId(event.target.value); setError(''); }}>
+            <Select value={organizationId} disabled={busy || optionsLoading} onChange={(event) => {
+              const next = organizations.find((item) => String(item.id) === event.target.value);
+              setOrganizationId(event.target.value);
+              if (role === 'ADMIN' && !mayNameHead(actorRole, next, organizations)) setRole('STUDENT');
+              setError('');
+            }}>
               <option value="">{optionsLoading ? 'Loading organizations...' : 'Choose an organization'}</option>
               {organizations.map((item) => <option key={item.id} value={item.id}>{formatDisplayText(item.name)}{item.parent_organization_id ? ' (Suborganization)' : ''}</option>)}
             </Select>
@@ -111,7 +123,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
         />
         <Field label="Role in this organization">
           <Select value={role} disabled={busy} onChange={(event) => setRole(event.target.value)}>
-            {ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN' || ADMIN_GRANTORS.includes(actorRole)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN' || headOffered).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </Field>
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
