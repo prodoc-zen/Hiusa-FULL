@@ -12,21 +12,21 @@ ADM-010 | Access | Admin cannot open SAO pages by typing the address | H | Any
 ADM-011 | Access | Admin cannot open Department Head, officer-only or student-only pages by typing the address | H | Any
 ADM-012 | Access | Signed-out visitor is sent to the sign-in page | H | Any
 ADM-013 | Access | A session that ended elsewhere sends you to sign in | M | Any
-ADM-014 | Members > People | People page shows summary cards, the table and 10 users per page | H | Any
+ADM-014 | Members > People | People page shows the table, the user count and 20 users per page | H | Any
 ADM-015 | Members > People | Search finds a user by name, school ID, program or email | H | Any
-ADM-016 | Members > People | Filter users by role and account status | M | Any
-ADM-017 | Members > People | Filter users by program, year level and section | M | Any
-ADM-018 | Members > People | Sort users and change pages | L | Any
-ADM-019 | Members > People | Create a student account | H | Any
-ADM-020 | Members > People | Create user form: dependent dropdowns and the position field | M | Any
-ADM-021 | Members > People | Create user: required fields and a student without a program | H | Any
-ADM-022 | Members > People | Create user: duplicate school ID or email is refused | H | Any
-ADM-023 | Members > People | Create user: password rules and bad values | M | Any
-ADM-024 | Members > People | Create an SBO Officer with an organization position | M | Any
+ADM-016 | Members > People | Filter users by role and by program | M | Any
+ADM-017 | Members > People | Filter users by program; the row shows year level and section | M | Any
+ADM-018 | Members > People | Change pages and search from page 2 (there is no sort control) | L | Any
+ADM-019 | Members > People | Creating a single student account by form (not part of the system) | H | Any
+ADM-020 | Members > People | Edit user: dependent dropdowns and the position field | M | Any
+ADM-021 | Members > People | Import: rows with missing fields are refused row by row | H | Any
+ADM-022 | Members > People | Import: a school ID that already exists is refused | H | Any
+ADM-023 | Members > People | Import members: a school ID that is too long is refused and nothing is imported | M | Any
+ADM-024 | Members > People | Give an SBO Officer an organization position in Edit user | M | Any
 ADM-025 | Members > People | Admin cannot create a Department Head account | H | Any
-ADM-026 | Members > People | Profile photo must be an image under 2 MB | L | Any
+ADM-026 | Members > People | Edit user: profile photo must be an image under 2 MB | L | Any
 ADM-027 | Members > People | Edit a student account | H | Any
-ADM-028 | Members > People | Edit: an email used by someone else is refused | M | Any
+ADM-028 | Members > People | Edit user has no email field | M | Any
 ADM-029 | Members > People | Admin accounts cannot be edited, deactivated or deleted by an Admin | H | Any
 ADM-030 | Members > People | An Admin cannot delete or deactivate their own account | H | Any
 ADM-031 | Members > People | Deactivate a student (sign-in is refused), then reactivate | H | Any
@@ -49,7 +49,7 @@ ADM-047 | Members > Officer positions | Add an Admin position from the list or w
 ADM-048 | Members > Officer positions | Position title rules: too short, duplicate, and the reserved Adviser title | H | Any
 ADM-049 | Members > Officer positions | Edit a position and make it unavailable | M | Any
 ADM-050 | Members > Officer positions | Delete a position needs its title typed | M | Any
-ADM-051 | Members > Officer positions | The Adviser position cannot be changed by an Admin | M | Any
+ADM-051 | Members > Officer positions | The Adviser position cannot be picked or changed by an Admin | M | Any
 ADM-052 | Members > Programs and sections | Add a program with block sections | H | Any
 ADM-053 | Members > Programs and sections | Program form limits: empty name, duplicate name, years and section counts | M | Any
 ADM-054 | Members > Programs and sections | Edit a program | M | Any
@@ -58,8 +58,8 @@ ADM-056 | Members > Programs and sections | Delete a program nobody uses | M | A
 ADM-057 | Members > Programs and sections | Import a class list: preview, apply, temporary passwords | H | Any
 ADM-058 | Members > Programs and sections | Class list: nothing to apply, wrong file | M | Any
 ADM-059 | Members > Programs and sections | A student created by class list import must change the temporary password | H | Any
-ADM-060 | Members > Programs and sections | With no program configured, a student cannot be created | M | Any
-ADM-061 | Events and tasks > Events | Events page shows the list, counts and the academic period | H | R1
+ADM-060 | Members > Programs and sections | With no program configured, the program list is empty and can be refilled | M | Any
+ADM-061 | Events and tasks > Events | Events page shows the list, the filters and the academic period | H | R1
 ADM-062 | Events and tasks > Events | Propose an event (the main Admin journey) | H | R2
 ADM-063 | Events and tasks > Events | Event form: required fields and end before start | H | Any
 ADM-064 | Events and tasks > Events | Event dates must be inside the active semester | H | R2
@@ -76,7 +76,7 @@ ADM-074 | Events and tasks > Events | Change an approved event to Ongoing and Co
 ADM-075 | Events and tasks > Events | A planning event cannot be started or completed, only cancelled | M | Any
 ADM-076 | Events and tasks > Events | Cancel an event that cannot be deleted | M | Any
 ADM-077 | Events and tasks > Events | Delete an event that has nothing attached | M | Any
-ADM-078 | Events and tasks > Events | Search, date, status and sort in the events list | M | R1
+ADM-078 | Events and tasks > Events | Search, date and status in the events list | M | R1
 ADM-079 | Events and tasks > Events | Calendar view of events | M | Any
 ADM-080 | Events and tasks > Events | See who registered for an approved event | L | Any
 ADM-081 | Events and tasks > Planning | Draft an editable to-do list for an event | H | Any
@@ -149,7 +149,7 @@ ADM-147 | Finance > Forecast | Generate a forecast | M | Any
 ADM-148 | Finance > Forecast | Forecast with too little history, and the empty state | L | Any
 ADM-149 | Finance > Forecast | Delete a forecast | L | Any
 ADM-150 | Finance > Budgets | Officer and Department Head can only view finance pages (Admin edits) | M | Any
-ADM-151 | Voting > Elections | Elections page: cards, counts, search and status filter | M | R1
+ADM-151 | Voting > Elections | Elections page: table, search and status filter | M | R1
 ADM-152 | Voting > Elections | Create an election and submit it for approval | H | R1
 ADM-153 | Voting > Elections | Election form: end before start, duplicate positions, no positions | H | Any
 ADM-154 | Voting > Elections | Election form: voting period outside the active semester, and letter not a PDF | M | R2
@@ -157,7 +157,7 @@ ADM-155 | Voting > Elections | Building the ballot waits for the Department Head
 ADM-156 | Voting > Elections | A returned election is edited and resubmitted | M | Any
 ADM-157 | Voting > Elections | Edit an election; no edits after votes or closing | M | Any
 ADM-158 | Voting > Elections | Delete an election: allowed only before voting | H | Any
-ADM-159 | Voting > Elections | Election workspace: header, steps and role banner | M | Any
+ADM-159 | Voting > Elections | Election workspace: header, next step and steps | M | Any
 ADM-160 | Voting > Elections | Add and remove a ballot position | M | Any
 ADM-161 | Voting > Elections | Register a party list | H | Any
 ADM-162 | Voting > Elections | Edit a party list and delete one with candidates | M | Any
@@ -171,7 +171,7 @@ ADM-169 | Voting > Elections | Admin votes in an open election, only once | H | 
 ADM-170 | Voting > Elections | Voting after the election closes is refused | H | Any
 ADM-171 | Voting > Results | Results page: live totals and final results | H | Any
 ADM-172 | Voting > Results | Results are not available before voting opens | M | Any
-ADM-173 | Store > Inventory | Inventory page: counts, top sellers, catalog, search and category filter | M | Any
+ADM-173 | Store > Inventory | Inventory page: open orders, collected, top sellers, items, search and category filter | M | Any
 ADM-174 | Store > Inventory | Add a product | H | Any
 ADM-175 | Store > Inventory | Product form: empty name, negative price, negative stock, bad image | M | Any
 ADM-176 | Store > Inventory | Add sizes (variants) with their own stock | M | Any
@@ -185,7 +185,7 @@ ADM-183 | Store > Orders | Approve a cash order directly and issue the claim tok
 ADM-184 | Store > Orders | Approve a payment that an officer already verified | H | Any
 ADM-185 | Store > Orders | Verified amount must equal the order total | M | Any
 ADM-186 | Store > Orders | Reject an order payment with a reason | H | Any
-ADM-187 | Store > Orders | Order more than the stock is refused | H | Any
+ADM-187 | Store > Orders | Order more than the stock: the quantity stops at the stock, and the server refuses an oversell | H | Any
 ADM-188 | Store > Orders | GCash order needs both reference and proof before it can be verified | M | Any
 ADM-189 | Store > Claim desk | Release a paid order with the claim token | H | Any
 ADM-190 | Store > Claim desk | An unknown token is refused | H | Any
@@ -239,7 +239,7 @@ ADM-237 | Finance > Financial reports | A report approved by the SAO shows Appro
 ADM-238 | Events and tasks > Events | The optional event fields save and show in the event window | M | Any
 ADM-239 | Events and tasks > Tasks | Export from the Tasks board gives a file with the rows the filters show | M | Any
 ADM-240 | Approvals | After the semester changes, a pending approval for an old event cannot be decided | M | R2
-ADM-241 | Members > People | People page size: exactly 10 users, exactly 11 users, and search goes back to page 1 | M | Any
+ADM-241 | Members > People | People page size: exactly 20 users, exactly 21 users, and search goes back to page 1 | M | Any
 ADM-242 | My activity > Statement of account | The Admin has a Statement of account page for the Admin own charges | L | Any
 ADM-243 | Study objectives | Study objectives evidence links open pages an Admin may see | L | Any
 ADM-244 | Records > Submitted files | Admin views and downloads organization compliance submissions in Submitted files | M | Any
@@ -249,41 +249,41 @@ DH-001 | Sign in | Department Head signs in and lands on the Department Head das
 DH-002 | Sign in | Wrong password is refused with a clear message | H | Any
 DH-003 | Menu | Sidebar shows exactly the Department Head menu | H | Any
 DH-004 | Menu | Phone: the menu opens from Open menu and every Department Head page can be reached | M | Any
-DH-005 | Account menu | Top bar shows who you are and the account menu has only your profile and Logout | M | Any
+DH-005 | Account menu | Top bar shows who you are and the account menu has only your profile and Log out | M | Any
 DH-006 | Account menu | Logout asks first, then returns to Sign in | M | Any
-DH-007 | Dashboard | Dashboard shows the college, the approvals and the oversight snapshot | H | Any
-DH-008 | Dashboard | Organization status tiles show counts and open the matching list | H | Any
-DH-009 | Dashboard | Approvals banner counts the items waiting for the head and opens Approvals | H | Any
-DH-010 | Dashboard | Election card and Upcoming Events box, including the empty messages | M | Any
-DH-011 | Dashboard | Pending Approvals by Type and Recent Announcements boxes | M | Any
-DH-012 | Dashboard | Getting started card: registration is blocked until the SAO opens a semester | M | Any
-DH-013 | Dashboard | A returned registration leads the Needs attention list | H | Any
+DH-007 | Dashboard | Dashboard shows the setup steps, three tiles, the election card, upcoming events and announcements | H | Any
+DH-008 | Dashboard | Dashboard tiles show counts and open the matching list | H | Any
+DH-009 | Dashboard | The Awaiting your approval tile counts the items waiting for the head and opens Approvals | H | Any
+DH-010 | Dashboard | Election card and Upcoming events box, including the empty message | M | Any
+DH-011 | Dashboard | The Announcements box on the dashboard | M | Any
+DH-012 | Dashboard | Setting up your college: allowing students to apply is blocked until the SAO opens a semester | M | Any
+DH-013 | Dashboard | A returned application is listed on Organization applications with its status | H | Any
 DH-014 | Dashboard | Phone: the dashboard fits the screen | M | Any
 DH-015 | Organizations | Organizations page layout and the status tabs | H | Any
 DH-016 | Organizations | Status tabs filter the list and the address remembers the tab | M | Any
 DH-017 | Organizations | Empty tab shows a clear message | M | Any
 DH-018 | Organizations | View checklist of an active organization | M | Any
-DH-019 | Organizations | Register form opens with one file box for each requirement | H | Any
-DH-020 | Organizations | No active semester: the register form explains why it cannot be sent | H | Any
-DH-021 | Organizations | Register an organization with all documents | H | Any
-DH-022 | Organizations | Register form: blank name, acronym and files are refused | H | Any
-DH-023 | Organizations | Register form: one missing document is named | M | Any
-DH-024 | Organizations | Register form: only PDF files are accepted | H | Any
-DH-025 | Organizations | Register form: a file over 10 MB is refused | M | Any
-DH-026 | Organizations | Register form: a wrong color code is refused | L | Any
-DH-027 | Organizations | Register form: a name or acronym that already exists is refused | M | Any
-DH-028 | Organizations | Cancel the register form: nothing is saved | L | Any
-DH-029 | Organizations | SAO returns a registration: the head sees the remarks | H | Any
-DH-030 | Organizations | Edit and resubmit a returned registration | H | Any
-DH-031 | Organizations | Resubmit with one replaced document | M | Any
-DH-032 | Organizations | Resubmit form: a blank name or a wrong file is refused | M | Any
-DH-033 | Organizations | Buttons shown on each row depend on the status | H | Any
-DH-034 | Organizations | Withdraw a pending registration | H | Any
-DH-035 | Organizations | SAO approves: the head sees Active and the next step | H | Any
+DH-019 | Organizations | Allow a student to apply: the dialog opens | H | Any
+DH-020 | Organizations | No active semester: a student sees that applications are closed | H | Any
+DH-021 | Organizations | Allow a student to apply and see the application reach the head | H | Any
+DH-022 | Organizations | Register form: blank name, acronym and files are refused (not part of the system) | H | Any
+DH-023 | Organizations | Register form: one missing document is named (not part of the system) | M | Any
+DH-024 | Organizations | Register form: only PDF files are accepted (not part of the system) | H | Any
+DH-025 | Organizations | Register form: a file over 10 MB is refused (not part of the system) | M | Any
+DH-026 | Organizations | Register form: a wrong color code is refused (not part of the system) | L | Any
+DH-027 | Organizations | Register form: a name or acronym that already exists is refused (not part of the system) | M | Any
+DH-028 | Organizations | Cancel the register form: nothing is saved (not part of the system) | L | Any
+DH-029 | Organizations | An application is returned: the head and the applicant both see the comments | H | Any
+DH-030 | Organizations | The applicant sends a returned application again and the head reviews it again | H | Any
+DH-031 | Organizations | The applicant replaces one document and the head sees the new round | M | Any
+DH-032 | Organizations | Resubmit form: a blank name or a wrong file is refused (not part of the system) | M | Any
+DH-033 | Organizations | Buttons shown on each Organizations row | H | Any
+DH-034 | Organizations | Withdraw a pending registration (not part of the system) | H | Any
+DH-035 | Organizations | SAO approves: the organization is Active and the applicant is its Admin | H | Any
 DH-036 | Organizations | Archived organization is read only | M | Any
 DH-037 | Organizations | Head cannot create an administrator or assign roles | H | Any
 DH-038 | Organizations | Another college head sees only their own college | H | Any
-DH-039 | Organizations | Phone: list, register form and panels are usable | M | Any
+DH-039 | Organizations | Phone: list, allow dialog and panels are usable | M | Any
 DH-040 | Approvals | Approvals page layout and filters | H | Any
 DH-041 | Approvals | Approve an event proposal | H | Any
 DH-042 | Approvals | Event that needs SAO files: what the head sees after approving | H | R2
@@ -295,7 +295,7 @@ DH-047 | Approvals | Head cannot decide a request that waits for the SAO | H | A
 DH-048 | Approvals | Search requests by requester name or school ID | M | Any
 DH-049 | Approvals | Filter by request type | M | Any
 DH-050 | Approvals | Organization filter lists only organizations of the head college | H | Any
-DH-051 | Approvals | Date filters, including a range that ends before it starts | L | Any
+DH-051 | Approvals | Approvals has no date filters; the other filters combine and Clear resets them | L | Any
 DH-052 | Approvals | All History shows decided requests and their remarks | M | Any
 DH-053 | Approvals | Empty states: Nothing to review and No approval history yet | M | Any
 DH-054 | Approvals | Export CSV downloads the filtered list | L | Any
@@ -305,7 +305,7 @@ DH-057 | Approvals | Two people decide the same request: the second one is refus
 DH-058 | Approvals | Phone: review and approve on a small screen | M | Any
 DH-059 | Top bar > Notifications | A notification about an event approval opens that approval | H | Any
 DH-060 | Top bar > Notifications | A notification about a financial report opens that report approval | M | Any
-DH-061 | Top bar > Notifications | A notification about an organization opens that organization | M | Any
+DH-061 | Top bar > Notifications | A notification about an organization application opens that application | M | Any
 DH-062 | Top bar > Notifications | Mark all as read and the empty message | L | Any
 DH-063 | College view (read only) > Finance > Budgets | Budgets is view only for the head | H | Any
 DH-064 | College view (read only) > Finance > Budgets | Organization drop down narrows Finance to one organization of the college | M | Any
@@ -329,7 +329,7 @@ DH-081 | College view (read only) > Announcements | Writing announcements is clo
 DH-082 | Access limits | Store, shopping and orders are refused to the head | H | Any
 DH-083 | Access limits | Admin, officer and task pages are refused to the head | H | Any
 DH-084 | Access limits | SAO pages are refused: no creating colleges, no approving own SAO step | H | Any
-DH-085 | Access limits | Records pages (compliance, venues, grievances, clearances, audit log) are refused | M | Any
+DH-085 | Access limits | Records pages (compliance, venues, grievances, audit log) are refused; clearance signing is the head page | M | Any
 DH-086 | Access limits | Unknown address, old Approvals address and signed out visit | M | Any
 DH-087 | Profile | Update the mobile number and save | M | Any
 DH-088 | Profile | Profile needs a first name, last name and email | M | Any
@@ -339,7 +339,7 @@ DH-091 | Study objectives | Study objectives evidence links open pages the head 
 DH-092 | College view (read only) > Finance > Forecast | A forecast that the Admin generated is shown read only to the head | M | Any
 DH-093 | Organization applications | Department Head reviews pending college organization applications | H | R2
 DH-094 | Organization applications | Department Head endorses an organization application to SAO | H | R2
-DH-095 | Organization applications | Department Head rejects an invalid application with mandatory remarks | M | R2
+DH-095 | Organization applications | Department Head returns an application with mandatory comments (only the SAO can reject) | M | R2
 DH-096 | College files | Department Head accesses College Files and Documents | M | Any
 DH-097 | College compliance | Department Head accesses College Compliance and Semestral Submissions | M | Any
 DH-098 | Onboarding and invitation | Dean accepts invitation via Magic Link and sets School ID and password | H | Any
@@ -356,17 +356,17 @@ GEN-007 | Smoke test | A page that belongs to another role sends you back home |
 GEN-008 | Smoke test | The bell opens and closes | H | Any
 GEN-009 | Smoke test | Go to page search finds a page | M | Any
 GEN-010 | Smoke test | Phone: sign in and open the menu drawer | H | Any
-GEN-011 | Smoke test | Sign out and return to the sign-in page | H | Any
+GEN-011 | Smoke test | Log out and return to the landing page | H | Any
 GEN-012 | Smoke test | An address that does not exist does not show an error page | M | Any
 GEN-013 | Sign-in | Sign-in page layout on a laptop | M | Any
-GEN-014 | Sign-in | School ID field takes digits only (max 8) and an email cannot be used | M | Any
+GEN-014 | Sign-in | The sign-in field takes an email or a school ID | M | Any
 GEN-015 | Sign-in | Submitting an empty form shows a message | M | Any
 GEN-016 | Sign-in | Wrong password message | H | Any
 GEN-017 | Sign-in | Show password, Caps Lock hint and the Enter key | L | Any
 GEN-018 | Sign-in | Five wrong passwords lock the account for 15 minutes | H | Any
 GEN-019 | Sign-in | A signed-in person who opens the sign-in page goes to the dashboard | H | Any
-GEN-020 | Sign-in | A signed-out person who opens a dashboard address goes to sign-in | H | Any
-GEN-021 | Sign-in | A bad or expired sign-in token sends you back to sign-in | H | Any
+GEN-020 | Sign-in | A signed-out person who opens a dashboard address goes to the home page | H | Any
+GEN-021 | Sign-in | A bad or expired sign-in token sends you back to the home page | H | Any
 GEN-022 | Sign-in | Signing out from the top bar menu and from the sidebar | H | Any
 GEN-023 | Sign-in | Switching accounts in the same browser leaves nothing of the first account | H | Any
 GEN-024 | Sign-in | A disabled account cannot sign in | H | Any
@@ -436,7 +436,7 @@ GEN-087 | AI helpers | Task delegation still works when AI is off | H | Any
 GEN-088 | AI helpers | Forecast: only the Admin can generate one | H | Any
 GEN-089 | AI helpers | Forecast with too little history gives a helpful message | M | Any
 GEN-090 | AI helpers | Forecast text when the AI explanation is unavailable | H | Any
-GEN-091 | Hierarchy | The top bar shows who you are and where | M | Any
+GEN-091 | Hierarchy | The account menu shows who you are and where | M | Any
 GEN-092 | Hierarchy | The school year and semester chip | M | R2
 GEN-093 | Hierarchy | A Department Head sees only their own college | H | Any
 GEN-094 | Hierarchy | An organization Admin sees only their own organization's data | H | Any
@@ -465,7 +465,7 @@ GEN-116 | End-to-end journeys | Event from proposal to report with the seeded da
 GEN-117 | End-to-end journeys | Event from proposal to report inside an active semester (Round 2) | H | R2
 GEN-118 | End-to-end journeys | Election from proposal to results, all inside an active semester | H | R2
 GEN-119 | End-to-end journeys | Order a sized product, pay by GCash, claim it, and check stock, receipt and ledger | H | Any
-GEN-120 | End-to-end journeys | A new organization: registration, SAO approval, first Admin, first student | H | R2
+GEN-120 | End-to-end journeys | A new organization: sign-up, application, Department Head and SAO approval, first Admin | H | R2
 GEN-121 | End-to-end journeys | Clearance: signatures and a debt together decide Cleared | H | Any
 GEN-122 | End-to-end journeys | Semester rollover: what each role sees after the SAO closes the semester | H | R2
 GEN-123 | End-to-end journeys | Financial report: Admin, Department Head, SAO, then Approved and locked | H | Any
@@ -475,11 +475,11 @@ GEN-126 | Usability protocol | Admin journeys: count the clicks against the limi
 GEN-127 | Usability protocol | Officer journeys: count the clicks against the limits | M | R1
 GEN-128 | Usability protocol | Student journeys: count the clicks against the limits | M | R1
 GEN-129 | Usability protocol | Lost and wording findings for every role, and the menu label card sort | M | Any
-GEN-130 | Public organization registration | Student founder opens public registration portal and fills organization charter | H | R2
-GEN-131 | Public organization registration | Registration document upload validation and file restrictions | M | R2
-GEN-132 | Public organization registration | Submit organization application and receive email verification notice | H | R2
-GEN-133 | Public organization registration | Track application status and request an edit link | M | Any
-GEN-134 | End-to-end journeys | Complete student organization lifecycle from public filing to active administration | H | R2
+GEN-130 | Public organization registration | Public registration portal (not part of the system) | H | R2
+GEN-131 | Public organization registration | Public registration document upload (not part of the system) | M | R2
+GEN-132 | Public organization registration | Public application submit and email verification notice (not part of the system) | H | R2
+GEN-133 | Public organization registration | Track an application and request an edit link (not part of the system) | M | Any
+GEN-134 | End-to-end journeys | Complete student organization lifecycle from the application to active administration | H | R2
 SBO-001 | Sign in | Officer signs in and lands on the Dashboard | H | Any
 SBO-002 | Sign in | A wrong password is refused with a clear message | M | Any
 SBO-003 | Sign in | Signing in with empty boxes does not sign you in | L | Any
@@ -494,7 +494,7 @@ SBO-011 | Menu and navigation | Open and use the side menu on a phone | M | Any
 SBO-012 | Menu and navigation | Go to page search shows only officer pages | L | Any
 SBO-013 | Menu and navigation | Logging out asks to confirm and ends the session | M | Any
 SBO-014 | Dashboard | Dashboard shows the work snapshot, urgent tasks and task chart | H | R1
-SBO-015 | Dashboard | Quick Actions buttons go to the right pages | M | Any
+SBO-015 | Dashboard | Dashboard summary tiles go to the right pages (there is no Quick Actions box) | M | Any
 SBO-016 | Dashboard | Items in Your work queue open the exact record | M | Any
 SBO-017 | Dashboard | Dashboard for an officer with nothing assigned | L | R2
 SBO-018 | Events and tasks > Check-in | Check someone in by hand | H | R1
@@ -520,7 +520,7 @@ SBO-037 | Events and tasks > My tasks | Search and filter tasks | M | Any
 SBO-038 | Events and tasks > My tasks | My tasks when nothing is assigned | M | R2
 SBO-039 | Events and tasks > My tasks | A task that waits for another task cannot be started | L | Any
 SBO-040 | Events and tasks > My tasks | Update a task from a phone | M | Any
-SBO-041 | Events and tasks > AI delegation | AI delegation page for an officer is read only | L | R1
+SBO-041 | Events and tasks > AI delegation | AI delegation is not an officer page (not part of the system for officers) | L | R1
 SBO-042 | Events and tasks > AI delegation | The officer position decides who the system recommends for a task | M | Any
 SBO-043 | Finance (view only) > Budgets | Budgets are readable but cannot be changed | H | Any
 SBO-044 | Finance (view only) > Ledger | Ledger is read only with search and filters | M | Any
@@ -545,7 +545,7 @@ SBO-062 | Store > Orders | Verify a cash payment | H | Any
 SBO-063 | Store > Orders | Payment amount must match the order total | H | Any
 SBO-064 | Store > Orders | A payment already verified cannot be verified or rejected again by the officer | M | Any
 SBO-065 | Store > Orders | Reject a payment with a reason | H | Any
-SBO-066 | Store > Orders | A GCash order without a payment proof cannot be verified | M | Any
+SBO-066 | Store > Orders | A GCash order arrives with its payment proof, and the officer verifies it | M | Any
 SBO-067 | Store > Claim desk | The claim token only exists after the Admin approves the payment | H | Any
 SBO-068 | Store > Claim desk | Release an order with its claim token | H | Any
 SBO-069 | Store > Claim desk | The token box cleans up what you type and rejects short or wrong tokens | H | Any
@@ -587,15 +587,15 @@ SAO-010 | Access control | SAO manages university colleges and institutional uni
 SAO-011 | Dashboard | The Dashboard Review inbox lists what waits for the SAO | H | Any
 SAO-012 | Dashboard | The University operations numbers and the Organization filter agree with the real data | M | Any
 SAO-013 | Dashboard | The SAO actions panel and Recent notifications lead to the right pages | M | Any
-SAO-014 | Organizations > Agency overview | The four tiles show totals and open the matching lists | H | Any
-SAO-015 | Organizations > Agency overview | Colleges with work to do come first and each college summarises its organizations | H | Any
-SAO-016 | Organizations > Agency overview | Each organization row offers only the actions that fit its status | H | Any
+SAO-014 | Organizations > Agency overview | The Agency overview page is retired (not part of the system) | H | Any
+SAO-015 | Organizations > Agency overview | Colleges grouped on the Agency overview (not part of the system) | H | Any
+SAO-016 | Organizations > Agency overview | Each organization row offers actions in its row menu | H | Any
 SAO-017 | Organizations > Registrations and organizations | The four tabs show counts and open on the right default | H | Any
 SAO-018 | Organizations > Registrations and organizations | Search narrows the list and each tab has its own empty message | M | Any
-SAO-019 | Organizations > Registrations and organizations | The Review registration drawer shows the registration and its ten documents | H | Any
+SAO-019 | Organizations > Registrations and organizations | The Review registration drawer is retired (not part of the system); the Applications page shows the application and its documents | H | Any
 SAO-020 | Organizations > Registrations and organizations | Return without remarks is refused | H | Any
 SAO-021 | Organizations > Registrations and organizations | Return a registration with remarks and the Department Head sees it | H | Any
-SAO-022 | Organizations > Registrations and organizations | Approve a registration and move on to give it an administrator | H | Any
+SAO-022 | Organizations > Registrations and organizations | Approve an application: the organization is created and the founder becomes its administrator | H | Any
 SAO-023 | Organizations > Registrations and organizations | A registration that was already decided cannot be decided again | M | Any
 SAO-024 | Organizations > Registrations and organizations | Edit an active organization | H | Any
 SAO-025 | Organizations > Registrations and organizations | Edit organization refuses empty and duplicate values | M | Any
@@ -607,9 +607,9 @@ SAO-030 | Organizations > Registrations and organizations > Open (Organization o
 SAO-031 | Organizations > Registrations and organizations > Open (Organization overview) | An organization that does not exist shows an error with a way back | L | Any
 SAO-032 | Organizations > Administrators | The administrator list and its three summary tiles | H | Any
 SAO-033 | Organizations > Administrators | Search and filter the administrator list | M | Any
-SAO-034 | Organizations > Administrators | Create an administrator who must change the password at first sign in | H | Any
-SAO-035 | Organizations > Administrators | The create form refuses missing, mismatched and bad values | H | Any
-SAO-036 | Organizations > Administrators | Only active organizations can be chosen, and a provisioning link locks the choice | M | Any
+SAO-034 | Organizations > Administrators | Create a new administrator by typing a password (not part of the system); Add administrator picks an existing student | H | Any
+SAO-035 | Organizations > Administrators | The create-administrator form (not part of the system); Add administrator stays off until it is complete | H | Any
+SAO-036 | Organizations > Administrators | Only active organizations can be chosen when adding an administrator | M | Any
 SAO-037 | Organizations > Administrators | Edit an administrator | H | Any
 SAO-038 | Organizations > Administrators | The last active administrator of an organization cannot be switched off | H | Any
 SAO-039 | Organizations > Administrators | Send a password reset link to an administrator | M | Any
@@ -618,8 +618,8 @@ SAO-041 | Organizations > Administrators | Hand over to a new account and the ch
 SAO-042 | Organizations > Administrators | Delete an administrator account | M | Any
 SAO-043 | Organizations > Administrators | Administrators of an archived organization cannot be changed | M | Any
 SAO-044 | Organizations > Colleges | The college list, its search and the View organizations link | H | Any
-SAO-045 | Organizations > Colleges | Assign a Department Head to a college without an active head | H | Any
-SAO-046 | Organizations > Colleges | Assign Department Head refuses missing and bad values | H | Any
+SAO-045 | Organizations > Colleges | Assign a Department Head to a college without an active head by invitation link | H | Any
+SAO-046 | Organizations > Colleges | Invite Department Head needs a college (the typed-credentials form is not part of the system) | H | Any
 SAO-047 | Organizations > Colleges | Edit a Department Head and send a password reset | M | Any
 SAO-048 | Organizations > Colleges | Deactivate and reactivate a Department Head | H | Any
 SAO-049 | Organizations > Colleges | Upload a college logo | L | Any
@@ -696,12 +696,12 @@ SAO-119 | Files > Storage and limits | SAO inspects system file storage usage an
 SAO-120 | Governance > Colleges | SAO invites a Department Head (Dean) using a 48h Magic Link and branded HTML email | H | Any
 SAO-121 | Academic setup > Semesters | SAO previews upcoming academic semesters in Advance Planning mode | H | Any
 STU-001 | Sign in | Sign in with School ID and password | H | Any
-STU-002 | Sign in | School ID box accepts digits only and stops at 8 digits | M | Any
-STU-003 | Sign in | An email address cannot be used to sign in | M | Any
+STU-002 | Sign in | The sign-in box takes an email or a school ID | M | Any
+STU-003 | Sign in | An email address works as the sign-in name | M | Any
 STU-004 | Sign in | Wrong password shows a clear message and no one is signed in | H | Any
 STU-005 | Sign in | Lockout after 5 wrong passwords for 15 minutes | H | Any
 STU-006 | Sign in | Sign in has no role picker; a student always lands on the student home | H | Any
-STU-007 | Sign in | Signed-out visitor is sent to sign-in for every student page | H | Any
+STU-007 | Sign in | Signed-out visitor is sent to the home page for every student page | H | Any
 STU-008 | Sign in | An unknown address sends a signed-in student home, not to an error page | M | Any
 STU-009 | Sign in | Forgot password page opens and asks for email or School ID | M | Any
 STU-010 | Sign in | Log out asks for confirmation and ends the session | H | Any
@@ -733,7 +733,7 @@ STU-035 | Events > Events | Events on a phone: list, calendar agenda and details
 STU-036 | Events > Events | Student cannot check themselves in; officer check-in turns the status to Attended | M | Any
 STU-037 | Events > Events | Opening staff event pages sends the student home | H | Any
 STU-038 | Events > Events | After the SAO opens a semester the seeded events leave the list | L | Any
-STU-039 | Voting > Vote | Vote page with no open election | H | Any
+STU-039 | Voting > Vote | Vote page: a seeded open election, and the message when none is open | H | Any
 STU-040 | Voting > Vote | Open election appears as a card with a Vote button | H | Any
 STU-041 | Voting > Vote | Cast a full ballot and get a receipt | H | Any
 STU-042 | Voting > Vote | A choice is required for every position | H | Any
@@ -748,7 +748,7 @@ STU-050 | Voting > Vote | Voting on a phone: ballot is easy to complete with a t
 STU-051 | Voting > Vote | Student cannot open staff voting pages | H | Any
 STU-052 | Store > Shop | Browse the shop: search, category and sort | M | Any
 STU-053 | Store > Shop | Add to cart and see the cart in the top bar | H | Any
-STU-054 | Store > Shop | Quantity above the stock is refused | H | Any
+STU-054 | Store > Shop | Quantity above the stock is held at the stock | H | Any
 STU-055 | Store > Shop | Place a cash reservation | H | Any
 STU-056 | Store > Shop | Not enough stock at checkout: order is refused | H | Any
 STU-057 | Store > Shop | GCash checkout needs a 13-digit reference and a proof picture | M | Any
@@ -780,7 +780,7 @@ STU-082 | Support > My grievances | Delete a grievance only while it is still Su
 STU-083 | Support > My grievances | Grievances on a phone | H | Any
 STU-084 | Support > My grievances | Student cannot open the organization grievance review pages | H | Any
 STU-085 | Support > My clearance | Clearance checklist with signatures | H | Any
-STU-086 | Support > My clearance | No clearance period yet | M | Any
+STU-086 | Support > My clearance | My clearance: the seeded clearance period, and the message when none is open | M | Any
 STU-087 | Support > My clearance | A signature on hold explains who to see | H | Any
 STU-088 | Support > My clearance | My clearance on a phone | M | Any
 STU-089 | Support > My clearance | Student cannot open clearance signing pages | H | Any
