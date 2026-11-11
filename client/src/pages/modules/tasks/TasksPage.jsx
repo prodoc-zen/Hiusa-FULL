@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { manilaDateStamp } from '../../../utils/dateTime';
+import { isoToLocalDateTimeInput, manilaDateStamp } from '../../../utils/dateTime';
 import { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -82,6 +82,13 @@ function TaskStatus({ task }) {
   return <StatusBadge status={status} label={capitalize(status)} />;
 }
 
+// The stage bar tracks the stage, so the percent a person saved is spelled out beside it.
+function TaskProgress({ task }) {
+  const percent = Number(task.progress_percent) || 0;
+  if (task.status === 'completed' || percent <= 0) return null;
+  return <p className="mt-0.5 text-xs tabular-nums text-ink-muted">{percent}% done</p>;
+}
+
 export default function TasksPage({ initialTab = 'board' }) {
   const navigate = useNavigate();
   const { pathname, search: locationSearch } = useLocation();
@@ -95,6 +102,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [assigneeDirectory, setAssigneeDirectory] = useState([]);
   const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '', priority: '', deadline: '' });
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
@@ -103,6 +112,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [totalsLoaded, setTotalsLoaded] = useState(false);
   const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
   const [progressSaving, setProgressSaving] = useState(false);
+  const [progressError, setProgressError] = useState('');
   const [completionTask, setCompletionTask] = useState(null);
   const [lastDelegation, setLastDelegation] = useState(null);
   const [rankingOpen, setRankingOpen] = useState(true);
@@ -155,6 +165,11 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // Memoised so it is a stable dependency for the load effect below; a fresh object
   // each render would refire the effect on every render.
   const serverFilters = useMemo(() => ({
@@ -165,7 +180,8 @@ export default function TasksPage({ initialTab = 'board' }) {
     ...(taskFilters.priority ? { priority: taskFilters.priority } : {}),
     ...(taskFilters.deadline ? { deadline_from: taskFilters.deadline, deadline_to: taskFilters.deadline } : {}),
     ...(selectedPeriodId ? { academic_semester_id: selectedPeriodId } : {}),
-  }), [taskFilters, selectedPeriodId]);
+    ...(appliedSearch ? { search: appliedSearch } : {}),
+  }), [taskFilters, selectedPeriodId, appliedSearch]);
 
   function load() {
     setLoading(true);
@@ -207,6 +223,11 @@ export default function TasksPage({ initialTab = 'board' }) {
           overdue: listMeta(overdueRes.data).total,
         });
         setAllTasks(fullTasks);
+        setAssigneeDirectory((known) => {
+          const byId = new Map(known.map((person) => [String(person.school_id), person]));
+          fullTasks.forEach((task) => { if (task.assignee?.school_id) byId.set(String(task.assignee.school_id), task.assignee); });
+          return [...byId.values()];
+        });
         setTotalsLoaded(true);
       })
       .catch(() => { if (current) setError('Failed to load task summaries.'); });
@@ -281,7 +302,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       priority: task.priority || 'medium',
       assigned_to: task.assigned_to ? String(task.assigned_to) : '',
       event_id: task.event_id ? String(task.event_id) : '',
-      deadline: String(task.deadline || '').slice(0, 10),
+      deadline: isoToLocalDateTimeInput(task.deadline).slice(0, 10),
     });
   }
 
@@ -355,25 +376,24 @@ export default function TasksPage({ initialTab = 'board' }) {
     }
   }
 
+  function failedStatusChange(err) {
+    notify.error(getApiErrorMessage(err, 'Failed to update task status.'));
+  }
+
   async function handleStatusChange(id, newStatus, progressNote = null, progressPercent = null) {
-    setError(null);
-    try {
-      const res = await updateTaskStatus(id, {
-        status: newStatus,
-        ...(progressNote?.trim() ? { progress_note: progressNote.trim() } : {}),
-        ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
-      });
-      load();
-      loadTotals();
-      setDetailTask((current) => (current?.id === id ? res.data : current));
-      return res.data;
-    } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to update task status.');
-      throw err;
-    }
+    const res = await updateTaskStatus(id, {
+      status: newStatus,
+      ...(progressNote?.trim() ? { progress_note: progressNote.trim() } : {}),
+      ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
+    });
+    load();
+    loadTotals();
+    setDetailTask((current) => (current?.id === id ? res.data : current));
+    return res.data;
   }
 
   function openTaskDetails(task) {
+    setProgressError('');
     setDetailTask(task);
     setProgressForm({ progress_percent: task.progress_percent ?? 0, progress_note: '' });
     setRecordId(task.id);
@@ -382,9 +402,12 @@ export default function TasksPage({ initialTab = 'board' }) {
   async function saveProgressUpdate() {
     if (!selectedTask) return;
     setProgressSaving(true);
+    setProgressError('');
     try {
       const updated = await handleStatusChange(selectedTask.id, selectedTask.status, progressForm.progress_note, progressForm.progress_percent);
       setProgressForm({ progress_percent: updated.progress_percent ?? 0, progress_note: '' });
+    } catch (err) {
+      setProgressError(getApiErrorMessage(err, 'Could not save this progress update.'));
     } finally {
       setProgressSaving(false);
     }
@@ -392,22 +415,11 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   // Stat cards read the exact per-status totals fetched by loadTotals(), never
   // the loaded board page or a truncated walk of the whole table.
-  const matchesTaskQuery = (t) => { const q = search.trim().toLowerCase(); return !q || [t.title, t.description, t.assignee?.first_name, t.assignee?.last_name, t.assignee?.position_title, t.event?.title].filter(Boolean).join(' ').toLowerCase().includes(q); };
-  const matchingAllTasks = (allTasks.length ? allTasks : tasks).filter(matchesTaskQuery);
-  const counts = search.trim() ? matchingAllTasks.reduce((acc, t) => ({ ...acc, [t.status]: (acc[t.status] || 0) + 1 }), { pending: 0, in_progress: 0, overdue: 0 }) : statusTotals;
   const activeDelegation = lastDelegation ?? (() => { const latest = [...allTasks, ...tasks].sort((a, b) => Number(b.id) - Number(a.id)).find((t) => getDelegationDetail(t)); return latest ? { taskId: latest.id, ...getDelegationDetail(latest) } : null; })();
-
-  // /tasks has no text-search filter, so search narrows only the page on screen;
-  // status/assignee/event/type are applied server-side in load().
-  const filteredTasks = tasks.filter((t) => {
-    const query = search.toLowerCase();
-    const searchable = [t.title, t.description, t.assignee?.first_name, t.assignee?.last_name, t.assignee?.position_title, t.event?.title].filter(Boolean).join(' ').toLowerCase();
-    return searchable.includes(query);
-  });
 
   useEffect(() => {
     setPage(1);
-  }, [taskFilters]);
+  }, [taskFilters, appliedSearch]);
 
   async function exportVisibleTasks() {
     // Export every task matching the active filters, not just the page on screen.
@@ -432,10 +444,11 @@ export default function TasksPage({ initialTab = 'board' }) {
     .filter((task) => task.assignee && hasScore(task.final_score))
     .sort((a, b) => Number(b.final_score) - Number(a.final_score))
     .slice(0, 5);
+  const assigneeOptions = [...new Map([...officers, ...assigneeDirectory].map((person) => [String(person.school_id), person])).values()];
   const activeTaskFilters = [
     search.trim() && `Search: ${search.trim()}`,
     taskFilters.status && `Status: ${capitalize(taskFilters.status)}`,
-    taskFilters.assignee && `Assignee: ${officers.find((officer) => String(officer.school_id) === String(taskFilters.assignee))?.first_name || taskFilters.assignee}`,
+    taskFilters.assignee && `Assignee: ${assigneeOptions.find((person) => String(person.school_id) === String(taskFilters.assignee))?.first_name || taskFilters.assignee}`,
     taskFilters.event && `Event: ${events.find((event) => String(event.id) === String(taskFilters.event))?.title || taskFilters.event}`,
     taskFilters.type && `Type: ${taskFilters.type === 'standalone' ? 'Standalone' : 'Event-related'}`,
     taskFilters.priority && `Priority: ${capitalize(taskFilters.priority)}`,
@@ -444,6 +457,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   const clearTaskFilters = () => {
     setSearch('');
+    setAppliedSearch('');
     setTaskFilters({ status: '', assignee: '', event: '', type: '', priority: '', deadline: '' });
     setPage(1);
   };
@@ -514,7 +528,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 className={`min-h-11 rounded-card border p-4 text-left transition-colors duration-150 hover:bg-subtle ${active ? 'border-brand-600 bg-brand-600/10' : 'border-line bg-surface'}`}
               >
                 <p className="text-xs font-medium text-ink-muted">{label}</p>
-                <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{counts[status] || 0}</p>
+                <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink">{statusTotals[status] || 0}</p>
               </button>
             );
           })}
@@ -593,13 +607,13 @@ export default function TasksPage({ initialTab = 'board' }) {
             searchPlaceholder="Search tasks, assignees, or events"
             activeFilters={activeTaskFilters}
             onClear={clearTaskFilters}
-            resultCount={search.trim() ? matchingAllTasks.length : tasksMeta.total}
+            resultCount={tasksMeta.total}
             resultLabel={tasksMeta.total === 1 ? 'task' : 'tasks'}
             secondaryClassName="grid gap-3 sm:grid-cols-3"
             actions={<Button variant="secondary" leftIcon={Download} onClick={exportVisibleTasks}>Export</Button>}
           >
             <Select filter aria-label="Filter tasks by status" value={taskFilters.status} onChange={(event) => setTaskFilters({ ...taskFilters, status: event.target.value })}><option value="">All statuses</option>{['pending', 'in_progress', 'completed', 'overdue'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</Select>
-            {canManageTasks && <Select filter aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })}><option value="">All assignees</option>{officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{formatDisplayText(officer.first_name)} {formatDisplayText(officer.last_name)}</option>)}</Select>}
+            {canManageTasks && <Select filter aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })}><option value="">All assignees</option>{assigneeOptions.map((person) => <option key={person.school_id} value={person.school_id}>{formatDisplayText(person.first_name)} {formatDisplayText(person.last_name)}</option>)}</Select>}
             <Select filter aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })}><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</Select>
             <Select filter aria-label="Filter tasks by type" value={taskFilters.type} onChange={(event) => setTaskFilters({ ...taskFilters, type: event.target.value })}><option value="">All task types</option><option value="event_related">Event-related</option><option value="standalone">Standalone</option></Select>
             <Select filter aria-label="Filter tasks by priority" value={taskFilters.priority} onChange={(event) => setTaskFilters({ ...taskFilters, priority: event.target.value })}><option value="">All priorities</option>{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</Select>
@@ -608,7 +622,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
           {loading ? (
             <SkeletonTable rows={5} columns={6} className="mt-4" />
-          ) : filteredTasks.length === 0 ? (
+          ) : tasks.length === 0 ? (
             firstRunTasks ? (
               canManageTasks ? (
                 <EmptyState
@@ -622,18 +636,19 @@ export default function TasksPage({ initialTab = 'board' }) {
             ) : (
               <EmptyState
                 kind="filtered"
-                title={tasksMeta.total === 0 ? 'No tasks match these filters' : search.trim() ? 'No tasks on this page match your search' : 'No tasks on this page'}
+                title={tasksMeta.total === 0 ? 'No tasks match these filters' : 'No tasks on this page'}
                 onClearFilters={activeTaskFilters.length > 0 ? clearTaskFilters : undefined}
               />
             )
           ) : (
             <>
             <ul className="divide-y divide-line lg:hidden" aria-label="Tasks">
-              {filteredTasks.map((t) => <li key={t.id} className="min-w-0 py-4">
+              {tasks.map((t) => <li key={t.id} className="min-w-0 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-ink">{formatDisplayText(t.title)}</h3><TaskStatus task={t} /></div>
+                <TaskProgress task={t} />
                 {taskStepper(t)}
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-ink-muted">Assignee</dt><dd className="break-words font-medium text-ink">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}</dd></div><div><dt className="text-ink-muted">Deadline</dt><dd className="font-medium text-ink">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-ink-muted">Related event</dt><dd className="break-words font-medium text-ink">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
-                <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)}>Reopen</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
+                <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)).catch(failedStatusChange)}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange)}>Reopen</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
               </li>)}
             </ul>
             <div className="hidden overflow-x-auto lg:block">
@@ -650,7 +665,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft">
-                  {filteredTasks.map((t) => (
+                  {tasks.map((t) => (
                     <tr key={t.id} className="hover:bg-subtle">
                       <td className="max-w-[260px] px-4 py-2.5"><p className="font-medium text-ink">{formatDisplayText(t.title)}</p><RichTextBody value={t.description || ''} className="mt-0.5 line-clamp-1 text-xs text-ink-muted" /></td>
                       <td className="px-4 py-2.5 text-ink">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}<p className="text-xs text-ink-muted">{formatDisplayText(t.assignee?.position_title) || t.assignee?.role?.replaceAll('_', ' ') || ''}</p></td>
@@ -658,6 +673,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="whitespace-nowrap px-4 py-2.5 text-ink">{formatDate(t.deadline)}</td>
                       <td className="px-4 py-2.5">
                         <TaskStatus task={t} />
+                        <TaskProgress task={t} />
                         <div className="w-44">{taskStepper(t)}</div>
                       </td>
                       <td className="px-4 py-2.5"><div className="flex items-center justify-end gap-2">
@@ -671,7 +687,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                           { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
                           canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start', icon: CheckCircle2, onClick: () => startTask(t) },
                           canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
-                          canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
+                          canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange) },
                           canManageTasks && !viewingHistory && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
                           canManageTasks && !viewingHistory && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
                         ]} />
@@ -917,6 +933,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <Input value={progressForm.progress_note} onChange={(e) => setProgressForm((current) => ({ ...current, progress_note: e.target.value }))} placeholder="Describe what changed" />
                   </Field>
                 </div>
+                {progressError && <p role="alert" className="mt-3 text-sm font-medium text-danger-strong">{progressError}</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button variant="secondary" loading={progressSaving} disabled={!progressForm.progress_note.trim()} onClick={saveProgressUpdate}>Save progress update</Button>
                   {canManageTasks && selectedTask.status === 'pending' && selectedTask.workflow_status !== 'blocked' && (
@@ -932,7 +949,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <section className="border-t border-line pt-4">
                 <h3 className="text-sm font-semibold text-ink">Reopen task</h3>
                 <p className="mt-1 text-sm text-ink-muted">Reset this completed task to not started and clear its completion progress.</p>
-                <Button variant="secondary" className="mt-3" onClick={() => handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0)}>Set to not started</Button>
+                <Button variant="secondary" className="mt-3" onClick={() => handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange)}>Set to not started</Button>
               </section>
             )}
 
@@ -1031,11 +1048,11 @@ export default function TasksPage({ initialTab = 'board' }) {
       <ConfirmModal
         open={Boolean(completionTask)}
         title="Confirm task completion"
-        message={completionTask ? `Mark “${formatDisplayText(completionTask.title)}” as completed? Progress will be saved at 100% and the Admin will be notified.` : ''}
+        message={completionTask ? `Mark “${formatDisplayText(completionTask.title)}” as completed? Progress will be saved at 100%.${canManageTasks ? '' : ' The Admin will be notified.'}` : ''}
         confirmText="Confirm completion"
         variant="primary"
         onCancel={() => setCompletionTask(null)}
-        onConfirm={async () => { await handleStatusChange(completionTask.id, 'completed', 'Task marked as completed.', 100); setCompletionTask(null); }}
+        onConfirm={async () => { try { await handleStatusChange(completionTask.id, 'completed', 'Task marked as completed.', 100); setCompletionTask(null); } catch (err) { failedStatusChange(err); } }}
       />
     </div>
   );
