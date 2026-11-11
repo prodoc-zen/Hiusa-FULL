@@ -720,6 +720,7 @@ export default function MerchandisePage({ initialTab }) {
     busy: false,
     error: "",
   });
+  const [approvingOrderId, setApprovingOrderId] = useState(null);
   const [verificationModal, setVerificationModal] = useState({
     open: false,
     order: null,
@@ -1219,6 +1220,20 @@ export default function MerchandisePage({ initialTab }) {
       busy: false,
       error: "",
     });
+  }
+
+  // The order details already show the whole receipt, so the Admin's button there approves at the order total
+  // instead of opening a second dialog with the same label.
+  async function approveFromDetails(order) {
+    if (approvingOrderId) return;
+    setApprovingOrderId(order.id);
+    try {
+      await handleStatusChange(order.id, "paid", null, Number(order.total_price));
+    } catch {
+      // handleStatusChange has already shown the reason.
+    } finally {
+      setApprovingOrderId(null);
+    }
   }
 
   function openOrderRejection(order) {
@@ -3320,7 +3335,7 @@ export default function MerchandisePage({ initialTab }) {
             </div>
             <div className="mt-4 space-y-4">
               <FlowStepper variant="full" steps={staffOrderFlow(orderDetails, role).steps} ariaLabel={`ORD-${orderDetails.id} progress`} />
-              <NextStep {...staffNextStepProps(orderDetails, role, staffOrderFlow(orderDetails, role), () => openPaymentVerification(orderDetails))} />
+              <NextStep {...staffNextStepProps(orderDetails, role, staffOrderFlow(orderDetails, role), () => (role === "ADMIN" ? approveFromDetails(orderDetails) : openPaymentVerification(orderDetails)))} />
             </div>
             <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
             <section className="mt-5 border-t border-line pt-5" aria-label="Order fulfillment details">

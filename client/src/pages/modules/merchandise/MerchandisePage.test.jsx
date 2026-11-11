@@ -438,22 +438,36 @@ describe("MerchandisePage fulfillment experience", () => {
     await waitFor(() => expect(orderMocks.claimByToken).toHaveBeenCalledWith(paidOrder.claim_token));
   });
 
-  it("shows purchaser and order details before payment approval", async () => {
+  it("shows purchaser and order details before payment approval and approves them with one click", async () => {
     const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash" };
+    const response = managerOrdersResponse();
+    response.data.data = [pendingOrder];
+    orderMocks.getOrders.mockResolvedValue(response);
+    orderMocks.updateOrderStatus.mockResolvedValue({ data: { ...pendingOrder, status: "paid", claim_token: "CLAIMTOKEN123456" } });
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole("button", { name: 'Review', exact: true }))[0]);
+    const reviewDialog = screen.getByRole('dialog', { name: 'Merchandise order details' });
+    expect(reviewDialog).toHaveTextContent("Rafael Aquino");
+    expect(reviewDialog).toHaveTextContent("BS Information Technology");
+    expect(reviewDialog).toHaveTextContent("250.00");
+    expect(reviewDialog).toHaveTextContent("ORD-28");
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: 'Approve payment' }));
+    await waitFor(() => expect(orderMocks.updateOrderStatus).toHaveBeenCalledTimes(1));
+    expect(orderMocks.updateOrderStatus).toHaveBeenCalledWith(28, "paid", null, 250);
+    expect(screen.queryByRole("dialog", { name: "Verify merchandise payment" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the amount check for an officer verifying a payment from the order details", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash", officer_review_status: "pending", admin_review_status: "pending" };
     const response = managerOrdersResponse();
     response.data.data = [pendingOrder];
     orderMocks.getOrders.mockResolvedValue(response);
     render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
     fireEvent.click((await screen.findAllByRole("button", { name: 'Review', exact: true }))[0]);
-    const reviewDialog = screen.getByRole('dialog', { name: 'Merchandise order details' });
-    fireEvent.click(within(reviewDialog).getByRole('button', { name: 'Approve payment' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Merchandise order details' })).getByRole('button', { name: 'Verify payment' }));
     expect(orderMocks.updateOrderStatus).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
-    expect(dialog).toHaveTextContent("Rafael Aquino");
-    expect(dialog).toHaveTextContent("BS Information Technology");
-    expect(dialog).toHaveTextContent("250.00");
-    expect(dialog).toHaveTextContent("ORD-28");
-    expect(screen.queryByRole('dialog', { name: 'Merchandise order details' })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Verify merchandise payment" })).toHaveTextContent("ORD-28");
   });
 
   it("shows inventory top sellers from paid sales and requires a stock note", async () => {
