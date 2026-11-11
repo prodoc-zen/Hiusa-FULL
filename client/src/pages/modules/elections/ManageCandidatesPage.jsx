@@ -511,7 +511,7 @@ export default function ManageCandidatesPage() {
         footer={(
           <>
             <Button variant="secondary" onClick={closeDrawer} disabled={submitting}>Cancel</Button>
-            <Button type="submit" form="candidate-form" loading={submitting} disabled={!activeForm.user_id || !activeForm.position_id}>{editId ? 'Save changes' : 'Add candidate'}</Button>
+            <Button type="submit" form="candidate-form" loading={submitting} disabled={!activeForm.user_id || !activeForm.position_id || Boolean(imageError)}>{editId ? 'Save changes' : 'Add candidate'}</Button>
           </>
         )}
       >
