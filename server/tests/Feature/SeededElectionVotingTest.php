@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Election;
 use App\Models\ElectionPosition;
+use App\Models\Notification;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -67,5 +68,13 @@ class SeededElectionVotingTest extends TestCase
         $this->assertGreaterThan(0, $ballots);
         $response->assertJsonPath('summary.voted_count', $ballots);
         $this->assertGreaterThan($ballots, $response->json('summary.eligible_total'));
+    }
+
+    public function test_the_seeded_voting_is_open_notice_points_at_the_election(): void
+    {
+        $notice = Notification::where('notification_type', 'election')->firstOrFail();
+
+        $this->assertSame('election', $notice->reference_type);
+        $this->assertSame($this->election->id, (int) $notice->reference_id);
     }
 }

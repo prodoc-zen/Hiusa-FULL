@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Election;
 use App\Models\Notification;
 use Illuminate\Database\Seeder;
 
@@ -36,6 +37,8 @@ class NotificationSeeder extends Seeder
                 'title' => 'HIUSA Student Council Election 2024-2025 Now Open',
                 'message' => 'Voting is now open. Log in and cast your vote before the election closes.',
                 'notification_type' => 'election',
+                'reference_type' => 'election',
+                'reference_id' => Election::orderBy('id')->value('id'),
                 'sent_at' => now()->subDays(1),
             ],
             [
