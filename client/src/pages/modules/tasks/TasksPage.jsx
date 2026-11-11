@@ -31,6 +31,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import { taskLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import { getBreadcrumbs, getPageMeta } from '../../../lib/pageMeta';
 import useRecordParam from '../../../lib/useRecordParam';
+import { buildCsv } from '../../../utils/csv';
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
@@ -413,7 +414,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     const exportRows = await fetchAllPages((p) => getTasks(p).then((r) => r.data), serverFilters);
     const header = ['Task ID', 'Title', 'Description', 'Type', 'Assignee', 'Role', 'Position', 'Department', 'Program', 'Year Level', 'Section', 'Related Event', 'Status', 'Progress Percent', 'Deadline', 'Completed At', 'Assigned By', 'Created At', 'Updated At'];
     const rows = exportRows.map((task) => [task.id, task.title, task.description, task.task_type, task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : '', task.assignee?.role, task.assignee?.position_title, task.assignee?.department, task.assignee?.program, task.assignee?.year_level, task.assignee?.section, task.event?.title, task.status, task.progress_percent, task.deadline, task.completed_at, task.creator ? `${task.creator.first_name} ${task.creator.last_name}` : '', task.created_at, task.updated_at]);
-    const csv = [header, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const csv = buildCsv(header, rows);
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tasks-${manilaDateStamp()}.csv`; anchor.click(); URL.revokeObjectURL(url);
   }

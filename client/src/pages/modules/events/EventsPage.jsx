@@ -55,6 +55,7 @@ import useRequirementProgress from '../../../components/events/useRequirementPro
 import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
 import PersonPicker from '../../../components/people/PersonPicker';
 import useRecordParam from '../../../lib/useRecordParam';
+import { buildCsv } from '../../../utils/csv';
 
 const eventStatusTone = {
   planning: 'warning',
@@ -1024,7 +1025,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const event = firstPayload?.event ?? attendanceData?.event;
     const headers = ['Attendance ID', 'Event ID', 'Event', 'School ID', 'Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Status', 'Method', 'Check In', 'Check Out', 'Recorded By', 'Remarks'];
     const rows = exportRecords.map((record) => [record.id, event?.id, event?.title, record.user?.school_id, `${record.user?.first_name || ''} ${record.user?.last_name || ''}`.trim(), record.user?.email, record.user?.role, record.user?.position_title, record.user?.department, record.user?.program, record.user?.major, record.user?.year_level, record.user?.section, record.status, record.method, record.check_in_time, record.check_out_time, `${record.recorder?.first_name || ''} ${record.recorder?.last_name || ''}`.trim(), record.remarks]);
-    const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const csv = buildCsv(headers, rows);
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `attendance-${event?.id || 'event'}-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
   };
