@@ -114,6 +114,21 @@ describe('CashAdvancesSection', () => {
     expect(createCashAdvance).toHaveBeenLastCalledWith({ amount: '750', purpose: 'Sound system rental', notes: null });
   });
 
+  it('labels the amount boxes with the peso sign, not PHP', async () => {
+    vi.mocked(getCashAdvances).mockResolvedValue({ data: [advance(4, 'released', { remaining_balance: 300 })] });
+    render(<CashAdvancesSection />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Request cash advance' }));
+    const request = await screen.findByRole('dialog', { name: 'Request cash advance' });
+    expect(within(request).getByLabelText('Amount (₱)')).toBeInTheDocument();
+    fireEvent.click(within(request).getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(await findRowAction('Record repayment'));
+    const repay = await screen.findByRole('dialog', { name: 'Record repayment' });
+    expect(within(repay).getByLabelText('Amount repaid (₱)')).toBeInTheDocument();
+    expect(screen.queryByText(/PHP/)).not.toBeInTheDocument();
+  });
+
   it('explains what a cash advance is when there are none, and offers Clear filters under a status filter', async () => {
     vi.mocked(getCashAdvances).mockResolvedValue({ data: [] });
     render(<CashAdvancesSection />);
