@@ -91,7 +91,11 @@ function ParticipantRegistration({ event }) {
       : 'Reserve your spot so organizers can plan seats, materials, and check-in.';
     action = <Button size="sm" loading={busy} onClick={() => run(registerForEvent, 'You are registered')}>Register for this event</Button>;
   } else {
-    message = event.status === 'approved' ? 'Registration closed when this event started.' : 'Registration opens once this event is approved.';
+    message = event.status === 'cancelled'
+      ? 'This event was cancelled, so registration is closed.'
+      : ['approved', 'ongoing', 'completed'].includes(event.status)
+        ? 'Registration closed when this event started.'
+        : 'Registration opens once this event is approved.';
   }
 
   return (

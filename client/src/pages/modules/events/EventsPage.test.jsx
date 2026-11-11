@@ -18,7 +18,11 @@ const eventMocks = vi.hoisted(() => ({
   discardEventWorkflow: vi.fn(),
   deleteEvent: vi.fn(),
   updateEventStatus: vi.fn(),
+  getEventRequirements: vi.fn(() => Promise.resolve({ data: [] })),
 }));
+const taskMocks = vi.hoisted(() => ({ previewTaskRecommendation: vi.fn() }));
+const venueMocks = vi.hoisted(() => ({ getVenues: vi.fn(() => Promise.resolve({ data: { data: [] } })) }));
+const periodMocks = vi.hoisted(() => ({ getAcademicPeriods: vi.fn(() => Promise.resolve([])) }));
 
 vi.mock('../../../services/eventService', () => ({
   ...eventMocks,
@@ -28,7 +32,6 @@ vi.mock('../../../services/eventService', () => ({
   getEventRegistrations: vi.fn(() => Promise.resolve({ data: { summary: { capacity: null, registered: 0, attended: 0, cancelled: 0, no_show: 0, remaining: null }, registrations: [], pagination: { current_page: 1, last_page: 1, per_page: 10, total: 0 } } })),
   registerForEvent: vi.fn(),
   cancelEventRegistration: vi.fn(),
-  getEventRequirements: vi.fn(() => Promise.resolve({ data: [] })),
   submitEventRequirements: vi.fn(),
 }));
 
@@ -50,7 +53,10 @@ const fingerprintMocks = vi.hoisted(() => ({
 
 vi.mock('../../../services/taskService', () => ({
   getTasks: vi.fn(() => Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } })),
+  previewTaskRecommendation: taskMocks.previewTaskRecommendation,
 }));
+vi.mock('../../../services/venueService', () => ({ getVenues: venueMocks.getVenues }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicPeriods: periodMocks.getAcademicPeriods }));
 
 vi.mock('../../../services/userService', () => ({
   getUsers: userMocks.getUsers,
@@ -423,5 +429,182 @@ describe('EventsPage delete', () => {
     expect(screen.getByRole('menuitem', { name: 'View event' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete event' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Cancel event' })).not.toBeInTheDocument();
+  });
+});
+
+describe('EventsPage walkthrough fixes', () => {
+  const event = { id: 7, title: 'Sports Fest 2024', status: 'approved', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym' };
+  const eventPage = (...rows) => ({ data: { data: rows, current_page: 1, last_page: 1, total: rows.length, per_page: 10 } });
+  const renderAt = (path, initialTab) => render(<MemoryRouter initialEntries={[path]}><EventsPage initialTab={initialTab} /></MemoryRouter>);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    eventMocks.getEvents.mockResolvedValue(eventPage(event));
+    eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
+    eventMocks.getEventRequirements.mockResolvedValue({ data: [] });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+    userMocks.getUsers.mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 100 });
+    userMocks.getAcademicStructure.mockResolvedValue({ department: 'College of Computer Studies', programs: [] });
+    venueMocks.getVenues.mockResolvedValue({ data: { data: [{ id: 3, name: 'Audio-Visual Room' }] } });
+    periodMocks.getAcademicPeriods.mockResolvedValue([]);
+  });
+
+  describe('the new event form', () => {
+    it('lists the SAO documents set for all venues', async () => {
+      eventMocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Letter of intent', venue_type: 'all', is_active: true, is_optional: false }, { id: 2, name: 'Fire permit', venue_type: 'off_campus', is_active: true, is_optional: false }] });
+      renderAt('/dashboard/events/manage-events?new=1', 'events');
+
+      expect(await screen.findByText('Letter of intent')).toBeInTheDocument();
+      expect(screen.queryByText('Fire permit')).not.toBeInTheDocument();
+    });
+
+    it('does not call a venue the server needs optional, and keeps Send proposal off until one is chosen', async () => {
+      renderAt('/dashboard/events/manage-events?new=1', 'events');
+      await screen.findByRole('heading', { name: 'New event' });
+      fireEvent.change(screen.getByLabelText(/^Event name/), { target: { value: 'Orientation' } });
+      fireEvent.change(screen.getByLabelText(/^Start date/), { target: { value: '2026-10-01' } });
+      fireEvent.change(screen.getByLabelText(/^Start time/), { target: { value: '08:00' } });
+      fireEvent.change(screen.getByLabelText(/^End date/), { target: { value: '2026-10-01' } });
+      fireEvent.change(screen.getByLabelText(/^End time/), { target: { value: '10:00' } });
+
+      expect(screen.getByLabelText('SAO venue')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      await screen.findByRole('option', { name: 'Audio-Visual Room' });
+      fireEvent.change(screen.getByLabelText('SAO venue'), { target: { value: '3' } });
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeEnabled();
+
+      fireEvent.change(screen.getByLabelText(/^Venue type/), { target: { value: 'off_campus' } });
+      expect(screen.getByLabelText('Off-campus location')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      fireEvent.change(screen.getByLabelText('Off-campus location'), { target: { value: 'Hotel Veneto' } });
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeEnabled();
+    });
+  });
+
+  describe('the events list', () => {
+    it.each([['approved', true], ['planning', true], ['completed', false], ['cancelled', false]])('offers Edit event for a %s event: %s', async (status, offered) => {
+      eventMocks.getEvents.mockResolvedValue(eventPage({ ...event, status }));
+      renderAt('/dashboard/events/manage-events', 'events');
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+      expect(await screen.findByRole('menuitem', { name: 'View event' })).toBeInTheDocument();
+      expect(Boolean(screen.queryByRole('menuitem', { name: 'Edit event' }))).toBe(offered);
+    });
+
+    it('says the period is empty rather than that nothing was ever proposed when periods exist', async () => {
+      periodMocks.getAcademicPeriods.mockResolvedValue([{ id: 8, status: 'active', number: 1, academic_year: { label: '2026-2027' } }]);
+      eventMocks.getEvents.mockResolvedValue(eventPage());
+      renderAt('/dashboard/events/manage-events', 'events');
+
+      expect(await screen.findByText('No events in this academic period yet')).toBeInTheDocument();
+      expect(screen.getByText(/Events from other periods are under Academic period/)).toBeInTheDocument();
+      expect(screen.queryByText('No events proposed yet')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('planning to-dos', () => {
+    const draft = (extra = {}) => ({
+      data: {
+        plan: 'Plan',
+        ai_output: { id: 501 },
+        workflow: {
+          overview: 'Overview',
+          preparation_phases: [],
+          timeline: [],
+          resources: [],
+          logistics: [],
+          risks: [],
+          scheduling_conflicts: [],
+          tasks: [{
+            key: 'setup', title: 'Prepare the venue', description: '', phase: 'pre_event', priority: 'high', deadline: '2026-09-30T07:30:00.000000Z', depends_on_key: null, recommended_role: 'Secretary', assigned_to: 900007,
+            recommendation: { rankings: [{ officer_id: 900007, rank: 1, name: 'Alex Santos', position_title: 'Treasurer', role_score: 100, workload_score: 80, performance_score: 90, final_score: 90 }] },
+            ...extra,
+          }],
+        },
+      },
+    });
+    const openDraft = async (response) => {
+      eventMocks.generateEventPlan.mockResolvedValue(response);
+      renderAt('/dashboard/events/event-planner', 'tasks');
+      await screen.findByRole('option', { name: 'Sports Fest 2024' });
+      fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
+      await screen.findByText('1 suggested to-do item');
+    };
+
+    it('keeps the chosen officer when the task name is edited', async () => {
+      await openDraft(draft());
+      fireEvent.change(screen.getByLabelText('Task 1 title'), { target: { value: 'Prepare the venue and stage' } });
+
+      expect(screen.getByLabelText('Task 1 officer')).toHaveValue('900007');
+      expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeEnabled();
+    });
+
+    it('says why when no officer is eligible instead of leaving an empty list', async () => {
+      await openDraft(draft({ assigned_to: null, recommendation: { rankings: [] } }));
+      taskMocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [] } } });
+      fireEvent.click(screen.getByRole('button', { name: 'Review officers' }));
+
+      expect(await screen.findByText(/No officer is eligible right now/)).toBeInTheDocument();
+    });
+
+    it('asks in the app dialog before removing a draft, not in the browser', async () => {
+      const browserConfirm = vi.spyOn(window, 'confirm');
+      eventMocks.discardEventWorkflow.mockResolvedValue({ data: {} });
+      await openDraft(draft());
+      fireEvent.click(screen.getByRole('button', { name: 'Remove draft' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Remove this draft?' });
+      expect(browserConfirm).not.toHaveBeenCalled();
+      expect(eventMocks.discardEventWorkflow).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remove draft' }));
+      await waitFor(() => expect(eventMocks.discardEventWorkflow).toHaveBeenCalledWith('7', 501));
+      browserConfirm.mockRestore();
+    });
+  });
+
+  describe('check-in', () => {
+    it('reads 1 event, not 1 events', async () => {
+      eventMocks.getEvents.mockResolvedValue(eventPage({ ...event, status: 'ongoing' }));
+      renderAt('/dashboard/events/check-in', 'attendance');
+
+      expect(await screen.findByText('1 event open for check-in')).toBeInTheDocument();
+    });
+
+    it('keeps the search and status filter when they find nobody, so they can be cleared', async () => {
+      const ongoing = { ...event, status: 'ongoing' };
+      const record = { id: 1, user_id: 2400019, status: 'present', method: 'manual', check_in_time: '2026-10-01T08:10:00Z', user: { school_id: 2400019, first_name: 'Trisha', last_name: 'Herrera' } };
+      eventMocks.getEvents.mockResolvedValue(eventPage(ongoing));
+      eventMocks.getAttendance.mockImplementation((id, params = {}) => Promise.resolve({ data: { event: ongoing, count: 1, summary: { present: 1, late: 0, excused: 0, absent: 0 }, records: params.search || params.status ? [] : [record] } }));
+      renderAt('/dashboard/events/check-in', 'attendance');
+      fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Sports Fest 2024' }));
+      const search = await screen.findByLabelText('Search attendance');
+
+      fireEvent.change(search, { target: { value: 'qqzzx' } });
+      expect((await screen.findAllByText('No attendance records match the filters.')).length).toBeGreaterThan(0);
+      expect(screen.queryByText('No attendance records yet')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Filter attendance status')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Search attendance'), { target: { value: '' } });
+      await waitFor(() => expect(screen.getAllByText('Trisha Herrera').length).toBeGreaterThan(0));
+    });
+
+    it('clears the member after a check-in so the next arrival can be searched', async () => {
+      const ongoing = { ...event, status: 'ongoing', organization_id: 5 };
+      eventMocks.getEvents.mockResolvedValue(eventPage(ongoing));
+      eventMocks.getAttendance.mockResolvedValue({ data: { event: ongoing, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+      eventMocks.recordAttendance.mockResolvedValue({ data: {} });
+      vi.mocked(searchPeople).mockResolvedValue([{ school_id: 2400055, name: 'Ana Reyes', email: 'ana@example.edu', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
+      renderAt('/dashboard/events/check-in', 'attendance');
+      fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Sports Fest 2024' }));
+      await screen.findByText('Manual check-in');
+      fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'ana' } });
+      fireEvent.click(await screen.findByRole('option', { name: /Ana Reyes/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Confirm Check-In/i }));
+
+      expect(await screen.findByText('Check-in recorded.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Remove Ana Reyes' })).not.toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Member' })).toBeInTheDocument();
+    });
   });
 });

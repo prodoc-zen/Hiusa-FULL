@@ -424,6 +424,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [planForm, setPlanForm] = useState({ event_id: '', requirements: '' });
   const [planResult, setPlanResult] = useState('');
   const [workflowDraft, setWorkflowDraft] = useState(null);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [workflowOutputId, setWorkflowOutputId] = useState(null);
   const [workflowAction, setWorkflowAction] = useState(false);
   const [rankingTaskKey, setRankingTaskKey] = useState(null);
@@ -660,9 +661,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }
   }
 
+  const eventPlaceChosen = form.venue_type === 'on_campus' ? Boolean(form.venue_id) : Boolean(form.location.trim());
+
   async function handleSaveEvent(e) {
     e.preventDefault();
-    if (!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime) return;
+    if (!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen) return;
     setFormSubmitting(true);
     setFormError(null);
     try {
@@ -936,7 +939,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   function updateWorkflowTask(index, field, value) {
-    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [field]: value, ...(['title', 'recommended_role'].includes(field) ? { assigned_to: null, recommendation: { rankings: [] } } : {}) } : task) }));
+    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [field]: value, } : task) }));
   }
 
   async function reviewWorkflowOfficer(index) {
@@ -946,7 +949,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setPlanError(null);
     try {
       const response = await previewTaskRecommendation({ title: task.title, task_type: 'workflow', preferred_role: task.recommended_role || null });
-      setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((item) => item.key === task.key ? { ...item, assigned_to: null, recommendation: response.data.delegation || { rankings: [] } } : item) }));
+      setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((item) => item.key === task.key ? { ...item, assigned_to: null, recommendation: { ...(response.data.delegation || { rankings: [] }), reviewed: true } } : item) }));
     } catch (requestError) {
       setPlanError(getApiErrorMessage(requestError, 'Could not review eligible officers.'));
     } finally {
@@ -986,7 +989,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   async function discardWorkflow() {
     if (!workflowOutputId) return;
-    if (!window.confirm('Remove this draft? No tasks have been created from it yet.')) return;
+    setConfirmingDiscard(false);
     setWorkflowAction(true); setPlanError(null);
     try {
       await discardEventWorkflow(planForm.event_id, workflowOutputId);
@@ -1003,6 +1006,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const selectedPlanningEvent = events.find((event) => String(event.id) === String(planForm.event_id));
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
+  const attendanceFiltered = Boolean(attendanceSearch.trim() || debouncedAttendanceSearch || attendanceStatusFilter !== 'all');
   const filteredAttendanceRecords = attendanceData?.records ?? [];
   const pagedAttendanceRecords = filteredAttendanceRecords;
 
@@ -1131,8 +1135,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       ) : (
         <EmptyState
           icon={CalendarPlus}
-          title="No events proposed yet"
-          description="Every event starts as a proposal that the Department Head approves first."
+          title={academicPeriods.length > 0 ? 'No events in this academic period yet' : 'No events proposed yet'}
+          description={`Every event starts as a proposal that the Department Head approves first.${academicPeriods.length > 0 ? ' Events from other periods are under Academic period.' : ''}`}
           action={<Button variant="secondary" leftIcon={Plus} onClick={openCreateForm}>Propose your first event</Button>}
         />
       );
@@ -1178,7 +1182,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   );
 
   if (showForm) {
-    const venueRequirements = activeEventRequirements.filter((r) => r.is_active !== false && (!r.venue_type || r.venue_type === 'both' || r.venue_type === form.venue_type));
+    const venueRequirements = activeEventRequirements.filter((r) => r.is_active !== false && (!r.venue_type || r.venue_type === 'all' || r.venue_type === form.venue_type));
     return (
       <div className="space-y-6">
         <PageHeader
@@ -1232,11 +1236,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <HiusaSelect id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })}><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></HiusaSelect>
               </Field>
               {form.venue_type === 'on_campus' ? (
-                <Field label="SAO venue" optional>
+                <Field label="SAO venue" required>
                   <HiusaSelect id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })}><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}</HiusaSelect>
                 </Field>
               ) : (
-                <Field label="Off-campus location" optional>
+                <Field label="Off-campus location" required>
                   <Input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
                 </Field>
               )}
@@ -1338,7 +1342,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           {formError && <p role="alert" className="text-sm font-medium text-danger-strong">{formError}</p>}
           <div className="flex justify-end gap-3 border-t border-line pt-5">
             <Button variant="secondary" onClick={closeForm}>Cancel</Button>
-            <Button type="submit" loading={formSubmitting} disabled={!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || (form.requires_budget && !form.budget_notes.trim())}>
+            <Button type="submit" loading={formSubmitting} disabled={!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen || (form.requires_budget && !form.budget_notes.trim())}>
               {editingEventId ? 'Save changes' : 'Send proposal'}
             </Button>
           </div>
@@ -1456,7 +1460,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <td className="absolute right-0 top-2 z-10 lg:static lg:table-cell py-0 lg:px-4 lg:py-2.5 lg:text-right">
                           <TableRowActions subject={evt.title} label="Event actions" actions={[
                             { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
-                            canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
+                            canCreateEvents && !viewingHistory && !['completed', 'cancelled'].includes(evt.status) && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
                             canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
                             canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
                           ]} />
@@ -1592,7 +1596,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                 </Field>
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                   <Button variant="secondary" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)}>{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</Button>
-                                  {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">Review eligible officers, then choose the final assignee.</p>}
+                                  {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">{task.recommendation?.reviewed ? 'No officer is eligible right now. Check that officers have an active position and are under their open task limit.' : 'Review eligible officers, then choose the final assignee.'}</p>}
                                 </div>
                               </div>
                             </div>
@@ -1612,7 +1616,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                     <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-ink-muted">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
-                      <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button variant="secondary" className="text-danger-strong" disabled={workflowAction} onClick={discardWorkflow}>Remove draft</Button><Button disabled={workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} loading={workflowAction} onClick={confirmWorkflow}>Save and assign tasks</Button></div>
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button variant="secondary" className="text-danger-strong" disabled={workflowAction} onClick={() => setConfirmingDiscard(true)}>Remove draft</Button><Button disabled={workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} loading={workflowAction} onClick={confirmWorkflow}>Save and assign tasks</Button></div>
                     </div>
                   </div>
                 )}
@@ -1625,7 +1629,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       {activeTab === 'attendance' && (
         <section aria-label="Event check-in" className="space-y-6">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
-          <p className="text-sm font-medium text-ink-muted-strong">{attendanceEvents.length} events open for check-in</p>
+          <p className="text-sm font-medium text-ink-muted-strong">{attendanceEvents.length} {attendanceEvents.length === 1 ? 'event' : 'events'} open for check-in</p>
           {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-ink-muted-strong">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Go to Events</Link></p>}
           {loading ? (
             <SkeletonTable rows={3} columns={3} />
@@ -1760,7 +1764,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     ) : null}
 
                     {/* Attendees table */}
-                    {(attendanceData?.records?.length ?? 0) === 0 ? (
+                    {(attendanceData?.records?.length ?? 0) === 0 && !attendanceFiltered ? (
                       <div className="border-t border-line"><EmptyState title="No attendance records yet" description="New arrivals will appear here after check-in." /></div>
                     ) : (
                       <div className="border-t border-line pt-5">
@@ -1967,6 +1971,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         </AccessibleOverlay>
       )}
 
+      <ConfirmModal
+        open={confirmingDiscard}
+        title="Remove this draft?"
+        message="No tasks have been created from it yet."
+        confirmText="Remove draft"
+        cancelText="Keep draft"
+        variant="danger"
+        onCancel={() => setConfirmingDiscard(false)}
+        onConfirm={discardWorkflow}
+      />
       <ConfirmModal
         open={Boolean(eventToDelete)}
         title="Delete this event?"

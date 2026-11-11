@@ -458,6 +458,8 @@ describe('proposing an event', () => {
     fireEvent.change(document.querySelector('#event-start-time'), { target: { value: '09:00' } });
     fireEvent.change(document.querySelector('#event-end-date'), { target: { value: '2030-10-01' } });
     fireEvent.change(document.querySelector('#event-end-time'), { target: { value: '12:00' } });
+    fireEvent.change(document.querySelector('#event-venue-type'), { target: { value: 'off_campus' } });
+    fireEvent.change(document.querySelector('#event-location'), { target: { value: 'Main Gym' } });
     fireEvent.click(form.getByRole('button', { name: 'Send proposal' }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Event details' });
