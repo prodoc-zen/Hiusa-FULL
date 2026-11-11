@@ -290,6 +290,8 @@ export default function SystemOrganizationsPage() {
   const [lifecycleError, setLifecycleError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const loadCounts = useCallback(async ({ silent = false } = {}) => {
     const epoch = countsEpoch.current;
@@ -405,7 +407,8 @@ export default function SystemOrganizationsPage() {
   async function save(event) {
     event.preventDefault();
     setBusy(true);
-    setError('');
+    setFormError('');
+    setFieldErrors({});
     let saved = null;
     try {
       const payload = {
@@ -423,7 +426,13 @@ export default function SystemOrganizationsPage() {
       await load();
     } catch (cause) {
       if (saved) setForm(saved);
-      setError(getApiErrorMessage(cause, saved ? 'Organization saved, but its logo could not be uploaded. Retry saving the logo.' : 'Could not save the organization.'));
+      const errors = cause?.response?.data?.errors || {};
+      if (!saved && Object.keys(errors).length) {
+        setFieldErrors(errors);
+        setFormError('Check the highlighted fields.');
+      } else {
+        setFormError(getApiErrorMessage(cause, saved ? 'Organization saved, but its logo could not be uploaded. Retry saving the logo.' : 'Could not save the organization.'));
+      }
     } finally {
       setBusy(false);
     }
@@ -543,7 +552,7 @@ export default function SystemOrganizationsPage() {
           lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
           needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first administrator', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
           lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
-          lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setForm(org); } },
+          lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setFormError(''); setFieldErrors({}); setForm(org); } },
           lifecycle === 'active' && { label: 'Add existing student', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
           lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
           lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
@@ -597,12 +606,12 @@ export default function SystemOrganizationsPage() {
           )}
         >
           <form id="edit-organization-form" onSubmit={save} className="space-y-4">
-            {error && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{error}</p>}
-            <Field label="Organization name" required><Input value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
-            <Field label="Organization code" required><Input value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} /></Field>
-            <Field label="Main organization">
+            <Field label="Organization name" required error={fieldErrors.name?.[0]}><Input value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
+            <Field label="Organization code" required error={fieldErrors.acronym?.[0]}><Input value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} /></Field>
+            <Field label="Main organization" error={fieldErrors.parent_organization_id?.[0]}>
               <Select disabled={parentLoading || Boolean(parentError)} value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })}>
                 <option value="">This is a main organization</option>
+                {form.parent_organization && !parents.some((parent) => parent.id === form.parent_organization.id) && <option value={form.parent_organization.id}>{formatDisplayText(form.parent_organization.name)}</option>}
                 {parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}
               </Select>
             </Field>
@@ -612,11 +621,12 @@ export default function SystemOrganizationsPage() {
               <span className="text-[13px] font-medium text-ink">College</span>
               <p className="flex h-10 items-center rounded-control border border-line bg-subtle px-3 text-sm text-ink">{formatDisplayText(form.college) || 'Not assigned'}</p>
             </div>
-            <Field label="Organization color" optional><input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-10 w-20 cursor-pointer rounded-control border border-line bg-surface p-1" /></Field>
-            <Field label="Organization logo" optional hint={logoFile ? logoFile.name : undefined}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="block w-full rounded-control border border-line bg-surface p-2 text-sm" /></Field>
+            <Field label="Organization color" optional error={fieldErrors.color?.[0]}><input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="h-10 w-20 cursor-pointer rounded-control border border-line bg-surface p-1" /></Field>
+            <Field label="Organization logo" optional hint={logoFile ? logoFile.name : undefined} error={fieldErrors.logo?.[0]}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="block w-full rounded-control border border-line bg-surface p-2 text-sm" /></Field>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="organization-description" className="text-[13px] font-medium text-ink">Description <span className="font-normal text-ink-muted">(optional)</span></label>
               <RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} />
+              {fieldErrors.description?.[0] && <p role="alert" className="text-xs font-semibold text-danger-strong">{fieldErrors.description[0]}</p>}
             </div>
             <div className="border-t border-line pt-4">
               <h4 className="text-sm font-semibold text-ink">Organization members</h4>
@@ -626,6 +636,7 @@ export default function SystemOrganizationsPage() {
                 <Button variant="secondary" disabled={busy} onClick={() => setProfileOrganization(editingBase)}>Manage user profiles</Button>
               </div>
             </div>
+            {formError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-medium text-danger-strong">{formError}</p>}
           </form>
         </Drawer>
       )}
