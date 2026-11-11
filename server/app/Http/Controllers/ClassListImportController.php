@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicProgram;
 use App\Models\AuditLog;
+use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
+use App\Support\YearLevel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -140,13 +143,25 @@ class ClassListImportController extends Controller
 
     private function validatedFile(Request $request)
     {
-        $request->validate(['file' => ['required', 'file', 'max:2048']]);
+        $request->validate(['file' => ['required', 'file', 'max:2048']], [
+            'file.required' => 'Choose a .csv class list.',
+            'file.file' => 'Choose a .csv class list.',
+            'file.max' => 'The class list is larger than 2 MB. Split it and import it in parts.',
+        ]);
         $file = $request->file('file');
         if (strtolower($file->getClientOriginalExtension()) !== 'csv') {
             throw ValidationException::withMessages(['file' => ['Choose a .csv class list.']]);
         }
 
         return $file;
+    }
+
+    /** The college whose student registry has been loaded for this organization, or null when it has none and nothing can be checked. */
+    private function registryCollegeId(int $organizationId): ?int
+    {
+        $collegeId = Organization::whereKey($organizationId)->value('college_id');
+
+        return $collegeId && StudentRegistryEntry::students()->where('college_id', $collegeId)->exists() ? (int) $collegeId : null;
     }
 
     private function classify(string $path, int $organizationId): array
@@ -192,6 +207,8 @@ class ClassListImportController extends Controller
         $users = User::with('accountProfiles')->whereIn('school_id', $ids)->get()->keyBy('school_id');
         $existingEmails = User::whereIn('email', array_filter(array_column($rows, 'email')))
             ->pluck('email')->map(fn ($email) => strtolower($email))->flip();
+        $registryCollegeId = $this->registryCollegeId($organizationId);
+        $registered = $registryCollegeId === null ? null : StudentRegistryEntry::students()->where('college_id', $registryCollegeId)->whereIn('school_id', $ids)->pluck('school_id')->flip();
         $idCounts = array_count_values(array_filter(array_column($rows, 'school_id'), fn ($id) => $id !== ''));
         $seenEmails = [];
         foreach ($rows as &$row) {
@@ -206,14 +223,18 @@ class ClassListImportController extends Controller
                 $row['reason'] = 'School ID occurs more than once in this file.';
             } else {
                 $program = $programs->get($row['program']);
-                $year = (int) $row['year_level'];
-                if (! $program || ! preg_match('/^[1-8]$/', $row['year_level']) || $year > $program->duration_years
+                $year = YearLevel::parse($row['year_level']);
+                if ($year === null) {
+                    $row['reason'] = 'Year level must be a number such as 1, or written like 1st Year.';
+                } elseif (! $program || $year > $program->duration_years
                     || ! $program->sections->contains(fn ($section) => $section->year_level === $year && $section->name === $row['section'])) {
                     $row['reason'] = 'Choose a configured program, year number, and section for that year.';
                 } else {
-                    $row['year_level'] = $year.(in_array($year, [11, 12, 13], true) ? 'th' : ([1 => 'st', 2 => 'nd', 3 => 'rd'][$year % 10] ?? 'th')).' Year';
+                    $row['year_level'] = YearLevel::label($year);
                     $user = $users->get((int) $id);
-                    if (! $user) {
+                    if (! $user && $registered !== null && ! $registered->has((int) $id)) {
+                        $row['reason'] = 'This school ID is not in the student registry of your college. Ask your dean or the SAO to add the student there first.';
+                    } elseif (! $user) {
                         $validIdentity = Validator::make($row, [
                             'first_name' => ['required', 'string', 'max:60'],
                             'last_name' => ['required', 'string', 'max:60'],

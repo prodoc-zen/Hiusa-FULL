@@ -88,6 +88,14 @@ describe('UserImportDrawer', () => {
     expect(onImported).toHaveBeenCalledTimes(1);
   });
 
+  it('names only the roles a file can carry and writes the year as a number', () => {
+    render(<UserImportDrawer open onClose={vi.fn()} onImported={vi.fn()} />);
+
+    expect(screen.queryByText(/Department Head/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Roles can be Student or SBO Officer/)).toBeInTheDocument();
+    expect(screen.getByText(/year_level as a number/)).toBeInTheDocument();
+  });
+
   it('shows why a file was refused outright', async () => {
     vi.mocked(importUsers).mockRejectedValue({ response: { status: 422, data: { message: 'The first row must name the columns, including school_id, first_name, last_name, email and role.' } } });
     render(<UserImportDrawer open onClose={vi.fn()} onImported={vi.fn()} />);
