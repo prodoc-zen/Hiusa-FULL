@@ -236,6 +236,8 @@ class SystemUsersController extends Controller
                 $organizationId = $locked->getRawOriginal('organization_id');
                 $role = $locked->getRawOriginal('role');
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
+                // A token is keyed by school ID only, so one left behind would sign in as whoever is later given the same ID.
+                $locked->tokens()->delete();
                 $locked->delete();
                 AuditLog::create([
                     'organization_id' => $organizationId,

@@ -600,6 +600,27 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame(1, $this->resetTokens($secretary));
     }
 
+    public function test_an_outgoing_president_who_wins_secretary_can_have_their_password_reset_by_the_admin(): void
+    {
+        Mail::fake();
+        $incumbent = $this->member('ADMIN', 'President');
+        $election = $this->closedElection();
+        $this->position($election, 'President', [5]);
+        $secretary = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Secretary']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $secretary->id, 'user_id' => $incumbent->school_id]);
+        $this->vote($election, $secretary, $candidate, 'h-sec-reset');
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('ADMIN', $this->accountRowRole($incumbent));
+        $this->assertSame(['SBO_OFFICER', 'active', 'Secretary'], $this->held($incumbent));
+        $this->colleague();
+
+        $this->postJson('/api/users/'.$incumbent->school_id.'/password-reset')->assertOk();
+        $this->assertSame(1, $this->resetTokens($incumbent));
+        $this->assertDatabaseCount('password_reset_tokens', 1);
+    }
+
     public function test_an_officer_the_hand_over_retired_must_be_reactivated_before_a_password_reset(): void
     {
         Mail::fake();
