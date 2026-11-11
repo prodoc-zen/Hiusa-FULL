@@ -24,6 +24,27 @@ describe('ElectionDetailPage', () => {
     expect(getElectionVoters).not.toHaveBeenCalled();
   });
 
+  it('shows turnout only while voting is open, with no per candidate count', () => {
+    const before = outlet.election;
+    outlet.election = { ...before, voters_count: 9, candidates: [{ id: 3, position_id: 1, user: { first_name: 'Ana', last_name: 'Reyes' }, partylist: { name: 'Forward' } }] };
+    render(<MemoryRouter initialEntries={['/dashboard/elections/manage-elections?record=5']}><ElectionDetailPage /></MemoryRouter>);
+    expect(screen.getByText(/ballots/)).toHaveTextContent('9 ballots');
+    expect(screen.queryByText(/votes/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Votes' })).not.toBeInTheDocument();
+    expect(screen.getByText('Counts appear when voting closes.')).toBeInTheDocument();
+    outlet.election = before;
+  });
+
+  it('shows each candidate count from the server once voting is closed', () => {
+    const before = outlet.election;
+    outlet.election = { ...before, status: 'closed', voters_count: 9, vote_counts: { 3: 7 }, candidates: [{ id: 3, position_id: 1, user: { first_name: 'Ana', last_name: 'Reyes' }, partylist: { name: 'Forward' } }] };
+    render(<MemoryRouter initialEntries={['/dashboard/elections/manage-elections?record=5']}><ElectionDetailPage /></MemoryRouter>);
+    expect(screen.getByRole('columnheader', { name: 'Votes' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '7' })).toBeInTheDocument();
+    expect(screen.queryByText('Counts appear when voting closes.')).not.toBeInTheDocument();
+    outlet.election = before;
+  });
+
   it('adds a position from the drawer on an unlocked ballot, with maximum winners marked optional', async () => {
     createElectionPosition.mockResolvedValue({ id: 2, title: 'Treasurer', max_winners: 1 });
     outlet.election.finalized_at = null;

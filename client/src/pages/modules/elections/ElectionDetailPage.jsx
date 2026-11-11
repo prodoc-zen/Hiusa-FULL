@@ -40,8 +40,9 @@ export default function ElectionDetailPage() {
 
   const positions = localPositions;
   const candidates = election.candidates || [];
-  const votes = election.votes || [];
-  const ballotLocked = election.status === 'closed' || Boolean(election.finalized_at) || votes.length > 0;
+  const ballots = Number(election.voters_count || 0);
+  const countsShown = election.status === 'closed' && Boolean(election.vote_counts);
+  const ballotLocked = election.status === 'closed' || Boolean(election.finalized_at) || ballots > 0;
 
   const groupedCandidates = positions.map((position) => ({
     position,
@@ -51,7 +52,7 @@ export default function ElectionDetailPage() {
   const candidateColumns = [
     { key: 'name', header: 'Candidate', render: (candidate) => <span className="font-medium">{formatDisplayText(`${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim())}</span> },
     { key: 'partylist', header: 'Party list', render: (candidate) => formatDisplayText(candidate.partylist?.name) || 'Independent' },
-    { key: 'votes', header: 'Votes', align: 'right', render: (candidate) => votes.filter((vote) => vote.candidate_id === candidate.id).length },
+    ...(countsShown ? [{ key: 'votes', header: 'Votes', align: 'right', render: (candidate) => election.vote_counts[candidate.id] ?? 0 }] : []),
   ];
 
   const openAddPosition = () => {
@@ -116,10 +117,14 @@ export default function ElectionDetailPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ink-muted-strong">
-          <span className="tabular-nums">{positions.length}</span> positions, <span className="tabular-nums">{candidates.length}</span> candidates, <span className="tabular-nums">{votes.length}</span> votes
+          <span className="tabular-nums">{positions.length}</span> positions, <span className="tabular-nums">{candidates.length}</span> candidates, <span className="tabular-nums">{ballots}</span> {ballots === 1 ? 'ballot' : 'ballots'}
         </p>
         {!ballotLocked && <Button leftIcon={Plus} onClick={openAddPosition}>Add position</Button>}
       </div>
+
+      {election.status === 'active' && (
+        <p className="text-sm text-ink-muted">Counts appear when voting closes.</p>
+      )}
 
       {ballotLocked && (
         <p className="rounded-control bg-amber-50 px-3 py-2 text-sm text-amber-800">Position setup is locked for this election.</p>
