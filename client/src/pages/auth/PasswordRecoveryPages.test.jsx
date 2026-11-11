@@ -40,6 +40,18 @@ describe('password recovery pages', () => {
     expect(screen.getByText(/If an account matches/)).toBeInTheDocument();
   });
 
+  it('says before submitting what happens with email on and with email off', () => {
+    render(
+      <MemoryRouter initialEntries={['/recover-account']}>
+        <Routes><Route path="/recover-account" element={<RecoverAccountPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    const intro = screen.getByText(/When email is turned on/);
+    expect(intro).toHaveTextContent(/When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link\./);
+    expect(intro).not.toHaveTextContent(/^Enter the email or school ID you sign in with\. We send/);
+  });
+
   it('tells the person to ask for a reset, without claiming an email was sent, when mail is off', async () => {
     authMocks.requestPasswordReset.mockResolvedValue({ data: { message: 'Password reset by email is not available. Ask your organization Admin or the SAO to reset your password.', email_sent: false } });
     render(
@@ -55,7 +67,7 @@ describe('password recovery pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
 
     expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
-    expect(screen.getByText(/Ask your organization Admin or the SAO to reset your password/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toBeInTheDocument();
     expect(screen.queryByText(/we sent/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send another email' })).not.toBeInTheDocument();
   });
