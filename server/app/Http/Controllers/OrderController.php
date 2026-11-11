@@ -391,13 +391,13 @@ class OrderController extends Controller
             'payment_proof' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
-        if (($data['payment_method'] ?? null) === 'gcash'
-            && (empty($data['payment_reference']) xor ! $request->hasFile('payment_proof'))) {
-            return response()->json(['message' => 'Submit both the GCash reference and payment proof, or submit both later from My Orders.'], 422);
-        }
-
         if (($data['payment_method'] ?? null) === 'gcash' && ! $this->organizationHasGcashQr($request->user()->organization_id)) {
             return response()->json(['message' => 'GCash payment is unavailable until an administrator uploads the official QR code.'], 422);
+        }
+
+        if (($data['payment_method'] ?? null) === 'gcash'
+            && (empty($data['payment_reference']) || ! $request->hasFile('payment_proof'))) {
+            return response()->json(['message' => 'GCash orders need the 13-digit reference number and the payment proof. To pay later, reserve with cash and submit the proof from My Orders.'], 422);
         }
 
         unset($data['payment_proof']);

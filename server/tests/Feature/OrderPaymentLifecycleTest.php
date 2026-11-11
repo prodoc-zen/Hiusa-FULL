@@ -63,6 +63,30 @@ class OrderPaymentLifecycleTest extends TestCase
         $this->patchJson("/api/orders/{$secondId}/status", ['status' => 'cancelled', 'review_remarks' => 'Not needed.'])->assertOk();
     }
 
+    public function test_a_gcash_order_needs_both_the_reference_and_the_proof_and_a_cash_order_needs_neither(): void
+    {
+        Storage::fake('local');
+        $organization = Organization::factory()->withGcashQr()->create();
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $item = $this->item($organization, 5);
+        $message = 'GCash orders need the 13-digit reference number and the payment proof. To pay later, reserve with cash and submit the proof from My Orders.';
+
+        Sanctum::actingAs($buyer);
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'gcash'])
+            ->assertUnprocessable()->assertJsonPath('message', $message);
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'gcash', 'payment_reference' => '1234567890123'])
+            ->assertUnprocessable()->assertJsonPath('message', $message);
+        $this->post('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'gcash', 'payment_proof' => $this->proof()], ['Accept' => 'application/json'])
+            ->assertUnprocessable()->assertJsonPath('message', $message);
+        $this->assertDatabaseCount('orders', 0);
+
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'cash'])
+            ->assertCreated();
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1])
+            ->assertCreated();
+        $this->assertDatabaseCount('orders', 2);
+    }
+
     public function test_a_reference_in_use_by_a_live_order_is_still_rejected(): void
     {
         Storage::fake('local');
