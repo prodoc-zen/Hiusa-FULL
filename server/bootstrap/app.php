@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -92,6 +93,19 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return null;
+        });
+        // Laravel's default message ends "(and N more errors)"; screens print the message as is.
+        $exceptions->render(function (ValidationException $exception, Request $request) {
+            if ($exception->response || ! $request->expectsJson()) {
+                return null;
+            }
+
+            $errors = $exception->errors();
+
+            return response()->json([
+                'message' => collect($errors)->flatten()->first() ?? $exception->getMessage(),
+                'errors' => $errors,
+            ], $exception->status);
         });
         // Route binding answers a missing id with a 404 whose message names the model class.
         $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
