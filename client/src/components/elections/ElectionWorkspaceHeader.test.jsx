@@ -169,9 +169,19 @@ describe('ElectionWorkspaceHeader finalize', () => {
 
   it('opens voting and releases results from the same place', async () => {
     updateElection.mockResolvedValue({ id: 7 });
-    renderHeader({ ...base, status: 'upcoming', finalized_at: PAST }, 'ADMIN');
+    renderHeader({ ...base, status: 'upcoming', finalized_at: PAST, start_time: PAST }, 'ADMIN');
     fireEvent.click(screen.getByRole('button', { name: 'Open voting' }));
     await waitFor(() => expect(updateElection).toHaveBeenCalledWith(7, { status: 'active' }));
+  });
+
+  it('offers no Open voting button before the start time and says voting opens by itself', () => {
+    renderHeader({ ...base, status: 'upcoming', finalized_at: PAST }, 'ADMIN');
+
+    expect(screen.queryByRole('button', { name: 'Open voting' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open election' })).not.toBeInTheDocument();
+    expect(screen.getByText(/^Voting opens by itself on .+ at .+\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Open it from the election page/)).not.toBeInTheDocument();
+    expect(updateElection).not.toHaveBeenCalled();
   });
 
   it('releases the results of a closed election', async () => {

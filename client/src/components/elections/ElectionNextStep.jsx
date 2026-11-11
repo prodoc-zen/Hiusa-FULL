@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, CircleAlert } from 'lucide-react';
 import NextStep from '../ui/NextStep';
 import { electionLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import { finalizeElection, updateElection } from '../../services/electionService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { manilaDate, manilaTime } from '../../lib/format';
 import { finalizeChecklist, isReturned, withApprovalState } from './electionFlow';
 
 const BASE = '/dashboard/elections';
@@ -32,6 +33,12 @@ function FinalizeChecklist({ checklist }) {
 export default function ElectionNextStep({ election, role, onChanged }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const record = withApprovalState(election);
   const lifecycle = electionLifecycle(record, role);
   const props = toNextStepProps(lifecycle);
@@ -53,7 +60,8 @@ export default function ElectionNextStep({ election, role, onChanged }) {
     }
   };
 
-  let { primary, tone } = props;
+  const startsLater = election.status === 'upcoming' && Boolean(election.finalized_at) && Date.parse(election.start_time) > now;
+  let { primary, tone, body } = props;
   if (primary?.to?.startsWith(BASE) && !primary.to.includes('?')) primary = { ...primary, to: `${primary.to}?record=${election.id}` };
 
   if (isAdmin && building) {
@@ -62,6 +70,10 @@ export default function ElectionNextStep({ election, role, onChanged }) {
       onClick: () => run('finalize', () => finalizeElection(election.id), 'Unable to finalize the ballot.'),
       disabledReason: busy === 'finalize' ? 'Finalizing the ballot...' : checklist.disabledReason,
     };
+  } else if (isAdmin && startsLater) {
+    primary = undefined;
+    tone = 'waiting';
+    body = `Voting opens by itself on ${manilaDate(election.start_time)} at ${manilaTime(election.start_time)}.`;
   } else if (isAdmin && election.status === 'upcoming') {
     primary = {
       label: 'Open voting',
@@ -81,7 +93,7 @@ export default function ElectionNextStep({ election, role, onChanged }) {
 
   return (
     <div className="space-y-3">
-      <NextStep {...props} tone={tone} primary={primary} />
+      <NextStep {...props} tone={tone} body={body} primary={primary} />
       {checklist && <FinalizeChecklist checklist={checklist} />}
       {error && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong">{error}</p>}
     </div>
