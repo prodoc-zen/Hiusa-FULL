@@ -5,6 +5,7 @@ const unwrap = async (response) => (await response).data;
 export const getSystemOverview = (params) => unwrap(api.get('/system/overview', { params, cache: false }));
 export const getSystemUsers = (params) => unwrap(api.get('/system/users', { params }));
 export const getSystemUser = (schoolId) => unwrap(api.get(`/system/users/${schoolId}`));
+export const resetSystemUserPassword = (schoolId) => unwrap(api.post(`/system/users/${schoolId}/password-reset`));
 export const deleteSystemUser = (schoolId) => unwrap(api.delete(`/system/users/${schoolId}`, { data: { school_id: schoolId } }));
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params, cache: false }));
 export const createUnifiedOrganization = (data) => unwrap(api.post('/system/unified-organizations', data));
