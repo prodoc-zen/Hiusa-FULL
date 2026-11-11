@@ -5,6 +5,7 @@ const unwrap = (response) => response.data;
 export const getUsers = async (params) => unwrap(await api.get('/users', { params }));
 export const createUser = async (payload) => unwrap(await api.post('/users', payload));
 export const updateUser = async (id, payload) => unwrap(await api.put(`/users/${id}`, payload));
+export const resetUserPassword = async (id) => unwrap(await api.post(`/users/${id}/password-reset`));
 export const uploadUserPhoto = async (id, file) => {
   const body = new FormData();
   body.append('photo', file);

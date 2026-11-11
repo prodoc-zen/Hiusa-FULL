@@ -41,4 +41,45 @@ class LoginLockoutTest extends TestCase
             ->assertStatus(429)
             ->assertJsonPath('message', 'Too many failed sign in attempts for this account. Please wait before trying again.');
     }
+
+    public function test_twenty_five_failures_from_different_addresses_lock_the_account_for_everyone(): void
+    {
+        $owner = User::factory()->student()->create(['school_id' => 990003, 'password_hash' => 'right-password']);
+
+        for ($attempt = 1; $attempt <= 24; $attempt++) {
+            $this->signInFrom('203.0.113.'.$attempt, $owner->school_id, 'wrong-password')->assertStatus(422);
+        }
+
+        $this->signInFrom('198.51.100.20', $owner->school_id, 'right-password')->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        for ($attempt = 1; $attempt <= 25; $attempt++) {
+            $this->signInFrom('203.0.114.'.$attempt, $owner->school_id, 'wrong-password')->assertStatus(422);
+        }
+
+        $this->signInFrom('198.51.100.21', $owner->school_id, 'right-password')
+            ->assertStatus(429)
+            ->assertHeader('Retry-After');
+
+        $this->travel(16)->minutes();
+
+        $this->signInFrom('198.51.100.21', $owner->school_id, 'right-password')->assertOk();
+    }
+
+    public function test_two_spellings_that_resolve_to_one_account_share_the_failure_counter(): void
+    {
+        $owner = User::factory()->student()->create(['school_id' => 990004, 'email' => 'owner@example.test', 'password_hash' => 'right-password']);
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->signInFrom('203.0.113.9', $owner->school_id, 'wrong-password')->assertStatus(422);
+        }
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+                ->postJson('/api/login', ['identifier' => ' Owner@Example.test ', 'password' => 'wrong-password'])->assertStatus(422);
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+            ->postJson('/api/login', ['identifier' => 'owner@example.test', 'password' => 'right-password'])
+            ->assertStatus(429);
+    }
 }
