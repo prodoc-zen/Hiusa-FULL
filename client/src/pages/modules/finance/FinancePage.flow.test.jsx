@@ -119,7 +119,7 @@ describe('FinancePage budget lifecycle', () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [budget({ submission_status: status })] });
     renderPage(role, `${BUDGETS}?record=5`, { initialTab: 'budgets' });
 
-    const drawer = await screen.findByRole('dialog', { name: 'Sports Fest Budget' });
+    const drawer = await screen.findByRole('dialog', { name: 'Sports fest budget' });
     expect(within(drawer).getByRole('list', { name: 'Budget progress' })).toBeInTheDocument();
     expect(within(drawer).getAllByText(title).length).toBeGreaterThan(0);
     const actions = within(drawer).queryAllByRole('button', { name: /^(?!Close panel)/ }).concat(within(drawer).queryAllByRole('link'));
@@ -158,8 +158,8 @@ describe('FinancePage budget lifecycle', () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [budget()] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
-    fireEvent.click(await findRowAction('View details for Sports Fest Budget'));
-    expect(await screen.findByRole('dialog', { name: 'Sports Fest Budget' })).toBeInTheDocument();
+    fireEvent.click(await findRowAction('View details for Sports fest budget'));
+    expect(await screen.findByRole('dialog', { name: 'Sports fest budget' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(`${BUDGETS}?record=5`);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
@@ -180,7 +180,7 @@ describe('FinancePage budget lifecycle', () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [budget({ submission_status: 'rejected', approval_remarks: 'Lower the amount.' })] });
     renderPage('ADMIN', `${BUDGETS}?record=5`, { initialTab: 'budgets' });
 
-    const drawer = await screen.findByRole('dialog', { name: 'Sports Fest Budget' });
+    const drawer = await screen.findByRole('dialog', { name: 'Sports fest budget' });
     expect(within(drawer).getByText('Lower the amount.')).toBeInTheDocument();
     fireEvent.click(within(drawer).getByRole('button', { name: 'Edit and resubmit' }));
 
@@ -268,7 +268,7 @@ describe('FinancePage financial report lifecycle', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report({ submission_status: status })] });
     renderPage(role, `${REPORTS}?record=61`, { initialTab: 'reports' });
 
-    const drawer = await screen.findByRole('dialog', { name: 'August Report' });
+    const drawer = await screen.findByRole('dialog', { name: 'August report' });
     expect(within(drawer).getByRole('list', { name: 'Financial report progress' })).toBeInTheDocument();
     expect(within(drawer).getAllByText(title).length).toBeGreaterThan(0);
     const actions = within(drawer).queryAllByRole('button', { name: /^(?!Close panel)/ }).concat(within(drawer).queryAllByRole('link'));
@@ -279,15 +279,15 @@ describe('FinancePage financial report lifecycle', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report({ submission_status: 'pending_department_head' }), report({ id: 62, title: 'October report', submission_status: undefined })] });
     renderPage('ADMIN', REPORTS, { initialTab: 'reports' });
 
-    expect(await screen.findByRole('progressbar', { name: 'Report progress for August Report' })).toHaveAttribute('aria-valuetext', 'Step 2 of 4: Department Head');
-    expect(screen.getByRole('progressbar', { name: 'Report progress for October Report' })).toHaveAttribute('aria-valuetext', 'Step 1 of 4: Draft');
+    expect(await screen.findByRole('progressbar', { name: 'Report progress for August report' })).toHaveAttribute('aria-valuetext', 'Step 2 of 4: Department Head');
+    expect(screen.getByRole('progressbar', { name: 'Report progress for October report' })).toHaveAttribute('aria-valuetext', 'Step 1 of 4: Draft');
   });
 
   it('names the next step on each saved report row at desktop widths too', async () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report({ submission_status: 'pending_department_head' }), report({ id: 62, title: 'October report', submission_status: undefined })] });
     renderPage('ADMIN', REPORTS, { initialTab: 'reports' });
 
-    await screen.findByRole('progressbar', { name: 'Report progress for August Report' });
+    await screen.findByRole('progressbar', { name: 'Report progress for August report' });
     // The compact stepper shows the next action alone below 640 px; from 640 px up the row prints it under the stepper.
     const desktopLine = (text) => screen.getAllByText(text).filter((node) => node.className.includes('sm:block'));
     expect(desktopLine('Waiting for Department Head approval')).toHaveLength(1);
@@ -299,9 +299,9 @@ describe('FinancePage financial report lifecycle', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report()] });
     renderPage('ADMIN', `${REPORTS}?record=61`, { initialTab: 'reports' });
 
-    const drawer = await screen.findByRole('dialog', { name: 'August Report' });
+    const drawer = await screen.findByRole('dialog', { name: 'August report' });
     const file = new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' });
-    fireEvent.change(within(drawer).getByLabelText('Supporting documents for August Report'), { target: { files: [file] } });
+    fireEvent.change(within(drawer).getByLabelText('Supporting documents for August report'), { target: { files: [file] } });
     expect(within(drawer).getByText(/1 file\(s\) attached/)).toBeInTheDocument();
     fireEvent.click(within(drawer).getByRole('button', { name: 'Submit for review' }));
 
@@ -313,8 +313,8 @@ describe('FinancePage financial report lifecycle', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report()] });
     renderPage('ADMIN', REPORTS, { initialTab: 'reports' });
 
-    fireEvent.click(await findRowAction('View details for August Report'));
-    expect(await screen.findByRole('dialog', { name: 'August Report' })).toBeInTheDocument();
+    fireEvent.click(await findRowAction('View details for August report'));
+    expect(await screen.findByRole('dialog', { name: 'August report' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(`${REPORTS}?record=61`);
   });
 });
@@ -359,7 +359,7 @@ describe('FinancePage empty states', () => {
     fireEvent.change(await screen.findByLabelText('Search report history'), { target: { value: 'nothing like this' } });
     expect(await screen.findByText('No saved reports match these filters')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(await findRowAction('View details for August Report')).toBeInTheDocument();
+    expect(await findRowAction('View details for August report')).toBeInTheDocument();
   });
 
   it('explains the first-run report list and the restricted one', async () => {

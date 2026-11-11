@@ -119,6 +119,21 @@ describe('FinancePage transaction search', () => {
       .forEach((service) => expect(service).not.toHaveBeenCalled());
   });
 
+  it('applies a typed search by itself once typing pauses, without pressing Enter', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    vi.clearAllMocks();
+
+    ['v', 'va', 'van'].forEach((value) => fireEvent.change(search, { target: { value } }));
+    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
+
+    expect(await screen.findByText('Search: van')).toBeInTheDocument();
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(1));
+    expect(financeMocks.getTransactions).toHaveBeenCalledWith({ page: 1, search: 'van' });
+  });
+
   it('clearing typed but unapplied text fires nothing, and clearing an applied search fires one ledger read', async () => {
     render(<FinancePage initialTab="transactions" />);
 
