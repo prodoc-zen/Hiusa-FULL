@@ -72,6 +72,28 @@ describe('ManageVotersPage', () => {
     expect(summary).toHaveTextContent('118 of 320 eligible voters have voted (36.9% turnout). 202 still to vote.');
   });
 
+  it('names each role the way the rest of the app does', async () => {
+    electionMocks.getElectionVoters.mockResolvedValue({
+      current_page: 1,
+      per_page: 10,
+      total: 3,
+      data: [
+        { school_id: '2021-00142', first_name: 'Juan', last_name: 'Dela Vega', role: 'SBO_OFFICER', has_voted: true },
+        { school_id: '2022-00055', first_name: 'Pia', last_name: 'Torres', role: 'STUDENT', has_voted: false },
+        { school_id: '2020-00001', first_name: 'Ana', last_name: 'Reyes', role: 'ADMIN', has_voted: false },
+      ],
+      summary: { eligible_total: 3, voted_count: 1, turnout_percent: 33.3 },
+    });
+
+    render(<ManageVotersPage />);
+
+    const officerRow = (await screen.findAllByText('Juan Dela Vega'))[0].closest('tr');
+    expect(officerRow).toHaveTextContent('SBO Officer');
+    expect(officerRow).not.toHaveTextContent('Sbo officer');
+    expect(screen.getAllByText('Pia Torres')[0].closest('tr')).toHaveTextContent('Student');
+    expect(screen.getAllByText('Ana Reyes')[0].closest('tr')).toHaveTextContent('Admin');
+  });
+
   it('shows an error with a retry when the request fails', async () => {
     electionMocks.getElectionVoters.mockRejectedValue(new Error('boom'));
 

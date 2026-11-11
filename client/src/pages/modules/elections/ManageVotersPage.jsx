@@ -1,4 +1,4 @@
-import { formatDisplayText } from '../../../utils/displayText.js';
+import { formatDisplayText, humanizeIdentifier } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { getElectionVoters } from '../../../services/electionService';
@@ -11,11 +11,6 @@ import StatusBadge from '../../../components/ui/StatusBadge';
 import PaginationControls from '../../../components/PaginationControls';
 
 const EMPTY_SUMMARY = { eligible_total: 0, voted_count: 0, turnout_percent: 0 };
-
-function roleLabel(role) {
-  const text = String(role || '').replaceAll('_', ' ').toLowerCase();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 export default function ManageVotersPage() {
   const { election } = useOutletContext();
@@ -90,7 +85,7 @@ export default function ManageVotersPage() {
   const columns = [
     { key: 'name', header: 'Name', render: (voter) => <span className="font-medium">{formatDisplayText(voter.first_name)} {formatDisplayText(voter.last_name)}</span> },
     { key: 'school_id', header: 'School ID', render: (voter) => <span className="text-ink-muted-strong">{voter.school_id}</span> },
-    { key: 'role', header: 'Role', render: (voter) => roleLabel(voter.role) },
+    { key: 'role', header: 'Role', render: (voter) => humanizeIdentifier(voter.role) },
     { key: 'email', header: 'Email', render: (voter) => <span className="break-all text-ink-muted-strong">{voter.email}</span> },
     { key: 'vote', header: 'Vote', render: (voter) => (voter.has_voted ? <StatusBadge label="Voted" tone="success" /> : <span className="text-ink-muted">Not yet</span>) },
   ];
