@@ -31,6 +31,14 @@ describe('ReceiptDocument for a personal receipt', () => {
     expect(screen.queryByText(/☐/)).not.toBeInTheDocument();
   });
 
+  it('lets the receipt number drop to its own line on a narrow screen instead of floating over the divider', () => {
+    render(<ReceiptDocument transaction={base} />);
+
+    const line = screen.getByText('Received from:').closest('p');
+    expect(line).toHaveClass('flex', 'flex-wrap');
+    expect(line.querySelector('.float-right')).toBeNull();
+  });
+
   it('prints the payment method of an order with the brand spelling', () => {
     render(<ReceiptDocument order={{ id: 5, merchandise: { name: 'HIUSA Shirt' }, quantity: 1, total_price: '350.00', status: 'pending', payment_method: 'gcash' }} />);
 
