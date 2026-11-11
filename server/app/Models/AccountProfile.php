@@ -21,6 +21,8 @@ class AccountProfile extends Model
         return ['modules' => 'array'];
     }
 
+    public const UNAVAILABLE_MESSAGE = 'This account profile is unavailable.';
+
     public function allowsModule(string $module): bool
     {
         return $this->modules === null || in_array($module, $this->modules, true);
@@ -53,6 +55,27 @@ class AccountProfile extends Model
     {
         return $query->where('account_profiles.role', 'ADMIN')->where('account_profiles.account_status', 'active')
             ->whereHas('user', fn ($user) => $user->where('users.account_status', 'active'));
+    }
+
+    /** The one rule for a profile somebody can work in: it is active, and so are its organization and college. */
+    public function isUsable(): bool
+    {
+        return $this->account_status === 'active' && (bool) $this->organization?->is_active && $this->organization->collegeAllowsAccess();
+    }
+
+    /** What the holder of a profile that stopped working is told: an election hand over names itself, anything else stays plain. */
+    public function unavailableMessage(): string
+    {
+        return $this->retiredByHandover()
+            ? 'Your officer access for '.$this->organization->name.' ended when the new officers took over.'
+            : self::UNAVAILABLE_MESSAGE;
+    }
+
+    private function retiredByHandover(): bool
+    {
+        return $this->account_status === 'inactive' && $this->organization !== null
+            && AuditLog::where('organization_id', $this->organization_id)->where('action', 'access_handed_over')->get(['new_values'])
+                ->contains(fn (AuditLog $audit) => in_array((int) $this->user_school_id, array_map('intval', $audit->new_values['deactivated'] ?? []), true));
     }
 
     public function user(): BelongsTo

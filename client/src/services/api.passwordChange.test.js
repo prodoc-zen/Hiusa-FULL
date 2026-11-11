@@ -1,6 +1,7 @@
 import { AxiosError } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
+import { takeSignOutNotice } from '../utils/authSession';
 
 function failWith(status, data) {
   api.defaults.adapter = async (config) => {
@@ -76,6 +77,16 @@ describe('api interceptor password change handling', () => {
     expect(error.isForbidden).toBe(true);
   });
 
+  it('leaves the reason for the login page to show when the profile of the sign-in no longer works', async () => {
+    const message = 'Your officer access for Computer Society ended when the new officers took over.';
+    failWith(403, { message, error_code: 'PROFILE_UNAVAILABLE' });
+
+    await api.get('/dashboard/briefing').catch(() => {});
+
+    expect(assign).toHaveBeenCalledWith('/login');
+    expect(takeSignOutNotice()).toBe(message);
+  });
+
   it('does not bounce again when already on the login page', async () => {
     pathname = '/login';
     failWith(403, { error_code: 'PROFILE_UNAVAILABLE' });
@@ -83,6 +94,7 @@ describe('api interceptor password change handling', () => {
     await api.get('/dashboard/briefing').catch(() => {});
 
     expect(assign).not.toHaveBeenCalled();
+    expect(takeSignOutNotice()).toBeNull();
   });
 
   it('returns an expired session to the landing page', async () => {
