@@ -1,11 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAccountProfiles } from '../services/authService';
+import { getAccountProfiles, getCurrentUser } from '../services/authService';
+import { ROLE_HOME_PATHS } from '../components/layout/navigation';
 import { getCollegeOrganizations } from '../services/collegeOrganizationService';
 import useWorkspaces from './useWorkspaces';
 
 vi.mock('../services/authService', () => ({
   getAccountProfiles: vi.fn(),
+  getCurrentUser: vi.fn(),
   switchAccountProfile: vi.fn(),
 }));
 vi.mock('../services/collegeOrganizationService', () => ({
@@ -149,5 +151,96 @@ describe('useWorkspaces after access is granted to someone already signed in', (
     fire(focus);
 
     await waitFor(() => expect(result.current.spaces.map((space) => space.label)).toContain('Rehearsal Society'));
+  });
+});
+
+describe('useWorkspaces when the role changes while the person is signed in', () => {
+  const assign = vi.fn();
+  const originalLocation = window.location;
+  const profilesFor = (role, id = 1) => ({ data: { profiles: [{ ...student, id, role }], active_profile_id: id } });
+
+  beforeEach(() => {
+    getAccountProfiles.mockReset();
+    getCurrentUser.mockReset();
+    assign.mockReset();
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, assign } });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+    localStorage.clear();
+    delete document.visibilityState;
+  });
+
+  it('refreshes the stored user and sends the tab to the new role home', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    getAccountProfiles.mockResolvedValue(profilesFor('ADMIN'));
+    getCurrentUser.mockImplementation(async () => {
+      const user = { school_id: 5, role: 'ADMIN' };
+      localStorage.setItem('user', JSON.stringify(user));
+      return user;
+    });
+
+    renderHook(() => useWorkspaces());
+
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(assign).toHaveBeenCalledWith(ROLE_HOME_PATHS.ADMIN);
+    expect(JSON.parse(localStorage.getItem('user')).role).toBe('ADMIN');
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when the stored role already matches the active profile', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    getAccountProfiles.mockResolvedValue(profilesFor('STUDENT'));
+
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+    await act(async () => {});
+
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('leaves the tab alone, and still returns the profiles, when the user cannot be re-read', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    getAccountProfiles.mockResolvedValue(profilesFor('ADMIN'));
+    getCurrentUser.mockRejectedValue(new Error('offline'));
+
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+    await act(async () => {});
+
+    expect(assign).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('');
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('does not redirect when the re-read role equals the stored role', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    getAccountProfiles.mockResolvedValue(profilesFor('ADMIN'));
+    getCurrentUser.mockResolvedValue({ school_id: 5, role: 'STUDENT' });
+
+    renderHook(() => useWorkspaces());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a department head on the college home profile', 'DEPARTMENT_HEAD'],
+    ['office staff holding an admin profile on the college home organization', 'ADMIN'],
+  ])('never re-reads the user for %s', async (_name, role) => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role }));
+    getAccountProfiles.mockResolvedValue({ data: { profiles: [{ ...student, id: 7, role }], active_profile_id: 7 } });
+    getCollegeOrganizations.mockResolvedValue({ data: [] });
+
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.profiles).toHaveLength(1));
+    await act(async () => {});
+
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getAccountProfiles, switchAccountProfile } from '../services/authService';
+import { getAccountProfiles, getCurrentUser, switchAccountProfile } from '../services/authService';
 import { getCollegeOrganizations } from '../services/collegeOrganizationService';
 import { unwrapList } from '../services/pagination';
 import { ROLE_HOME_PATHS, ROLE_LABELS } from '../components/layout/navigation';
@@ -21,6 +21,20 @@ function sharedAccountProfiles() {
   const clear = () => { if (pending === entry) pending = null; };
   request.then(clear, clear);
   return request;
+}
+
+// A handover can change the role on the profile this sign-in already uses, and the open tab keeps the old role's
+// screens until it is told. The tab moves only when the re-read role differs from the stored one, so it settles after one move.
+async function followRoleChange(profiles, activeProfileId) {
+  const storedRole = storedUser()?.role;
+  const active = profiles.find((profile) => profile.id === activeProfileId);
+  if (!storedRole || !active || active.role === storedRole) return;
+  try {
+    const fresh = await getCurrentUser();
+    if (fresh?.role && fresh.role !== storedRole) window.location.assign(ROLE_HOME_PATHS[fresh.role] || '/dashboard');
+  } catch {
+    // The tab stays as it is; the next return to it tries again.
+  }
 }
 
 const usable = (profile) => profile.account_status === 'active'
@@ -97,6 +111,7 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
       setProfiles(response.data.profiles || []);
       setActiveProfileId(response.data.active_profile_id);
       setError('');
+      followRoleChange(response.data.profiles || [], response.data.active_profile_id);
     } catch {
       if (!quiet && load === latestLoad.current) setError('Could not load your profiles.');
     } finally {
