@@ -188,8 +188,12 @@ for (const viewport of WIDTHS) {
       await page.goto('/dashboard/elections/cast-vote');
       const card = page.getByRole('article').filter({ hasText: election.title });
       await expect(card.getByText('Voted', { exact: true })).toBeVisible();
-      // Live totals during voting: UseCaseComplianceTest::test_live_standings_and_results_remain_anonymous_during_voting and PAPER M4.7.
-      await expect(card.getByRole('link', { name: 'View live totals' })).toBeVisible();
+      // While voting is open the card offers turnout only, never per-candidate totals (ElectionResultsPage shows
+      // only ballots until the election closes). The link goes to this election's results page.
+      const turnout = card.getByRole('link', { name: 'View turnout' });
+      await expect(turnout).toBeVisible();
+      await expect(turnout).toHaveAttribute('href', `/dashboard/elections/election-results?record=${election.id}`);
+      await expect(card.getByRole('link', { name: 'View live totals' })).toHaveCount(0);
       await expect(card.getByText('Available when voting closes')).toHaveCount(0);
     });
 

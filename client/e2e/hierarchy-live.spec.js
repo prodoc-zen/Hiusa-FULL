@@ -88,6 +88,8 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
       await expect(page.getByText('Semester added').first()).toBeVisible({ timeout: 10000 });
     }
     await page.getByRole('switch', { name: /Toggle active status for 1st semester of AY 2026-2027/ }).click();
+    // The toggle now asks first (AcademicYearsPage ConfirmModal); the dialog's button carries the same name.
+    await page.getByRole('dialog', { name: 'Activate semester' }).getByRole('button', { name: 'Activate semester' }).click();
     await expect(page.getByText('Academic semester activated').first()).toBeVisible({ timeout: 10000 });
   }
   await expect(page.getByText(/1st semester/i).first()).toBeVisible();

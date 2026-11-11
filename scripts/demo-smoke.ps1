@@ -66,7 +66,7 @@
   .\scripts\demo-smoke.ps1 -Ssh -CheckGroq
 
 .NOTES
-  Environment variables read: HIUSA_SAO_PW, HIUSA_SSH_KEY, USERPROFILE, TEMP.
+  Environment variables read: HIUSA_SAO_PW, HIUSA_SSH_KEY, TEMP.
   The SAO password is never printed or written to disk.
 
   Rate limits to know: sign-in allows 10 per minute per address and 5 per
@@ -285,7 +285,7 @@ function Test-TlsCertificate {
 
 # Read-only server checks over SSH. Returns the raw output lines or $null.
 function Invoke-SshRead {
-    $keyPath = if ($env:HIUSA_SSH_KEY) { $env:HIUSA_SSH_KEY } else { Join-Path $env:USERPROFILE '.ssh\hiusa-lightsail.pem' }
+    $keyPath = if ($env:HIUSA_SSH_KEY) { $env:HIUSA_SSH_KEY } else { Join-Path (Join-Path ([Environment]::GetFolderPath('UserProfile')) '.ssh') 'hiusa-lightsail.pem' }
     if (-not (Test-Path -LiteralPath $keyPath)) { return @{ Error = 'SSH key file not found (set HIUSA_SSH_KEY)' } }
     if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) { return @{ Error = 'ssh client not found on PATH' } }
     $remote = 'for s in hiusa-ai hiusa-queue hiusa-scheduler nginx php8.3-fpm mysql; do echo UNIT $s $(systemctl is-active $s); done; ' +
