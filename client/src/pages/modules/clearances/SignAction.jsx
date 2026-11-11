@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { CircleCheck, PauseCircle, RotateCcw } from 'lucide-react';
 import { Button, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
-import TableRowActions from '../../../components/TableRowActions';
 import { clearanceStatusTone } from './clearanceLabels';
 
 export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, showStatus = true }) {
@@ -35,11 +33,13 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
   return (
     <div className="flex flex-col items-start gap-2">
       {showStatus && status !== 'pending' && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
-      <TableRowActions subject={roleLabel} actions={[
-        { label: status === 'held' ? 'Clear hold' : 'Clear', icon: CircleCheck, onClick: () => setMode('clear') },
-        status === 'pending' && { label: 'Hold', icon: PauseCircle, danger: true, onClick: () => setMode('hold') },
-        status === 'cleared' && { label: 'Reopen clearance', icon: RotateCcw, danger: true, onClick: () => setMode('reopen') },
-      ].filter((action) => status !== 'cleared' || action.label === 'Reopen clearance')} />
+      <div className="flex flex-wrap items-center gap-2">
+        {status !== 'cleared' && (
+          <Button size="sm" aria-label={`${status === 'held' ? 'Clear hold' : 'Clear'}: ${roleLabel}`} onClick={() => setMode('clear')}>{status === 'held' ? 'Clear hold' : 'Clear'}</Button>
+        )}
+        {status === 'pending' && <Button size="sm" variant="secondary" aria-label={`Hold: ${roleLabel}`} onClick={() => setMode('hold')}>Hold</Button>}
+        {status === 'cleared' && <Button size="sm" variant="secondary" aria-label={`Reopen clearance: ${roleLabel}`} onClick={() => setMode('reopen')}>Reopen clearance</Button>}
+      </div>
       {showStatus && status === 'held' && remarks && <p className="text-xs font-medium text-ink-muted">Reason: {remarks}</p>}
 
       <Modal

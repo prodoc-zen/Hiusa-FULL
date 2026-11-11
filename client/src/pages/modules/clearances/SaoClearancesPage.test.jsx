@@ -124,8 +124,7 @@ describe('SaoClearancesPage', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'View students' }));
     const table = await screen.findByRole('table', { name: 'Student clearance signatures' });
     expect(table.closest('[role="dialog"]')).toBeNull();
-    fireEvent.click(within(table).getByRole('button', { name: 'Actions for Student Affairs Office (SAO)' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reopen clearance' }));
+    fireEvent.click(within(table).getByRole('button', { name: 'Reopen clearance: Student Affairs Office (SAO)' }));
     const dialog = screen.getByRole('dialog', { name: /Reopen .* clearance/ });
     const confirm = within(dialog).getByRole('button', { name: 'Reopen clearance' });
     expect(confirm).toBeDisabled();

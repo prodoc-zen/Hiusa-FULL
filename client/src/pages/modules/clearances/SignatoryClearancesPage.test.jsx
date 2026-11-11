@@ -60,8 +60,7 @@ describe('SignatoryClearancesPage', () => {
 
     render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
-    fireEvent.click(within(row).getByRole('button', { name: 'Actions for Organization' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Hold' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Hold: Organization' }));
 
     const holdConfirm = screen.getByRole('button', { name: 'Hold this signature' });
     expect(holdConfirm).toBeDisabled();
