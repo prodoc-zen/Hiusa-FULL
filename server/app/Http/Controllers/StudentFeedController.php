@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\Announcement;
 use App\Models\Election;
 use App\Models\Event;
@@ -150,7 +151,9 @@ class StudentFeedController extends Controller
             $activeElection->has_voted = in_array($activeElection->id, $votedOpenIds, true);
         }
 
+        $selectedSemesterId = AcademicSemester::selected($request)?->id;
         $upcomingEvents = Event::where('organization_id', $organizationId)
+            ->when($selectedSemesterId, fn ($events) => $events->where('academic_semester_id', $selectedSemesterId))
             ->whereIn('status', ['approved', 'ongoing'])
             ->where('end_time', '>=', now())
             ->orderBy('start_time')->limit(3)
