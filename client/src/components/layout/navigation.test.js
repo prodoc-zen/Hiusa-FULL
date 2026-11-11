@@ -53,7 +53,7 @@ const SPEC = {
     { band: 'Community', label: 'Voting', children: [['Elections', '/dashboard/elections/manage-elections'], ['Results', '/dashboard/elections/election-results']] },
     { band: 'Community', label: 'Store', children: [['Inventory', '/dashboard/merchandise/manage-inventory'], ['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
-    { band: 'Records', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['School year records', '/dashboard/records'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
+    { band: 'Oversight', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['School year records', '/dashboard/records'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
     { band: 'Me', label: 'My activity', children: MY_ACTIVITY_LEAVES },
   ],
   SBO_OFFICER: [
@@ -74,8 +74,8 @@ const SPEC = {
     { band: 'Community', label: 'Voting', children: [['Candidates', '/dashboard/elections/manage-candidates'], ['Voters', '/dashboard/elections/manage-voters'], ['Results', '/dashboard/elections/election-results']] },
     { band: 'Community', label: 'Store', children: [['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
-    { band: 'Records', label: 'Clearance signing', path: '/dashboard/clearances' },
-    { band: 'Records', label: 'Records', path: '/dashboard/records' },
+    { band: 'Oversight', label: 'Clearance signing', path: '/dashboard/clearances' },
+    { band: 'Oversight', label: 'Records', path: '/dashboard/records' },
     { band: 'Me', label: 'My activity', children: MY_ACTIVITY_LEAVES },
   ],
   DEPARTMENT_HEAD: [

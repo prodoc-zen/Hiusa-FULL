@@ -114,8 +114,8 @@ describe('desktop sidebar rail', () => {
   });
 
   it.each([
-    ['ADMIN', ['Manage', 'Community', 'Records', 'Me']],
-    ['SBO_OFFICER', ['Manage', 'Community', 'Records', 'Me']],
+    ['ADMIN', ['Manage', 'Community', 'Oversight', 'Me']],
+    ['SBO_OFFICER', ['Manage', 'Community', 'Oversight', 'Me']],
     ['DEPARTMENT_HEAD', ['College view (read only)']],
     ['STUDENT', []],
     ['SUPER_ADMIN', []],
