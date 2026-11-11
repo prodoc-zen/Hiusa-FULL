@@ -179,6 +179,8 @@ export default function TopBar({ onMenuToggle }) {
 
   useEffect(() => {
     loadNotifications();
+    window.addEventListener('hiusa-notifications-changed', loadNotifications);
+    return () => window.removeEventListener('hiusa-notifications-changed', loadNotifications);
   }, [loadNotifications]);
 
   useEffect(() => {
