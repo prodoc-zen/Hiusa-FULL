@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
+use App\Models\Election;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
@@ -623,11 +624,12 @@ class DashboardBriefingService
     /** @param  array<int, int>  $organizationIds  The organizations the student votes in, not only the workspace they are signed in to. */
     private function unvotedElectionAttention(array $organizationIds, int $studentId, ?string $href): array
     {
-        $election = DB::table('elections')->whereIn('organization_id', $organizationIds)
+        $election = Election::whereIn('organization_id', $organizationIds)
             ->where('status', 'active')
             ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
                 ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $studentId))
-            ->orderBy('end_time')->first(['id', 'title', 'end_time']);
+            ->orderBy('end_time')->get(['id', 'organization_id', 'title', 'end_time', 'finalized_at'])
+            ->first(fn ($open) => $open->listsVoter($studentId));
 
         if (! $election) {
             return [];

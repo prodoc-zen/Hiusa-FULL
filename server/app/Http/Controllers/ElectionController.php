@@ -1155,10 +1155,7 @@ class ElectionController extends Controller
 
     private function onVoterRoll(Election $election, User $user): bool
     {
-        return AccountProfile::onVoterRoll($election->finalized_at)
-            ->where('account_profiles.organization_id', $election->organization_id)
-            ->where('account_profiles.user_school_id', $user->school_id)
-            ->exists();
+        return $election->listsVoter($user->school_id);
     }
 
     public function vote(Request $request, $id)

@@ -7,6 +7,7 @@ use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\ComplianceRequirementType;
+use App\Models\Election;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
@@ -940,10 +941,10 @@ class AskAiService
                 ->where('status', 'paid')
                 ->count();
 
-            $activeElection = DB::table('elections')
-                ->where('organization_id', $orgId)
+            $activeElection = Election::where('organization_id', $orgId)
                 ->where('status', 'active')
-                ->first(['id', 'title', 'end_time']);
+                ->get(['id', 'organization_id', 'title', 'end_time', 'finalized_at'])
+                ->first(fn ($open) => $open->listsVoter($user->school_id));
             $needsToVote = $activeElection
                 ? ! DB::table('votes')->where('election_id', $activeElection->id)->where('voter_id', $user->school_id)->exists()
                 : false;

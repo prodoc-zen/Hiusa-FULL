@@ -178,6 +178,36 @@ class VoterRollFreezeTest extends TestCase
         $this->assertEqualsCanonicalizing([$early->school_id, $stayer->school_id], collect($response->json('data'))->pluck('school_id')->all());
     }
 
+    public function test_a_member_the_ballot_would_refuse_is_not_told_to_vote_on_the_dashboard(): void
+    {
+        $early = $this->member(true);
+        $late = $this->member(false);
+
+        Sanctum::actingAs($early);
+        $this->assertContains('election_open', collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('type')->all());
+        $this->assertSame($this->election->id, $this->getJson('/api/student/feed')->assertOk()->json('sidebar.active_election.id'));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($late);
+        $this->assertNotContains('election_open', collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('type')->all());
+        $this->assertNull($this->getJson('/api/student/feed')->assertOk()->json('sidebar.active_election'));
+    }
+
+    public function test_the_feed_marks_an_election_post_the_ballot_would_refuse(): void
+    {
+        $early = $this->member(true);
+        $late = $this->member(false);
+
+        Sanctum::actingAs($early);
+        $post = collect($this->getJson('/api/student/feed')->assertOk()->json('items'))->firstWhere('type', 'election');
+        $this->assertTrue($post['data']['can_vote']);
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($late);
+        $post = collect($this->getJson('/api/student/feed')->assertOk()->json('items'))->firstWhere('type', 'election');
+        $this->assertFalse($post['data']['can_vote']);
+    }
+
     public function test_a_head_cannot_add_a_student_the_registry_does_not_know_once_the_college_has_a_registry(): void
     {
         $this->registry(20260001);
