@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GeneralAuditLogPage from './GeneralAuditLogPage';
 import { exportAuditLogs, getAuditLogs } from '../../../services/financeService';
 import downloadBlob from '../../../utils/downloadBlob';
+import { formatDateTime } from '../../../utils/dateTime';
 
 vi.mock('../../../services/financeService', () => ({ getAuditLogs: vi.fn(), exportAuditLogs: vi.fn() }));
 vi.mock('../../../utils/downloadBlob', () => ({ default: vi.fn() }));
@@ -31,6 +32,15 @@ describe('GeneralAuditLogPage', () => {
     expect(within(table).getByRole('columnheader', { name: 'Organization' })).toBeInTheDocument();
     expect(within(table).getByText('Org Alpha')).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Transactions/i })).not.toBeInTheDocument();
+  });
+
+  it('prints an entry time the way the rest of the app does', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<GeneralAuditLogPage />);
+
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText(formatDateTime('2026-10-01T08:00:00Z'))).toBeInTheDocument();
+    expect(within(table).getByText(/^Oct 1, 2026/)).toBeInTheDocument();
   });
 
   it('keeps the organization column off an organization admin view', async () => {
