@@ -32,8 +32,8 @@ class HiusaAiServiceIntegrationTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         foreach ([
-            ['period' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1000],
-            ['period' => now()->startOfMonth(), 'type' => 'income', 'amount' => 1200],
+            ['period' => now()->startOfMonth()->subMonths(2), 'type' => 'income', 'amount' => 1000],
+            ['period' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1200],
         ] as $row) {
             Transaction::create([
                 'organization_id' => $admin->organization_id,
