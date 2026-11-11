@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink, FolderOpen, RotateCcw } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, Select, StatusBadge, Textarea, resolveStatus } from '../../../components/ui';
 import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -173,12 +173,15 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
     {
       key: 'status',
       header: 'Status',
-      render: (submission) => (
-        <div className="flex flex-col items-start gap-1">
-          <StatusBadge status={submission.status} />
-          <span className="text-xs text-ink-muted-strong">{registrationReview(submission)?.text ?? complianceStageText(stageInput(submission))}</span>
-        </div>
-      ),
+      render: (submission) => {
+        const detail = registrationReview(submission)?.text ?? complianceStageText(stageInput(submission));
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <StatusBadge status={submission.status} />
+            {detail !== resolveStatus(submission.status).label && <span className="text-xs text-ink-muted-strong">{detail}</span>}
+          </div>
+        );
+      },
     },
   ];
 
