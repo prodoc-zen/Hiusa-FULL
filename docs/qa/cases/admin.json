@@ -507,7 +507,7 @@
     "id": "ADM-029",
     "role": "Admin / Adviser",
     "module": "Members > People",
-    "title": "Admin accounts cannot be edited, deactivated or deleted by an Admin",
+    "title": "An Admin cannot deactivate or delete another Admin, and cannot touch the Adviser account",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Another Admin exists in PSITS-CCS (900002 or 900003).",
     "steps": [
       "1. Open Members > People and choose 'Admin' in the role dropdown.",
@@ -515,7 +515,7 @@
       "3. Read every item in the menu.",
       "4. Search 990002 (the Adviser) and read the items in its row menu."
     ],
-    "expected": "The menus offer View profile and fingerprint items but no 'Edit user', 'Deactivate account' or 'Delete profile'. Only the SAO manages Admin and Adviser accounts.",
+    "expected": "The menu of 900002 offers Edit user (name, contact and position only), View profile and fingerprint items but no 'Deactivate account' or 'Delete profile'. The menu of 990002 offers View profile and fingerprint items but no 'Edit user', 'Deactivate account' or 'Delete profile'. Only the SAO changes an Admin's role or account status, and only the SAO manages the Adviser account.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
