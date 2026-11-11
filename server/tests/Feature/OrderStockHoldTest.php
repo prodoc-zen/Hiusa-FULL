@@ -169,6 +169,50 @@ class OrderStockHoldTest extends TestCase
         $this->assertSame(5, $item->fresh()->stock_quantity);
     }
 
+    public function test_a_buyer_cannot_hold_a_third_unpaid_order_for_the_same_item(): void
+    {
+        $item = $this->item(10);
+        $this->placeOrder($this->buyer, $item, 3);
+        $this->placeOrder($this->buyer, $item, 3);
+
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'cash'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'You already have 2 unpaid orders for this item. Pay or cancel one first.');
+
+        $this->assertSame(2, Order::where('merchandise_id', $item->id)->count());
+        $this->assertSame(4, $item->fresh()->stock_quantity);
+
+        $this->placeOrder($this->otherBuyer, $item, 1);
+        $other = $this->item(10);
+        $this->placeOrder($this->buyer, $other, 1);
+    }
+
+    public function test_cancelling_an_unpaid_order_lets_the_buyer_order_again(): void
+    {
+        $item = $this->item(10);
+        $first = $this->placeOrder($this->buyer, $item);
+        $this->placeOrder($this->buyer, $item);
+
+        $this->patchJson("/api/orders/{$first}/cancel")->assertOk();
+
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'cash'])->assertCreated();
+    }
+
+    public function test_cancelling_someone_elses_order_looks_the_same_as_a_missing_order(): void
+    {
+        $item = $this->item(5);
+        $orderId = $this->placeOrder($this->buyer, $item);
+
+        Sanctum::actingAs($this->otherBuyer);
+        $this->patchJson("/api/orders/{$orderId}/cancel")
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Order not found.');
+        $this->patchJson('/api/orders/999999/cancel')->assertNotFound();
+
+        $this->assertSame('pending', Order::find($orderId)->status);
+        $this->assertSame(4, $item->fresh()->stock_quantity);
+    }
+
     private function item(int $stock): Merchandise
     {
         return Merchandise::factory()->create([

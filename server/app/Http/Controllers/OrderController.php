@@ -407,6 +407,11 @@ class OrderController extends Controller
                 return response()->json(['message' => 'This item is no longer available.'], 422);
             }
 
+            if ($item->orders()->where('student_id', $request->user()->school_id)
+                ->where('status', 'pending')->where('stock_held', true)->count() >= 2) {
+                return response()->json(['message' => 'You already have 2 unpaid orders for this item. Pay or cancel one first.'], 422);
+            }
+
             if ($item->stock_quantity < $data['quantity']) {
                 return response()->json([
                     'message' => "Insufficient stock. Only {$item->stock_quantity} unit(s) available.",
@@ -557,12 +562,8 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (! $order) {
+                if (! $order || $order->student_id !== $request->user()->id) {
                     return null;
-                }
-
-                if ($order->student_id !== $request->user()->id) {
-                    abort(403, 'You can only cancel your own order.');
                 }
 
                 if ($order->status !== 'pending') {
