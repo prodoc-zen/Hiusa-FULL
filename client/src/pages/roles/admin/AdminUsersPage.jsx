@@ -10,7 +10,8 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import PaginationControls from '../../../components/PaginationControls';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, Skeleton, StatusBadge } from '../../../components/ui';
 import UserImportDrawer from '../../../components/users/UserImportDrawer';
-import { deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
+import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
+import { deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, resetUserPassword, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
@@ -40,7 +41,6 @@ const emptyEditForm = {
   school_id: '',
   first_name: '',
   last_name: '',
-  email: '',
   contact_number: '',
   role: 'STUDENT',
   position_title: '',
@@ -373,6 +373,9 @@ export default function AdminUsersPage() {
   const [modalError, setModalError] = useState('');
   const [modalFieldErrors, setModalFieldErrors] = useState({});
   const [editPhoto, setEditPhoto] = useState(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetLink, setResetLink] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUser, setInviteUser] = useState(null);
   const [inviteRole, setInviteRole] = useState('STUDENT');
@@ -479,7 +482,6 @@ export default function AdminUsersPage() {
       school_id: user.school_id,
       first_name: user.first_name,
       last_name: user.last_name,
-      email: user.email,
       contact_number: user.contact_number || '',
       role: user.role,
       position_title: user.position_title || '',
@@ -489,6 +491,7 @@ export default function AdminUsersPage() {
       major: user.major || '', section: user.section || '',
     });
     setModalError('');
+    setResetError('');
     setModalFieldErrors({}); setEditPhoto(null);
   };
 
@@ -553,6 +556,26 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    setResetError('');
+    setResetBusy(true);
+    try {
+      const response = await resetUserPassword(selectedUser.id);
+      const name = `${selectedUser.first_name} ${selectedUser.last_name}`;
+      setSelectedUser(null);
+      if (response.reset_link) {
+        setResetLink({ link: response.reset_link, name });
+      } else {
+        setFeedback({ open: true, type: 'success', message: response.message || `Password reset instructions were sent to ${name}.` });
+      }
+    } catch (resetRequestError) {
+      setResetError(firstError(resetRequestError) || 'Could not start the password reset. Try again.');
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
   const handleReactivate = async () => {
     if (!reactivateTarget) return;
 
@@ -612,9 +635,6 @@ export default function AdminUsersPage() {
       <form id="edit-user-form" onSubmit={handleEdit} className="space-y-4">
         {selectedUser && <UserIdentityCard user={selectedUser} compact />}
         <h3 className="text-sm font-semibold text-ink">Identity and contact</h3>
-        <Field label="Email" required error={fieldError('email')}>
-          <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
-        </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="First name" required error={fieldError('first_name')}>
             <Input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} />
@@ -677,6 +697,18 @@ export default function AdminUsersPage() {
         </Field>
         {modalError && <p role="alert" className="text-sm font-semibold text-danger-strong">{modalError}</p>}
       </form>
+    );
+  };
+
+  const resetPasswordSection = () => {
+    if (actorRole !== 'ADMIN' || !['STUDENT', 'SBO_OFFICER'].includes(selectedUser?.role) || (selectedUser.account_status || 'active') !== 'active') return null;
+    return (
+      <div className="mt-4 space-y-2 border-t border-line pt-4">
+        <h3 className="text-sm font-semibold text-ink">Password</h3>
+        <p className="text-sm text-ink-muted">Create a one-time link that lets this member choose a new password. You never see or set the password yourself.</p>
+        <Button variant="secondary" onClick={handleResetPassword} loading={resetBusy} disabled={busy}>Reset password</Button>
+        {resetError && <p role="alert" className="text-sm font-semibold text-danger-strong">{resetError}</p>}
+      </div>
     );
   };
 
@@ -903,6 +935,7 @@ export default function AdminUsersPage() {
         )}
       >
         {userForm(editForm, setEditForm)}
+        {resetPasswordSection()}
       </Drawer>
 
       <ConfirmModal
@@ -941,6 +974,16 @@ export default function AdminUsersPage() {
         onCancel={() => !busy && setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
+      {resetLink && (
+        <OneTimeLinkModal
+          title="Reset link ready"
+          description={`Send this to ${resetLink.name}. It lets them choose a new password.`}
+          label="Reset link"
+          hint="Works once and expires in 60 minutes. It is not shown again."
+          link={resetLink.link}
+          onClose={() => { setFeedback({ open: true, type: 'success', message: `Reset link created for ${resetLink.name}.` }); setResetLink(null); }}
+        />
+      )}
       <UserImportDrawer open={showImport} onClose={() => setShowImport(false)} onImported={() => { setShowImport(false); load(); }} />
     </div>
   );
