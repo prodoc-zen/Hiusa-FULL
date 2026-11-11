@@ -408,6 +408,22 @@ class OrganizationComplianceTest extends TestCase
         $this->assertNotNull($payload['data'][0]['deadline_at']);
     }
 
+    public function test_sao_can_load_the_renewal_status_and_the_renewal_submissions(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create(['organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active']);
+        $renewal = ComplianceRequirementType::create([
+            'academic_year' => '2026-2027', 'name' => 'Annual Renewal Form', 'category' => 'renewal', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id,
+        ]);
+        Sanctum::actingAs($superAdmin);
+
+        $this->getJson('/api/compliance/status?academic_year=2026-2027&category=renewal&organization_id='.$organization->id)
+            ->assertOk()
+            ->assertJsonPath('organizations.0.requirements.0.requirement_type_id', $renewal->id)
+            ->assertJsonPath('organizations.0.requirements.0.category', 'renewal');
+        $this->getJson('/api/compliance/submissions?category=renewal')->assertOk();
+    }
+
     public function test_student_cannot_submit_or_review_compliance_documents(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
