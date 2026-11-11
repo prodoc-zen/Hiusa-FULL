@@ -58,7 +58,7 @@ class UserImportTest extends TestCase
         $this->assertSame(['total' => 5, 'ready' => 1, 'invalid' => 4], $response->json('summary'));
         $rows = collect($response->json('rows'))->keyBy('row');
         $this->assertSame('ready', $rows[3]['status']);
-        $this->assertStringContainsString('school id has already been taken', strtolower(implode(' ', $rows[2]['errors'])));
+        $this->assertStringContainsString('that school id is already in use', strtolower(implode(' ', $rows[2]['errors'])));
         $this->assertContains('The email ana@example.com is also on row 3.', $rows[4]['errors']);
         $this->assertNotEmpty($rows[5]['errors'], 'Admin accounts are never created in bulk.');
         $this->assertArrayHasKey(7, $rows->all(), 'Row numbers match the file, skipping the blank line.');
