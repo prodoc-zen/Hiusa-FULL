@@ -232,7 +232,7 @@ describe('SaoCompliancePage review queue', () => {
     expect(within(drawer).getByRole('list', { name: 'Compliance submission progress' })).toBeInTheDocument();
     expect(within(drawer).getByText('Review the submission')).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
-    expect(within(drawer).getByRole('button', { name: 'Reject' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
 
   it('opens the drawer from a row, and shows an approved submission as done with no review buttons', async () => {

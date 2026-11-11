@@ -241,7 +241,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           { label: 'View document', icon: ExternalLink, disabled: openingDocumentId === submission.id, onClick: () => openDocument(submission) },
           registrationReview(submission)?.href && { label: 'Open organization review', icon: ExternalLink, to: registrationReview(submission).href },
           submission.status === 'submitted' && !registrationReview(submission) && { label: 'Approve', icon: Check, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); } },
-          submission.status === 'submitted' && !registrationReview(submission) && { label: 'Reject', icon: RotateCcw, danger: true, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); } },
+          submission.status === 'submitted' && !registrationReview(submission) && { label: 'Return', icon: RotateCcw, danger: true, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); } },
         ]} />}
         pagination={(
           <PaginationControls
@@ -293,7 +293,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
               )}
               {openSubmission.status === 'submitted' && !registrationReview(openSubmission) && (
                 <>
-                  <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Reject</Button>
+                  <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Return</Button>
                   <Button onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'approve' }); }}>Approve</Button>
                 </>
               )}
@@ -316,14 +316,14 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
 
       <Modal
         open={reviewTarget?.action === 'return'}
-        title="Reject this submission"
+        title="Return this submission"
         description="The organization sees your remarks."
         onClose={reviewBusy ? undefined : closeReview}
         closeOnEscape={!reviewBusy}
         footer={(
           <>
             <Button variant="secondary" onClick={closeReview} disabled={reviewBusy}>Cancel</Button>
-            <Button variant="secondary" onClick={confirmReturn} loading={reviewBusy}>Reject submission</Button>
+            <Button variant="secondary" onClick={confirmReturn} loading={reviewBusy}>Return submission</Button>
           </>
         )}
       >
