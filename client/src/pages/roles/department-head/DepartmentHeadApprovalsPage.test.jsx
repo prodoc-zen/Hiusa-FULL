@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
 import DepartmentHeadApprovalsPage from './DepartmentHeadApprovalsPage';
+import notify from '../../../lib/notify';
 
 const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), getAcademicPeriods: vi.fn().mockResolvedValue([]), openProtectedFile: vi.fn() }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getSystemOrganizations: mocks.getSystemOrganizations, getAcademicPeriods: mocks.getAcademicPeriods }));
@@ -488,6 +489,28 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     expect(await within(confirm).findByRole('alert')).toHaveTextContent('This request has already been reviewed.');
     expect(screen.queryByText('Could not save your decision. Try again.')).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.getApprovalRequests.mock.calls.length).toBeGreaterThan(loadsBefore));
+  });
+
+  it('shows a 409 once, inline, and refreshes the drawer to what the other reviewer decided', async () => {
+    const toast = vi.spyOn(notify, 'error').mockImplementation(() => {});
+    const decided = { ...eventRow, status: 'approved', reviewer: { first_name: 'Dee', last_name: 'Head' }, reviewed_at: '2026-10-08T09:00:00+08:00', remarks: null };
+    mocks.reviewApprovalRequest.mockRejectedValue({ response: { status: 409, data: { message: 'This request has already been reviewed.' } } });
+    mocks.getApprovalRequest.mockResolvedValue({ data: decided });
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve request' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('This request has already been reviewed.');
+    await waitFor(() => expect(mocks.getApprovalRequest).toHaveBeenCalledWith(41));
+    expect(toast).not.toHaveBeenCalled();
+    expect(screen.getAllByText('This request has already been reviewed.')).toHaveLength(1);
+    expect(await screen.findByText('Approved by Dee Head')).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    expect(within(confirm).getByRole('button', { name: 'Approve' })).toBeDisabled();
+    toast.mockRestore();
   });
 
   it('falls back to the plain retry message when the server gives no reason', async () => {

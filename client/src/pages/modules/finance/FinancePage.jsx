@@ -416,6 +416,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const loadTicket = useRef(0);
+  const ledgerTicket = useRef(0);
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [transactionPeriodId, setTransactionPeriodId] = useState('');
@@ -493,12 +497,60 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   }, []);
 
 
-  function load(page = 1, filters = txFilters, searchTerm = search, organizationId = organizationFilter) {
+  // Only a Department Head oversees several organizations; the server validates the id against their college.
+  function ledgerScope(filters, organizationId) {
+    const organizationScope = isDepartmentHead && organizationId ? { organization_id: organizationId } : {};
+    return { organizationScope, activeFilters: { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), ...organizationScope } };
+  }
+
+  function showTransactions(txRes, sumRes) {
+    const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
+    setTransactions(txArr);
+    if (txRes.data?.current_page !== undefined) {
+      setTxMeta({
+        current_page: txRes.data.current_page,
+        last_page: txRes.data.last_page,
+        total: txRes.data.total,
+        per_page: txRes.data.per_page,
+      });
+    }
+    setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
+  }
+
+  // A search or filter only changes the ledger rows and their totals, so it reads those two and leaves
+  // the budgets, forecasts, reports and everything else as they are. A newer ledger read or a full load
+  // makes an older answer stale.
+  function loadLedger(page = 1, filters = txFilters, searchTerm = appliedSearch) {
+    if (!canViewTransactions) return;
+    const ticket = ++ledgerTicket.current;
+    setLedgerLoading(true);
+    setError(null);
+    const term = searchTerm.trim();
+    const query = { ...ledgerScope(filters, organizationFilter).activeFilters, ...(term ? { search: term } : {}) };
+    Promise.all([getTransactions({ page, ...query }), getTransactionSummary(query)])
+      .then(([txRes, sumRes]) => {
+        if (ticket === ledgerTicket.current) showTransactions(txRes, sumRes);
+      })
+      .catch(() => {
+        if (ticket === ledgerTicket.current) setError('Failed to load financial data.');
+      })
+      .finally(() => {
+        if (ticket === ledgerTicket.current) setLedgerLoading(false);
+      });
+  }
+
+  function applySearch(term) {
+    setAppliedSearch(term);
+    loadLedger(1, txFilters, term);
+  }
+
+  function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter) {
+    const ticket = ++loadTicket.current;
+    const ledgerAtStart = ++ledgerTicket.current;
+    setLedgerLoading(false);
     setLoading(true);
     setError(null);
-    // Only a Department Head oversees several organizations; the server validates the id against their college.
-    const organizationScope = isDepartmentHead && organizationId ? { organization_id: organizationId } : {};
-    const activeFilters = { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), ...organizationScope };
+    const { organizationScope, activeFilters } = ledgerScope(filters, organizationId);
     // Budgets, forecasts, reports, and the event dropdown source have no server-side
     // filter that narrows them down, and every one of them doubles as either a full
     // catalog view or a dropdown option list elsewhere on this page - so they are
@@ -529,17 +581,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     ])
       .then(async (first) => [first, await fetchLists()])
       .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, semesterRes, clearanceRes, debtRes], [forecasts, reports]]) => {
-        const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
-        setTransactions(txArr);
-        if (txRes.data?.current_page !== undefined) {
-          setTxMeta({
-            current_page: txRes.data.current_page,
-            last_page: txRes.data.last_page,
-            total: txRes.data.total,
-            per_page: txRes.data.per_page,
-          });
-        }
-        setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
+        if (ticket !== loadTicket.current) return;
+        if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setForecasts(forecasts);
         setBudgets(budgetsList);
@@ -552,8 +595,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         const debtRows = Array.isArray(debtRes.data) ? debtRes.data : debtRes.data?.data;
         setStudentDebt(Array.isArray(debtRows) && debtRows.length > 0 ? debtRows[0] : null);
       })
-      .catch(() => setError('Failed to load financial data.'))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (ticket === loadTicket.current) setError('Failed to load financial data.');
+      })
+      .finally(() => {
+        if (ticket === loadTicket.current) setLoading(false);
+      });
   }
 
   function askDelete(kind, record) {
@@ -1074,7 +1121,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
   const activeTransactionFilters = [
-    search.trim() && `Search: ${search.trim()}`,
+    appliedSearch.trim() && `Search: ${appliedSearch.trim()}`,
     txFilters.type && `Type: ${filterLabel(txFilters.type)}`,
     txFilters.event_id && `Event: ${filterLabel(txFilters.event_id, (value) => events.find((event) => String(event.id) === value)?.title || value)}`,
     txFilters.from && `From: ${txFilters.from}`,
@@ -1086,6 +1133,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setTransactionPeriodId('');
     setTxFilters(cleared);
     setSearch('');
+    setAppliedSearch('');
     load(1, cleared, '');
   };
   const visibleReports = reports.filter((report) =>
@@ -1187,7 +1235,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           <HiusaSelect filter
             id="finance-organization"
             value={organizationFilter}
-            onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, search, event.target.value); }}
+            onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, appliedSearch, event.target.value); }}
           >
             <option value="">All organizations</option>
             {collegeOrganizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
@@ -1201,7 +1249,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </p>
       )}
 
-      {activeTab === 'transactions' && canViewTransactions && !loading && !error && (
+      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && (
         <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Income</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-success-strong">{fmt(summary.total_income)}</dd></div>
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Expenses</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
@@ -1217,9 +1265,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             searchValue={search}
             onSearchChange={(value) => {
               setSearch(value);
-              if (!value) load(1, txFilters, '');
+              if (!value && appliedSearch) applySearch('');
             }}
-            onSearchSubmit={() => load(1, txFilters, search)}
+            onSearchSubmit={() => applySearch(search)}
             searchPlaceholder="Search transactions..."
             activeFilters={activeTransactionFilters}
             onClear={clearTransactionFilters}
@@ -1259,7 +1307,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             />
           </TableFilterBar>
 
-          {loading ? (
+          {loading || ledgerLoading ? (
             <div className="p-4"><SkeletonTable rows={5} columns={5} className="border-0" /></div>
           ) : filtered.length === 0 ? (
             <div className="px-4 sm:px-5">
