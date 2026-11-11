@@ -102,6 +102,48 @@ describe('ApplicationReview', () => {
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeEnabled();
   });
 
+  it('accepts every requirement still Not checked in one action and leaves the ones already marked alone', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ requirements: [
+      ...detail().requirements,
+      { id: 3, name: 'Adviser letter', document: { id: 13, name: 'adviser.pdf', open_url: '/organization-applications/8/documents/13' }, reviews: [], review_files: [] },
+    ] }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    mark('Officer list', 'needs_changes');
+    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+
+    expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change Adviser letter' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Review of Officer list')).toHaveValue('needs_changes');
+    expect(screen.getAllByText('Accepted', { selector: 'span' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Accept all not checked' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
+    expect(mocks.reviewOrganizationApplication).not.toHaveBeenCalled();
+  });
+
+  it('endorses with every requirement Accepted after one Accept all click', async () => {
+    mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));
+
+    await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, expect.objectContaining({ action: 'endorse', requirements: [
+      { requirement_type_id: 1, status: 'ok', note: null },
+      { requirement_type_id: 2, status: 'ok', note: null },
+    ] })));
+  });
+
+  it('offers no Accept all to a reviewer who is not deciding', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.queryByRole('button', { name: 'Accept all not checked' })).not.toBeInTheDocument();
+  });
+
   it('lets the dean endorse with a comment and then shows the read-only summary', async () => {
     mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderReview();
@@ -476,7 +518,7 @@ describe('ApplicationReview', () => {
     renderReview();
     await screen.findByText('Ana Cruz');
 
-    expect(screen.getAllByText('Accepted')).toHaveLength(2);
+    expect(screen.getAllByText('Accepted', { selector: 'span' })).toHaveLength(2);
     expect(screen.queryByText(/Complete\./)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Details Officer list' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Details Constitution' }));

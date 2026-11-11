@@ -140,7 +140,10 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const requirements = application?.requirements ?? [];
   const flagged = requirements.filter((requirement) => marks[requirement.id] === 'needs_changes');
   const allAccepted = requirements.length > 0 && requirements.every((requirement) => marks[requirement.id] === 'ok');
+  const notChecked = requirements.filter((requirement) => requirement.document && !marks[requirement.id]);
   const hasNote = remarks.trim() !== '' || flagged.some((requirement) => (notes[requirement.id] || '').trim() !== '');
+
+  const acceptNotChecked = () => setMarks((current) => ({ ...current, ...Object.fromEntries(notChecked.map((requirement) => [requirement.id, 'ok'])) }));
 
   async function attach(file, requirementId) {
     setBusy('attach');
@@ -251,7 +254,10 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
           </section>
 
           <section aria-label="Requirements" className="border-t border-line pt-5">
-            <h2 className="text-base font-semibold text-ink">Requirements</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-ink">Requirements</h2>
+              {actionable && notChecked.length > 0 && <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={acceptNotChecked}>Accept all not checked</Button>}
+            </div>
             <ul className="mt-3 divide-y divide-line-soft">
               {requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
