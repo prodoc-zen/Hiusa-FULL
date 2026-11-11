@@ -11,6 +11,7 @@ use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ElectionSeeder extends Seeder
@@ -118,6 +119,28 @@ class ElectionSeeder extends Seeder
                 'reviewed_at' => now()->subDays(2),
             ]);
         });
+
+        // The voter roll is the profiles that existed when the ballot was finalized.
+        // DatabaseSeeder only creates the missing organization profiles after this
+        // seeder, which would put every member after the roll, so the members of
+        // this organization get theirs here, dated before the ballot was finalized.
+        $joinedAt = now()->subDays(3);
+        DB::table('users')
+            ->where('organization_id', $officer1->organization_id)
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('account_profiles')
+                ->whereColumn('account_profiles.user_school_id', 'users.school_id')
+                ->whereColumn('account_profiles.organization_id', 'users.organization_id'))
+            ->orderBy('school_id')
+            ->get(['school_id', 'organization_id', 'role', 'account_status', 'position_title'])
+            ->each(fn ($user) => DB::table('account_profiles')->insert([
+                'user_school_id' => $user->school_id,
+                'organization_id' => $user->organization_id,
+                'role' => $user->role,
+                'account_status' => $user->account_status,
+                'position_title' => $user->position_title,
+                'created_at' => $joinedAt,
+                'updated_at' => $joinedAt,
+            ]));
 
         $election->update(['approved_at' => now()->subDays(2), 'finalized_at' => now()->subDays(2)]);
 
