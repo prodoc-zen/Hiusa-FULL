@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\FilterValues;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -90,11 +91,10 @@ class SystemUsersController extends Controller
                     abort_unless(User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists(), 409, 'The last active SAO account cannot be deleted.');
                 }
                 $counts = $this->linkedRecordCounts($locked->school_id);
-                abort_if($counts['votes'] > 0 || $counts['candidates'] > 0, 409, 'This user has cast votes or stood as a candidate. Deleting the account would erase those election records. Deactivate the account instead.');
+                abort_if(array_sum(Arr::except($counts, ['profiles'])) > 0, 409, 'This user has linked records such as finance entries, events, orders, attendance, clearance or election records. Deleting the account would erase them. Deactivate the account instead.');
                 $organizationId = $locked->getRawOriginal('organization_id');
                 $role = $locked->getRawOriginal('role');
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
-                $this->deleteProtectedDependents($locked->school_id);
                 $locked->delete();
                 AuditLog::create([
                     'organization_id' => $organizationId,
@@ -104,7 +104,7 @@ class SystemUsersController extends Controller
                     'action' => 'user_deleted',
                     'record_type' => User::class,
                     'record_id' => $data['school_id'],
-                    'description' => 'SAO deleted a user and dependent records.',
+                    'description' => 'SAO deleted a user.',
                     'new_values' => ['school_id' => $data['school_id'], 'role' => $role, 'linked_records' => $counts],
                     'ip_address' => $request->ip(),
                     'created_at' => now(),
@@ -119,7 +119,7 @@ class SystemUsersController extends Controller
             abort(409, 'This account still has a protected linked record and could not be deleted.');
         }
 
-        return response()->json(['message' => 'User and dependent records deleted.', 'removed' => $removed]);
+        return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
 
     private function summary(User $user): array
@@ -145,30 +145,13 @@ class SystemUsersController extends Controller
             'collections' => DB::table('collections')->where('collected_by', $schoolId)->count(),
             'cash_advances' => DB::table('cash_advances')->where('borrower_id', $schoolId)->count(),
             'events' => DB::table('events')->where('created_by', $schoolId)->count(),
+            'attendance' => DB::table('attendance')->where('user_id', $schoolId)->count(),
             'orders' => DB::table('orders')->where('student_id', $schoolId)->count(),
             'invoices' => DB::table('invoices')->where('student_id', $schoolId)->count(),
             'event_requirement_files' => DB::table('event_requirement_files')->where('uploaded_by', $schoolId)->count(),
             'votes' => DB::table('votes')->where('voter_id', $schoolId)->count(),
             'candidates' => DB::table('candidates')->where('user_id', $schoolId)->count(),
         ];
-    }
-
-    private function deleteProtectedDependents(int $schoolId): void
-    {
-        // These user references normally restrict deletion. Keep that protection for
-        // organization and profile removal, and explicitly cascade only for SAO deletion.
-        foreach ([
-            ['invoice_payments', 'recorded_by'],
-            ['invoices', 'student_id'],
-            ['cash_advance_repayments', 'recorded_by'],
-            ['cash_advances', 'borrower_id'],
-            ['remittances', 'remitted_by'],
-            ['collections', 'collected_by'],
-            ['transactions', 'recorded_by'],
-            ['event_requirement_files', 'uploaded_by'],
-        ] as [$table, $column]) {
-            DB::table($table)->where($column, $schoolId)->delete();
-        }
     }
 
     private function transferInstitutionalRecords(int $schoolId, int $actorSchoolId): void
