@@ -35,6 +35,12 @@ export function humanizeIdentifier(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+export const SIGNATORY_LABELS = { treasurer: 'Treasurer', president: 'President', adviser: 'Adviser', sbo_adviser: 'SBO Adviser' };
+
+export function signatoryLabel(role) {
+  return SIGNATORY_LABELS[role] || humanizeIdentifier(role);
+}
+
 export function displayAuditValue(value) {
   if (value === null || value === undefined || value === '') return 'Not set';
   if (typeof value !== 'string') return String(value);

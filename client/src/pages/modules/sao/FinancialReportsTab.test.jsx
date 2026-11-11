@@ -27,7 +27,7 @@ const report = {
   submission_status: 'pending_sao',
   submitted_at: '2026-09-10T08:00:00Z',
   summary_text: 'Income and expenses were calculated from the saved ledger.',
-  signatories: { treasurer: 'Taylor Treasurer' },
+  signatories: { treasurer: 'Taylor Treasurer', sbo_adviser: 'SBO Adviser' },
   supporting_documents: [],
 };
 
@@ -79,6 +79,16 @@ describe('FinancialReportsTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'approved' }));
+  });
+
+  it('labels each signatory role the way the report form does and shows the name as typed', async () => {
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+
+    await viewReportFromMenu();
+    expect(await screen.findByText('SBO Adviser:')).toBeInTheDocument();
+    expect(screen.getByText('Treasurer:')).toBeInTheDocument();
+    expect(screen.getByText('SBO Adviser', { selector: 'span' })).toBeInTheDocument();
   });
 
   it('offers pending decisions in the report row menu', async () => {
