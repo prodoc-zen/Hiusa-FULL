@@ -34,7 +34,8 @@ class GcashSettingsController extends Controller
         $file->move($directory, basename($url));
         $organization->update(['gcash_qr_url' => $url]);
 
-        if ($oldUrl && str_starts_with($oldUrl, '/uploads/gcash/')) {
+        // The demo-* image is the tracked seed asset shared by every seeded organization, so it is never deleted.
+        if ($oldUrl && str_starts_with($oldUrl, '/uploads/gcash/') && ! str_starts_with(basename($oldUrl), 'demo-')) {
             $oldPath = public_path(ltrim($oldUrl, '/'));
             if (is_file($oldPath)) {
                 @unlink($oldPath);
