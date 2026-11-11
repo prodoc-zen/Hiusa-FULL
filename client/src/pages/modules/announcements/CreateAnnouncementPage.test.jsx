@@ -161,15 +161,48 @@ describe('CreateAnnouncementPage', () => {
       expect(input).not.toHaveAttribute('aria-invalid');
     });
 
-    it('does not send a refused file when the announcement is saved', async () => {
+    it('saves nothing while a refused file is showing, until a good image is chosen', async () => {
       const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
-      pick(container.querySelector('#announcement-image'), new File(['GIF'], 'loop.gif', { type: 'image/gif' }));
+      const input = container.querySelector('#announcement-image');
       fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
       fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
+
+      pick(input, bigFile('image/png', 6 * 1024 * 1024));
+
+      expect(screen.getByRole('alert')).toHaveTextContent('The poster must be 5 MB or smaller.');
+      expect(screen.getByRole('button', { name: 'Publish now' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+      expect(createAnnouncement).not.toHaveBeenCalled();
+
+      pick(input, bigFile('image/png', 4 * 1024 * 1024));
+      expect(screen.getByRole('button', { name: 'Publish now' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
+    });
+
+    it('lets the author post without a poster after a refused file, by saying so', async () => {
+      const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+      fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+      fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
+      pick(container.querySelector('#announcement-image'), new File(['GIF'], 'loop.gif', { type: 'image/gif' }));
+      expect(screen.getByRole('button', { name: 'Publish now' })).toBeDisabled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post without a poster' }));
       fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
       fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Publish now' }));
 
       await waitFor(() => expect(createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ imageFile: null })));
+    });
+
+    it('drops an earlier good poster when a refused one is chosen after it', () => {
+      const { container } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+      const input = container.querySelector('#announcement-image');
+      pick(input, bigFile('image/webp', 1024));
+      expect(screen.getByText('poster')).toBeInTheDocument();
+
+      pick(input, bigFile('image/png', 6 * 1024 * 1024));
+
+      expect(screen.queryByText('poster')).not.toBeInTheDocument();
+      expect(screen.getByText('Choose an image')).toBeInTheDocument();
     });
   });
 });

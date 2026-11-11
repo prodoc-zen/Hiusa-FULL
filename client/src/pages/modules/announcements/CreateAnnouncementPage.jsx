@@ -5,6 +5,7 @@ import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGeneratio
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import RichTextEditor from '../../../components/RichText';
 import { Button, Field, Input, PageHeader, Select, Textarea } from '../../../components/ui';
+import { announcementImageError } from './announcementShared.jsx';
 import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../../lib/pageMeta';
 
 const AUDIENCE_OPTIONS = [
@@ -22,12 +23,6 @@ const CATEGORY_OPTIONS = [
   { label: 'Events', value: 'events' },
   { label: 'Merchandise', value: 'merchandise' },
 ];
-
-function announcementImageError(file) {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'The poster must be a JPEG, PNG or WebP image.';
-  if (file.size > 5 * 1024 * 1024) return 'The poster must be 5 MB or smaller.';
-  return '';
-}
 
 function ConfirmModal({ open, title, message, confirmText, onCancel, onConfirm, busy }) {
   if (!open) return null;
@@ -106,6 +101,7 @@ export default function CreateAnnouncementPage() {
     const problem = announcementImageError(file);
     if (problem) {
       setImageError(problem);
+      setImageFile(null);
       event.target.value = '';
       return;
     }
@@ -257,7 +253,12 @@ export default function CreateAnnouncementPage() {
                 <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{imageFile?.name || 'Choose an image'}</span><span className="mt-0.5 block text-xs text-ink-muted">JPEG, PNG or WebP, up to 5 MB</span></span>
               </label>
               <input id="announcement-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-invalid={imageError ? true : undefined} aria-describedby={imageError ? 'announcement-image-error' : undefined} onChange={handleImageChange} />
-              {imageError && <p id="announcement-image-error" role="alert" className="mt-1.5 text-xs font-semibold text-danger-strong">{imageError}</p>}
+              {imageError && (
+                <p id="announcement-image-error" role="alert" className="mt-1.5 text-xs font-semibold text-danger-strong">
+                  {imageError} Choose another image to continue.{' '}
+                  <button type="button" onClick={() => setImageError('')} className="font-semibold underline underline-offset-2">Post without a poster</button>
+                </p>
+              )}
             </div>
             <div className="space-y-1 border-t border-line pt-3">
               <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Pin to the top<span className="block text-xs font-normal text-ink-muted">Keeps this update ahead of regular posts.</span></span></label>
@@ -270,10 +271,10 @@ export default function CreateAnnouncementPage() {
           <p className="mb-2 hidden text-xs text-ink-muted lg:block">{forApproval ? 'The Admin approves it before members see it.' : 'A saved draft does not notify members.'}</p>
           {error && <p role="alert" className="mb-2 text-sm font-medium text-danger-strong">{error}</p>}
           <div className="flex gap-2 lg:flex-col [&>*]:flex-1">
-            <Button disabled={submitting} onClick={() => askConfirm(true)}>
+            <Button disabled={submitting || Boolean(imageError)} onClick={() => askConfirm(true)}>
               {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish now'}
             </Button>
-            {!forApproval && <Button variant="secondary" disabled={submitting} onClick={() => askConfirm(false)}>Save draft</Button>}
+            {!forApproval && <Button variant="secondary" disabled={submitting || Boolean(imageError)} onClick={() => askConfirm(false)}>Save draft</Button>}
           </div>
         </div>
       </div>
