@@ -52,6 +52,9 @@ for (const [index, account] of [[1, PSITS_ADMIN], [3, OFFICER]]) {
 
       await page.getByRole('button', { name: 'Request a venue', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Request a venue booking' });
+      // The form opens blank, so the requester names the venue themselves.
+      await expect(dialog.getByLabel('Venue', { exact: true })).toHaveValue('');
+      await dialog.getByLabel('Venue', { exact: true }).selectOption(String(venue.id));
       await dialog.getByLabel(/^Start/).fill(`${day}T10:00`);
       await dialog.getByLabel(/^End/).fill(`${day}T12:00`);
       await dialog.getByRole('button', { name: 'Send request' }).click();
