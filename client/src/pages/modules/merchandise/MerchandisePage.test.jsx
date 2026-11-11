@@ -603,6 +603,19 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByTestId("location")).toHaveTextContent(/^\/dashboard\/merchandise\/my-orders$/);
   });
 
+  it("shows which size was ordered on the My orders card and in its details", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 8, variant_name: "M", quantity: 1 }), buyerOrder({ id: 9, merchandise: products[1] })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    const card = (await screen.findByText("ORD-8")).closest("div.min-w-0");
+    expect(card).toHaveTextContent("M · Qty: 1");
+    expect(screen.getByText("ORD-9").closest("div.min-w-0")).not.toHaveTextContent("Size");
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "ORD-8" });
+    expect(within(dialog).getByText("Size")).toBeInTheDocument();
+    expect(within(dialog).getByText("M")).toBeInTheDocument();
+  });
+
   it("pushes ?record= when a row is opened and returns to the list on close", async () => {
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 4 })]) });
     renderAt("/dashboard/merchandise/my-orders", "my-orders");
@@ -654,6 +667,18 @@ describe("MerchandisePage order stages for the buyer", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
     expect(screen.getByText(/Placing an order holds the stock for you\. You can cancel from My orders/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/does not reserve stock|reserved after payment|only after your payment is approved|has not reserved stock/);
+  });
+
+  it("names the chosen size on the checkout line", async () => {
+    const sized = { ...products[0], variants: [{ id: 5, name: "M", stock_quantity: 4 }] };
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [sized, products[1]], current_page: 1, last_page: 1 } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...sized, merchandise_variant_id: 5, variant_name: "M", cart_key: "1:5" }, quantity: 1 }]));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
+    expect(screen.getByText(/^M · Qty: 1 ×/)).toBeInTheDocument();
   });
 
   it("shows a refused order inline in the checkout modal and does not toast it", async () => {
