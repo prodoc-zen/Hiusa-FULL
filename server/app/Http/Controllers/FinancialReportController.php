@@ -391,6 +391,12 @@ class FinancialReportController extends Controller
         $data = $request->validate([
             'supporting_documents' => ['nullable', 'array', 'max:10'],
             'supporting_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
+        ], [
+            'supporting_documents.max' => 'Attach no more than 10 supporting files.',
+            'supporting_documents.*.file' => 'One of the supporting files did not upload. Attach it again.',
+            'supporting_documents.*.uploaded' => 'One of the supporting files did not upload. It may be larger than 10 MB.',
+            'supporting_documents.*.mimes' => 'Supporting files must be PDF, JPG, PNG, Word or Excel files.',
+            'supporting_documents.*.max' => 'Each supporting file must be 10 MB or smaller.',
         ]);
         unset($data);
 

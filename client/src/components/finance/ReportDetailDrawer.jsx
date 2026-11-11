@@ -26,8 +26,23 @@ export function reportNextStepProps(report, viewerRole, { onSubmit, submitting }
   return props;
 }
 
+// The same limits the server enforces on submit, checked as the files are picked so the Admin hears at once.
+const SUPPORTING_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+const SUPPORTING_MAX_FILES = 10;
+const SUPPORTING_MAX_BYTES = 10 * 1024 * 1024;
+
+function supportingFileProblem(picked) {
+  if (picked.length > SUPPORTING_MAX_FILES) return `Attach no more than ${SUPPORTING_MAX_FILES} supporting files.`;
+  for (const file of picked) {
+    if (!SUPPORTING_EXTENSIONS.includes(file.name.split('.').pop().toLowerCase())) return `${file.name} is not a PDF, JPG, PNG, Word or Excel file.`;
+    if (file.size > SUPPORTING_MAX_BYTES) return `${file.name} is larger than 10 MB.`;
+  }
+  return '';
+}
+
 export default function ReportDetailDrawer({ report, viewerRole, onClose, files = [], onFilesChange, onSubmit, submitting }) {
   const [fileError, setFileError] = useState('');
+  const [pickError, setPickError] = useState('');
   if (!report) return null;
   const lifecycle = financialReportLifecycle(withDraftDefault(report), viewerRole);
   const canSubmit = viewerRole === 'ADMIN' && ['draft', 'rejected'].includes(withDraftDefault(report).submission_status);
@@ -73,10 +88,20 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
                 multiple
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
                 className="sr-only"
-                onChange={(event) => onFilesChange?.(Array.from(event.target.files || []))}
+                onChange={(event) => {
+                  const picked = Array.from(event.target.files || []);
+                  const problem = supportingFileProblem(picked);
+                  setPickError(problem);
+                  if (problem) {
+                    event.target.value = '';
+                    return;
+                  }
+                  onFilesChange?.(picked);
+                }}
               />
             </label>
             <p className="mt-2 text-xs font-medium text-ink-muted-strong">{files.length} file(s) attached. Add receipts or other proof the reviewers need.</p>
+            {pickError && <p role="alert" className="mt-2 text-sm font-medium text-danger-strong">{pickError}</p>}
           </div>
         )}
       </div>
