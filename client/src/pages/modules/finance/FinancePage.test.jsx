@@ -1093,6 +1093,18 @@ describe('FinancePage plain ledger rows and page-level states', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Prepare a report' })).not.toBeInTheDocument());
   });
 
+  it('words the saved-report status filter and the empty semester list in plain words', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
+    render(<FinancePage initialTab="reports" />);
+
+    await screen.findByText('August report');
+    const status = screen.getByLabelText('Filter reports by status');
+    expect(within(status).getAllByRole('option').map((option) => option.textContent)).toEqual(['All statuses', 'Draft', 'Pending Department Head', 'Pending SAO', 'Approved', 'Returned']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare a report' }));
+    expect(await screen.findByRole('option', { name: 'No semester added yet' })).toBeInTheDocument();
+  });
+
   it('shows no saved-report filters above an empty list', async () => {
     render(<FinancePage initialTab="reports" />);
 
