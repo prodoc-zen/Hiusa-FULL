@@ -915,6 +915,28 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(within(dialog).getByText("Units held by unpaid orders are already taken out.")).toBeInTheDocument();
   });
 
+  it("refuses a PDF as the product image with a plain message and shows no preview", async () => {
+    const OriginalURL = globalThis.URL;
+    vi.stubGlobal("URL", class extends OriginalURL {
+      static createObjectURL() { return "blob:product-preview"; }
+      static revokeObjectURL() {}
+    });
+    try {
+      renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+      fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+      const dialog = await screen.findByRole("dialog");
+      const picker = dialog.querySelector('input[type="file"]');
+      fireEvent.change(picker, { target: { files: [new File(["%PDF"], "price-list.pdf", { type: "application/pdf" })] } });
+      expect(within(dialog).getByRole("alert")).toHaveTextContent("That file is not an image. Choose a JPG, PNG or WebP picture.");
+      expect(within(dialog).queryByAltText("Preview")).not.toBeInTheDocument();
+      fireEvent.change(picker, { target: { files: [new File(["x"], "shirt.png", { type: "image/png" })] } });
+      expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+      expect(within(dialog).getByAltText("Preview")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("deletes an active item through the server rule", async () => {
     merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deleted." } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
