@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { peso as money } from '../../../lib/format';
 import { HandCoins, Plus } from 'lucide-react';
 import CashAdvancesSection from '../../../components/finance/CashAdvancesSection';

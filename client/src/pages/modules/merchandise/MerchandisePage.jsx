@@ -1,4 +1,5 @@
 import { filterValues, matchesFilter } from '../../../utils/filterValues';
+import { peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
@@ -297,9 +298,6 @@ function toNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const parsed = Number.parseFloat(String(value ?? "").replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-function fmt(n) {
-  return `₱${toNumber(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function fmtDate(d) {
   if (!d) return "-";

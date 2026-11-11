@@ -1,3 +1,4 @@
+import { peso } from '../../lib/format';
 import { roleLabel } from '../../lib/lifecycle';
 
 // Times are shown in Manila time whatever the browser's clock says, so a request made at 3:51 AM
@@ -26,8 +27,7 @@ export function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'budget') {
-    const amount = Number(summary.allocated_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `Allocation: ₱${amount}${summary.event_title ? ` | ${summary.event_title}` : ''}`;
+    return `Allocation: ${peso(summary.allocated_amount)}${summary.event_title ? ` | ${summary.event_title}` : ''}`;
   }
 
   if (entityType === 'election') {
@@ -43,12 +43,10 @@ export function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'payment') {
-    const total = Number(summary.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | ₱${total}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
+    return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | ${peso(summary.total_price)}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
   }
 
   if (entityType === 'financial_report') {
-    const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const advances = Number(summary.cash_advances_released) > 0 || Number(summary.cash_advance_repayments) > 0
       ? ` | Cash advances released ${peso(summary.cash_advances_released)} | Cash advance repayments ${peso(summary.cash_advance_repayments)}`
       : '';

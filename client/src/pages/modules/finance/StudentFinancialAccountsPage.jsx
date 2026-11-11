@@ -1,4 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { peso as money } from '../../../lib/format';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FilePlus2, Search, UsersRound } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -9,7 +10,6 @@ import { createInvoice, getStudentDebts, recordInvoicePayment, updateInvoiceStat
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 
-const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
 const plural = (count, noun) => `${count} ${noun}${Number(count) === 1 ? '' : 's'}`;
 const EMPTY_FILTERS ={ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };

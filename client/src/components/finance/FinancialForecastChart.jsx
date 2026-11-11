@@ -1,8 +1,5 @@
 import { GRID_LINE_SOFT, TONE } from '../charts/palette';
-
-function formatMoney(value) {
-  return `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+import { peso as formatMoney } from '../../lib/format';
 
 export default function FinancialForecastChart({ forecasts, className = 'mt-5' }) {
   const points = forecasts.map((forecast) => ({

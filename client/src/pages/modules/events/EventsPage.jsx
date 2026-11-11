@@ -1,4 +1,5 @@
 import { filterValues, matchesFilter } from '../../../utils/filterValues';
+import { peso as formatCurrency } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
@@ -130,10 +131,6 @@ const workflowPhaseLabel = {
 function scoreLabel(value) {
   const score = Number(value);
   return Number.isFinite(score) ? `${Math.round(score)}/100` : 'Not available';
-}
-
-function formatCurrency(value) {
-  return `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // Pending and approved are the ordinary states of a budget, so they read as plain text and only a problem gets a badge.
