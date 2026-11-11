@@ -292,7 +292,7 @@ function paymentLabel(method) {
 }
 // The ID and the course are joined with a separator so they never read as one string.
 function studentProfile(student) {
-  return [student?.program, student?.year_level && `Y${student.year_level}`, student?.section].filter(Boolean).join(" · ") || student?.role?.replaceAll("_", " ") || "";
+  return [student?.program, student?.year_level, student?.section].filter(Boolean).join(" · ") || student?.role?.replaceAll("_", " ") || "";
 }
 function toNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -716,6 +716,7 @@ export default function MerchandisePage({ initialTab }) {
   // Student-only state
   const [cart, setCart] = useState(() => readStudentCart());
   const [draftQty, setDraftQty] = useState({});
+  const [qtyLimitNotice, setQtyLimitNotice] = useState({});
   const [cartError, setCartError] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState(null);
@@ -1436,6 +1437,12 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
+  function typeDraftQty(item, rawValue) {
+    const typed = Number(rawValue || 1);
+    setDraftQty((current) => ({ ...current, [item.id]: Math.max(1, Math.min(item.stock_quantity, typed)) }));
+    setQtyLimitNotice((current) => ({ ...current, [item.id]: typed > item.stock_quantity ? `Only ${item.stock_quantity} available.` : '' }));
+  }
+
   function addToCart(item) {
     const variant = item.variants?.length ? item.variants.find((row) => row.id === Number(selectedVariants[item.id])) : null;
     if (item.variants?.length && !variant) {
@@ -1914,8 +1921,8 @@ export default function MerchandisePage({ initialTab }) {
                 </HiusaSelect>
               </Field>}
               <div className="w-28">
-                <Field label="Quantity">
-                  <Input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} />
+                <Field label="Quantity" error={qtyLimitNotice[productPreview.id] || undefined}>
+                  <Input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => typeDraftQty(productPreview, event.target.value)} />
                 </Field>
               </div>
             </div>
@@ -2072,19 +2079,11 @@ export default function MerchandisePage({ initialTab }) {
                           min="1"
                           max={item.stock_quantity}
                           value={draftQty[item.id] || 1}
-                          onChange={(e) => {
-                            const typed = Number(e.target.value || 1);
-                            const safe = Math.max(
-                              1,
-                              Math.min(item.stock_quantity, typed),
-                            );
-                            setDraftQty((prev) => ({
-                              ...prev,
-                              [item.id]: safe,
-                            }));
-                          }}
+                          onChange={(e) => typeDraftQty(item, e.target.value)}
                           disabled={item.stock_quantity === 0}
                           aria-label={`Quantity for ${formatDisplayText(item.name)}`}
+                          aria-invalid={qtyLimitNotice[item.id] ? true : undefined}
+                          aria-describedby={qtyLimitNotice[item.id] ? `quantity-limit-${item.id}` : undefined}
                           className="h-11 w-16 rounded-control border border-line text-center text-sm font-normal tabular-nums text-ink disabled:bg-subtle disabled:text-ink-soft"
                         />
                         <button
@@ -2105,6 +2104,7 @@ export default function MerchandisePage({ initialTab }) {
                           <Plus size={14} aria-hidden="true" />
                         </button>
                       </div>
+                      {qtyLimitNotice[item.id] && <p id={`quantity-limit-${item.id}`} role="alert" className="-mt-2 text-xs font-semibold text-danger-strong">{qtyLimitNotice[item.id]}</p>}
                       <Button
                         type="button"
                         variant="secondary"
