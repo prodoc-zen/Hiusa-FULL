@@ -266,6 +266,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                     }
                     if (!isExpanded) {
                       navigate(itemPath);
+                      handleNavItemClick();
                     }
 
                     setExpandedMenus((previous) => ({
