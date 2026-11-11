@@ -112,6 +112,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/users/import', [UserController::class, 'import'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users/{id}/password-reset', [UserController::class, 'initiatePasswordReset'])->middleware(['throttle:password', 'role:ADMIN']);
     Route::post('/users/{id}/photo', [UserPhotoController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware(['throttle:api-write', 'role:ADMIN']);

@@ -94,4 +94,20 @@ class LoginThrottleTest extends TestCase
         $this->travel(11)->minutes();
         $this->attempt($user->school_id, 'correct-horse', '10.4.0.1')->assertOk();
     }
+
+    public function test_an_email_and_a_school_id_for_one_account_share_one_failure_counter_per_address(): void
+    {
+        $user = User::factory()->create(['email' => 'shared@example.test', 'password_hash' => bcrypt('correct-horse')]);
+
+        for ($i = 1; $i <= 3; $i++) {
+            $this->attempt($user->school_id, 'wrong-'.$i, '10.5.0.1')->assertStatus(422);
+        }
+        for ($i = 4; $i <= 5; $i++) {
+            $this->withServerVariables(['REMOTE_ADDR' => '10.5.0.1'])
+                ->postJson('/api/login', ['identifier' => 'Shared@Example.test', 'password' => 'wrong-'.$i])->assertStatus(422);
+        }
+
+        $this->attempt($user->school_id, 'correct-horse', '10.5.0.1')->assertTooManyRequests();
+        $this->attempt($user->school_id, 'correct-horse', '10.5.0.2')->assertOk();
+    }
 }
