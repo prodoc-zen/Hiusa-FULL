@@ -11,11 +11,71 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class SystemUsersController extends Controller
 {
     private const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
+
+    /**
+     * Every foreign key to users is read from the schema and BLOCKS deleting the person unless it is listed here
+     * ("table.column"). Listed columns hold rows that are disposable (they go with the user) or that are
+     * reassigned or cleared (set null, or moved to the deleting SAO by transferInstitutionalRecords). A new
+     * table that points at users is therefore protected by default; add it here only when its rows do not
+     * count as the person's history. A test fails if an entry here matches no real foreign key.
+     */
+    private const DISPOSABLE_REFERENCES = [
+        'notifications.user_id',
+        'announcement_views.user_id',
+        'announcement_reactions.user_id',
+        'announcement_recipients.user_id',
+        'fingerprints.user_id',
+        'fingerprint_verifications.user_id',
+        'fingerprint_verifications.performed_by',
+        'account_profiles.user_school_id',
+        'organization_applicant_grants.user_school_id',
+        'organization_applicant_grants.granted_by',
+        'tasks.assigned_to',
+        'announcements.created_by',
+        'task_progress_updates.updated_by',
+        'ai_outputs.requested_by',
+        'ai_outputs.decided_by',
+        'task_recommendations.officer_id',
+        'evaluation_windows.created_by',
+        'academic_years.created_by',
+        'academic_semesters.created_by',
+        'financial_report_deadlines.set_by',
+        'organization_application_review_files.uploaded_by',
+        // Moved to the deleting SAO by transferInstitutionalRecords() before the delete.
+        'compliance_requirement_types.created_by',
+        'clearance_periods.created_by',
+    ];
+
+    /** Response keys the SAO page and its tests already know, for the columns that were counted before. */
+    private const COUNT_KEYS = [
+        'clearance_signatures.student_id' => 'clearance_signatures',
+        'transactions.recorded_by' => 'transactions',
+        'collections.collected_by' => 'collections',
+        'cash_advances.borrower_id' => 'cash_advances',
+        'events.created_by' => 'events',
+        'attendance.user_id' => 'attendance',
+        'orders.student_id' => 'orders',
+        'invoices.student_id' => 'invoices',
+        'event_requirement_files.uploaded_by' => 'event_requirement_files',
+        'votes.voter_id' => 'votes',
+        'candidates.user_id' => 'candidates',
+        'tasks.created_by' => 'tasks',
+        'approval_requests.requested_by' => 'approval_requests',
+        'grievances.submitted_by' => 'grievances',
+        'venue_bookings.requested_by' => 'venue_bookings',
+        'organization_compliance_submissions.submitted_by' => 'organization_compliance_submissions',
+        'event_registrations.user_id' => 'event_registrations',
+        'evaluation_responses.user_id' => 'evaluation_responses',
+        'remittances.remitted_by' => 'remittances',
+        'invoice_payments.recorded_by' => 'invoice_payments',
+        'cash_advance_repayments.recorded_by' => 'cash_advance_repayments',
+    ];
 
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
@@ -167,32 +227,39 @@ class SystemUsersController extends Controller
         ];
     }
 
+    /**
+     * Rows that tie this person to the system's history. Every foreign key to users is found from the live
+     * schema and counted, so a table added later blocks deletion until it is deliberately listed in
+     * DISPOSABLE_REFERENCES. Keys are COUNT_KEYS names where the page already knew the column, otherwise
+     * "<table>_<column>". The profiles count is shown for information and never blocks.
+     */
     private function linkedRecordCounts(int $schoolId): array
     {
-        return [
-            'profiles' => DB::table('account_profiles')->where('user_school_id', $schoolId)->count(),
-            'clearance_signatures' => DB::table('clearance_signatures')->where('student_id', $schoolId)->count(),
-            'transactions' => DB::table('transactions')->where('recorded_by', $schoolId)->count(),
-            'collections' => DB::table('collections')->where('collected_by', $schoolId)->count(),
-            'cash_advances' => DB::table('cash_advances')->where('borrower_id', $schoolId)->count(),
-            'events' => DB::table('events')->where('created_by', $schoolId)->count(),
-            'attendance' => DB::table('attendance')->where('user_id', $schoolId)->count(),
-            'orders' => DB::table('orders')->where('student_id', $schoolId)->count(),
-            'invoices' => DB::table('invoices')->where('student_id', $schoolId)->count(),
-            'event_requirement_files' => DB::table('event_requirement_files')->where('uploaded_by', $schoolId)->count(),
-            'votes' => DB::table('votes')->where('voter_id', $schoolId)->count(),
-            'candidates' => DB::table('candidates')->where('user_id', $schoolId)->count(),
-            'tasks' => DB::table('tasks')->where('created_by', $schoolId)->count(),
-            'approval_requests' => DB::table('approval_requests')->where('requested_by', $schoolId)->count(),
-            'grievances' => DB::table('grievances')->where('submitted_by', $schoolId)->count(),
-            'venue_bookings' => DB::table('venue_bookings')->where('requested_by', $schoolId)->count(),
-            'organization_compliance_submissions' => DB::table('organization_compliance_submissions')->where('submitted_by', $schoolId)->count(),
-            'event_registrations' => DB::table('event_registrations')->where('user_id', $schoolId)->count(),
-            'evaluation_responses' => DB::table('evaluation_responses')->where('user_id', $schoolId)->count(),
-            'remittances' => DB::table('remittances')->where('remitted_by', $schoolId)->count(),
-            'invoice_payments' => DB::table('invoice_payments')->where('recorded_by', $schoolId)->count(),
-            'cash_advance_repayments' => DB::table('cash_advance_repayments')->where('recorded_by', $schoolId)->count(),
-        ];
+        $counts = ['profiles' => DB::table('account_profiles')->where('user_school_id', $schoolId)->count()];
+        foreach (Schema::getTables() as $table) {
+            foreach (Schema::getForeignKeys($table['name']) as $foreignKey) {
+                if ($foreignKey['foreign_table'] !== 'users') {
+                    continue;
+                }
+                foreach ($foreignKey['columns'] as $column) {
+                    $reference = $table['name'].'.'.$column;
+                    if (in_array($reference, self::DISPOSABLE_REFERENCES, true)) {
+                        continue;
+                    }
+                    $rows = DB::table($table['name'])->where($column, $schoolId);
+                    if ($reference === 'audit_logs.user_id') {
+                        // Signing up writes one audit row with the new person as actor; that alone is not history.
+                        $rows->where(fn ($other) => $other->where('module', '!=', 'users')
+                            ->orWhere('action', '!=', 'student_signed_up')
+                            ->orWhereNull('record_id')
+                            ->orWhere('record_id', '!=', $schoolId));
+                    }
+                    $counts[self::COUNT_KEYS[$reference] ?? $table['name'].'_'.$column] = $rows->count();
+                }
+            }
+        }
+
+        return $counts;
     }
 
     private function transferInstitutionalRecords(int $schoolId, int $actorSchoolId): void
