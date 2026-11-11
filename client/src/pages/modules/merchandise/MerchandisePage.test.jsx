@@ -192,6 +192,35 @@ describe("MerchandisePage buyer experience", () => {
     expect(screen.getByText(/2 x HIUSA Shirt added to cart/)).toBeInTheDocument();
   });
 
+  it("says Only N available under the quantity box when a typed amount is cut down to the stock", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    await screen.findByText("HIUSA Shirt");
+    const box = screen.getByLabelText("Quantity for HIUSA Shirt");
+
+    fireEvent.change(box, { target: { value: "99" } });
+    expect(box).toHaveValue(8);
+    expect(screen.getByRole("alert")).toHaveTextContent("Only 8 available.");
+
+    fireEvent.change(box, { target: { value: "3" } });
+    expect(box).toHaveValue(3);
+    expect(screen.queryByText("Only 8 available.")).not.toBeInTheDocument();
+  });
+
+  it("says Only N available in the product details when the typed quantity is cut down to the stock", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    await screen.findByText("HIUSA Shirt");
+    fireEvent.click(screen.getAllByRole('button', { name: 'View product details' })[0]);
+    const dialog = screen.getByRole('dialog');
+    const box = within(dialog).getByLabelText('Quantity');
+
+    fireEvent.change(box, { target: { value: '99' } });
+    expect(box).toHaveValue(8);
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Only 8 available.');
+
+    fireEvent.change(box, { target: { value: '2' } });
+    expect(within(dialog).queryByText('Only 8 available.')).not.toBeInTheDocument();
+  });
+
   it("shows a limited promotion, requires a variant, and opens product images", async () => {
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [{
       ...products[0], image_url: "/uploads/merchandise/shirt.jpg",
@@ -1090,7 +1119,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
 describe("MerchandisePage order queue reads", () => {
   const withProfile = (overrides) => buyerOrder({
     id: 2,
-    student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino", role: "STUDENT", program: "BS Information Technology", year_level: "1", section: "A" },
+    student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino", role: "STUDENT", program: "BS Information Technology", year_level: "1st Year", section: "A" },
     transaction: { receipt_reference: "MERCH-ORD-2" },
     ...overrides,
   });
@@ -1115,7 +1144,8 @@ describe("MerchandisePage order queue reads", () => {
     renderAt("/dashboard/merchandise/manage-orders", "orders");
 
     const table = await screen.findByRole("table");
-    expect(within(table).getByText("2200451").parentElement).toHaveTextContent("2200451 · BS Information Technology · Y1 · A");
+    expect(within(table).getByText("2200451").parentElement).toHaveTextContent("2200451 · BS Information Technology · 1st Year · A");
+    expect(within(table).getByText("2200451").parentElement).not.toHaveTextContent("Y1st");
     expect(within(table).getByText("ORD-2")).toBeInTheDocument();
     expect(within(table).queryByText("MERCH-ORD-2")).not.toBeInTheDocument();
     expect(within(table).getByText("Cash")).toBeInTheDocument();
