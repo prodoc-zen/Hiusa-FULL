@@ -24,8 +24,17 @@ const ADVISORY_STEPS = {
   SBO_OFFICER: [{ key: 'tasks', label: 'Open My tasks', detail: 'See what your Admin assigned to you and when it is due.', href: '/dashboard/tasks/assigned-tasks' }],
 };
 
+// The server links the Admin's event step to the Events list; the same page opens the form with ?new=1.
+const LINK_OVERRIDES = {
+  ADMIN: { event: '/dashboard/events/manage-events?new=1' },
+};
+
 function actionFor(role, step) {
   return ACTION_LABELS[role]?.[step.key];
+}
+
+function hrefFor(role, step) {
+  return step.href ? LINK_OVERRIDES[role]?.[step.key] ?? step.href : step.href;
 }
 
 /**
@@ -36,7 +45,7 @@ export function shapeSetup(role, setup) {
   if (!setup) return null;
 
   const steps = [
-    ...setup.steps.map((step) => ({ ...step, action: actionFor(role, step), inPerson: step.key === 'fingerprint' })),
+    ...setup.steps.map((step) => ({ ...step, href: hrefFor(role, step), action: actionFor(role, step), inPerson: step.key === 'fingerprint' })),
     ...(ADVISORY_STEPS[role] || []).map((step) => ({ ...step, done: false, advisory: true, action: actionFor(role, step) })),
   ];
   const order = STEP_ORDER[role] || [];

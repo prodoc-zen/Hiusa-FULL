@@ -136,7 +136,7 @@ describe('RoleBriefing', () => {
       expect(rows.map((row) => row.querySelector('p').textContent)).toEqual(['Set up your officer positions', 'Add your members', 'Plan your first event']);
       expect(within(card).getByRole('link', { name: 'Add positions' })).toHaveAttribute('href', '/go/positions');
       expect(within(card).getByRole('link', { name: 'Add members' })).toHaveAttribute('href', '/go/members');
-      expect(within(card).getByRole('link', { name: 'Propose an event' })).toHaveAttribute('href', '/go/event');
+      expect(within(card).getByRole('link', { name: 'Propose an event' })).toHaveAttribute('href', '/dashboard/events/manage-events?new=1');
       expect(within(card).queryByText('Propose your first budget')).not.toBeInTheDocument();
 
       fireEvent.click(within(card).getByRole('button', { name: 'Show all 6 steps' }));

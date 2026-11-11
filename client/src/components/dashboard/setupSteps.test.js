@@ -33,6 +33,14 @@ describe('shapeSetup', () => {
     expect(shaped.steps.find((step) => step.key === 'tasks')).toMatchObject({ href: '/dashboard/tasks/assigned-tasks', action: 'Open My tasks' });
   });
 
+  it('sends the Admin straight to the new event form and leaves other links alone', () => {
+    const shaped = shapeSetup('ADMIN', setup('event', 'members'));
+    expect(shaped.steps.find((step) => step.key === 'event').href).toBe('/dashboard/events/manage-events?new=1');
+    expect(shaped.steps.find((step) => step.key === 'members').href).toBe('/go/members');
+    expect(shapeSetup('STUDENT', setup('event')).steps.find((step) => step.key === 'event').href).toBe('/go/event');
+    expect(shapeSetup('ADMIN', { completed: 1, total: 1, steps: [{ ...steps('event')[0], done: true, href: null }] }).steps[0].href).toBeNull();
+  });
+
   it('offers the Department Head an endorsement queue', () => {
     const shaped = shapeSetup('DEPARTMENT_HEAD', setup('review', 'endorse'));
     expect(shaped.steps.find((step) => step.key === 'endorse').action).toBe('Review applications');
