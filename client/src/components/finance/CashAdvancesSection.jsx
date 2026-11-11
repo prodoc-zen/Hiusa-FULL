@@ -191,7 +191,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
 
       {requestOpen && (
         <Dialog label="Request cash advance" onClose={() => setRequestOpen(false)} onSubmit={submitRequest} submitLabel="Send request" busy={busy === 'request'} error={formError}>
-          <Field label="Amount (PHP)" required>
+          <Field label="Amount (₱)" required>
             <Input type="number" min="0.01" step="0.01" inputMode="decimal" value={request.amount} onChange={(event) => setRequest({ ...request, amount: event.target.value })} />
           </Field>
           <Field label="Purpose" required hint="What the money is for, so the approver can judge it.">
@@ -206,7 +206,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
       {repayTarget && (
         <Dialog label="Record repayment" onClose={() => setRepayTarget(null)} onSubmit={submitRepayment} submitLabel="Record repayment" busy={busy === 'repay'} error={formError}>
           <p className="text-sm text-ink-muted">{repayTarget.reference} · {borrowerName(repayTarget)} · <span className="font-semibold text-ink">{peso(repayTarget.remaining_balance)} outstanding</span></p>
-          <Field label="Amount repaid (PHP)" required>
+          <Field label="Amount repaid (₱)" required>
             <Input type="number" min="0.01" step="0.01" max={repayTarget.remaining_balance} inputMode="decimal" value={repayment.amount} onChange={(event) => setRepayment({ ...repayment, amount: event.target.value })} />
           </Field>
           <Field label="Notes" optional>
