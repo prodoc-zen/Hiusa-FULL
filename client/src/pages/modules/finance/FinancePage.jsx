@@ -126,7 +126,7 @@ const invoiceColumns = [
   { key: 'status', header: 'Status', render: (invoice) => sentence(invoice.status) },
   { key: 'amount_due', header: 'Amount due', align: 'right', render: (invoice) => fmt(invoice.amount_due) },
   { key: 'amount_paid', header: 'Paid', align: 'right', render: (invoice) => <span className="text-success-strong">{fmt(invoice.amount_paid)}</span> },
-  { key: 'remaining_balance', header: 'Balance', align: 'right', render: (invoice) => <span className="font-semibold text-danger-strong">{fmt(invoice.remaining_balance)}</span> },
+  { key: 'remaining_balance', header: 'Balance', align: 'right', render: (invoice) => <span className={`font-semibold ${Number(invoice.remaining_balance) > 0 ? 'text-danger-strong' : 'text-ink'}`}>{fmt(invoice.remaining_balance)}</span> },
 ];
 
 // The same current period My clearance opens on: the most recent one still incomplete, else the latest.
