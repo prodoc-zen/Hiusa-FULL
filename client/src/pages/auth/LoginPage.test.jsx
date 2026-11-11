@@ -102,6 +102,30 @@ describe('LoginPage', () => {
     expect(screen.getByRole('alert')).not.toHaveTextContent('provided credentials');
   });
 
+  it('says it could not reach HIUSA, not that the details were wrong, when there is no network', async () => {
+    authMocks.login.mockRejectedValue(new Error('Network Error'));
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not reach HIUSA. Check your connection and try again.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('did not match');
+  });
+
+  it('says HIUSA had a problem, not that the details were wrong, when the server fails', async () => {
+    authMocks.login.mockRejectedValue({ response: { status: 500, data: { message: 'Server Error' } } });
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('HIUSA had a problem signing you in. Try again in a moment.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('did not match');
+  });
+
   it('asks for the missing box in plain words and does not call the server', async () => {
     renderPage();
 
