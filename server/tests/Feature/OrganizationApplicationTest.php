@@ -602,7 +602,8 @@ class OrganizationApplicationTest extends TestCase
     {
         $college = $this->college();
         $dean = $this->dean($college);
-        $waiting = $this->submitted($college, $this->student($college));
+        $applicant = User::factory()->student()->create(['organization_id' => $this->home($college)->id, 'first_name' => 'Maria', 'last_name' => 'Reyes']);
+        $waiting = $this->submitted($college, $applicant);
         $legacy = [...['college_id' => $college->id, 'acronym' => 'OLD', 'school_id' => 87000002, 'first_name' => 'Old', 'last_name' => 'Row', 'email' => 'old@example.test', 'position_title' => 'President']];
         OrganizationApplication::create([...$legacy, 'name' => 'Never Verified', 'status' => 'pending_verification']);
         OrganizationApplication::create([...$legacy, 'name' => 'Expired Link', 'acronym' => 'EXP', 'status' => 'expired']);
