@@ -32,12 +32,19 @@ export default function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError(null);
-    setLoading(true);
 
     const credentials = {
       identifier: identifier.trim(),
       password,
     };
+
+    if (!credentials.identifier || !credentials.password) {
+      if (credentials.identifier) setError('Enter your password.');
+      else setError(credentials.password ? 'Enter your email or school ID.' : 'Enter your email or school ID and your password.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await login(credentials);
@@ -55,10 +62,6 @@ export default function LoginPage() {
 
       if (status === 403) {
         setError(err.response?.data?.message || 'This account cannot sign in right now. Contact your organization admin for help.');
-      } else if (status === 422) {
-        const msgs = err.response?.data?.errors;
-        const first = msgs ? Object.values(msgs).flat()[0] : null;
-        setError(first || 'Enter your email or school ID and your password to continue.');
       } else if (status === 429) {
         setError(err.response?.data?.message || 'Too many attempts. Wait a moment, then try again.');
       } else {
