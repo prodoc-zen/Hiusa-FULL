@@ -170,9 +170,9 @@ const CONFIRMS = {
     variant: 'primary',
   },
   reset: {
-    title: 'Send password reset',
+    title: 'Create reset link',
     message: 'This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown.',
-    confirmText: 'Send reset link',
+    confirmText: 'Create reset link',
     variant: 'primary',
   },
 };
@@ -288,7 +288,7 @@ export function ManageDepartmentHeadModal({ college, head, onClose, onChanged })
           )}
           <p className="text-xs text-ink-muted">{isActive ? 'This account can sign in and review every organization in the college.' : 'This account cannot sign in. A college has one active Department Head at a time.'}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" leftIcon={KeyRound} disabled={!isActive || busy} onClick={() => setConfirming('reset')}>Send password reset</Button>
+            <Button variant="secondary" leftIcon={KeyRound} disabled={!isActive || busy} onClick={() => setConfirming('reset')}>Create reset link</Button>
             {isActive
               ? <Button variant="danger" leftIcon={UserX} disabled={busy} onClick={() => setConfirming('deactivate')}>Deactivate</Button>
               : <Button variant="secondary" leftIcon={UserCheck} disabled={busy} onClick={() => setConfirming('reactivate')}>Reactivate</Button>}
