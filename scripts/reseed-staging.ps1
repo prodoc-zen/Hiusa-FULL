@@ -10,8 +10,8 @@
     Steps, each printed before it runs; the run stops on the first failure:
       1  Preflight: ssh reachable, units known to systemd, backup directory present,
          the marker file /etc/hiusa/ALLOW_RESEED exists (with today's dated content
-         when the server is production), and no election is active or approved and
-         upcoming.
+         when the server is production), and no election is active, or approved,
+         finalized and upcoming.
       2  Backup: mysqldump of hiusa_db and a tar.gz of server/storage/app and
          server/public/uploads into /var/backups/hiusa, verified with gzip -t and
          a CREATE TABLE count that must equal the live table count.
