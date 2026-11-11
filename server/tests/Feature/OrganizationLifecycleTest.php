@@ -140,7 +140,7 @@ class OrganizationLifecycleTest extends TestCase
         }
     }
 
-    public function test_head_list_shows_status_and_checklist_only_for_pending_and_returned_organizations(): void
+    public function test_head_list_checklist_asks_for_every_requirement_only_while_pending_or_returned(): void
     {
         $typeIds = $this->openSemester();
         $id = $this->register($typeIds);
@@ -157,7 +157,23 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertSame('submitted', $pending['registration_requirements'][0]['status']);
         $this->assertStringEndsWith('.pdf', $pending['registration_requirements'][0]['file_name']);
         $this->assertSame(0, $pending['members_count']);
-        $this->assertNull($rows[$active->id]['registration_requirements']);
+        $this->assertSame([], $rows[$active->id]['registration_requirements']);
+    }
+
+    public function test_head_list_shows_the_registration_files_an_approved_organization_was_approved_with(): void
+    {
+        $typeIds = $this->openSemester();
+        $id = $this->register($typeIds);
+        Organization::whereKey($id)->update(['lifecycle_status' => 'active']);
+        OrganizationComplianceSubmission::where('organization_id', $id)->update(['status' => 'approved', 'is_registration_document' => true]);
+        Sanctum::actingAs($this->head);
+
+        $row = collect($this->getJson('/api/college/organizations')->assertOk()->json('data'))->keyBy('id')[$id];
+
+        $this->assertSame('active', $row['lifecycle_status']);
+        $this->assertCount(10, $row['registration_requirements']);
+        $this->assertSame('approved', $row['registration_requirements'][0]['status']);
+        $this->assertStringEndsWith('.pdf', $row['registration_requirements'][0]['file_name']);
     }
 
     public function test_pending_organization_blocks_sign_in_and_admin_creation_until_approval(): void

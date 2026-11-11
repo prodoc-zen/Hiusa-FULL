@@ -35,7 +35,7 @@ class CollegeOrganizationController extends Controller
             ->orderBy('name')
             ->paginate($filters['per_page'] ?? 50);
 
-        $checklists = $this->checklists($page->getCollection()->whereIn('lifecycle_status', ['pending', 'returned'])->pluck('id'));
+        $checklists = $this->checklists($page->getCollection());
         $scoped = array_values(array_intersect($page->getCollection()->pluck('id')->all(), $request->user()->scopedOrganizationIds()));
         $roleCounts = $this->roleCounts($scoped);
         $leadership = $this->leadership($scoped);
@@ -250,20 +250,27 @@ class CollegeOrganizationController extends Controller
         ];
     }
 
-    /** One checklist per organization id: every requirement it was asked for, with the file it submitted or null. */
-    private function checklists(Collection $organizationIds): Collection
+    /**
+     * One checklist per organization id. A pending or returned organization lists every requirement it was asked for,
+     * with the file it submitted or null. An active or archived one lists the registration files it was approved with.
+     */
+    private function checklists(Collection $organizations): Collection
     {
-        if ($organizationIds->isEmpty()) {
+        if ($organizations->isEmpty()) {
             return collect();
         }
-        $submissions = OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)->get()->groupBy('organization_id');
+        $open = $organizations->whereIn('lifecycle_status', ['pending', 'returned'])->pluck('id');
+        $submissions = OrganizationComplianceSubmission::whereIn('organization_id', $organizations->pluck('id'))
+            ->where(fn ($query) => $query->whereIn('organization_id', $open)->orWhere('is_registration_document', true))
+            ->get()->groupBy('organization_id');
         [, $current] = $this->registrationRequirements();
         $types = ComplianceRequirementType::whereIn('id', $current->pluck('id')->merge($submissions->flatten(1)->pluck('requirement_type_id')))->orderBy('id')->get();
 
-        return $organizationIds->mapWithKeys(function ($organizationId) use ($submissions, $types) {
+        return $organizations->pluck('id')->mapWithKeys(function ($organizationId) use ($submissions, $types, $open) {
             $byType = ($submissions->get($organizationId) ?? collect())->keyBy('requirement_type_id');
+            $listed = $open->contains($organizationId) ? $types : $types->filter(fn (ComplianceRequirementType $type) => $byType->has($type->id));
 
-            return [$organizationId => $types->map(function (ComplianceRequirementType $type) use ($byType) {
+            return [$organizationId => $listed->map(function (ComplianceRequirementType $type) use ($byType) {
                 $sub = $byType->get($type->id);
                 $row = [
                     'requirement_type_id' => $type->id,
