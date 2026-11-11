@@ -105,6 +105,30 @@ describe('SAO university users', () => {
     fireEvent.click(confirm);
     await waitFor(() => expect(service.deleteSystemUser).toHaveBeenCalledWith(user.school_id));
   });
+  it('names the linked records that block a delete, by plain table label', async () => {
+    service.deleteSystemUser.mockRejectedValue({ response: { status: 409, data: { message: 'This user has linked records such as finance entries. Deactivate the account instead.', linked_records: { votes: 12, orders: 3, cash_advances: 1 } } } });
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete user' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete user and linked records?' });
+    fireEvent.change(within(dialog).getByLabelText(/Type Ana Cruz to confirm/), { target: { value: 'Ana Cruz' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete user' }));
+    const refusal = await within(dialog).findByRole('alert');
+    expect(refusal).toHaveTextContent('12 votes, 3 orders, 1 cash advance');
+    expect(refusal).toHaveTextContent('Deactivate the account instead');
+  });
+
+  it('keeps the server message when a delete refusal carries no counts', async () => {
+    service.deleteSystemUser.mockRejectedValue({ response: { status: 409, data: { message: 'The last active SAO account cannot be deleted.' } } });
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete user' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete user and linked records?' });
+    fireEvent.change(within(dialog).getByLabelText(/Type Ana Cruz to confirm/), { target: { value: 'Ana Cruz' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete user' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('The last active SAO account cannot be deleted.');
+  });
+
   it('hands the SAO a one-time reset link for an active student', async () => {
     render(<SaoUsersPage />);
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
@@ -118,6 +142,16 @@ describe('SAO university users', () => {
     fireEvent.click(within(link).getByRole('button', { name: 'Done' }));
     expect(screen.queryByDisplayValue(/reset-password/)).not.toBeInTheDocument();
     expect(screen.getByText('Reset link created for Ana Cruz.')).toBeInTheDocument();
+  });
+
+  it('describes a one-time link and does not promise an email while mail is off', async () => {
+    render(<SaoUsersPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+    const confirm = screen.getByRole('dialog', { name: 'Reset password' });
+    expect(within(confirm).getByText(/one-time reset link/i)).toHaveTextContent(/shown to you once to hand over/i);
+    expect(within(confirm).getByText(/one-time reset link/i)).toHaveTextContent(/emailed only when email is turned on/i);
+    expect(within(confirm).queryByText(/will be sent/i)).not.toBeInTheDocument();
   });
 
   it('shows the confirmation message instead of a link when the reset was emailed', async () => {

@@ -21,6 +21,18 @@ function fullName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
 }
 
+function linkedRecordLabel(key, count) {
+  const label = key.replaceAll('_', ' ');
+  return `${count} ${count === 1 && label.endsWith('s') && !label.endsWith('ss') ? label.slice(0, -1) : label}`;
+}
+
+function deleteRefusal(error) {
+  const linked = Object.entries(error?.response?.data?.linked_records || {}).filter(([, count]) => count > 0);
+  const message = getApiErrorMessage(error, 'Could not delete this user.');
+  if (!linked.length) return message;
+  return `This user has linked records: ${linked.map(([key, count]) => linkedRecordLabel(key, count)).join(', ')}. Deleting the account would erase them. Deactivate the account instead.`;
+}
+
 export default function SaoUsersPage() {
   const [filters, setFilters] = useState({ search: '', role: '', status: '' });
   const [query, setQuery] = useState('');
@@ -73,7 +85,7 @@ export default function SaoUsersPage() {
       if (page > 1 && state.rows.length === 1) setPage(page - 1);
       else load();
     } catch (error) {
-      setActionError(getApiErrorMessage(error, 'Could not delete this user.'));
+      setActionError(deleteRefusal(error));
     } finally {
       setBusy(false);
     }
@@ -164,7 +176,7 @@ export default function SaoUsersPage() {
       </div>}
     </Drawer>
     {existingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={existingAdmin.user} onClose={() => setExistingAdmin(null)} onAdded={() => { setNotice('Administrator added.'); load(); }} />}
-    <ConfirmModal open={Boolean(resetting)} title="Reset password" recordName={fullName(resetting)} message="A secure reset link will be sent to this person's registered email address. If email is off, the link shows here once for you to hand over. Their current password will not be shown." confirmText="Send reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
+    <ConfirmModal open={Boolean(resetting)} title="Reset password" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Send reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
     {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user and linked records?" recordName={fullName(deleting)} message="This permanently removes the account, profiles, clearances, and linked submissions, financial, event, and order records. It cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
