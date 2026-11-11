@@ -508,11 +508,11 @@
     "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Email is switched off in the test copy, so reset emails are only written to the server log.",
     "steps": [
       "1. On the sign-in page choose Forgot password? and read the page.",
-      "2. Type the Student School ID 2100142 and the email address on that account, then choose Send reset link.",
+      "2. Type the Student School ID 2100142 and the email address on that account, then choose Request reset.",
       "3. Wait five minutes and check that inbox and its spam folder.",
       "4. Go back and try School ID 12345678 with the email nobody@example.com."
     ],
-    "expected": "The \"Reset your password\" page has School ID / ID number and Email address fields, a Send reset link button and Back to login. After sending, the page changes to \"Check your email\" and says the instructions were sent to the address you typed. No email arrives, because email is off in the test copy. This is expected. The unknown account shows the very same \"Check your email\" screen, so the page never says whether an account exists. Send another email and Back to login both work. To get a password reset, ask the SAO.",
+    "expected": "The \"Reset your password\" page has School ID / ID number and Email address fields, a Request reset button and Back to login. With email off, the page changes to \"Ask for a reset\" and says nothing was sent to anyone. No email arrives. This is expected. An unknown account shows the very same screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link. When email is on, the page shows \"Check your email\" instead.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -526,9 +526,9 @@
     "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
     "steps": [
       "1. Open the Reset your password page.",
-      "2. Choose Send reset link with both fields empty.",
+      "2. Choose Request reset with both fields empty.",
       "3. Type a School ID and the text \"not-an-email\" as the email.",
-      "4. Choose Send reset link again."
+      "4. Choose Request reset again."
     ],
     "expected": "A red message shows and no \"Check your email\" screen appears. VERIFY: the wording. A message that mentions \"organization id\" would be a wording problem to report because students do not know that term.",
     "priority": "Medium",

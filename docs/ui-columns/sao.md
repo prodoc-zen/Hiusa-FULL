@@ -58,7 +58,7 @@ Paging: all 100 loaded, no pager   Empty: "No administrator accounts match this 
 Mobile: table keeps min width 760 px and scrolls horizontally
   Modal "Create New Admin User" / "Edit Admin User": School ID * | First name * | Last name * | Email address * | Contact number | Position title (suggestions: Adviser, President, Vice President - Internal, Vice President - External, Secretary) | Assigned organization * | Password * | Confirm password * (create only) | Account status (edit only: Active: can sign in, Inactive: temporarily unavailable, Disabled: access revoked); buttons Cancel | Create Admin User / Save Changes
   Drawer "Hand over administrator role": toggle (existing member / new account); "Find a member" (search "Name, School ID or email") radio list: name over "<Role> · <position> · <school id>", empty "No matching members. Check the spelling, or create a new account for the successor."; or new account fields School ID | First name | Last name | Email | Contact number | Initial password | Confirm password; buttons Cancel | Hand over
-  Dialogs: "Initiate password reset" (Send reset link), "Delete administrator" (Delete administrator)
+  Dialogs: "Initiate password reset" (Create reset link), "Delete administrator" (Delete administrator)
 
 ## Organizations > Colleges (/dashboard/super-admin/colleges)
 Filters: search "College name or code" (label "Search colleges")
@@ -69,7 +69,7 @@ Bulk/Toolbar: none
 Paging: none   Empty: "No colleges found" / "No colleges match your search." / "The college list is empty. Colleges are added by the system administrators."
 Mobile: cards 1 column
   Modal "Assign Department Head": School ID | First name | Last name | Email | Password | Confirm password; buttons Cancel | Assign Department Head
-  Modal "Manage Department Head": School ID (text) | First name | Last name | Email; "Account status" badge; buttons Send password reset | Deactivate / Reactivate; footer Cancel | Save changes
+  Modal "Manage Department Head": School ID (text) | First name | Last name | Email; "Account status" badge; buttons Create reset link | Deactivate / Reactivate; footer Cancel | Save changes
 
 ## Reviews > Compliance (/dashboard/super-admin/compliance)
 Filters: tabs "Accreditation" | "Requirements" | "Review queue (n awaiting)" | "Event requirements" | "Financial reports" | "Track documents" (URL ?tab=accreditation|requirements|review|events|financial|documents)
