@@ -44,17 +44,14 @@ class User extends Authenticatable
         });
 
         static::updated(function (User $user): void {
-            if (! $user->isDirty(['organization_id', 'role', 'account_status', 'position_title'])) {
+            // Only what this update changed: an election hand over moves the profile and leaves these columns behind, so an unchanged one is stale.
+            $changed = array_intersect_key($user->getChanges(), array_flip(['organization_id', 'role', 'account_status', 'position_title']));
+
+            if ($changed === []) {
                 return;
             }
 
-            $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))
-                ->update([
-                    'organization_id' => $user->getAttributes()['organization_id'],
-                    'role' => $user->getAttributes()['role'],
-                    'account_status' => $user->getAttributes()['account_status'],
-                    'position_title' => $user->getAttributes()['position_title'] ?? null,
-                ]);
+            $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))->update($changed);
         });
 
         static::deleted(function (User $user): void {
