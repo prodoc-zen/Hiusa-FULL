@@ -399,6 +399,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [eventStatusFilter, setEventStatusFilter] = useState('');
+  const [eventSort, setEventSort] = useState('start_asc');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [submissionVersion, setSubmissionVersion] = useState(0);
   const detailsRequestRef = useRef(0);
@@ -531,7 +532,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     let active = true;
     const timer = window.setTimeout(() => {
       setEventListLoading(true);
-      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: 'start_asc', academic_semester_id: selectedPeriodId || undefined })
+      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort, academic_semester_id: selectedPeriodId || undefined })
         .then((response) => {
           if (!active) return;
           setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
@@ -542,7 +543,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }, 250);
 
     return () => { active = false; window.clearTimeout(timer); };
-  }, [dateFilter, eventPageSize, eventReload, eventStatusFilter, eventsPage, search, selectedPeriodId]);
+  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search, selectedPeriodId]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1365,6 +1366,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'events' && (
         <section className="space-y-4">
+          {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <div className="flex flex-wrap items-end justify-between gap-3">
             {periodSelect || <span />}
             <div role="group" aria-label="Switch events view" className="flex h-11 w-fit shrink-0 items-center rounded-control border border-line bg-subtle p-1">
@@ -1398,6 +1400,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search events" className="pl-9" />
               </label>
               <Field label="Event date" className="w-full sm:w-44"><Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></Field>
+              <Field label="Sort by" className="w-full sm:w-44"><HiusaSelect value={eventSort} onChange={(event) => { setEventSort(event.target.value); setEventsPage(1); }}><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></Field>
               <Field label="Status" className="w-full sm:w-52"><HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)}><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></Field>
               {hasEventFilters && <button type="button" onClick={clearEventFilters} className="min-h-10 rounded-control px-2 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
             </div>
@@ -1632,7 +1635,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'attendance' && (
         <section aria-label="Event check-in" className="space-y-6">
-          {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <p className="text-sm font-medium text-ink-muted-strong">{attendanceEvents.length} {attendanceEvents.length === 1 ? 'event' : 'events'} open for check-in</p>
           {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-ink-muted-strong">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Go to Events</Link></p>}
           {loading ? (
