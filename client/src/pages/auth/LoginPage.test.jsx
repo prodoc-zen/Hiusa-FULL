@@ -33,6 +33,28 @@ describe('LoginPage', () => {
     });
   });
 
+  it('tells a replaced officer why they were signed out, once', () => {
+    sessionStorage.setItem('sign_out_notice', 'Your officer access for Computer Society ended when the new officers took over.');
+    const { unmount } = renderPage();
+
+    expect(screen.getByRole('status')).toHaveTextContent('Your officer access for Computer Society ended when the new officers took over.');
+    unmount();
+
+    renderPage();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows the reason the server gives an officer whose access ended', async () => {
+    authMocks.login.mockRejectedValue({ response: { status: 403, data: { message: 'Your officer access for Computer Society ended when the new officers took over.' } } });
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your officer access for Computer Society ended when the new officers took over.');
+  });
+
   it('links new students to the sign-up page', () => {
     renderPage();
 
