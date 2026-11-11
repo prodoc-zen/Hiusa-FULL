@@ -669,6 +669,30 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(document.body.textContent).not.toMatch(/does not reserve stock|reserved after payment|only after your payment is approved|has not reserved stock/);
   });
 
+  it("drops the proof-pending line and Replace proof once an officer has verified the payment", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([
+      buyerOrder({ id: 5, payment_method: "gcash", payment_proof_url: "proofs/5.jpg", payment_reference: "1234567890123" }),
+      buyerOrder({ id: 6, payment_method: "gcash", payment_proof_url: "proofs/6.jpg", payment_reference: "1234567890124", officer_review_status: "approved" }),
+    ]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    await screen.findByText("ORD-6");
+    expect(screen.getAllByText("Payment proof submitted and awaiting officer verification.")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Replace proof" })).toHaveLength(1);
+    expect(screen.getByText("Payment verified: waiting for Admin approval")).toBeInTheDocument();
+  });
+
+  it("tells the buyer at checkout that the claim token appears after the Admin approves", async () => {
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
+    expect(screen.getByText(/claim token appears in My orders once the Admin approves the payment/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/officer verifies the payment, your claim token/);
+  });
+
   it("names the chosen size on the checkout line", async () => {
     const sized = { ...products[0], variants: [{ id: 5, name: "M", stock_quantity: 4 }] };
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [sized, products[1]], current_page: 1, last_page: 1 } });
