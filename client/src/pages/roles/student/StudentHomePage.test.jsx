@@ -35,7 +35,7 @@ describe('StudentHomePage', () => {
   it('renders an organization-centered responsive feed from one paginated request', async () => {
     render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
     expect(await screen.findByRole('region', { name: 'Organization feed' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     expect(screen.getByText('Important')).toBeInTheDocument();
     expect(getStudentFeed).toHaveBeenCalledWith(1, 12);
@@ -53,7 +53,7 @@ describe('StudentHomePage', () => {
 
     const hiddenOnPhone = () => screen.getAllByRole('heading', { level: 3 }).filter((heading) => heading.closest('[class~="max-sm:hidden"]'));
     await screen.findByRole('region', { name: 'Organization feed' });
-    expect(hiddenOnPhone().map((heading) => heading.textContent)).toEqual(['Post Number 2', 'Post Number 3', 'Post Number 4']);
+    expect(hiddenOnPhone().map((heading) => heading.textContent)).toEqual(['Post number 2', 'Post number 3', 'Post number 4']);
     fireEvent.click(screen.getByRole('button', { name: 'Show more posts' }));
     expect(hiddenOnPhone()).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Show more posts' })).not.toBeInTheDocument();
@@ -157,10 +157,23 @@ describe('StudentHomePage', () => {
     expect(screen.queryByRole('link', { name: 'Vote now' })).not.toBeInTheDocument();
   });
 
+  it('does not offer Vote now on an election post the ballot would refuse', async () => {
+    const post = (can_vote) => ({ key: 'election-4', type: 'election', sort_at: new Date().toISOString(), is_pinned: false, data: { id: 4, title: 'SBO election', status: 'active', end_time: new Date(Date.now() + 3_600_000).toISOString(), has_voted: false, can_vote } });
+    getStudentFeed.mockResolvedValue({ organization: null, items: [post(false)], sidebar: { active_election: null, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
+    const { unmount } = render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByText('You joined after the voter list was finalized, so you cannot vote in this election.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Vote now' })).not.toBeInTheDocument();
+    unmount();
+
+    getStudentFeed.mockResolvedValue({ organization: null, items: [post(true)], sidebar: { active_election: null, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByRole('link', { name: 'Vote now' })).toHaveAttribute('href', '/elections/4/vote');
+  });
+
   it('finishes loading the feed under the application StrictMode wrapper', async () => {
     render(<StrictMode><MemoryRouter><StudentHomePage /></MemoryRouter></StrictMode>);
 
-    expect(await screen.findByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
     expect(screen.queryAllByRole('status')).toHaveLength(0);
   });
 

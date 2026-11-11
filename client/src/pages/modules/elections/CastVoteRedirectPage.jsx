@@ -59,6 +59,7 @@ function WhatNext({ election, state }) {
     );
   }
   if (state.key === 'open') {
+    if (election.ballot_refusal) return <p className="mt-3 text-sm text-ink-muted">{election.ballot_refusal}</p>;
     return <Button to={`/elections/${election.id}/vote`} className="mt-3">Vote in this election</Button>;
   }
   if (state.key === 'upcoming') {
