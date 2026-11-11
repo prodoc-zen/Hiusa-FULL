@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import WorkspaceBanner from './WorkspaceBanner';
 import RouteLoadingFallback from './RouteLoadingFallback';
+import RouteErrorBoundary from './RouteErrorBoundary';
 import { PageHeaderView } from '../ui/PageHeader';
 import { Button } from '../ui';
 import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
@@ -116,9 +117,11 @@ export default function DashboardLayout() {
           {defaultHeader}
           <PageHeaderRegistryContext value={registry}>
             <div ref={contentRef}>
-              <Suspense fallback={<RouteLoadingFallback />}>
-                <Outlet key={`${activeSubAccount?.id ? `sub-${activeSubAccount.id}` : 'master'}-${viewingPeriod?.id ?? 'live'}`} />
-              </Suspense>
+              <RouteErrorBoundary resetKey={location.pathname}>
+                <Suspense fallback={<RouteLoadingFallback />}>
+                  <Outlet key={`${activeSubAccount?.id ? `sub-${activeSubAccount.id}` : 'master'}-${viewingPeriod?.id ?? 'live'}`} />
+                </Suspense>
+              </RouteErrorBoundary>
             </div>
           </PageHeaderRegistryContext>
         </main>

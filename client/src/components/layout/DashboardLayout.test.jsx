@@ -97,6 +97,58 @@ describe('DashboardLayout', () => {
     expect(screen.queryByText('Whole app loading')).not.toBeInTheDocument();
   });
 
+  it('keeps the shell and shows a plain message when a page file cannot be loaded', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const OfflinePage = lazy(() => Promise.reject(new TypeError('Failed to fetch dynamically imported module: /assets/Announcements.js')));
+    render(
+      <MemoryRouter initialEntries={['/dashboard/announcements']}>
+        <Routes>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route path="announcements" element={<OfflinePage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('This page could not load')).toBeInTheDocument();
+    expect(screen.getByText('Check your connection and try again.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.getByText('Top bar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it('shows the page again on Try again, and clears the message when the person opens another page', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let failing = true;
+    const FlakyPage = () => {
+      if (failing) throw new Error('boom');
+      return <p>Recovered page</p>;
+    };
+    render(
+      <MemoryRouter initialEntries={['/dashboard/flaky']}>
+        <NavigateButton to="/dashboard/other" />
+        <Routes>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route path="flaky" element={<FlakyPage />} />
+            <Route path="other" element={<TrackedPage label="Page two" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('This page could not load')).toBeInTheDocument();
+
+    failing = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Recovered page')).toBeInTheDocument();
+
+    failing = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /dashboard/other' }));
+    expect(await screen.findByText('Page two')).toBeInTheDocument();
+    expect(screen.queryByText('This page could not load')).not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
   it('preserves a nested page while switching its child routes', () => {
     mountCount = 0;
     function ElectionParent() {
