@@ -165,7 +165,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
       return entry.candidates.find((item) => item.id === (voteItem?.candidate_id ?? votes[entry.position.id]));
     });
     const resultsSentence = resultsLink(election, currentUser?.role).available
-      ? 'Live totals can be viewed on the Vote page.'
+      ? 'Turnout is shown during voting, and results appear when the election closes.'
       : `Results appear there once voting closes${election.end_time ? ` on ${formatVotingDateTime(election.end_time)}` : ''} and they are released.`;
     return (
       <div className="mx-auto max-w-3xl space-y-5">

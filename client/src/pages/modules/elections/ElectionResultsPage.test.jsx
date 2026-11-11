@@ -25,6 +25,8 @@ describe('ElectionResultsPage', () => {
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
     expect(screen.getAllByText('63%').length).toBeGreaterThan(0);
     expect(screen.getByText('30')).toBeInTheDocument();
+    expect(screen.getByText('Votes cast')).toBeInTheDocument();
+    expect(screen.getByText(/votes cast/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'President' })).toBeInTheDocument();
   });
 
@@ -48,7 +50,7 @@ describe('ElectionResultsPage', () => {
     electionContext.election = { ...closed, status: 'active', voters_count: 12 };
     getElectionResults.mockResolvedValue([{
       position: { id: 1, title: 'President', max_winners: 1 },
-      totalVotes: 12,
+      totalVotes: null,
       candidates: [
         { id: 10, name: 'Ana Reyes', partylist: 'Forward', votes: null },
         { id: 11, name: 'Luis Cruz', partylist: 'Independent', votes: null },
@@ -57,11 +59,13 @@ describe('ElectionResultsPage', () => {
 
     render(<ElectionResultsPage />);
     expect(await screen.findByText(/Results appear when the election closes/)).toBeInTheDocument();
-    expect(screen.queryByText(/Live totals/i)).not.toBeInTheDocument();
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Votes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Share' })).not.toBeInTheDocument();
     expect(screen.getByText('Ballots')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.queryByText('Votes cast')).not.toBeInTheDocument();
+    expect(screen.queryByText(/votes cast/)).not.toBeInTheDocument();
     electionContext.election = closed;
   });
 

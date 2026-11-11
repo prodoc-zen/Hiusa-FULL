@@ -135,6 +135,7 @@ class ElectionBallotPrivacyTest extends TestCase
             $row = $this->getJson("/api/elections/{$this->election->id}/results")->assertOk()->json('0');
 
             $this->assertNull($row['candidates'][0]['votes']);
+            $this->assertNull($row['totalVotes']);
             $this->assertSame([], $row['winner_ids']);
             $this->assertFalse($row['tie']);
         }
