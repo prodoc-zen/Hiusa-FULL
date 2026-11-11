@@ -3255,6 +3255,10 @@ class AskAiService
             ->join('election_positions', 'election_positions.id', '=', 'candidates.position_id')
             ->leftJoin('partylists', 'partylists.id', '=', 'candidates.partylist_id')
             ->whereIn('elections.organization_id', $orgIds)
+            ->when(
+                $role === 'STUDENT',
+                fn ($q) => $q->whereNotNull('elections.finalized_at')->whereIn('elections.status', ['active', 'closed'])
+            )
             ->orderBy('election_positions.id')
             ->limit(25)
             ->get([

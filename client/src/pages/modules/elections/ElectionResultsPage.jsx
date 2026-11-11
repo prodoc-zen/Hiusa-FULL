@@ -100,7 +100,7 @@ export default function ElectionResultsPage() {
         <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Voting is open. Only turnout shows now. Results appear when the election closes.'}</p>
         <dl className="flex gap-8">
           <div><dt className="text-xs text-ink-muted">Ballots</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.voters}</dd></div>
-          <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>
+          {isFinal && <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>}
         </dl>
       </div>
 
@@ -137,7 +137,7 @@ export default function ElectionResultsPage() {
                 <h2 className="text-base font-semibold text-ink">{formatDisplayText(position.title)}</h2>
                 {isFinal && result.tie && <StatusBadge status="tie" />}
               </div>
-              <p className="text-sm text-ink-muted"><span className="tabular-nums">{totalVotes}</span> votes cast</p>
+              {isFinal && <p className="text-sm text-ink-muted"><span className="tabular-nums">{totalVotes}</span> votes cast</p>}
             </div>
             {(candidates || []).length > 0
               ? <DataTable caption={`Results for ${formatDisplayText(position.title)}`} columns={columns} rows={candidates} stickyHeader={false} />
