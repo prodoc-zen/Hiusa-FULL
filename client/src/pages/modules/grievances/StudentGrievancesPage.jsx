@@ -16,7 +16,6 @@ import {
   Tabs,
   Textarea,
 } from '../../../components/ui';
-import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { getGrievances, createGrievance, deleteGrievance } from '../../../services/grievanceService';
@@ -35,10 +34,7 @@ const ADDRESSED_TO_OPTIONS = [
 function ClassificationAdvisory({ grievance }) {
   return (
     <div className="border-t border-line pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium text-ink-muted">Suggested classification</p>
-        <EngineBadge engine={grievance.classification_engine} />
-      </div>
+      <p className="text-xs font-medium text-ink-muted">Suggested classification</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <UrgencyCell urgency={grievance.urgency} suffix=" urgency" />
         <span className="text-sm text-ink-muted">{grievance.category}</span>
