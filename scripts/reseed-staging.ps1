@@ -95,7 +95,7 @@
 
 .PARAMETER KeyPath
     SSH private key. Defaults to the HIUSA_SSH_KEY environment variable, else
-    $env:USERPROFILE\.ssh\hiusa-lightsail.pem. The key is only passed to ssh -i.
+    ~/.ssh/hiusa-lightsail.pem (the user profile folder). The key is only passed to ssh -i.
 
 .PARAMETER BaseUrl
     Where the verification requests go. Defaults to https://<HostName>. Must be
@@ -129,7 +129,7 @@
 param(
     [string]$HostName = '13.228.227.182',
     [string]$User = 'ubuntu',
-    [string]$KeyPath = $(if ($env:HIUSA_SSH_KEY) { $env:HIUSA_SSH_KEY } else { Join-Path $env:USERPROFILE '.ssh\hiusa-lightsail.pem' }),
+    [string]$KeyPath = $(if ($env:HIUSA_SSH_KEY) { $env:HIUSA_SSH_KEY } else { Join-Path (Join-Path ([Environment]::GetFolderPath('UserProfile')) '.ssh') 'hiusa-lightsail.pem' }),
     [string]$BaseUrl = '',
     [switch]$Execute,
     [switch]$Force,
