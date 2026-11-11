@@ -237,7 +237,7 @@ if [ "$appenv" = "production" ]; then
 fi
 open=$(sudo -u www-data env HOME=/tmp XDG_CONFIG_HOME=/tmp /usr/local/bin/hiusa-artisan tinker --execute='echo "OPEN_ELECTIONS=".\App\Models\Election::where("status", "active")->orWhere(fn ($q) => $q->where("status", "upcoming")->whereNotNull("approved_at")->whereNotNull("finalized_at"))->count();' < /dev/null 2>/dev/null | sed -n 's/^OPEN_ELECTIONS=\([0-9][0-9]*\).*/\1/p') || open=""
 echo "open elections: ${open:-unknown}"
-if [ -z "$open" ] || [ "$open" != "0" ]; then echo "FAIL: ${open:-an unknown number of} election(s) are active or approved and upcoming, or the count could not be read; a reseed is refused"; exit 1; fi
+if [ -z "$open" ] || [ "$open" != "0" ]; then echo "FAIL: ${open:-an unknown number of} election(s) are active, or approved, finalized and upcoming, or the count could not be read; a reseed is refused"; exit 1; fi
 df -h /var/backups/hiusa | tail -n 1
 echo "preflight ok"
 '@
