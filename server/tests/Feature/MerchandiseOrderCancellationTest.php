@@ -65,7 +65,7 @@ class MerchandiseOrderCancellationTest extends TestCase
         $order = $this->pendingOrder($otherBuyer, $item);
 
         Sanctum::actingAs($buyer);
-        $this->patchJson("/api/orders/{$order->id}/cancel")->assertForbidden();
+        $this->patchJson("/api/orders/{$order->id}/cancel")->assertNotFound();
 
         $outsideBuyer = User::factory()->student()->create();
         Sanctum::actingAs($outsideBuyer);
