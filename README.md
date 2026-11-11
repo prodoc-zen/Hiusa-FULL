@@ -298,7 +298,66 @@ Go to **http://localhost:5173** in your browser.
 
 ## Demo Accounts
 
-Sign-ins for the demo accounts are issued privately by the team. They are not published in this repository. Ask whoever runs the demo copy which School ID and password to use.
+Every demo account signs in with its **School ID / ID Number**. Email addresses are for account recovery and contact information, not login. The seeders set the passwords for local use only, and every seeded account must change its password outside local and testing.
+
+### Super Admin
+| Role | School ID |
+|---|---|
+| Super Admin | `990001` |
+
+### SAO-assigned Organization Advisers
+| Organization | School ID |
+|---|---|
+| PSITS-CCS | `990002` |
+| JPIA-CBE | `990012` |
+| FES-CTE | `990022` |
+| NSC-CHS | `990032` |
+| EIG-COE | `990042` |
+
+### Organization Leadership Admins
+| Name | School ID |
+|---|---|
+| Marco Dela Cruz | `900001` |
+| Angela Santos | `900002` |
+| Bianca Fernandez | `900003` |
+| Mika Salcedo | `920011` |
+
+### Officers
+| Name | School ID |
+|---|---|
+| Diego Villanueva | `900004` |
+| Ellaine Morales | `900005` |
+| Franco Cruz | `900006` |
+| Grace Ibanez | `900007` |
+
+### Department Heads
+| Name | School ID |
+|---|---|
+| Ramon Castillo | `940001` |
+| Corazon Villareal | `940002` |
+| Benjamin Torres | `940003` |
+| Marilou Santos | `940004` |
+| Eduardo Ramos | `940005` |
+
+### Students (login with **School ID**, not email)
+| Name | School ID |
+|---|---|
+| Juan Dela Vega | `2100142` |
+| Sofia Bautista | `2100217` |
+| Carlo Mendoza | `2100389` |
+| Pia Torres | `2200055` |
+| Luis Ramos | `2200134` |
+| Gabrielle Villanueva | `2200298` |
+| Rafael Aquino | `2200451` |
+| Camille Garcia | `2300078` |
+| Andrei Navarro | `2300163` |
+| Beatrice Castillo | `2300247` |
+| Miguel Pascual | `2300312` |
+| Trisha Herrera | `2400019` |
+| Jerome Evangelista | `2400067` |
+| Alyssa Domingo | `2400093` |
+| Nico Valdez | `2400118` |
+| Paolo Marquez | `2400133` |
 
 ---
 

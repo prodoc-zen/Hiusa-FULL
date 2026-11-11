@@ -201,7 +201,7 @@ function ProductForm({ editing = false, value, onChange, images, onImagesChange,
         <Field label="Unit price (₱)" required>
           <Input type="number" min="0" step="0.01" value={value.unit_price} onChange={(event) => onChange({ ...value, unit_price: event.target.value })} placeholder="0.00" />
         </Field>
-        <Field label={editing ? "Stock" : "Initial stock"} required>
+        <Field label="Available to order" hint="Units held by unpaid orders are already taken out." required>
           <Input type="number" min="0" value={value.stock_quantity} disabled={value.variants.length > 0} onChange={(event) => onChange({ ...value, stock_quantity: event.target.value })} placeholder="0" />
         </Field>
       </div>

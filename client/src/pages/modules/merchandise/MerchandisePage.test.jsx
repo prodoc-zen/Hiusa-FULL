@@ -847,6 +847,15 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
   });
 
+  it("labels the stock field as what can still be ordered", async () => {
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    fireEvent.click(await findRowAction("Edit"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Available to order")).toBeInTheDocument();
+    expect(within(dialog).getByText("Units held by unpaid orders are already taken out.")).toBeInTheDocument();
+  });
+
   it("deletes an active item through the server rule", async () => {
     merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deleted." } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
