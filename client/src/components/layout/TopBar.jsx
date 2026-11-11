@@ -48,6 +48,7 @@ export default function TopBar({ onMenuToggle }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationPaging, setNotificationPaging] = useState({ page: 1, lastPage: 1, loadingOlder: false });
   const [activeAcademicPeriod, setActiveAcademicPeriod] = useState(null);
   const [viewingPeriod, setViewingPeriod] = useState(null);
   const [availablePeriods, setAvailablePeriods] = useState([]);
@@ -166,11 +167,26 @@ export default function TopBar({ onMenuToggle }) {
       if (requestId !== notificationRequestRef.current) return;
       const data = unwrapList(res?.data);
       setNotifications(data.slice(0, 10));
+      setNotificationPaging({ page: 1, lastPage: Number(res?.data?.last_page ?? 1), loadingOlder: false });
       setUnreadCount(Number(res?.data?.unread_count ?? data.filter((notification) => !notification.is_read).length));
     } catch {
       // notifications are non-critical; fail silently
     }
   }, []);
+
+  async function handleShowOlder() {
+    const requestId = notificationRequestRef.current;
+    setNotificationPaging((current) => ({ ...current, loadingOlder: true }));
+    try {
+      const res = await getNotifications({ per_page: 10, page: notificationPaging.page + 1 });
+      if (requestId !== notificationRequestRef.current) return;
+      const older = unwrapList(res?.data);
+      setNotifications((current) => [...current, ...older.filter((row) => !current.some((known) => known.id === row.id))]);
+      setNotificationPaging({ page: notificationPaging.page + 1, lastPage: Number(res?.data?.last_page ?? notificationPaging.page + 1), loadingOlder: false });
+    } catch {
+      if (requestId === notificationRequestRef.current) setNotificationPaging((current) => ({ ...current, loadingOlder: false }));
+    }
+  }
 
   const loadCart = useCallback(() => {
     setCartItems(readStudentCart());
@@ -286,7 +302,6 @@ export default function TopBar({ onMenuToggle }) {
     return () => document.removeEventListener('keydown', handlePaletteShortcut);
   }, []);
 
-  const recent5 = notifications.slice(0, 5);
   const cartTypeCount = cartItems.length;
   const cartUnitPrice = (row) => Number(row?.item?.effective_price ?? row?.item?.price ?? 0);
   const cartTotal = cartItems.reduce((sum, row) => sum + cartUnitPrice(row) * Number(row?.quantity || 0), 0);
@@ -548,10 +563,10 @@ export default function TopBar({ onMenuToggle }) {
                     </Button>
                   )}
                 </div>
-              ) : recent5.length === 0 ? (
+              ) : notifications.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-ink-muted">No notifications yet.</p>
               ) : (
-                recent5.map((n) => {
+                notifications.map((n) => {
                   const Icon = notificationIcon(n);
                   return (
                     <button
@@ -569,6 +584,16 @@ export default function TopBar({ onMenuToggle }) {
                     </button>
                   );
                 })
+              )}
+              {!selectedNotification && notificationPaging.page < notificationPaging.lastPage && (
+                <button
+                  type="button"
+                  onClick={handleShowOlder}
+                  disabled={notificationPaging.loadingOlder}
+                  className="min-h-11 w-full border-t border-line-soft px-4 text-xs font-medium text-brand-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50"
+                >
+                  {notificationPaging.loadingOlder ? 'Loading older...' : 'Show older'}
+                </button>
               )}
             </div>
           </div>
