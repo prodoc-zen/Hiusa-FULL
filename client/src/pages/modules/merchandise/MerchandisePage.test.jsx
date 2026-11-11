@@ -151,6 +151,35 @@ describe("MerchandisePage buyer experience", () => {
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
   });
 
+  it("tells the buyer cancelling releases the held stock and never says the order has not reserved stock", async () => {
+    const pendingOrder = {
+      id: 18,
+      merchandise: products[0],
+      quantity: 1,
+      total_price: "350.00",
+      payment_method: "cash",
+      payment_proof_url: null,
+      payment_reference: null,
+      officer_review_status: "pending",
+      admin_review_status: "pending",
+      status: "pending",
+      claim_token: null,
+      created_at: "2026-09-13T10:00:00Z",
+    };
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([pendingOrder]) });
+
+    render(
+      <MemoryRouter>
+        <MerchandisePage initialTab="my-orders" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel order" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/Cancelling it releases the stock held for this order\./)).toBeInTheDocument();
+    expect(dialog.textContent).not.toMatch(/has not reserved stock/i);
+  });
+
   it("opens product details with stock and adds the chosen quantity to the cart", async () => {
     render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
     await screen.findByText("HIUSA Shirt");

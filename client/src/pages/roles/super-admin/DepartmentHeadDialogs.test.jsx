@@ -13,9 +13,9 @@ const head = { school_id: 940001, name: 'Dr. Lena Ortiz', first_name: 'Lena', la
 describe('Department Head reset confirmation', () => {
   it('describes a one-time link and does not promise an email while mail is off', () => {
     render(<ManageDepartmentHeadModal college={{ name: 'College of Computing' }} head={head} onClose={vi.fn()} onChanged={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Send password reset' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
 
-    const dialog = screen.getByRole('dialog', { name: 'Send password reset' });
+    const dialog = screen.getByRole('dialog', { name: 'Create reset link' });
     expect(within(dialog).getByText(/one-time reset link/i)).toHaveTextContent(/shown to you once to hand over/i);
     expect(within(dialog).getByText(/one-time reset link/i)).toHaveTextContent(/emailed only when email is turned on/i);
     expect(within(dialog).queryByText(/will be sent/i)).not.toBeInTheDocument();
