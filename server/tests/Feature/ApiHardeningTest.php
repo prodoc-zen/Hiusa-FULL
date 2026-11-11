@@ -109,13 +109,13 @@ class ApiHardeningTest extends TestCase
 
     public function test_guest_hitting_a_throttled_auth_route_still_gets_429(): void
     {
-        $credentials = ['organization_id' => 999, 'school_id' => 99999999, 'password' => 'wrong-password'];
-
-        for ($i = 0; $i < 10; $i++) {
-            $this->postJson('/api/login', $credentials);
+        // Distinct school ids so only the per-address limit (60 a minute) can answer 429.
+        for ($i = 0; $i < 60; $i++) {
+            $this->postJson('/api/login', ['organization_id' => 999, 'school_id' => 90000000 + $i, 'password' => 'wrong-password'])
+                ->assertStatus(422);
         }
 
-        $response = $this->postJson('/api/login', $credentials);
+        $response = $this->postJson('/api/login', ['organization_id' => 999, 'school_id' => 90000060, 'password' => 'wrong-password']);
 
         $response->assertStatus(429);
         $this->assertTrue($response->headers->has('Retry-After'));

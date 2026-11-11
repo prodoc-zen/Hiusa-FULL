@@ -110,4 +110,14 @@ class LoginThrottleTest extends TestCase
         $this->attempt($user->school_id, 'correct-horse', '10.5.0.1')->assertTooManyRequests();
         $this->attempt($user->school_id, 'correct-horse', '10.5.0.2')->assertOk();
     }
+
+    public function test_a_campus_network_behind_one_address_can_sign_in_sixty_times_a_minute(): void
+    {
+        for ($i = 1; $i <= 60; $i++) {
+            $this->attempt(30000000 + $i, 'wrong-password', '10.6.0.1')->assertStatus(422);
+        }
+
+        $this->attempt(30000061, 'wrong-password', '10.6.0.1')->assertTooManyRequests();
+        $this->attempt(30000062, 'wrong-password', '10.6.0.2')->assertStatus(422);
+    }
 }

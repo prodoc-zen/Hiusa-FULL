@@ -80,7 +80,7 @@ class AppServiceProvider extends ServiceProvider
             ->response($tooManyRequests));
 
         RateLimiter::for('login', function (Request $request) use ($tooManyRequests) {
-            $limits = [Limit::perMinute(config('performance.rate_limits.login_per_minute'))
+            $limits = [Limit::perMinute(config('performance.rate_limits.login_per_ip_per_minute'))
                 ->by($request->ip())->response($tooManyRequests)];
 
             if ($identifier = User::normalizeIdentifier($request->input('identifier', $request->input('school_id')))) {

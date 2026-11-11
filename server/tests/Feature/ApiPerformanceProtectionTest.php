@@ -115,7 +115,7 @@ class ApiPerformanceProtectionTest extends TestCase
 
     public function test_login_is_rate_limited_with_a_json_response(): void
     {
-        config()->set('performance.rate_limits.login_per_minute', 3);
+        config()->set('performance.rate_limits.login_per_ip_per_minute', 3);
 
         for ($attempt = 0; $attempt < 3; $attempt++) {
             $this->postJson('/api/login', [
