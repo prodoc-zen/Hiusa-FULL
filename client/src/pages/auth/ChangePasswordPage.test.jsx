@@ -60,6 +60,22 @@ describe('ChangePasswordPage', () => {
     expect(profileMocks.updatePassword).not.toHaveBeenCalled();
   });
 
+  it('announces a new password under 8 characters as an alert on that field when everything else is filled in', () => {
+    renderPage();
+
+    fill({ next: 'short', confirm: 'short' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save new password' }));
+
+    const field = screen.getByLabelText('New password');
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Use at least 8 characters.');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveAttribute('aria-describedby', alert.id);
+    expect(field).toHaveFocus();
+    expect(screen.getAllByText('Use at least 8 characters.')).toHaveLength(1);
+    expect(profileMocks.updatePassword).not.toHaveBeenCalled();
+  });
+
   it('catches a confirmation that does not match without calling the server', () => {
     renderPage();
 
