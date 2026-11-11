@@ -429,7 +429,7 @@ class DashboardBriefingService
                 'type' => 'election_closing',
                 'severity' => $hoursLeft <= 24 ? 'high' : 'medium',
                 'title' => 'Election closing soon',
-                'detail' => "\"{$row->title}\" closes ".$endTime->diffForHumans(),
+                'detail' => "\"{$row->title}\" closes soon",
                 'due_at' => $endTime->toIso8601String(),
                 'href' => $href,
             ];
@@ -643,7 +643,7 @@ class DashboardBriefingService
             'type' => 'election_open',
             'severity' => $endTime->lessThanOrEqualTo(now()->addDay()) ? 'high' : 'medium',
             'title' => 'Vote now',
-            'detail' => "\"{$election->title}\" closes ".$endTime->diffForHumans(),
+            'detail' => "\"{$election->title}\" is open for voting",
             'due_at' => $endTime->toIso8601String(),
             'href' => $href,
         ]];
