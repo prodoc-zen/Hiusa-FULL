@@ -719,7 +719,7 @@ describe('SystemCollegesPage', () => {
       withHead({ account_status: 'inactive' });
       mocks.updateDepartmentHead.mockRejectedValueOnce({ response: { status: 409, data: { message: 'This college already has an active Department Head. Deactivate the current one first.' } } });
       await openManagement();
-      expect(screen.getByRole('button', { name: 'Send password reset' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Create reset link' })).toBeDisabled();
       fireEvent.click(screen.getByRole('button', { name: 'Reactivate' }));
       const confirmation = await screen.findByRole('dialog', { name: 'Reactivate Department Head' });
       expect(within(confirmation).getByText(/They will be able to sign in again/)).toBeInTheDocument();
@@ -734,11 +734,11 @@ describe('SystemCollegesPage', () => {
       withHead();
       mocks.resetDepartmentHeadPassword.mockResolvedValue({ message: 'Password reset instructions were sent to the Department Head email address.' });
       await openManagement();
-      fireEvent.click(screen.getByRole('button', { name: 'Send password reset' }));
-      const confirmation = await screen.findByRole('dialog', { name: 'Send password reset' });
+      fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
+      const confirmation = await screen.findByRole('dialog', { name: 'Create reset link' });
       expect(mocks.resetDepartmentHeadPassword).not.toHaveBeenCalled();
 
-      fireEvent.click(within(confirmation).getByRole('button', { name: 'Send reset link' }));
+      fireEvent.click(within(confirmation).getByRole('button', { name: 'Create reset link' }));
 
       await waitFor(() => expect(mocks.resetDepartmentHeadPassword).toHaveBeenCalledWith(940001));
       expect(await screen.findByRole('status')).toHaveTextContent('Password reset instructions were sent');
@@ -750,9 +750,9 @@ describe('SystemCollegesPage', () => {
       withHead();
       mocks.resetDepartmentHeadPassword.mockResolvedValue({ message: 'The reset link is ready.', reset_link: 'https://hiusa.example.test/reset-password?token=abc' });
       await openManagement();
-      fireEvent.click(screen.getByRole('button', { name: 'Send password reset' }));
-      const confirmation = await screen.findByRole('dialog', { name: 'Send password reset' });
-      fireEvent.click(within(confirmation).getByRole('button', { name: 'Send reset link' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
+      const confirmation = await screen.findByRole('dialog', { name: 'Create reset link' });
+      fireEvent.click(within(confirmation).getByRole('button', { name: 'Create reset link' }));
 
       const dialog = await screen.findByRole('dialog', { name: 'Reset link ready' });
       expect(within(dialog).getByDisplayValue('https://hiusa.example.test/reset-password?token=abc')).toBeInTheDocument();
