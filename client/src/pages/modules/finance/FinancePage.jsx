@@ -121,7 +121,7 @@ const deleteLabels = {
 const invoiceColumns = [
   { key: 'description', header: 'Description', render: (invoice) => invoice.description },
   { key: 'reference', header: 'Reference', render: (invoice) => invoice.reference || 'Not set' },
-  { key: 'due_date', header: 'Due date', render: (invoice) => invoice.due_date || 'Not set' },
+  { key: 'due_date', header: 'Due date', render: (invoice) => (invoice.due_date ? formatLedgerDate(invoice.due_date) : 'Not set') },
   { key: 'status', header: 'Status', render: (invoice) => sentence(invoice.status) },
   { key: 'amount_due', header: 'Amount due', align: 'right', render: (invoice) => fmt(invoice.amount_due) },
   { key: 'amount_paid', header: 'Paid', align: 'right', render: (invoice) => <span className="text-success-strong">{fmt(invoice.amount_paid)}</span> },
