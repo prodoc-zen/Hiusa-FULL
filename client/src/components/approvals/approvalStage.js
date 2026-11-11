@@ -1,4 +1,5 @@
-import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle, roleLabel } from '../../lib/lifecycle';
+import { budgetLifecycle, electionLifecycle, financialReportLifecycle, roleLabel } from '../../lib/lifecycle';
+import { eventFlow } from '../events/eventStage';
 
 export const ENTITY_LABEL = {
   event: 'Event',
@@ -83,7 +84,7 @@ function financialReportRecord(request) {
 }
 
 const LIFECYCLES = {
-  event: { record: eventRecord, lifecycle: eventLifecycle, pendingOwner: (record) => (record.approval_status === 'pending' ? record.approval_required_role : null) },
+  event: { record: eventRecord, lifecycle: eventFlow, pendingOwner: (record) => (record.approval_status === 'pending' ? record.approval_required_role : null) },
   budget: { record: budgetRecord, lifecycle: budgetLifecycle, pendingOwner: (record) => ({ pending_department_head: 'DEPARTMENT_HEAD', pending_sao: 'SUPER_ADMIN' })[record.submission_status] ?? null },
   election: { record: electionRecord, lifecycle: electionLifecycle, pendingOwner: (record) => (record.status === 'pending_approval' && record.approval_status === 'pending' ? record.approval_required_role || 'DEPARTMENT_HEAD' : null) },
   financial_report: { record: financialReportRecord, lifecycle: financialReportLifecycle, pendingOwner: (record) => ({ pending_department_head: 'DEPARTMENT_HEAD', pending_sao: 'SUPER_ADMIN' })[record.submission_status] ?? null },
