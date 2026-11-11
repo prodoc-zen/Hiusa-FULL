@@ -149,6 +149,10 @@ class MerchandiseController extends Controller
                     && $lockedItem->orders()->where('status', 'pending')->exists()) {
                     throw new HttpResponseException(response()->json(['message' => 'Review pending orders before adding variants to this product.'], 409));
                 }
+                if (array_key_exists('is_active', $data) && ! $data['is_active'] && $lockedItem->is_active
+                    && $lockedItem->orders()->whereIn('status', ['pending', 'paid'])->exists()) {
+                    throw new HttpResponseException(response()->json(['message' => 'Cannot deactivate an item with pending or paid orders. Approve, reject or hand over those orders first.'], 409));
+                }
                 $oldValues = $this->auditableMerchandiseValues($lockedItem);
                 $oldVariantStocks = collect($oldValues['variants'])->mapWithKeys(fn ($variant) => [$variant['id'] => (int) $variant['stock_quantity']])->all();
                 $newVariantStocks = $variants === null ? $oldVariantStocks : collect($variants)->mapWithKeys(fn ($variant, $index) => [$variant['id'] ?? 'new-'.$index => (int) $variant['stock_quantity']])->all();
