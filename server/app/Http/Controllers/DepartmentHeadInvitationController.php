@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use App\Support\AdviserPosition;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -84,13 +85,16 @@ class DepartmentHeadInvitationController extends Controller
             return $this->createInvitation($request, $college, $home, self::HEAD, null, 'department_head_invited', "SAO created an invitation link for the Department Head of {$college->name}.");
         });
 
-        $emailed = $this->sendLink($data['email'] ?? null, $college, 'Department Head', $magicLink);
+        // With the log mail driver a sent mail goes nowhere, so the answer must not claim it was emailed.
+        $mailIsOff = app(PasswordResetService::class)->mailIsOff();
+        $emailed = ! $mailIsOff && $this->sendLink($data['email'] ?? null, $college, 'Department Head', $magicLink);
 
         return response()->json([
             'message' => 'The link is ready.',
             'invitation' => $invitation->load('college:id,name,code'),
             'magic_link' => $magicLink,
             'emailed' => $emailed,
+            'mail_is_off' => $mailIsOff,
         ], 201);
     }
 

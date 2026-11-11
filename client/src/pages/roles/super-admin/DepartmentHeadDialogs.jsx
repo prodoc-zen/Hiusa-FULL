@@ -119,7 +119,8 @@ export function InviteDepartmentHeadModal({ colleges, initialCollegeId = '', onC
           </Field>
           <Button variant="secondary" leftIcon={copied ? Check : Copy} onClick={copyLink}>{copied ? 'Copied' : 'Copy link'}</Button>
           {result.emailed && <p role="status" className="text-sm font-medium text-ink-muted">We also emailed it to {email.trim().toLowerCase()}.</p>}
-          {email.trim() && !result.emailed && <p role="alert" className="text-sm font-semibold text-danger-strong">The email could not be sent. Copy the link and send it yourself.</p>}
+          {email.trim() && result.mail_is_off && <p role="status" className="text-sm font-medium text-ink-muted">Email is switched off, so nothing was sent to {email.trim().toLowerCase()}. Copy the link and send it yourself.</p>}
+          {email.trim() && !result.emailed && !result.mail_is_off && <p role="alert" className="text-sm font-semibold text-danger-strong">The email could not be sent. Copy the link and send it yourself.</p>}
         </div>
       </Modal>
     );

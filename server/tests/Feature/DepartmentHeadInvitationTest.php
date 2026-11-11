@@ -131,6 +131,17 @@ class DepartmentHeadInvitationTest extends TestCase
             && str_contains($mail->magicLink, '/accept-invitation?token='));
     }
 
+    public function test_with_mail_off_the_answer_says_nothing_was_emailed(): void
+    {
+        config(['mail.default' => 'log']);
+
+        $response = $this->actingAs($this->sao)->postJson("/api/system/colleges/{$this->college->id}/invite-department-head", ['email' => 'dean@example.edu']);
+
+        $response->assertCreated()->assertJsonPath('emailed', false)->assertJsonPath('mail_is_off', true)->assertJsonStructure(['magic_link']);
+        Mail::assertNothingSent();
+        Mail::assertNothingQueued();
+    }
+
     public function test_only_the_sao_can_make_a_dean_link(): void
     {
         $this->postJson("/api/system/colleges/{$this->college->id}/invite-department-head")->assertUnauthorized();

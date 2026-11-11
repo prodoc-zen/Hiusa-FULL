@@ -638,6 +638,20 @@ describe('SystemCollegesPage', () => {
       expect(await within(ready).findByRole('button', { name: 'Copied' })).toBeInTheDocument();
     });
 
+    it('says nothing was sent when the server reports that email is switched off', async () => {
+      withoutHead();
+      mocks.inviteDepartmentHead.mockResolvedValue({ magic_link: 'http://localhost:5173/accept-invitation?token=off', emailed: false, mail_is_off: true });
+      const dialog = await openInvite();
+      type(/Send it to/, 'dean@example.edu');
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create link' }));
+
+      const ready = await screen.findByRole('dialog', { name: 'Link ready' });
+      expect(within(ready).getByRole('status')).toHaveTextContent('Email is switched off, so nothing was sent to dean@example.edu. Copy the link and send it yourself.');
+      expect(within(ready).queryByText(/We also emailed it/)).not.toBeInTheDocument();
+      expect(within(ready).queryByRole('alert')).not.toBeInTheDocument();
+    });
+
     it('lets the SAO pick the college from the page header', async () => {
       mocks.getSystemColleges.mockResolvedValue([
         { id: 3, name: 'College of Arts', code: 'COA', is_active: true, organizations_count: 0, department_head: null },
