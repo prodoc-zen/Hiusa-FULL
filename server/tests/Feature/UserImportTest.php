@@ -66,6 +66,16 @@ class UserImportTest extends TestCase
         $this->assertDatabaseMissing('users', ['school_id' => 20260002]);
     }
 
+    public function test_a_nine_digit_school_id_is_refused_in_plain_words(): void
+    {
+        $content = "school_id,first_name,last_name,email,role,program\n"
+            ."202600123,Ana,Reyes,ana@example.com,Student,BSIT\n";
+
+        $rows = $this->upload($content, true)->assertOk()->json('rows');
+
+        $this->assertSame(['School ID can have at most 8 digits.'], $rows[0]['errors']);
+    }
+
     public function test_a_clean_file_creates_every_account_with_an_unknown_password_and_audits_each(): void
     {
         $content = "school_id,first_name,last_name,email,role,program,year_level\n"

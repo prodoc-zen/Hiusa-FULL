@@ -179,8 +179,8 @@ return [
     */
 
     'custom' => [
-        'attribute-name' => [
-            'rule-name' => 'custom-message',
+        'school_id' => [
+            'max' => 'School ID can have at most 8 digits.',
         ],
     ],
 
