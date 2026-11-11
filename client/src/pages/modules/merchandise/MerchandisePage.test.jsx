@@ -1000,6 +1000,37 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     }
   });
 
+  it("asks for the price and stock before sizes and promotions, and explains a stock that follows the sizes", async () => {
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+    fireEvent.click(await screen.findByRole("button", { name: "Add product" }));
+    const dialog = await screen.findByRole("dialog");
+
+    const text = dialog.textContent;
+    const before = (first, second) => {
+      expect(text.indexOf(first)).toBeGreaterThan(-1);
+      expect(text.indexOf(first)).toBeLessThan(text.indexOf(second));
+    };
+    before("Category", "Unit price");
+    before("Available to order", "Sizes and variants");
+    before("Sizes and variants", "Promo price");
+    expect(within(dialog).getByLabelText("Available to order")).not.toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add variant" }));
+    fireEvent.change(within(dialog).getByLabelText("Variant 1 stock"), { target: { value: "6" } });
+    const stock = within(dialog).getByLabelText("Available to order");
+    expect(stock).toBeDisabled();
+    expect(stock).toHaveValue(6);
+    expect(within(dialog).getByText("Added up from the sizes below.")).toBeInTheDocument();
+  });
+
+  it("asks only for a reason when a product without sizes is topped up with no reason", async () => {
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+    fireEvent.click(await findRowAction("Add stock"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Enter a reason for this stock addition.")).toBeInTheDocument();
+    expect(screen.queryByText(/Select a variant/)).not.toBeInTheDocument();
+  });
+
   it("deletes an active item through the server rule", async () => {
     merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deleted." } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");

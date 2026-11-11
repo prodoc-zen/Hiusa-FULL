@@ -69,10 +69,8 @@ const itemPrice = (item) => Number(item.effective_price ?? item.price);
 const PRODUCT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const emptyCatalogExtras = { variants: [], promotion_price: "", promotion_buyer_limit: "", low_stock_threshold: "9" };
 
-function CatalogFields({ value, onChange, images, onImagesChange, checkImage }) {
+function CategoryFields({ value, onChange }) {
   const categoryIsCustom = Boolean(value.category_custom || (value.category && !CATEGORIES.includes(value.category)));
-  const variants = value.variants || [];
-  const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
   return <>
     <Field label="Category" required>
       <HiusaSelect value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })}>
@@ -83,6 +81,11 @@ function CatalogFields({ value, onChange, images, onImagesChange, checkImage }) 
     {categoryIsCustom && <Field label="Category name" required>
       <Input value={value.category} onChange={(event) => onChange({ ...value, category: event.target.value, category_custom: true })} placeholder="Enter category name" />
     </Field>}
+  </>;
+}
+
+function PromotionFields({ value, onChange }) {
+  return (
     <div className="grid gap-3 sm:grid-cols-3">
       <Field label="Low stock at or below" optional>
         <Input type="number" min="1" value={value.low_stock_threshold ?? "9"} onChange={(event) => onChange({ ...value, low_stock_threshold: event.target.value })} />
@@ -94,6 +97,13 @@ function CatalogFields({ value, onChange, images, onImagesChange, checkImage }) 
         <Input type="number" min="1" value={value.promotion_buyer_limit ?? ""} onChange={(event) => onChange({ ...value, promotion_buyer_limit: event.target.value })} placeholder="e.g. 100" />
       </Field>
     </div>
+  );
+}
+
+function SizeFields({ value, onChange, images, onImagesChange, checkImage }) {
+  const variants = value.variants || [];
+  const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
+  return <>
     <section className="space-y-3 border-t border-line pt-4">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -188,6 +198,8 @@ function StatTile({ label, value, context, to, onClick }) {
 
 function ProductForm({ editing = false, value, onChange, images, onImagesChange, preview, onImage, submitDisabled, submitLabel, onSubmit, onCancel }) {
   const [imageProblem, setImageProblem] = useState("");
+  const hasSizes = value.variants.length > 0;
+  const sizeStock = value.variants.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0);
   // A picker cannot stop someone choosing "All files", so the type is checked here before it reaches a preview or the server.
   const checkImage = (event) => {
     const file = event.target.files?.[0];
@@ -204,20 +216,22 @@ function ProductForm({ editing = false, value, onChange, images, onImagesChange,
       <Field label="Item name" required>
         <Input type="text" value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} placeholder="e.g. HIUSA T-Shirt (XL)" />
       </Field>
-      <CatalogFields value={value} onChange={onChange} images={images} onImagesChange={onImagesChange} checkImage={checkImage} />
+      <CategoryFields value={value} onChange={onChange} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Unit price (₱)" required>
+          <Input type="number" min="0" step="0.01" value={value.unit_price} onChange={(event) => onChange({ ...value, unit_price: event.target.value })} placeholder="0.00" />
+        </Field>
+        <Field label="Available to order" hint={hasSizes ? "Added up from the sizes below." : "Units held by unpaid orders are already taken out."} required>
+          <Input type="number" min="0" value={hasSizes ? sizeStock : value.stock_quantity} disabled={hasSizes} onChange={(event) => onChange({ ...value, stock_quantity: event.target.value })} placeholder="0" />
+        </Field>
+      </div>
+      <SizeFields value={value} onChange={onChange} images={images} onImagesChange={onImagesChange} checkImage={checkImage} />
       {editing && (
         <Field label="Stock change reason">
           <Textarea value={value.stock_note || ""} onChange={(event) => onChange({ ...value, stock_note: event.target.value })} maxLength={500} rows={2} placeholder="Required when changing product or variant stock" />
         </Field>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Unit price (₱)" required>
-          <Input type="number" min="0" step="0.01" value={value.unit_price} onChange={(event) => onChange({ ...value, unit_price: event.target.value })} placeholder="0.00" />
-        </Field>
-        <Field label="Available to order" hint="Units held by unpaid orders are already taken out." required>
-          <Input type="number" min="0" value={value.stock_quantity} disabled={value.variants.length > 0} onChange={(event) => onChange({ ...value, stock_quantity: event.target.value })} placeholder="0" />
-        </Field>
-      </div>
+      <PromotionFields value={value} onChange={onChange} />
       <div className="flex flex-col gap-1.5">
         <span className="text-[13px] font-medium text-ink">Description<span className="ml-1 font-normal text-ink-muted">(optional)</span></span>
         <RichTextEditor rows={2} value={value.description} onChange={(description) => onChange({ ...value, description })} placeholder="Describe the item" ariaLabel="Product description" />
@@ -1372,8 +1386,13 @@ export default function MerchandisePage({ initialTab }) {
     const item = stockModal.item;
     const note = stockModal.note.trim();
     const variantId = stockModal.variantId ? Number(stockModal.variantId) : null;
-    if (!note || (item.variants?.length && !variantId)) {
-      setError("Select a variant and enter a reason for this stock addition.");
+    const needsVariant = Boolean(item.variants?.length) && !variantId;
+    if (!note || needsVariant) {
+      setError(
+        needsVariant
+          ? note ? "Select a variant for this stock addition." : "Select a variant and enter a reason for this stock addition."
+          : "Enter a reason for this stock addition.",
+      );
       return;
     }
     const nextStock = item.stock_quantity + addAmount;
