@@ -131,6 +131,15 @@ export function describeApproval(request, viewerRole) {
   };
 }
 
+// Who the request is waiting on right now, or null once nobody holds it. A decided request is not
+// waiting on the role that decided it.
+export function waitingOnRole(request) {
+  const entry = LIFECYCLES[request.entity_type];
+  if (entry) return entry.pendingOwner(entry.record(request));
+
+  return request.status === 'pending' ? request.required_role : null;
+}
+
 // The sentence shown once a request is decided. For an event the Department Head approved while the
 // SAO still has to clear it, the sentence says so; it is the same sentence on a fresh load.
 export function decisionMessage(request) {
