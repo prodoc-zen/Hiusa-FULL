@@ -630,7 +630,7 @@
       "4. Clear the date and open \"Sort by\". Try Soonest, Latest date, Newest created and Title.",
       "5. Use the clear option to remove all filters."
     ],
-    "expected": "The list narrows and reorders for each choice and the count of events updates. Clearing filters brings the full list back.",
+    "expected": "The list narrows and reorders for each choice; when nothing matches, \"No events match these filters\" appears. Clearing filters brings the full list back (the sort choice stays as it was).",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -866,13 +866,13 @@
     "role": "Student",
     "module": "Voting > Vote",
     "title": "Election that has not opened yet cannot be voted in",
-    "preconditions": "An election that is approved but its start time is in the future, or whose ballot is not finalized.",
+    "preconditions": "An election that is approved and its ballot is finalized, but its start time is in the future. Optionally also one that is approved but whose ballot is not finalized.",
     "steps": [
       "1. Open Voting, Vote.",
       "2. Read the text on the election card.",
       "3. Look for a Vote button."
     ],
-    "expected": "The card shows Upcoming. With a finalized ballot it says \"Voting opens <date and time>. Come back then to cast your ballot.\" Without a finalized ballot it says \"The ballot is still being built. Voting opens after the Admin finalizes it.\" There is no vote button.",
+    "expected": "The finalized election card shows Upcoming and says \"Voting opens <date and time>. Come back then to cast your ballot.\" with \"Results: Available when voting closes\". There is no vote button. An election whose ballot is not finalized is not listed for students, so no card and no vote button appear for it.",
     "priority": "Medium",
     "device": "Any",
     "type": "Negative",
@@ -901,13 +901,13 @@
     "role": "Student",
     "module": "Voting > Results",
     "title": "Results hidden until released",
-    "preconditions": "Sequence: an election is closed but the Admin has not released the results (or an open election with live totals switched off). VERIFY: the exact setting name on the Admin side.",
+    "preconditions": "Sequence: an open election with live totals switched off (results not visible). VERIFY: the exact setting name on the Admin side. A closed election whose results are not released is not listed for students.",
     "steps": [
       "1. Open Voting, Vote and read the \"Results:\" line on the card.",
       "2. Open Voting, Results from the menu.",
       "3. Read the page."
     ],
-    "expected": "The card says \"Available when the Admin releases the results\" (closed election) or \"Available when voting closes\" (open election). The Results page says \"Election results are not available yet.\" with the line \"Vote totals appear once the finalized ballot opens. Winners are declared after closing.\"",
+    "expected": "On an open election whose results are hidden the card says \"Available when voting closes\". A closed election whose results are not released is not listed for students. The Results page says \"Election results are not available yet.\" with the line \"Turnout appears once the finalized ballot opens. Results appear when the election closes.\"",
     "priority": "High",
     "device": "Any",
     "type": "Negative",

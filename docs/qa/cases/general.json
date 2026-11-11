@@ -1742,12 +1742,12 @@
     "title": "An archived organization is read only for the SAO",
     "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001. An archived organization exists.",
     "steps": [
-      "1. Open Organizations, Registrations and organizations.",
-      "2. Open the archived organization.",
+      "1. Open Organizations, Registrations and organizations and choose the Archived tab.",
+      "2. Read the note on the tab and open the row menu of the archived organization.",
       "3. Try to change something (add an Administrator or edit a detail).",
-      "4. Read the message."
+      "4. Restore the organization and look at the row menu again."
     ],
-    "expected": "The change is refused with the message \"Archived organizations are read only.\" The data stays as it was. Restoring the organization (SAO action) makes changes possible again.",
+    "expected": "The Archived tab says \"Archived organizations are read-only. Restore to make changes.\" The row offers only Open organization, Restore organization and Delete organization. A direct edit is refused with \"Archived organizations cannot be edited.\" and adding an administrator with \"Archived organizations are read only.\" The data stays as it was. Restoring the organization (SAO action) brings back Edit and Add administrator.",
     "priority": "High",
     "device": "Any",
     "type": "Negative",
