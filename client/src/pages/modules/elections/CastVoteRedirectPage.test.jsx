@@ -95,6 +95,26 @@ describe('CastVoteRedirectPage', () => {
     expect(screen.queryByText('Waiting On Approval')).not.toBeInTheDocument();
   });
 
+  it('asks for details only of elections the server will show a student, never an upcoming or unreleased one', async () => {
+    const list = [
+      { ...open, id: 1, title: 'Open Election' },
+      { id: 2, title: 'Upcoming Election', status: 'upcoming', finalized_at: iso(-HOUR), start_time: iso(2 * HOUR), end_time: iso(4 * HOUR), results_visible: false },
+      { id: 3, title: 'Unfinalized Election', status: 'upcoming', finalized_at: null, start_time: iso(2 * HOUR), end_time: iso(4 * HOUR), results_visible: false },
+      { id: 4, title: 'Held Results', status: 'closed', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR), results_visible: false },
+      { id: 5, title: 'Released Results', status: 'closed', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR), results_visible: true },
+    ];
+    getElections.mockResolvedValue(list);
+    getElectionDetails.mockImplementation(async (id) => ({ ...list.find((item) => item.id === id), my_votes: [] }));
+    renderPage();
+
+    await screen.findByText('Open Election');
+    expect(getElectionDetails.mock.calls.map(([id]) => id)).toEqual([1, 5]);
+    expect(within(cardFor('Upcoming Election')).getByText('Upcoming')).toBeInTheDocument();
+    expect(within(cardFor('Upcoming Election')).getByText(/Voting opens/)).toBeInTheDocument();
+    expect(within(cardFor('Unfinalized Election')).getByText(/still being built/)).toBeInTheDocument();
+    expect(within(cardFor('Held Results')).getByText('Closed')).toBeInTheDocument();
+  });
+
   it('still lists an election when its details cannot be loaded', async () => {
     getElections.mockResolvedValue([{ ...open, id: 1, title: 'Election 1' }]);
     getElectionDetails.mockRejectedValue(new Error('offline'));
