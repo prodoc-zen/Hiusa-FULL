@@ -392,7 +392,7 @@ describe('FinancePage transaction search', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
-    await screen.findByText('August Report');
+    await screen.findByText('August report');
     fireEvent.click(await findRowAction('Export Excel'));
     await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
@@ -429,7 +429,7 @@ describe('FinancePage transaction search', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
-    await screen.findByText('October Report');
+    await screen.findByText('October report');
     fireEvent.click(await findRowAction('Export Excel'));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
     const workbookBuffer = await new Promise((resolve) => {
@@ -1052,7 +1052,7 @@ describe('FinancePage plain ledger rows and page-level states', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
     render(<FinancePage initialTab="reports" />);
 
-    await screen.findByText('August Report');
+    await screen.findByText('August report');
     expect(screen.queryByRole('heading', { name: 'Prepare a report' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Prepare a report' }));
     expect(await screen.findByRole('heading', { name: 'Prepare a report' })).toBeInTheDocument();
