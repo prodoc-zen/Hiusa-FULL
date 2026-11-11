@@ -4,12 +4,14 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\ComplianceController;
 use App\Models\ComplianceRequirementType;
+use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -422,6 +424,50 @@ class OrganizationComplianceTest extends TestCase
             ->assertJsonPath('organizations.0.requirements.0.requirement_type_id', $renewal->id)
             ->assertJsonPath('organizations.0.requirements.0.category', 'renewal');
         $this->getJson('/api/compliance/submissions?category=renewal')->assertOk();
+    }
+
+    public function test_status_counts_what_waits_for_the_sao_per_organization_in_a_fixed_number_of_queries(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $waiting = Organization::factory()->create(['organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active', 'name' => 'Waiting Club']);
+        $quiet = Organization::factory()->create(['organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active', 'name' => 'Quiet Club']);
+        $registration = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Constitution', 'category' => 'organization', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id]);
+        $renewal = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Renewal Form', 'category' => 'renewal', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id]);
+        $roster = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Roster', 'category' => 'organization', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id]);
+        foreach ([[$registration, 'submitted'], [$renewal, 'submitted'], [$roster, 'approved']] as [$type, $state]) {
+            OrganizationComplianceSubmission::create(['organization_id' => $waiting->id, 'requirement_type_id' => $type->id, 'status' => $state, 'file_path' => 'x.pdf', 'file_original_name' => 'x.pdf', 'mime_type' => 'application/pdf', 'file_size' => 10, 'submitted_by' => $superAdmin->school_id, 'submitted_at' => now()]);
+        }
+        $report = fn (string $status, ?string $signedAt) => FinancialReport::create([
+            'organization_id' => $waiting->id, 'report_type' => 'monthly', 'title' => $status, 'source_transaction_ids' => [], 'signatories' => [],
+            'submission_status' => $status, 'generated_by' => $superAdmin->school_id, 'generated_at' => now(), 'submitted_at' => now(),
+            'department_head_approved_at' => $signedAt,
+        ]);
+        $report('pending_sao', now());
+        $report('pending_sao', now());
+        $report('pending_department_head', null);
+        $report('approved', now());
+        Sanctum::actingAs($superAdmin);
+
+        $queries = function () {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $organizations = $this->withHeader('Cache-Control', 'no-cache')->getJson('/api/compliance/status')->assertOk()->json('organizations');
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return [$organizations, $count];
+        };
+
+        [$organizations, $queryCount] = $queries();
+        $byName = collect($organizations)->keyBy('organization_name');
+        $this->assertSame(2, $byName['Waiting Club']['awaiting_review_count']);
+        $this->assertSame(2, $byName['Waiting Club']['awaiting_financial_report_count']);
+        $this->assertSame(0, $byName['Quiet Club']['awaiting_review_count']);
+        $this->assertSame(0, $byName['Quiet Club']['awaiting_financial_report_count']);
+
+        Organization::factory()->count(4)->create(['organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active']);
+        [, $queryCountWithMore] = $queries();
+        $this->assertSame($queryCount, $queryCountWithMore);
     }
 
     public function test_student_cannot_submit_or_review_compliance_documents(): void
