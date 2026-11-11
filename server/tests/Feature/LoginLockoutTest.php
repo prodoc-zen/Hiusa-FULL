@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class LoginLockoutTest extends TestCase
@@ -105,6 +106,15 @@ class LoginLockoutTest extends TestCase
         $this->travel(2)->minutes();
 
         $this->signInFrom('198.51.100.20', $owner->school_id, 'right-password')->assertStatus(429);
+    }
+
+    public function test_an_inactive_account_with_the_right_password_does_not_record_the_address(): void
+    {
+        $owner = User::factory()->student()->create(['school_id' => 990008, 'password_hash' => 'right-password', 'account_status' => 'inactive']);
+
+        $this->signInFrom('198.51.100.20', $owner->school_id, 'right-password')->assertStatus(403);
+
+        $this->assertFalse(Cache::has('login-known:'.$owner->school_id.'|198.51.100.20'));
     }
 
     public function test_two_spellings_that_resolve_to_one_account_share_the_failure_counter(): void
