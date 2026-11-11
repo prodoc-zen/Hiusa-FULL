@@ -162,6 +162,22 @@ class VoterRollFreezeTest extends TestCase
         $this->assertNotContains($late->school_id, collect($response->json('data'))->pluck('school_id')->all());
     }
 
+    public function test_the_voter_list_still_counts_someone_who_voted_and_has_since_lost_voting_access(): void
+    {
+        $early = $this->member(true);
+        $stayer = $this->member(true);
+        Sanctum::actingAs($early);
+        $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
+        AccountProfile::where('user_school_id', $early->school_id)->where('organization_id', $this->organization->id)->update(['account_status' => 'disabled']);
+
+        Sanctum::actingAs($this->admin);
+        $response = $this->getJson("/api/elections/{$this->election->id}/voters")->assertOk();
+
+        $this->assertSame(1, $response->json('summary.voted_count'));
+        $this->assertSame(2, $response->json('summary.eligible_total'));
+        $this->assertEqualsCanonicalizing([$early->school_id, $stayer->school_id], collect($response->json('data'))->pluck('school_id')->all());
+    }
+
     public function test_a_head_cannot_add_a_student_the_registry_does_not_know_once_the_college_has_a_registry(): void
     {
         $this->registry(20260001);
