@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserImportDrawer from './UserImportDrawer';
 import { importUsers } from '../../services/userService';
 import downloadBlob from '../../utils/downloadBlob';
+import notify from '../../lib/notify';
 
 vi.mock('../../services/userService', () => ({ importUsers: vi.fn() }));
 vi.mock('../../utils/downloadBlob', () => ({ default: vi.fn() }));
@@ -74,6 +75,8 @@ describe('UserImportDrawer', () => {
 
     expect(await screen.findByText('Abcd1234efGH')).toBeInTheDocument();
     expect(screen.getByText(/shown only once/i)).toBeInTheDocument();
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('1 member account created');
     expect(onImported).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy all' }));

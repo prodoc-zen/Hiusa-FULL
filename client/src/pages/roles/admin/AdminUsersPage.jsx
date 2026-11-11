@@ -375,6 +375,7 @@ export default function AdminUsersPage() {
   const [editPhoto, setEditPhoto] = useState(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
+  const resetAlertRef = useRef(null);
   const [resetLink, setResetLink] = useState(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUser, setInviteUser] = useState(null);
@@ -448,6 +449,12 @@ export default function AdminUsersPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [roleFilter, programFilter, debouncedSearch, page]);
+
+  useEffect(() => {
+    if (!resetError) return;
+    resetAlertRef.current?.scrollIntoView?.({ block: 'nearest' });
+    resetAlertRef.current?.focus();
+  }, [resetError]);
 
   const refreshUsers = load;
 
@@ -710,7 +717,7 @@ export default function AdminUsersPage() {
         <h3 className="text-sm font-semibold text-ink">Password</h3>
         <p className="text-sm text-ink-muted">Create a one-time link that lets this member choose a new password. You never see or set the password yourself.</p>
         <Button variant="secondary" onClick={handleResetPassword} loading={resetBusy} disabled={busy}>Reset password</Button>
-        {resetError && <p role="alert" className="text-sm font-semibold text-danger-strong">{resetError}</p>}
+        {resetError && <p ref={resetAlertRef} role="alert" tabIndex={-1} className="text-sm font-semibold text-danger-strong outline-none">{resetError}</p>}
       </div>
     );
   };

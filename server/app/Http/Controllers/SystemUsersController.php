@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -154,7 +155,13 @@ class SystemUsersController extends Controller
                     abort_unless(User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists(), 409, 'The last active SAO account cannot be deleted.');
                 }
                 $counts = $this->linkedRecordCounts($locked->school_id);
-                abort_if(array_sum(Arr::except($counts, ['profiles'])) > 0, 409, 'This user has linked records such as finance entries, events, orders, attendance, clearance or election records. Deleting the account would erase them. Deactivate the account instead.');
+                $linked = array_filter(Arr::except($counts, ['profiles']));
+                if ($linked !== []) {
+                    throw new HttpResponseException(response()->json([
+                        'message' => 'This user has linked records such as finance entries, events, orders, attendance, clearance or election records. Deleting the account would erase them. Deactivate the account instead.',
+                        'linked_records' => $linked,
+                    ], 409));
+                }
                 $organizationId = $locked->getRawOriginal('organization_id');
                 $role = $locked->getRawOriginal('role');
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
