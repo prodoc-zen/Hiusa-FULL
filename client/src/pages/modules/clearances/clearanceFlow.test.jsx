@@ -149,8 +149,9 @@ describe('SignatoryClearancesPage', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Maria Santos' });
     expect(within(drawer).getByRole('list', { name: 'Clearance signature' })).toBeInTheDocument();
     expect(within(drawer).getByText('Sign this clearance')).toBeInTheDocument();
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Actions for Organization treasurer' }));
-    expect(screen.getByRole('menuitem', { name: 'Hold' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Clear: Organization treasurer' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Hold: Organization treasurer' })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Actions for Organization treasurer' })).not.toBeInTheDocument();
   });
 
   it('shows the Officer the same sign callout as the Admin', async () => {
@@ -165,8 +166,7 @@ describe('SignatoryClearancesPage', () => {
     renderAt('/dashboard/clearances?record=11', <SignatoryClearancesPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Maria Santos' });
     mocks.getClearanceSignatures.mockResolvedValue(page([]));
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Actions for Organization treasurer' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Clear: Organization treasurer' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm clear' }));
     await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'cleared', remarks: undefined }));
     expect(screen.getByRole('dialog', { name: 'Maria Santos' })).toBeInTheDocument();
