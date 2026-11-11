@@ -281,7 +281,7 @@ DH-033 | Organizations | Buttons shown on each Organizations row | H | Any
 DH-034 | Organizations | Withdraw a pending registration (not part of the system) | H | Any
 DH-035 | Organizations | SAO approves: the organization is Active and the applicant is its Admin | H | Any
 DH-036 | Organizations | Archived organization is read only | M | Any
-DH-037 | Organizations | Head cannot create an administrator or assign roles | H | Any
+DH-037 | Organizations | Dean can give Organization head access to a student | H | Any
 DH-038 | Organizations | Another college head sees only their own college | H | Any
 DH-039 | Organizations | Phone: list, allow dialog and panels are usable | M | Any
 DH-040 | Approvals | Approvals page layout and filters | H | Any

@@ -650,15 +650,16 @@
     "id": "DH-037",
     "role": "Department Head",
     "module": "Organizations",
-    "title": "Head cannot create an administrator or assign roles",
+    "title": "Dean can give Organization head access to a student",
     "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An Active organization with 0 Admins (just approved by the SAO).",
     "steps": [
       "1. Open Organizations.",
-      "2. Select View checklist on the organization with 0 Admins.",
-      "3. Read the next step box.",
-      "4. Look for any button that creates an administrator or changes a role."
+      "2. Select Open space on the organization with 0 Admins.",
+      "3. Open the People and access tab and select Give access.",
+      "4. Pick a student of your college, open Access level and read the choices.",
+      "5. Choose Organization head and select Give access."
     ],
-    "expected": "The box says Approved: waiting for an administrator (and that the SAO assigns it). There is NO Create administrator, Add user or role button anywhere on the page. Only the SAO can provision an administrator.",
+    "expected": "Access level offers Organization head, Officer and Member. After you save, the student appears in the People and access list with the Organization head badge and Everything under modules. A dean can name an organization head; an Admin of the organization cannot name another one beside themselves.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
