@@ -90,7 +90,16 @@ describe('ManageCandidatesPage', () => {
     renderPage();
     await screen.findAllByText('Ana Reyes');
     expect(screen.queryByRole('button', { name: 'Add candidate' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Candidate setup is locked/)).toBeInTheDocument();
+    expect(screen.getByText('Candidate setup is locked because the ballot has been finalized.')).toBeInTheDocument();
+    expect(screen.queryByText(/votes have already been cast/)).not.toBeInTheDocument();
     outlet.election.finalized_at = null;
+  });
+
+  it('says votes were cast only when votes exist', async () => {
+    outlet.election.votes = [{ id: 1 }];
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    expect(screen.getByText('Candidate setup is locked because votes have already been cast.')).toBeInTheDocument();
+    outlet.election.votes = [];
   });
 });
