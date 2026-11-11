@@ -54,6 +54,16 @@ describe('CastVoteRedirectPage', () => {
     expect(within(cardFor('Election 2')).getByRole('link', { name: 'Vote in this election' })).toHaveAttribute('href', '/elections/2/vote');
   });
 
+  it('says why instead of offering the ballot when the server would refuse the student', async () => {
+    const list = [{ ...open, id: 1, title: 'Election 1' }];
+    getElections.mockResolvedValue(list);
+    getElectionDetails.mockResolvedValue({ ...list[0], my_votes: [], ballot_refusal: 'You joined after the voter list was finalized, so you cannot vote in this election.' });
+    renderPage();
+
+    expect(await screen.findByText('You joined after the voter list was finalized, so you cannot vote in this election.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Vote in this election' })).not.toBeInTheDocument();
+  });
+
   it('reads Available when voting closes until the results are released, then links to them', async () => {
     const list = [
       { ...open, id: 1, title: 'Still Open' },

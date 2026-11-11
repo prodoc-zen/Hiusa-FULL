@@ -102,6 +102,8 @@ export default function FeedPost({ item, organization }) {
           <p className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-success-strong"><CheckCircle2 size={16} aria-hidden="true" /> Vote submitted</p>
         ) : electionClosed ? (
           <Button to="/dashboard/elections/election-results" variant="secondary" className="w-full sm:w-auto">View results</Button>
+        ) : post.can_vote === false ? (
+          <p className="text-sm text-ink-muted">You joined after the voter list was finalized, so you cannot vote in this election.</p>
         ) : (
           <Button to={`/elections/${post.id}/vote`} variant="secondary" className="w-full sm:w-auto">Vote now</Button>
         ))}
