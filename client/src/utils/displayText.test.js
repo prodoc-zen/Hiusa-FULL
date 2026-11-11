@@ -42,6 +42,8 @@ describe('display text formatting', () => {
     expect(humanizeIdentifier('SBO_OFFICER')).toBe('SBO Officer');
     expect(humanizeIdentifier('STATUS_CHANGE')).toBe('Status Change');
     expect(humanizeIdentifier('academic_structure')).toBe('Academic Structure');
+    expect(humanizeIdentifier('ClearanceSignature')).toBe('Clearance Signature');
+    expect(humanizeIdentifier('OrganizationApplication')).toBe('Organization Application');
   });
 
   it('humanizes enum-like audit values without changing normal text', () => {

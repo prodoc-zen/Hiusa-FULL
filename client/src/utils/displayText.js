@@ -28,6 +28,7 @@ export function humanizeIdentifier(value) {
   if (ROLE_LABELS[text]) return ROLE_LABELS[text];
 
   return text
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
     .replaceAll('_', ' ')
     .replaceAll('.', ' ')
     .toLowerCase()
