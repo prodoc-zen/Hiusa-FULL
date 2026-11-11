@@ -24,3 +24,9 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
 
   return message || fallback;
 }
+
+// The line under "could not load" on a page: the connection is only blamed when no reply came back.
+export function getLoadErrorDescription(error) {
+  if (!error?.response) return 'Check your connection and try again.';
+  return getApiErrorMessage(error, 'The server had a problem. Please try again in a moment.');
+}
