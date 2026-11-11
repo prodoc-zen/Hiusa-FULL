@@ -15,6 +15,9 @@ const STATE_ORDER = { open: 0, upcoming: 1, voted: 2, closed: 3 };
 
 const MANILA = 'Asia/Manila';
 
+// The server refuses a student the details of an election that is not open, or closed with results released.
+const studentMayOpen = (election) => Boolean(election.finalized_at) && (election.status === 'active' || (election.status === 'closed' && Boolean(election.results_visible)));
+
 function formatPart(value, options) {
   return new Intl.DateTimeFormat('en-US', { ...options, timeZone: MANILA }).format(new Date(value));
 }
@@ -85,7 +88,7 @@ export default function CastVoteRedirectPage() {
       try {
         const list = await getElections();
         const votable = (Array.isArray(list) ? list : list.data || []).filter((item) => item.status !== 'pending_approval');
-        const details = await Promise.allSettled(votable.map((item) => getElectionDetails(item.id)));
+        const details = await Promise.allSettled(votable.map((item) => (studentMayOpen(item) ? getElectionDetails(item.id) : null)));
         if (!cancelled) setElections(votable.map((item, index) => (details[index].status === 'fulfilled' ? { ...item, ...details[index].value } : item)));
       } catch (requestError) {
         if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load elections.');
