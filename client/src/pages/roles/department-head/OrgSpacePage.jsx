@@ -12,6 +12,7 @@ import { ROLE_LABELS } from '../../../utils/displayText.js';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 
 const COLLEGES_PATH = '/dashboard/super-admin/colleges';
+const COLLEGE_ORGANIZATIONS_PATH = '/dashboard/department-head/organizations';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -203,17 +204,20 @@ export default function OrgSpacePage({ oversight = false }) {
   const [space, setSpace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refused, setRefused] = useState(false);
 
   const tab = TABS.some((entry) => entry.key === params.get('tab')) ? params.get('tab') : 'overview';
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setRefused(false);
     try {
       const response = await getOrganizationSpace(orgId);
       setSpace(response.data);
     } catch (loadError) {
       setSpace(null);
+      setRefused(loadError?.response?.status === 403);
       setError(loadError?.response?.status === 403
         ? (oversight ? 'This is not a student organization.' : 'This organization is not in your college.')
         : getApiErrorMessage(loadError, 'Could not load this organization. Try again.'));
@@ -251,7 +255,13 @@ export default function OrgSpacePage({ oversight = false }) {
   }
 
   if (error || !space) {
-    return <div>{header}<ErrorState title="Could not open this organization" description={error} onRetry={load} /></div>;
+    return (
+      <div>
+        {header}
+        <ErrorState title="Could not open this organization" description={error} onRetry={refused ? undefined : load} />
+        {refused && !oversight && <Button variant="secondary" to={COLLEGE_ORGANIZATIONS_PATH}>Back to organizations</Button>}
+      </div>
+    );
   }
 
   return (

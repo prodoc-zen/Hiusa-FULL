@@ -119,13 +119,22 @@ describe('OrgSpacePage', () => {
     expect(screen.getByRole('tab', { name: 'People and access' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('says plainly when the organization is not in the college and offers a retry', async () => {
+  it('says plainly when the organization is not in the college and offers the way back, not a retry that cannot work', async () => {
     mocks.getOrganizationSpace.mockRejectedValueOnce({ response: { status: 403 } });
     renderPage('/dashboard/department-head/org/99');
 
     expect(await screen.findByText('This organization is not in your college.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to organizations' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
+  });
+
+  it('still offers a retry when the organization could not be loaded for another reason', async () => {
+    mocks.getOrganizationSpace.mockRejectedValueOnce({ response: { status: 500 } });
+    renderPage('/dashboard/department-head/org/12');
+
+    const retry = await screen.findByRole('button', { name: 'Try again' });
     mocks.getOrganizationSpace.mockResolvedValueOnce({ data: space });
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    fireEvent.click(retry);
 
     expect(await screen.findByRole('heading', { name: 'Computing Society' })).toBeInTheDocument();
   });
