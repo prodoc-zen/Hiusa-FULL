@@ -218,6 +218,14 @@ class OrderController extends Controller
 
         if (! empty($filters['search'])) {
             $search = trim($filters['search']);
+            // The cards print the reference as ORD-<number>, so that exact reference finds that one order.
+            if (preg_match('/^ord[-\s]?(\d{0,18})$/i', $search, $reference)) {
+                if ($reference[1] !== '') {
+                    $query->where('orders.id', (int) $reference[1]);
+                }
+
+                return;
+            }
             $query->where(function (Builder $nested) use ($search) {
                 $nested->where('orders.id', 'like', "%{$search}%")
                     ->orWhere('orders.payment_reference', 'like', "%{$search}%")
