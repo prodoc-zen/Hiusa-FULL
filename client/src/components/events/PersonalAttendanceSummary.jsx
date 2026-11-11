@@ -45,7 +45,7 @@ export default function PersonalAttendanceSummary() {
         </dl>
         {records.length === 0 ? null : <ul className="mt-4 divide-y divide-line-soft border-t border-line">
           {records.map((record) => <li key={record.id} className="py-3">
-            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-semibold text-ink">{formatDisplayText(record.event?.title)}</h3><p className="mt-0.5 text-xs text-ink-muted">{dateTime(record.event?.start_time)}</p></div>{record.status === 'present' ? <span className="text-xs text-ink-muted">Present</span> : <StatusBadge status={record.status} />}</div>
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-semibold text-ink">{formatDisplayText(record.event?.title)}</h3><p className="mt-0.5 text-xs text-ink-muted">{dateTime(record.event?.start_time)}</p></div><StatusBadge status={record.status} /></div>
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-muted"><span>In: {record.status === 'absent' ? 'Not recorded' : time(record.check_in_time)}</span><span>Out: {time(record.check_out_time)}</span>{record.status !== 'absent' && record.method && <span>Method: {record.method.replaceAll('_', ' ')}</span>}</div>
           </li>)}
         </ul>}

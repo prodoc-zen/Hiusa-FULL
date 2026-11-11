@@ -22,4 +22,16 @@ describe('PersonalAttendanceSummary', () => {
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByText('In: Not recorded')).toBeInTheDocument();
   });
+
+  it('shows Present as a success badge like the other statuses', async () => {
+    getPersonalAttendance.mockResolvedValue({ data: {
+      summary: { attended: 1, missed: 0, rate: 100 },
+      records: [{ id: 1, status: 'present', method: 'manual', check_in_time: '2026-09-01T08:00:00Z', event: { title: 'Orientation', start_time: '2026-09-01T08:00:00Z' } }],
+      pagination: { current_page: 1, per_page: 10, total: 1 },
+    } });
+
+    render(<PersonalAttendanceSummary />);
+    const badge = await screen.findByText('Present');
+    expect(badge).toHaveClass('bg-green-50', 'text-green-800');
+  });
 });
