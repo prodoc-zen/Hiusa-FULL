@@ -8,7 +8,9 @@
     the site since the last reseed is lost. A backup is taken first.
 
     Steps, each printed before it runs; the run stops on the first failure:
-      1  Preflight: ssh reachable, units known to systemd, backup directory present.
+      1  Preflight: ssh reachable, units known to systemd, backup directory present,
+         the marker file /etc/hiusa/ALLOW_RESEED exists, and the server's app
+         environment (hiusa-artisan env) is not production.
       2  Backup: mysqldump of hiusa_db and a tar.gz of server/storage/app and
          server/public/uploads into /var/backups/hiusa, verified with gzip -t and
          a CREATE TABLE count that must equal the live table count.
@@ -42,6 +44,11 @@
         (-Force together with -Execute skips the prompt).
       * The script refuses any host other than 13.228.227.182 unless
         -AllowOtherHost is given.
+      * The server must opt in. Step 1 refuses unless the file /etc/hiusa/ALLOW_RESEED
+        exists on the server, and refuses when hiusa-artisan env reports production.
+        Neither -Force nor -AllowOtherHost skips these two checks. Create the marker
+        before a reseed with: ssh ubuntu@<host> 'sudo mkdir -p /etc/hiusa && sudo touch /etc/hiusa/ALLOW_RESEED'
+        and remove it afterwards with: ssh ubuntu@<host> 'sudo rm -f /etc/hiusa/ALLOW_RESEED'
       * The restore commands are printed, never run.
       * However the run ends (success, failed step, Ctrl+C) a summary is printed:
         whether the wipe step had started, the backup file names (only if the
@@ -209,6 +216,10 @@ done
 if [ ! -d /var/backups/hiusa ]; then echo "FAIL: /var/backups/hiusa does not exist"; exit 1; fi
 if [ ! -x /usr/local/bin/hiusa-artisan ]; then echo "FAIL: /usr/local/bin/hiusa-artisan is missing"; exit 1; fi
 if [ ! -d /var/www/hiusa/server/storage/app ]; then echo "FAIL: /var/www/hiusa/server/storage/app is missing"; exit 1; fi
+if [ ! -e /etc/hiusa/ALLOW_RESEED ]; then echo "FAIL: /etc/hiusa/ALLOW_RESEED does not exist on this server, so a reseed is not allowed"; exit 1; fi
+appenv=$(sudo -u www-data /usr/local/bin/hiusa-artisan env < /dev/null | sed -n 's/^.*environment: *//p' | tr -d '[:space:]') || appenv=""
+echo "app environment: ${appenv:-unknown}"
+if [ -z "$appenv" ] || [ "$appenv" = "production" ]; then echo "FAIL: the server app environment is '${appenv:-unknown}'; a reseed never runs on production"; exit 1; fi
 df -h /var/backups/hiusa | tail -n 1
 echo "preflight ok"
 '@
