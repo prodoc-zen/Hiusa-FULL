@@ -187,6 +187,21 @@ class SchoolYearRecordsTest extends TestCase
         $this->assertSame(['Planned letter'], $names($this->inPeriod($this->upcoming)));
     }
 
+    public function test_the_sao_requirement_list_shows_one_semester_by_default_and_every_semester_when_asked_for_one(): void
+    {
+        $type = fn (AcademicSemester $semester, string $year) => ComplianceRequirementType::create([
+            'academic_year' => $year, 'academic_semester_id' => $semester->id, 'name' => 'Constitution', 'category' => 'organization',
+            'allowed_extensions' => ['pdf'], 'deadline_at' => $semester->ends_on, 'is_active' => true, 'created_by' => $this->sao->school_id,
+        ]);
+        $current = $type($this->active, '2026-2027');
+        $planned = $type($this->upcoming, '2027-2028');
+        Sanctum::actingAs($this->sao);
+
+        $ids = fn (string $query) => collect($this->getJson('/api/compliance/requirement-types'.$query)->assertOk()->json('data'))->pluck('id')->all();
+        $this->assertSame([$current->id], $ids('?category=organization'));
+        $this->assertSame([$planned->id], $ids('?category=organization&academic_semester_id='.$this->upcoming->id));
+    }
+
     public function test_new_announcements_and_bookings_are_stamped_with_the_selected_period(): void
     {
         $request = request();
