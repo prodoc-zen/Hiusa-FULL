@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Election;
 use App\Models\Organization;
@@ -17,6 +18,7 @@ use App\Support\AdviserPosition;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -139,7 +141,11 @@ class UserController extends Controller
             ->orderBy('users.school_id')
             ->paginate($filters['per_page'] ?? 20);
 
-        $paginated->getCollection()->each(fn (User $user) => $user->activateProfile($user->accountProfiles->first()));
+        $paginated->getCollection()->each(function (User $user) {
+            $profile = $user->accountProfiles->first();
+            $user->is_primary_profile = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
+            $user->activateProfile($profile);
+        });
 
         return response()->json([
             ...$paginated->toArray(),
@@ -593,7 +599,9 @@ class UserController extends Controller
         if ($user->account_status !== 'active') {
             return response()->json(['message' => 'Activate this member before initiating a password reset.'], 422);
         }
-        if (Election::where('organization_id', $organizationId)->where('status', 'active')->exists()) {
+        $votingOrganizationIds = AccountProfile::votingMembers()->where('account_profiles.user_school_id', $user->school_id)->pluck('organization_id')->push($organizationId)->map(fn ($id) => (int) $id)->unique()->values()->all();
+        Election::synchronizeScheduledStatuses($votingOrganizationIds);
+        if (Election::whereIn('organization_id', $votingOrganizationIds)->whereNotNull('approved_at')->whereNotNull('finalized_at')->whereIn('status', ['upcoming', 'active'])->exists()) {
             return response()->json(['message' => 'Voting is open in your organization. Ask the SAO to reset this member\'s password until the election closes.'], 409);
         }
 
@@ -806,7 +814,14 @@ class UserController extends Controller
         $failureKey = 'login-failures:'.$account.'|'.$request->ip();
         $accountFailureKey = 'login-account-failures:'.$account;
 
-        foreach ([$failureKey => self::LOGIN_FAILURE_LIMIT, $accountFailureKey => self::LOGIN_ACCOUNT_FAILURE_LIMIT] as $key => $limit) {
+        $knownKey = 'login-known:'.$account.'|'.$request->ip();
+        $limits = [$failureKey => self::LOGIN_FAILURE_LIMIT];
+        // An address the owner has signed in from is not held by failures other addresses piled onto the account.
+        if (! Cache::has($knownKey)) {
+            $limits[$accountFailureKey] = self::LOGIN_ACCOUNT_FAILURE_LIMIT;
+        }
+
+        foreach ($limits as $key => $limit) {
             if (RateLimiter::tooManyAttempts($key, $limit)) {
                 return response()->json([
                     'message' => 'Too many failed sign in attempts for this account. Please wait before trying again.',
@@ -827,6 +842,7 @@ class UserController extends Controller
 
         RateLimiter::clear($failureKey);
         RateLimiter::clear($accountFailureKey);
+        Cache::put($knownKey, true, now()->addDays(30));
 
         $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status', 'college_id', 'college', 'organization_type']);
 

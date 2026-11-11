@@ -702,6 +702,9 @@ export default function AdminUsersPage() {
 
   const resetPasswordSection = () => {
     if (actorRole !== 'ADMIN' || !['STUDENT', 'SBO_OFFICER'].includes(selectedUser?.role) || (selectedUser.account_status || 'active') !== 'active') return null;
+    if (selectedUser.is_primary_profile === false) {
+      return <p className="mt-4 border-t border-line pt-4 text-sm text-ink-muted">Their home organization's Admin resets this password.</p>;
+    }
     return (
       <div className="mt-4 space-y-2 border-t border-line pt-4">
         <h3 className="text-sm font-semibold text-ink">Password</h3>
