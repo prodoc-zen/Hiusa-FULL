@@ -144,7 +144,9 @@ class LedgerEntryFlagsTest extends TestCase
         foreach (['pending_department_head', 'pending_sao', 'approved'] as $status) {
             $entry = $this->entry();
             $this->report([$entry->id], $status, 'August report');
-            $message = "This entry is part of the financial report 'August report' that has been submitted. Ask the Department Head to return the report before changing it.";
+            $message = $status === 'approved'
+                ? "This entry is part of the financial report 'August report' that has been approved. An approved report is final, so this entry can no longer be changed."
+                : "This entry is part of the financial report 'August report' that has been submitted. Ask the Department Head to return the report before changing it.";
 
             $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Quietly rewritten'])
                 ->assertStatus(409)->assertJsonPath('message', $message);
@@ -197,6 +199,9 @@ class LedgerEntryFlagsTest extends TestCase
         $this->assertSame('Submitted report', $this->row($rows, $inSubmitted->id)['locking_report_title']);
         $this->assertTrue($this->row($rows, $inApproved->id)['is_locked_by_report']);
         $this->assertSame('Approved report', $this->row($rows, $inApproved->id)['locking_report_title']);
+        $this->assertSame('approved', $this->row($rows, $inApproved->id)['locking_report_status']);
+        $this->assertSame('pending_sao', $this->row($rows, $inSubmitted->id)['locking_report_status']);
+        $this->assertNull($this->row($rows, $inRejected->id)['locking_report_status']);
         $this->assertFalse($this->row($rows, $inDraft->id)['is_locked_by_report']);
         $this->assertFalse($this->row($rows, $inRejected->id)['is_locked_by_report']);
         $this->assertNull($this->row($rows, $inRejected->id)['locking_report_title']);

@@ -362,11 +362,13 @@ class TransactionController extends Controller
 
     private function reportLockMessage(Transaction $transaction): ?string
     {
-        $title = FinancialReport::lockingTitles([$transaction])[$transaction->id] ?? null;
+        $report = FinancialReport::lockingReports([$transaction])[$transaction->id] ?? null;
 
-        return $title === null
-            ? null
-            : "This entry is part of the financial report '{$title}' that has been submitted. Ask the Department Head to return the report before changing it.";
+        return match ($report['status'] ?? null) {
+            null => null,
+            'approved' => "This entry is part of the financial report '{$report['title']}' that has been approved. An approved report is final, so this entry can no longer be changed.",
+            default => "This entry is part of the financial report '{$report['title']}' that has been submitted. Ask the Department Head to return the report before changing it.",
+        };
     }
 
     /**
@@ -377,12 +379,13 @@ class TransactionController extends Controller
      */
     private function exposeLedgerFlags(iterable $transactions): void
     {
-        $titles = FinancialReport::lockingTitles($transactions);
+        $locking = FinancialReport::lockingReports($transactions);
 
         foreach ($transactions as $transaction) {
             $transaction->exposeSystemSource()
-                ->setAttribute('is_locked_by_report', isset($titles[$transaction->id]))
-                ->setAttribute('locking_report_title', $titles[$transaction->id] ?? null);
+                ->setAttribute('is_locked_by_report', isset($locking[$transaction->id]))
+                ->setAttribute('locking_report_title', $locking[$transaction->id]['title'] ?? null)
+                ->setAttribute('locking_report_status', $locking[$transaction->id]['status'] ?? null);
         }
     }
 
