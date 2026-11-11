@@ -23,7 +23,7 @@ vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYea
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
 vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
-vi.mock('./FinancialReportsTab', () => ({ default: () => <p>Financial reports content</p> }));
+vi.mock('./FinancialReportsTab', () => ({ default: ({ initialStatus }) => <p data-status={initialStatus || ''}>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
 
 const status = {
@@ -129,7 +129,7 @@ describe('SaoCompliancePage', () => {
     expect(screen.queryByText('Arts Guild')).not.toBeInTheDocument();
     await chooseAction('Computing Society', 'Open submissions');
     expect((await screen.findAllByText('Semestral Accomplishment Report')).length).toBeGreaterThan(0);
-    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: undefined })));
+    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: 'submitted' })));
     expect(screen.getByTestId('search')).toHaveTextContent('organization=7');
     fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'roster' } });
     await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', search: 'roster' })));
@@ -140,6 +140,58 @@ describe('SaoCompliancePage', () => {
     fireEvent.click((await screen.findAllByRole('button', { name: 'Arts Guild' }))[0]);
     expect(await screen.findByText('Financial reports content')).toBeInTheDocument();
     expect(screen.getByTestId('search')).toHaveTextContent('organization=8');
+  });
+
+  it('lists organizations with submissions waiting first, each with its count and the word', async () => {
+    const org = (organization_id, organization_name, awaiting_review_count) => ({ organization_id, organization_name, accreditation_status: 'incomplete', awaiting_review_count, awaiting_financial_report_count: 0, requirements: [{ status: 'approved', deadline_at: null }] });
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [org(1, 'Alpha Club', 0), org(2, 'Beta Club', 2), org(3, 'Delta Club', 1), org(4, 'Gamma Club', 2)] } });
+    renderPage('/dashboard/super-admin/compliance?tab=review&group=organizations');
+    await screen.findByRole('heading', { name: 'Review submissions by organization' });
+    await screen.findAllByText('Gamma Club');
+    const rows = Array.from(document.querySelectorAll('[data-view="table"] tbody tr'));
+    expect(rows.map((row) => row.querySelector('td').textContent)).toEqual(['Beta Club', 'Gamma Club', 'Delta Club', 'Alpha Club']);
+    expect(within(rows[0]).getByText('2 waiting')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('1 waiting')).toBeInTheDocument();
+    expect(within(rows[3]).queryByText(/waiting/)).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Review submissions (5)' })).toBeInTheDocument();
+  });
+
+  it('opens an organization with submissions waiting on those submissions, and one without on everything', async () => {
+    const org = (organization_id, organization_name, awaiting_review_count) => ({ organization_id, organization_name, accreditation_status: 'incomplete', awaiting_review_count, requirements: [] });
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [org(1, 'Alpha Club', 0), org(2, 'Beta Club', 2)] } });
+    renderPage('/dashboard/super-admin/compliance?tab=review&group=organizations');
+    await screen.findAllByText('Beta Club');
+    await chooseAction('Beta Club', 'Open submissions');
+    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '2', status: 'submitted' })));
+    fireEvent.click(screen.getByRole('button', { name: 'All organizations' }));
+    await chooseAction('Alpha Club', 'Open submissions');
+    await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '1', status: undefined })));
+  });
+
+  it('lists organizations with financial reports waiting first and opens the first one on those reports', async () => {
+    const org = (organization_id, organization_name, awaiting_financial_report_count) => ({ organization_id, organization_name, accreditation_status: 'incomplete', awaiting_review_count: 0, awaiting_financial_report_count, requirements: [] });
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [org(1, 'Alpha Club', 0), org(2, 'Beta Club', 1), org(3, 'Gamma Club', 3)] } });
+    renderPage('/dashboard/super-admin/compliance?tab=financial');
+    await screen.findAllByText('Gamma Club');
+    const rows = Array.from(document.querySelectorAll('[data-view="table"] tbody tr'));
+    expect(rows.map((row) => row.querySelector('td').textContent)).toEqual(['Gamma Club', 'Beta Club', 'Alpha Club']);
+    expect(within(rows[0]).getByText('3 waiting')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('1 waiting')).toBeInTheDocument();
+    expect(within(rows[2]).queryByText(/waiting/)).not.toBeInTheDocument();
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Gamma Club' }));
+    expect(await screen.findByText('Financial reports content')).toHaveAttribute('data-status', 'pending_sao');
+  });
+
+  it('keeps event reviews alphabetical because that list has no waiting count', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [
+      { organization_id: 1, organization_name: 'Alpha Club', awaiting_review_count: 0, requirements: [] },
+      { organization_id: 2, organization_name: 'Beta Club', awaiting_review_count: 5, requirements: [] },
+    ] } });
+    renderPage('/dashboard/super-admin/compliance?tab=event-reviews');
+    await screen.findAllByText('Beta Club');
+    const rows = Array.from(document.querySelectorAll('[data-view="table"] tbody tr'));
+    expect(rows.map((row) => row.querySelector('td').textContent)).toEqual(['Alpha Club', 'Beta Club']);
+    expect(screen.queryByText(/waiting/)).not.toBeInTheDocument();
   });
 
   describe('review queue', () => {

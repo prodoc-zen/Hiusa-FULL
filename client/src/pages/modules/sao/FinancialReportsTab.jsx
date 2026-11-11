@@ -36,13 +36,13 @@ function downloadBlob(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
-export default function FinancialReportsTab({ initialOrganizationId = '' }) {
+export default function FinancialReportsTab({ initialOrganizationId = '', initialStatus = '' }) {
   const [organizations, setOrganizations] = useState([]);
   const [organizationId, setOrganizationId] = useState(initialOrganizationId);
   const [reports, setReports] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState(new Map());
   const [meta, setMeta] = useState({ current_page: 1, per_page: 20, total: 0 });
-  const [filters, setFilters] = useState({ search: '', status: '', document_type: '' });
+  const [filters, setFilters] = useState({ search: '', status: initialStatus, document_type: '' });
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
