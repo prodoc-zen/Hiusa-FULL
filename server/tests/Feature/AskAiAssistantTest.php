@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Announcement;
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
@@ -465,6 +466,127 @@ class AskAiAssistantTest extends TestCase
         $payload = json_encode(collect($res->json('sections'))->pluck('rows')->flatten(1)->map(fn (array $row) => $row['primary'].' '.$row['secondary']), JSON_UNESCAPED_UNICODE);
         $this->assertStringContainsString('Spent: ₱4,000.00', $payload);
         $this->assertStringNotContainsString('Quillgate', $payload);
+    }
+
+    /**
+     * @return array{org: Organization, student: User, officer: User, sensitive: array<int, string>}
+     */
+    private function seedSensitiveOrganizationData(): array
+    {
+        $org = Organization::factory()->create(['review_remarks' => 'Vexillum registration remark']);
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $student = User::factory()->student()->create(['organization_id' => $org->id]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $officer->accountProfiles()->update(['modules' => ['events']]);
+        $requester = User::factory()->student()->create(['organization_id' => $org->id, 'first_name' => 'Quenby', 'last_name' => 'Zarathustra']);
+
+        ApprovalRequest::create([
+            'organization_id' => $org->id,
+            'entity_type' => 'budget',
+            'entity_id' => 999,
+            'required_role' => 'ADMIN',
+            'requested_by' => $requester->school_id,
+            'status' => 'pending',
+            'requested_at' => now(),
+        ]);
+
+        $reqType = ComplianceRequirementType::create([
+            'category' => 'organization',
+            'academic_year' => '2026-2027',
+            'name' => 'Constitution and By-Laws',
+            'description' => 'Updated constitution',
+            'deadline_at' => now()->addDays(14),
+            'is_active' => true,
+            'created_by' => $admin->school_id,
+        ]);
+        OrganizationComplianceSubmission::create([
+            'organization_id' => $org->id,
+            'requirement_type_id' => $reqType->id,
+            'status' => 'returned',
+            'remarks' => 'Glimmerfen signature missing',
+            'file_path' => 'compliance/zephyrcrest-minutes.pdf',
+            'file_original_name' => 'zephyrcrest-minutes.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+            'submitted_by' => $admin->school_id,
+            'submitted_at' => now(),
+        ]);
+
+        Task::factory()->create([
+            'organization_id' => $org->id,
+            'title' => 'Obsidian Roster Audit',
+            'assigned_to' => $requester->school_id,
+            'created_by' => $admin->school_id,
+            'status' => 'overdue',
+            'deadline' => now()->subDay(),
+        ]);
+
+        Merchandise::factory()->create(['organization_id' => $org->id, 'name' => 'Dormant Frostwhale Jersey', 'is_active' => false, 'stock_quantity' => 3]);
+        Merchandise::factory()->create(['organization_id' => $org->id, 'name' => 'Plain Sunbird Lanyard', 'is_active' => true, 'stock_quantity' => 30]);
+
+        return [
+            'org' => $org,
+            'student' => $student,
+            'officer' => $officer,
+            'sensitive' => ['Quenby', 'Zarathustra', 'zephyrcrest', 'Glimmerfen', 'Vexillum', 'Obsidian', 'Frostwhale'],
+        ];
+    }
+
+    private function assertRefusedWithoutLeaking($response, array $sensitive): void
+    {
+        $response->assertOk();
+        $response->assertJsonPath('title', 'Not available for your access');
+        $response->assertJsonPath('sections', []);
+        $response->assertJsonPath('engine', 'semantic_rag+deterministic');
+        $this->assertStringContainsString('does not have access', $response->json('answer'));
+
+        $payload = json_encode($response->json());
+        foreach ($sensitive as $needle) {
+            $this->assertStringNotContainsString($needle, $payload);
+        }
+    }
+
+    public function test_a_student_is_refused_every_topic_outside_the_student_allowlist_without_leaking_data(): void
+    {
+        $seeded = $this->seedSensitiveOrganizationData();
+        Sanctum::actingAs($seeded['student']);
+
+        foreach (['missing_submissions', 'submitted_documents', 'pending_approvals', 'organizations_without_admin', 'tasks_workload', 'grievances_status'] as $topic) {
+            $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Give me the status please', 'topic' => $topic]);
+            $res->assertJsonPath('intent', $topic);
+            $this->assertRefusedWithoutLeaking($res, $seeded['sensitive']);
+        }
+    }
+
+    public function test_an_officer_without_the_module_is_refused_that_topic_without_leaking_data(): void
+    {
+        $seeded = $this->seedSensitiveOrganizationData();
+        Sanctum::actingAs($seeded['officer']);
+
+        foreach (['missing_submissions', 'submitted_documents', 'tasks_workload'] as $topic) {
+            $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Give me the status please', 'topic' => $topic]);
+            $res->assertJsonPath('intent', $topic);
+            $this->assertRefusedWithoutLeaking($res, $seeded['sensitive']);
+        }
+    }
+
+    public function test_a_student_free_text_question_never_surfaces_compliance_remarks_other_tasks_or_inactive_items(): void
+    {
+        $seeded = $this->seedSensitiveOrganizationData();
+        Sanctum::actingAs($seeded['student']);
+
+        // The question avoids the seeded words themselves because the title and section descriptions repeat it.
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'lanyard jersey constitution returned signature missing minutes file overdue task roster audit',
+            'topic' => 'semantic_rag',
+        ])->assertOk();
+
+        $res->assertJsonPath('intent', 'semantic_rag');
+        $payload = json_encode($res->json());
+        $this->assertStringContainsString('Plain Sunbird Lanyard', $payload);
+        foreach ($seeded['sensitive'] as $needle) {
+            $this->assertStringNotContainsString($needle, $payload);
+        }
     }
 
     public function test_all_how_to_guide_paths_conform_to_client_route_allowlist(): void
