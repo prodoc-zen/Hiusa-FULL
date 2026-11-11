@@ -482,6 +482,37 @@ describe('EventsPage walkthrough fixes', () => {
     });
   });
 
+  describe('the new event form required SAO files', () => {
+    it('keeps Send proposal off and names the missing files until every required one is attached', async () => {
+      eventMocks.getEventRequirements.mockResolvedValue({ data: [
+        { id: 1, name: 'Letter of intent', venue_type: 'all', is_active: true, is_optional: false },
+        { id: 2, name: 'Budget plan', venue_type: 'all', is_active: true, is_optional: false },
+        { id: 3, name: 'Fire permit', venue_type: 'all', is_active: true, is_optional: true },
+      ] });
+      renderAt('/dashboard/events/manage-events?new=1', 'events');
+      await screen.findByRole('heading', { name: 'New event' });
+      fireEvent.change(screen.getByLabelText(/^Event name/), { target: { value: 'Orientation' } });
+      fireEvent.change(screen.getByLabelText(/^Start date/), { target: { value: '2026-10-01' } });
+      fireEvent.change(screen.getByLabelText(/^Start time/), { target: { value: '08:00' } });
+      fireEvent.change(screen.getByLabelText(/^End date/), { target: { value: '2026-10-01' } });
+      fireEvent.change(screen.getByLabelText(/^End time/), { target: { value: '10:00' } });
+      await screen.findByRole('option', { name: 'Audio-Visual Room' });
+      fireEvent.change(screen.getByLabelText('SAO venue'), { target: { value: '3' } });
+      const pdf = (name) => new File(['%PDF-1.4'], name, { type: 'application/pdf' });
+
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      expect(screen.getByText('Attach Letter of intent, Budget plan to send the proposal.')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText('Attach Letter of intent'), { target: { files: [pdf('letter.pdf')] } });
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      expect(screen.getByText('Attach Budget plan to send the proposal.')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText('Attach Budget plan'), { target: { files: [pdf('budget.pdf')] } });
+      expect(screen.getByRole('button', { name: 'Send proposal' })).toBeEnabled();
+      expect(screen.queryByText(/to send the proposal\./)).not.toBeInTheDocument();
+    });
+  });
+
   describe('the events list', () => {
     it.each([['approved', true], ['planning', true], ['completed', false], ['cancelled', false]])('offers Edit event for a %s event: %s', async (status, offered) => {
       eventMocks.getEvents.mockResolvedValue(eventPage({ ...event, status }));

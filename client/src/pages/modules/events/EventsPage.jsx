@@ -662,10 +662,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   const eventPlaceChosen = form.venue_type === 'on_campus' ? Boolean(form.venue_id) : Boolean(form.location.trim());
+  const venueRequirements = activeEventRequirements.filter((r) => r.is_active !== false && (!r.venue_type || r.venue_type === 'all' || r.venue_type === form.venue_type));
+  const missingRequiredFiles = editingEventId ? [] : venueRequirements.filter((r) => !r.is_optional && !attachedEventFiles[r.id]);
 
   async function handleSaveEvent(e) {
     e.preventDefault();
-    if (!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen) return;
+    if (!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen || missingRequiredFiles.length > 0) return;
     setFormSubmitting(true);
     setFormError(null);
     try {
@@ -1182,7 +1184,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   );
 
   if (showForm) {
-    const venueRequirements = activeEventRequirements.filter((r) => r.is_active !== false && (!r.venue_type || r.venue_type === 'all' || r.venue_type === form.venue_type));
     return (
       <div className="space-y-6">
         <PageHeader
@@ -1340,9 +1341,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           )}
 
           {formError && <p role="alert" className="text-sm font-medium text-danger-strong">{formError}</p>}
+          {missingRequiredFiles.length > 0 && (
+            <p className="text-sm text-ink-muted-strong">Attach {missingRequiredFiles.map((req) => req.name).join(', ')} to send the proposal.</p>
+          )}
           <div className="flex justify-end gap-3 border-t border-line pt-5">
             <Button variant="secondary" onClick={closeForm}>Cancel</Button>
-            <Button type="submit" loading={formSubmitting} disabled={!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen || (form.requires_budget && !form.budget_notes.trim())}>
+            <Button type="submit" loading={formSubmitting} disabled={!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen || missingRequiredFiles.length > 0 || (form.requires_budget && !form.budget_notes.trim())}>
               {editingEventId ? 'Save changes' : 'Send proposal'}
             </Button>
           </div>
