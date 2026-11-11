@@ -438,10 +438,10 @@ class UseCaseComplianceTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         foreach ([
-            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1000],
-            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'expense', 'amount' => 600],
-            ['date' => now()->startOfMonth(), 'type' => 'income', 'amount' => 1200],
-            ['date' => now()->startOfMonth(), 'type' => 'expense', 'amount' => 700],
+            ['date' => now()->startOfMonth()->subMonths(2), 'type' => 'income', 'amount' => 1000],
+            ['date' => now()->startOfMonth()->subMonths(2), 'type' => 'expense', 'amount' => 600],
+            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1200],
+            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'expense', 'amount' => 700],
         ] as $row) {
             Transaction::create([
                 'organization_id' => $admin->organization_id,
@@ -459,8 +459,8 @@ class UseCaseComplianceTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('model_details.algorithm', 'ordinary_least_squares');
 
-        $this->assertSame('1400.00', $response->json('predicted_income'));
-        $this->assertSame('800.00', $response->json('predicted_expense'));
+        $this->assertSame('1600.00', $response->json('predicted_income'));
+        $this->assertSame('900.00', $response->json('predicted_expense'));
         $response->assertJsonPath('model_details.explanation_status', 'unavailable');
         $this->assertDatabaseHas('ai_outputs', [
             'feature_type' => 'FINANCIAL_SUMMARY',
@@ -488,7 +488,7 @@ class UseCaseComplianceTest extends TestCase
             'amount' => 1000,
             'category' => 'General',
             'description' => 'Only one populated month',
-            'transaction_date' => now(),
+            'transaction_date' => now()->startOfMonth()->subMonth(),
         ]);
         $this->postJson('/api/forecasts/generate', ['months' => 12])
             ->assertCreated()

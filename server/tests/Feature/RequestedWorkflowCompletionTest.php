@@ -143,7 +143,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'status' => 'approved',
         ]);
 
-        foreach ([now()->startOfMonth()->subMonths(2), now()->startOfMonth()] as $date) {
+        foreach ([now()->startOfMonth()->subMonths(3), now()->startOfMonth()->subMonth()] as $date) {
             Transaction::create([
                 'organization_id' => $admin->organization_id,
                 'recorded_by' => $admin->school_id,
