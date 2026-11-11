@@ -600,6 +600,36 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(orderMocks.getOrder).not.toHaveBeenCalled();
   });
 
+  it("says one consistent thing about held stock in the cart and the checkout modal", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    expect(screen.getByText("Placing an order holds the stock for you. Cancelling an unpaid order releases it.")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
+    expect(screen.getByText(/Placing an order holds the stock for you\. You can cancel from My orders/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/does not reserve stock|reserved after payment|only after your payment is approved|has not reserved stock/);
+  });
+
+  it("shows a refused order inline in the checkout modal and does not toast it", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    orderMocks.placeOrder.mockRejectedValue({ response: { status: 422, data: { message: "You already have 2 unpaid orders for this item." } } });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place reservation" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Confirm merchandise reservation" });
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("You already have 2 unpaid orders for this item.");
+    expect(screen.getAllByText("You already have 2 unpaid orders for this item.")).toHaveLength(1);
+  });
+
   it("shows a first-run orders state with a button to the shop", async () => {
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     renderAt("/dashboard/merchandise/my-orders", "my-orders");

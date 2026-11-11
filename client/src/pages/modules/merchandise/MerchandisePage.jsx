@@ -690,6 +690,7 @@ export default function MerchandisePage({ initialTab }) {
   const [draftQty, setDraftQty] = useState({});
   const [cartError, setCartError] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutPayment, setCheckoutPayment] = useState({
     method: "cash",
@@ -1220,7 +1221,7 @@ export default function MerchandisePage({ initialTab }) {
   function confirmBuyerCancellation(order) {
     openConfirm({
       title: "Cancel this order?",
-      message: `Cancel ORD-${order.id} for ${order.merchandise?.name ?? "this item"}? This unpaid order has not reserved stock.`,
+      message: `Cancel ORD-${order.id} for ${order.merchandise?.name ?? "this item"}? Cancelling it releases the stock held for this order.`,
       confirmText: "Cancel order",
       danger: true,
       action: async () => {
@@ -1474,15 +1475,15 @@ export default function MerchandisePage({ initialTab }) {
 
   async function submitCartOrders() {
     if (cart.length === 0) {
-      setCartError("Your cart is empty. Add products before checkout.");
+      setCheckoutError("Your cart is empty. Add products before checkout.");
       return;
     }
 
     setCheckoutSubmitting(true);
-    setCartError(null);
+    setCheckoutError(null);
 
     if (checkoutPayment.method === "gcash" && cart.length > 1) {
-      setCartError(
+      setCheckoutError(
         "GCash proof is verified per order. Checkout one item at a time, or reserve this cart with cash and submit proof for each order from My Orders.",
       );
       setCheckoutSubmitting(false);
@@ -1494,7 +1495,7 @@ export default function MerchandisePage({ initialTab }) {
       (!/^\d{13}$/.test(checkoutPayment.reference.trim()) ||
         !checkoutPayment.proof_file)
     ) {
-      setCartError(
+      setCheckoutError(
         "GCash checkout requires a 13-digit reference number and an uploaded payment proof.",
       );
       setCheckoutSubmitting(false);
@@ -1539,7 +1540,7 @@ export default function MerchandisePage({ initialTab }) {
       const msg =
         err.response?.data?.message ??
         "Failed to submit cart. Try again.";
-      setCartError(
+      setCheckoutError(
         submittedIds.length > 0
           ? `Some items were submitted before an error occurred. ${msg}`
           : msg,
@@ -2084,7 +2085,7 @@ export default function MerchandisePage({ initialTab }) {
                   Your cart
                 </h2>
                 <p className="mt-1 text-sm text-ink-muted-strong">
-                  Placing an order does not reserve stock. Stock is reserved after payment approval.
+                  Placing an order holds the stock for you. Cancelling an unpaid order releases it.
                 </p>
               </div>
               <Button type="button" variant="secondary" onClick={() => setActiveTab("order")}>
@@ -2193,7 +2194,7 @@ export default function MerchandisePage({ initialTab }) {
                     >
                       Clear cart
                     </Button>
-                    <Button type="button" onClick={() => setCheckoutOpen(true)}>
+                    <Button type="button" onClick={() => { setCheckoutError(null); setCheckoutOpen(true); }}>
                       Review and continue
                     </Button>
                   </div>
@@ -2497,8 +2498,9 @@ export default function MerchandisePage({ initialTab }) {
                 )}
               </div>
               <p className="mt-4 text-xs text-ink-muted-strong">
-                Stock is set aside for you only after your payment is approved. You can cancel later from My orders only while the order remains unpaid and unreviewed.
+                Placing an order holds the stock for you. You can cancel from My orders while the order remains unpaid and unreviewed, which releases the stock.
               </p>
+              {checkoutError && <p role="alert" className="mt-4 rounded-control border border-danger/40 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{checkoutError}</p>}
               <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button type="button" variant="secondary" onClick={() => setCheckoutOpen(false)} disabled={checkoutSubmitting}>
                   Cancel
