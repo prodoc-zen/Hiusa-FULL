@@ -721,13 +721,10 @@ class OrderController extends Controller
             return response()->json(['message' => $exception->getMessage()], $status);
         }
 
-        return response()->json($order->load([
-            'merchandise:id,name,price',
-            'student:school_id,first_name,last_name',
-            'processor:school_id,first_name,last_name',
-            'approver:school_id,first_name,last_name',
-            'transaction:id,receipt_reference,receipt_number',
-        ]));
+        $row = $this->orderRowQuery()->findOrFail($order->id);
+        $this->hideUnreleasedClaimToken($row);
+
+        return response()->json($row);
     }
 
     private function resolvePaymentApproval(Order $order, Request $request, string $status, ?string $remarks): void
