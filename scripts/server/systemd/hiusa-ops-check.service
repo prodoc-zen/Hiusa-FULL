@@ -1,0 +1,8 @@
+[Unit]
+Description=HIUSA queue and scheduler check
+After=mysql.service
+
+[Service]
+Type=oneshot
+User=www-data
+ExecStart=/usr/local/bin/hiusa-artisan hiusa:ops-check

@@ -1,6 +1,7 @@
 [Unit]
 Description=HIUSA Laravel scheduler
 After=mysql.service network.target
+StartLimitIntervalSec=0
 
 [Service]
 User=www-data
@@ -8,7 +9,6 @@ WorkingDirectory=/var/www/hiusa/server
 ExecStart=/usr/bin/php artisan schedule:work
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target

@@ -71,7 +71,7 @@ Loading the backup alone is not a restore. The dump recreates the tables it hold
 5. Bring the site back and start the units:
    `sudo -u www-data /usr/local/bin/hiusa-artisan up`
    `sudo systemctl start hiusa-queue hiusa-scheduler`
-6. Check: `curl -fsS http://127.0.0.1/up`, and `sudo mysql hiusa_db -e "select count(*) from migrations"` prints a non-zero count.
+6. Check: `curl -sk https://127.0.0.1/api/health`. A good answer is `{"status":"ok","database":"ok","sha":"..."}`, where the sha is the commit now on the server. Anything with `"database":"error"` or no answer means the site is not back yet. Also check that `sudo mysql hiusa_db -e "select count(*) from migrations"` prints a non-zero count.
 
 Anything people saved between the failed migrate and the restore is lost, because the dump was taken before the deploy. Practise this once on a scratch database before you need it, never on the live one. After the restore, fix the problem in a new commit and deploy again.
 
