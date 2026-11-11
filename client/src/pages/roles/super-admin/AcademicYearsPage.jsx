@@ -19,6 +19,19 @@ const YEAR_START_STEPS = [
   { label: 'Open a clearance period for the semester', to: '/dashboard/super-admin/clearances' },
 ];
 
+function semesterLabel(semester, yearLabel) {
+  return `${semester.number === 1 ? '1st' : '2nd'} semester, AY ${yearLabel}`;
+}
+
+function semesterChangeMessage({ semester, action, yearLabel }, years) {
+  const closing = action === 'close' ? { semester, yearLabel } : years
+    .flatMap((year) => (year.semesters || []).map((item) => ({ semester: item, yearLabel: year.label })))
+    .find((item) => item.semester.status === 'active');
+  if (!closing) return 'This semester becomes the active one. This cannot be undone from the app.';
+  const closes = action === 'close' ? 'This closes' : 'This closes the current semester,';
+  return `${closes} ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.`;
+}
+
 function suggestedLabel(startsOn) {
   const year = Number(String(startsOn).slice(0, 4));
   return year ? `${year}-${year + 1}` : '';
@@ -44,6 +57,8 @@ export default function AcademicYearsPage() {
   const [semesterDeleteTarget, setSemesterDeleteTarget] = useState(null);
   const [semesterDeleteError, setSemesterDeleteError] = useState(null);
   const [yearDeleteError, setYearDeleteError] = useState('');
+  const [semesterChange, setSemesterChange] = useState(null);
+  const [semesterChangeError, setSemesterChangeError] = useState('');
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -146,15 +161,18 @@ export default function AcademicYearsPage() {
     }
   }
 
-  async function changeSemester(semester, action) {
+  async function confirmSemesterChange() {
+    const { semester, action } = semesterChange;
     setBusy(true);
+    setSemesterChangeError('');
     try {
       if (action === 'activate') await activateAcademicSemester(semester.id);
       else await closeAcademicSemester(semester.id);
       notify.success(action === 'activate' ? 'Academic semester activated' : 'Academic semester completed');
+      setSemesterChange(null);
       await load();
     } catch (cause) {
-      notify.error(getApiErrorMessage(cause, 'The semester could not be changed.'));
+      setSemesterChangeError(getApiErrorMessage(cause, 'The semester could not be changed.'));
     } finally {
       setBusy(false);
     }
@@ -264,7 +282,7 @@ export default function AcademicYearsPage() {
                     label={`Toggle active status for ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
                     activeText="Active"
                     inactiveText={semester.status === 'completed' ? 'Completed' : 'Inactive'}
-                    onChange={(next) => changeSemester(semester, next ? 'activate' : 'close')}
+                    onChange={(next) => { setSemesterChangeError(''); setSemesterChange({ semester, action: next ? 'activate' : 'close', yearLabel: year.label }); }}
                   />
                   {semester.status !== 'active' && (
                     <button
@@ -345,6 +363,18 @@ export default function AcademicYearsPage() {
         busy={busy}
         onCancel={() => !busy && setCloseYearTarget(null)}
         onConfirm={confirmCloseYear}
+      />
+      <ConfirmModal
+        open={Boolean(semesterChange)}
+        title={semesterChange?.action === 'activate' ? 'Activate semester' : 'Close semester'}
+        message={semesterChange ? semesterChangeMessage(semesterChange, years.items) : undefined}
+        recordName={semesterChange ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}
+        confirmText={semesterChange?.action === 'activate' ? 'Activate semester' : 'Close semester'}
+        variant="primary"
+        busy={busy}
+        error={semesterChangeError}
+        onCancel={() => !busy && setSemesterChange(null)}
+        onConfirm={confirmSemesterChange}
       />
       <ConfirmModal
         open={Boolean(semesterDeleteTarget)}

@@ -158,7 +158,7 @@ class AcademicSemesterTest extends TestCase
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        $org = Organization::factory()->create();
+        $org = Organization::factory()->create(['name' => 'Computer Science Society']);
         $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
         $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
         $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
@@ -170,7 +170,7 @@ class AcademicSemesterTest extends TestCase
         Sanctum::actingAs($director);
 
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")
-            ->assertUnprocessable()->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'Council Election 2026'));
+            ->assertUnprocessable()->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'Council Election 2026') && str_contains($message, 'Computer Science Society'));
         $this->assertSame('active', $first->fresh()->status);
 
         $election->update(['status' => 'upcoming']);
@@ -179,6 +179,29 @@ class AcademicSemesterTest extends TestCase
         $election->update(['status' => 'closed']);
         Election::factory()->create(['organization_id' => $org->id, 'academic_semester_id' => $first->id, 'status' => 'upcoming', 'approved_at' => null]);
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->assertSame('completed', $first->fresh()->status);
+    }
+
+    public function test_closing_the_active_semester_is_refused_while_it_has_an_open_election_and_names_its_organization(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $org = Organization::factory()->create(['name' => 'Computer Science Society']);
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+        $election = Election::factory()->create([
+            'organization_id' => $org->id, 'academic_semester_id' => $first->id, 'title' => 'Council Election 2026',
+            'status' => 'active', 'approved_at' => '2026-10-01 08:00:00', 'start_time' => '2026-12-30 08:00:00', 'end_time' => '2027-01-05 17:00:00',
+        ]);
+        Sanctum::actingAs($director);
+
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'Council Election 2026') && str_contains($message, 'Computer Science Society'));
+        $this->assertSame('active', $first->fresh()->status);
+
+        $election->update(['status' => 'closed']);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close")->assertOk();
         $this->assertSame('completed', $first->fresh()->status);
     }
 
