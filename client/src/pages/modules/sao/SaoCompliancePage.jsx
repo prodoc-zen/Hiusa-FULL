@@ -12,6 +12,7 @@ import FinancialReportsTab from './FinancialReportsTab';
 import RequirementsTab from './RequirementsTab';
 import ReviewQueueTab from './ReviewQueueTab';
 import OrganizationReviewFolders from './OrganizationReviewFolders';
+import { reportsWaiting, submissionsWaiting } from './waiting';
 
 const PANEL_ID = 'sao-compliance-panel';
 const SUB_PANEL_ID = 'sao-compliance-subpanel';
@@ -136,8 +137,7 @@ export default function SaoCompliancePage() {
     );
   }
 
-  const awaitingReview = overview.organizations.reduce((total, org) => total
-    + org.requirements.filter((requirement) => requirement.status === 'submitted').length, 0);
+  const awaitingReview = overview.organizations.reduce((total, org) => total + submissionsWaiting(org), 0);
   const organizationTabs = ORGANIZATION_TABS.map((tab) => (tab.key === 'review' && awaitingReview > 0
     ? { ...tab, label: `${tab.label} (${awaitingReview})` }
     : tab));
@@ -199,7 +199,7 @@ export default function SaoCompliancePage() {
           )}
           {activeTab === 'events' && <EventRequirementsTab />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
-          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
+          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>}
         </div>
       </div>
     </div>

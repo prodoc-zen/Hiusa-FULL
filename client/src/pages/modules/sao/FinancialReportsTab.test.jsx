@@ -53,6 +53,13 @@ describe('FinancialReportsTab', () => {
     expect(screen.queryByText(/received/i)).not.toBeInTheDocument();
   });
 
+  it('opens on the reports awaiting review when the organization has some waiting', async () => {
+    render(<FinancialReportsTab initialOrganizationId="7" initialStatus="pending_sao" />);
+
+    await screen.findByText('September Income Statement');
+    expect(financeMocks.getFinancialReports).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: 'pending_sao' }));
+  });
+
   it('loads only the financial reports inbox and applies report filters', async () => {
     render(<FinancialReportsTab />);
 

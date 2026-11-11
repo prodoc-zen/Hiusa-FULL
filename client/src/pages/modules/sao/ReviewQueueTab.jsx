@@ -15,6 +15,7 @@ import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
+import { submissionsWaiting, waitingFirst } from './waiting';
 
 const DEFAULT_STATUS = 'submitted';
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -188,17 +189,18 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   const filtersActive = Boolean(organizationId) || status !== DEFAULT_STATUS;
 
   if (!organizationId && !recordId) {
-    const visible = organizations.filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase()));
+    const visible = organizations.filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())).sort(waitingFirst(submissionsWaiting));
+    const openOrganization = (org) => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: submissionsWaiting(org) > 0 ? DEFAULT_STATUS : '' }); };
     return <Card title="Review submissions by organization">
       <DataTable stickyHeader={false} rowKey={(org) => org.organization_id} rows={visible} loading={organizationsLoading} error={organizationsError} onRetry={onRetryOrganizations} filtersActive={Boolean(search)}
         filters={<div className="mb-4"><Input type="search" aria-label="Search review organizations" placeholder="Search organizations" value={search} onChange={(event) => setSearch(event.target.value)} /></div>}
         columns={[
-          { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="flex min-h-11 items-center gap-2 text-left font-medium text-brand-700" onClick={() => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); }}><FolderOpen size={18} aria-hidden="true" />{org.organization_name}</button> },
-          { key: 'submitted', header: 'Awaiting review', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'submitted').length : 'Registration review' },
+          { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="flex min-h-11 items-center gap-2 text-left font-medium text-brand-700" onClick={() => openOrganization(org)}><FolderOpen size={18} aria-hidden="true" />{org.organization_name}</button> },
+          { key: 'submitted', header: 'Awaiting review', render: (org) => org.requirements ? (submissionsWaiting(org) > 0 ? <StatusBadge tone="warning" label={`${submissionsWaiting(org)} waiting`} /> : 0) : 'Registration review' },
           { key: 'missing', header: 'Not submitted', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'not_submitted').length : 'See registration' },
           { key: 'returned', header: 'Returned', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'returned').length : 'See registration' },
         ]}
-        actions={(org) => <TableRowActions subject={org.organization_name} actions={[{ label: 'Open submissions', icon: FolderOpen, onClick: () => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); } }]} />}
+        actions={(org) => <TableRowActions subject={org.organization_name} actions={[{ label: 'Open submissions', icon: FolderOpen, onClick: () => openOrganization(org) }]} />}
         emptyState={<EmptyState kind={search ? 'filtered' : 'first-run'} title={search ? 'No matching organizations' : 'No organizations to review'} description={search ? 'Try another organization name.' : 'Organizations appear here when they register or become active.'} />}
       />
     </Card>;
