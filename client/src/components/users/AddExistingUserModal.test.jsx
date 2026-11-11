@@ -43,7 +43,7 @@ describe('AddExistingUserModal', () => {
     expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope, exclude_organization_id: 8 });
   });
 
-  it.each(['ADMIN', 'SUPER_ADMIN'])('lets %s assign the organization head role', async (actorRole) => {
+  it.each(['DEPARTMENT_HEAD', 'SUPER_ADMIN'])('lets %s assign the organization head role', async (actorRole) => {
     render(<AddExistingUserModal actorRole={actorRole} onClose={vi.fn()} />);
     await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
     fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
@@ -53,7 +53,7 @@ describe('AddExistingUserModal', () => {
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 9, role: 'ADMIN' }));
   });
 
-  it.each(['SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', null])('does not offer the head role to %s', (actorRole) => {
+  it.each(['SBO_OFFICER', 'ADMIN', 'STUDENT', null])('does not offer the head role to %s', (actorRole) => {
     render(<AddExistingUserModal actorRole={actorRole} organization={organization} onClose={vi.fn()} />);
     expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
   });

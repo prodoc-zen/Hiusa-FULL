@@ -11,7 +11,7 @@ const ROLE_OPTIONS = [
   { value: 'SBO_OFFICER', label: 'Officer' },
   { value: 'ADMIN', label: 'Organization head' },
 ];
-const ADMIN_GRANTORS = ['ADMIN', 'SUPER_ADMIN'];
+const ADMIN_GRANTORS = ['DEPARTMENT_HEAD', 'SUPER_ADMIN'];
 
 function personFromUser(user) {
   if (!user) return null;
