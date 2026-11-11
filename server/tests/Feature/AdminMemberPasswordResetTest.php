@@ -146,8 +146,14 @@ class AdminMemberPasswordResetTest extends TestCase
         $secondary = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
         $secondary->accountProfiles()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
 
-        $this->postJson("/api/users/{$colleague->school_id}/password-reset")->assertStatus(404);
-        $this->postJson("/api/users/{$this->admin->school_id}/password-reset")->assertStatus(404);
+        $this->postJson("/api/users/{$colleague->school_id}/password-reset")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Ask the SAO to reset this password.');
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+        $this->postJson("/api/users/{$this->admin->school_id}/password-reset")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Ask the SAO to reset this password.');
+        $this->assertDatabaseCount('password_reset_tokens', 0);
         $this->postJson("/api/users/{$outsider->school_id}/password-reset")->assertStatus(404);
         $this->postJson("/api/users/{$secondary->school_id}/password-reset")->assertStatus(404);
         $this->postJson("/api/users/{$inactive->school_id}/password-reset")->assertUnprocessable();

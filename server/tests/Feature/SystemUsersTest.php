@@ -85,6 +85,25 @@ class SystemUsersTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'user_deleted')->firstOrFail()->new_values['linked_records']['profiles']);
     }
 
+    public function test_deleting_a_user_revokes_every_sign_in_token_so_a_reused_school_id_cannot_inherit_one(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $student = User::factory()->student()->create();
+        $bystander = User::factory()->student()->create();
+        $student->createToken('web');
+        $profileToken = $student->createToken('profile')->accessToken;
+        $profileToken->forceFill(['account_profile_id' => $student->accountProfiles()->firstOrFail()->id])->save();
+        $kept = $bystander->createToken('web')->accessToken;
+        $this->assertSame(2, DB::table('personal_access_tokens')->where('tokenable_id', $student->school_id)->count());
+
+        Sanctum::actingAs($sao);
+        $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])->assertOk();
+
+        $this->assertDatabaseMissing('users', ['school_id' => $student->school_id]);
+        $this->assertSame(0, DB::table('personal_access_tokens')->where('tokenable_id', $student->school_id)->count());
+        $this->assertDatabaseHas('personal_access_tokens', ['id' => $kept->id]);
+    }
+
     public function test_sao_gets_a_one_time_reset_link_for_a_student_and_an_officer_even_while_voting_is_open(): void
     {
         config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
