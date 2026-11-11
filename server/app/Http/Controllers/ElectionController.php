@@ -27,6 +27,8 @@ class ElectionController extends Controller
 {
     private const ELECTION_GONE = 'election_gone';
 
+    private const JOINED_AFTER_ROLL = 'You joined after the voter list was finalized, so you cannot vote in this election.';
+
     private function storeElectionImage(Request $request): string
     {
         return Storage::url($request->file('image')->store('elections', 'public'));
@@ -94,6 +96,7 @@ class ElectionController extends Controller
         $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
+            ->withCount(['votes as voters_count' => fn ($votes) => $votes->select(DB::raw('COUNT(DISTINCT voter_id)'))])
             ->with('organization:id,name,acronym')
             ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
@@ -168,6 +171,7 @@ class ElectionController extends Controller
         $data['voters_count'] = Vote::where('election_id', $id)
             ->distinct('voter_id')
             ->count('voter_id');
+        $data['ballot_refusal'] = $this->onVoterRoll($election, $user) ? null : self::JOINED_AFTER_ROLL;
 
         return response()->json($data);
     }
@@ -1149,6 +1153,14 @@ class ElectionController extends Controller
         return response()->json(['message' => 'Partylist deleted successfully']);
     }
 
+    private function onVoterRoll(Election $election, User $user): bool
+    {
+        return AccountProfile::onVoterRoll($election->finalized_at)
+            ->where('account_profiles.organization_id', $election->organization_id)
+            ->where('account_profiles.user_school_id', $user->school_id)
+            ->exists();
+    }
+
     public function vote(Request $request, $id)
     {
         $votingOrganizationIds = $request->user()->votingOrganizationIds();
@@ -1166,12 +1178,8 @@ class ElectionController extends Controller
             return response()->json(['message' => $periodMessage], 422);
         }
 
-        $onVoterRoll = AccountProfile::onVoterRoll($election->finalized_at)
-            ->where('account_profiles.organization_id', $election->organization_id)
-            ->where('account_profiles.user_school_id', $request->user()->school_id)
-            ->exists();
-        if (! $onVoterRoll) {
-            return response()->json(['message' => 'You joined after the voter list was finalized, so you cannot vote in this election.'], 403);
+        if (! $this->onVoterRoll($election, $request->user())) {
+            return response()->json(['message' => self::JOINED_AFTER_ROLL], 403);
         }
 
         $request->validate([

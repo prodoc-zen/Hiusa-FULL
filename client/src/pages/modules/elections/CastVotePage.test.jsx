@@ -41,6 +41,14 @@ describe('CastVotePage', () => {
     expect(screen.getByText('Transparent student services.')).toBeInTheDocument();
   });
 
+  it('refuses on entry a member who joined after the ballot was finalized, without showing the steps', () => {
+    shown = { ...election, ballot_refusal: 'You joined after the voter list was finalized, so you cannot vote in this election.' };
+    render(<CastVotePage />);
+    expect(screen.getByRole('heading', { name: 'You cannot vote in this election' })).toBeInTheDocument();
+    expect(screen.getByText('You joined after the voter list was finalized, so you cannot vote in this election.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Start my ballot/ })).not.toBeInTheDocument();
+  });
+
   it('requires an explicit final confirmation before submitting the ballot', async () => {
     castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
     render(<CastVotePage />);

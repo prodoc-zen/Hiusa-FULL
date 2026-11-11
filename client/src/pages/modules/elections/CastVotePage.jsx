@@ -141,6 +141,10 @@ export default function CastVotePage({ election: electionOverride = null, refres
     return <BallotMessage title="No election is currently open"><p className="text-sm text-ink-muted">This election is not currently accepting ballots.</p></BallotMessage>;
   }
 
+  if (election.ballot_refusal) {
+    return <BallotMessage title="You cannot vote in this election"><p className="text-sm text-ink-muted">{election.ballot_refusal}</p></BallotMessage>;
+  }
+
   if (!hasVoted && votingPeriodRestriction) {
     return <BallotMessage title={votingPeriodRestriction.title}><p className="text-sm text-ink-muted">{votingPeriodRestriction.message}</p></BallotMessage>;
   }
