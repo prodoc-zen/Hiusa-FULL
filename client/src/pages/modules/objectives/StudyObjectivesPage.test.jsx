@@ -171,4 +171,15 @@ describe('StudyObjectivesPage', () => {
     expect(screen.getAllByText(/Last activity/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText('No activity recorded yet.').length).toBeGreaterThan(0);
   });
+
+  it('explains an objective with no records in plain sentences, never splicing the mechanism into one', async () => {
+    objectivesMock.getObjectivesOverview.mockResolvedValue({ data: FULL_PAYLOAD });
+
+    renderPage();
+    await screen.findByText(/Evidence scoped to Test Org only./);
+
+    expect(screen.getByText('No activity yet. This scope has not produced any real records for this objective.')).toBeInTheDocument();
+    expect(screen.getByText('No activity yet. This objective is assessed outside the application, so there are no records to show.')).toBeInTheDocument();
+    expect(screen.queryByText(/has not produced any real records in this scope/)).not.toBeInTheDocument();
+  });
 });

@@ -42,7 +42,9 @@ export default function ObjectiveDetails({
       {status === 'no_data' && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
           <p className="max-w-[55ch] text-sm text-ink-muted">
-            No activity yet. {mechanism} has not produced any real records in this scope.
+            {evidence.length === 0
+              ? 'No activity yet. This objective is assessed outside the application, so there are no records to show.'
+              : 'No activity yet. This scope has not produced any real records for this objective.'}
           </p>
           {firstLinked && (
             <Button to={firstLinked.href} variant="secondary" size="sm" rightIcon={ArrowRight}>
