@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -51,6 +52,15 @@ class AppServiceProvider extends ServiceProvider
         if ($statementTimeout > 0 && ! $this->app->runningInConsole() && in_array($driver, ['mysql', 'mariadb'], true)) {
             DatabaseStatementTimeout::register(DB::connection(), $statementTimeout);
         }
+
+        Validator::replacer('max', function (string $message, string $attribute, string $rule, array $parameters) {
+            $kilobytes = (int) $parameters[0];
+            $size = $kilobytes >= 1024
+                ? rtrim(rtrim(number_format($kilobytes / 1024, 1), '0'), '.').' MB'
+                : $kilobytes.' KB';
+
+            return str_replace([':max_size', ':max'], [$size, $parameters[0]], $message);
+        });
 
         $tooManyRequests = fn (Request $request, array $headers) => response()->json([
             'message' => 'Too many requests. Please wait before trying again.',
