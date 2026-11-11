@@ -307,6 +307,28 @@ describe('SystemAdminsPage', () => {
       expect(screen.getByText(/^2 administrators, 2 active/)).toBeInTheDocument();
     });
 
+    it('shows the organization as plain text and never sends an organization change when editing', async () => {
+      renderPage();
+      await screen.findAllByText('Ana Reyes');
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit administrator' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit administrator' });
+
+      expect(within(dialog).queryByRole('combobox', { name: /Assigned organization/ })).not.toBeInTheDocument();
+      expect(within(dialog).getByText(/^CC: Computing Council/)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(serviceMocks.updateSystemAdmin).toHaveBeenCalledWith(10101, expect.objectContaining({ first_name: 'Ana' })));
+      expect(serviceMocks.updateSystemAdmin.mock.calls[0][1]).not.toHaveProperty('organization_id');
+    });
+
+    it('says Active in the Status column instead of leaving it blank', async () => {
+      renderPage();
+      await screen.findAllByText('Ana Reyes');
+
+      expect(within(document.querySelector('table')).getAllByText('Active').length).toBeGreaterThan(0);
+    });
+
     it('walks every page when it refreshes silently', async () => {
       renderPage();
       await screen.findAllByText('Ana Reyes');

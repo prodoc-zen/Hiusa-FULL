@@ -45,7 +45,7 @@ const emptyForm = () => ({
   last_name: "",
   email: "",
   contact_number: "",
-  organization_id: "",
+  organization_label: "",
   position_title: "",
   account_status: "active",
 });
@@ -258,7 +258,7 @@ export default function SystemAdminsPage() {
       last_name: admin.last_name || "",
       email: admin.email || "",
       contact_number: admin.contact_number || "",
-      organization_id: String(admin.organization_id),
+      organization_label: [admin.organization?.acronym, formatDisplayText(admin.organization?.name)].filter(Boolean).join(": "),
       position_title: admin.position_title || "",
       account_status: admin.account_status || "active",
     });
@@ -273,7 +273,6 @@ export default function SystemAdminsPage() {
       last_name: form.last_name.trim(),
       email: form.email.trim().toLowerCase(),
       contact_number: form.contact_number.trim() || null,
-      organization_id: Number(form.organization_id),
       position_title: form.position_title.trim() || null,
       account_status: form.account_status,
     };
@@ -457,7 +456,7 @@ export default function SystemAdminsPage() {
                         <td className="break-words px-4 py-2.5 align-middle text-ink">
                           {formatDisplayText(admin.position_title)}
                         </td>
-                        <td className="px-4 py-2.5 align-middle">{admin.account_status !== "active" && <StatusBadge status={admin.account_status} />}</td>
+                        <td className="px-4 py-2.5 align-middle"><StatusBadge status={admin.account_status || "active"} /></td>
                         <td className="px-4 py-2.5 text-right align-middle">{rowActions(admin)}</td>
                       </tr>
                     ))}
@@ -523,18 +522,10 @@ export default function SystemAdminsPage() {
             <datalist id="admin-leadership-titles">
               {LEADERSHIP_TITLES.map((title) => <option key={title} value={title} />)}
             </datalist>
-            <Field label="Assigned organization" required>
-              <HiusaSelect value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)}>
-                <option value="">Select an active student organization</option>
-                {organizations
-                  .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
-                  .map((organization) => (
-                    <option key={organization.id} value={organization.id}>
-                      {organization.acronym}: {formatDisplayText(organization.name)}{organization.is_active ? "" : " (inactive)"}
-                    </option>
-                  ))}
-              </HiusaSelect>
-            </Field>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[13px] font-medium text-ink">Assigned organization</span>
+              <p className="flex min-h-10 items-center rounded-control border border-line bg-subtle px-3 text-sm text-ink">{form.organization_label || "Not assigned"}</p>
+            </div>
             <Field label="Account status">
               <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)}>
                 <option value="active">Active: can sign in</option>
