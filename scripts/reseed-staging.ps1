@@ -9,13 +9,15 @@
 
     Steps, each printed before it runs; the run stops on the first failure:
       1  Preflight: ssh reachable, units known to systemd, backup directory present,
-         the marker file /etc/hiusa/ALLOW_RESEED exists, and the server's app
-         environment (hiusa-artisan env) is not production.
+         the marker file /etc/hiusa/ALLOW_RESEED exists (with today's dated content
+         when the server is production), and no election is active or approved and
+         upcoming.
       2  Backup: mysqldump of hiusa_db and a tar.gz of server/storage/app and
          server/public/uploads into /var/backups/hiusa, verified with gzip -t and
          a CREATE TABLE count that must equal the live table count.
       3  Stop hiusa-queue and hiusa-scheduler, config:clear.
-      4  migrate:fresh --seed --force with APP_ENV=staging.
+      4  migrate:fresh --seed --force with APP_ENV=staging (the seeders need it; it
+         only runs after the step 1 gate passed).
       5  Add four extra colleges with colleges:sync.
       6  Create Department Head accounts 940006 to 940009 (checked in the same script).
       7  Give SAO 990001 a random 24 character password generated on the server and
@@ -44,11 +46,19 @@
         (-Force together with -Execute skips the prompt).
       * The script refuses any host other than 13.228.227.182 unless
         -AllowOtherHost is given.
-      * The server must opt in. Step 1 refuses unless the file /etc/hiusa/ALLOW_RESEED
-        exists on the server, and refuses when hiusa-artisan env reports production.
-        Neither -Force nor -AllowOtherHost skips these two checks. Create the marker
-        before a reseed with: ssh ubuntu@<host> 'sudo mkdir -p /etc/hiusa && sudo touch /etc/hiusa/ALLOW_RESEED'
-        and remove it afterwards with: ssh ubuntu@<host> 'sudo rm -f /etc/hiusa/ALLOW_RESEED'
+      * The server must opt in, and the rule is the same on every host. Step 1 refuses
+        unless the file /etc/hiusa/ALLOW_RESEED exists on the server. When hiusa-artisan
+        env reports production (13.228.227.182 is the live server and holds real data),
+        the marker must hold exactly "reseed-production YYYY-MM-DD" with today's UTC date,
+        otherwise step 1 refuses; any other content allows a non-production server only.
+        Step 1 also refuses while any election is active, or approved, finalized and
+        upcoming (counted on the server through hiusa-artisan tinker; an empty answer is
+        a refusal). None of this is skipped by -Force or -AllowOtherHost. The marker is
+        removed as the very last step of every live run, success or failure. Create it
+        for a deliberate reseed with:
+        ssh ubuntu@<host> 'echo "reseed-production $(date -u +%F)" | sudo tee /etc/hiusa/ALLOW_RESEED'
+        (the mkdir is needed once: sudo mkdir -p /etc/hiusa). If a run never reached the
+        server, remove it by hand: ssh ubuntu@<host> 'sudo rm -f /etc/hiusa/ALLOW_RESEED'
       * The restore commands are printed, never run.
       * However the run ends (success, failed step, Ctrl+C) a summary is printed:
         whether the wipe step had started, the backup file names (only if the
@@ -217,9 +227,17 @@ if [ ! -d /var/backups/hiusa ]; then echo "FAIL: /var/backups/hiusa does not exi
 if [ ! -x /usr/local/bin/hiusa-artisan ]; then echo "FAIL: /usr/local/bin/hiusa-artisan is missing"; exit 1; fi
 if [ ! -d /var/www/hiusa/server/storage/app ]; then echo "FAIL: /var/www/hiusa/server/storage/app is missing"; exit 1; fi
 if [ ! -e /etc/hiusa/ALLOW_RESEED ]; then echo "FAIL: /etc/hiusa/ALLOW_RESEED does not exist on this server, so a reseed is not allowed"; exit 1; fi
-appenv=$(sudo -u www-data /usr/local/bin/hiusa-artisan env < /dev/null | sed -n 's/^.*environment: *//p' | tr -d '[:space:]') || appenv=""
+appenv=$(sudo -u www-data /usr/local/bin/hiusa-artisan env < /dev/null | sed -n 's/.*environment is \[\([a-z]*\)\].*/\1/p') || appenv=""
 echo "app environment: ${appenv:-unknown}"
-if [ -z "$appenv" ] || [ "$appenv" = "production" ]; then echo "FAIL: the server app environment is '${appenv:-unknown}'; a reseed never runs on production"; exit 1; fi
+if [ -z "$appenv" ]; then echo "FAIL: the server app environment cannot be read, so a reseed is not allowed"; exit 1; fi
+if [ "$appenv" = "production" ]; then
+  marker=$(sudo cat /etc/hiusa/ALLOW_RESEED) || marker=""
+  want="reseed-production $(date -u +%F)"
+  if [ "$marker" != "$want" ]; then echo "FAIL: this server is production; /etc/hiusa/ALLOW_RESEED must hold exactly '$want' (today, UTC) before a reseed"; exit 1; fi
+fi
+open=$(sudo -u www-data env HOME=/tmp XDG_CONFIG_HOME=/tmp /usr/local/bin/hiusa-artisan tinker --execute='echo "OPEN_ELECTIONS=".\App\Models\Election::where("status", "active")->orWhere(fn ($q) => $q->where("status", "upcoming")->whereNotNull("approved_at")->whereNotNull("finalized_at"))->count();' < /dev/null 2>/dev/null | sed -n 's/^OPEN_ELECTIONS=\([0-9][0-9]*\).*/\1/p') || open=""
+echo "open elections: ${open:-unknown}"
+if [ -z "$open" ] || [ "$open" != "0" ]; then echo "FAIL: ${open:-an unknown number of} election(s) are active or approved and upcoming, or the count could not be read; a reseed is refused"; exit 1; fi
 df -h /var/backups/hiusa | tail -n 1
 echo "preflight ok"
 '@
@@ -371,6 +389,12 @@ for s in hiusa-queue hiusa-scheduler; do
   if ! systemctl is-active --quiet "$s"; then echo "FAIL: $s is not active"; exit 1; fi
   echo "active $s"
 done
+'@
+
+$StepCleanup = @'
+sudo rm -f /etc/hiusa/ALLOW_RESEED
+if [ -e /etc/hiusa/ALLOW_RESEED ]; then echo "FAIL: /etc/hiusa/ALLOW_RESEED is still there"; exit 1; fi
+echo "marker /etc/hiusa/ALLOW_RESEED removed"
 '@
 
 $Step9Counts = @'
@@ -776,6 +800,7 @@ if ($DumpScripts) {
         [System.IO.File]::WriteAllText((Join-Path $dir.FullName ("step{0}.sh" -f ($i + 1))), $text, $utf8)
     }
     [System.IO.File]::WriteAllText((Join-Path $dir.FullName 'step9.sh'), (Build-RemoteScript -Body $Step9Counts), $utf8)
+    [System.IO.File]::WriteAllText((Join-Path $dir.FullName 'cleanup.sh'), (Build-RemoteScript -Body $StepCleanup), $utf8)
     [System.IO.File]::WriteAllText((Join-Path $dir.FullName 'step6.php'), ("<?php`n" + ($PhpDeans -replace "`r`n", "`n")), $utf8)
     [System.IO.File]::WriteAllText((Join-Path $dir.FullName 'step7.php'), ("<?php`n" + ($PhpSao -replace "`r`n", "`n")), $utf8)
     Write-Host "Wrote the remote scripts and PHP snippets to $($dir.FullName). Nothing was contacted."
@@ -793,6 +818,16 @@ function Stop-RemoteProc {
             }
         } catch { }
         $script:RemoteProc = $null
+    }
+}
+
+# The last thing a live run does, whatever the outcome: the marker never outlives the run that used it.
+function Remove-ReseedMarker {
+    try {
+        $result = Invoke-Remote -Body $StepCleanup
+        if ($result.ExitCode -ne 0) { throw "exit code $($result.ExitCode)" }
+    } catch {
+        Write-Host "WARN: the reseed marker may still be on the server ($($_.Exception.Message)). Remove it now: ssh $sshTarget 'sudo rm -f /etc/hiusa/ALLOW_RESEED'" -ForegroundColor Red
     }
 }
 
@@ -995,6 +1030,7 @@ function Invoke-ResetRun {
     } finally {
         Stop-RemoteProc
         Write-RunEnd
+        Remove-ReseedMarker
     }
     return $script:ExitCode
 }
@@ -1038,6 +1074,9 @@ if (-not $Execute) {
         Write-StepHeader -Number $TotalSteps -Title 'Demo journey prep over the API (election, officer task, student invoice)'
         Write-DemoPrepPlan
     }
+    Write-Host ''
+    Write-Host 'Last, whatever the outcome, the marker is removed:'
+    foreach ($line in ($StepCleanup -split "`r?`n")) { Write-Host "    | $line" }
     Write-Host ''
     Write-Host 'To restore from the backup (printed, never run by this script):' -ForegroundColor Cyan
     Write-Host "  $RestoreDb"
