@@ -1,4 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { peso as money } from '../../../lib/format';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
@@ -20,7 +21,6 @@ const cards = [
   ['approval_requests', 'Approval requests', '/dashboard/approvals'],
   ['pending_tasks', 'Pending tasks', '/dashboard/tasks/task-board'],
 ];
-const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function FinancialMovement({ rows }) {
   const largest = Math.max(1, ...rows.flatMap((row) => [Number(row.income), Number(row.expense)]));

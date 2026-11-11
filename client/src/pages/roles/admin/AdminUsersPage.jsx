@@ -1,4 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { peso as money } from '../../../lib/format';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -33,7 +34,6 @@ const ROLE_LABELS = {
   DEPARTMENT_HEAD: 'Department head',
 };
 const ROLE_SHORT = { ...ROLE_LABELS, ADMIN: 'Administrator' };
-const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ADVISER_TITLES = ['adviser', 'advisor', 'organization adviser', 'organization advisor'];
 const isAdviser = (user) => ADVISER_TITLES.includes(String(user.position_title ?? '').trim().toLowerCase());
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;

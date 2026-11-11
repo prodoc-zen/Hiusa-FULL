@@ -1,8 +1,8 @@
 import { formatDisplayText } from '../../utils/displayText.js';
+import { peso as money } from '../../lib/format';
 import { Eye, Printer } from 'lucide-react';
 import { Button, StatusBadge } from '../ui';
 
-const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dateTime = (value) => value ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' }) : 'Not recorded';
 const person = (value) => [value?.first_name, value?.last_name].filter(Boolean).join(' ') || 'Not recorded';
 const sentence = (text) => text.charAt(0).toUpperCase() + text.slice(1);
