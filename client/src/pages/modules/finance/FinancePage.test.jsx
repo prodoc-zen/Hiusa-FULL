@@ -894,6 +894,14 @@ describe('FinancePage statement of account for a student', () => {
     expect(region.compareDocumentPosition(screen.getAllByText('Organization fee')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('prints an invoice due date as a calendar day, not the raw timestamp', async () => {
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice({ due_date: '2026-11-18T00:00:00+08:00' })] });
+    render(<FinancePage initialTab="invoices" />);
+
+    expect((await screen.findAllByText('Nov 18, 2026')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/2026-11-18T/)).not.toBeInTheDocument();
+  });
+
   it('names a held signature of the current clearance as the reason', async () => {
     clearanceMocks.getMyClearances.mockResolvedValue({ data: [
       clearance([{ id: 1, required_role: 'adviser', status: 'held', remarks: 'Return the borrowed projector' }, { id: 2, required_role: 'sao', status: 'cleared', remarks: null }]),
