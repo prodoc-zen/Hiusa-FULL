@@ -2,7 +2,7 @@ import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GlobalAnnouncementsPage from './GlobalAnnouncementsPage';
-import { createGlobalAnnouncement, deleteGlobalAnnouncement, getGlobalAnnouncements } from '../../../services/systemAdministrationService';
+import { archiveGlobalAnnouncement, createGlobalAnnouncement, deleteGlobalAnnouncement, getGlobalAnnouncements } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getGlobalAnnouncements: vi.fn(),
@@ -50,6 +50,41 @@ describe('GlobalAnnouncementsPage delete', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Published announcements cannot be deleted. Archive them instead.');
+  });
+});
+
+describe('GlobalAnnouncementsPage archive', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGlobalAnnouncements).mockResolvedValue({ data: [published] });
+  });
+
+  it('asks before archiving and archives only after the confirmation', async () => {
+    vi.mocked(archiveGlobalAnnouncement).mockResolvedValue({ message: 'Official announcement archived.' });
+    render(<GlobalAnnouncementsPage />);
+    fireEvent.click(await findRowAction(/Archive/));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive this notice?' });
+    expect(archiveGlobalAnnouncement).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive notice' }));
+
+    await waitFor(() => expect(archiveGlobalAnnouncement).toHaveBeenCalledWith(6));
+    await waitFor(() => expect(getGlobalAnnouncements).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps the notice published when the person cancels', async () => {
+    render(<GlobalAnnouncementsPage />);
+    fireEvent.click(await findRowAction(/Archive/));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Archive this notice?' })).getByRole('button', { name: 'Cancel' }));
+
+    expect(archiveGlobalAnnouncement).not.toHaveBeenCalled();
+  });
+
+  it('labels an archived notice Archived instead of Published', async () => {
+    vi.mocked(getGlobalAnnouncements).mockResolvedValue({ data: [{ ...published, is_published: false }] });
+    render(<GlobalAnnouncementsPage />);
+
+    expect(await screen.findByText('Archived')).toBeInTheDocument();
+    expect(screen.queryByText('Published')).not.toBeInTheDocument();
   });
 });
 
