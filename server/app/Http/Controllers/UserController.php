@@ -534,7 +534,7 @@ class UserController extends Controller
             $validatedData['role'] !== 'ADMIN' &&
             $user->role === 'ADMIN' &&
             $user->account_status === 'active' &&
-            User::where('role', 'ADMIN')->where('account_status', 'active')->where('organization_id', $user->organization_id)->count() <= 1
+            $this->activeAdministratorCount((int) $user->organization_id) <= 1
         ) {
             return response()->json(['message' => 'Cannot change the role of the last admin account.'], 422);
         }
@@ -542,7 +542,7 @@ class UserController extends Controller
         if (
             ($validatedData['account_status'] ?? 'active') !== 'active' &&
             $user->role === 'ADMIN' &&
-            User::where('role', 'ADMIN')->where('account_status', 'active')->where('organization_id', $user->organization_id)->count() <= 1
+            $this->activeAdministratorCount((int) $user->organization_id) <= 1
         ) {
             return response()->json(['message' => 'Cannot deactivate the last active admin account.'], 422);
         }
@@ -575,13 +575,22 @@ class UserController extends Controller
             return response()->json($freshUser);
         }
 
-        $user->update($this->normalizeUserPayload($validatedData, $user));
+        $validatedData = $this->normalizeUserPayload($validatedData, $user);
+        $membershipData = array_intersect_key($validatedData, array_flip(['role', 'account_status', 'position_title']));
+        // The account row can already hold the submitted role while the profile does not (an election hand over moves only the profile), so the profile is written on its own.
+        DB::transaction(function () use ($user, $profile, $validatedData, $membershipData) {
+            $user->update($validatedData);
+            if ($membershipData) {
+                $profile->update($membershipData);
+            }
+        });
 
         if (array_key_exists('account_status', $validatedData) && $validatedData['account_status'] !== 'active') {
             $user->tokens()->delete();
         }
 
         $freshUser = $user->fresh();
+        $freshUser->activateProfile($profile->fresh()->load('organization'));
         $this->recordUserAudit($request, 'updated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
 
         return response()->json($freshUser);
@@ -596,16 +605,13 @@ class UserController extends Controller
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
-        // One password signs in to every profile, so a link for a member who also holds elevated access elsewhere would hand that access to this Admin.
-        $elevatedElsewhere = AccountProfile::where('user_school_id', $user->school_id)
-            ->where('account_status', 'active')
-            ->where('organization_id', '!=', $organizationId)
-            ->where('role', '!=', 'STUDENT')
-            ->exists();
-        if ($elevatedElsewhere) {
+        // One password signs in to every profile, so a link for a member who holds elevated access would hand that access to this Admin.
+        // Their profiles say what they hold: an election hand over moves the profile and leaves the account row on its old role.
+        if (AccountProfile::where('user_school_id', $user->school_id)->beyondAdminReset($organizationId)->exists()) {
             return response()->json(['message' => 'Ask the SAO to reset this password.'], 409);
         }
-        if ($user->account_status !== 'active') {
+        $membershipStatus = AccountProfile::where('user_school_id', $user->school_id)->where('organization_id', $organizationId)->value('account_status');
+        if ($user->account_status !== 'active' || $membershipStatus !== 'active') {
             return response()->json(['message' => 'Activate this member before initiating a password reset.'], 422);
         }
         $votingOrganizationIds = AccountProfile::votingMembers()->where('account_profiles.user_school_id', $user->school_id)->pluck('organization_id')->push($organizationId)->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -658,7 +664,7 @@ class UserController extends Controller
 
         if (
             $user->role === 'ADMIN' &&
-            User::where('role', 'ADMIN')->where('account_status', 'active')->where('organization_id', $user->organization_id)->count() <= 1
+            $this->activeAdministratorCount((int) $user->organization_id) <= 1
         ) {
             return response()->json(['message' => 'Cannot deactivate the last active admin account.'], 422);
         }
@@ -713,9 +719,10 @@ class UserController extends Controller
 
         $oldValues = $this->auditableUserValues($user);
 
-        if ($secondary) {
-            $profile->update(['account_status' => 'active']);
-        } else {
+        // The profile is written on its own: its status is what the member is reactivated to, and the account row may already say active.
+        $profile->update(['account_status' => 'active']);
+
+        if (! $secondary) {
             $user->forceFill(['account_status' => 'active'])->save();
         }
 
@@ -756,6 +763,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
         }
 
+        $user->activateProfile($profile->load('organization'));
         $oldValues = $this->auditableUserValues($user);
 
         $result = app(AccountProfileDeletionService::class)->remove($request->user(), $profile);
@@ -1099,6 +1107,12 @@ class UserController extends Controller
         }
 
         return Carbon::parse($record->created_at)->addMinutes(config('auth.passwords.users.expire', 60))->isFuture();
+    }
+
+    /** Counted from profiles, the one rule every administrator count follows: an account row can lag behind an election hand over. */
+    private function activeAdministratorCount(int $organizationId): int
+    {
+        return AccountProfile::activeAdministrators()->where('account_profiles.organization_id', $organizationId)->count();
     }
 
     private function auditableUserValues(User $user): array
