@@ -23,6 +23,7 @@ export default function ResetPasswordPage() {
     email: searchParams.get('email') || '',
     token: searchParams.get('token') || '',
   }), [searchParams]);
+  const linkIsComplete = Boolean(resetPayload.organization_id && resetPayload.email && resetPayload.token);
 
   useEffect(() => {
     let alive = true;
@@ -48,7 +49,7 @@ export default function ResetPasswordPage() {
       }
     }
 
-    if (!resetPayload.organization_id || !resetPayload.email || !resetPayload.token) {
+    if (!linkIsComplete) {
       setCheckingToken(false);
       setError('This reset link is incomplete. Request a new one.');
       return;
@@ -59,7 +60,7 @@ export default function ResetPasswordPage() {
     return () => {
       alive = false;
     };
-  }, [resetPayload]);
+  }, [resetPayload, linkIsComplete]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -120,7 +121,7 @@ export default function ResetPasswordPage() {
       {!checkingToken && !tokenValid && (
         <ErrorState
           className="mt-6 py-0"
-          title="This reset link has expired"
+          title={linkIsComplete ? 'This reset link has expired' : 'This reset link is not valid'}
           description={error}
           onRetry={() => navigate('/recover-account')}
           retryLabel="Request a new link"

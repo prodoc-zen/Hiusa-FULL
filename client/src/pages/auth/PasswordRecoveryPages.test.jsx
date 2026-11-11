@@ -101,4 +101,29 @@ describe('password recovery pages', () => {
     }));
     expect(await screen.findByText('Password updated successfully.')).toBeInTheDocument();
   });
+
+  it('titles a reset link with missing parts as not valid, not expired', async () => {
+    render(
+      <MemoryRouter initialEntries={['/reset-password']}>
+        <Routes><Route path="/reset-password" element={<ResetPasswordPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('This reset link is not valid')).toBeInTheDocument();
+    expect(screen.getByText('This reset link is incomplete. Request a new one.')).toBeInTheDocument();
+    expect(screen.queryByText('This reset link has expired')).not.toBeInTheDocument();
+    expect(authMocks.validatePasswordResetToken).not.toHaveBeenCalled();
+  });
+
+  it('still titles a link the server rejects as expired', async () => {
+    authMocks.validatePasswordResetToken.mockRejectedValue({ response: { data: { message: 'Password reset token is invalid or expired.' } } });
+    render(
+      <MemoryRouter initialEntries={['/reset-password?organization_id=1&email=a%40b.com&token=wrong']}>
+        <Routes><Route path="/reset-password" element={<ResetPasswordPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('This reset link has expired')).toBeInTheDocument();
+    expect(screen.getByText('Password reset token is invalid or expired.')).toBeInTheDocument();
+  });
 });
