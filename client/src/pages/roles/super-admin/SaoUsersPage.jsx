@@ -21,16 +21,16 @@ function fullName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
 }
 
-function linkedRecordLabel(key, count) {
-  const label = key.replaceAll('_', ' ');
-  return `${count} ${count === 1 && label.endsWith('s') && !label.endsWith('ss') ? label.slice(0, -1) : label}`;
+// The server sends each linked record as { label, count } with the label in plain words; only the ones that exist are worth reading.
+function presentLinkedRecords(linkedRecords) {
+  return Object.entries(linkedRecords || {}).map(([key, record]) => ({ key, label: record?.label, count: Number(record?.count) || 0 })).filter((record) => record.count > 0);
 }
 
 function deleteRefusal(error) {
-  const linked = Object.entries(error?.response?.data?.linked_records || {}).filter(([, count]) => count > 0);
+  const linked = presentLinkedRecords(error?.response?.data?.linked_records);
   const message = getApiErrorMessage(error, 'Could not delete this user.');
   if (!linked.length) return message;
-  return `This user has linked records: ${linked.map(([key, count]) => linkedRecordLabel(key, count)).join(', ')}. Deleting the account would erase them. Deactivate the account instead.`;
+  return `This account cannot be deleted because it has linked records (${linked.map(({ label, count }) => `${label}: ${count}`).join(', ')}). Deactivate the account instead.`;
 }
 
 export default function SaoUsersPage() {
@@ -78,7 +78,7 @@ export default function SaoUsersPage() {
     setActionError('');
     try {
       await deleteSystemUser(deleting.school_id);
-      setNotice(`${fullName(deleting)} and linked records were deleted.`);
+      setNotice(`${fullName(deleting)} was deleted.`);
       setDeleting(null);
       setSelected(null);
       setDetail(null);
@@ -112,6 +112,7 @@ export default function SaoUsersPage() {
     setPage(1);
   }
 
+  const detailRecords = presentLinkedRecords(detail?.linked_records);
   const filtersActive = Boolean(filters.search || filters.role || filters.status);
   function clearFilters() {
     setQuery('');
@@ -172,12 +173,12 @@ export default function SaoUsersPage() {
         <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-xs font-semibold text-ink-muted">Email</dt><dd className="break-all font-medium text-ink">{detail.user.email}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Status</dt><dd><StatusBadge status={detail.user.account_status} /></dd></div></dl>
         <section><h3 className="text-sm font-semibold text-ink">Profiles</h3><ul className="mt-2 divide-y divide-line rounded-lg border border-line">{detail.user.profiles.map((profile) => <li key={profile.id} className="flex flex-wrap justify-between gap-2 px-3 py-2 text-sm"><span className="font-medium text-ink">{profile.organization?.name || 'Organization unavailable'}</span><span className="text-ink-muted">{ROLE_NAMES[profile.role] || profile.role}</span></li>)}</ul></section>
         <section><h3 className="text-sm font-semibold text-ink">Clearance history</h3>{detail.clearances.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No clearance periods for this user.</p> : <ul className="mt-2 divide-y divide-line rounded-lg border border-line">{detail.clearances.map((period) => <li key={period.period_id} className="px-3 py-3"><div className="flex flex-wrap justify-between gap-2"><span className="font-semibold text-ink">{period.title}</span><StatusBadge status={period.is_complete ? 'cleared' : 'pending'} /></div><p className="text-xs text-ink-muted">{period.academic_year}</p><div className="mt-2 flex flex-wrap gap-2">{period.signatures.map((signature) => <span key={signature.required_role} className="text-xs text-ink-muted">{signature.required_role.replaceAll('_', ' ')}: {signature.status}</span>)}</div></li>)}</ul>}</section>
-        <section><h3 className="text-sm font-semibold text-ink">Linked records</h3><dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.entries(detail.linked_records || {}).map(([key, count]) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{key.replaceAll('_', ' ')}</dt><dd className="text-sm font-semibold tabular-nums text-ink">{count}</dd></div>)}</dl></section>
+        <section><h3 className="text-sm font-semibold text-ink">Linked records</h3>{detailRecords.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No linked records. This account can be deleted.</p> : <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{detailRecords.map(({ key, label, count }) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{label}</dt><dd className="text-sm font-semibold tabular-nums text-ink">{count}</dd></div>)}</dl>}</section>
       </div>}
     </Drawer>
     {existingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={existingAdmin.user} onClose={() => setExistingAdmin(null)} onAdded={() => { setNotice('Administrator added.'); load(); }} />}
-    <ConfirmModal open={Boolean(resetting)} title="Reset password" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Send reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
+    <ConfirmModal open={Boolean(resetting)} title="Create reset link" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Create reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
     {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
-    <ConfirmModal open={Boolean(deleting)} title="Delete user and linked records?" recordName={fullName(deleting)} message="This permanently removes the account, profiles, clearances, and linked submissions, financial, event, and order records. It cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
+    <ConfirmModal open={Boolean(deleting)} title="Delete user?" recordName={fullName(deleting)} message="Only the account and its profiles are removed. An account with any history, such as submissions, finance, event, order, or clearance records, cannot be deleted and should be deactivated instead. This cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
 }
