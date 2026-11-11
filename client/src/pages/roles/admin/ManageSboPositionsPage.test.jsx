@@ -35,6 +35,21 @@ describe('ManageSboPositionsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('says in the form when a title is too short instead of leaving it to the browser tooltip', async () => {
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+    fireEvent.click(screen.getByRole('button', { name: 'Add position' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add position' });
+    fireEvent.change(within(dialog).getByLabelText('Account role'), { target: { value: 'SBO_OFFICER' } });
+    fireEvent.change(within(dialog).getByLabelText(/position title/i), { target: { value: 'A' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save position' }));
+
+    expect(dialog.querySelector('form')).toHaveAttribute('novalidate');
+    expect(await within(dialog).findByText('Position title must contain at least 2 characters.')).toBeInTheDocument();
+    expect(service.createSboPosition).not.toHaveBeenCalled();
+  });
+
   it('keeps responsibilities and the inactive flag in the position cell and hides an unneeded role column', async () => {
     service.getSboPositions.mockResolvedValue([
       { id: 8, role: 'ADMIN', title: 'Treasurer', description: 'Handles funds', is_active: true },
