@@ -59,6 +59,7 @@ class DashboardInsightEngine
     {
         $highRiskOrgs = DB::table('budgets')
             ->whereIn('organization_id', $organizationIds)
+            ->where('submission_status', 'approved')
             ->where('overspending_risk', 'high')
             ->distinct()
             ->count('organization_id');
@@ -74,7 +75,7 @@ class DashboardInsightEngine
             'why' => [
                 'method' => 'Deterministic budget-advisory engine (BudgetController::advice), aggregated across organizations',
                 'inputs' => ['organizations_at_high_risk' => $highRiskOrgs],
-                'formula' => 'Counts distinct organizations with at least one budget where overspending_risk = high.',
+                'formula' => 'Counts distinct organizations with at least one approved budget where overspending_risk = high.',
             ],
             'generated_at' => now()->toIso8601String(),
             'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organizations' : '/dashboard/finance/budget-allocation'),
@@ -85,6 +86,7 @@ class DashboardInsightEngine
     {
         $budget = DB::table('budgets')
             ->where('organization_id', $organizationId)
+            ->where('submission_status', 'approved')
             ->whereIn('overspending_risk', ['high', 'medium'])
             ->whereNotNull('advice_generated_at')
             ->orderByRaw("CASE overspending_risk WHEN 'high' THEN 0 ELSE 1 END")
