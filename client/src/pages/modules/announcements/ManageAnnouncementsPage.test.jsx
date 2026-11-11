@@ -36,6 +36,46 @@ describe('ManageAnnouncementsPage', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete announcement' })).toBeInTheDocument();
   });
 
+  describe('edit poster', () => {
+    const openEditDrawer = async () => {
+      renderPage();
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Campus update' }))[0]);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit announcement' }));
+      return screen.findByRole('dialog', { name: 'Edit announcement' });
+    };
+    const poster = (bytes, type = 'image/png') => {
+      const file = new File(['x'], 'new-poster.png', { type });
+      Object.defineProperty(file, 'size', { value: bytes });
+      return file;
+    };
+
+    it('replaces the poster with the chosen image when the changes are saved', async () => {
+      announcementMocks.updateAnnouncement.mockResolvedValue({ data: record });
+      const dialog = await openEditDrawer();
+      const file = poster(1024);
+      fireEvent.change(within(dialog).getByLabelText(/Poster or image/), { target: { files: [file] } });
+      expect(within(dialog).getByText('new-poster.png')).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(announcementMocks.updateAnnouncement).toHaveBeenCalledWith(7, expect.objectContaining({ imageFile: file })));
+    });
+
+    it('refuses a poster over 5 MB and saves nothing until a good one is chosen', async () => {
+      announcementMocks.updateAnnouncement.mockResolvedValue({ data: record });
+      const dialog = await openEditDrawer();
+      const input = within(dialog).getByLabelText(/Poster or image/);
+      fireEvent.change(input, { target: { files: [poster(6 * 1024 * 1024)] } });
+
+      expect(within(dialog).getByRole('alert')).toHaveTextContent('The poster must be 5 MB or smaller.');
+      expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+      expect(announcementMocks.updateAnnouncement).not.toHaveBeenCalled();
+
+      fireEvent.change(input, { target: { files: [poster(1024)] } });
+      expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeEnabled();
+    });
+  });
+
   it('keeps a failed delete confirmation open and reports the error', async () => {
     announcementMocks.deleteAnnouncement.mockRejectedValue({ response: { data: { message: 'Deletion denied.' } } });
     renderPage();

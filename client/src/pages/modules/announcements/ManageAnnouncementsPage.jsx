@@ -2,8 +2,8 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Megaphone, Pencil, Plus, Search, Send, Trash2 } from 'lucide-react';
-import { AnnouncementStageChip, announcementStage, announcementVisibility } from './announcementShared.jsx';
+import { Download, ImagePlus, Megaphone, Pencil, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { AnnouncementStageChip, announcementImageError, announcementStage, announcementVisibility } from './announcementShared.jsx';
 import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, Input, NextStep, PageHeader } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -96,7 +96,8 @@ export default function ManageAnnouncementsPage() {
   const [details, setDetails] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
+  const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general', imageFile: null });
+  const [editImageError, setEditImageError] = useState('');
   const [exporting, setExporting] = useState(false);
   const currentRole = getCurrentRole();
   const currentUserId = getCurrentUserId();
@@ -184,12 +185,23 @@ export default function ManageAnnouncementsPage() {
     setActionError('');
     setDetails(null);
     setEditing(announcement);
+    setEditImageError('');
     setEditForm({
       title: announcement.title || '',
       body: announcement.body || '',
       target_role: announcement.target_role || 'all',
       category: announcement.category || 'general',
+      imageFile: null,
     });
+  }
+
+  function handleEditImageChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const problem = announcementImageError(file);
+    setEditImageError(problem);
+    setEditForm((form) => ({ ...form, imageFile: problem ? null : file }));
+    if (problem) event.target.value = '';
   }
 
   async function handleEdit(event) {
@@ -350,7 +362,7 @@ export default function ManageAnnouncementsPage() {
         footer={(
           <>
             <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button type="submit" form="edit-announcement-form" disabled={!editForm.title.trim() || !editForm.body.trim()}>Save changes</Button>
+            <Button type="submit" form="edit-announcement-form" disabled={!editForm.title.trim() || !editForm.body.trim() || Boolean(editImageError)}>Save changes</Button>
           </>
         )}
       >
@@ -369,6 +381,15 @@ export default function ManageAnnouncementsPage() {
             </HiusaSelect>
           </Field>
           <RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} rows={8} placeholder="Announcement content" />
+          <div>
+            <label htmlFor="edit-announcement-image" className="mb-1.5 block text-[13px] font-medium text-ink">{editing?.image_url ? 'Replace the poster or image' : 'Poster or image'} <span className="font-normal text-ink-muted">(optional)</span></label>
+            <label htmlFor="edit-announcement-image" className="flex min-h-16 cursor-pointer items-center gap-3 rounded-control border border-dashed border-line p-3 hover:border-brand-600">
+              <ImagePlus size={18} className="shrink-0 text-ink-muted" aria-hidden="true" />
+              <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{editForm.imageFile?.name || 'Choose an image'}</span><span className="mt-0.5 block text-xs text-ink-muted">JPEG, PNG or WebP, up to 5 MB</span></span>
+            </label>
+            <input id="edit-announcement-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-invalid={editImageError ? true : undefined} aria-describedby={editImageError ? 'edit-announcement-image-error' : undefined} onChange={handleEditImageChange} />
+            {editImageError && <p id="edit-announcement-image-error" role="alert" className="mt-1.5 text-xs font-semibold text-danger-strong">{editImageError}</p>}
+          </div>
           {actionError && <p role="alert" className="text-sm font-medium text-danger-strong">{actionError}</p>}
         </form>
       </Drawer>
