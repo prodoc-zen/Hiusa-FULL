@@ -299,10 +299,7 @@ class TransactionController extends Controller
             'payer:school_id,first_name,last_name',
         ])
             ->where('organization_id', $request->user()->organization_id)
-            ->where(function ($query) use ($userId) {
-                $query->where('payer_id', $userId)
-                    ->orWhere('recorded_by', $userId);
-            })
+            ->where('payer_id', $userId)
             ->where(function ($query) {
                 $query->whereNotNull('receipt_reference')
                     ->orWhereNotNull('receipt_number')
