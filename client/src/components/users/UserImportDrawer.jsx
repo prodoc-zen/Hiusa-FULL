@@ -77,7 +77,6 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
         setIssued(result.credentials);
         setCheck(null);
         setFile(null);
-        notify.success(`${result.summary.total} member account${result.summary.total === 1 ? '' : 's'} created`, { description: 'Copy or download the temporary passwords now. They are not shown again.' });
       } else {
         notify.success(`${result.summary.total} member account${result.summary.total === 1 ? '' : 's'} created`, { description: 'They can set a password with Forgot password, using the email in the file.' });
         reset();
@@ -120,7 +119,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
     >
       {issued ? (
         <div className="space-y-4">
-          <p role="status" className="flex items-start gap-2 text-sm font-semibold text-warning-strong"><TriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> These passwords are shown only once. Copy or download them before you leave.</p>
+          <p role="status" className="flex items-start gap-2 text-sm font-semibold text-warning-strong"><TriangleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" /> {issued.length} member account{issued.length === 1 ? '' : 's'} created. These passwords are shown only once. Copy or download them before you leave.</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" leftIcon={copied ? Check : Copy} onClick={copyAll}>{copied ? 'Copied' : 'Copy all'}</Button>
             <Button variant="secondary" leftIcon={Download} onClick={downloadCredentials}>Download CSV</Button>

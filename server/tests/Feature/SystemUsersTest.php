@@ -161,7 +161,9 @@ class SystemUsersTest extends TestCase
 
             $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])
                 ->assertStatus(409)
-                ->assertJsonPath('message', fn ($message) => str_contains($message, 'Deactivate the account instead'));
+                ->assertJsonPath('message', fn ($message) => str_contains($message, 'Deactivate the account instead'))
+                ->assertJsonPath('linked_records.'.$kind, 1)
+                ->assertJsonMissingPath('linked_records.profiles');
             $this->assertDatabaseHas('users', ['school_id' => $user->school_id]);
             $this->getJson('/api/system/users/'.$user->school_id)->assertOk()->assertJsonPath('linked_records.'.$kind, 1);
         }

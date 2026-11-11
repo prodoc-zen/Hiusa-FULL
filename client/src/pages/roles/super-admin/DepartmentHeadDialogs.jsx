@@ -171,7 +171,7 @@ const CONFIRMS = {
   },
   reset: {
     title: 'Send password reset',
-    message: 'A secure reset link will be sent to their registered email address. If email is off, the link shows here once for you to hand over. Their current password is not shown.',
+    message: 'This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown.',
     confirmText: 'Send reset link',
     variant: 'primary',
   },
