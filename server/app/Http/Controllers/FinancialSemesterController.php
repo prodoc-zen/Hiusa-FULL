@@ -21,6 +21,10 @@ class FinancialSemesterController extends Controller
             'name' => ['required', 'string', 'max:100', Rule::unique('financial_semesters')->where('organization_id', $organizationId)],
             'starts_on' => ['required', 'date', 'before_or_equal:today'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+        ], [
+            'name.unique' => 'A semester with this name already exists.',
+            'starts_on.before_or_equal' => 'The start date cannot be in the future.',
+            'ends_on.after_or_equal' => 'The end date cannot be before the start date.',
         ]);
 
         $semester = FinancialSemester::create([
