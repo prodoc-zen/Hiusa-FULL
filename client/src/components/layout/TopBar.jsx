@@ -288,7 +288,8 @@ export default function TopBar({ onMenuToggle }) {
 
   const recent5 = notifications.slice(0, 5);
   const cartTypeCount = cartItems.length;
-  const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
+  const cartUnitPrice = (row) => Number(row?.item?.effective_price ?? row?.item?.price ?? 0);
+  const cartTotal = cartItems.reduce((sum, row) => sum + cartUnitPrice(row) * Number(row?.quantity || 0), 0);
 
 
   const iconButton = 'relative grid h-11 w-11 place-items-center rounded-control text-ink-muted-strong transition-colors hover:bg-page hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 sm:w-10';
@@ -450,9 +451,9 @@ export default function TopBar({ onMenuToggle }) {
                     <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{formatDisplayText(row.item?.name) || 'Item'}</p>
-                        <p className="text-xs text-ink-muted">Qty: {row.quantity || 0} - {peso(row.item?.price || 0)}</p>
+                        <p className="text-xs text-ink-muted">Qty: {row.quantity || 0} - {peso(cartUnitPrice(row))}</p>
                       </div>
-                      <p className="text-sm font-medium tabular-nums text-ink">{peso((row.item?.price || 0) * (row.quantity || 0))}</p>
+                      <p className="text-sm font-medium tabular-nums text-ink">{peso(cartUnitPrice(row) * (row.quantity || 0))}</p>
                     </div>
                   ))
                 )}
