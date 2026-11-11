@@ -571,6 +571,20 @@ describe('FinancePage deleting budgets and transactions', () => {
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
   });
 
+  it('holds the old ledger rows, not a loading state, until the refreshed ones arrive', async () => {
+    let finish;
+    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
+    render(<FinancePage initialTab="transactions" />);
+    fireEvent.click(await findRowAction('Delete transaction'));
+    financeMocks.getTransactions.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Delete this transaction?' })).getByRole('button', { name: 'Delete transaction' }));
+
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Venue reservation').length).toBeGreaterThan(0);
+    finish({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+  });
+
   it('shows the server message for a ledger entry owned by another module', async () => {
     financeMocks.deleteTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
     await confirmTransactionDelete();
