@@ -65,7 +65,10 @@ class FinancialReportController extends Controller
             ->when($filters['document_type'] ?? null, fn ($builder, $documentType) => $builder->whereIn('document_type', FilterValues::values($documentType)))
             ->when($filters['search'] ?? null, fn ($builder, $search) => $builder->where('title', 'like', '%'.trim($search).'%'));
 
-        return response()->json($query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
+        $page = $query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
+        $this->attachApprovalRemarks($page->getCollection());
+
+        return response()->json($page);
     }
 
     public function show(Request $request, FinancialReport $financialReport)
@@ -75,13 +78,15 @@ class FinancialReportController extends Controller
         }
 
         $transactions = $financialReport->savedTransactions();
+        $financialReport->load([
+            'organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name',
+            'deadline:id,deadline_at', 'departmentHeadApprover:school_id,first_name,last_name',
+            'saoApprover:school_id,first_name,last_name',
+        ]);
+        $this->attachApprovalRemarks([$financialReport]);
 
         return response()->json([
-            'report' => $financialReport->load([
-                'organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name',
-                'deadline:id,deadline_at', 'departmentHeadApprover:school_id,first_name,last_name',
-                'saoApprover:school_id,first_name,last_name',
-            ]),
+            'report' => $financialReport,
             'transactions' => $transactions,
             ...FinancialReportStatement::from($transactions, $this->openingBalanceFor($financialReport)),
         ]);
@@ -499,6 +504,21 @@ class FinancialReportController extends Controller
         }
 
         return false;
+    }
+
+    /** The reviewer's reason for returning a report, so the Admin can read what to fix. */
+    private function attachApprovalRemarks(iterable $reports): void
+    {
+        $reports = collect($reports);
+        $latest = ApprovalRequest::where('entity_type', 'financial_report')
+            ->whereIn('entity_id', $reports->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('entity_id');
+
+        foreach ($reports as $report) {
+            $report->approval_remarks = $report->submission_status === 'rejected' ? $latest->get($report->id)?->remarks : null;
+        }
     }
 
     private function canAccessReport(Request $request, FinancialReport $report): bool
