@@ -64,12 +64,23 @@ describe('AdminUsersPage reset member password', () => {
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
   });
 
-  it('tells the Admin that the home organization resets the password of a member whose primary profile is elsewhere', async () => {
+  it('tells the Admin that the SAO resets the password of a member whose primary profile is elsewhere', async () => {
     mocks.getUsers.mockResolvedValue({ data: [{ ...ana, is_primary_profile: false }], current_page: 1, last_page: 1, total: 1, per_page: 20, summary: { by_role: { STUDENT: 1 }, by_section: [] } });
     const drawer = await openEditFor('Ana Reyes');
 
-    expect(within(drawer).getByText("Their home organization's Admin resets this password.")).toBeInTheDocument();
+    expect(within(drawer).getByText('The SAO resets this password.')).toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: 'Reset password' })).not.toBeInTheDocument();
+  });
+
+  it('shows the elevated-access refusal inline and keeps the form open', async () => {
+    const message = 'Ask the SAO to reset this password.';
+    mocks.resetUserPassword.mockRejectedValue({ response: { status: 409, data: { message } } });
+    const drawer = await openEditFor('Ana Reyes');
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Reset password' }));
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
   });
 
   it('does not send an email or password when saving an edit', async () => {

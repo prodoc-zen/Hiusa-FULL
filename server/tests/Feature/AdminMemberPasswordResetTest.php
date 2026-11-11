@@ -154,6 +154,38 @@ class AdminMemberPasswordResetTest extends TestCase
         $this->assertDatabaseCount('password_reset_tokens', 0);
     }
 
+    public function test_a_member_with_an_active_elevated_profile_in_another_organization_is_refused(): void
+    {
+        $this->mailOff();
+        $student = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+        $other = Organization::factory()->create();
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $other->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+
+        $this->postJson("/api/users/{$student->school_id}/password-reset")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Ask the SAO to reset this password.');
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+
+        $officer = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+        AccountProfile::create(['user_school_id' => $officer->school_id, 'organization_id' => $other->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']);
+
+        $this->postJson("/api/users/{$officer->school_id}/password-reset")->assertStatus(409);
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
+    public function test_an_extra_student_profile_or_an_inactive_elevated_profile_elsewhere_does_not_block_the_reset(): void
+    {
+        $this->mailOff();
+        $other = Organization::factory()->create();
+        $studentOnly = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+        AccountProfile::create(['user_school_id' => $studentOnly->school_id, 'organization_id' => $other->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $dormant = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+        AccountProfile::create(['user_school_id' => $dormant->school_id, 'organization_id' => $other->id, 'role' => 'ADMIN', 'account_status' => 'inactive']);
+
+        $this->postJson("/api/users/{$studentOnly->school_id}/password-reset")->assertOk();
+        $this->postJson("/api/users/{$dormant->school_id}/password-reset")->assertOk();
+    }
+
     public function test_the_member_list_says_whether_the_organization_is_the_members_primary_profile(): void
     {
         $primary = User::factory()->student()->create(['organization_id' => $this->organization->id]);
