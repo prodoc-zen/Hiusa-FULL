@@ -259,6 +259,7 @@ function ledgerSource(transaction) {
 
 function ledgerLockNote(transaction) {
   if (transaction.is_system_generated) return `Recorded by ${transaction.system_source_label}. Change it there.`;
+  if (transaction.is_locked_by_report && transaction.locking_report_status === 'approved') return `In approved report '${transaction.locking_report_title}'. An approved report is final, so this entry cannot be changed.`;
   if (transaction.is_locked_by_report) return `In submitted report '${transaction.locking_report_title}'. Return the report to change it.`;
   return null;
 }

@@ -781,6 +781,15 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
   });
 
+  it('does not tell anyone to return an approved report, which cannot be returned', async () => {
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [{ ...base, id: 4, description: 'Approved venue', is_locked_by_report: true, locking_report_title: 'July report', locking_report_status: 'approved' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    render(<FinancePage initialTab="transactions" />);
+
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText("In approved report 'July report'. An approved report is final, so this entry cannot be changed.")).toBeInTheDocument();
+    expect(within(table).queryByText(/Return the report/)).not.toBeInTheDocument();
+  });
+
   it('names the last ledger column Actions, right aligned, and lets the table fit its card', async () => {
     render(<FinancePage initialTab="transactions" />);
 

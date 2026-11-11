@@ -138,6 +138,15 @@ class FinancialReport extends Model
      */
     public static function lockingTitles(iterable $transactions): array
     {
+        return array_map(fn (array $report) => $report['title'], static::lockingReports($transactions));
+    }
+
+    /**
+     * @param  iterable<Transaction>  $transactions
+     * @return array<int, array{title: string, status: string}> ledger entry id => the report that locks it
+     */
+    public static function lockingReports(iterable $transactions): array
+    {
         $entries = collect($transactions)->keyBy('id');
 
         if ($entries->isEmpty()) {
@@ -153,20 +162,20 @@ class FinancialReport extends Model
                 }
             })
             ->orderBy('id')
-            ->get(['id', 'organization_id', 'title', 'source_transaction_ids']);
+            ->get(['id', 'organization_id', 'title', 'submission_status', 'source_transaction_ids']);
 
-        $titles = [];
+        $locking = [];
         foreach ($reports as $report) {
             foreach ($report->source_transaction_ids ?? [] as $id) {
                 $entry = $entries->get((int) $id);
 
                 if ($entry && (int) $entry->organization_id === (int) $report->organization_id) {
-                    $titles[$entry->id] ??= $report->title;
+                    $locking[$entry->id] ??= ['title' => $report->title, 'status' => $report->submission_status];
                 }
             }
         }
 
-        return $titles;
+        return $locking;
     }
 
     public function aiOutput(): BelongsTo
