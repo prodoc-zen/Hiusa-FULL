@@ -57,7 +57,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     private function assertStale(FinancialReport $report): void
     {
         $this->postJson('/api/financial-reports/'.$report->id.'/submit')
-            ->assertStatus(409)
+            ->assertStatus(422)
             ->assertJsonPath('message', self::STALE_MESSAGE);
 
         $this->assertSame('draft', $report->fresh()->submission_status);
@@ -73,10 +73,9 @@ class FinancialReportLedgerDriftTest extends TestCase
             ->assertJsonPath('submission_status', 'pending_department_head');
     }
 
-    public function test_entries_added_after_generation_do_not_block_submission(): void
+    private function lateEntry(array $overrides = []): Transaction
     {
-        $report = $this->generate();
-        Transaction::create([
+        return Transaction::create([
             'organization_id' => $this->organization->id,
             'recorded_by' => $this->admin->school_id,
             'type' => 'expense',
@@ -84,9 +83,85 @@ class FinancialReportLedgerDriftTest extends TestCase
             'amount' => 5,
             'description' => 'Late entry',
             'transaction_date' => now(),
+            ...$overrides,
         ]);
+    }
+
+    public function test_an_entry_added_to_the_period_after_generation_blocks_submission(): void
+    {
+        $report = $this->generate();
+        $this->lateEntry();
+
+        $this->assertStale($report);
+    }
+
+    public function test_an_entry_added_to_a_report_with_no_entries_blocks_submission(): void
+    {
+        $this->entry->delete();
+        $report = $this->generate();
+        $this->assertSame([], $report->transactions_snapshot);
+        $this->lateEntry();
+
+        $this->assertStale($report);
+    }
+
+    public function test_regenerating_after_a_late_entry_submits(): void
+    {
+        $stale = $this->generate();
+        $this->lateEntry();
+        $this->postJson('/api/financial-reports/'.$stale->id.'/submit')->assertStatus(422);
+
+        $fresh = $this->generate();
+
+        $this->postJson('/api/financial-reports/'.$fresh->id.'/submit')
+            ->assertOk()
+            ->assertJsonPath('submission_status', 'pending_department_head');
+    }
+
+    public function test_an_entry_outside_the_period_does_not_block_submission(): void
+    {
+        $report = $this->generate();
+        $this->lateEntry(['transaction_date' => now()->subMonths(2)]);
 
         $this->postJson('/api/financial-reports/'.$report->id.'/submit')->assertOk();
+    }
+
+    public function test_an_entry_in_another_organization_does_not_block_submission(): void
+    {
+        $report = $this->generate();
+        $other = Organization::factory()->create();
+        $this->lateEntry(['organization_id' => $other->id]);
+
+        $this->postJson('/api/financial-reports/'.$report->id.'/submit')->assertOk();
+    }
+
+    private function generateForEvent(Event $event): FinancialReport
+    {
+        $this->entry->update(['event_id' => $event->id]);
+        $response = $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'event',
+            'event_id' => $event->id,
+            'signatories' => ['treasurer' => 'T', 'president' => 'P', 'adviser' => 'A', 'sbo_adviser' => 'S'],
+        ])->assertCreated();
+
+        return FinancialReport::findOrFail($response->json('report.id'));
+    }
+
+    public function test_an_entry_for_another_event_does_not_block_an_event_report(): void
+    {
+        $report = $this->generateForEvent(Event::factory()->create(['organization_id' => $this->organization->id]));
+        $this->lateEntry();
+
+        $this->postJson('/api/financial-reports/'.$report->id.'/submit')->assertOk();
+    }
+
+    public function test_an_entry_added_to_the_event_blocks_an_event_report(): void
+    {
+        $event = Event::factory()->create(['organization_id' => $this->organization->id]);
+        $report = $this->generateForEvent($event);
+        $this->lateEntry(['event_id' => $event->id, 'transaction_date' => now()->subYear()]);
+
+        $this->assertStale($report);
     }
 
     public function test_an_edited_amount_blocks_submission(): void
@@ -145,7 +220,7 @@ class FinancialReportLedgerDriftTest extends TestCase
 
         $this->post('/api/financial-reports/'.$report->id.'/submit', [
             'supporting_documents' => [UploadedFile::fake()->create('receipts.pdf', 100, 'application/pdf')],
-        ])->assertStatus(409);
+        ])->assertStatus(422);
 
         $this->assertSame([], Storage::disk('local')->allFiles('financial-reports'));
     }
@@ -154,7 +229,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     {
         $stale = $this->generate();
         $this->putJson('/api/transactions/'.$this->entry->id, ['amount' => 1500])->assertOk();
-        $this->postJson('/api/financial-reports/'.$stale->id.'/submit')->assertStatus(409);
+        $this->postJson('/api/financial-reports/'.$stale->id.'/submit')->assertStatus(422);
 
         $fresh = $this->generate();
 

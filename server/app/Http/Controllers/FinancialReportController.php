@@ -467,7 +467,7 @@ class FinancialReportController extends Controller
         if ($stale) {
             Storage::disk('local')->delete($uploadedPaths);
 
-            return response()->json(['message' => 'The ledger changed after this report was generated. Regenerate the report before submitting.'], 409);
+            return response()->json(['message' => 'The ledger changed after this report was generated. Regenerate the report before submitting.'], 422);
         }
 
         return response()->json($financialReport->fresh());
@@ -476,15 +476,16 @@ class FinancialReportController extends Controller
     /**
      * A draft or rejected report does not lock its entries, so what it lists can be edited
      * or deleted before it is submitted. Reviewers approve the snapshot, so it must still
-     * match the live rows. Entries added to the period afterwards are not a change.
+     * match the live rows, and an entry added to the same organization, period and scope
+     * afterwards is a change too. A report from before snapshots existed has nothing to compare.
      */
     private function ledgerChangedSinceGenerated(FinancialReport $report): bool
     {
-        $snapshot = collect($report->transactions_snapshot ?? [])->keyBy('id');
-
-        if ($snapshot->isEmpty()) {
+        if ($report->transactions_snapshot === null) {
             return false;
         }
+
+        $snapshot = collect($report->transactions_snapshot)->keyBy('id');
 
         $live = Transaction::where('organization_id', $report->organization_id)
             ->whereIn('id', $snapshot->keys()->all())
@@ -509,7 +510,13 @@ class FinancialReportController extends Controller
             }
         }
 
-        return false;
+        return Transaction::where('organization_id', $report->organization_id)
+            ->when($report->event_id, fn ($query) => $query->where('event_id', $report->event_id))
+            ->when(! $report->event_id, fn ($query) => $query
+                ->whereDate('transaction_date', '>=', $report->period_start)
+                ->whereDate('transaction_date', '<=', $report->period_end))
+            ->whereNotIn('id', $snapshot->keys()->all())
+            ->exists();
     }
 
     /** The reviewer's reason for returning a report, so the Admin can read what to fix. */
