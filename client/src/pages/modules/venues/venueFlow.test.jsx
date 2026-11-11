@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import VenueBookingPage from './VenueBookingPage';
 import SaoVenuesPage from './SaoVenuesPage';
 import { venueStageText } from './venueStage';
+import { isoToLocalDateTimeInput } from '../../../utils/dateTime';
 
 const mocks = vi.hoisted(() => ({
   getVenues: vi.fn(),
@@ -152,6 +153,41 @@ describe('VenueBookingPage', () => {
     expect(within(drawer).getAllByText('Hall is closed that day.').length).toBeGreaterThan(0);
     fireEvent.click(within(drawer).getByRole('button', { name: 'Book again' }));
     expect(await screen.findByRole('dialog', { name: 'Request a venue booking' })).toBeInTheDocument();
+  });
+
+  it('opens a blank request from Request a venue so a stray click files nothing', async () => {
+    renderAt('/dashboard/venues', <VenueBookingPage />);
+    await screen.findAllByText('Waiting for SAO approval');
+    fireEvent.click(screen.getByRole('button', { name: 'Request a venue' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Request a venue booking' });
+    expect(within(dialog).getByRole('combobox', { name: /^Venue$/ })).toHaveValue('');
+    expect(within(dialog).getByLabelText(/^Start/)).toHaveValue('');
+    expect(within(dialog).getByLabelText(/^End/)).toHaveValue('');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send request' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Choose an on-campus venue or enter an off-campus location and both times.');
+    expect(mocks.createVenueBooking).not.toHaveBeenCalled();
+  });
+
+  it('opens Book again with the rejected venue and time already filled in', async () => {
+    mocks.getVenueBookings.mockResolvedValue(page([{ ...BOOKING, status: 'rejected', remarks: 'Hall is closed that day.' }]));
+    renderAt('/dashboard/venues?record=31', <VenueBookingPage />);
+    const drawer = await screen.findByRole('dialog', { name: 'Main Hall' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Book again' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Request a venue booking' });
+    expect(within(dialog).getByRole('combobox', { name: /^Venue$/ })).toHaveValue('8');
+    expect(within(dialog).getByLabelText(/^Start/)).toHaveValue(isoToLocalDateTimeInput(BOOKING.start_time));
+    expect(within(dialog).getByLabelText(/^End/)).toHaveValue(isoToLocalDateTimeInput(BOOKING.end_time));
+    expect(within(dialog).getByRole('combobox', { name: /Link to an event/ })).toHaveValue('');
+  });
+
+  it('names an off-campus place, not undefined, when asking to withdraw it', async () => {
+    mocks.getVenueBookings.mockResolvedValue(page([{ ...BOOKING, venue_id: null, venue: null, off_campus_location: 'Hotel Veneto', status: 'pending' }]));
+    renderAt('/dashboard/venues', <VenueBookingPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Actions for/ }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Withdraw' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw this booking request?' });
+    expect(within(dialog).getByText(/Hotel Veneto/)).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent('undefined');
   });
 
   it('walks to a later page to find the request named by ?record=', async () => {

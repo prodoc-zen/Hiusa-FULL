@@ -126,16 +126,30 @@ export default function VenueBookingPage() {
   const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
 
   // Off-campus requests start from the Venue type choice in the form, so no separate entry point.
+  // The form opens blank unless an event or a rejected request supplies the details, so a stray click files nothing.
   function openRequestForm(linkedEvent = null) {
     setRequestError(null);
     const planned = linkedEvent?.planning_details ?? {};
-    setRequestForm({
+    setRequestForm(linkedEvent ? {
       venue_type: planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
       venue_id: planned.venue_id ? String(planned.venue_id) : selectedVenueId,
       off_campus_location: planned.venue_type === 'off_campus' ? (linkedEvent.location || '') : '',
-      event_id: linkedEvent ? String(linkedEvent.id) : '',
-      start_time: linkedEvent?.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : (range.from ? `${range.from}T09:00` : ''),
-      end_time: linkedEvent?.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : (range.from ? `${range.from}T17:00` : ''),
+      event_id: String(linkedEvent.id),
+      start_time: linkedEvent.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : (range.from ? `${range.from}T09:00` : ''),
+      end_time: linkedEvent.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : (range.from ? `${range.from}T17:00` : ''),
+    } : EMPTY_REQUEST_FORM);
+    setRequestOpen(true);
+  }
+
+  function bookAgain(booking) {
+    setRequestError(null);
+    setRequestForm({
+      venue_type: booking.venue_id ? 'on_campus' : 'off_campus',
+      venue_id: booking.venue_id ? String(booking.venue_id) : '',
+      off_campus_location: booking.off_campus_location || '',
+      event_id: '',
+      start_time: isoToLocalDateTimeInput(booking.start_time),
+      end_time: isoToLocalDateTimeInput(booking.end_time),
     });
     setRequestOpen(true);
   }
@@ -359,7 +373,7 @@ export default function VenueBookingPage() {
           <BookingDetail
             booking={openBooking}
             role={role}
-            onBookAgain={() => { setRecordId(null); openRequestForm(); }}
+            onBookAgain={() => { setRecordId(null); bookAgain(openBooking); }}
             onWithdraw={canWithdraw(openBooking) ? () => setWithdrawTarget(openBooking) : null}
           />
         )}
@@ -380,7 +394,7 @@ export default function VenueBookingPage() {
         open={Boolean(withdrawTarget)}
         title="Withdraw this booking request?"
         message="SAO will be notified. You will need to submit a new request if you still need this venue."
-        recordName={withdrawTarget ? `${withdrawTarget.venue?.name} - ${formatRange(withdrawTarget.start_time, withdrawTarget.end_time)}` : ''}
+        recordName={withdrawTarget ? `${withdrawTarget.venue?.name || withdrawTarget.off_campus_location || 'Venue request'} - ${formatRange(withdrawTarget.start_time, withdrawTarget.end_time)}` : ''}
         confirmText="Withdraw request"
         variant="danger"
         busy={withdrawBusy}
