@@ -255,6 +255,18 @@ describe('TopBar notifications', () => {
     expect(panel).not.toHaveTextContent(/\bP\d/);
   });
 
+  it('prices a promo cart line at the promo price the server will charge', async () => {
+    localStorage.setItem('hiusa_student_cart', JSON.stringify([{ item: { id: 1, name: 'QA Shirt', price: '100.00', effective_price: '80.00' }, quantity: 2 }]));
+
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Cart' }));
+
+    const panel = await screen.findByRole('region', { name: 'Cart summary' });
+    expect(panel).toHaveTextContent('Qty: 2 - ₱80.00');
+    expect(panel).toHaveTextContent('Total: ₱160.00');
+    expect(panel).not.toHaveTextContent('200.00');
+  });
+
   it('anchors the notifications panel to the mobile viewport', async () => {
     render(
       <MemoryRouter>
