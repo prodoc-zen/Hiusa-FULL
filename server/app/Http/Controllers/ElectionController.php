@@ -108,7 +108,7 @@ class ElectionController extends Controller
             $query->where(function ($studentQuery) {
                 $studentQuery
                     ->where(function ($openQuery) {
-                        $openQuery->where('status', 'active')->whereNotNull('finalized_at');
+                        $openQuery->whereIn('status', ['upcoming', 'active'])->whereNotNull('finalized_at');
                     })
                     ->orWhere(function ($resultsQuery) {
                         $resultsQuery

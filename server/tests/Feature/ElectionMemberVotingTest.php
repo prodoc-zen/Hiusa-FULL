@@ -203,6 +203,17 @@ class ElectionMemberVotingTest extends TestCase
         $this->getJson("/api/elections/{$this->election->id}")->assertForbidden();
     }
 
+    public function test_a_member_sees_a_finalized_election_that_has_not_opened_yet_but_cannot_open_its_ballot(): void
+    {
+        $member = $this->collegeMember();
+        $this->election->update(['status' => 'upcoming', 'start_time' => now()->addWeek(), 'end_time' => now()->addWeek()->addDay()]);
+        Sanctum::actingAs($member);
+
+        $this->assertSame([$this->election->id], collect($this->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
+        $this->getJson("/api/elections/{$this->election->id}")->assertForbidden();
+        $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertStatus(400);
+    }
+
     public function test_the_members_home_feed_offers_the_organizations_open_election(): void
     {
         $member = $this->collegeMember();
