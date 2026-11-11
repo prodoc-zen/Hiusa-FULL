@@ -439,8 +439,8 @@ class EventController extends Controller
             return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
         }
 
-        if ($this->hasMaterialEventChange($data) && ($event->status === 'completed' || $event->attendanceRecords()->exists())) {
-            return response()->json(['message' => 'Event details cannot be changed after attendance has been recorded or the event is completed.'], 409);
+        if ($this->hasMaterialEventChange($data) && (in_array($event->status, ['completed', 'cancelled'], true) || $event->attendanceRecords()->exists())) {
+            return response()->json(['message' => 'Event details cannot be changed after attendance has been recorded or the event is completed or cancelled.'], 409);
         }
 
         if ($event->approved_at && $this->hasMaterialEventChange($data)) {
