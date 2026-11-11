@@ -33,7 +33,7 @@ describe('password recovery pages', () => {
 
     expect(screen.queryByLabelText('School ID / ID number')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: ' dean@example.test ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request reset' }));
 
     await waitFor(() => expect(authMocks.requestPasswordReset).toHaveBeenCalledWith({ identifier: 'dean@example.test' }));
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe('password recovery pages', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: 'dean@example.test' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request reset' }));
 
     expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
     expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toBeInTheDocument();
