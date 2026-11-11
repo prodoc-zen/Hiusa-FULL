@@ -2312,7 +2312,7 @@ export default function MerchandisePage({ initialTab }) {
                     {o.status === "paid" && (
                       <ClaimTicket order={o} onPrint={() => printClaimTicket(o)} />
                     )}
-                    {o.status === "pending" && (
+                    {o.status === "pending" && o.officer_review_status === "pending" && (
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm text-ink-muted-strong">
                           {o.payment_proof_url
@@ -2470,8 +2470,8 @@ export default function MerchandisePage({ initialTab }) {
                   </Field>
                   <p className="mt-2 text-xs text-ink-muted-strong">
                     {checkoutPayment.method === "gcash"
-                      ? "Next: an officer checks your proof. Once it is verified, your claim token appears in My orders."
-                      : "Next: your items are reserved. Pay cash at pickup. Once an officer verifies the payment, your claim token appears in My orders."}
+                      ? "Next: an officer checks your proof and the Admin approves it. Your claim token appears in My orders once the Admin approves the payment."
+                      : "Next: your items are reserved. Pay cash at pickup. Your claim token appears in My orders once the Admin approves the payment."}
                   </p>
                   {cart.length > 1 && (
                     <p className="mt-1 text-xs text-ink-muted">
