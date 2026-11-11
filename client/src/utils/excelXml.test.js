@@ -12,9 +12,18 @@ describe('merchandise Excel export', () => {
   });
 
   it('writes a cell that starts with a formula character as text with a leading quote', () => {
-    const xml = buildExcelXml(['Name'], [['=1+1'], ['+1'], ['-1'], ['@SUM(A1)'], ['plain']]);
+    const xml = buildExcelXml(['Name'], [['=1+1'], ['+1+1'], ['-cmd'], ['@SUM(A1)'], ['+63 917 123 4567'], ['plain']]);
 
-    ['=1+1', '+1', '-1', '@SUM(A1)'].forEach((value) => expect(xml).toContain(`>&apos;${value}<`));
+    ['=1+1', '+1+1', '-cmd', '@SUM(A1)', '+63 917 123 4567'].forEach((value) => expect(xml).toContain(`>&apos;${value}<`));
     expect(xml).toContain('>plain<');
+  });
+
+  it('leaves a plain number without a leading quote', () => {
+    const xml = buildExcelXml(['Amount'], [['-325.00'], [-325], ['+63']]);
+
+    expect(xml).toContain('>-325.00<');
+    expect(xml).toContain('>-325<');
+    expect(xml).toContain('>+63<');
+    expect(xml).not.toContain('&apos;');
   });
 });
