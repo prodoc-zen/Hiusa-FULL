@@ -53,6 +53,7 @@ import EventRegistrationPanel from '../../../components/events/EventRegistration
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
+import { budgetLifecycle } from '../../../lib/lifecycle';
 import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
 import PersonPicker from '../../../components/people/PersonPicker';
 import useRecordParam from '../../../lib/useRecordParam';
@@ -1938,6 +1939,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <p className="font-semibold text-ink">{formatDisplayText(budget.title)}</p>
                               <BudgetApproval status={budget.approval_status} />
                             </div>
+                            {['pending_department_head', 'pending_sao'].includes(budget.submission_status) && <p className="mt-1 text-xs text-ink-muted-strong">{budgetLifecycle(budget, currentUserRole).nextAction.title}</p>}
                             <p className="mt-1 text-xs tabular-nums text-ink-muted">Allocated {formatCurrency(budget.allocated_amount)} · Spent {formatCurrency(budget.spent_amount)} · Income {formatCurrency(budget.income_amount)} · Remaining {formatCurrency(budget.remaining_amount)} · {budget.transactions_count ?? 0} transaction(s)</p>
                             {budget.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advisory risk: {capitalize(budget.overspending_risk || 'not analyzed')} · Safe spending {formatCurrency(budget.safe_spending_limit)}</p>}
                             {budget.approval_remarks && <p className="mt-1 text-xs text-danger-strong">Remarks: {budget.approval_remarks}</p>}

@@ -148,6 +148,23 @@ describe('EventsPage approval-request launch', () => {
     expect(await screen.findByText('Cash advances are not counted here.')).toBeInTheDocument();
   });
 
+  it('says who a proposed budget linked to the event is waiting for', async () => {
+    const event = { id: 7, title: 'Sports Fest 2024', status: 'approved', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym' };
+    const budget = (id, title, submission_status, approval_status) => ({ id, title, submission_status, approval_status, allocated_amount: 1000, spent_amount: 0, income_amount: 0, remaining_amount: 1000 });
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEvent.mockResolvedValue({ data: { ...event, budgets: [budget(1, 'Venue fund', 'pending_department_head', 'pending'), budget(2, 'Prize fund', 'pending_sao', 'pending'), budget(3, 'Food fund', 'approved', 'approved')] } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+
+    const row = async (title) => within((await screen.findByText(title)).closest('li'));
+    expect((await row('Venue fund')).getByText('Waiting for Department Head approval')).toBeInTheDocument();
+    expect((await row('Prize fund')).getByText('Waiting for SAO approval')).toBeInTheDocument();
+    expect((await row('Food fund')).queryByText(/Waiting for/)).not.toBeInTheDocument();
+  });
+
   it('shows a readable AI-created to-do list without raw API dates or technical labels', async () => {
     const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00.000000Z', end_time: '2026-10-10T12:00:00.000000Z', location: 'Main Hall' };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
