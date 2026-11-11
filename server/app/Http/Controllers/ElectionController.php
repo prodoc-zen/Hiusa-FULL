@@ -1285,8 +1285,11 @@ class ElectionController extends Controller
 
         // Belonging to the organization is an active profile there, as in the people directory; a member the
         // head added keeps their own account in the college and still votes and counts here. The ballot
-        // (`vote`) admits exactly this set, through the same scope.
-        $votersQuery = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $organizationId);
+        // (`vote`) admits exactly this set, through the same scope. Someone who already voted stays on the list
+        // after losing voting access (outgoing officers at the handover), so turnout never drops below the ballots.
+        $onRoll = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $organizationId)->select('account_profiles.id');
+        $votersQuery = AccountProfile::where('account_profiles.organization_id', $organizationId)
+            ->where(fn ($profiles) => $profiles->whereIn('account_profiles.id', $onRoll)->orWhereIn('account_profiles.user_school_id', $voterIds));
 
         $eligibleTotal = (clone $votersQuery)->count();
         $votedCount = (clone $votersQuery)->whereIn('account_profiles.user_school_id', $voterIds)->count();
