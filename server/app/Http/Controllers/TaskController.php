@@ -49,6 +49,7 @@ class TaskController extends Controller
             'task_type' => ['nullable', FilterValues::rule(['string', 'max:100'])],
             'deadline_from' => ['nullable', 'date'],
             'deadline_to' => ['nullable', 'date', 'after_or_equal:deadline_from'],
+            'search' => ['nullable', 'string', 'max:120'],
         ]);
 
         $query = Task::with([
@@ -100,6 +101,17 @@ class TaskController extends Controller
         }
         if ($request->filled('deadline_to')) {
             $query->whereDate('deadline', '<=', $request->deadline_to);
+        }
+        foreach (preg_split('/\s+/', trim($paging['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
+            $like = '%'.addcslashes($term, '\\%_').'%';
+            $query->where(fn (Builder $match) => $match
+                ->where('title', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhereHas('assignee', fn (Builder $assignee) => $assignee
+                    ->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhere('position_title', 'like', $like))
+                ->orWhereHas('event', fn (Builder $event) => $event->where('title', 'like', $like)));
         }
 
         return response()->json($query->paginate($paging['per_page'] ?? 20));
@@ -306,8 +318,10 @@ class TaskController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:pending,in_progress,completed,overdue'],
-            'progress_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'progress_percent' => ['nullable', 'integer', 'min:0', 'max:'.($request->input('status') === 'completed' ? 100 : 99)],
             'progress_note' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'progress_percent.max' => 'Progress stays at 99% or less until the task is marked completed.',
         ]);
 
         if (! $this->canTransition($task->status, $data['status'], $isAdmin)) {

@@ -11,10 +11,10 @@ vi.mock('../../../services/userService', () => ({ getUsers: mocks.getUsers }));
 vi.mock('../../../services/eventService', () => ({ getEvents: mocks.getEvents }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicPeriods: mocks.getAcademicPeriods }));
 
-const officer = { school_id: 'OFF-1', role: 'SBO_OFFICER', first_name: 'aNA', last_name: 'rEYES', position_title: 'sEcReTaRy' };
+const officer = { school_id: 'OFF-1', role: 'SBO_OFFICER', first_name: 'ana', last_name: 'reyes', position_title: 'secretary' };
 const tasks = [
-  { id: 1, title: 'mONTHLY rECORDS', event_id: null, status: 'pending', priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10' },
-  { id: 2, title: 'eVENT bRIEF', event_id: 7, status: 'completed', priority: 'low', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-11' },
+  { id: 1, title: 'monthly records', event_id: null, status: 'pending', priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10' },
+  { id: 2, title: 'event brief', event_id: 7, status: 'completed', priority: 'low', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-11' },
 ];
 const envelope = (data, total = data.length) => ({ data: { data, total, current_page: 1, last_page: 1, per_page: 10 } });
 function Where() {
@@ -28,7 +28,7 @@ describe('TasksPage', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     mocks.getUsers.mockResolvedValue([officer]);
-    mocks.getEvents.mockResolvedValue(envelope([{ id: 7, title: 'aNNUAL eVENT' }]));
+    mocks.getEvents.mockResolvedValue(envelope([{ id: 7, title: 'annual event' }]));
     mocks.getAcademicPeriods.mockResolvedValue([]);
     mocks.getTasks.mockImplementation((params = {}) => Promise.resolve(envelope(tasks.filter((task) =>
       (!params.status || task.status === params.status)
@@ -93,11 +93,11 @@ describe('TasksPage', () => {
   });
 
   it('requires a final officer choice after recommendation and preserves entered text when saving', async () => {
-    mocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [{ officer_id: 'OFF-1', name: 'aNA rEYES', position_title: 'sEcReTaRy', rank: 1, final_score: 95 }] } } });
-    mocks.createTask.mockResolvedValue({ data: { id: 3, title: 'mIXED cASE tASK', assignee: officer } });
+    mocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [{ officer_id: 'OFF-1', name: 'ana reyes', position_title: 'secretary', rank: 1, final_score: 95 }] } } });
+    mocks.createTask.mockResolvedValue({ data: { id: 3, title: 'mixed case task', assignee: officer } });
     render(<MemoryRouter><TasksPage initialTab="create" /></MemoryRouter>);
     await waitFor(() => expect(screen.queryByText('Officer positions must be configured first.')).not.toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText(/^Task title/), { target: { value: 'mIXED cASE tASK' } });
+    fireEvent.change(screen.getByLabelText(/^Task title/), { target: { value: 'mixed case task' } });
     fireEvent.change(screen.getByLabelText(/^Deadline/), { target: { value: '2026-10-10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Review officer recommendation' }));
     const choice = await screen.findByRole('button', { name: /Ana Reyes.*Secretary.*Recommended/ });
@@ -105,7 +105,7 @@ describe('TasksPage', () => {
     expect(mocks.createTask).not.toHaveBeenCalled();
     fireEvent.click(choice);
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
-    await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mIXED cASE tASK', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10' })));
+    await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mixed case task', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10' })));
   });
 
   describe('editing and deleting', () => {
@@ -254,8 +254,8 @@ describe('TasksPage', () => {
     });
 
     it('explains the ranking in plain words and shows only the scores the server recorded', async () => {
-      const scored = { id: 5, title: 'sCORED tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: 82.5, role_score: 90, workload_score: 70 };
-      const unscored = { id: 6, title: 'pLAIN tASK', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: null };
+      const scored = { id: 5, title: 'scored task', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: 82.5, role_score: 90, workload_score: 70 };
+      const unscored = { id: 6, title: 'plain task', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: null };
       mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([scored, unscored])));
       renderAt('/dashboard/tasks/ai-delegation', { initialTab: 'ai' });
       expect(await screen.findByText('Scored Task')).toBeInTheDocument();
@@ -326,7 +326,7 @@ describe('TasksPage', () => {
       ['completed', 'Complete: 3 of 3 steps done'],
       ['overdue', 'Step 2 of 3: In progress'],
     ])('shows a compact stepper on a %s task card', async (status, text) => {
-      serve({ ...base, id: 1, title: 'sTAGE tASK', status });
+      serve({ ...base, id: 1, title: 'stage task', status });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       await screen.findAllByText('Stage Task');
       expect(screen.getAllByRole('progressbar', { name: 'Stage of Stage Task' })[0]).toHaveAttribute('aria-valuetext', text);
@@ -337,7 +337,7 @@ describe('TasksPage', () => {
       ['in_progress', 'Waiting for the assigned officer'],
       ['overdue', /Overdue since/],
     ])('tells the Admin a %s task is the officer\'s move and offers no button', async (status, title) => {
-      serve({ ...base, id: 1, title: 'sTAGE tASK', status });
+      serve({ ...base, id: 1, title: 'stage task', status });
       const dialog = await openDetail(1);
       expect(within(dialog).getByText(title)).toBeInTheDocument();
       expect(within(dialog).getByText('Owner: Officer')).toBeInTheDocument();
@@ -346,7 +346,7 @@ describe('TasksPage', () => {
     });
 
     it('shows the Admin a completed task as done', async () => {
-      serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'completed' });
+      serve({ ...base, id: 1, title: 'stage task', status: 'completed' });
       const dialog = await openDetail(1);
       expect(within(dialog).getAllByText('Completed').length).toBeGreaterThan(0);
       expect(within(dialog).queryByRole('button', { name: /Start task|Mark done|Update status/ })).not.toBeInTheDocument();
@@ -356,7 +356,7 @@ describe('TasksPage', () => {
       beforeEach(() => localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' })));
 
       it('starts a pending task from the next step and stays on the updated record', async () => {
-        const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'pending' };
+        const task = { ...base, id: 1, title: 'stage task', status: 'pending' };
         serve(task);
         mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'in_progress', progress_percent: 1 } });
         const dialog = await openDetail(1);
@@ -367,7 +367,7 @@ describe('TasksPage', () => {
       });
 
       it('marks an in-progress task done through the completion confirmation', async () => {
-        const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'in_progress', progress_percent: 40 };
+        const task = { ...base, id: 1, title: 'stage task', status: 'in_progress', progress_percent: 40 };
         serve(task);
         mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'completed', progress_percent: 100 } });
         const dialog = await openDetail(1);
@@ -379,7 +379,7 @@ describe('TasksPage', () => {
       });
 
       it('names the overdue date and updates the status from the next step', async () => {
-        const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'overdue' };
+        const task = { ...base, id: 1, title: 'stage task', status: 'overdue' };
         serve(task);
         const dialog = await openDetail(1);
         expect(within(dialog).getByText(/Overdue since/)).toBeInTheDocument();
@@ -388,14 +388,14 @@ describe('TasksPage', () => {
       });
 
       it('explains why a blocked task cannot be started', async () => {
-        serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'eARLIER tASK' } });
+        serve({ ...base, id: 1, title: 'stage task', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'earlier task' } });
         const dialog = await openDetail(1);
         expect(within(dialog).getByRole('button', { name: 'Start task' })).toBeDisabled();
         expect(within(dialog).getByText('Blocked by Earlier Task. Finish that task first.')).toBeInTheDocument();
       });
 
       it('shows a completed task as done with no button', async () => {
-        serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'completed' });
+        serve({ ...base, id: 1, title: 'stage task', status: 'completed' });
         const dialog = await openDetail(1);
         expect(within(dialog).getByText('This task is finished.')).toBeInTheDocument();
         expect(within(dialog).queryByRole('button', { name: /Start task|Mark done|Update status/ })).not.toBeInTheDocument();
@@ -413,7 +413,7 @@ describe('TasksPage', () => {
 
     it('lets the assignee start a pending task from its three-dot menu', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
-      const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'pending' };
+      const task = { ...base, id: 1, title: 'stage task', status: 'pending' };
       serve(task);
       mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'in_progress', progress_percent: 1 } });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
@@ -427,7 +427,7 @@ describe('TasksPage', () => {
 
     it('lets the assignee complete an in-progress task from its row through the confirmation', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
-      const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'in_progress', progress_percent: 40 };
+      const task = { ...base, id: 1, title: 'stage task', status: 'in_progress', progress_percent: 40 };
       serve(task);
       mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'completed', progress_percent: 100 } });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
@@ -442,13 +442,13 @@ describe('TasksPage', () => {
 
     it('offers no Start on the row of a blocked task or to the Admin', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
-      serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'eARLIER tASK' } });
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'earlier task' } });
       const { unmount } = render(<MemoryRouter><TasksPage /></MemoryRouter>);
       expect((await rowOf('Stage Task')).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
       unmount();
 
       localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
-      serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'pending' });
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending' });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       expect((await rowOf('Stage Task')).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
     });
@@ -478,6 +478,75 @@ describe('TasksPage', () => {
       render(<MemoryRouter initialEntries={['/dashboard/tasks/task-board?view=progress']}><TasksPage /></MemoryRouter>);
       expect(await screen.findByText('No assigned tasks yet')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Create your first task' })).toBeInTheDocument();
+    });
+  });
+
+  describe('search, deadlines, progress and assignees', () => {
+    const base = { event_id: null, priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 };
+    const serve = (...records) => mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(records)));
+
+    it('searches every page on the server instead of only the rows on screen', async () => {
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Monthly Records');
+      fireEvent.change(screen.getByPlaceholderText('Search tasks, assignees, or events'), { target: { value: 'bulk' } });
+      await waitFor(() => expect(mocks.getTasks).toHaveBeenCalledWith(expect.objectContaining({ search: 'bulk', page: 1, per_page: 10 })));
+      expect(mocks.getTasks).toHaveBeenCalledWith(expect.objectContaining({ search: 'bulk', per_page: 1 }));
+    });
+
+    it('shows a search with no matches as a filtered empty state that can be cleared', async () => {
+      mocks.getTasks.mockImplementation((params = {}) => Promise.resolve(envelope(params.search ? [] : tasks)));
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Monthly Records');
+      fireEvent.change(screen.getByPlaceholderText('Search tasks, assignees, or events'), { target: { value: 'qqzzx' } });
+      expect(await screen.findByText('No tasks match these filters')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);
+    });
+
+    it('opens the edit form on the same deadline the list shows', async () => {
+      const deadline = new Date(2026, 11, 21).toISOString();
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', deadline });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Stage Task');
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+      expect(within(dialog).getByLabelText(/Deadline/)).toHaveValue('2026-12-21');
+    });
+
+    it('lists people who hold tasks in the assignee filter even when they are not active officers', async () => {
+      const marco = { school_id: 'OFF-9', role: 'STUDENT', first_name: 'marco', last_name: 'dela cruz' };
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', assigned_to: 'OFF-9', assignee: marco });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Stage Task');
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+      expect(await within(screen.getByLabelText('Filter tasks by assignee')).findByRole('option', { name: 'Marco Dela Cruz' })).toBeInTheDocument();
+    });
+
+    it('shows the progress a person saved on the task row', async () => {
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', progress_percent: 40 });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      expect((await screen.findAllByText('40% done')).length).toBeGreaterThan(0);
+    });
+
+    it('keeps a refused percent inside the details window and leaves the list usable', async () => {
+      serve({ ...base, id: 1, title: 'stage task', status: 'in_progress', progress_percent: 40 });
+      mocks.updateTaskStatus.mockRejectedValue({ response: { status: 422, data: { message: 'The progress percent field must not be greater than 99.', errors: { progress_percent: ['Progress stays at 99% or less until the task is marked completed.'] } } } });
+      render(<MemoryRouter initialEntries={['/dashboard/tasks/assigned-tasks?record=1']}><TasksPage /></MemoryRouter>);
+      const dialog = await screen.findByRole('dialog', { name: 'Task details' });
+      fireEvent.change(within(dialog).getByLabelText('Progress (%)'), { target: { value: '150' } });
+      fireEvent.change(within(dialog).getByLabelText('Update note'), { target: { value: 'Almost' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save progress update' }));
+      expect(await within(dialog).findByText('Progress stays at 99% or less until the task is marked completed.')).toBeInTheDocument();
+      expect(screen.queryByText('Tasks did not load')).not.toBeInTheDocument();
+    });
+
+    it('does not tell the Admin that the Admin will be notified', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+      serve({ ...base, id: 1, title: 'stage task', status: 'in_progress', progress_percent: 40 });
+      render(<MemoryRouter initialEntries={['/dashboard/tasks/task-board?record=1']}><TasksPage /></MemoryRouter>);
+      const dialog = await screen.findByRole('dialog', { name: 'Task details' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Mark completed' }));
+      expect(await screen.findByText(/Progress will be saved at 100%\.$/)).toBeInTheDocument();
     });
   });
 
