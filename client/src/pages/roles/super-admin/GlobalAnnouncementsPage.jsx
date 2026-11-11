@@ -26,6 +26,8 @@ export default function GlobalAnnouncementsPage() {
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveError, setArchiveError] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ currentPage: 1, total: 0, perPage: 10 });
@@ -56,10 +58,10 @@ export default function GlobalAnnouncementsPage() {
     } catch (e) { setError(getApiErrorMessage(e, 'Could not save the official announcement.')); }
     finally { setBusy(false); }
   }
-  async function archive(item) {
-    setBusy(true); setError('');
-    try { await archiveGlobalAnnouncement(item.id); load(); }
-    catch (e) { setError(getApiErrorMessage(e, 'Could not archive the announcement.')); }
+  async function confirmArchive() {
+    setBusy(true); setArchiveError('');
+    try { await archiveGlobalAnnouncement(archiveTarget.id); setArchiveTarget(null); load(); }
+    catch (e) { setArchiveError(getApiErrorMessage(e, 'Could not archive the announcement.')); }
     finally { setBusy(false); }
   }
   async function confirmDelete() {
@@ -73,16 +75,17 @@ export default function GlobalAnnouncementsPage() {
   return <div className="space-y-5">
     <PageHeader primary={firstRun ? undefined : createButton} />
     {error && !form && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
-    {loading ? <SkeletonTable columns={3} rows={3} /> : loadError ? <ErrorState title="Announcements could not load" description={loadError} onRetry={load} /> : <section className="grid gap-4 md:grid-cols-2">{items.map((item) => <Card key={item.id}><p className="text-xs font-semibold text-brand-700">{item.announcement_source === 'COMPLIANCE' ? `${item.source_organization?.name || 'SAO'} · Compliance reminder` : 'Student Affairs Office'}</p><h2 className="mt-1 text-base font-semibold text-ink">{item.title}</h2><p className="mt-1 text-xs text-ink-muted">{item.published_at ? 'Published' : item.is_published ? 'Scheduled' : 'Draft'}</p>{item.image_url && <img src={resolveAssetUrl(item.image_url)} alt={`Photo for ${item.title}`} className="mt-3 max-h-64 w-full rounded-lg object-contain" />}<RichTextBody value={item.body} className="mt-3 line-clamp-3 text-sm text-ink-muted" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"><span className="text-xs text-ink-muted">{item.recipients_count || 0} recipients</span><TableRowActions subject={item.title} actions={[
+    {loading ? <SkeletonTable columns={3} rows={3} /> : loadError ? <ErrorState title="Announcements could not load" description={loadError} onRetry={load} /> : <section className="grid gap-4 md:grid-cols-2">{items.map((item) => <Card key={item.id}><p className="text-xs font-semibold text-brand-700">{item.announcement_source === 'COMPLIANCE' ? `${item.source_organization?.name || 'SAO'} · Compliance reminder` : 'Student Affairs Office'}</p><h2 className="mt-1 text-base font-semibold text-ink">{item.title}</h2><p className="mt-1 text-xs text-ink-muted">{item.is_published ? (item.published_at ? 'Published' : 'Scheduled') : item.published_at ? 'Archived' : 'Draft'}</p>{item.image_url && <img src={resolveAssetUrl(item.image_url)} alt={`Photo for ${item.title}`} className="mt-3 max-h-64 w-full rounded-lg object-contain" />}<RichTextBody value={item.body} className="mt-3 line-clamp-3 text-sm text-ink-muted" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"><span className="text-xs text-ink-muted">{item.recipients_count || 0} recipients</span><TableRowActions subject={item.title} actions={[
       item.announcement_source === 'COMPLIANCE' && { label: 'Read reminder', onClick: () => setReadTarget(item) },
       item.announcement_source !== 'COMPLIANCE' && !item.published_at && { label: 'Edit draft', onClick: () => open(item) },
       item.announcement_source !== 'COMPLIANCE' && !item.published_at && { label: 'Delete draft', danger: true, onClick: () => { setDeleteTarget(item); setDeleteError(''); } },
-      item.announcement_source !== 'COMPLIANCE' && item.is_published && { label: 'Archive', icon: Archive, disabled: busy, onClick: () => archive(item) },
+      item.announcement_source !== 'COMPLIANCE' && item.is_published && { label: 'Archive', icon: Archive, disabled: busy, onClick: () => { setArchiveTarget(item); setArchiveError(''); } },
     ]} /></div></Card>)}</section>}
     {firstRun && <EmptyState kind="first-run" title="No announcements yet" description="Official notices you publish reach the audience you choose." action={createButton} />}
     <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
     <Modal open={Boolean(readTarget)} title={readTarget?.title} onClose={() => setReadTarget(null)}><RichTextBody value={readTarget?.body || ''} className="text-sm text-ink" /></Modal>
     <Modal open={Boolean(deleteTarget)} title="Delete this draft?" onClose={busy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={busy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={busy} onClick={confirmDelete}>Delete draft</Button></>}><p className="text-sm text-ink-muted">{deleteTarget?.title} will be removed and never sent.</p>{deleteError && <p role="alert" className="mt-3 text-sm text-danger-strong">{deleteError}</p>}</Modal>
+    <Modal open={Boolean(archiveTarget)} title="Archive this notice?" onClose={busy ? undefined : () => setArchiveTarget(null)} footer={<><Button variant="secondary" disabled={busy} onClick={() => setArchiveTarget(null)}>Cancel</Button><Button variant="danger" loading={busy} onClick={confirmArchive}>Archive notice</Button></>}><p className="text-sm text-ink-muted">{archiveTarget?.title} will no longer be shown to students and staff. It stays in this list as Archived and cannot be published again.</p>{archiveError && <p role="alert" className="mt-3 text-sm text-danger-strong">{archiveError}</p>}</Modal>
     <Modal open={Boolean(form)} title={form?.id ? 'Edit official announcement' : 'Create official announcement'} onClose={busy ? undefined : () => setForm(null)} maxWidth="max-w-2xl" footer={<><Button variant="secondary" disabled={busy} onClick={() => setForm(null)}>Cancel</Button><Button type="submit" form="official-notice-form" loading={busy}>{form?.publish ? 'Publish official notice' : 'Save draft'}</Button></>}>
       {form && <form id="official-notice-form" onSubmit={save} className="space-y-4">
         {error && <p role="alert" className="text-sm font-medium text-danger-strong">{error}</p>}
