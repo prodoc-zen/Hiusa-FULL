@@ -158,6 +158,17 @@ describe('SaoCompliancePage', () => {
       expect(within(cell).getByText('Submitted')).toBeInTheDocument();
       expect(within(cell).getByText('Waiting for SAO review')).toBeInTheDocument();
     });
+
+    it('lets the filter bar wrap and keeps its controls from collapsing', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=review&organization=7');
+      await screen.findAllByText('Semestral Accomplishment Report');
+      const allOrganizations = screen.getByRole('button', { name: 'All organizations' });
+      expect(allOrganizations.parentElement).toHaveClass('sm:flex-wrap');
+      expect(allOrganizations).toHaveClass('whitespace-nowrap');
+      expect(screen.getByRole('button', { name: 'Clear filters' })).toHaveClass('whitespace-nowrap');
+      expect(screen.getByLabelText('Filter by organization').closest('div.relative')).toHaveClass('sm:min-w-64', 'sm:shrink-0');
+      expect(screen.getByLabelText('Filter by status').closest('div.relative')).toHaveClass('sm:shrink-0');
+    });
   });
 
   it('separates review work from requirement settings and keeps the active route', async () => {

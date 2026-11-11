@@ -219,23 +219,23 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
         onRetry={() => loadQueue(page)}
         filtersActive={filtersActive}
         filters={(
-          <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:items-center sm:p-4">
-            <Button variant="secondary" size="sm" onClick={() => { setRecordId(null); setFileSearch(''); onFiltersChange({ organizationId: '', status: DEFAULT_STATUS }); }}>All organizations</Button>
-            <Input type="search" aria-label="Search submissions" placeholder="Search requirement or file" value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} />
-            <Select filter aria-label="Filter by status" value={status} onChange={(event) => onFiltersChange({ ...filters, status: event.target.value })} className="sm:w-56">
+          <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:flex-wrap sm:items-center sm:p-4">
+            <Button variant="secondary" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => { setRecordId(null); setFileSearch(''); onFiltersChange({ organizationId: '', status: DEFAULT_STATUS }); }}>All organizations</Button>
+            <Input type="search" aria-label="Search submissions" placeholder="Search requirement or file" className="sm:w-auto sm:min-w-56 sm:flex-1" value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} />
+            <Select filter aria-label="Filter by status" value={status} onChange={(event) => onFiltersChange({ ...filters, status: event.target.value })} className="sm:w-56 sm:shrink-0">
               <option value="submitted">Awaiting review</option>
               <option value="approved">Approved</option>
               <option value="returned">Returned</option>
               <option value="">All statuses</option>
             </Select>
-            <Select filter aria-label="Filter by organization" value={organizationId} onChange={(event) => onFiltersChange({ ...filters, organizationId: event.target.value })} className="sm:w-56">
+            <Select filter aria-label="Filter by organization" value={organizationId} onChange={(event) => onFiltersChange({ ...filters, organizationId: event.target.value })} className="sm:w-72 sm:min-w-64 sm:shrink-0">
               <option value="">All organizations</option>
               {organizations.map((org) => <option key={org.organization_id} value={org.organization_id}>{org.organization_name}</option>)}
             </Select>
             {filtersActive && (
-              <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
+              <Button variant="ghost" size="sm" className={`${ROW_ACTION} shrink-0 whitespace-nowrap`} onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
             )}
-            <p className="text-xs tabular-nums text-ink-muted sm:ml-auto">
+            <p className="whitespace-nowrap text-xs tabular-nums text-ink-muted sm:ml-auto">
               {queue.meta.total} {queue.meta.total === 1 ? 'submission' : 'submissions'}
             </p>
           </div>
