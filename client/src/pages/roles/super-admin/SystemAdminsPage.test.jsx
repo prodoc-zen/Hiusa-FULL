@@ -84,6 +84,16 @@ describe('SystemAdminsPage', () => {
     expect(await screen.findByText('Password reset instructions were sent.')).toBeInTheDocument();
   });
 
+  it('describes a one-time link and does not promise an email while mail is off', async () => {
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
+    const dialog = screen.getByRole('dialog', { name: 'Initiate password reset' });
+    expect(within(dialog).getByText(/one-time reset link/i)).toHaveTextContent(/shown to you once to hand over/i);
+    expect(within(dialog).getByText(/one-time reset link/i)).toHaveTextContent(/emailed only when email is turned on/i);
+    expect(within(dialog).queryByText(/will be sent/i)).not.toBeInTheDocument();
+  });
+
   it('shows the one-time reset link with a copy button when mail is off', async () => {
     const writeText = vi.fn().mockResolvedValue();
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

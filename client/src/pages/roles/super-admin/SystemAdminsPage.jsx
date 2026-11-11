@@ -549,7 +549,7 @@ export default function SystemAdminsPage() {
       <ConfirmModal
         open={Boolean(resetTarget)}
         title="Initiate password reset"
-        message="A secure reset link will be sent to the administrator's registered email address. If email is off, the link shows here once for you to hand over. Their current password will not be shown."
+        message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown."
         recordName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
         confirmText="Send reset link"
         busy={busy}

@@ -64,6 +64,20 @@ describe('AdminUsersPage reset member password', () => {
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
   });
 
+  it('scrolls the refusal into view and focuses it, since the button sits below the fold of the drawer', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    mocks.resetUserPassword.mockRejectedValue({ response: { status: 409, data: { message: 'Ask the SAO to reset this password.' } } });
+    const drawer = await openEditFor('Ana Reyes');
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Reset password' }));
+
+    const alert = await within(drawer).findByRole('alert');
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(alert);
+  });
+
   it('tells the Admin that the SAO resets the password of a member whose primary profile is elsewhere', async () => {
     mocks.getUsers.mockResolvedValue({ data: [{ ...ana, is_primary_profile: false }], current_page: 1, last_page: 1, total: 1, per_page: 20, summary: { by_role: { STUDENT: 1 }, by_section: [] } });
     const drawer = await openEditFor('Ana Reyes');
