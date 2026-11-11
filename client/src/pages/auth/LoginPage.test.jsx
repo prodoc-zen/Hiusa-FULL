@@ -98,7 +98,25 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'wrong-wrong' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The provided credentials are incorrect.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('That email or school ID and password did not match. Check both and try again, or reset your password.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('provided credentials');
+  });
+
+  it('asks for the missing box in plain words and does not call the server', async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your email or school ID and your password.');
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '2100142' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your password.');
+
+    fireEvent.change(screen.getByLabelText('Email or school ID'), { target: { value: '  ' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'a-strong-passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your email or school ID.');
+    expect(authMocks.login).not.toHaveBeenCalled();
   });
 
   it('sends a user who must change a default password to the change password page instead of the dashboard', async () => {
