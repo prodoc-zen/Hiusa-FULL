@@ -62,6 +62,10 @@ class ComplianceController extends Controller
                 ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id));
         } else {
             $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
+            if (empty($filters['academic_year']) && empty($filters['academic_semester_id'])) {
+                $selected = AcademicSemester::selected($request);
+                $query->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id));
+            }
         }
 
         return response()->json($query->orderByDesc('academic_year')->orderBy('name')->orderBy('id')->paginate($filters['per_page'] ?? 20));
