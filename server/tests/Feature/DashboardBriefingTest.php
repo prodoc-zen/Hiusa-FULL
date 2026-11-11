@@ -205,6 +205,76 @@ class DashboardBriefingTest extends TestCase
         $this->assertContains('task_due_soon', $types->all());
     }
 
+    public function test_officer_queue_lists_a_cash_order_waiting_for_verification_without_a_proof(): void
+    {
+        $organization = Organization::factory()->create();
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $item = Merchandise::factory()->create();
+
+        $order = Order::factory()->create([
+            'organization_id' => $organization->id,
+            'student_id' => $student->id,
+            'merchandise_id' => $item->id,
+            'status' => 'pending',
+            'officer_review_status' => 'pending',
+            'admin_review_status' => 'pending',
+            'payment_method' => 'cash',
+            'payment_proof_url' => null,
+        ]);
+        Order::factory()->create([
+            'organization_id' => $organization->id,
+            'student_id' => $student->id,
+            'merchandise_id' => $item->id,
+            'status' => 'pending',
+            'officer_review_status' => 'pending',
+            'admin_review_status' => 'pending',
+            'payment_method' => 'gcash',
+            'payment_proof_url' => null,
+        ]);
+
+        Sanctum::actingAs($officer);
+        $queue = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))
+            ->where('type', 'order_verification');
+
+        $this->assertSame(['order-'.$order->id], $queue->pluck('id')->all());
+        $this->assertSame('/dashboard/merchandise/manage-orders', $queue->first()['href']);
+    }
+
+    public function test_officer_queue_has_no_order_item_when_nothing_waits_or_the_order_is_another_organizations(): void
+    {
+        $organization = Organization::factory()->create();
+        $other = Organization::factory()->create();
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
+        $otherStudent = User::factory()->student()->create(['organization_id' => $other->id]);
+        $item = Merchandise::factory()->create();
+
+        Order::factory()->create([
+            'organization_id' => $other->id,
+            'student_id' => $otherStudent->id,
+            'merchandise_id' => $item->id,
+            'status' => 'pending',
+            'officer_review_status' => 'pending',
+            'admin_review_status' => 'pending',
+            'payment_method' => 'cash',
+            'payment_proof_url' => null,
+        ]);
+        Order::factory()->create([
+            'organization_id' => $organization->id,
+            'student_id' => $otherStudent->id,
+            'merchandise_id' => $item->id,
+            'status' => 'pending',
+            'officer_review_status' => 'approved',
+            'admin_review_status' => 'pending',
+            'payment_method' => 'cash',
+        ]);
+
+        Sanctum::actingAs($officer);
+        $types = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('type');
+
+        $this->assertNotContains('order_verification', $types->all());
+    }
+
     public function test_department_head_briefing_shape(): void
     {
         $organization = Organization::factory()->create();
