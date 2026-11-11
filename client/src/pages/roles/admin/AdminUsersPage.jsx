@@ -821,7 +821,7 @@ export default function AdminUsersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
-          <Input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, school ID, program or email" className="pl-9" />
+          <Input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, ID or program" className="pl-9" />
         </div>
         {!isAdminsUnit && visibleFilterRoles.length > 1 && (
           <Select aria-label="Filter by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }} className="sm:w-44">
