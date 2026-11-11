@@ -877,20 +877,33 @@ class UserController extends Controller
             ], 403);
         }
 
+        // The account opens in its own organization's profile, or the first one that still works when that one has ended.
+        $profiles = $user->accountProfiles()->with('organization')->orderBy('id')->get();
+        $home = $profiles->firstWhere('organization_id', $user->getRawOriginal('organization_id'));
+        $profile = $home?->isUsable() ? $home : $profiles->first(fn (AccountProfile $candidate) => $candidate->isUsable());
+
+        if ($profiles->isNotEmpty() && ! $profile) {
+            return response()->json(['message' => ($home ?? $profiles->first())->unavailableMessage()], 403);
+        }
+
         Cache::put($knownKey, true, now()->addDays(30));
+
+        if ($profile) {
+            $user->activateProfile($profile);
+        }
 
         return response()->json([
             'user' => $user,
-            'access_token' => $this->issueProfileToken($user),
+            'access_token' => $this->issueProfileToken($user, $profile),
             'token_type' => 'Bearer',
             'session_expires_in_seconds' => config('sanctum.expiration') * 60,
         ]);
     }
 
-    private function issueProfileToken(User $user): string
+    private function issueProfileToken(User $user, ?AccountProfile $profile = null): string
     {
         $token = $user->createToken('auth_token');
-        $profileId = $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))->value('id');
+        $profileId = $profile?->id ?? $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))->value('id');
         $token->accessToken->forceFill(['account_profile_id' => $profileId])->save();
 
         return $token->plainTextToken;

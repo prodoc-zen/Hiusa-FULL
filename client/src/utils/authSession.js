@@ -14,6 +14,17 @@ export function clearAuthSession() {
   localStorage.removeItem('auth_expires_at');
 }
 
+// The page a sign out lands on shows why, once: a full page load in between keeps this in the tab and nowhere else.
+export function rememberSignOutNotice(message) {
+  if (message) sessionStorage.setItem('sign_out_notice', String(message));
+}
+
+export function takeSignOutNotice() {
+  const message = sessionStorage.getItem('sign_out_notice');
+  sessionStorage.removeItem('sign_out_notice');
+  return message;
+}
+
 export function sessionHasExpired() {
   const expiresAt = Number(localStorage.getItem('auth_expires_at'));
   return Boolean(localStorage.getItem('auth_token')) && expiresAt > 0 && Date.now() >= expiresAt;
