@@ -3209,7 +3209,7 @@ class AskAiService
         }
 
         // 7. Tasks & Officer Workload (Non-student roles)
-        if ($role !== 'STUDENT') {
+        if ($role !== 'STUDENT' && $this->moduleAllowed($user, 'tasks')) {
             $tasksQuery = DB::table('tasks')
                 ->leftJoin('users', 'users.school_id', '=', 'tasks.assigned_to')
                 ->whereIn('tasks.organization_id', $orgIds);
