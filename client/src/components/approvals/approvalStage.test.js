@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { eventFlow } from '../events/eventStage';
 import { decisionMessage, describeApproval, entityLink, waitingOnRole } from './approvalStage';
 
 const request = (overrides) => ({ id: 1, organization_id: 1, entity_id: 50, status: 'pending', required_role: 'DEPARTMENT_HEAD', remarks: null, requested_at: '2026-10-06T10:00:00+08:00', summary: {}, ...overrides });
@@ -8,6 +9,16 @@ describe('describeApproval for events', () => {
 
   it('waits on the Department Head while its approval is pending', () => {
     expect(describeApproval(event({}), 'ADMIN').stageText).toBe('Waiting for Department Head approval');
+  });
+
+  it('labels the steps and the stage the way the event page does', () => {
+    const summary = { approval_stage: 'awaiting_department_head' };
+    const info = describeApproval(event({}, summary), 'ADMIN');
+    const page = eventFlow({ id: 50, status: 'planning', ...summary }, 'ADMIN');
+
+    expect(info.steps.map((step) => step.label)).toEqual(page.steps.map((step) => step.label));
+    expect(info.steps.map((step) => step.label)).toContain('Department Head approval');
+    expect(info.stageText).toBe(page.nextAction.title);
   });
 
   it('moves to the SAO once the head approved and the files are in', () => {
