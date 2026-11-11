@@ -8,7 +8,7 @@ import { ACCESS_LEVELS, ORG_MODULES, grantableLevels } from './orgAccess';
 
 const ALL_MODULES = ORG_MODULES.map((module) => module.key);
 
-export default function GiveAccessModal({ organizationId, actorRole, profile = null, excludeIds = [], onClose, onSaved }) {
+export default function GiveAccessModal({ organizationId, actorRole, profile = null, onClose, onSaved }) {
   const formId = useId();
   const levels = grantableLevels(actorRole);
   const editing = Boolean(profile);
@@ -99,7 +99,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
             label="Student"
             scope="college"
             role="STUDENT"
-            excludeIds={excludeIds}
+            excludeOrganizationId={organizationId}
             onSelect={setPerson}
             error={errors.school_id?.[0]}
             disabled={busy}

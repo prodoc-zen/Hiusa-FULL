@@ -103,6 +103,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
         <PersonPicker
           label="Student"
           scope={scopeFor(actorRole, target)}
+          excludeOrganizationId={target?.id}
           value={selected}
           onSelect={(person) => { setSelected(person); setError(''); }}
           disabled={busy}

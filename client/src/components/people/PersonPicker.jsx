@@ -18,6 +18,7 @@ export default function PersonPicker({
   label = 'Find a person',
   scope,
   organizationId,
+  excludeOrganizationId,
   role,
   onSelect,
   excludeIds = [],
@@ -64,6 +65,7 @@ export default function PersonPicker({
         const params = { q: trimmed };
         if (scope) params.scope = scope;
         if (organizationId) params.organization_id = organizationId;
+        if (excludeOrganizationId) params.exclude_organization_id = excludeOrganizationId;
         if (role) params.role = role;
         const people = await search(params);
         if (request !== requestRef.current) return;
@@ -79,7 +81,7 @@ export default function PersonPicker({
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [trimmed, scope, organizationId, role, excluded, retry, search]);
+  }, [trimmed, scope, organizationId, excludeOrganizationId, role, excluded, retry, search]);
 
   const choose = useCallback((person) => {
     setInternal(person);
@@ -187,7 +189,7 @@ export default function PersonPicker({
           </div>
         )}
         {status === 'done' && results.length === 0 && (
-          <p role="status" className="px-3 py-3 text-sm text-ink-muted">No one matches &quot;{trimmed}&quot;</p>
+          <p role="status" className="px-3 py-3 text-sm text-ink-muted">No one matches &quot;{trimmed}&quot;{excludeOrganizationId ? '. People who already belong are not listed.' : ''}</p>
         )}
         {status === 'done' && results.map((person, index) => (
           <div

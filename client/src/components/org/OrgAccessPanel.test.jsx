@@ -127,7 +127,7 @@ describe('OrgAccessPanel', () => {
 
     await pickPerson();
 
-    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'lia', scope: 'college', role: 'STUDENT' });
+    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'lia', scope: 'college', role: 'STUDENT', exclude_organization_id: 5 });
     expect(screen.queryByLabelText(/school id/i)).not.toBeInTheDocument();
   });
 

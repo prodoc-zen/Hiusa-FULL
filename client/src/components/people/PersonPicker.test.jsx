@@ -142,6 +142,15 @@ describe('PersonPicker', () => {
     expect(screen.queryByRole('option', { name: /Maria Santos/ })).not.toBeInTheDocument();
   });
 
+  it('asks the server to leave out people who already belong, and says so when that leaves no one', async () => {
+    peopleMocks.searchPeople.mockResolvedValue([]);
+    renderPicker({ scope: 'college', excludeOrganizationId: 7 });
+    type('mar');
+
+    expect(await screen.findByText('No one matches "mar". People who already belong are not listed.')).toBeInTheDocument();
+    expect(peopleMocks.searchPeople).toHaveBeenCalledWith({ q: 'mar', scope: 'college', exclude_organization_id: 7 });
+  });
+
   it('says so when no one matches', async () => {
     peopleMocks.searchPeople.mockResolvedValue([]);
     renderPicker();

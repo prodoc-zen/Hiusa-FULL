@@ -6,6 +6,7 @@ use App\Models\College;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\User;
+use App\Services\AccountProfileDeletionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -24,11 +25,17 @@ class PeopleSearchController extends Controller
             'q' => ['required', 'string', 'min:2', 'max:100'],
             'scope' => ['nullable', Rule::in(['college', 'organization', 'all'])],
             'organization_id' => ['nullable', 'integer', 'min:1'],
+            'exclude_organization_id' => ['nullable', 'integer', 'min:1'],
             'role' => ['nullable', Rule::in(self::ROLES)],
         ]);
 
         $actor = $request->user();
         [$rules, $visibleOrganizationIds] = $this->scopeFor($actor, $validated);
+
+        // Only someone who may add people to the organization is told who already belongs to it.
+        if (isset($validated['exclude_organization_id'])) {
+            abort_unless(app(AccountProfileDeletionService::class)->organizationsFor($actor)->whereKey($validated['exclude_organization_id'])->exists(), 403, 'You cannot manage that organization.');
+        }
 
         $people = User::query()
             ->where('users.account_status', 'active')
@@ -51,6 +58,7 @@ class PeopleSearchController extends Controller
                     $profiles->where('account_profiles.role', $validated['role']);
                 }
             })
+            ->when(isset($validated['exclude_organization_id']), fn ($query) => $query->whereDoesntHave('accountProfiles', fn ($profiles) => $profiles->where('account_profiles.organization_id', $validated['exclude_organization_id'])))
             ->where(fn ($query) => $this->matchTokens($query, $validated['q']))
             ->with(['accountProfiles' => fn ($profiles) => $profiles->where('account_status', 'active')->with('organization:id,name,college_id,college,organization_type')])
             ->orderBy('users.last_name')
