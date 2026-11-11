@@ -9,6 +9,7 @@ import PaginationControls from '../../../components/PaginationControls';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { RichTextBody } from '../../../components/RichText';
+import { getLoadErrorDescription } from '../../../utils/apiError';
 
 const categories = ['general', 'election', 'training', 'events', 'merchandise'];
 
@@ -42,7 +43,7 @@ export default function AnnouncementsFeedPage() {
     try {
       const response = await getAnnouncements({ published_only: 1, page, search: search || undefined, category: category === 'all' ? undefined : category });
       setAnnouncements(unwrapList(response.data)); setMeta(listMeta(response.data));
-    } catch { setError('Could not load announcements.'); }
+    } catch (loadError) { setError(getLoadErrorDescription(loadError)); }
     finally { setLoading(false); }
   }, [page, search, category]);
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
@@ -67,7 +68,7 @@ export default function AnnouncementsFeedPage() {
       <HiusaSelect filter aria-label="Announcement category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</HiusaSelect>
     </div>
     {loading && <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>}
-    {error && <ErrorState title="Could not load announcements" description="Check your connection and try again." onRetry={load} />}
+    {error && <ErrorState title="Could not load announcements" description={error} onRetry={load} />}
     {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Your officers post them here." />)}
     {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} showSource={showSource} />)}
     {!loading && !error && <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}

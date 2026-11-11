@@ -73,4 +73,15 @@ describe('AnnouncementsFeedPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(await screen.findByRole('heading', { name: 'General Assembly' })).toBeInTheDocument();
   });
+
+  it('says how long to wait after too many requests, and blames the server for a server fault', async () => {
+    mocks.getAnnouncements.mockRejectedValueOnce({ isRateLimited: true, userMessage: 'Too many requests. Please try again in 12 seconds.', response: { status: 429 } });
+    renderFeed();
+    expect(await screen.findByText('Too many requests. Please try again in 12 seconds.')).toBeInTheDocument();
+    expect(screen.queryByText('Check your connection and try again.')).not.toBeInTheDocument();
+
+    mocks.getAnnouncements.mockRejectedValueOnce({ response: { status: 500, data: { message: 'Server Error' } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('The server had a problem. Please try again in a moment.')).toBeInTheDocument();
+  });
 });
