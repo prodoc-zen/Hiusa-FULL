@@ -182,9 +182,23 @@ describe('desktop sidebar rail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
     expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
     expect(onClose).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
+  });
+
+  it('closes the phone drawer when a group tap navigates and keeps it open when the tap only folds the group', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const onClose = vi.fn();
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness mobileOpen onClose={onClose} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(screen.getByTestId('route')).not.toHaveTextContent('/dashboard/admin');
+    expect(onClose).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('makes the closed mobile drawer inert and closes the open drawer with Escape', () => {
