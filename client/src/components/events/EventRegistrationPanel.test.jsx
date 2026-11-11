@@ -78,6 +78,18 @@ describe('EventRegistrationPanel', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['ongoing', 'Registration closed when this event started.'],
+    ['completed', 'Registration closed when this event started.'],
+    ['cancelled', 'This event was cancelled, so registration is closed.'],
+  ])('gives the real reason registration is shut for a %s event', async (status, reason) => {
+    vi.mocked(getMyEventRegistrations).mockResolvedValue(mine(null));
+    render(<EventRegistrationPanel event={event({ status, start_time: past })} role="STUDENT" />);
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.queryByText('Registration opens once this event is approved.')).not.toBeInTheDocument();
+  });
+
   it('surfaces the server reason when registration is refused', async () => {
     vi.mocked(getMyEventRegistrations).mockResolvedValue(mine(null));
     vi.mocked(registerForEvent).mockRejectedValue({ response: { status: 422, data: { message: 'This event has reached its registration capacity.' } } });
