@@ -6,6 +6,7 @@ use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
+use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationApplicationDocument;
@@ -352,7 +353,13 @@ class ComplianceController extends Controller
             ->get()
             ->groupBy('organization_id');
 
-        $result = $organizations->map(function (Organization $organization) use ($requirementTypes, $submissions) {
+        // What the SAO has to decide, per organization, so the by-organization lists can show who is waiting without opening each one.
+        $awaitingReview = OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)->where('status', 'submitted')
+            ->select('organization_id')->selectRaw('COUNT(*) as total')->groupBy('organization_id')->pluck('total', 'organization_id');
+        $awaitingReports = FinancialReport::whereIn('organization_id', $organizationIds)->where('submission_status', 'pending_sao')->whereNotNull('department_head_approved_at')
+            ->select('organization_id')->selectRaw('COUNT(*) as total')->groupBy('organization_id')->pluck('total', 'organization_id');
+
+        $result = $organizations->map(function (Organization $organization) use ($requirementTypes, $submissions, $awaitingReview, $awaitingReports) {
             $bySubmission = ($submissions->get($organization->id) ?? collect())->keyBy('requirement_type_id');
             $breakdown = $requirementTypes->map(function (ComplianceRequirementType $type) use ($bySubmission) {
                 $submission = $bySubmission->get($type->id);
@@ -374,6 +381,8 @@ class ComplianceController extends Controller
                 'organization_id' => $organization->id,
                 'organization_name' => $organization->name,
                 'accreditation_status' => $this->accreditation->resolve($breakdown->pluck('status')),
+                'awaiting_review_count' => (int) ($awaitingReview[$organization->id] ?? 0),
+                'awaiting_financial_report_count' => (int) ($awaitingReports[$organization->id] ?? 0),
                 'requirements' => $breakdown->values(),
             ];
         });
