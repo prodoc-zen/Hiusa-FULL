@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AcademicProgram;
+use App\Models\AcademicSection;
 use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
@@ -166,6 +167,40 @@ class UserImportTest extends TestCase
         $content = "school_id,first_name,last_name,email,role,program\n20260070,Ana,Reyes,ana@example.com,Student,BSIT\n";
 
         $this->upload($content, true)->assertOk()->assertJsonPath('rows.0.errors.0', 'Configure a course/program before creating a student account.');
+    }
+
+    public function test_the_year_level_can_be_a_number_or_written_out_and_is_stored_the_same_way(): void
+    {
+        $program = AcademicProgram::where('organization_id', $this->organization->id)->firstOrFail();
+        AcademicSection::create(['academic_program_id' => $program->id, 'year_level' => 1, 'name' => '1-A']);
+        $content = "school_id,first_name,last_name,email,role,program,year_level,section\n"
+            ."20260080,Ana,Reyes,ana@example.com,Student,BSIT,1,1-A\n"
+            ."20260081,Ben,Cruz,ben@example.com,Student,BSIT,1st Year,1-A\n"
+            ."20260082,Cara,Lim,cara@example.com,Student,BSIT,3rd,\n"
+            ."20260083,Dan,Uy,dan@example.com,Student,BSIT,Freshman,\n";
+
+        $response = $this->upload($content, true)->assertOk();
+
+        $rows = collect($response->json('rows'))->keyBy('row');
+        $this->assertSame('ready', $rows[2]['status']);
+        $this->assertSame('ready', $rows[3]['status']);
+        $this->assertSame('ready', $rows[4]['status']);
+        $this->assertSame(['Year level must be a number such as 1, or written like 1st Year.'], $rows[5]['errors']);
+
+        $this->upload(implode("\n", array_slice(explode("\n", $content), 0, 4))."\n", false)->assertCreated();
+        $this->assertSame('1st Year', User::find(20260080)->year_level);
+        $this->assertSame('1st Year', User::find(20260081)->year_level);
+        $this->assertSame('3rd Year', User::find(20260082)->year_level);
+    }
+
+    public function test_a_wrong_file_type_is_refused_in_plain_words(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $this->post('/api/users/import', ['file' => UploadedFile::fake()->create('roster.pdf', 10, 'application/pdf')], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.file.0', 'Choose a CSV file. Other file types cannot be imported.')
+            ->assertJsonPath('message', 'Choose a CSV file. Other file types cannot be imported.');
     }
 
     public function test_a_file_without_the_required_columns_is_rejected_plainly(): void

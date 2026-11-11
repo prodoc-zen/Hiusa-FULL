@@ -10,7 +10,7 @@ import { Button, Drawer } from '../ui';
 
 const TEMPLATE = [
   'school_id,first_name,last_name,email,role,program,year_level,section,contact_number',
-  '20260001,Juan,Dela Cruz,juan.delacruz@example.edu,Student,,1st Year,,',
+  '20260001,Juan,Dela Cruz,juan.delacruz@example.edu,Student,,1,,',
 ].join('\n');
 
 function downloadTemplate() {
@@ -139,7 +139,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
       ) : (
       <div className="space-y-5">
         <div className="text-sm leading-6 text-ink-muted-strong">
-          <p>Required columns: <span className="font-semibold text-ink">school_id, first_name, last_name, email, role</span>. Roles can be Student, SBO Officer or Department Head; admin accounts are added one at a time.</p>
+          <p>Required columns: <span className="font-semibold text-ink">school_id, first_name, last_name, email, role</span>. Roles can be Student or SBO Officer; admin accounts are added one at a time. Write year_level as a number, such as 1.</p>
           <p className="mt-2">Passwords never go in the file. If email is off, you get a temporary password for each member after the import. Otherwise each member sets one with Forgot password, using the email you list.</p>
           <Button variant="secondary" className="mt-3" onClick={downloadTemplate}><Download size={15} aria-hidden="true" /> Download template</Button>
         </div>

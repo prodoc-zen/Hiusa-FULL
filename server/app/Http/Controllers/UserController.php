@@ -16,6 +16,7 @@ use App\Services\Edp\StudentSignup;
 use App\Services\PasswordResetService;
 use App\Support\AdviserPosition;
 use App\Support\FilterValues;
+use App\Support\YearLevel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -224,6 +225,11 @@ class UserController extends Controller
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:1024'],
             'dry_run' => ['sometimes', 'boolean'],
+        ], [
+            'file.required' => 'Choose a CSV file to import.',
+            'file.file' => 'Choose a CSV file to import.',
+            'file.mimes' => 'Choose a CSV file. Other file types cannot be imported.',
+            'file.max' => 'The file is larger than 1 MB. Split the roster and import it in parts.',
         ]);
 
         $rows = $this->readImportRows($request->file('file')->getRealPath());
@@ -255,6 +261,9 @@ class UserController extends Controller
             }
             if ($email !== '' && isset($seenEmails[$email])) {
                 $errors[] = "The email {$email} is also on row {$seenEmails[$email]}.";
+            }
+            if (isset($row['year_level']) && YearLevel::parse($row['year_level']) === null) {
+                $errors[] = 'Year level must be a number such as 1, or written like 1st Year.';
             }
             if ($schoolId !== false) {
                 $seenIds[$schoolId] ??= $line;
@@ -376,6 +385,9 @@ class UserController extends Controller
             }
             if (isset($row['role'])) {
                 $row['role'] = str_replace([' ', '-'], '_', strtoupper($row['role']));
+            }
+            if (isset($row['year_level']) && ($year = YearLevel::parse($row['year_level'])) !== null) {
+                $row['year_level'] = YearLevel::label($year);
             }
             $rows[$line] = $row;
         }
