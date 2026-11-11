@@ -18,10 +18,10 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
-Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping();
-Schedule::command(MarkEventNoShows::class)->hourly()->withoutOverlapping();
-Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlapping();
-Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping();
-Schedule::call(fn () => app(OrganizationDeletionService::class)->cleanup())->name('retry-deleted-organization-files')->hourly()->withoutOverlapping();
-Schedule::call(fn () => app(GlobalAnnouncementController::class)->publishScheduled())->name('publish-scheduled-sao-announcements')->everyMinute()->withoutOverlapping();
+Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping(70);
+Schedule::command(MarkEventNoShows::class)->hourly()->withoutOverlapping(70);
+Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlapping(5);
+Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping(120);
+Schedule::call(fn () => app(OrganizationDeletionService::class)->cleanup())->name('retry-deleted-organization-files')->hourly()->withoutOverlapping(70);
+Schedule::call(fn () => app(GlobalAnnouncementController::class)->publishScheduled())->name('publish-scheduled-sao-announcements')->everyMinute()->withoutOverlapping(5);
 Schedule::call(fn () => Cache::put(OpsCheck::HEARTBEAT_KEY, now()->getTimestamp()))->name('scheduler-heartbeat')->everyMinute();

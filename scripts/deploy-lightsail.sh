@@ -199,9 +199,9 @@ main() {
     local healthy=0 i body
     for i in $(seq 1 12); do
         # Exactly 200 over https: curl -f alone would accept the 301 that nginx answers on plain http. The body must
-        # name the commit just deployed, so a request that reaches an older release does not pass.
+        # name the first 12 characters of the commit just deployed, so a request that reaches an older release does not pass.
         body="$(curl -sSk --max-time 10 -w '|%{http_code}' https://127.0.0.1/api/health 2>/dev/null || true)"
-        if [[ "${body##*|}" == 200 ]] && grep -q "\"database\":\"ok\".*\"sha\":\"$target\"" <<<"$body"; then
+        if [[ "${body##*|}" == 200 ]] && grep -q "\"database\":\"ok\".*\"sha\":\"${target:0:12}\"" <<<"$body"; then
             healthy=1
             break
         fi
