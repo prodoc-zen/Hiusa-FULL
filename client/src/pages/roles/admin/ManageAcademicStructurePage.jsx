@@ -8,6 +8,7 @@ import { Button, Drawer, EmptyState, ErrorState, Field, Input, PageHeader, Skele
 
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearsFor = (durationYears = 4) => Array.from({ length: Number(durationYears) || 4 }, (_, index) => index + 1);
+const validSectionCount = (count) => Number.isInteger(count) && count >= 0 && count <= 26;
 const emptyForm = (durationYears = 4) => ({ name: '', duration_years: durationYears, sections: Object.fromEntries(yearsFor(durationYears).map((year) => [year, 0])) });
 
 function programForm(program) {
@@ -35,7 +36,7 @@ function SectionCountFields({ form, setForm }) {
       </Field>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {yearsFor(form.duration_years).map((year) => (
-          <Field key={year} label={yearLabel(year)}>
+          <Field key={year} label={yearLabel(year)} error={validSectionCount(form.sections[year]) ? undefined : 'Use a whole number from 0 to 26.'}>
             <Input aria-label={`${yearLabel(year)} sections`} type="number" min="0" max="26" value={form.sections[year]} onChange={(event) => setForm({ ...form, sections: { ...form.sections, [year]: Number(event.target.value) } })} />
           </Field>
         ))}
@@ -149,13 +150,13 @@ export default function ManageAcademicStructurePage() {
         footer={(
           <>
             <Button variant="secondary" onClick={closeDrawer} disabled={busy}>Cancel</Button>
-            <Button type="submit" form="program-form" disabled={busy || !editForm.name.trim()}>{busy ? 'Saving...' : editing ? 'Save changes' : 'Add program'}</Button>
+            <Button type="submit" form="program-form" disabled={busy || !editForm.name.trim() || !Object.values(editForm.sections).every(validSectionCount)}>{busy ? 'Saving...' : editing ? 'Save changes' : 'Add program'}</Button>
           </>
         )}
       >
-        <form id="program-form" onSubmit={saveProgram} className="space-y-4">
+        <form id="program-form" onSubmit={saveProgram} noValidate className="space-y-4">
           <Field label="Program name">
-            <Input data-autofocus value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required placeholder="e.g. BS Information Technology" />
+            <Input data-autofocus value={editForm.name} onChange={(event) => { setEditForm({ ...editForm, name: event.target.value }); setError(''); }} required placeholder="e.g. BS Information Technology" />
           </Field>
           <SectionCountFields form={editForm} setForm={setEditForm} />
           {error && !loadFailed && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}

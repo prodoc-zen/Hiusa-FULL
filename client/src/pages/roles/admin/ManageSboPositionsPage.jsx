@@ -165,7 +165,7 @@ export default function ManageSboPositionsPage() {
           </>
         )}
       >
-        <form id="position-form" onSubmit={submit} className="space-y-4">
+        <form id="position-form" onSubmit={submit} noValidate className="space-y-4">
           <Field label="Account role" hint="Students and department heads cannot hold a position.">
             <Select value={form.role} onChange={(event) => { setForm({ ...form, role: event.target.value, title: '' }); setCustomTitle(false); }}>
               <option value="ADMIN">Admin</option>
