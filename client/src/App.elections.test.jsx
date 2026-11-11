@@ -42,6 +42,16 @@ describe('election pages meant for one role', () => {
     expect(await screen.findByTestId('landed')).toHaveTextContent(`home ${home}`);
   });
 
+  it('sends a student opening the elections list to their own Vote page, and leaves the Admin on the list', async () => {
+    const student = visit('STUDENT', '/dashboard/elections');
+    expect(await screen.findByTestId('landed')).toHaveTextContent('elections /dashboard/elections/cast-vote');
+    student.unmount();
+
+    localStorage.clear();
+    visit('ADMIN', '/dashboard/elections/');
+    expect((await screen.findByTestId('landed')).textContent).toBe('elections /dashboard/elections/');
+  });
+
   it.each([
     ['ADMIN', 'manage-elections'],
     ['ADMIN', 'manage-candidates'],

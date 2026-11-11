@@ -126,6 +126,18 @@ class ObjectivesOverviewTest extends TestCase
         $this->assertNull($student['href']);
     }
 
+    public function test_the_votes_cast_tile_opens_a_page_every_voting_role_can_use(): void
+    {
+        $org = Organization::factory()->create();
+
+        foreach (['STUDENT', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] as $role) {
+            $this->app['auth']->forgetGuards();
+            Sanctum::actingAs($this->user($role, $org->id));
+            $tile = $this->evidence($this->objective($this->getJson('/api/objectives/overview')->json(), 'SO2.4'), 'Votes cast');
+            $this->assertSame('/dashboard/elections/election-results', $tile['href'], $role);
+        }
+    }
+
     public function test_retired_evaluation_records_are_not_exposed_in_objective_evidence(): void
     {
         $org = Organization::factory()->create();

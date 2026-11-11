@@ -163,7 +163,7 @@ class ObjectivesEvidenceService
             'One-vote enforcement per position, automated tallying and real-time results.',
             [
                 $this->metric('Elections completed with automated tallies', $this->scoped(DB::table('elections'), $orgIds)->where('status', 'closed')->count(), 'count', '/dashboard/elections/election-results'),
-                $this->metric('Votes cast', DB::table('votes')->whereIn('election_id', $electionIds)->count(), 'count', '/dashboard/elections'),
+                $this->metric('Votes cast', DB::table('votes')->whereIn('election_id', $electionIds)->count(), 'count', '/dashboard/elections/election-results'),
                 $this->metric('Voters in the latest completed election', $latestClosedId ? DB::table('votes')->where('election_id', $latestClosedId)->distinct()->count('voter_id') : 0, 'count', '/dashboard/elections/election-results'),
             ],
             $this->latest(DB::table('votes')->whereIn('election_id', $this->scoped(DB::table('elections'), $orgIds)->select('id')), 'cast_at'),
