@@ -40,7 +40,7 @@ describe('AddExistingUserModal', () => {
   it.each([['ADMIN', 'college'], ['SUPER_ADMIN', 'all']])('searches with the right scope for %s', async (actorRole, scope) => {
     render(<AddExistingUserModal organization={organization} actorRole={actorRole} onClose={vi.fn()} />);
     await pickMaria();
-    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope });
+    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope, exclude_organization_id: 8 });
   });
 
   it.each(['ADMIN', 'SUPER_ADMIN'])('lets %s assign the organization head role', async (actorRole) => {

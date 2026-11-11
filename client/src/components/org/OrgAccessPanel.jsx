@@ -141,7 +141,6 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
         <GiveAccessModal
           organizationId={organizationId}
           actorRole={actorRole}
-          excludeIds={rows.map((row) => row.school_id)}
           onClose={() => setGiving(false)}
           onSaved={saved}
         />

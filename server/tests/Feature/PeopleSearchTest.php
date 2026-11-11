@@ -264,6 +264,36 @@ class PeopleSearchTest extends TestCase
         $this->assertCount(10, $this->search($head, ['q' => 'jun'])->json('data'));
     }
 
+    public function test_people_who_already_belong_to_the_organization_are_left_out_of_the_results_however_many_there_are(): void
+    {
+        $admin = User::factory()->admin()->create([...$this->pinned(), 'organization_id' => $this->computingOrg->id]);
+        $outsider = $this->student($this->computingHome, ['first_name' => 'Zed']);
+        foreach (['active', 'disabled'] as $status) {
+            $member = $this->student($this->computingHome, ['first_name' => 'Zed']);
+            AccountProfile::create(['user_school_id' => $member->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'STUDENT', 'account_status' => $status]);
+        }
+        foreach (range(1, 11) as $i) {
+            $filler = $this->student($this->computingHome, ['first_name' => 'Zed']);
+            AccountProfile::create(['user_school_id' => $filler->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        }
+
+        $everyone = $this->search($admin, ['q' => 'zed', 'scope' => 'college', 'role' => 'STUDENT'])->assertOk();
+        $this->assertCount(10, $everyone->json('data'));
+
+        $response = $this->search($admin, ['q' => 'zed', 'scope' => 'college', 'role' => 'STUDENT', 'exclude_organization_id' => $this->computingOrg->id])->assertOk();
+
+        $this->assertSame([$outsider->school_id], collect($response->json('data'))->pluck('school_id')->all());
+    }
+
+    public function test_only_someone_who_manages_the_organization_may_ask_who_already_belongs(): void
+    {
+        $admin = User::factory()->admin()->create([...$this->pinned(), 'organization_id' => $this->computingOrg->id]);
+
+        $this->search($admin, ['q' => 'quill', 'exclude_organization_id' => $this->computingOtherOrg->id])->assertForbidden();
+        $this->search($admin, ['q' => 'quill', 'exclude_organization_id' => $this->computingOrg->id])->assertOk();
+        $this->search($this->computingHead(), ['q' => 'quill', 'exclude_organization_id' => $this->computingOtherOrg->id])->assertOk();
+    }
+
     public function test_the_search_is_throttled_per_signed_in_person(): void
     {
         config(['performance.rate_limits.people_search_per_minute' => 2]);
