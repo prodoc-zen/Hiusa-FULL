@@ -861,7 +861,7 @@ class EventController extends Controller
                     'preferred_role' => $draft['recommended_role'] ?? null,
                     'title' => $draft['title'],
                     'description' => $draft['description'] ?? null,
-                    'deadline' => $draft['deadline'],
+                    'deadline' => $this->localTime($draft['deadline']),
                     'status' => 'pending',
                     'assigned_to' => $assignedTo,
                     'is_ai_generated' => true,

@@ -13,6 +13,7 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -96,6 +97,9 @@ class EventPlanningWorkflowTest extends TestCase
 
         $tasks = Task::where('event_id', $event->id)->orderBy('sequence')->get();
         $this->assertCount(3, $tasks);
+        foreach ($reviewedTasks as $index => $reviewed) {
+            $this->assertSame(Carbon::parse($reviewed['deadline'])->getTimestamp(), $tasks[$index]->deadline->getTimestamp());
+        }
         $this->assertNull($tasks[0]->depends_on_task_id);
         $this->assertSame($tasks[0]->id, $tasks[1]->depends_on_task_id);
         $this->assertSame($tasks[1]->id, $tasks[2]->depends_on_task_id);
