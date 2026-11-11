@@ -23,6 +23,10 @@ class ApprovalRequest extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (ApprovalRequest $approval): void {
+            $approval->requested_at ??= now();
+        });
+
         static::created(function (ApprovalRequest $approval): void {
             $approval->notifyApprovers();
             $approval->recordSubmissionAudit();
