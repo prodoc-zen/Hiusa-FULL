@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decisionMessage, describeApproval, entityLink } from './approvalStage';
+import { decisionMessage, describeApproval, entityLink, waitingOnRole } from './approvalStage';
 
 const request = (overrides) => ({ id: 1, organization_id: 1, entity_id: 50, status: 'pending', required_role: 'DEPARTMENT_HEAD', remarks: null, requested_at: '2026-10-06T10:00:00+08:00', summary: {}, ...overrides });
 
@@ -50,6 +50,22 @@ describe('describeApproval for the other lifecycles', () => {
 
     expect(info).toMatchObject({ kind: 'chip', stageText: 'Waiting for Admin approval' });
     expect(describeApproval(request({ entity_type: 'payment', required_role: 'ADMIN' }), 'ADMIN').stageText).toBe('Waiting for your decision');
+  });
+});
+
+describe('waitingOnRole', () => {
+  it('names the role holding a pending request and nobody once the head has decided', () => {
+    expect(waitingOnRole(request({ entity_type: 'budget' }))).toBe('DEPARTMENT_HEAD');
+    expect(waitingOnRole(request({ entity_type: 'announcement' }))).toBe('DEPARTMENT_HEAD');
+    expect(waitingOnRole(request({ entity_type: 'budget', status: 'rejected' }))).toBeNull();
+    expect(waitingOnRole(request({ entity_type: 'announcement', status: 'approved' }))).toBeNull();
+  });
+
+  it('moves a head-approved event to the SAO once its files are in', () => {
+    const approved = (files) => request({ entity_type: 'event', status: 'approved', summary: { status: 'planning', requirement_files: files } });
+
+    expect(waitingOnRole(approved([{ id: 1 }]))).toBe('SUPER_ADMIN');
+    expect(waitingOnRole(approved([]))).toBeNull();
   });
 });
 
