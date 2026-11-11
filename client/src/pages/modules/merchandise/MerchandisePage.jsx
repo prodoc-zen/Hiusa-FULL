@@ -1244,7 +1244,7 @@ export default function MerchandisePage({ initialTab }) {
       setPaymentModal((current) => ({
         ...current,
         busy: false,
-        error: err.response?.data?.message ?? "Failed to submit payment proof.",
+        error: getApiErrorMessage(err, "Failed to submit payment proof."),
       }));
     }
   }
@@ -3458,6 +3458,7 @@ export default function MerchandisePage({ initialTab }) {
               <Field label="16-character claim token" className="min-w-0 flex-1">
                 <Input
                   id="claim-token"
+                  autoFocus
                   maxLength={16}
                   value={claimToken}
                   onChange={(e) => {

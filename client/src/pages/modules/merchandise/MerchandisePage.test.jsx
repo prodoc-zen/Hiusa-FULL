@@ -21,6 +21,7 @@ const orderMocks = vi.hoisted(() => ({
   verifyClaimToken: vi.fn(),
   claimByToken: vi.fn(),
   updateOrderStatus: vi.fn(),
+  submitOrderPayment: vi.fn(),
 }));
 
 vi.mock("../../../services/merchandiseService", () => ({
@@ -38,7 +39,6 @@ vi.mock("../../../services/orderService", () => ({
   getOrderAuditLogs: vi.fn(),
   openOrderPaymentProof: vi.fn(),
   placeOrder: orderMocks.placeOrder,
-  submitOrderPayment: vi.fn(),
   updateOrderStatus: orderMocks.updateOrderStatus,
   claimByToken: orderMocks.claimByToken,
   verifyClaimToken: orderMocks.verifyClaimToken,
@@ -548,6 +548,31 @@ describe("MerchandisePage entry points", () => {
 
     expect(await screen.findByRole("button", { name: "Review and continue" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Confirm merchandise reservation" })).not.toBeInTheDocument();
+  });
+
+  it("puts the cursor in the claim token field when the Claim desk opens", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    render(<MemoryRouter initialEntries={["/dashboard/merchandise/claim-tokens"]}><MerchandisePage initialTab="tokens" /></MemoryRouter>);
+
+    const field = await screen.findByLabelText("16-character claim token");
+    expect(field).toHaveFocus();
+  });
+
+  it("shows the first validation message, not the raw 'and N more errors' text, when GCash proof is refused", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+    orderMocks.submitOrderPayment.mockRejectedValue({
+      response: { status: 422, data: { message: "The payment proof must be a picture file. (and 1 more error)", errors: { payment_proof: ["The payment proof must be a picture file."], payment_reference: ["The reference is taken."] } } },
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit GCash proof" }));
+    const dialog = await screen.findByRole("dialog", { name: "Submit GCash payment" });
+    fireEvent.change(within(dialog).getByLabelText(/13-digit GCash reference/), { target: { value: "1234567890123" } });
+    fireEvent.change(within(dialog).getByLabelText(/Payment proof/), { target: { files: [new File(["x"], "proof.txt", { type: "text/plain" })] } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit payment" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/^The payment proof must be a picture file.$/);
   });
 });
 
