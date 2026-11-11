@@ -317,7 +317,7 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'academic_year' => ['nullable', 'string', 'max:20'],
-            'category' => ['nullable', 'in:organization,semestral_report'],
+            'category' => ['nullable', 'in:organization,renewal,semestral_report'],
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
         ]);
 
@@ -385,7 +385,7 @@ class ComplianceController extends Controller
         $filters = $request->validate([
             'organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')])],
             'status' => ['nullable', FilterValues::rule(['nullable', 'in:submitted,approved,returned'])],
-            'category' => ['nullable', 'in:organization,semestral_report'],
+            'category' => ['nullable', 'in:organization,renewal,semestral_report'],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
