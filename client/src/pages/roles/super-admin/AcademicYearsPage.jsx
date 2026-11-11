@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, Select, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableRowActions from '../../../components/TableRowActions';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
 
@@ -29,7 +30,22 @@ function semesterChangeMessage({ semester, action, yearLabel }, years) {
     .find((item) => item.semester.status === 'active');
   if (!closing) return 'This semester becomes the active one. This cannot be undone from the app.';
   const closes = action === 'close' ? 'This closes' : 'This closes the current semester,';
-  return `${closes} ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.`;
+  return `${closes} ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.${action === 'close' ? ` ${afterClosingNotice(semester, years)}` : ''}`;
+}
+
+function hasStarted(semester) {
+  return String(semester.starts_on).slice(0, 10) <= manilaDateStamp();
+}
+
+// Closing the live semester leaves no semester active until the next one can start, so the box says when that is.
+function afterClosingNotice(closing, years) {
+  const next = years
+    .flatMap((year) => (year.semesters || []).map((item) => ({ semester: item, yearLabel: year.label })))
+    .filter((item) => item.semester.id !== closing.id && item.semester.status !== 'completed')
+    .sort((left, right) => String(left.semester.starts_on).localeCompare(String(right.semester.starts_on)))[0];
+  if (!next) return 'No other semester is set up, so no semester will be active until you add one and activate it.';
+  if (!hasStarted(next.semester)) return `${semesterLabel(next.semester, next.yearLabel)} starts on ${manilaDate(next.semester.starts_on, 'long')}. Until then no semester is active.`;
+  return `You can activate ${semesterLabel(next.semester, next.yearLabel)} afterwards.`;
 }
 
 function suggestedLabel(startsOn) {
@@ -276,14 +292,30 @@ export default function AcademicYearsPage() {
               <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-ink">{semester.number === 1 ? '1st' : '2nd'} semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span></div>
                 <div className="flex items-center gap-2">
-                  <StatusToggleSwitch
-                    checked={semester.status === 'active'}
-                    disabled={busy || semester.status === 'completed'}
-                    label={`Toggle active status for ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
-                    activeText="Active"
-                    inactiveText={semester.status === 'completed' ? 'Completed' : 'Inactive'}
-                    onChange={(next) => { setSemesterChangeError(''); setSemesterChange({ semester, action: next ? 'activate' : 'close', yearLabel: year.label }); }}
-                  />
+                  {semester.status === 'active' && <StatusBadge label="Active" tone="success" />}
+                  {semester.status === 'completed' && <StatusBadge label="Completed" tone="neutral" />}
+                  {semester.status === 'active' && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Close ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                      disabled={busy}
+                      onClick={() => { setSemesterChangeError(''); setSemesterChange({ semester, action: 'close', yearLabel: year.label }); }}
+                    >
+                      Close semester
+                    </Button>
+                  )}
+                  {semester.status !== 'active' && semester.status !== 'completed' && (hasStarted(semester) ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Activate ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                      disabled={busy}
+                      onClick={() => { setSemesterChangeError(''); setSemesterChange({ semester, action: 'activate', yearLabel: year.label }); }}
+                    >
+                      Activate
+                    </Button>
+                  ) : <span className="text-xs text-ink-muted">Not started yet</span>)}
                   {semester.status !== 'active' && (
                     <button
                       type="button"
