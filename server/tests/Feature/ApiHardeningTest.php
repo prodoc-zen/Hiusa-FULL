@@ -52,7 +52,7 @@ class ApiHardeningTest extends TestCase
         $student = $this->student();
         Sanctum::actingAs($student);
 
-        for ($i = 0; $i < 120; $i++) {
+        for ($i = 0; $i < (int) config('performance.rate_limits.read_per_minute'); $i++) {
             $this->getJson('/api/announcements')->assertOk();
         }
 
@@ -152,7 +152,7 @@ class ApiHardeningTest extends TestCase
         $student = $this->student();
         Sanctum::actingAs($student);
 
-        for ($i = 0; $i < 120; $i++) {
+        for ($i = 0; $i < (int) config('performance.rate_limits.read_per_minute'); $i++) {
             $this->getJson('/api/announcements')->assertOk();
         }
 
