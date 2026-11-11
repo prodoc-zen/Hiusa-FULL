@@ -78,7 +78,7 @@ describe('SystemAdminsPage', () => {
     renderPage();
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
 
     await waitFor(() => expect(serviceMocks.initiateSystemAdminPasswordReset).toHaveBeenCalledWith(10101));
     expect(await screen.findByText('Password reset instructions were sent.')).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('SystemAdminsPage', () => {
     renderPage();
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Reset link ready' });
     expect(within(dialog).getByDisplayValue('https://hiusa.example.test/reset-password?token=abc')).toBeInTheDocument();
@@ -335,7 +335,7 @@ describe('SystemAdminsPage', () => {
       renderPage();
       fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Reyes' }))[0]);
       fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create reset link' }));
       expect(await screen.findByText('Could not initiate the password reset.')).toBeInTheDocument();
 
       await act(async () => { await refetchHook.current(); });

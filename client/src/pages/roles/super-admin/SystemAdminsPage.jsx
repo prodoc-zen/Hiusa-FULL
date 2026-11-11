@@ -551,7 +551,7 @@ export default function SystemAdminsPage() {
         title="Initiate password reset"
         message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown."
         recordName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
-        confirmText="Send reset link"
+        confirmText="Create reset link"
         busy={busy}
         onCancel={() => !busy && setResetTarget(null)}
         onConfirm={initiatePasswordReset}
