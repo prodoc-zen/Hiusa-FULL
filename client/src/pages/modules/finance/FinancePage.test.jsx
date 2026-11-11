@@ -1,8 +1,9 @@
 import { findRowAction } from '../../../test/rowActions';
-import { fireEvent, render as renderUi, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as renderUi, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancePage from './FinancePage';
+import { getEvents } from '../../../services/eventService';
 
 const render = (ui, route = '/dashboard/finance') => renderUi(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>);
 
@@ -92,6 +93,76 @@ describe('FinancePage transaction search', () => {
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
+  });
+
+  it('shows the Active search chip and fires a request only when the search is applied, one per data set', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    vi.clearAllMocks();
+
+    ['r', 're', 'ren', 'rent'].forEach((value) => fireEvent.change(search, { target: { value } }));
+
+    expect(screen.queryByText('Search: rent')).not.toBeInTheDocument();
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
+    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findByText('Search: rent')).toBeInTheDocument();
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(1));
+    expect(financeMocks.getTransactions).toHaveBeenCalledWith({ page: 1, search: 'rent' });
+    expect(financeMocks.getTransactionSummary).toHaveBeenCalledTimes(1);
+    expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith({ search: 'rent' });
+    [financeMocks.getBudgets, financeMocks.getForecasts, financeMocks.getFinancialReports, financeMocks.getInvoices, financeMocks.getPersonalReceipts, financeMocks.getFinancialSemesters, getEvents]
+      .forEach((service) => expect(service).not.toHaveBeenCalled());
+  });
+
+  it('clearing typed but unapplied text fires nothing, and clearing an applied search fires one ledger read', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    vi.clearAllMocks();
+
+    fireEvent.change(search, { target: { value: 'rent' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
+
+    fireEvent.change(search, { target: { value: 'rent' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(await screen.findByText('Search: rent')).toBeInTheDocument();
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
+    expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 });
+    expect(financeMocks.getTransactionSummary).toHaveBeenCalledTimes(2);
+    expect(financeMocks.getBudgets).not.toHaveBeenCalled();
+    expect(screen.queryByText('Search: rent')).not.toBeInTheDocument();
+  });
+
+  it('ignores the answer to an older search that arrives after a newer one', async () => {
+    const ledger = (description) => ({ data: { data: [{ id: 1, transaction_date: '2026-09-08T10:30:00.000000Z', description, category: 'Events', type: 'expense', amount: 10 }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    render(<FinancePage initialTab="transactions" />);
+
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    let releaseOld;
+    financeMocks.getTransactions
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseOld = () => resolve(ledger('Old answer')); }))
+      .mockImplementationOnce(() => Promise.resolve(ledger('New answer')));
+
+    fireEvent.change(search, { target: { value: 'old' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    fireEvent.change(search, { target: { value: 'new' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findAllByText('New answer')).not.toHaveLength(0);
+    await act(async () => { releaseOld(); });
+    expect(screen.queryByText('Old answer')).not.toBeInTheDocument();
+    expect(screen.getAllByText('New answer')).not.toHaveLength(0);
   });
 
   it('keeps the record action visible and offers a reset for an empty filtered ledger', async () => {

@@ -90,7 +90,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
         {error && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || (isReject && !remarks.trim())}>
+          <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || request.status !== 'pending' || (isReject && !remarks.trim())}>
             {busy ? 'Saving...' : isReject ? 'Reject' : 'Approve'}
           </Button>
         </div>
@@ -331,8 +331,14 @@ export default function DepartmentHeadApprovalsPage() {
     } catch (cause) {
       const message = getApiErrorMessage(cause, 'Could not save your decision. Try again.');
       setDecisionError(message);
-      notify.error(message);
-      if (cause?.response?.status === 409) load();
+      if (cause?.response?.status === 409) {
+        load();
+        const fresh = await findApprovalRequest(request.id).catch(() => null);
+        if (fresh) {
+          setOpened((current) => (current?.id === String(fresh.id) ? { id: current.id, request: fresh, state: 'ready' } : current));
+          setModalState((current) => (current.request?.id === fresh.id ? { ...current, request: fresh } : current));
+        }
+      }
     } finally {
       setSubmitting(false);
     }
