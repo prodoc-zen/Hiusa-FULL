@@ -2,18 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Mail\PasswordResetMail;
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\Event;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -65,6 +69,71 @@ class SystemUsersTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'user_deleted', 'record_id' => $student->school_id]);
     }
 
+    public function test_sao_gets_a_one_time_reset_link_for_a_student_and_an_officer_even_while_voting_is_open(): void
+    {
+        config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
+        Mail::fake();
+        $sao = User::factory()->superAdmin()->create();
+        $student = User::factory()->student()->create(['email' => 'ana@example.test']);
+        $officer = User::factory()->officer()->create(['organization_id' => $student->organization_id]);
+        Election::factory()->create(['organization_id' => $student->organization_id, 'status' => 'active']);
+        Sanctum::actingAs($sao);
+
+        foreach ([$student, $officer] as $member) {
+            $response = $this->postJson('/api/system/users/'.$member->school_id.'/password-reset')->assertOk();
+
+            $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+            parse_str((string) parse_url($response->json('reset_link'), PHP_URL_QUERY), $query);
+            $this->assertSame($member->email, $query['email']);
+            $audit = AuditLog::where('action', 'user_password_reset_initiated')->where('record_id', $member->school_id)->firstOrFail();
+            $this->assertSame($sao->school_id, (int) $audit->user_id);
+            $this->assertStringNotContainsString($query['token'], json_encode(AuditLog::all()->toArray()));
+        }
+        Mail::assertNothingOutgoing();
+    }
+
+    public function test_with_mail_on_the_sao_reset_link_is_emailed_and_not_returned(): void
+    {
+        config(['mail.default' => 'smtp']);
+        Mail::fake();
+        $sao = User::factory()->superAdmin()->create();
+        $student = User::factory()->student()->create();
+        Sanctum::actingAs($sao);
+
+        $response = $this->postJson('/api/system/users/'.$student->school_id.'/password-reset')->assertOk();
+
+        $this->assertArrayNotHasKey('reset_link', $response->json());
+        Mail::assertQueued(PasswordResetMail::class, fn ($mail) => $mail->hasTo($student->email));
+    }
+
+    public function test_only_the_sao_can_use_the_user_password_reset(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $student = User::factory()->student()->create();
+
+        Sanctum::actingAs($student);
+        $this->postJson('/api/system/users/'.$student->school_id.'/password-reset')->assertForbidden();
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/system/users/'.$student->school_id.'/password-reset')->assertForbidden();
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
+    public function test_the_sao_reset_is_refused_for_other_roles_and_inactive_accounts(): void
+    {
+        config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
+        $sao = User::factory()->superAdmin()->create();
+        $admin = User::factory()->admin()->create();
+        $head = User::factory()->departmentHead()->create();
+        $inactive = User::factory()->student()->create(['account_status' => 'inactive']);
+
+        Sanctum::actingAs($sao);
+        foreach ([$admin, $head, $sao, $inactive] as $refused) {
+            $this->postJson('/api/system/users/'.$refused->school_id.'/password-reset')->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'user_password_reset_initiated']);
+    }
+
     public function test_a_user_with_linked_records_cannot_be_deleted_and_nothing_is_erased(): void
     {
         $sao = User::factory()->superAdmin()->create();
@@ -93,6 +162,81 @@ class SystemUsersTest extends TestCase
         }
         $this->assertDatabaseCount('transactions', 1);
         $this->assertDatabaseCount('invoices', 1);
+    }
+
+    public function test_records_that_would_cascade_or_be_refused_by_the_database_are_counted_and_block_deletion(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $other = User::factory()->student()->create();
+        $stamps = ['created_at' => now(), 'updated_at' => now()];
+        $makers = [
+            'tasks' => fn (User $user) => Task::factory()->create(['created_by' => $user->school_id, 'assigned_to' => null]),
+            'approval_requests' => fn (User $user) => DB::table('approval_requests')->insert([
+                'organization_id' => $user->organization_id, 'entity_type' => 'event', 'entity_id' => 1,
+                'requested_by' => $user->school_id, 'required_role' => 'ADMIN', 'status' => 'pending',
+            ]),
+            'grievances' => fn (User $user) => DB::table('grievances')->insert([
+                'organization_id' => $user->organization_id, 'submitted_by' => $user->school_id,
+                'title' => 'Broken fan', 'description' => 'The fan in the hall is broken.', ...$stamps,
+            ]),
+            'venue_bookings' => fn (User $user) => DB::table('venue_bookings')->insert([
+                'venue_id' => DB::table('venues')->insertGetId(['name' => 'Gym', 'location' => 'Main building', ...$stamps]),
+                'organization_id' => $user->organization_id, 'start_time' => now()->addDay(), 'end_time' => now()->addDay()->addHours(2),
+                'requested_by' => $user->school_id, ...$stamps,
+            ]),
+            'organization_compliance_submissions' => fn (User $user) => DB::table('organization_compliance_submissions')->insert([
+                'organization_id' => $user->organization_id,
+                'requirement_type_id' => DB::table('compliance_requirement_types')->insertGetId([
+                    'academic_year' => '2026-2027', 'name' => 'Organization charter', 'deadline_at' => now()->addMonth(),
+                    'created_by' => $sao->school_id, ...$stamps,
+                ]),
+                'file_path' => 'compliance/charter.pdf', 'file_original_name' => 'charter.pdf', 'mime_type' => 'application/pdf', 'file_size' => 1024,
+                'submitted_by' => $user->school_id, 'submitted_at' => now(), ...$stamps,
+            ]),
+            'event_registrations' => fn (User $user) => DB::table('event_registrations')->insert([
+                'event_id' => Event::factory()->create(['created_by' => $other->school_id, 'organization_id' => $user->organization_id])->id,
+                'organization_id' => $user->organization_id, 'user_id' => $user->school_id, 'registered_at' => now(), ...$stamps,
+            ]),
+            'evaluation_responses' => fn (User $user) => DB::table('evaluation_responses')->insert([
+                'evaluation_window_id' => DB::table('evaluation_windows')->insertGetId(['title' => 'Midyear evaluation', ...$stamps]),
+                'organization_id' => $user->organization_id, 'user_id' => $user->school_id, 'respondent_type' => 'member',
+                'answers' => json_encode([]), ...$stamps,
+            ]),
+            'remittances' => fn (User $user) => DB::table('remittances')->insert([
+                'collection_id' => DB::table('collections')->insertGetId([
+                    'organization_id' => $user->organization_id, 'reference' => 'COL-'.$user->school_id, 'amount_collected' => 100,
+                    'source' => 'Membership fee', 'collected_by' => $other->school_id, 'collected_at' => now(), ...$stamps,
+                ]),
+                'reference' => 'REM-'.$user->school_id, 'amount' => 100, 'remitted_by' => $user->school_id, 'remitted_at' => now(), ...$stamps,
+            ]),
+            'invoice_payments' => fn (User $user) => DB::table('invoice_payments')->insert([
+                'invoice_id' => DB::table('invoices')->insertGetId([
+                    'organization_id' => $user->organization_id, 'reference' => 'INV-'.$user->school_id,
+                    'student_id' => $other->school_id, 'description' => 'Membership', 'amount_due' => 100, ...$stamps,
+                ]),
+                'amount' => 100, 'recorded_by' => $user->school_id, ...$stamps,
+            ]),
+            'cash_advance_repayments' => fn (User $user) => DB::table('cash_advance_repayments')->insert([
+                'cash_advance_id' => DB::table('cash_advances')->insertGetId([
+                    'organization_id' => $user->organization_id, 'reference' => 'CA-'.$user->school_id, 'borrower_id' => $other->school_id,
+                    'amount' => 100, 'purpose' => 'Event supplies', ...$stamps,
+                ]),
+                'amount' => 50, 'recorded_by' => $user->school_id, 'repaid_at' => now(), ...$stamps,
+            ]),
+        ];
+        Sanctum::actingAs($sao);
+
+        foreach ($makers as $kind => $make) {
+            $user = User::factory()->student()->create();
+            $make($user);
+
+            $this->getJson('/api/system/users/'.$user->school_id)->assertOk()->assertJsonPath('linked_records.'.$kind, 1);
+            $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])
+                ->assertStatus(409)
+                ->assertJsonPath('message', fn ($message) => str_contains($message, 'Deactivate the account instead'));
+            $this->assertDatabaseHas('users', ['school_id' => $user->school_id]);
+            $this->assertDatabaseCount($kind, 1);
+        }
     }
 
     public function test_a_user_who_ran_in_an_election_cannot_be_deleted_and_the_counts_are_shown(): void

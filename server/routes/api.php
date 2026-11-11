@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/system/users', [SystemUsersController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/system/users/{user}', [SystemUsersController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/system/users/{user}/password-reset', [SystemUsersController::class, 'initiatePasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::delete('/system/users/{user}', [SystemUsersController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/file-storage', [FileStorageController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::put('/system/file-storage', [FileStorageController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
