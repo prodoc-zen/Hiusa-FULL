@@ -265,6 +265,8 @@ function InventoryNotice({ title, body, actionLabel, onAction }) {
   );
 }
 
+const orderSize = (order) => order.variant_name || order.variant?.name || "";
+
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "-";
 }
@@ -2292,7 +2294,7 @@ export default function MerchandisePage({ initialTab }) {
                             {formatDisplayText(o.merchandise?.name) ?? "-"}
                           </p>
                           <p className="text-sm text-ink-muted">
-                            Qty: {o.quantity} · Total: <span className="tabular-nums">{fmt(o.total_price)}</span>
+                            {orderSize(o) ? `${orderSize(o)} · ` : ""}Qty: {o.quantity} · Total: <span className="tabular-nums">{fmt(o.total_price)}</span>
                           </p>
                           <p className="mt-1 text-xs text-ink-muted">
                             {fmtDate(o.created_at)}
@@ -2388,6 +2390,7 @@ export default function MerchandisePage({ initialTab }) {
               <NextStep {...buyerNextStepProps(orderDetails)} />
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 text-sm">
                 {[
+                  ...(orderSize(orderDetails) ? [["Size", orderSize(orderDetails)]] : []),
                   ["Quantity", orderDetails.quantity],
                   ["Total", fmt(orderDetails.total_price)],
                   ["Payment", (orderDetails.payment_method || "cash").toUpperCase()],
@@ -2425,7 +2428,7 @@ export default function MerchandisePage({ initialTab }) {
                         {formatDisplayText(row.item.name)}
                       </p>
                       <p className="text-xs text-ink-muted">
-                        Qty: {row.quantity} × {fmt(itemPrice(row.item))} · {row.item.stock_quantity} in stock
+                        {row.item.variant_name ? `${row.item.variant_name} · ` : ""}Qty: {row.quantity} × {fmt(itemPrice(row.item))} · {row.item.stock_quantity} in stock
                       </p>
                     </div>
                     <p className="text-sm font-semibold tabular-nums text-ink">
