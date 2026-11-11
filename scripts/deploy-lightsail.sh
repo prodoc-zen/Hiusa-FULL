@@ -192,6 +192,7 @@ main() {
         sudo systemctl restart hiusa-ai
     fi
     sudo systemctl reload php8.3-fpm
+    (cd "$APP_DIR/server" && "${ARTISAN[@]}" cache:forget health:sha)
     (cd "$APP_DIR/server" && "${ARTISAN[@]}" schedule:clear-cache)
     sudo systemctl start "${BACKGROUND_UNITS[@]}"
     background_stopped=0

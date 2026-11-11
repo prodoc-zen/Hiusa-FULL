@@ -573,6 +573,29 @@ class AskAiAssistantTest extends TestCase
         }
     }
 
+    public function test_an_officer_without_the_tasks_module_never_gets_task_titles_or_assignees_from_a_free_text_question(): void
+    {
+        $seeded = $this->seedSensitiveOrganizationData();
+        Task::factory()->create([
+            'organization_id' => $seeded['org']->id,
+            'title' => 'Gossamer Banner Sewing',
+            'assigned_to' => $seeded['officer']->school_id,
+            'status' => 'pending',
+        ]);
+        Sanctum::actingAs($seeded['officer']);
+
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'task workload assignment deliverable deadline progress banner sewing roster audit',
+            'topic' => 'semantic_rag',
+        ])->assertOk();
+
+        $res->assertJsonPath('intent', 'semantic_rag');
+        $payload = json_encode($res->json());
+        foreach (['Gossamer', 'Obsidian', 'Quenby', 'Zarathustra'] as $needle) {
+            $this->assertStringNotContainsString($needle, $payload);
+        }
+    }
+
     public function test_a_student_free_text_question_never_surfaces_compliance_remarks_other_tasks_or_inactive_items(): void
     {
         $seeded = $this->seedSensitiveOrganizationData();
