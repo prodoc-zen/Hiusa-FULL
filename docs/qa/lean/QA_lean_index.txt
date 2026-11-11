@@ -27,7 +27,7 @@ ADM-025 | Members > People | Admin cannot create a Department Head account | H |
 ADM-026 | Members > People | Edit user: profile photo must be an image under 2 MB | L | Any
 ADM-027 | Members > People | Edit a student account | H | Any
 ADM-028 | Members > People | Edit user has no email field | M | Any
-ADM-029 | Members > People | Admin accounts cannot be edited, deactivated or deleted by an Admin | H | Any
+ADM-029 | Members > People | An Admin cannot deactivate or delete another Admin, and cannot touch the Adviser account | H | Any
 ADM-030 | Members > People | An Admin cannot delete or deactivate their own account | H | Any
 ADM-031 | Members > People | Deactivate a student (sign-in is refused), then reactivate | H | Any
 ADM-032 | Members > People | Delete an organization profile needs the school ID typed | H | Any
