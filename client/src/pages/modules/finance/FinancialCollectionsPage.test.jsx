@@ -27,6 +27,30 @@ describe('FinancialCollectionsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Remit' }).length).toBeGreaterThan(0);
   });
 
+  it('asks in the app, not the browser, before verifying a collection', async () => {
+    const nativeConfirm = vi.spyOn(window, 'confirm');
+    mocks.verifyCollection.mockResolvedValue({ data: { id: 1 } });
+    mocks.getCollections.mockResolvedValue({ data: [
+      { id: 1, source: 'Event fee', reference: 'COL-1', status: 'pending', amount_collected: 1000, collected_by: 11, unremitted_balance: 1000, total_remitted: 0 },
+    ] });
+    render(<FinancialCollectionsPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Verify' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Verify this collection?' });
+    expect(within(dialog).getByText(/COL-1 for/)).toBeInTheDocument();
+    expect(mocks.verifyCollection).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Verify this collection?' })).not.toBeInTheDocument();
+    expect(mocks.verifyCollection).not.toHaveBeenCalled();
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Verify' }))[0]);
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Verify this collection?' })).getByRole('button', { name: 'Verify collection' }));
+    await waitFor(() => expect(mocks.verifyCollection).toHaveBeenCalledWith(1));
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    nativeConfirm.mockRestore();
+  });
+
   it('records a partial remittance against the selected collection', async () => {
     mocks.recordRemittance.mockResolvedValue({ data: { id: 9 } });
     render(<FinancialCollectionsPage />);
