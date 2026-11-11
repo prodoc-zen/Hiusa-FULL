@@ -123,6 +123,8 @@ class DashboardBriefingTest extends TestCase
 
         $closingElection = collect($response->json('attention'))->firstWhere('type', 'election_closing');
         $this->assertSame('high', $closingElection['severity']);
+        $this->assertStringContainsString('closes soon', $closingElection['detail']);
+        $this->assertStringNotContainsString('from now', $closingElection['detail']);
 
         $budgetItem = collect($response->json('attention'))->firstWhere('type', 'budget_utilization');
         $this->assertSame('medium', $budgetItem['severity']);
@@ -315,6 +317,8 @@ class DashboardBriefingTest extends TestCase
         $before = $this->getJson('/api/dashboard/briefing')->assertOk();
         $typesBefore = collect($before->json('attention'))->pluck('type');
         $this->assertContains('election_open', $typesBefore->all());
+        $open = collect($before->json('attention'))->firstWhere('type', 'election_open');
+        $this->assertSame('"Student Council Election" is open for voting', $open['detail']);
 
         Vote::factory()->create([
             'election_id' => $election->id,
