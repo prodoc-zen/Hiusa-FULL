@@ -334,7 +334,7 @@ class DepartmentHeadCollegeScopeTest extends TestCase
         $legacyHead = User::factory()->departmentHead()->create(['organization_id' => $first->id, 'account_status' => 'active']);
         $election = Election::factory()->create([
             'organization_id' => $first->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour(),
-            'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
+            'approved_at' => now()->subDay(), 'finalized_at' => now(),
         ]);
         $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
         $candidate = Candidate::create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $student->school_id]);
