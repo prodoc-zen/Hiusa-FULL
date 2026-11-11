@@ -93,6 +93,18 @@ class ElectionHandoverTest extends TestCase
         return $users;
     }
 
+    private function signIn(User $user)
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'password']);
+    }
+
+    private function endedMessage(): string
+    {
+        return 'Your officer access for '.$this->organization->name.' ended when the new officers took over.';
+    }
+
     private function release(Election $election)
     {
         Sanctum::actingAs($this->admin);
@@ -198,7 +210,101 @@ class ElectionHandoverTest extends TestCase
         Sanctum::actingAs($outgoing);
         $this->getJson('/api/elections')
             ->assertForbidden()
-            ->assertJson(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE']);
+            ->assertJson(['message' => $this->endedMessage(), 'error_code' => 'PROFILE_UNAVAILABLE']);
+    }
+
+    public function test_a_winner_signs_in_as_the_role_the_hand_over_gave_them(): void
+    {
+        $election = $this->closedElection();
+        [$president] = $this->position($election, 'President', [5, 2]);
+        [$secretary] = $this->position($election, 'Secretary', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $token = $this->signIn($president)->assertOk()
+            ->assertJsonPath('user.role', 'ADMIN')
+            ->assertJsonPath('user.position_title', 'President')
+            ->assertJsonPath('user.organization_id', $this->organization->id)
+            ->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user')->assertOk()->assertJsonPath('role', 'ADMIN');
+        $this->withToken($token)->getJson('/api/account-profiles')->assertOk();
+
+        $token = $this->signIn($secretary)->assertOk()
+            ->assertJsonPath('user.role', 'SBO_OFFICER')
+            ->assertJsonPath('user.position_title', 'Secretary')
+            ->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user')->assertOk()->assertJsonPath('role', 'SBO_OFFICER');
+        $this->withToken($token)->getJson('/api/users')->assertOk();
+    }
+
+    public function test_a_winner_whose_account_lives_elsewhere_can_switch_to_the_new_profile(): void
+    {
+        $home = Organization::factory()->create();
+        $winner = User::factory()->student()->create(['organization_id' => $home->id]);
+        $election = $this->closedElection();
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'President']);
+        $candidate = Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $winner->school_id]);
+        Vote::create(['election_id' => $election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => $this->admin->school_id, 'vote_hash' => 'h4']);
+
+        $this->release($election)->assertOk();
+
+        $token = $this->signIn($winner)->assertOk()
+            ->assertJsonPath('user.role', 'STUDENT')
+            ->assertJsonPath('user.organization_id', $home->id)
+            ->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $profile = collect($this->withToken($token)->getJson('/api/user/profiles')->assertOk()->json('profiles'))->firstWhere('organization_id', $this->organization->id);
+
+        $this->assertSame('ADMIN', $profile['role']);
+        $this->withToken($token)->postJson('/api/user/profiles/'.$profile['id'].'/switch')
+            ->assertOk()->assertJsonPath('user.role', 'ADMIN')->assertJsonPath('user.organization_id', $this->organization->id);
+        $this->withToken($token)->getJson('/api/account-profiles')->assertOk();
+    }
+
+    public function test_a_replaced_officer_with_no_profile_left_is_told_why_at_sign_in(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+
+        $this->release($election)->assertOk();
+
+        $this->signIn($outgoing)->assertForbidden()
+            ->assertJsonPath('message', $this->endedMessage())
+            ->assertJsonMissingPath('access_token');
+        $this->assertSame(0, $outgoing->tokens()->count());
+    }
+
+    public function test_a_replaced_officer_signs_in_to_the_profile_they_still_have(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $other = Organization::factory()->create();
+        $kept = AccountProfile::create(['user_school_id' => $outgoing->school_id, 'organization_id' => $other->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+
+        $this->release($election)->assertOk();
+
+        $token = $this->signIn($outgoing)->assertOk()
+            ->assertJsonPath('user.role', 'STUDENT')
+            ->assertJsonPath('user.organization_id', $other->id)
+            ->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user')->assertOk()->assertJsonPath('role', 'STUDENT')->assertJsonPath('organization_id', $other->id);
+        $this->withToken($token)->getJson('/api/user/profiles')->assertOk()->assertJsonPath('active_profile_id', $kept->id);
+    }
+
+    public function test_a_profile_switched_off_for_another_reason_does_not_claim_a_hand_over(): void
+    {
+        $member = $this->member('SBO_OFFICER', 'Secretary');
+        $this->profile($member)->update(['account_status' => 'disabled']);
+
+        $this->signIn($member)->assertForbidden()->assertJsonPath('message', 'This account profile is unavailable.');
+
+        Sanctum::actingAs($member);
+        $this->getJson('/api/elections')->assertForbidden()->assertJson(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE']);
     }
 
     public function test_every_winner_of_a_multi_seat_position_gets_access(): void

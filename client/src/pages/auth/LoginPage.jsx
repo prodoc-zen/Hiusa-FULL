@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, UserRound } from 'lucide-react';
 import AuthLayout from '../../components/auth/AuthLayout';
@@ -6,7 +6,7 @@ import AuthField from '../../components/auth/AuthField';
 import PasswordField from '../../components/auth/PasswordField';
 import { Button } from '../../components/ui';
 import { login } from '../../services/authService';
-import { startAuthSession } from '../../utils/authSession';
+import { startAuthSession, takeSignOutNotice } from '../../utils/authSession';
 
 const ROLE_REDIRECTS = {
   SUPER_ADMIN: '/dashboard/super-admin',
@@ -22,6 +22,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    const message = takeSignOutNotice();
+    if (message) setNotice(message);
+  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -91,6 +97,12 @@ export default function LoginPage() {
           autoComplete="current-password"
           required
         />
+
+        {notice && !error && (
+          <p role="status" className="rounded-control border border-warning/40 bg-warning-tint px-3 py-2.5 text-xs font-semibold text-warning-strong">
+            {notice}
+          </p>
+        )}
 
         {error && (
           <p role="alert" className="rounded-control border border-danger-strong/20 bg-danger-tint px-3 py-2.5 text-xs font-semibold text-danger-strong">

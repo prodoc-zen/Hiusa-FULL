@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { createApiGetCache } from './apiCache';
 import { resolveRuntimeApiUrl } from '../utils/runtimeApiUrl';
-import { clearAuthSession } from '../utils/authSession';
+import { clearAuthSession, rememberSignOutNotice } from '../utils/authSession';
 import { readSelectedPeriod } from '../utils/academicPeriodStore';
 import { readActiveSubAccount } from '../utils/subAccountStore';
 
@@ -142,6 +142,7 @@ api.interceptors.response.use(
         clearApiCache();
         clearAuthSession();
         if (!['/', '/login'].includes(window.location.pathname)) {
+          rememberSignOutNotice(error.response.data?.message);
           window.location.assign('/login');
         }
         return Promise.reject(error);

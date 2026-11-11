@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAuthSession, sessionHasExpired, startAuthSession } from './authSession';
+import { clearAuthSession, rememberSignOutNotice, sessionHasExpired, startAuthSession, takeSignOutNotice } from './authSession';
 
 describe('four-hour sign-in session', () => {
   beforeEach(() => {
@@ -20,5 +20,20 @@ describe('four-hour sign-in session', () => {
     clearAuthSession();
     expect(localStorage.getItem('auth_token')).toBeNull();
     expect(localStorage.getItem('auth_expires_at')).toBeNull();
+  });
+});
+
+describe('sign out notice', () => {
+  beforeEach(() => sessionStorage.clear());
+
+  it('hands the reason to the next page once and then forgets it', () => {
+    rememberSignOutNotice('Your officer access for Computer Society ended when the new officers took over.');
+    expect(takeSignOutNotice()).toBe('Your officer access for Computer Society ended when the new officers took over.');
+    expect(takeSignOutNotice()).toBeNull();
+  });
+
+  it('keeps nothing when there is no reason to give', () => {
+    rememberSignOutNotice(undefined);
+    expect(takeSignOutNotice()).toBeNull();
   });
 });

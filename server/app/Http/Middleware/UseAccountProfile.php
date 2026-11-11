@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AccountProfile;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,8 +30,8 @@ class UseAccountProfile
             )->load('organization');
         }
 
-        if (! $profile || $profile->account_status !== 'active' || ! $profile->organization?->is_active || ! $profile->organization->collegeAllowsAccess() || $user->account_status !== 'active') {
-            return response()->json(['message' => 'This account profile is unavailable.', 'error_code' => 'PROFILE_UNAVAILABLE'], 403);
+        if (! $profile || ! $profile->isUsable() || $user->account_status !== 'active') {
+            return response()->json(['message' => $profile?->unavailableMessage() ?? AccountProfile::UNAVAILABLE_MESSAGE, 'error_code' => 'PROFILE_UNAVAILABLE'], 403);
         }
 
         $user->activateProfile($profile, signedInRequest: true);
