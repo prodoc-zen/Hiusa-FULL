@@ -476,7 +476,7 @@ export default function ManageCandidatesPage() {
     <div className="space-y-4">
       {ballotLocked && (
         <p className="rounded-control bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Candidate setup is locked because votes have already been cast.
+          {(election.votes || []).length > 0 ? 'Candidate setup is locked because votes have already been cast.' : 'Candidate setup is locked because the ballot has been finalized.'}
         </p>
       )}
 
