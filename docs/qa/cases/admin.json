@@ -2579,9 +2579,11 @@
     "steps": [
       "1. Open 'View details' on the submitted report.",
       "2. Look for the submit button.",
-      "3. Ask a technical teammate to send a submit request for it, if possible."
+      "3. Ask a technical teammate to send a submit request for it, if possible.",
+      "4. On a draft report, generate it, then record a new ledger entry dated inside the report period and select Submit for review.",
+      "5. Regenerate the report and select Submit for review again."
     ],
-    "expected": "There is no 'Submit for review' button on a submitted report. If forced, the system answers 'Only draft or rejected reports can be submitted.' A report whose ledger changed after it was generated is refused with 'The ledger changed after this report was generated. Regenerate the report before submitting.'",
+    "expected": "There is no 'Submit for review' button on a submitted report. If forced, the system answers 'Only draft or rejected reports can be submitted.' After a report is generated, recording a new ledger entry inside the report's period makes Submit refuse with 'The ledger changed after this report was generated. Regenerate the report before submitting.' Regenerating the report then allows Submit.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Negative",

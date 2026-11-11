@@ -1933,15 +1933,14 @@
     "role": "Student",
     "module": "Events > Events",
     "title": "My attendance summary lists the check-ins the officer recorded",
-    "preconditions": "Student 2100142 has been checked in to at least one event as Present and, if possible, one as Late (officer 900004 can choose the status). The code puts the \"My attendance\" panel on the Check-in tab, and the router only lets Admin and Officer open that page.",
+    "preconditions": "Student 2100142 has been checked in to at least one event as Present and, if possible, one as Late (officer 900004 can choose the status).",
     "steps": [
       "1. Open Events from the menu.",
-      "2. Look for a panel called \"My attendance\" on the page.",
-      "3. If you cannot find it, try the page address /dashboard/events/check-in and note where it sends you.",
-      "4. If you found it, read the tiles \"Events attended\", \"Missed events\" and \"Attendance rate\".",
-      "5. Read each record: event name, date and the status badge."
+      "2. Find the panel called \"My attendance\" on the page.",
+      "3. Read the tiles \"Events attended\", \"Missed events\" and \"Attendance rate\".",
+      "4. Read each record: event name, date and the status badge."
     ],
-    "expected": "Expected by design: a panel \"My attendance\" with the text \"Based on recorded attendance only. Excused records are excluded from the rate.\" Tiles show Events attended (Present plus Late), Missed events (Absent) and Attendance rate. Each record shows a badge Present, Late, Excused or Absent. A student who never got checked in does not get a record here: that student sees the badge No-show on the event window instead. VERIFY: a student probably cannot reach this panel at all, because the Check-in address is limited to Admin and Officer. If it cannot be found anywhere on the student pages, report it as Blocked (\"My attendance panel not reachable for students\").",
+    "expected": "A panel \"My attendance\" with the text \"Based on recorded attendance only. Excused records are excluded from the rate.\" Tiles show Events attended (Present plus Late), Missed events (Absent) and Attendance rate. Each record shows a badge Present, Late, Excused or Absent. A student who never got checked in does not get a record here: that student sees the badge No-show on the event window instead.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",

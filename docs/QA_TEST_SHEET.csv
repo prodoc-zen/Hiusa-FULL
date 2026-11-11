@@ -755,10 +755,11 @@ Department Head,DH-036,Organizations,Archived organization is read only,Access,M
 3. Read the text under its name.
 4. Look at the buttons on the row.
 5. Select View checklist.","The row looks grey and says Archived by the SAO. Read only. The only button is View checklist. The side panel also says Archived by the SAO. Read only. The head cannot restore, edit or withdraw it.",,Not run,,,,,,
-Department Head,DH-037,Organizations,Head cannot create an administrator or assign roles,Access,High,Any,Any time,,"Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An Active organization with 0 Admins (just approved by the SAO).","1. Open Organizations.
-2. Select View checklist on the organization with 0 Admins.
-3. Read the next step box.
-4. Look for any button that creates an administrator or changes a role.","The box says Approved: waiting for an administrator (and that the SAO assigns it). There is NO Create administrator, Add user or role button anywhere on the page. Only the SAO can provision an administrator.",,Not run,,,,,,
+Department Head,DH-037,Organizations,Dean can give Organization head access to a student,Access,High,Any,Any time,,"Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An Active organization with 0 Admins (just approved by the SAO).","1. Open Organizations.
+2. Select Open space on the organization with 0 Admins.
+3. Open the People and access tab and select Give access.
+4. Pick a student of your college, open Access level and read the choices.
+5. Choose Organization head and select Give access.","Access level offers Organization head, Officer and Member. After you save, the student appears in the People and access list with the Organization head badge and Everything under modules. A dean can name an organization head; an Admin of the organization cannot name another one beside themselves.",,Not run,,,,,,
 Department Head,DH-038,Organizations,Another college head sees only their own college,Access,High,Any,Any time,,Two registrations exist: one by the CCS head (940001) and PSITS-CCS. Sign in as 940002 (College of Business).,"1. Sign in as 940002.
 2. Open Organizations.
 3. Read the college name in the Your college card.
@@ -1616,7 +1617,9 @@ Admin & Adviser,ADM-143,Finance > Financial reports,"Supporting files: wrong typ
 4. Try more than 10 files.","Each attempt is refused with a message about the file type, size (10 MB each) or the limit of 10 files. The report stays a draft.",,Not run,,,,,,
 Admin & Adviser,ADM-144,Finance > Financial reports,Only a draft or returned report can be submitted,Negative,Medium,Laptop,Any time,,Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A report already waiting for the Department Head.,"1. Open 'View details' on the submitted report.
 2. Look for the submit button.
-3. Ask a technical teammate to send a submit request for it, if possible.","There is no 'Submit for review' button on a submitted report. If forced, the system answers 'Only draft or rejected reports can be submitted.' A report whose ledger changed after it was generated is refused with 'The ledger changed after this report was generated. Regenerate the report before submitting.'",,Not run,,,,,,
+3. Ask a technical teammate to send a submit request for it, if possible.
+4. On a draft report, generate it, then record a new ledger entry dated inside the report period and select Submit for review.
+5. Regenerate the report and select Submit for review again.","There is no 'Submit for review' button on a submitted report. If forced, the system answers 'Only draft or rejected reports can be submitted.' After a report is generated, recording a new ledger entry inside the report's period makes Submit refuse with 'The ledger changed after this report was generated. Regenerate the report before submitting.' Regenerating the report then allows Submit.",,Not run,,,,,,
 Admin & Adviser,ADM-145,Finance > Financial reports,A returned report is fixed and resubmitted,Functional,Medium,Any,Any time,,Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The Department Head has returned a report with remarks.,"1. Open the returned report with 'View details'.
 2. Read the sentence 'Returned: fix and resubmit'.
 3. Select 'Resubmit for review'.",The report goes back to Waiting for Department Head approval.,,Not run,,,,,,
@@ -2960,11 +2963,10 @@ Student,STU-103,Events > Events,A student who already attended cannot register a
 3. In tab 1 reload the event. Read the status, the message and the buttons.
 4. In tab 2 (not reloaded) click ""Cancel registration"".
 5. Read the red message.","After the reload, tab 1 shows the badge Attended, the line ""Your attendance at this event is on record."" and no ""Register for this event"" and no ""Cancel registration"" button. In tab 2 the click is refused with a red message such as ""You have already attended this event and cannot cancel your registration."" The student stays Attended. The message ""You have already attended this event."" belongs to a second Register request and can only be seen by a technical teammate sending it.",VERIFY: the exact wording shown on the screen.,Not run,,,,,,
-Student,STU-104,Events > Events,My attendance summary lists the check-ins the officer recorded,Functional,Medium,Any,Any time,Run after STU-103,"Student 2100142 has been checked in to at least one event as Present and, if possible, one as Late (officer 900004 can choose the status). The code puts the ""My attendance"" panel on the Check-in tab, and the router only lets Admin and Officer open that page.","1. Open Events from the menu.
-2. Look for a panel called ""My attendance"" on the page.
-3. If you cannot find it, try the page address /dashboard/events/check-in and note where it sends you.
-4. If you found it, read the tiles ""Events attended"", ""Missed events"" and ""Attendance rate"".
-5. Read each record: event name, date and the status badge.","Expected by design: a panel ""My attendance"" with the text ""Based on recorded attendance only. Excused records are excluded from the rate."" Tiles show Events attended (Present plus Late), Missed events (Absent) and Attendance rate. Each record shows a badge Present, Late, Excused or Absent. A student who never got checked in does not get a record here: that student sees the badge No-show on the event window instead.","VERIFY: a student probably cannot reach this panel at all, because the Check-in address is limited to Admin and Officer. If it cannot be found anywhere on the student pages, report it as Blocked (""My attendance panel not reachable for students"").",Not run,,,,,,
+Student,STU-104,Events > Events,My attendance summary lists the check-ins the officer recorded,Functional,Medium,Any,Any time,Run after STU-103,"Student 2100142 has been checked in to at least one event as Present and, if possible, one as Late (officer 900004 can choose the status).","1. Open Events from the menu.
+2. Find the panel called ""My attendance"" on the page.
+3. Read the tiles ""Events attended"", ""Missed events"" and ""Attendance rate"".
+4. Read each record: event name, date and the status badge.","A panel ""My attendance"" with the text ""Based on recorded attendance only. Excused records are excluded from the rate."" Tiles show Events attended (Present plus Late), Missed events (Absent) and Attendance rate. Each record shows a badge Present, Late, Excused or Absent. A student who never got checked in does not get a record here: that student sees the badge No-show on the event window instead.",,Not run,,,,,,
 Student,STU-105,Store > Shop,Order a product with sizes and see the message when no size is chosen,Functional,High,Any,Any time,Run after ADM-176,"Signed in as Student 2100142. The Admin has added a product with sizes, for example ""QA Shirt"" with S and M, each with its own stock (see ADM-176). Use Student 2300312 if 2100142 has orders in the way.","1. Open Store, Shop and find the card of the product with sizes.
 2. Read the box ""Size / variant"". Open it and read the options.
 3. Leave ""Select variant"" and tap ""Add to Cart"". Read the message.
