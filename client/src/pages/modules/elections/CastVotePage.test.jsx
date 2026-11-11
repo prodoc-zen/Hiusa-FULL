@@ -72,7 +72,7 @@ describe('CastVotePage', () => {
     expect(screen.getByRole('button', { name: 'Back to Vote' })).toBeInTheDocument();
   });
 
-  it('says live totals can be viewed on the Vote page when the results are marked visible', async () => {
+  it('says turnout shows during voting and results appear when the election closes when the results are marked visible', async () => {
     shown = { ...election, results_visible: true };
     castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
     render(<CastVotePage />);
@@ -82,7 +82,7 @@ describe('CastVotePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
 
-    expect(await screen.findByText(/Live totals can be viewed on the Vote page/)).toBeInTheDocument();
+    expect(await screen.findByText(/Turnout is shown during voting, and results appear when the election closes/)).toBeInTheDocument();
     expect(screen.queryByText(/Results appear there once voting closes/)).not.toBeInTheDocument();
   });
 

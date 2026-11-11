@@ -410,7 +410,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   } else if (canManageElections) {
     firstRunState = <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />;
   } else if (currentUser?.role === 'STUDENT') {
-    firstRunState = <EmptyState icon={Vote} title="No election is currently open" description="Voting and live totals become available after the Admin finalizes and opens an election." />;
+    firstRunState = <EmptyState icon={Vote} title="No election is currently open" description="Voting opens after the Admin finalizes and opens an election. Turnout is shown during voting, and results appear when the election closes." />;
   } else {
     firstRunState = <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />;
   }

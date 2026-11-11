@@ -137,7 +137,7 @@ export function studentVoteState(election, now = Date.now()) {
 
 export function resultsLink(election, role) {
   if (canViewElectionResults(election, role)) {
-    return { available: true, label: election.status === 'closed' ? 'View results' : 'View live totals', to: `${BASE}/election-results?record=${election.id}` };
+    return { available: true, label: election.status === 'closed' ? 'View results' : 'View turnout', to: `${BASE}/election-results?record=${election.id}` };
   }
   if (election?.status === 'closed') return { available: false, text: 'Available when the Admin releases the results' };
   return { available: false, text: 'Available when voting closes' };
