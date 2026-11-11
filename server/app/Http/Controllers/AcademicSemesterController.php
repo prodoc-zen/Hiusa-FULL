@@ -148,9 +148,7 @@ class AcademicSemesterController extends Controller
                 if ($semester->starts_on->isFuture()) {
                     throw ValidationException::withMessages(['semester' => ['This semester starts on '.$semester->starts_on->format('M j, Y').'. It cannot be made active before then.']]);
                 }
-                $openElections = Election::whereIn('academic_semester_id', AcademicSemester::where('status', 'active')->select('id'))
-                    ->where(fn ($query) => $query->where('status', 'active')->orWhere(fn ($upcoming) => $upcoming->where('status', 'upcoming')->whereNotNull('approved_at')))
-                    ->orderBy('id')->pluck('title');
+                $openElections = $this->openElections(AcademicSemester::where('status', 'active')->select('id'));
                 if ($openElections->isNotEmpty()) {
                     throw ValidationException::withMessages(['semester' => ['The current semester still has an election that is upcoming or open: '.$openElections->implode(', ').'. Wait for it to close before starting the next semester.']]);
                 }
@@ -185,12 +183,24 @@ class AcademicSemesterController extends Controller
             if ($semester->status !== 'active') {
                 throw ValidationException::withMessages(['semester' => ['Only the active semester can be closed.']]);
             }
+            $openElections = $this->openElections([$semester->id]);
+            if ($openElections->isNotEmpty()) {
+                throw ValidationException::withMessages(['semester' => ['This semester still has an election that is upcoming or open: '.$openElections->implode(', ').'. Wait for it to close before closing the semester.']]);
+            }
             app(SemesterSnapshotService::class)->snapshot($semester);
             $semester->update(['status' => 'completed']);
             $this->audit($request, 'academic_semester_closed', $semester);
         });
 
         return response()->json($academicSemester->load('academicYear:id,label'));
+    }
+
+    private function openElections($semesterIds)
+    {
+        return Election::with('organization:id,name')->whereIn('academic_semester_id', $semesterIds)
+            ->where(fn ($query) => $query->where('status', 'active')->orWhere(fn ($upcoming) => $upcoming->where('status', 'upcoming')->whereNotNull('approved_at')))
+            ->orderBy('id')->get()
+            ->map(fn (Election $election) => $election->title.' ('.($election->organization?->name ?? 'no organization').')');
     }
 
     public function destroy(Request $request, AcademicSemester $academicSemester)

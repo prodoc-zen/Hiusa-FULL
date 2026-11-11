@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Attendance;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
+use App\Models\Event;
+use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
@@ -45,22 +48,10 @@ class SystemUsersTest extends TestCase
         $this->assertNotEquals($first->organization_id, $second->organization_id);
     }
 
-    public function test_only_sao_can_delete_another_user_and_dependent_rows_cascade(): void
+    public function test_only_sao_can_delete_another_user_and_one_with_no_linked_records_is_removed(): void
     {
         $sao = User::factory()->superAdmin()->create();
         $student = User::factory()->student()->create();
-        $transaction = Transaction::factory()->create([
-            'budget_id' => null, 'recorded_by' => $student->school_id, 'organization_id' => $student->organization_id,
-        ]);
-        $invoiceId = DB::table('invoices')->insertGetId([
-            'organization_id' => $student->organization_id, 'reference' => 'INV-TEST-1',
-            'student_id' => $student->school_id, 'description' => 'Membership', 'amount_due' => 100,
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
-        DB::table('invoice_payments')->insert([
-            'invoice_id' => $invoiceId, 'amount' => 100, 'recorded_by' => $student->school_id,
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
         Sanctum::actingAs($student);
         $this->getJson('/api/system/users')->assertForbidden();
         $this->deleteJson('/api/system/users/'.$sao->school_id, ['school_id' => $sao->school_id])->assertForbidden();
@@ -68,14 +59,40 @@ class SystemUsersTest extends TestCase
         Sanctum::actingAs($sao);
         $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => 123])->assertUnprocessable();
         $this->deleteJson('/api/system/users/'.$sao->school_id, ['school_id' => $sao->school_id])->assertUnprocessable();
-        $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])
-            ->assertOk()->assertJsonPath('removed.transactions', 1);
+        $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])->assertOk();
         $this->assertDatabaseMissing('users', ['school_id' => $student->school_id]);
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id]);
-        $this->assertDatabaseMissing('transactions', ['id' => $transaction->id]);
-        $this->assertDatabaseMissing('invoices', ['id' => $invoiceId]);
-        $this->assertDatabaseMissing('invoice_payments', ['invoice_id' => $invoiceId]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'user_deleted', 'record_id' => $student->school_id]);
+    }
+
+    public function test_a_user_with_linked_records_cannot_be_deleted_and_nothing_is_erased(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $makers = [
+            'transactions' => fn (User $user) => Transaction::factory()->create(['budget_id' => null, 'recorded_by' => $user->school_id, 'organization_id' => $user->organization_id]),
+            'invoices' => fn (User $user) => DB::table('invoices')->insert([
+                'organization_id' => $user->organization_id, 'reference' => 'INV-TEST-'.$user->school_id,
+                'student_id' => $user->school_id, 'description' => 'Membership', 'amount_due' => 100,
+                'created_at' => now(), 'updated_at' => now(),
+            ]),
+            'events' => fn (User $user) => Event::factory()->create(['created_by' => $user->school_id, 'organization_id' => $user->organization_id]),
+            'orders' => fn (User $user) => Order::factory()->create(['student_id' => $user->school_id, 'processed_by' => null, 'approved_by' => null]),
+            'attendance' => fn (User $user) => Attendance::factory()->create(['user_id' => $user->school_id, 'method' => 'manual']),
+        ];
+        Sanctum::actingAs($sao);
+
+        foreach ($makers as $kind => $make) {
+            $user = User::factory()->student()->create();
+            $make($user);
+
+            $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])
+                ->assertStatus(409)
+                ->assertJsonPath('message', fn ($message) => str_contains($message, 'Deactivate the account instead'));
+            $this->assertDatabaseHas('users', ['school_id' => $user->school_id]);
+            $this->getJson('/api/system/users/'.$user->school_id)->assertOk()->assertJsonPath('linked_records.'.$kind, 1);
+        }
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseCount('invoices', 1);
     }
 
     public function test_a_user_who_ran_in_an_election_cannot_be_deleted_and_the_counts_are_shown(): void

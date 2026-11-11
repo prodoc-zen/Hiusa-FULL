@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -109,6 +109,49 @@ describe('AcademicYearsPage', () => {
       expect(within(alert).getByText('This semester cannot be deleted because of: events, tasks.')).toBeInTheDocument();
       expect(within(alert).getByText('events')).toBeInTheDocument();
       expect(within(alert).getByText('tasks')).toBeInTheDocument();
+    });
+  });
+
+  describe('changing the active semester', () => {
+    const withSemesters = [{ ...years[1], semesters: [
+      { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+      { id: 12, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' },
+    ] }];
+
+    it('sends nothing when the toggle is flipped and closes the semester only after confirmation', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      vi.mocked(closeAcademicSemester).mockResolvedValue({});
+      renderPage();
+      fireEvent.click(await screen.findByRole('switch', { name: 'Toggle active status for 1st semester of AY 2026-2027' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Close semester' });
+      expect(within(dialog).getByText('1st semester, AY 2026-2027')).toBeInTheDocument();
+      expect(within(dialog).getByText(/Members stop seeing its data\. This cannot be undone from the app\./)).toBeInTheDocument();
+      expect(closeAcademicSemester).not.toHaveBeenCalled();
+      expect(activateAcademicSemester).not.toHaveBeenCalled();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close semester' }));
+      await waitFor(() => expect(closeAcademicSemester).toHaveBeenCalledTimes(1));
+      expect(closeAcademicSemester).toHaveBeenCalledWith(11);
+    });
+
+    it('sends nothing on cancel and shows the server refusal inline when activating is refused', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      vi.mocked(activateAcademicSemester).mockRejectedValue({ response: { status: 422, data: { message: 'The given data was invalid.', errors: { semester: ['The current semester still has an election that is upcoming or open: Council Election (Computer Society).'] } } } });
+      renderPage();
+      fireEvent.click(await screen.findByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' }));
+      let dialog = await screen.findByRole('dialog', { name: 'Activate semester' });
+      expect(within(dialog).getByText(/This closes the current semester, 1st semester, AY 2026-2027\./)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(activateAcademicSemester).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' }));
+      dialog = await screen.findByRole('dialog', { name: 'Activate semester' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Activate semester' }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Council Election (Computer Society)');
+      expect(activateAcademicSemester).toHaveBeenCalledWith(12);
     });
   });
 

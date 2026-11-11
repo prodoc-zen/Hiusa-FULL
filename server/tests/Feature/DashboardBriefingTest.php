@@ -781,6 +781,31 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringNotContainsString('left of', $finance['context']);
     }
 
+    public function test_budget_risk_insights_count_only_approved_budgets(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $risky = ['organization_id' => $organization->id, 'title' => 'Draft Budget', 'overspending_risk' => 'high', 'advisory_note' => 'Watch this.', 'advice_generated_at' => now()];
+        $draft = Budget::factory()->create([...$risky, 'submission_status' => 'pending_department_head']);
+
+        Sanctum::actingAs($admin);
+        $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($director);
+        $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
+
+        $draft->update(['submission_status' => 'approved']);
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin);
+        $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($director);
+        $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
+    }
+
     public function test_admin_is_told_about_events_that_ended_but_were_never_closed(): void
     {
         $organization = Organization::factory()->create();
