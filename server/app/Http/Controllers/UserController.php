@@ -600,13 +600,13 @@ class UserController extends Controller
     public function initiatePasswordReset(Request $request, $id)
     {
         $organizationId = $request->user()->organization_id;
-        $user = User::where('organization_id', $organizationId)->whereIn('role', ['STUDENT', 'SBO_OFFICER'])->find($id);
+        $user = User::where('organization_id', $organizationId)->find($id);
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
         // One password signs in to every profile, so a link for a member who holds elevated access would hand that access to this Admin.
-        // Their profiles say what they hold: an election hand over moves the profile and leaves the account row on its old role.
+        // Their profiles say what they hold, not the account row: an election hand over moves the profile and leaves the account row on its old role (a new President still reads STUDENT, an outgoing President who won another seat still reads ADMIN).
         if (AccountProfile::where('user_school_id', $user->school_id)->beyondAdminReset($organizationId)->exists()) {
             return response()->json(['message' => 'Ask the SAO to reset this password.'], 409);
         }

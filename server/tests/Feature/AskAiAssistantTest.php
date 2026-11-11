@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiOutput;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
@@ -778,5 +779,57 @@ class AskAiAssistantTest extends TestCase
         $this->assertStringContainsString('Role: SBO Officer', $payload);
         $this->assertStringNotContainsString('A D M I N', $payload);
         $this->assertStringNotContainsString('S B O', $payload);
+    }
+
+    private function storeAskAiRow(User $asker, string $role, string $text, string $featureType = 'ASK_AI_ASSISTANT'): AiOutput
+    {
+        return AiOutput::create([
+            'organization_id' => $asker->organization_id,
+            'feature_type' => $featureType,
+            'reference_type' => User::class,
+            'reference_id' => $asker->school_id,
+            'prompt_text' => 'Who are the officers?',
+            'output_text' => $text,
+            'context_version' => 'ask-ai-rag-v2',
+            'structured_input' => ['question' => 'Who are the officers?', 'topic' => 'semantic_rag', 'intent' => 'semantic_rag', 'role' => $role],
+            'structured_output' => ['title' => 'Semantic Knowledge Search & Briefing', 'highlights' => [], 'section_count' => 1],
+            'status' => 'completed',
+            'decision_status' => 'accepted',
+            'requested_by' => $asker->school_id,
+            'decided_by' => $asker->school_id,
+            'decided_at' => now(),
+            'created_at' => now(),
+        ]);
+    }
+
+    public function test_the_recent_questions_replay_stored_answers_word_for_word_until_the_migration_removes_a_students(): void
+    {
+        $seeded = $this->seedDirectoryOrganization();
+        $leakedText = 'Semantic RAG retrieved 2 relevant record(s). Key findings: Diego Villanueva (Treasurer, ID #7770003); Marco Dela Cruz (Admin, ID #7770002).';
+        $leakedStudent = $this->storeAskAiRow($seeded['student'], 'STUDENT', $leakedText);
+        $plainStudent = $this->storeAskAiRow($seeded['student'], 'STUDENT', 'Your clearance has every signature.');
+        $officerRow = $this->storeAskAiRow($seeded['officer'], 'SBO_OFFICER', $leakedText);
+        $adminRow = $this->storeAskAiRow($seeded['admin'], 'ADMIN', $leakedText);
+        $notAnAnswer = $this->storeAskAiRow($seeded['student'], 'STUDENT', $leakedText, 'FINANCIAL_SUMMARY');
+
+        Sanctum::actingAs($seeded['student']);
+        $replayed = $this->getJson('/api/ai/assistant')->assertOk()->json('recent_queries');
+        $this->assertEqualsCanonicalizing([$leakedStudent->id, $plainStudent->id], array_column($replayed, 'id'));
+        $this->assertStringContainsString('ID #7770003', collect($replayed)->firstWhere('id', $leakedStudent->id)['answer']);
+
+        $migration = require database_path('migrations/2026_11_11_100001_delete_student_ask_ai_history.php');
+        $migration->up();
+        $migration->up();
+
+        $this->assertDatabaseMissing('ai_outputs', ['id' => $leakedStudent->id]);
+        $this->assertDatabaseMissing('ai_outputs', ['id' => $plainStudent->id]);
+        $this->assertDatabaseHas('ai_outputs', ['id' => $officerRow->id]);
+        $this->assertDatabaseHas('ai_outputs', ['id' => $adminRow->id]);
+        $this->assertDatabaseHas('ai_outputs', ['id' => $notAnAnswer->id]);
+        $this->assertSame(3, AiOutput::count());
+        $this->assertSame([], $this->getJson('/api/ai/assistant')->assertOk()->json('recent_queries'));
+
+        Sanctum::actingAs($seeded['officer']);
+        $this->assertSame([$officerRow->id], array_column($this->getJson('/api/ai/assistant')->assertOk()->json('recent_queries'), 'id'));
     }
 }
