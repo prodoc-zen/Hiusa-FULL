@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TopBar from './TopBar';
 
@@ -335,5 +335,30 @@ describe('TopBar notifications', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your profiles.');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText(/This is your only active profile/)).toBeInTheDocument();
+  });
+
+  it('takes the student from the header cart straight to the review step', async () => {
+    function StateProbe() {
+      const location = useLocation();
+      return <p data-testid="nav">{location.pathname} {location.state?.openCheckout ? 'review' : 'cart'}</p>;
+    }
+    localStorage.setItem('hiusa_student_cart', JSON.stringify([{ item: { id: 1, name: 'HIUSA Shirt', price: 250 }, quantity: 1 }]));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /><StateProbe /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cart' }));
+    const panel = await screen.findByRole('region', { name: 'Cart summary' });
+    expect(within(panel).queryByRole('button', { name: 'Open cart' })).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Review and continue' }));
+
+    expect(screen.getByTestId('nav')).toHaveTextContent('/dashboard/merchandise/order-merchandise review');
+  });
+
+  it('opens the empty cart page from the header when there is nothing to review', async () => {
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cart' }));
+    const panel = await screen.findByRole('region', { name: 'Cart summary' });
+    expect(within(panel).queryByRole('button', { name: 'Review and continue' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Open cart' })).toBeInTheDocument();
   });
 });

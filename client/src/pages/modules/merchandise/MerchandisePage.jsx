@@ -911,8 +911,12 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(() => {
     if (isPersonalShoppingView && location.state?.openCartAt) {
       setActiveTab("cart");
+      if (location.state.openCheckout) {
+        setCheckoutError(null);
+        setCheckoutOpen(true);
+      }
     }
-  }, [isPersonalShoppingView, location.state?.openCartAt]);
+  }, [isPersonalShoppingView, location.state?.openCartAt, location.state?.openCheckout]);
 
   useEffect(() => {
     if (!isPersonalShoppingView) {

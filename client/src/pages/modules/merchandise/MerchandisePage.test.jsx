@@ -516,6 +516,41 @@ describe("MerchandisePage fulfillment experience", () => {
   });
 });
 
+describe("MerchandisePage entry points", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+  });
+
+  it("opens the review step at once when the header cart sends the student here", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/dashboard/merchandise/order-merchandise", state: { openCartAt: 1, openCheckout: true } }]}>
+        <MerchandisePage initialTab="order" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("dialog", { name: "Confirm merchandise reservation" })).toBeInTheDocument();
+  });
+
+  it("opens only the cart, not the review step, when the student asks for the cart from the shop", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/dashboard/merchandise/order-merchandise", state: { openCartAt: 1 } }]}>
+        <MerchandisePage initialTab="order" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("button", { name: "Review and continue" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Confirm merchandise reservation" })).not.toBeInTheDocument();
+  });
+});
+
 function LocationProbe() {
   const location = useLocation();
   return <p data-testid="location">{location.pathname}{location.search}</p>;

@@ -467,10 +467,10 @@ export default function TopBar({ onMenuToggle }) {
                   className="w-full"
                   onClick={() => {
                     setCartOpen(false);
-                    navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now() } });
+                    navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now(), openCheckout: cartItems.length > 0 } });
                   }}
                 >
-                  Open cart
+                  {cartItems.length > 0 ? 'Review and continue' : 'Open cart'}
                 </Button>
               </div>
             </div>
