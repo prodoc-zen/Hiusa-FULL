@@ -94,6 +94,19 @@ describe('SettingsPage', () => {
     expect(profileMocks.updateProfile).not.toHaveBeenCalled();
   });
 
+  it('removes the red message from the profile form when the changes are discarded', async () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('First name, last name, and email are required.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(screen.getByLabelText('First name')).toHaveValue('Ramon');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows the server message when the current password is wrong', async () => {
     profileMocks.updateProfile.mockRejectedValue({ response: { status: 422, data: { message: 'The given data was invalid.', errors: { current_password: ['Current password is incorrect.'] } } } });
     renderPage();
