@@ -1352,7 +1352,7 @@ class ElectionController extends Controller
             return [
                 'position' => $position,
                 'candidates' => $candidates,
-                'totalVotes' => $allCandidates->get($position->id, collect())->sum('votes_count'),
+                'totalVotes' => $closed ? $allCandidates->get($position->id, collect())->sum('votes_count') : null,
                 'winner_ids' => $closed && $standing ? $standing['winners']->pluck('id')->values() : [],
                 'tie' => $closed && (bool) ($standing['tie'] ?? false),
                 'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty() && ! in_array($position->title, $skippedTitles, true),

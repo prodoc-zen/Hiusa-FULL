@@ -110,6 +110,11 @@ describe('resultsLink', () => {
     const released = { id: 3, status: 'closed', finalized_at: PAST, results_visible: true };
     expect(resultsLink(released, 'STUDENT')).toEqual({ available: true, label: 'View results', to: '/dashboard/elections/election-results?record=3' });
   });
+
+  it('offers turnout, not totals, while voting is still open', () => {
+    const open = { id: 3, status: 'active', finalized_at: PAST, results_visible: true };
+    expect(resultsLink(open, 'STUDENT').label).toBe('View turnout');
+  });
 });
 
 describe('role banners and status', () => {

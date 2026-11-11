@@ -1501,7 +1501,7 @@ class UseCaseComplianceTest extends TestCase
         $this->getJson("/api/elections/{$election->id}/results")
             ->assertOk()
             ->assertJsonPath('0.candidates.0.votes', null)
-            ->assertJsonPath('0.totalVotes', 1)
+            ->assertJsonPath('0.totalVotes', null)
             ->assertJsonMissingPath('0.candidates.0.voter_id');
 
         $this->authenticate($student);

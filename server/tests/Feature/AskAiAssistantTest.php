@@ -5,9 +5,12 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
+use App\Models\Candidate;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
 use App\Models\ComplianceRequirementType;
+use App\Models\Election;
+use App\Models\ElectionPosition;
 use App\Models\Event;
 use App\Models\Merchandise;
 use App\Models\Organization;
@@ -615,5 +618,42 @@ class AskAiAssistantTest extends TestCase
                 }
             }
         }
+    }
+
+    public function test_a_student_is_shown_candidates_only_for_finalized_active_or_closed_elections(): void
+    {
+        $org = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $student = User::factory()->student()->create(['organization_id' => $org->id]);
+
+        $shown = [];
+        foreach ([
+            'Zorbfest' => ['upcoming', null, false],
+            'Quillgate' => ['pending_approval', null, false],
+            'Marmalade' => ['active', now(), true],
+            'Zephyrine' => ['closed', now(), true],
+        ] as $surname => [$status, $finalizedAt, $isShown]) {
+            $election = Election::factory()->create(['organization_id' => $org->id, 'status' => $status, 'finalized_at' => $finalizedAt]);
+            $position = ElectionPosition::factory()->create(['election_id' => $election->id]);
+            $candidateUser = User::factory()->student()->create(['organization_id' => $org->id, 'first_name' => 'Candidate', 'last_name' => $surname]);
+            Candidate::factory()->create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $candidateUser->school_id]);
+            $shown[$surname] = $isShown;
+        }
+
+        $payloadFor = function (User $caller) {
+            Sanctum::actingAs($caller);
+            $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Zorbfest Quillgate Marmalade Zephyrine', 'topic' => 'semantic_rag'])->assertOk();
+
+            return json_encode(collect($res->json('sections'))->pluck('rows')->flatten(1)->pluck('primary'));
+        };
+
+        $payload = $payloadFor($student);
+        foreach ($shown as $surname => $isShown) {
+            $isShown
+                ? $this->assertStringContainsString($surname, $payload)
+                : $this->assertStringNotContainsString($surname, $payload);
+        }
+
+        $this->assertStringContainsString('Zorbfest', $payloadFor($admin));
     }
 }

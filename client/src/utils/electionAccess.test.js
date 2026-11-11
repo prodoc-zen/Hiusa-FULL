@@ -12,7 +12,7 @@ describe('election access states', () => {
     expect(isVotingOpen({ ...open, finalized_at: null })).toBe(false);
   });
 
-  it('shows live totals after finalization and respects result visibility', () => {
+  it('shows turnout after finalization and respects result visibility', () => {
     const finalized_at = '2026-09-01T08:00:00Z';
     expect(canViewElectionResults({ status: 'closed', finalized_at, results_visible: false }, 'STUDENT')).toBe(false);
     expect(canViewElectionResults({ status: 'closed', finalized_at, results_visible: false }, 'ADMIN')).toBe(true);
