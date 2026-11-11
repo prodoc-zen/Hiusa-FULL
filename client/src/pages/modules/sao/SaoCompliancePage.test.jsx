@@ -142,6 +142,24 @@ describe('SaoCompliancePage', () => {
     expect(screen.getByTestId('search')).toHaveTextContent('organization=8');
   });
 
+  describe('review queue', () => {
+    it('shows an approved submission status once', async () => {
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, status: 'approved' }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review&organization=7');
+      await screen.findAllByText('Semestral Accomplishment Report');
+      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(5)');
+      expect(within(cell).getAllByText('Approved')).toHaveLength(1);
+    });
+
+    it('still explains a submission that is not decided yet', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=review&organization=7');
+      await screen.findAllByText('Semestral Accomplishment Report');
+      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(5)');
+      expect(within(cell).getByText('Submitted')).toBeInTheDocument();
+      expect(within(cell).getByText('Waiting for SAO review')).toBeInTheDocument();
+    });
+  });
+
   it('separates review work from requirement settings and keeps the active route', async () => {
     renderPage();
     await screen.findAllByText('Computing Society');
