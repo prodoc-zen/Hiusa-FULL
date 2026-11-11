@@ -35,7 +35,7 @@ export default function ReceiptDocument({ order, transaction, onViewProof, relea
     const method = transaction.merchandise_order?.payment_method;
     return <><div data-receipt-document data-personal-receipt className="mx-auto max-w-2xl border border-slate-300 bg-white p-5 text-ink sm:p-8">
       <div className="flex items-end justify-between gap-3 border-y-2 border-ink py-2"><h2 className="font-serif text-3xl">Receipt</h2><p className="text-xs"><strong>Date:</strong> {dateTime(transaction.transaction_date)}</p></div>
-      <p className="border-b border-slate-500 py-3 text-xs"><strong>Received from:</strong> {person(payer)} <span className="float-right"><strong>Number:</strong> {number}</span></p>
+      <p className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-slate-500 py-3 text-xs"><span><strong>Received from:</strong> {person(payer)}</span><span><strong>Number:</strong> {number}</span></p>
       <p className="border-b border-slate-500 py-3 text-xs"><strong>Amount:</strong> {money(amount)}</p>
       {method ? <div className="flex flex-wrap gap-x-5 gap-y-2 border-b border-slate-500 py-3 text-xs" aria-label="Mode of payment">{PAYMENT_METHODS.map(([value, label]) => <span key={value}>{method.toLowerCase() === value ? '☑' : '☐'} {label}</span>)}</div> : <p className="border-b border-slate-500 py-3 text-xs"><strong>Mode of payment:</strong> Not recorded</p>}
       <p className="border-b border-slate-500 py-3 text-xs"><strong>Payment for:</strong> {transaction.description || transaction.category || 'Not recorded'}</p>
