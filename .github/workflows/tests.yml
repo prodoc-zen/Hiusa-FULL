@@ -275,7 +275,7 @@ jobs:
             # two are empty here). The .env.example value is
             # http://localhost:5173, a different origin, so every browser request would be blocked.
             sed -i 's#^FRONTEND_URL=.*#FRONTEND_URL=http://127.0.0.1:5173#' .env
-            # Production limits reads to 120 a minute per user. visual-live walks the SAO
+            # Production limits reads to 300 a minute per user. visual-live walks the SAO
             # compliance tabs faster than that and its console check fails on the 429s, so the
             # test stack raises the limit. This is test-stack config, not a product change.
             printf '\nRATE_LIMIT_READ_PER_MINUTE=600\nRATE_LIMIT_WRITE_PER_MINUTE=600\nRATE_LIMIT_LOGIN_PER_MINUTE=600\nRATE_LIMIT_LOGIN_PER_IP_PER_MINUTE=600\n' >> .env

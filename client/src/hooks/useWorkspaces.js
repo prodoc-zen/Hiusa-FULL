@@ -31,7 +31,7 @@ async function followRoleChange(profiles, activeProfileId) {
   if (!storedRole || !active || active.role === storedRole) return;
   try {
     const fresh = await getCurrentUser();
-    if (fresh?.role && fresh.role !== storedRole) window.location.assign(ROLE_HOME_PATHS[fresh.role] || '/dashboard');
+    if (fresh?.role && fresh.role !== storedRole && Object.hasOwn(ROLE_HOME_PATHS, fresh.role)) window.location.assign(ROLE_HOME_PATHS[fresh.role]);
   } catch {
     // The tab stays as it is; the next return to it tries again.
   }

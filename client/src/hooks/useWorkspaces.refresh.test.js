@@ -243,4 +243,39 @@ describe('useWorkspaces when the role changes while the person is signed in', ()
     expect(getCurrentUser).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['the admin profile is active and stored as ADMIN', 2, 'ADMIN'],
+    ['the student profile is active and stored as STUDENT', 1, 'STUDENT'],
+  ])('never re-reads the user for a person with several profiles when %s', async (_name, activeProfileId, storedRole) => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: storedRole }));
+    getAccountProfiles.mockResolvedValue({
+      data: {
+        profiles: [student, { ...student, id: 2, role: 'ADMIN' }],
+        active_profile_id: activeProfileId,
+      },
+    });
+
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.profiles).toHaveLength(2));
+    await act(async () => {});
+
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown role', 'UNKNOWN'],
+    ['a name that only exists on every object', 'constructor'],
+  ])('does not redirect when the re-read role is %s', async (_name, freshRole) => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    getAccountProfiles.mockResolvedValue(profilesFor('ADMIN'));
+    getCurrentUser.mockResolvedValue({ school_id: 5, role: freshRole });
+
+    renderHook(() => useWorkspaces());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+
+    expect(assign).not.toHaveBeenCalled();
+  });
 });

@@ -32,7 +32,7 @@ export const resetPassword = (data) => {
 };
 
 export const getCurrentUser = async () => {
-  const response = await api.get("/user");
+  const response = await api.get("/user", { cache: false });
 
   const user = response.data;
 
