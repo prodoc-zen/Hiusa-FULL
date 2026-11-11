@@ -64,8 +64,12 @@ export default function LoginPage() {
         setError(err.response?.data?.message || 'This account cannot sign in right now. Contact your organization admin for help.');
       } else if (status === 429) {
         setError(err.response?.data?.message || 'Too many attempts. Wait a moment, then try again.');
-      } else {
+      } else if (!err.response) {
+        setError('We could not reach HIUSA. Check your connection and try again.');
+      } else if (status === 401 || status === 422) {
         setError('That email or school ID and password did not match. Check both and try again, or reset your password.');
+      } else {
+        setError('HIUSA had a problem signing you in. Try again in a moment.');
       }
     } finally {
       setLoading(false);
