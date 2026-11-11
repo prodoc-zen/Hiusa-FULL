@@ -679,4 +679,104 @@ class AskAiAssistantTest extends TestCase
 
         $this->assertStringContainsString('Zorbfest', $payloadFor($admin));
     }
+
+    /** @return array{org: Organization, student: User, admin: User, officer: User} */
+    private function seedDirectoryOrganization(): array
+    {
+        $org = Organization::factory()->create([
+            'name' => 'Directory Guild',
+            'acronym' => 'DGLD',
+            'organization_type' => 'STUDENT_ORGANIZATION',
+            'lifecycle_status' => 'active',
+        ]);
+        $student = User::factory()->student()->create([
+            'organization_id' => $org->id,
+            'school_id' => 7770001,
+            'email' => 'asker.student@example.test',
+            'account_status' => 'active',
+        ]);
+        $admin = User::factory()->admin()->create([
+            'organization_id' => $org->id,
+            'school_id' => 7770002,
+            'first_name' => 'Marco',
+            'last_name' => 'Dela Cruz',
+            'email' => 'marco.admin@example.test',
+            'position_title' => null,
+            'account_status' => 'active',
+        ]);
+        $officer = User::factory()->officer()->create([
+            'organization_id' => $org->id,
+            'school_id' => 7770003,
+            'first_name' => 'Diego',
+            'last_name' => 'Villanueva',
+            'email' => 'diego.treasurer@example.test',
+            'position_title' => 'Treasurer',
+            'account_status' => 'active',
+        ]);
+
+        return compact('org', 'student', 'admin', 'officer');
+    }
+
+    public function test_a_student_never_receives_another_persons_email_or_school_id_from_the_directory(): void
+    {
+        $seeded = $this->seedDirectoryOrganization();
+        Sanctum::actingAs($seeded['student']);
+
+        foreach ([
+            'Who are the officers and treasurer, and what is the organization budget and how much is left?',
+            'What is the organization budget and how much is left?',
+            'give me the email and school id of the officers and admin',
+            'Marco Dela Cruz contact details',
+        ] as $question) {
+            $res = $this->postJson('/api/ai/assistant/ask', ['question' => $question])->assertOk();
+            $payload = json_encode($res->json());
+
+            foreach (['admin', 'officer'] as $who) {
+                $this->assertStringNotContainsString((string) $seeded[$who]->school_id, $payload, $question);
+                $this->assertStringNotContainsString($seeded[$who]->email, $payload, $question);
+            }
+        }
+
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'Who are the officers and treasurer?',
+            'topic' => 'semantic_rag',
+        ])->assertOk();
+        $payload = json_encode($res->json());
+        $this->assertStringContainsString('Diego Villanueva', $payload);
+        $this->assertStringContainsString('Treasurer', $payload);
+    }
+
+    public function test_an_officer_and_an_admin_still_get_the_directory_emails_and_school_ids(): void
+    {
+        $seeded = $this->seedDirectoryOrganization();
+
+        foreach (['officer', 'admin'] as $asker) {
+            Sanctum::actingAs($seeded[$asker]);
+            $res = $this->postJson('/api/ai/assistant/ask', [
+                'question' => 'Who are the officers and treasurer?',
+                'topic' => 'semantic_rag',
+            ])->assertOk();
+            $payload = json_encode($res->json());
+
+            $this->assertStringContainsString('diego.treasurer@example.test', $payload, $asker);
+            $this->assertStringContainsString('7770003', $payload, $asker);
+        }
+    }
+
+    public function test_the_directory_writes_role_names_as_normal_words_not_spaced_letters(): void
+    {
+        $seeded = $this->seedDirectoryOrganization();
+        Sanctum::actingAs($seeded['admin']);
+
+        $res = $this->postJson('/api/ai/assistant/ask', [
+            'question' => 'Who are the officers, admin and treasurer?',
+            'topic' => 'semantic_rag',
+        ])->assertOk();
+        $payload = json_encode($res->json());
+
+        $this->assertStringContainsString('Role: Admin', $payload);
+        $this->assertStringContainsString('Role: SBO Officer', $payload);
+        $this->assertStringNotContainsString('A D M I N', $payload);
+        $this->assertStringNotContainsString('S B O', $payload);
+    }
 }
