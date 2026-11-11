@@ -5,6 +5,7 @@ import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select
 import PaginationControls from "../../../components/PaginationControls";
 import { exportAuditLogs, getAuditLogs } from "../../../services/financeService";
 import downloadBlob from "../../../utils/downloadBlob";
+import { formatDateTime } from "../../../utils/dateTime";
 import { getApiErrorMessage } from "../../../utils/apiError";
 import notify from "../../../lib/notify";
 import { displayAuditValue, humanizeIdentifier } from "../../../utils/displayText";
@@ -126,7 +127,7 @@ export default function GeneralAuditLogPage() {
   };
 
   const columns = [
-    { key: 'time', header: 'Time', className: 'whitespace-nowrap text-ink-muted-strong', render: (log) => (log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : '') },
+    { key: 'time', header: 'Time', className: 'whitespace-nowrap text-ink-muted-strong', render: (log) => formatDateTime(log.created_at, '') },
     {
       key: 'actor',
       header: 'Actor',
@@ -222,7 +223,7 @@ export default function GeneralAuditLogPage() {
       <Drawer
         open={Boolean(selectedLog)}
         title={selectedLog ? `Audit record LOG-${selectedLog.id}` : 'Audit record'}
-        description={selectedLog ? `${selectedLog.module_label || humanizeIdentifier(selectedLog.module)} · ${selectedLog.action_label || humanizeIdentifier(selectedLog.action)} · ${new Date(selectedLog.created_at).toLocaleString("en-PH")}` : undefined}
+        description={selectedLog ? `${selectedLog.module_label || humanizeIdentifier(selectedLog.module)} · ${selectedLog.action_label || humanizeIdentifier(selectedLog.action)} · ${formatDateTime(selectedLog.created_at, "")}` : undefined}
         width="max-w-xl"
         onClose={() => setSelectedLog(null)}
       >
@@ -253,7 +254,7 @@ export default function GeneralAuditLogPage() {
                 ["Record type", selectedLog.record_type_label || humanizeIdentifier(String(selectedLog.record_type || '').split('\\').pop())],
                 ["Record ID", selectedLog.record_id],
                 ["IP address", selectedLog.ip_address],
-                ["Timestamp", new Date(selectedLog.created_at).toLocaleString("en-PH")],
+                ["Timestamp", formatDateTime(selectedLog.created_at, "")],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
                   <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
