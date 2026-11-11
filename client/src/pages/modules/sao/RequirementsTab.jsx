@@ -213,7 +213,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
         description={semestral ? 'Files organizations send the SAO for their semestral and financial report.' : renewal ? 'Files active organizations send each year to renew.' : 'Files for organization registration and accreditation.'}
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
-        {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.</p>}
+        {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="status" className="mb-4 rounded-control border border-warning/40 bg-warning-tint p-3 text-sm text-ink">Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.</p>}
         {deleteError && (
           <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{deleteError}</p>
         )}

@@ -290,6 +290,18 @@ describe('SaoCompliancePage', () => {
       await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(4, { is_active: true }));
     });
 
+    it('guides the SAO to the missing sample formats without raising an error alert', async () => {
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ ...requirementType, template_url: null }] } });
+      renderPage('/dashboard/super-admin/compliance?tab=requirements');
+      await screen.findAllByText('Officer Roster');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      const guidance = screen.getByRole('status');
+      expect(guidance).toHaveTextContent('Every requirement needs a sample format.');
+      expect(guidance).toHaveClass('bg-warning-tint');
+      expect(guidance).not.toHaveClass('bg-danger-tint');
+      expect(screen.getAllByText('Sample format required').length).toBeGreaterThan(0);
+    });
+
     it('requires a sample before reactivating a legacy requirement without one', async () => {
       mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ ...requirementType, is_active: false, template_url: null }] } });
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
