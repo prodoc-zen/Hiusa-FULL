@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\SystemUsersController;
 use App\Mail\PasswordResetMail;
 use App\Models\Attendance;
 use App\Models\AuditLog;
+use App\Models\Budget;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
@@ -16,9 +18,12 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
+use ReflectionClassConstant;
 use Tests\TestCase;
 
 class SystemUsersTest extends TestCase
@@ -279,5 +284,155 @@ class SystemUsersTest extends TestCase
         $this->assertDatabaseHas('users', ['school_id' => $actor->school_id]);
         $this->assertDatabaseHas('compliance_requirement_types', ['id' => $requirementId, 'created_by' => $actor->school_id]);
         $this->assertDatabaseHas('clearance_periods', ['id' => $periodId, 'created_by' => $actor->school_id]);
+    }
+
+    /** Every table.column that holds a foreign key to users, read from the live schema. */
+    private function foreignKeysToUsers(): array
+    {
+        $keys = [];
+        foreach (Schema::getTables() as $table) {
+            foreach (Schema::getForeignKeys($table['name']) as $foreignKey) {
+                if ($foreignKey['foreign_table'] !== 'users') {
+                    continue;
+                }
+                $this->assertSame(['school_id'], $foreignKey['foreign_columns']);
+                foreach ($foreignKey['columns'] as $column) {
+                    $keys[$table['name'].'.'.$column] = $foreignKey['on_delete'];
+                }
+            }
+        }
+        ksort($keys);
+
+        return $keys;
+    }
+
+    private function disposableReferences(): array
+    {
+        return (new ReflectionClassConstant(SystemUsersController::class, 'DISPOSABLE_REFERENCES'))->getValue();
+    }
+
+    public function test_every_disposable_reference_is_a_real_foreign_key_to_users(): void
+    {
+        $this->assertSame([], array_values(array_diff($this->disposableReferences(), array_keys($this->foreignKeysToUsers()))));
+        $this->assertSame($this->disposableReferences(), array_values(array_unique($this->disposableReferences())));
+    }
+
+    public function test_the_schema_reports_foreign_keys_with_the_shape_the_guard_reads(): void
+    {
+        $foreignKey = collect(Schema::getForeignKeys('transactions'))->firstWhere('columns', ['payer_id']);
+
+        $this->assertSame('users', $foreignKey['foreign_table']);
+        $this->assertSame(['school_id'], $foreignKey['foreign_columns']);
+        $this->assertSame('set null', $foreignKey['on_delete']);
+    }
+
+    public function test_any_other_foreign_key_to_users_is_counted_and_blocks_deletion(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $other = User::factory()->student()->create();
+        $stamps = ['created_at' => now(), 'updated_at' => now()];
+        $organization = fn () => Organization::factory()->create()->id;
+        $event = fn () => Event::factory()->create(['created_by' => $other->school_id, 'organization_id' => $organization()])->id;
+        $period = fn () => DB::table('clearance_periods')->insertGetId(['academic_year' => '2026-2027', 'title' => 'Clearance '.uniqid(), 'required_roles' => json_encode(['sao']), 'created_by' => $other->school_id, ...$stamps]);
+        $requirementType = fn () => DB::table('compliance_requirement_types')->insertGetId(['academic_year' => '2026-2027', 'name' => 'Requirement '.uniqid(), 'deadline_at' => now()->addMonth(), 'created_by' => $other->school_id, ...$stamps]);
+        $college = fn () => DB::table('colleges')->insertGetId(['name' => 'College '.uniqid(), 'is_active' => true, ...$stamps]);
+        $collection = fn () => DB::table('collections')->insertGetId(['organization_id' => $organization(), 'reference' => 'COL-'.uniqid(), 'amount_collected' => 100, 'source' => 'Fee', 'collected_by' => $other->school_id, 'collected_at' => now(), ...$stamps]);
+        $cashAdvance = fn () => DB::table('cash_advances')->insertGetId(['organization_id' => $organization(), 'reference' => 'CA-'.uniqid(), 'borrower_id' => $other->school_id, 'amount' => 100, 'purpose' => 'Supplies', ...$stamps]);
+        $invoice = fn () => DB::table('invoices')->insertGetId(['organization_id' => $organization(), 'reference' => 'INV-'.uniqid(), 'student_id' => $other->school_id, 'description' => 'Dues', 'amount_due' => 100, ...$stamps]);
+        $application = fn () => DB::table('organization_applications')->insertGetId(['college_id' => $college(), 'name' => 'Club '.uniqid(), 'acronym' => strtoupper(substr(uniqid(), -6)), 'school_id' => 999000, 'first_name' => 'Ada', 'last_name' => 'Cruz', 'email' => uniqid().'@example.test', 'position_title' => 'President', ...$stamps]);
+
+        // Each maker inserts one row in a table and points only the named column at the user; $u(column) gives that id.
+        $makers = [
+            'announcements' => fn ($u) => DB::table('announcements')->insert(['title' => 'Notice', 'body' => 'Body', 'created_by' => $other->school_id, 'reviewed_by' => $u('reviewed_by'), ...$stamps]),
+            'approval_requests' => fn ($u) => DB::table('approval_requests')->insert(['organization_id' => $organization(), 'entity_type' => 'event', 'entity_id' => 1, 'requested_by' => $u('requested_by'), 'reviewed_by' => $u('reviewed_by'), 'assigned_approver' => $u('assigned_approver'), 'required_role' => 'ADMIN', 'status' => 'pending']),
+            'attendance' => fn ($u) => Attendance::factory()->create(['event_id' => $event(), 'user_id' => $u('user_id'), 'recorded_by' => $u('recorded_by'), 'method' => 'manual']),
+            'audit_logs' => fn ($u) => DB::table('audit_logs')->insert(['user_id' => $u('user_id'), 'module' => 'tasks', 'action' => 'task_created', 'created_at' => now()]),
+            'budgets' => fn ($u) => Budget::factory()->create(['department_head_approved_by' => $u('department_head_approved_by')]),
+            'candidates' => fn ($u) => Candidate::factory()->create(['user_id' => $u('user_id')]),
+            'cash_advance_repayments' => fn ($u) => DB::table('cash_advance_repayments')->insert(['cash_advance_id' => $cashAdvance(), 'amount' => 50, 'recorded_by' => $u('recorded_by'), 'repaid_at' => now(), ...$stamps]),
+            'cash_advances' => fn ($u) => DB::table('cash_advances')->insert(['organization_id' => $organization(), 'reference' => 'CA-'.uniqid(), 'borrower_id' => $u('borrower_id'), 'approved_by' => $u('approved_by'), 'released_by' => $u('released_by'), 'amount' => 100, 'purpose' => 'Supplies', ...$stamps]),
+            'clearance_signatures' => fn ($u) => DB::table('clearance_signatures')->insert(['clearance_period_id' => $period(), 'student_id' => $u('student_id'), 'signed_by' => $u('signed_by'), 'organization_id' => $organization(), 'required_role' => 'sao', ...$stamps]),
+            'collections' => fn ($u) => DB::table('collections')->insert(['organization_id' => $organization(), 'reference' => 'COL-'.uniqid(), 'amount_collected' => 100, 'source' => 'Fee', 'collected_by' => $u('collected_by'), 'verified_by' => $u('verified_by'), 'collected_at' => now(), ...$stamps]),
+            'department_head_invitations' => fn ($u) => DB::table('department_head_invitations')->insert(['college_id' => $college(), 'token_hash' => hash('sha256', uniqid()), 'invited_by' => $u('invited_by'), 'expires_at' => now()->addDay(), ...$stamps]),
+            'evaluation_responses' => fn ($u) => DB::table('evaluation_responses')->insert(['evaluation_window_id' => DB::table('evaluation_windows')->insertGetId(['title' => 'Midyear', ...$stamps]), 'organization_id' => $organization(), 'user_id' => $u('user_id'), 'respondent_type' => 'member', 'answers' => json_encode([]), ...$stamps]),
+            'event_registrations' => fn ($u) => DB::table('event_registrations')->insert(['event_id' => $event(), 'organization_id' => $organization(), 'user_id' => $u('user_id'), 'registered_at' => now(), ...$stamps]),
+            'event_requirement_files' => fn ($u) => DB::table('event_requirement_files')->insert(['event_id' => $event(), 'requirement_id' => DB::table('event_requirements')->insertGetId(['name' => 'Report', 'allowed_extensions' => json_encode(['pdf']), ...$stamps]), 'organization_id' => $organization(), 'path' => 'events/report.pdf', 'original_name' => 'report.pdf', 'uploaded_by' => $u('uploaded_by'), ...$stamps]),
+            'events' => fn ($u) => Event::factory()->create(['created_by' => $u('created_by'), 'organization_id' => $organization()]),
+            'financial_forecasts' => fn ($u) => DB::table('financial_forecasts')->insert(['forecast_period' => '2026-12', 'predicted_income' => 100, 'predicted_expense' => 50, 'generated_by' => $u('generated_by'), ...$stamps]),
+            'financial_reports' => fn ($u) => DB::table('financial_reports')->insert(['report_type' => 'monthly', 'title' => 'December report', 'generated_by' => $u('generated_by'), 'department_head_approved_by' => $u('department_head_approved_by'), 'sao_approved_by' => $u('sao_approved_by')]),
+            'fingerprints' => fn ($u) => DB::table('fingerprints')->insert(['organization_id' => $organization(), 'user_id' => $other->school_id, 'enrolled_by' => $u('enrolled_by'), 'template' => 'template', 'template_format' => 'ISO', 'enrolled_at' => now(), ...$stamps]),
+            'grievances' => fn ($u) => DB::table('grievances')->insert(['organization_id' => $organization(), 'submitted_by' => $u('submitted_by'), 'title' => 'Broken fan', 'description' => 'The fan is broken.', ...$stamps]),
+            'invoice_payments' => fn ($u) => DB::table('invoice_payments')->insert(['invoice_id' => $invoice(), 'amount' => 100, 'recorded_by' => $u('recorded_by'), ...$stamps]),
+            'invoices' => fn ($u) => DB::table('invoices')->insert(['organization_id' => $organization(), 'reference' => 'INV-'.uniqid(), 'student_id' => $u('student_id'), 'description' => 'Dues', 'amount_due' => 100, ...$stamps]),
+            'orders' => fn ($u) => Order::factory()->create(['student_id' => $u('student_id'), 'processed_by' => $u('processed_by'), 'approved_by' => $u('approved_by'), 'claim_verified_by' => $u('claim_verified_by')]),
+            'organization_application_requirement_reviews' => fn ($u) => DB::table('organization_application_requirement_reviews')->insert(['organization_application_id' => $application(), 'requirement_type_id' => $requirementType(), 'stage' => 'sao', 'status' => 'pending', 'reviewed_by' => $u('reviewed_by'), ...$stamps]),
+            'organization_applications' => fn ($u) => DB::table('organization_applications')->insert(['college_id' => $college(), 'name' => 'Club '.uniqid(), 'acronym' => strtoupper(substr(uniqid(), -6)), 'school_id' => 999001, 'first_name' => 'Ada', 'last_name' => 'Cruz', 'email' => uniqid().'@example.test', 'position_title' => 'President', 'endorsed_by' => $u('endorsed_by'), 'reviewed_by' => $u('reviewed_by'), ...$stamps]),
+            'organization_compliance_submissions' => fn ($u) => DB::table('organization_compliance_submissions')->insert(['organization_id' => $organization(), 'requirement_type_id' => $requirementType(), 'file_path' => 'compliance/charter.pdf', 'file_original_name' => 'charter.pdf', 'mime_type' => 'application/pdf', 'file_size' => 1024, 'submitted_by' => $u('submitted_by'), 'reviewed_by' => $u('reviewed_by'), 'submitted_at' => now(), ...$stamps]),
+            'remittances' => fn ($u) => DB::table('remittances')->insert(['collection_id' => $collection(), 'reference' => 'REM-'.uniqid(), 'amount' => 100, 'remitted_by' => $u('remitted_by'), 'verified_by' => $u('verified_by'), 'remitted_at' => now(), ...$stamps]),
+            'tasks' => fn ($u) => Task::factory()->create(['created_by' => $u('created_by'), 'assigned_to' => null]),
+            'transactions' => fn ($u) => Transaction::factory()->create(['budget_id' => null, 'organization_id' => $organization(), 'recorded_by' => $u('recorded_by'), 'payer_id' => $u('payer_id')]),
+            'venue_bookings' => fn ($u) => DB::table('venue_bookings')->insert(['venue_id' => DB::table('venues')->insertGetId(['name' => 'Gym '.uniqid(), 'location' => 'Main building', ...$stamps]), 'organization_id' => $organization(), 'start_time' => now()->addDay(), 'end_time' => now()->addDay()->addHours(2), 'requested_by' => $u('requested_by'), 'reviewed_by' => $u('reviewed_by'), ...$stamps]),
+            'votes' => fn ($u) => Vote::factory()->create(['voter_id' => $u('voter_id')]),
+        ];
+        // Tables that cannot be seeded here, with the reason. Keep this short; an entry must still be a real foreign key.
+        $skipped = [];
+
+        $this->assertSame([], array_values(array_diff($skipped, array_keys($this->foreignKeysToUsers()))));
+        Sanctum::actingAs($sao);
+
+        $checked = [];
+        foreach (array_keys($this->foreignKeysToUsers()) as $key) {
+            if (in_array($key, $this->disposableReferences(), true) || in_array($key, $skipped, true)) {
+                continue;
+            }
+            [$table, $column] = explode('.', $key);
+            $this->assertArrayHasKey($table, $makers, "A new foreign key to users, {$key}, has no row maker in this test and is not allowlisted. Add one, or allowlist it if its rows are disposable.");
+
+            $user = User::factory()->student()->create();
+            $makers[$table](fn (string $name) => $name === $column ? $user->school_id : $other->school_id);
+
+            $counts = $this->getJson('/api/system/users/'.$user->school_id)->assertOk()->json('linked_records');
+            $linked = array_filter(Arr::except($counts, ['profiles']));
+            $this->assertSame(1, array_sum($linked), "{$key} was not counted exactly once: ".json_encode($linked));
+            $this->assertCount(1, $linked, "{$key} was counted under more than one key: ".json_encode($linked));
+            $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])->assertStatus(409);
+            $this->assertDatabaseHas('users', ['school_id' => $user->school_id]);
+            $checked[] = $key;
+        }
+
+        foreach (['transactions.payer_id', 'clearance_signatures.signed_by', 'orders.approved_by', 'financial_reports.sao_approved_by', 'approval_requests.reviewed_by', 'audit_logs.user_id'] as $required) {
+            $this->assertContains($required, $checked);
+        }
+    }
+
+    public function test_a_disposable_reference_alone_does_not_block_deletion_and_is_cleared_with_the_user(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $user = User::factory()->student()->create();
+        DB::table('notifications')->insert(['user_id' => $user->school_id, 'title' => 'Hello', 'message' => 'Hello', 'created_at' => now(), 'updated_at' => now()]);
+        Task::factory()->create(['created_by' => $sao->school_id, 'assigned_to' => $user->school_id]);
+        Sanctum::actingAs($sao);
+
+        $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])->assertOk();
+        $this->assertDatabaseMissing('users', ['school_id' => $user->school_id]);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $user->school_id]);
+        $this->assertDatabaseHas('tasks', ['created_by' => $sao->school_id, 'assigned_to' => null]);
+    }
+
+    public function test_an_account_that_only_signed_itself_up_can_be_deleted_but_other_activity_blocks_it(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $signedUp = User::factory()->student()->create();
+        $active = User::factory()->student()->create();
+        foreach ([$signedUp, $active] as $user) {
+            AuditLog::create(['organization_id' => $user->organization_id, 'user_id' => $user->school_id, 'module' => 'users', 'action' => 'student_signed_up', 'record_type' => User::class, 'record_id' => $user->school_id, 'created_at' => now()]);
+        }
+        AuditLog::create(['organization_id' => $active->organization_id, 'user_id' => $active->school_id, 'module' => 'users', 'action' => 'photo_updated', 'record_type' => User::class, 'record_id' => $active->school_id, 'created_at' => now()]);
+        Sanctum::actingAs($sao);
+
+        $this->deleteJson('/api/system/users/'.$active->school_id, ['school_id' => $active->school_id])->assertStatus(409);
+        $this->deleteJson('/api/system/users/'.$signedUp->school_id, ['school_id' => $signedUp->school_id])->assertOk();
+        $this->assertDatabaseMissing('users', ['school_id' => $signedUp->school_id]);
+        $this->assertDatabaseHas('users', ['school_id' => $active->school_id]);
     }
 }
