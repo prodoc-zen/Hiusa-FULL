@@ -585,7 +585,8 @@ class DashboardBriefingService
     {
         $query = DB::table('orders')->where('organization_id', $organizationId)
             ->where('status', 'pending')->where('officer_review_status', 'pending')
-            ->whereNotNull('payment_proof_url');
+            ->where(fn ($ready) => $ready->whereNotNull('payment_proof_url')
+                ->orWhereNull('payment_method')->orWhere('payment_method', '!=', 'gcash'));
         $rows = (clone $query)->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id', 'total_price']);
 
         return $this->withTotal($rows->map(fn ($row) => [
