@@ -71,16 +71,18 @@ describe('AcademicYearsPage', () => {
   describe('deleting a semester', () => {
     const withSemesters = [{ ...years[1], semesters: [
       { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
-      { id: 12, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' },
+      { id: 12, number: 2, status: 'upcoming', starts_on: '2026-10-05', ends_on: '2027-05-31' },
     ] }];
 
-    it('offers delete only for semesters that are not active and renders status toggle switches', async () => {
+    it('offers delete only for semesters that are not active and shows a plain status with a Close or Activate button', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       renderPage();
       expect((await screen.findAllByText('Current'))[0]).toHaveClass('bg-green-50', 'text-green-800');
       expect(screen.getAllByText('Active', { exact: true })[0]).toBeInTheDocument();
-      expect(screen.getByRole('switch', { name: 'Toggle active status for 1st semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+      expect(screen.queryByText('Inactive')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close 1st semester of AY 2026-2027' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
     });
@@ -115,18 +117,19 @@ describe('AcademicYearsPage', () => {
   describe('changing the active semester', () => {
     const withSemesters = [{ ...years[1], semesters: [
       { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
-      { id: 12, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' },
+      { id: 12, number: 2, status: 'upcoming', starts_on: '2026-10-05', ends_on: '2027-05-31' },
     ] }];
 
-    it('sends nothing when the toggle is flipped and closes the semester only after confirmation', async () => {
+    it('sends nothing when Close semester is pressed and closes the semester only after confirmation', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(closeAcademicSemester).mockResolvedValue({});
       renderPage();
-      fireEvent.click(await screen.findByRole('switch', { name: 'Toggle active status for 1st semester of AY 2026-2027' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Close 1st semester of AY 2026-2027' }));
 
       const dialog = await screen.findByRole('dialog', { name: 'Close semester' });
       expect(within(dialog).getByText('1st semester, AY 2026-2027')).toBeInTheDocument();
       expect(within(dialog).getByText(/Members stop seeing its data\. This cannot be undone from the app\./)).toBeInTheDocument();
+      expect(within(dialog).getByText(/You can activate 2nd semester, AY 2026-2027 afterwards\./)).toBeInTheDocument();
       expect(closeAcademicSemester).not.toHaveBeenCalled();
       expect(activateAcademicSemester).not.toHaveBeenCalled();
 
@@ -139,19 +142,47 @@ describe('AcademicYearsPage', () => {
       vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
       vi.mocked(activateAcademicSemester).mockRejectedValue({ response: { status: 422, data: { message: 'The given data was invalid.', errors: { semester: ['The current semester still has an election that is upcoming or open: Council Election (Computer Society).'] } } } });
       renderPage();
-      fireEvent.click(await screen.findByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' }));
       let dialog = await screen.findByRole('dialog', { name: 'Activate semester' });
       expect(within(dialog).getByText(/This closes the current semester, 1st semester, AY 2026-2027\./)).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       expect(activateAcademicSemester).not.toHaveBeenCalled();
 
-      fireEvent.click(screen.getByRole('switch', { name: 'Toggle active status for 2nd semester of AY 2026-2027' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' }));
       dialog = await screen.findByRole('dialog', { name: 'Activate semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Activate semester' }));
 
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('Council Election (Computer Society)');
       expect(activateAcademicSemester).toHaveBeenCalledWith(12);
+    });
+  });
+
+  describe('closing the live semester', () => {
+    const closing = (next) => [{ ...years[1], semesters: [
+      { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+      ...(next ? [{ id: 12, number: 2, status: 'upcoming', ...next }] : []),
+    ] }];
+    const openClose = async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Close 1st semester of AY 2026-2027' }));
+      return screen.findByRole('dialog', { name: 'Close semester' });
+    };
+
+    it('says when the next semester can start and never offers to activate one that has not started', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(closing({ starts_on: '2999-12-19', ends_on: '3000-05-31' }));
+      renderPage();
+      const dialog = await openClose();
+
+      expect(within(dialog).getByText(/2nd semester, AY 2026-2027 starts on December 19, 2999\. Until then no semester is active\./)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' })).not.toBeInTheDocument();
+      expect(screen.getByText('Not started yet')).toBeInTheDocument();
+    });
+
+    it('warns that no semester will be active when there is nothing to start after it', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(closing(null));
+      renderPage();
+
+      expect(within(await openClose()).getByText(/No other semester is set up, so no semester will be active until you add one and activate it\./)).toBeInTheDocument();
     });
   });
 
