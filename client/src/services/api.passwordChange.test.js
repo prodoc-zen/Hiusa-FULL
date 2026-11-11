@@ -97,13 +97,23 @@ describe('api interceptor password change handling', () => {
     expect(takeSignOutNotice()).toBeNull();
   });
 
-  it('returns an expired session to the landing page', async () => {
+  it('returns an ended session to the sign-in page and says why', async () => {
     failWith(401, { message: 'Unauthenticated.' });
 
     await api.get('/dashboard/briefing').catch(() => {});
 
-    expect(assign).toHaveBeenCalledWith('/');
+    expect(assign).toHaveBeenCalledWith('/login');
     expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(takeSignOutNotice()).toBe('Your session ended. Sign in again to continue.');
+  });
+
+  it('leaves a person who was never signed in without a session notice', async () => {
+    localStorage.clear();
+    failWith(401, { message: 'Unauthenticated.' });
+
+    await api.get('/dashboard/briefing').catch(() => {});
+
+    expect(takeSignOutNotice()).toBeNull();
   });
 
   it('keeps invalid login feedback on the login page', async () => {
