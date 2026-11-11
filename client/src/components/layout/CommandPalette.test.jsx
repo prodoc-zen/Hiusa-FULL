@@ -60,6 +60,16 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard/tasks/task-board');
   });
 
+  it('ranks a page whose own name matches above pages that only sit in a group of that name', () => {
+    render(<MemoryRouter initialEntries={['/dashboard']}><PaletteHarness onClose={() => {}} role="ADMIN" /></MemoryRouter>);
+    const search = screen.getByRole('combobox', { name: 'Search pages' });
+
+    fireEvent.change(search, { target: { value: 'records' } });
+    const options = screen.getAllByRole('option');
+    expect(options[0]).toHaveTextContent('School year records');
+    expect(options.length).toBeGreaterThan(1);
+  });
+
   it('closes from the backdrop and Escape', () => {
     const onClose = vi.fn();
     render(<MemoryRouter><PaletteHarness onClose={onClose} /></MemoryRouter>);

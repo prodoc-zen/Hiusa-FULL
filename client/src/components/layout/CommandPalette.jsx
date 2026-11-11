@@ -46,7 +46,10 @@ function fuzzyScore(term, text) {
 // A page is found by its current label and group first, then by the labels it used to carry, so
 // someone who remembers "Manage Users" or "Validate Tokens" still lands on the right page.
 function pageScore(term, page) {
+  if (fuzzyScore(term, page.label) === 0) return 0;
+
   const direct = fuzzyScore(term, `${page.label} ${page.section}`);
+  if (direct === 0) return 0.25;
   if (direct >= 0) return direct;
 
   const needle = term.toLowerCase();
