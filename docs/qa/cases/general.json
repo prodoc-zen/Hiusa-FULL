@@ -2290,8 +2290,8 @@
     "preconditions": "The test copy is running and you have its link. Work in pairs: one person does the journey, one watches and writes. The watcher does not help. Sign in as SAO 990001 (the SAO password the demo owner gave you). Journey 1 needs a registration from a Department Head and an active semester (Round 2), and journey 5 needs a grievance addressed to the SAO. Start each journey at the home page after signing in. Typing and choosing a file do not count as clicks.",
     "steps": [
       "1. Journey 1, approve a registration and give it an administrator: limit 5 clicks. End: the organization is Active with one administrator.",
-      "2. Journey 2, review compliance: limit 3 clicks. End: the submission shows its new status.",
-      "3. Journey 3, decide a financial report: limit 3 clicks. End: the report shows Approved.",
+      "2. Journey 2, SAO approves a compliance submission: limit 5 clicks. The confirmation step is counted and kept on purpose, because it protects the decision. Follow the amber \"N waiting\" badge in the Awaiting review column: organizations with submissions waiting are listed first. End: the submission shows its new status.",
+      "3. Journey 3, SAO approves a financial report: limit 5 clicks. The confirmation step is counted and kept on purpose, because it protects the decision. Follow the amber \"N waiting\" badge in the Awaiting review column: organizations with reports waiting are listed first. End: the report shows Approved.",
       "4. Journey 4, see who needs attention: limit 2 clicks. End: organizations that need action are listed first.",
       "5. Journey 5, answer a grievance: limit 4 clicks. End: the student's My grievances shows Resolved.",
       "6. For each journey write the clicks you counted, whether the end state was reached, and any moment the person stopped and asked \"where do I go now\"."

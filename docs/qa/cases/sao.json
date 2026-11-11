@@ -720,9 +720,9 @@
       "2. Read the box titled Initiate password reset.",
       "3. Select Create reset link.",
       "4. Read the green message.",
-      "5. Open the Action menu of an inactive administrator and look at Reset access and Hand over role."
+      "5. Open the Action menu of an inactive administrator and look at Reset access."
     ],
-    "expected": "The box says it creates a one-time reset link, shown to you once to hand over, and emailed only when email is turned on. The current password is not shown. After Create reset link a Reset link ready box shows the link once and the green message reads \"Reset link created for <Name>.\" On the public copy no email arrives, so copy the link from the box. For an inactive administrator Reset access and Hand over role are greyed out.",
+    "expected": "The box says it creates a one-time reset link, shown to you once to hand over, and emailed only when email is turned on. The current password is not shown. After Create reset link a Reset link ready box shows the link once and the green message reads \"Reset link created for <Name>.\" On the public copy no email arrives, so copy the link from the box. For an inactive administrator Reset access is greyed out.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -735,7 +735,7 @@
     "title": "Hand over the administrator role by adding the successor and removing the old administrator",
     "preconditions": "Signed in as SAO 990001. Use a throwaway organization with an active Admin and a student who has signed up and belongs to the same college. There is no Hand over action: the administrator hand over drawer was removed on purpose.",
     "steps": [
-      "1. Select the checklist link \"Hand over administrator roles after elections\" (or open Administrator accounts).",
+      "1. Select the checklist link \"Review each organization's administrators after elections: add the new ones, remove the old ones\" (or open Administrator accounts).",
       "2. Select Add administrator, choose the organization, find the successor in Student and choose the role Organization head.",
       "3. Select Add administrator and read the message.",
       "4. Open the row menu of the old Admin and choose Manage profiles.",
@@ -929,7 +929,7 @@
       "4. After each tab read the address bar.",
       "5. Look for a data error banner on every tab."
     ],
-    "expected": "Tabs read Organizations (sub tabs Organization accreditation, which opens first, and Review submissions, with a number in brackets when submissions wait), Renewal, Event reviews, Semestral and financial report, Requirement settings. The address ends with ?tab=accreditation, review, renewal, event-reviews, financial or requirements. Each tab shows its own content and no data-load error banner (Requirement settings may show the red reminder \"Every requirement needs a sample format. Edit the ones marked \"Sample format required\" to attach a file or link.\" until each requirement has one).",
+    "expected": "Tabs read Organizations (sub tabs Organization accreditation, which opens first, and Review submissions, with a number in brackets when submissions wait), Renewal, Event reviews, Semestral and financial report, Requirement settings. The address ends with ?tab=accreditation, review, renewal, event-reviews, financial or requirements. Each tab shows its own content and no data-load error banner (Requirement settings may show an amber guidance note, not a red error, reading \"Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.\" until each requirement has one).",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1806,7 +1806,7 @@
       "4. Read the Semesters card.",
       "5. Select the first link in the card."
     ],
-    "expected": "The first card reads \"2026-2027 is the current year\" with the dates and \"At the start of each year\": \"Publish this year's accreditation requirements\" (opens Compliance), \"Hand over administrator roles after elections\" (opens Administrators), \"Open a clearance period for the semester\" (opens Clearances). The Calendar table shows the year, its dates and the Current badge. Semesters shows \"AY 2026-2027\" with \"No semesters added.\" and the button Add semester. With no year the page says \"No academic year set\" and offers Add academic year (VERIFY on an empty database).",
+    "expected": "The first card reads \"2026-2027 is the current year\" with the dates and \"At the start of each year\": \"Publish this year's accreditation requirements\" (opens Compliance), \"Review each organization's administrators after elections: add the new ones, remove the old ones\" (opens Administrators), \"Open a clearance period for the semester\" (opens Clearances). The Calendar table shows the year, its dates and the Current badge. Semesters shows \"AY 2026-2027\" with \"No semesters added.\" and the button Add semester. With no year the page says \"No academic year set\" and offers Add academic year (VERIFY on an empty database).",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
