@@ -66,9 +66,10 @@ const CATEGORIES = ["Apparel", "Accessories", "School Supplies", "Drinkware", "B
 const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 const cartKey = (item) => item.cart_key || String(item.id);
 const itemPrice = (item) => Number(item.effective_price ?? item.price);
+const PRODUCT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const emptyCatalogExtras = { variants: [], promotion_price: "", promotion_buyer_limit: "", low_stock_threshold: "9" };
 
-function CatalogFields({ value, onChange, images, onImagesChange }) {
+function CatalogFields({ value, onChange, images, onImagesChange, checkImage }) {
   const categoryIsCustom = Boolean(value.category_custom || (value.category && !CATEGORIES.includes(value.category)));
   const variants = value.variants || [];
   const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
@@ -104,7 +105,7 @@ function CatalogFields({ value, onChange, images, onImagesChange }) {
       {variants.map((variant, index) => <div key={variant.id || `new-${index}`} className="grid gap-2 sm:grid-cols-[1fr_5rem_auto_auto] sm:items-center">
         <div><Input list="merchandise-size-options" value={variant.name} onChange={(event) => changeVariant(index, { name: event.target.value })} placeholder="Size / variant" aria-label={`Variant ${index + 1} name`} /><datalist id="merchandise-size-options">{STANDARD_SIZES.map((size) => <option key={size} value={size} />)}</datalist></div>
         <Input type="number" min="0" value={variant.stock_quantity} onChange={(event) => changeVariant(index, { stock_quantity: event.target.value })} aria-label={`${formatDisplayText(variant.name) || `Variant ${index + 1}`} stock`} />
-        <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-control border border-line px-3 text-xs font-semibold text-ink hover:bg-subtle">{images[index] ? "Image selected" : variant.image_url ? "Change image" : "Add image"}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => onImagesChange(images.map((file, imageIndex) => imageIndex === index ? event.target.files[0] : file))} /></label>
+        <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-control border border-line px-3 text-xs font-semibold text-ink hover:bg-subtle">{images[index] ? "Image selected" : variant.image_url ? "Change image" : "Add image"}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => checkImage(event) && onImagesChange(images.map((file, imageIndex) => imageIndex === index ? event.target.files[0] : file))} /></label>
         <button type="button" aria-label={`Remove ${formatDisplayText(variant.name) || `variant ${index + 1}`}`} onClick={() => { onChange({ ...value, variants: variants.filter((_, rowIndex) => rowIndex !== index) }); onImagesChange(images.filter((_, rowIndex) => rowIndex !== index)); }} className="grid h-11 w-11 place-items-center rounded-control text-danger-strong hover:bg-danger-tint"><X size={16} aria-hidden="true" /></button>
       </div>)}
       {variants.length > 0 && <p className="text-xs font-semibold text-ink">Total variant stock: {variants.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0)}</p>}
@@ -186,12 +187,24 @@ function StatTile({ label, value, context, to, onClick }) {
 }
 
 function ProductForm({ editing = false, value, onChange, images, onImagesChange, preview, onImage, submitDisabled, submitLabel, onSubmit, onCancel }) {
+  const [imageProblem, setImageProblem] = useState("");
+  // A picker cannot stop someone choosing "All files", so the type is checked here before it reaches a preview or the server.
+  const checkImage = (event) => {
+    const file = event.target.files?.[0];
+    if (file && !PRODUCT_IMAGE_TYPES.includes(file.type)) {
+      event.target.value = "";
+      setImageProblem("That file is not an image. Choose a JPG, PNG or WebP picture.");
+      return false;
+    }
+    setImageProblem("");
+    return true;
+  };
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
       <Field label="Item name" required>
         <Input type="text" value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} placeholder="e.g. HIUSA T-Shirt (XL)" />
       </Field>
-      <CatalogFields value={value} onChange={onChange} images={images} onImagesChange={onImagesChange} />
+      <CatalogFields value={value} onChange={onChange} images={images} onImagesChange={onImagesChange} checkImage={checkImage} />
       {editing && (
         <Field label="Stock change reason">
           <Textarea value={value.stock_note || ""} onChange={(event) => onChange({ ...value, stock_note: event.target.value })} maxLength={500} rows={2} placeholder="Required when changing product or variant stock" />
@@ -227,8 +240,9 @@ function ProductForm({ editing = false, value, onChange, images, onImagesChange,
               <span className="text-xs text-ink-muted">JPG, PNG or WebP, up to 5 MB</span>
             </>
           )}
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onImage} className="sr-only" />
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => checkImage(event) && onImage(event)} className="sr-only" />
         </label>
+        {imageProblem && <p role="alert" className="text-xs font-semibold text-danger-strong">{imageProblem}</p>}
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
