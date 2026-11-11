@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import MerchandisePage from "./MerchandisePage";
+import { updateItem } from "../../../services/merchandiseService";
 
 const merchandiseMocks = vi.hoisted(() => ({
   getMerchandise: vi.fn(),
@@ -1199,5 +1200,101 @@ describe("MerchandisePage order queue reads", () => {
     const table = await screen.findByRole("table");
     expect(within(table).getByText("Cash")).toBeInTheDocument();
     expect(within(table).queryByText("cash")).not.toBeInTheDocument();
+  });
+});
+
+describe("MerchandisePage promo pricing and plain refusals", () => {
+  const promoShirt = {
+    ...products[0],
+    name: "QA Shirt",
+    price: "100.00",
+    effective_price: "80.00",
+    promotion_price: "80.00",
+    promotion_buyer_limit: 1,
+    promotion_remaining: 1,
+    promotion_available_to_viewer: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+  });
+
+  it("totals a promo cart line at the promo price in the cart and the checkout", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [promoShirt], current_page: 1, last_page: 1 } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: promoShirt, quantity: 2 }]));
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    expect(await screen.findByText(/Order total:/)).toHaveTextContent("160.00");
+    expect(screen.queryByText(/200\.00/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review and continue" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm merchandise reservation" });
+    expect(dialog).toHaveTextContent("Qty: 2 × ₱80.00");
+    expect(dialog).toHaveTextContent("₱160.00");
+    expect(dialog).not.toHaveTextContent("200.00");
+  });
+
+  it("says one buyer slot and the first buyer for a promotion limited to one buyer", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [promoShirt], current_page: 1, last_page: 1 } });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    expect(await screen.findByText(/1 buyer slot left/)).toBeInTheDocument();
+    expect(screen.getByText("First buyer")).toBeInTheDocument();
+    expect(screen.queryByText(/1 buyer slots/)).not.toBeInTheDocument();
+    expect(screen.queryByText("First 1 buyers")).not.toBeInTheDocument();
+  });
+
+  it("says one slot left in the inventory table for a single remaining promo slot", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [promoShirt], current_page: 1, last_page: 1 } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect((await screen.findAllByText("1 slot left")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("1 slots left")).not.toBeInTheDocument();
+  });
+
+  it("shows only the first plain message when a product image is refused", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
+    updateItem.mockRejectedValue({ response: { status: 422, data: {
+      message: "The image must be a picture file. (and 2 more errors)",
+      errors: { image: ["The image must be a picture file."], "image.0": ["The image must be a picture file."], merchandise_id: ["Merchandise id is required."] },
+    } } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    fireEvent.click(await findRowAction("Edit"));
+    fireEvent.click(await screen.findByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText("The image must be a picture file.")).toBeInTheDocument();
+    expect(screen.queryByText(/more error/)).not.toBeInTheDocument();
+  });
+
+  it("prints GCash with the brand spelling in a buyer's order details", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 8, payment_method: "gcash" })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View details" }));
+    const dialog = await screen.findByRole("dialog", { name: "ORD-8" });
+    expect(within(dialog).getByText("GCash")).toBeInTheDocument();
+  });
+
+  it("keeps the stop selling dialog open and shows the refusal inside it", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
+    updateItem.mockRejectedValue({ response: { status: 422, data: { message: "This item has pending or paid orders, so it cannot be stopped." } } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    fireEvent.click(await findRowAction("Stop selling"));
+    const dialog = await screen.findByRole("dialog", { name: "Set item inactive" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Set inactive" }));
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("This item has pending or paid orders, so it cannot be stopped.");
+    expect(screen.getAllByText("This item has pending or paid orders, so it cannot be stopped.")).toHaveLength(1);
   });
 });

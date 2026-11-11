@@ -3,6 +3,7 @@ import { peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -365,6 +366,7 @@ function ConfirmModal({
   confirmText = "Confirm",
   busy = false,
   danger = false,
+  error = "",
   onCancel,
   onConfirm,
 }) {
@@ -375,6 +377,7 @@ function ConfirmModal({
       <div className="w-full max-w-md rounded-card border border-line bg-white p-6">
         <h3 className="text-base font-semibold text-ink">{title}</h3>
         <p className="mt-2 whitespace-pre-line text-sm text-ink-muted-strong">{message}</p>
+        {error && <p role="alert" className="mt-3 rounded-control border border-danger/40 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
           <Button type="button" variant={danger ? "danger" : "primary"} onClick={onConfirm} disabled={busy}>
@@ -683,6 +686,7 @@ export default function MerchandisePage({ initialTab }) {
     action: null,
     busy: false,
     danger: false,
+    error: "",
   });
 
   function openOrderDetails(order) {
@@ -988,6 +992,7 @@ export default function MerchandisePage({ initialTab }) {
       action,
       busy: false,
       danger,
+      error: "",
     });
   }
 
@@ -1000,7 +1005,21 @@ export default function MerchandisePage({ initialTab }) {
       action: null,
       busy: false,
       danger: false,
+      error: "",
     });
+  }
+
+  async function runConfirmedAction() {
+    if (!confirmModal.action) return;
+    setConfirmModal((prev) => ({ ...prev, busy: true, error: "" }));
+    try {
+      await confirmModal.action();
+      closeConfirm();
+    } catch (requestError) {
+      setConfirmModal((prev) => ({ ...prev, error: getApiErrorMessage(requestError, "The requested action could not be completed.") }));
+    } finally {
+      setConfirmModal((prev) => ({ ...prev, busy: false }));
+    }
   }
 
   // Officer handlers
@@ -1065,7 +1084,7 @@ export default function MerchandisePage({ initialTab }) {
       setTransactionMessage("Product added successfully.");
       load();
     } catch (err) {
-      setFormError(err.response?.data?.message ?? "Failed to add item.");
+      setFormError(getApiErrorMessage(err, "Failed to add item."));
     } finally {
       setFormSubmitting(false);
     }
@@ -1153,7 +1172,7 @@ export default function MerchandisePage({ initialTab }) {
       setTransactionMessage(`${editForm.name} updated successfully.`);
       closeEditForm();
     } catch (err) {
-      setFormError(err.response?.data?.message ?? "Failed to update item.");
+      setFormError(getApiErrorMessage(err, "Failed to update item."));
     } finally {
       setFormSubmitting(false);
     }
@@ -2033,7 +2052,7 @@ export default function MerchandisePage({ initialTab }) {
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="font-semibold tabular-nums text-ink">{fmt(item.effective_price ?? item.price)}</p>
-                          {item.promotion_available_to_viewer && <p className="text-xs text-ink-muted"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}
+                          {item.promotion_available_to_viewer && <p className="text-xs text-ink-muted"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slot{item.promotion_remaining === 1 ? "" : "s"} left</p>}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -2045,7 +2064,7 @@ export default function MerchandisePage({ initialTab }) {
                             {item.is_low_stock && <StatusBadge tone="warning" label="Low stock" />}
                           </>
                         )}
-                        {item.promotion_available_to_viewer && <StatusBadge tone="active" label={`First ${item.promotion_buyer_limit} buyers`} />}
+                        {item.promotion_available_to_viewer && <StatusBadge tone="active" label={item.promotion_buyer_limit === 1 ? "First buyer" : `First ${item.promotion_buyer_limit} buyers`} />}
                       </div>
                       <div className="min-h-10">
                         {item.description && <RichTextBody value={item.description} className="line-clamp-2 text-xs leading-5 text-ink-muted" />}
@@ -2212,7 +2231,7 @@ export default function MerchandisePage({ initialTab }) {
                         </button>
                       </div>
                       <p className="min-w-24 text-right font-semibold tabular-nums text-ink">
-                        {fmt(toNumber(row.item.price) * row.quantity)}
+                        {fmt(itemPrice(row.item) * row.quantity)}
                       </p>
                     </li>
                   ))}
@@ -2410,7 +2429,7 @@ export default function MerchandisePage({ initialTab }) {
                   ...(orderSize(orderDetails) ? [["Size", orderSize(orderDetails)]] : []),
                   ["Quantity", orderDetails.quantity],
                   ["Total", fmt(orderDetails.total_price)],
-                  ["Payment", (orderDetails.payment_method || "cash").toUpperCase()],
+                  ["Payment", paymentLabel(orderDetails.payment_method || "cash")],
                   ["Ordered", fmtDate(orderDetails.created_at)],
                   orderDetails.claim_token && ["Claim token", orderDetails.claim_token],
                   orderDetails.claimed_at && ["Claimed", fmtDateTime(orderDetails.claimed_at)],
@@ -2449,7 +2468,7 @@ export default function MerchandisePage({ initialTab }) {
                       </p>
                     </div>
                     <p className="text-sm font-semibold tabular-nums text-ink">
-                      {fmt(toNumber(row.item.price) * row.quantity)}
+                      {fmt(itemPrice(row.item) * row.quantity)}
                     </p>
                   </li>
                 ))}
@@ -2652,23 +2671,9 @@ export default function MerchandisePage({ initialTab }) {
           confirmText={confirmModal.confirmText}
           busy={confirmModal.busy}
           danger={confirmModal.danger}
+          error={confirmModal.error}
           onCancel={closeConfirm}
-          onConfirm={async () => {
-            if (!confirmModal.action) return;
-            setConfirmModal((prev) => ({ ...prev, busy: true }));
-            try {
-              await confirmModal.action();
-              closeConfirm();
-            } catch (requestError) {
-              showFeedback(
-                "error",
-                requestError.response?.data?.message ||
-                  "The requested action could not be completed.",
-              );
-            } finally {
-              setConfirmModal((prev) => ({ ...prev, busy: false }));
-            }
-          }}
+          onConfirm={runConfirmedAction}
         />
       </div>
     );
@@ -2738,7 +2743,7 @@ export default function MerchandisePage({ initialTab }) {
       header: "Price",
       align: "right",
       render: (item) => item.promotion_available_to_viewer
-        ? <><strong className="font-semibold">{fmt(item.effective_price)}</strong> <s className="text-ink-muted">{fmt(item.price)}</s><span className="block text-xs text-ink-muted">{item.promotion_remaining} slots left</span></>
+        ? <><strong className="font-semibold">{fmt(item.effective_price)}</strong> <s className="text-ink-muted">{fmt(item.price)}</s><span className="block text-xs text-ink-muted">{item.promotion_remaining} slot{item.promotion_remaining === 1 ? "" : "s"} left</span></>
         : fmt(item.price),
     },
     { key: "stock", header: "In stock", align: "right", render: (item) => item.stock_quantity },
@@ -3795,23 +3800,9 @@ export default function MerchandisePage({ initialTab }) {
         confirmText={confirmModal.confirmText}
         busy={confirmModal.busy}
         danger={confirmModal.danger}
+        error={confirmModal.error}
         onCancel={closeConfirm}
-        onConfirm={async () => {
-          if (!confirmModal.action) return;
-          setConfirmModal((prev) => ({ ...prev, busy: true }));
-          try {
-            await confirmModal.action();
-            closeConfirm();
-          } catch (requestError) {
-            showFeedback(
-              "error",
-              requestError.response?.data?.message ||
-                "The requested action could not be completed.",
-            );
-          } finally {
-            setConfirmModal((prev) => ({ ...prev, busy: false }));
-          }
-        }}
+        onConfirm={runConfirmedAction}
       />
 
       <AddStockModal
