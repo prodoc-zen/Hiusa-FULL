@@ -625,7 +625,7 @@ describe('FinancePage forecast explainability', () => {
     expect(screen.queryByText(/R²/)).not.toBeInTheDocument();
   });
 
-  it('lists forecasts oldest to newest whether the period is a month or a quarter', async () => {
+  it('lists the newest forecast first and the chart oldest to newest, whether the period is a month or a quarter', async () => {
     const base = { predicted_expense: 800, predicted_balance: 200, safe_spending_limit: 160, model_details: { sample_months: 6, income: { r_squared: 0.9 }, expense: { r_squared: 0.9 } } };
     financeMocks.getForecasts.mockResolvedValue({ data: [
       { ...base, id: 1, forecast_period: 'Q1 2025', predicted_income: 1000 },
@@ -637,7 +637,7 @@ describe('FinancePage forecast explainability', () => {
 
     await screen.findByText('Forecast for Q3 2024');
     const titles = screen.getAllByText(/^Forecast for /).map((node) => node.textContent);
-    expect(titles).toEqual(['Forecast for Q3 2024', 'Forecast for Q4 2024', 'Forecast for Q1 2025']);
+    expect(titles).toEqual(['Forecast for Q1 2025', 'Forecast for Q4 2024', 'Forecast for Q3 2024']);
     const chartPeriods = screen.getAllByRole('row').map((row) => row.cells[0]?.textContent).filter((text) => /^Q\d/.test(text));
     expect(chartPeriods).toEqual(['Q3 2024', 'Q4 2024', 'Q1 2025']);
   });

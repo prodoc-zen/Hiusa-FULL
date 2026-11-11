@@ -1,4 +1,5 @@
 import { filterLabel, matchesFilter } from '../../../utils/filterValues';
+import { peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor from '../../../components/RichText';
@@ -238,10 +239,6 @@ function getClampNotice(forecast) {
 function sentence(value) {
   const text = String(value ?? '').replaceAll('_', ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function fmt(n) {
-  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatLedgerDate(value) {
@@ -1602,7 +1599,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {/* The chart's axis text is unreadable at phone width, and each forecast below lists the same figures. */}
                 {sortedForecasts.length > 1 && <div className="hidden sm:block"><FinancialForecastChart forecasts={sortedForecasts} className="" /></div>}
                 <ul className="divide-y divide-line border-t border-line">
-                  {sortedForecasts.map((f) => {
+                  {[...sortedForecasts].reverse().map((f) => {
                     const reliability = getForecastReliability(f);
                     const clampNotice = getClampNotice(f);
                     const sampleMonths = f.model_details?.sample_months;
