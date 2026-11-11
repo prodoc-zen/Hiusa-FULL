@@ -78,6 +78,26 @@ describe('TopBar notifications', () => {
     await waitFor(() => expect(within(bell).queryByText('1')).not.toBeInTheDocument());
   });
 
+  it('keeps the bell at zero when a slower earlier read lands after the newer one', async () => {
+    const stale = { data: { data: [{ id: 1, title: 'Budget review', message: 'Approved', is_read: false }], unread_count: 1 } };
+    const fresh = { data: { data: [{ id: 1, title: 'Budget review', message: 'Approved', is_read: true }], unread_count: 0 } };
+    let releaseStale;
+    notificationMocks.getNotifications
+      .mockResolvedValueOnce(stale)
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseStale = () => resolve(stale); }))
+      .mockResolvedValueOnce(fresh);
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const bell = await screen.findByRole('button', { name: 'Notifications' });
+    await waitFor(() => expect(within(bell).getByText('1')).toBeInTheDocument());
+
+    await act(async () => { window.dispatchEvent(new Event('hiusa-notifications-changed')); });
+    await act(async () => { window.dispatchEvent(new Event('hiusa-notifications-changed')); });
+    await waitFor(() => expect(within(bell).queryByText('1')).not.toBeInTheDocument());
+
+    await act(async () => { releaseStale(); });
+    expect(within(bell).queryByText('1')).not.toBeInTheDocument();
+  });
+
   it('keeps the admin home header compact above the dashboard briefing, with no cart', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
@@ -220,6 +240,19 @@ describe('TopBar notifications', () => {
     const panel = await screen.findByRole('region', { name: 'Cart summary' });
     expect(panel).toHaveClass('fixed', 'left-3', 'right-3', 'sm:absolute');
     expect(screen.getByRole('button', { name: 'Cart' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('prices cart lines with the peso sign', async () => {
+    localStorage.setItem('hiusa_student_cart', JSON.stringify([{ item: { id: 1, name: 'HIUSA Shirt', price: 180 }, quantity: 2 }]));
+
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Cart' }));
+
+    const panel = await screen.findByRole('region', { name: 'Cart summary' });
+    expect(panel).toHaveTextContent('Qty: 2 - ₱180.00');
+    expect(panel).toHaveTextContent('₱360.00');
+    expect(panel).toHaveTextContent('Total: ₱360.00');
+    expect(panel).not.toHaveTextContent(/\bP\d/);
   });
 
   it('anchors the notifications panel to the mobile viewport', async () => {

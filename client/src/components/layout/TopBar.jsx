@@ -15,6 +15,7 @@ import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
+import { peso } from '../../lib/format';
 import { notificationAppearance } from '../../utils/notificationTone';
 import { organizationLabel } from '../../utils/collegeIdentity';
 import { PERIOD_EVENT, PERIOD_RESET_EVENT, readSelectedPeriod, writeSelectedPeriod } from '../../utils/academicPeriodStore';
@@ -31,11 +32,6 @@ function readStudentCart() {
   } catch {
     return [];
   }
-}
-
-function formatMoney(value) {
-  const num = Number.parseFloat(String(value ?? 0));
-  return `P${Number.isFinite(num) ? num.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}`;
 }
 
 function timeAgo(dateStr) {
@@ -56,6 +52,7 @@ export default function TopBar({ onMenuToggle }) {
   const [viewingPeriod, setViewingPeriod] = useState(null);
   const [availablePeriods, setAvailablePeriods] = useState([]);
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+  const notificationRequestRef = useRef(0);
   const periodRef = useRef(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
@@ -163,8 +160,10 @@ export default function TopBar({ onMenuToggle }) {
   };
 
   const loadNotifications = useCallback(async () => {
+    const requestId = ++notificationRequestRef.current;
     try {
       const res = await getNotifications({ per_page: 10 });
+      if (requestId !== notificationRequestRef.current) return;
       const data = unwrapList(res?.data);
       setNotifications(data.slice(0, 10));
       setUnreadCount(Number(res?.data?.unread_count ?? data.filter((notification) => !notification.is_read).length));
@@ -451,16 +450,16 @@ export default function TopBar({ onMenuToggle }) {
                     <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3 last:border-b-0">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{formatDisplayText(row.item?.name) || 'Item'}</p>
-                        <p className="text-xs text-ink-muted">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
+                        <p className="text-xs text-ink-muted">Qty: {row.quantity || 0} - {peso(row.item?.price || 0)}</p>
                       </div>
-                      <p className="text-sm font-medium tabular-nums text-ink">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
+                      <p className="text-sm font-medium tabular-nums text-ink">{peso((row.item?.price || 0) * (row.quantity || 0))}</p>
                     </div>
                   ))
                 )}
               </div>
 
               <div className="shrink-0 border-t border-line px-4 py-3">
-                <p className="mb-2 text-sm text-ink-muted">Total: <span className="font-medium tabular-nums text-ink">{formatMoney(cartTotal)}</span></p>
+                <p className="mb-2 text-sm text-ink-muted">Total: <span className="font-medium tabular-nums text-ink">{peso(cartTotal)}</span></p>
                 <Button
                   variant="secondary"
                   size="sm"
