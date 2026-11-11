@@ -48,6 +48,22 @@ class CollegeHierarchyPolishTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'action' => 'organization_updated']);
     }
 
+    public function test_sao_can_edit_an_organization_that_sits_under_its_college_home_when_the_parent_is_unchanged(): void
+    {
+        $computing = $this->makeCollege('CCS');
+        $home = Organization::where('organization_type', 'COLLEGE')->where('college_id', $computing->id)->first() ?? $this->makeCollegeHome($computing);
+        $organization = $this->makeCollegeStudentOrganization($computing, ['is_active' => true, 'lifecycle_status' => 'active', 'parent_organization_id' => $home->id]);
+        $other = $this->makeCollegeHome($this->makeCollege('CBE'));
+        Sanctum::actingAs($this->director());
+
+        $this->putJson('/api/system/organizations/'.$organization->id, ['description' => 'Fresh text', 'color' => '#123ABC', 'parent_organization_id' => $home->id])
+            ->assertOk()->assertJsonPath('description', 'Fresh text');
+        $this->assertSame($home->id, $organization->fresh()->parent_organization_id);
+
+        $this->putJson('/api/system/organizations/'.$organization->id, ['parent_organization_id' => $other->id])
+            ->assertStatus(422)->assertJsonValidationErrors('parent_organization_id');
+    }
+
     public function test_a_seeded_department_head_payload_names_their_college_and_never_a_student_organization(): void
     {
         $this->seed(DatabaseSeeder::class);

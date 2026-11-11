@@ -143,11 +143,15 @@ class SystemAdministrationController extends Controller
         if (! $organization->isWritable()) {
             return response()->json(['message' => $organization->isArchived() ? 'Archived organizations cannot be edited.' : 'Only active organizations can be edited.'], 409);
         }
-        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/']]);
-        if ($organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
+        $parentUnchanged = $organization->parent_organization_id !== null && (int) $request->input('parent_organization_id') === $organization->parent_organization_id;
+        $parentRule = $parentUnchanged
+            ? ['nullable', 'integer']
+            : ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)];
+        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'parent_organization_id' => $parentRule, 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/']]);
+        if (! $parentUnchanged && $organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
             return response()->json(['message' => 'An organization with suborganizations cannot become a suborganization.'], 422);
         }
-        if (! empty($data['parent_organization_id'])) {
+        if (! $parentUnchanged && ! empty($data['parent_organization_id'])) {
             $parent = Organization::findOrFail($data['parent_organization_id']);
             if ((bool) $parent->is_university_wide !== (bool) $organization->is_university_wide || $parent->college_id !== $organization->college_id || $parent->college !== $organization->college) {
                 throw ValidationException::withMessages(['parent_organization_id' => ['Choose a parent with the same college and university-wide scope.']]);

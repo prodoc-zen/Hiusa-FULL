@@ -341,6 +341,31 @@ describe('SystemOrganizationsPage', () => {
       expect(mocks.updateSystemOrganization.mock.calls[0][1]).not.toHaveProperty('is_active');
     });
 
+    it('shows an organization that sits under its college as that parent and sends it back unchanged', async () => {
+      mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ parent_organization_id: 7, parent_organization: { id: 7, name: 'College of Arts' } })]));
+      mocks.updateSystemOrganization.mockResolvedValue(org());
+      renderPage();
+      fireEvent.click(await actionsFor('Main SBO'));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+      const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
+      await waitFor(() => expect(within(dialog).getByLabelText('Main organization')).not.toBeDisabled());
+      expect(within(dialog).getByLabelText('Main organization')).toHaveDisplayValue('College of Arts');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save organization' }));
+      await waitFor(() => expect(mocks.updateSystemOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ parent_organization_id: 7 })));
+    });
+
+    it('puts a server error beside the field it belongs to instead of at the top of the drawer', async () => {
+      mocks.updateSystemOrganization.mockRejectedValue({ response: { status: 422, data: { message: 'The name has already been taken.', errors: { name: ['The name has already been taken.'] } } } });
+      renderPage();
+      fireEvent.click(await actionsFor('Main SBO'));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+      const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save organization' }));
+      const field = await within(dialog).findByText('The name has already been taken.');
+      expect(field.parentElement).toContainElement(within(dialog).getByLabelText('Organization name'));
+      expect(within(dialog).getByLabelText('Organization name')).toBeInvalid();
+    });
+
     it('archives with an optional reason', async () => {
       mocks.archiveSystemOrganization.mockResolvedValue({});
       renderPage();
