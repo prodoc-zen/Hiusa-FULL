@@ -1864,7 +1864,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     </div>
                     <p className="mt-1 text-xs text-ink-muted">{report.document_type === 'income_statement' ? 'Income statement' : 'Financial report'}{report.summary_text ? ` · ${report.summary_text}` : ''}</p>
                     <FlowStepper variant="compact" ariaLabel={`Report progress for ${formatDisplayText(report.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-3 max-w-sm" />
-                    <p className="mt-1 text-xs text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
+                    <p className="mt-1 hidden text-xs text-ink-muted-strong sm:block">{lifecycle.nextAction.title}</p>
                     <div className="mt-3">
                       <TableRowActions subject={formatDisplayText(report.title)} actions={[
                         { label: `View details for ${formatDisplayText(report.title)}`, icon: Eye, onClick: () => setRecordId(report.id) },

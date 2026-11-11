@@ -291,6 +291,8 @@ describe('FinancePage financial report lifecycle', () => {
     // The compact stepper shows the next action alone below 640 px; from 640 px up the row prints it under the stepper.
     const desktopLine = (text) => screen.getAllByText(text).filter((node) => node.className.includes('sm:block'));
     expect(desktopLine('Waiting for Department Head approval')).toHaveLength(1);
+    // Below 640 px the stepper already prints it, so the row line is hidden there instead of repeating it.
+    expect(desktopLine('Waiting for Department Head approval')[0].className.split(' ')).toContain('hidden');
     expect(desktopLine('Review and submit')).toHaveLength(1);
   });
 
