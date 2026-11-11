@@ -116,7 +116,7 @@ test('the preflight passes with the marker present and a non production environm
     assert.match(result.stdout, /preflight ok/);
 });
 
-test('the preflight refuses while an election is active or approved and upcoming', () => {
+test('the preflight refuses while an election is active, or approved, finalized and upcoming', () => {
     const result = preflight(step1, { marker: `reseed-production ${today}`, appEnv: 'production', elections: '2' });
     assert.notEqual(result.status, 0);
     assert.match(result.stdout, /election/);
