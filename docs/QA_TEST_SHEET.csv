@@ -2591,13 +2591,12 @@ Student,STU-008,Sign in,"An unknown address sends a signed-in student home, not 
 2. Check where you land.
 3. Type the site address followed by /dashboard and press Enter.
 4. Check where you land.","You end on the student home (/dashboard/student). No blank page, no 404 page and no error page appears.",,Not run,,,,,,
-Student,STU-009,Sign in,Forgot password page opens and asks for School ID and email,Functional,Medium,Any,Any time,,"Signed out. On the public test link, reset emails are not sent, so only check the screens.","1. On the sign-in page, tap or click ""Forgot password?"".
+Student,STU-009,Sign in,Forgot password page opens and asks for email or School ID,Functional,Medium,Any,Any time,,"Signed out. On the public test link, reset emails are not sent, so only check the screens.","1. On the sign-in page, tap or click ""Forgot password?"".
 2. Check that the page says ""Reset your password"".
-3. Type 2100142 in ""School ID / ID number"".
-4. Type the email shown on that account in ""Email address"".
-5. Tap or click ""Request reset"".
-6. Read the next screen.
-7. Tap or click ""Back to login"".","A screen says ""Check your email"" and shows the email you typed, with a ""Send another email"" button. The same screen appears even for an email that does not match, so nobody can learn which emails exist. On the public link the email itself does not arrive (known limit). ""Back to login"" returns to sign-in.",,Not run,,,,,,
+3. Type 2100142 (or the email shown on that account) in ""Email or school ID"".
+4. Tap or click ""Request reset"".
+5. Read the next screen.
+6. Tap or click ""Back to login"".","The page has one field labelled ""Email or school ID"". After Request reset, a screen says ""Ask for a reset"" and that password reset by email is not available and nothing was sent to anyone, with only a ""Back to login"" button. The same screen appears for a value that does not match any account, so nobody can learn which accounts exist. No email arrives, because reset emails are not sent on the public link (known limit). To get a reset, ask your organization Admin or the SAO for a one-time link. ""Back to login"" returns to sign-in.",,Not run,,,,,,
 Student,STU-010,Sign in,Log out asks for confirmation and ends the session,Functional,High,Any,Any time,,Signed in as Student 2100142.,"1. Open the account menu at the top right (your name).
 2. Tap or click ""Logout"".
 3. Read the window that opens.
@@ -3178,13 +3177,13 @@ General,GEN-028,Sign-in,Saving a new password works and the old one stops workin
 4. Sign out, then sign in with the temporary password.
 5. Sign in with the new password.",After saving you land on your dashboard home. Signing in with the temporary password is refused. Signing in with the new password works and does not ask for a change again.,,Not run,,,,,,
 General,GEN-029,Sign-in,Forgot password request is accepted but no email arrives in the test copy,Functional,High,Any,Any time,,"The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Email is switched off in the test copy, so reset emails are only written to the server log.","1. On the sign-in page choose Forgot password? and read the page.
-2. Type the Student School ID 2100142 and the email address on that account, then choose Request reset.
+2. Type the Student School ID 2100142 (or the email on that account) in Email or school ID, then choose Request reset.
 3. Wait five minutes and check that inbox and its spam folder.
-4. Go back and try School ID 12345678 with the email nobody@example.com.","The ""Reset your password"" page has School ID / ID number and Email address fields, a Request reset button and Back to login. With email off, the page changes to ""Ask for a reset"" and says nothing was sent to anyone. No email arrives. This is expected. An unknown account shows the very same screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link. When email is on, the page shows ""Check your email"" instead.",,Not run,,,,,,
+4. Go back and try one unknown value, for example 12345678 or nobody@example.com, in Email or school ID.","The ""Reset your password"" page has one field labelled ""Email or school ID"", a Request reset button and Back to login. With email off, the page changes to ""Ask for a reset"" and says password reset by email is not available and nothing was sent to anyone, with only a Back to login button. No email arrives. This is expected. An unknown value shows the very same ""Ask for a reset"" screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link. Only when email is on does the page show ""Check your email"" instead.",,Not run,,,,,,
 General,GEN-030,Sign-in,Forgot password checks an empty or badly typed form,Validation,Medium,Any,Any time,,The test copy is running and you have its link. You are signed out (no one is signed in on this browser).,"1. Open the Reset your password page.
-2. Choose Request reset with both fields empty.
-3. Type a School ID and the text ""not-an-email"" as the email.
-4. Choose Request reset again.","A red message shows and no ""Check your email"" screen appears.","VERIFY: the wording. A message that mentions ""organization id"" would be a wording problem to report because students do not know that term.",Not run,,,,,,
+2. Choose Request reset with the Email or school ID field empty.
+3. Type the text ""not-an-email"" in Email or school ID.
+4. Choose Request reset again.","With the field empty, a red message shows above the button, taken from the server: ""The identifier field is required when none of school id / organization id / email are present."" You stay on the page and no ""Check your email"" or ""Ask for a reset"" screen appears.","VERIFY: the wording. The words ""identifier"" and ""organization id"" are technical and students do not know them, so report this wording as a problem. For ""not-an-email"" the page does not show a red message, because the form does no checking of its own and the server accepts any text up to 100 characters. With email off, you get the ""Ask for a reset"" screen. With email on, you get ""Check your email"", the same as for any unknown account.",Not run,,,,,,
 General,GEN-031,Sign-in,A reset link that is missing parts or has a bad token,Negative,Medium,Any,Any time,,The test copy is running and you have its link. You are signed out (no one is signed in on this browser).,"1. Open the test link followed by /reset-password with nothing after it.
 2. Read the page.
 3. Then open the test link followed by /reset-password?organization_id=1&email=a@b.com&token=wrong.

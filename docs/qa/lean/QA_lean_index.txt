@@ -703,7 +703,7 @@ STU-005 | Sign in | Lockout after 5 wrong passwords for 15 minutes | H | Any
 STU-006 | Sign in | Sign in has no role picker; a student always lands on the student home | H | Any
 STU-007 | Sign in | Signed-out visitor is sent to sign-in for every student page | H | Any
 STU-008 | Sign in | An unknown address sends a signed-in student home, not to an error page | M | Any
-STU-009 | Sign in | Forgot password page opens and asks for School ID and email | M | Any
+STU-009 | Sign in | Forgot password page opens and asks for email or School ID | M | Any
 STU-010 | Sign in | Log out asks for confirmation and ends the session | H | Any
 STU-011 | Sign in | Changing the password on one device signs the other device out | M | Any
 STU-012 | Sign in | Sign-in page fits a phone screen | H | Any
