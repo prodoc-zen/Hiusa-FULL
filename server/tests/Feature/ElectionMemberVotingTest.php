@@ -206,6 +206,7 @@ class ElectionMemberVotingTest extends TestCase
     public function test_the_members_home_feed_offers_the_organizations_open_election(): void
     {
         $member = $this->collegeMember();
+        $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
 
         $feed = $this->getJson('/api/student/feed')->assertOk();
@@ -238,7 +239,7 @@ class ElectionMemberVotingTest extends TestCase
         AccountProfile::create(['user_school_id' => $member->school_id, 'organization_id' => $second->id, 'role' => 'STUDENT', 'account_status' => 'active']);
         $secondElection = Election::factory()->create([
             'organization_id' => $second->id, 'status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHours(5),
-            'approved_at' => now()->subDay(), 'finalized_at' => now()->subDay(),
+            'approved_at' => now()->subDay(), 'finalized_at' => now(),
         ]);
         $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);

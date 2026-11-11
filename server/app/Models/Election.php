@@ -79,6 +79,15 @@ class Election extends Model
         return ['opened' => $opened, 'closed' => $closed];
     }
 
+    /** The one rule for who may vote: the member was on the organization's voter roll when the ballot was finalized. */
+    public function listsVoter(int $schoolId): bool
+    {
+        return AccountProfile::onVoterRoll($this->finalized_at)
+            ->where('account_profiles.organization_id', $this->organization_id)
+            ->where('account_profiles.user_school_id', $schoolId)
+            ->exists();
+    }
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);

@@ -75,7 +75,7 @@ class StudentFeedController extends Controller
             ->whereIn('election_id', $electionModels->keys())
             ->distinct()->pluck('election_id')->map(fn ($id) => (int) $id)->all();
 
-        $items = $rows->map(function ($row) use ($announcementModels, $eventModels, $electionModels, $votedElectionIds) {
+        $items = $rows->map(function ($row) use ($announcementModels, $eventModels, $electionModels, $votedElectionIds, $user) {
             $model = match ($row->item_type) {
                 'announcement' => $announcementModels->get($row->item_id),
                 'event' => $eventModels->get($row->item_id),
@@ -121,6 +121,7 @@ class StudentFeedController extends Controller
                     'positions_count' => $model->positions_count,
                     'candidates_count' => $model->candidates_count,
                     'has_voted' => in_array((int) $model->id, $votedElectionIds, true),
+                    'can_vote' => $model->listsVoter($user->school_id),
                     'created_at' => $model->created_at,
                 ],
             };
@@ -140,13 +141,13 @@ class StudentFeedController extends Controller
             ->where('start_time', '<=', now())
             ->where('end_time', '>=', now())
             ->orderBy('end_time');
-        $activeElection = $openElections()
-            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
-                ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $user->id))
-            ->first() ?? $openElections()->first();
+        $open = $openElections()->get();
+        $votedOpenIds = Vote::where('voter_id', $user->id)->whereIn('election_id', $open->modelKeys())
+            ->distinct()->pluck('election_id')->map(fn ($id) => (int) $id)->all();
+        $activeElection = $open->first(fn ($election) => ! in_array($election->id, $votedOpenIds, true) && $election->listsVoter($user->school_id))
+            ?? $open->first(fn ($election) => in_array($election->id, $votedOpenIds, true));
         if ($activeElection) {
-            $activeElection->has_voted = Vote::where('voter_id', $user->id)
-                ->where('election_id', $activeElection->id)->exists();
+            $activeElection->has_voted = in_array($activeElection->id, $votedOpenIds, true);
         }
 
         $upcomingEvents = Event::where('organization_id', $organizationId)
