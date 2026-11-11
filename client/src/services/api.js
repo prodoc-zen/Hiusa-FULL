@@ -125,10 +125,12 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
+      const hadSession = Boolean(localStorage.getItem('auth_token'));
       clearApiCache();
       clearAuthSession();
       if (error.config?.url !== '/login') {
-        window.location.assign('/');
+        if (hadSession) rememberSignOutNotice('Your session ended. Sign in again to continue.');
+        window.location.assign(hadSession ? '/login' : '/');
       }
       return Promise.reject(error);
     }
