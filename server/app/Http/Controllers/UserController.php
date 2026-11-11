@@ -410,7 +410,7 @@ class UserController extends Controller
 
         if (! StudentRegistryEntry::students()->where('college_id', $registryCollegeId)->where('school_id', $data['school_id'])->exists()) {
             throw ValidationException::withMessages([
-                'school_id' => ['This school ID is not in the student registry of your college. Ask the SAO to add the student there first.'],
+                'school_id' => ['This school ID is not in the student registry of your college. Ask your dean or the SAO to add the student there first.'],
             ]);
         }
     }

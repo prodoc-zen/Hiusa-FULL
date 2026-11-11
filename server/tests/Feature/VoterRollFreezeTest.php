@@ -132,7 +132,7 @@ class VoterRollFreezeTest extends TestCase
 
         $this->postJson('/api/users', $this->newStudent(20269999))
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('school_id');
+            ->assertJsonValidationErrors(['school_id' => 'This school ID is not in the student registry of your college. Ask your dean or the SAO to add the student there first.']);
         $this->assertDatabaseMissing('users', ['school_id' => 20269999]);
 
         $this->postJson('/api/users', $this->newStudent(20260001))->assertCreated();

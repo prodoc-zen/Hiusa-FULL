@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the HIUSA queue and scheduler check every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=hiusa-ops-check.service
+
+[Install]
+WantedBy=timers.target

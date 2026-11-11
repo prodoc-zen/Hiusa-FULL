@@ -109,3 +109,36 @@ test('the workflow adds no outbound channel besides ssh to the server and a heal
     assert.deepEqual(uses, ['actions/checkout@v4']);
     assert.doesNotMatch(workflow, /slack|webhook|sendgrid|smtp|mailgun|twilio|notify/i);
 });
+
+const deployScript = readFileSync(resolve('scripts/deploy-lightsail.sh'), 'utf8');
+
+test('the deploy previews and then holds stock for open orders right after the migrations', () => {
+    const migrate = deployScript.indexOf('migrate --force');
+    const dryRun = deployScript.indexOf('orders:hold-stock --dry-run');
+    const hold = deployScript.search(/orders:hold-stock\)/);
+    const caches = deployScript.indexOf('== 6. Caches and restart');
+    assert.ok(migrate > 0, 'migrate step is missing');
+    assert.ok(dryRun > migrate, 'the dry run must come after migrate');
+    assert.ok(hold > dryRun, 'the real hold must come after the dry run');
+    assert.ok(caches > hold, 'the hold must finish before the caches step');
+});
+
+test('the queue and scheduler units set StartLimitIntervalSec in [Unit], where systemd reads it', () => {
+    for (const name of ['hiusa-queue', 'hiusa-scheduler']) {
+        const unit = readFileSync(resolve(`scripts/server/systemd/${name}.service`), 'utf8');
+        const [beforeService] = unit.split('[Service]');
+        assert.match(beforeService, /^StartLimitIntervalSec=0$/m, `${name}: StartLimitIntervalSec=0 must be under [Unit]`);
+        assert.doesNotMatch(unit.slice(unit.indexOf('[Service]')), /StartLimitIntervalSec/);
+    }
+});
+
+test('the ops check runs every 5 minutes through the wrapper and fails the unit on a non-zero exit', () => {
+    const service = readFileSync(resolve('scripts/server/systemd/hiusa-ops-check.service'), 'utf8');
+    const timer = readFileSync(resolve('scripts/server/systemd/hiusa-ops-check.timer'), 'utf8');
+    assert.match(service, /^Type=oneshot$/m);
+    assert.match(service, /^ExecStart=\/usr\/local\/bin\/hiusa-artisan hiusa:ops-check$/m);
+    assert.match(service, /^User=www-data$/m);
+    assert.match(timer, /^OnUnitActiveSec=5min$/m);
+    assert.match(timer, /^Unit=hiusa-ops-check\.service$/m);
+    assert.match(timer, /^WantedBy=timers\.target$/m);
+});

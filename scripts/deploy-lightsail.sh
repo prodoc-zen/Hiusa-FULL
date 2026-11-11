@@ -176,6 +176,9 @@ main() {
     background_stopped=1
     migrated=1
     (cd "$APP_DIR/server" && "${ARTISAN[@]}" migrate --force)
+    echo "== 5b. Hold stock for open orders (preview, then for real)"
+    (cd "$APP_DIR/server" && "${ARTISAN[@]}" orders:hold-stock --dry-run)
+    (cd "$APP_DIR/server" && "${ARTISAN[@]}" orders:hold-stock)
 
     echo "== 6. Caches and restart"
     (cd "$APP_DIR/server" && "${ARTISAN[@]}" config:cache && "${ARTISAN[@]}" route:cache)
