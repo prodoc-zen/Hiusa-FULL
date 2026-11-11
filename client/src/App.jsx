@@ -116,7 +116,9 @@ const ELECTION_MANAGE_PAGE_ROLES = {
 
 function ElectionPageGate({ children }) {
   const { pathname } = useLocation();
-  const allowedRoles = ELECTION_MANAGE_PAGE_ROLES[pathname.replace(/\/+$/, '').split('/').pop()];
+  const path = pathname.replace(/\/+$/, '');
+  if (path === '/dashboard/elections' && getStoredRole() === 'STUDENT') return <Navigate to="/dashboard/elections/cast-vote" replace />;
+  const allowedRoles = ELECTION_MANAGE_PAGE_ROLES[path.split('/').pop()];
   return allowedRoles ? <ProtectedRoute allowedRoles={allowedRoles}>{children}</ProtectedRoute> : children;
 }
 
