@@ -361,4 +361,44 @@ describe('TopBar notifications', () => {
     expect(within(panel).queryByRole('button', { name: 'Review and continue' })).not.toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Open cart' })).toBeInTheDocument();
   });
+
+  it('shows all ten fetched notifications and pages older ones in until there are no more', async () => {
+    const row = (id) => ({ id, title: 'Notice ' + id, message: 'Body ' + id, is_read: false, created_at: '2026-11-01T00:00:00Z' });
+    const page1 = Array.from({ length: 10 }, (_, index) => row(25 - index));
+    const page2 = Array.from({ length: 10 }, (_, index) => row(15 - index));
+    const page3 = Array.from({ length: 5 }, (_, index) => row(5 - index));
+    notificationMocks.getNotifications
+      .mockResolvedValueOnce({ data: { data: page1, current_page: 1, last_page: 3, unread_count: 25 } })
+      .mockResolvedValueOnce({ data: { data: page2, current_page: 2, last_page: 3, unread_count: 25 } })
+      .mockResolvedValueOnce({ data: { data: page3, current_page: 3, last_page: 3, unread_count: 25 } });
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    await waitFor(() => expect(notificationMocks.getNotifications).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    const panel = await screen.findByRole('region', { name: 'Notifications panel' });
+    expect(await within(panel).findByText('Notice 25')).toBeInTheDocument();
+    expect(within(panel).getByText('Notice 16')).toBeInTheDocument();
+    expect(within(panel).queryByText('Notice 15')).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Show older' }));
+    expect(await within(panel).findByText('Notice 15')).toBeInTheDocument();
+    expect(notificationMocks.getNotifications).toHaveBeenLastCalledWith({ per_page: 10, page: 2 });
+    expect(within(panel).getByText('Notice 25')).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Show older' }));
+    expect(await within(panel).findByText('Notice 1')).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Show older' })).not.toBeInTheDocument();
+    expect(within(panel).getByText('25 new')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Mark all as read' })).toBeInTheDocument();
+  });
+
+  it('offers no Show older when everything fits on the first page', async () => {
+    notificationMocks.getNotifications.mockResolvedValue({ data: { data: [{ id: 1, title: 'Only one', message: 'Body', is_read: true }], current_page: 1, last_page: 1, unread_count: 0 } });
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    const panel = await screen.findByRole('region', { name: 'Notifications panel' });
+    expect(await within(panel).findByText('Only one')).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Show older' })).not.toBeInTheDocument();
+  });
 });
