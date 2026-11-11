@@ -16,7 +16,7 @@ const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
 
 const YEAR_START_STEPS = [
   { label: "Publish this year's accreditation requirements", to: '/dashboard/super-admin/compliance' },
-  { label: 'Hand over administrator roles after elections', to: '/dashboard/super-admin/admins' },
+  { label: "Review each organization's administrators after elections: add the new ones, remove the old ones", to: '/dashboard/super-admin/admins' },
   { label: 'Open a clearance period for the semester', to: '/dashboard/super-admin/clearances' },
 ];
 
