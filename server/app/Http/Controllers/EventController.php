@@ -100,7 +100,7 @@ class EventController extends Controller
             'start_desc' => $query->orderByDesc('start_time')->orderByDesc('id'),
             'newest' => $query->orderByDesc('created_at')->orderByDesc('id'),
             'title' => $query->orderBy('title')->orderBy('id'),
-            default => $query->orderBy('start_time')->orderBy('id'),
+            default => $this->orderSoonest($query),
         };
 
         $events = $query->paginate($paging['per_page'] ?? 20);
@@ -112,6 +112,17 @@ class EventController extends Controller
         }
 
         return response()->json($events);
+    }
+
+    /** Events that have not ended come first, nearest start first, then ended events, most recent first. */
+    private function orderSoonest($query): void
+    {
+        $now = now();
+
+        $query->orderByRaw('CASE WHEN end_time >= ? THEN 0 ELSE 1 END', [$now])
+            ->orderByRaw('CASE WHEN end_time >= ? THEN start_time END ASC', [$now])
+            ->orderByRaw('CASE WHEN end_time < ? THEN start_time END DESC', [$now])
+            ->orderBy('id');
     }
 
     private function attachApprovalInfo($events): void
