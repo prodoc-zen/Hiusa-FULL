@@ -71,6 +71,25 @@ describe('ManageCandidatesPage', () => {
     await waitFor(() => expect(createElectionCandidate).toHaveBeenCalledWith(5, expect.objectContaining({ user_id: 302, position_id: 2 })));
   });
 
+  it('says beside the photo field when the chosen photo is over 2 MB and clears it when a smaller one is chosen', async () => {
+    createElectionCandidate.mockResolvedValue({ id: 11 });
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    fireEvent.click(screen.getByRole('button', { name: 'Add candidate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add candidate' });
+
+    const photo = within(dialog).getByLabelText(/Candidate photo/);
+    const tooBig = new File([new Uint8Array(3 * 1024 * 1024)], 'face.jpg', { type: 'image/jpeg' });
+    fireEvent.change(photo, { target: { files: [tooBig] } });
+
+    expect(photo).toHaveAttribute('aria-invalid', 'true');
+    expect(photo).toHaveAccessibleDescription('Candidate photo must be 2 MB or smaller.');
+
+    const small = new File([new Uint8Array(1024)], 'face.jpg', { type: 'image/jpeg' });
+    fireEvent.change(photo, { target: { files: [small] } });
+    expect(photo).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('asks for students and officers and lists an officer in the Add candidate list', async () => {
     getUsers.mockResolvedValue([...students, { id: 3, school_id: 303, role: 'SBO_OFFICER', first_name: 'Mara', last_name: 'Dizon', email: 'mara@example.com' }]);
     renderPage();

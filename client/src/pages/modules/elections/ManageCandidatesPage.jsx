@@ -154,6 +154,7 @@ function CandidateForm({
   partylists,
   users,
   imagePreview,
+  imageError,
   onImageChange,
   error,
   onSubmit,
@@ -194,7 +195,7 @@ function CandidateForm({
 
       <div className="space-y-2">
         {imagePreview && <Avatar name="Candidate photo preview" src={resolveAssetUrl(imagePreview)} size="lg" />}
-        <Field label="Candidate photo" optional hint="JPEG, PNG or WebP, up to 2 MB.">
+        <Field label="Candidate photo" optional hint="JPEG, PNG or WebP, up to 2 MB." error={imageError}>
           <input type="file" accept="image/jpeg,image/png,image/webp" className={FILE_INPUT} onChange={onImageChange} />
         </Field>
       </div>
@@ -231,6 +232,7 @@ export default function ManageCandidatesPage() {
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [error, setError] = useState('');
+  const [imageError, setImageError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [workingId, setWorkingId] = useState(null);
 
@@ -292,6 +294,7 @@ export default function ManageCandidatesPage() {
     setForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });
     setImageFile(null);
     setImagePreview(null);
+    setImageError('');
     setShowAdd(false);
   };
 
@@ -300,6 +303,7 @@ export default function ManageCandidatesPage() {
     setEditForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });
     setEditImageFile(null);
     setEditImagePreview(null);
+    setImageError('');
   };
 
   const openEdit = (candidate) => {
@@ -398,9 +402,9 @@ export default function ManageCandidatesPage() {
   const imageChange = (setFile, setPreview) => (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    const imageError = candidateImageError(file);
-    if (imageError) { setError(imageError); event.target.value = ''; return; }
-    setError('');
+    const problem = candidateImageError(file);
+    if (problem) { setImageError(problem); event.target.value = ''; return; }
+    setImageError('');
     setFile(file);
     setPreview(URL.createObjectURL(file));
   };
@@ -515,6 +519,7 @@ export default function ManageCandidatesPage() {
           {...formProps}
           positions={positions}
           partylists={partylists}
+          imageError={imageError}
           error={error}
         />
       </Drawer>
