@@ -13,7 +13,7 @@ return [
 
     'rate_limits' => [
         'public_per_minute' => (int) env('RATE_LIMIT_PUBLIC_PER_MINUTE', 60),
-        'read_per_minute' => (int) env('RATE_LIMIT_READ_PER_MINUTE', 120),
+        'read_per_minute' => (int) env('RATE_LIMIT_READ_PER_MINUTE', 300),
         'write_per_minute' => (int) env('RATE_LIMIT_WRITE_PER_MINUTE', 60),
         'people_search_per_minute' => (int) env('RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE', 60),
         'expensive_per_minute' => (int) env('RATE_LIMIT_EXPENSIVE_PER_MINUTE', 10),

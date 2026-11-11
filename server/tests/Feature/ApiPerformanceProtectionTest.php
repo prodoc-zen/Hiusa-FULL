@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ApiPerformanceProtectionTest extends TestCase
@@ -131,6 +132,48 @@ class ApiPerformanceProtectionTest extends TestCase
             'password' => 'invalid-password',
         ])->assertTooManyRequests()
             ->assertJsonPath('message', 'Too many requests. Please wait before trying again.');
+    }
+
+    private function actAsSaoWithShippedReadLimit(): void
+    {
+        // The local .env and CI both override the limit, so read the default out of the config file.
+        preg_match("/'RATE_LIMIT_READ_PER_MINUTE', (\d+)/", file_get_contents(config_path('performance.php')), $shipped);
+        config()->set('performance.rate_limits.read_per_minute', (int) $shipped[1]);
+
+        Sanctum::actingAs(User::factory()->create([
+            'role' => 'SUPER_ADMIN',
+            'organization_id' => Organization::factory(),
+            'account_status' => 'active',
+        ]));
+    }
+
+    public function test_a_brisk_page_load_burst_of_reads_is_not_rate_limited(): void
+    {
+        $this->actAsSaoWithShippedReadLimit();
+        $paths = [
+            '/api/academic-periods',
+            '/api/academic-periods/active',
+            '/api/notifications',
+            '/api/system/overview',
+            '/api/system/colleges',
+        ];
+
+        for ($request = 0; $request < 150; $request++) {
+            $this->assertNotSame(429, $this->getJson($paths[$request % count($paths)])->getStatusCode(), "Request {$request} was rate limited.");
+        }
+    }
+
+    public function test_the_read_limit_still_caps_a_single_minute_with_a_retry_after_header(): void
+    {
+        $this->actAsSaoWithShippedReadLimit();
+
+        for ($request = 0; $request < 300; $request++) {
+            $this->assertNotSame(429, $this->getJson('/api/academic-periods/active')->getStatusCode(), "Request {$request} was rate limited.");
+        }
+
+        $this->getJson('/api/academic-periods/active')
+            ->assertTooManyRequests()
+            ->assertHeader('Retry-After');
     }
 
     public function test_expired_database_cache_rows_are_pruned_without_removing_live_entries(): void

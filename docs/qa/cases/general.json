@@ -1302,7 +1302,7 @@
       "3. Stop and wait one minute.",
       "4. Reload the page."
     ],
-    "expected": "If the limit is reached, a plain message appears, such as \"Too many requests. Please try again in N seconds.\" or \"Too many requests. Please wait a moment and try again.\" After a minute the page works again. VERIFY: whether you can reach the limit this way, since it allows 120 reads a minute.",
+    "expected": "If the limit is reached, a plain message appears, such as \"Too many requests. Please try again in N seconds.\" or \"Too many requests. Please wait a moment and try again.\" After a minute the page works again. VERIFY: whether you can reach the limit this way, since it allows 300 reads a minute.",
     "priority": "Low",
     "device": "Laptop",
     "type": "Negative",
