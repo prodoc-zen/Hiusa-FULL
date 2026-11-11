@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
 use App\Models\AuditLog;
+use App\Models\Election;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\StudentRegistryEntry;
@@ -29,6 +30,8 @@ class UserController extends Controller
     private const IMPORT_LIMIT = 500;
 
     private const LOGIN_FAILURE_LIMIT = 5;
+
+    private const LOGIN_ACCOUNT_FAILURE_LIMIT = 25;
 
     private const LOGIN_FAILURE_WINDOW_SECONDS = 900;
 
@@ -486,8 +489,12 @@ class UserController extends Controller
             'year_level' => ['nullable', 'string', 'max:30'],
             'major' => ['nullable', 'string', 'max:120'],
             'section' => ['nullable', 'string', 'max:60'],
-            'password' => 'sometimes|required|string|min:8',
         ]);
+
+        if ($request->user()->role === 'ADMIN' && (int) $request->user()->school_id !== (int) $user->school_id
+            && array_key_exists('email', $validatedData) && $validatedData['email'] !== $user->email) {
+            return response()->json(['message' => 'Members change their own email in Settings.'], 403);
+        }
 
         if ($request->user()->role === 'SBO_OFFICER' && ($validatedData['role'] ?? 'STUDENT') !== 'STUDENT') {
             return response()->json(['message' => 'SBO Officers cannot assign or promote users to another role.'], 403);
@@ -504,10 +511,6 @@ class UserController extends Controller
 
             if (isset($validatedData['account_status']) && $validatedData['account_status'] !== $user->account_status) {
                 return response()->json(['message' => 'Only the SAO Director can change an administrator account status.'], 403);
-            }
-
-            if (array_key_exists('password', $validatedData)) {
-                return response()->json(['message' => 'Only the SAO Director can reset another administrator account.'], 403);
             }
         }
 
@@ -542,8 +545,8 @@ class UserController extends Controller
         $validatedData = $this->normalizePositionPayload($validatedData, $request->user(), $user);
 
         if ($secondary) {
-            if (array_key_exists('password', $validatedData) || ($validatedData['role'] ?? null) === 'ADMIN') {
-                return response()->json(['message' => 'Only the primary organization can manage this account password or assign an Admin role.'], 403);
+            if (($validatedData['role'] ?? null) === 'ADMIN') {
+                return response()->json(['message' => 'Only the primary organization can assign an Admin role.'], 403);
             }
             $validatedData = $this->normalizeUserPayload($validatedData, $user);
             $membershipData = array_intersect_key($validatedData, array_flip(['role', 'account_status', 'position_title']));
@@ -566,15 +569,7 @@ class UserController extends Controller
             return response()->json($freshUser);
         }
 
-        if (array_key_exists('password', $validatedData)) {
-            $validatedData['password_hash'] = $validatedData['password'];
-            $validatedData['must_change_password'] = true;
-            unset($validatedData['password']);
-            $user->update($this->normalizeUserPayload($validatedData, $user));
-            $user->tokens()->delete();
-        } else {
-            $user->update($this->normalizeUserPayload($validatedData, $user));
-        }
+        $user->update($this->normalizeUserPayload($validatedData, $user));
 
         if (array_key_exists('account_status', $validatedData) && $validatedData['account_status'] !== 'active') {
             $user->tokens()->delete();
@@ -584,6 +579,33 @@ class UserController extends Controller
         $this->recordUserAudit($request, 'updated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
 
         return response()->json($freshUser);
+    }
+
+    /** The member sets their own password from the link; the Admin never sees or types one. */
+    public function initiatePasswordReset(Request $request, $id)
+    {
+        $organizationId = $request->user()->organization_id;
+        $user = User::where('organization_id', $organizationId)->whereIn('role', ['STUDENT', 'SBO_OFFICER'])->find($id);
+
+        if (! $user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
+        if ($user->account_status !== 'active') {
+            return response()->json(['message' => 'Activate this member before initiating a password reset.'], 422);
+        }
+        if (Election::where('organization_id', $organizationId)->where('status', 'active')->exists()) {
+            return response()->json(['message' => 'Voting is open in your organization. Ask the SAO to reset this member\'s password until the election closes.'], 409);
+        }
+
+        $resetLink = $this->passwordResetService->issue($user);
+        $this->recordUserAudit($request, 'member_password_reset_initiated', $user, null, ['email' => $user->email]);
+
+        if ($resetLink === null) {
+            return response()->json(['message' => 'Password reset instructions were sent to the member email address.']);
+        }
+
+        return response()->json(['message' => 'The reset link is ready. It works once and expires in 60 minutes.', 'reset_link' => $resetLink])
+            ->header('Cache-Control', 'no-store');
     }
 
     public function disable(Request $request, $id)
@@ -779,20 +801,24 @@ class UserController extends Controller
             throw ValidationException::withMessages(['identifier' => ['Enter your email or school ID.']]);
         }
 
-        $failureKey = 'login-failures:'.$identifier.'|'.$request->ip();
-
-        if (RateLimiter::tooManyAttempts($failureKey, self::LOGIN_FAILURE_LIMIT)) {
-            return response()->json([
-                'message' => 'Too many failed sign in attempts for this account. Please wait before trying again.',
-            ], 429, ['Retry-After' => RateLimiter::availableIn($failureKey)]);
-        }
-
         $user = User::findByIdentifier($identifier);
+        $account = $user?->school_id ?? $identifier;
+        $failureKey = 'login-failures:'.$account.'|'.$request->ip();
+        $accountFailureKey = 'login-account-failures:'.$account;
+
+        foreach ([$failureKey => self::LOGIN_FAILURE_LIMIT, $accountFailureKey => self::LOGIN_ACCOUNT_FAILURE_LIMIT] as $key => $limit) {
+            if (RateLimiter::tooManyAttempts($key, $limit)) {
+                return response()->json([
+                    'message' => 'Too many failed sign in attempts for this account. Please wait before trying again.',
+                ], 429, ['Retry-After' => RateLimiter::availableIn($key)]);
+            }
+        }
 
         $passwordMatches = Hash::check($request->password, $user?->password_hash ?? self::DUMMY_PASSWORD_HASH);
 
         if (! $user || ! $passwordMatches) {
             RateLimiter::hit($failureKey, self::LOGIN_FAILURE_WINDOW_SECONDS);
+            RateLimiter::hit($accountFailureKey, self::LOGIN_FAILURE_WINDOW_SECONDS);
 
             throw ValidationException::withMessages([
                 'identifier' => ['The provided credentials are incorrect.'],
@@ -800,6 +826,7 @@ class UserController extends Controller
         }
 
         RateLimiter::clear($failureKey);
+        RateLimiter::clear($accountFailureKey);
 
         $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status', 'college_id', 'college', 'organization_type']);
 

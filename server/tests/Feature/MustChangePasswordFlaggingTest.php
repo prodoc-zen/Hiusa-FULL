@@ -64,17 +64,6 @@ class MustChangePasswordFlaggingTest extends TestCase
         $this->assertFalse((bool) User::find(88000002)->must_change_password);
     }
 
-    public function test_an_admin_resetting_a_members_password_makes_them_change_it_at_next_sign_in(): void
-    {
-        $organization = Organization::factory()->create();
-        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
-        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $organization->id]));
-
-        $this->putJson('/api/users/'.$student->school_id, ['password' => 'Chosen-by-staff-1', 'password_confirmation' => 'Chosen-by-staff-1'])->assertOk();
-
-        $this->assertTrue((bool) $student->fresh()->must_change_password);
-    }
-
     public function test_an_admin_editing_other_fields_does_not_flag_the_member(): void
     {
         $organization = Organization::factory()->create();
