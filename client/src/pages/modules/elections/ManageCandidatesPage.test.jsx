@@ -90,6 +90,30 @@ describe('ManageCandidatesPage', () => {
     expect(photo).not.toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('keeps Add candidate disabled while the chosen photo is refused, so no candidate is saved without it', async () => {
+    createElectionCandidate.mockResolvedValue({ id: 11 });
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    fireEvent.click(screen.getByRole('button', { name: 'Add candidate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add candidate' });
+    const submit = within(dialog).getByRole('button', { name: 'Add candidate' });
+    const student = within(dialog).getByRole('combobox', { name: 'Student' });
+    fireEvent.focus(student);
+    fireEvent.change(student, { target: { value: 'Luis' } });
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Luis Cruz/ }));
+    fireEvent.change(within(dialog).getByLabelText('Position'), { target: { value: '2' } });
+    await waitFor(() => expect(submit).toBeEnabled());
+
+    const photo = within(dialog).getByLabelText(/Candidate photo/);
+    fireEvent.change(photo, { target: { files: [new File([new Uint8Array(3 * 1024 * 1024)], 'face.jpg', { type: 'image/jpeg' })] } });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(createElectionCandidate).not.toHaveBeenCalled();
+
+    fireEvent.change(photo, { target: { files: [new File([new Uint8Array(1024)], 'face.jpg', { type: 'image/jpeg' })] } });
+    expect(submit).toBeEnabled();
+  });
+
   it('asks for students and officers and lists an officer in the Add candidate list', async () => {
     getUsers.mockResolvedValue([...students, { id: 3, school_id: 303, role: 'SBO_OFFICER', first_name: 'Mara', last_name: 'Dizon', email: 'mara@example.com' }]);
     renderPage();
