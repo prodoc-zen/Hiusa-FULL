@@ -71,14 +71,14 @@ describe('grievance lists and details', () => {
     student.unmount();
 
     renderAt('/dashboard/super-admin/grievances', <SaoGrievancesPage />);
-    const row = (await screen.findAllByText('Noisy Lab')).map((node) => node.closest('tr')).find(Boolean);
+    const row = (await screen.findAllByText('Noisy lab')).map((node) => node.closest('tr')).find(Boolean);
     expect(within(row).getByText('Waiting for SAO to review')).toBeInTheDocument();
   });
 
   it('shows the student one step per stage with the current one marked', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
     fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
-    const stepper = await screen.findByRole('progressbar', { name: 'Progress of Noisy Lab' });
+    const stepper = await screen.findByRole('progressbar', { name: 'Progress of Noisy lab' });
     expect(stepper).toHaveAttribute('aria-valuemax', '3');
     expect(stepper).toHaveAttribute('aria-valuetext', expect.stringContaining('Under review'));
   });
@@ -111,7 +111,7 @@ describe('grievance lists and details', () => {
   it('puts the one primary File a grievance button in the header once there are rows', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
     fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
-    await screen.findByText('Noisy Lab');
+    await screen.findByText('Noisy lab');
     expect(screen.getAllByRole('button', { name: 'File a grievance' })).toHaveLength(1);
   });
 
@@ -119,7 +119,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     mocks.getGrievance.mockResolvedValue({ data: TO_ORG });
     renderAt('/dashboard/grievances?record=1', <OrganizationGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Broken Lock' });
+    const drawer = await screen.findByRole('dialog', { name: 'Broken lock' });
     expect(mocks.getGrievance).toHaveBeenCalledWith('1');
     expect(within(drawer).getByRole('progressbar', { name: 'Grievance progress' })).toBeInTheDocument();
     expect(within(drawer).getByText('Review this grievance')).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     mocks.getGrievance.mockResolvedValue({ data: { ...TO_ORG, status: 'under_review' } });
     renderAt('/dashboard/super-admin/grievances?record=1', <SaoGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Broken Lock' });
+    const drawer = await screen.findByRole('dialog', { name: 'Broken lock' });
     expect(within(drawer).getByText('Decide: resolve or dismiss')).toBeInTheDocument();
   });
 
@@ -139,7 +139,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievance.mockResolvedValue({ data: TO_SAO });
     mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...TO_SAO, status: 'under_review' } });
     renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy lab' });
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Move to under review' }));
 
@@ -153,7 +153,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievance.mockResolvedValue({ data: TO_SAO });
     mocks.updateGrievanceStatus.mockRejectedValue({ response: { data: { message: 'This grievance was already decided.' } } });
     renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy lab' });
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Move to under review' }));
 
@@ -165,7 +165,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievance.mockResolvedValue({ data: { ...TO_SAO, status: 'under_review' } });
     mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...TO_SAO, status: 'resolved', remarks: 'Fixed.' } });
     renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy lab' });
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Resolve' }));
     const confirm = await screen.findByRole('dialog', { name: 'Resolve' });
@@ -182,7 +182,7 @@ describe('grievance lists and details', () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     mocks.getGrievance.mockResolvedValue({ data: { ...TO_SAO, status: 'resolved', remarks: 'Fixed.' } });
     renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy lab' });
     expect(within(drawer).getAllByText('Resolved').length).toBeGreaterThan(0);
     expect(within(drawer).getByText('This grievance is closed and cannot be reopened.')).toBeInTheDocument();
   });

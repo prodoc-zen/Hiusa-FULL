@@ -9,6 +9,8 @@ const DISPLAY_ACRONYMS = new Map(['HIUSA', 'SAO', 'SBO', 'CCS', 'PSITS', 'CCJE',
 
 export function formatDisplayText(value) {
   if (typeof value !== 'string') return value;
+  // Only text stored entirely in lower case is tidied; anything a person capitalised is shown as typed.
+  if (/\p{Lu}/u.test(value)) return value;
   const firstWord = value.search(/[\p{L}\p{N}]/u);
   return value.replace(/https?:\/\/\S+|\S+@\S+|[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu, (word, index) => {
     if (/[@\d]/.test(word) || /^https?:/i.test(word)) return word;

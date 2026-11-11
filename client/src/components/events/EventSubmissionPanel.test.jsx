@@ -30,10 +30,10 @@ describe('EventSubmissionPanel', () => {
       .mockResolvedValue({ data: { requirements: [{ id: 3, name: 'New event permit' }], files: [], approval_status: null } });
     const { rerender } = render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
     rerender(<EventSubmissionPanel eventId={10} role="ADMIN" />);
-    await screen.findAllByText('New Event Permit');
+    await screen.findAllByText('New event permit');
     await act(async () => finishOld({ data: { requirements, files: [uploadedFile], approval_status: null } }));
     expect(screen.queryAllByText('Event Proposal')).toHaveLength(0);
-    expect(screen.getAllByText('New Event Permit').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('New event permit').length).toBeGreaterThan(0);
   });
 
   it('lists uploaded files with the review status for the SAO', async () => {

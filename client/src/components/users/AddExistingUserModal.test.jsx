@@ -59,7 +59,7 @@ describe('AddExistingUserModal', () => {
   });
 
   it('starts with the person already chosen when opened from a row', () => {
-    render(<AddExistingUserModal organization={organization} initialUser={{ school_id: 24001001, first_name: 'mARIA', last_name: 'rEYES', email: 'maria@example.test' }} onClose={vi.fn()} />);
+    render(<AddExistingUserModal organization={organization} initialUser={{ school_id: 24001001, first_name: 'maria', last_name: 'reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
     expect(screen.getByText('Maria Reyes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add student' })).toBeEnabled();
   });
