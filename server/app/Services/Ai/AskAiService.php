@@ -1579,7 +1579,7 @@ class AskAiService
                 'id' => 'app-'.$req->id,
                 'primary' => $this->entityLabels->for($req),
                 'secondary' => Str::headline($req->entity_type)." · {$orgName} · Requested by {$requester}",
-                'status' => 'Pending '.Str::headline($req->required_role),
+                'status' => 'Pending '.$this->roleName($req->required_role),
                 'status_tone' => 'warning',
                 'meta' => $req->requested_at ? $req->requested_at->diffForHumans() : 'Pending',
                 'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/approvals'),
@@ -2905,6 +2905,7 @@ class AskAiService
         }
 
         // 2. Leadership, Admins & Officers Directory
+        $showContact = $role !== 'STUDENT';
         $leaders = DB::table('users')
             ->leftJoin('organizations', 'organizations.id', '=', 'users.organization_id')
             ->where(function ($q) use ($orgIds, $role) {
@@ -2930,28 +2931,30 @@ class AskAiService
                 'organizations.acronym as org_acronym',
             ]);
 
-        foreach ($leaders as $leader) {
+        foreach ($leaders as $rank => $leader) {
             $fullName = trim($leader->first_name.' '.$leader->last_name);
             $orgLabel = $leader->org_acronym ?: ($leader->org_name ?: ($leader->department ?: 'Campus'));
-            $position = $leader->position_title ?: Str::headline($leader->role);
+            $position = $leader->position_title ?: $this->roleName($leader->role);
 
             $corpus[] = [
-                'id' => 'rag-leader-'.$leader->school_id,
+                'id' => 'rag-leader-'.($showContact ? $leader->school_id : $rank),
                 'domain' => 'Leadership & Officers Directory',
                 'primary' => "{$fullName} ({$position})",
-                'secondary' => sprintf(
-                    'Organization: %s · Role: %s · ID: %s · Email: %s',
-                    $orgLabel,
-                    Str::headline($leader->role),
-                    $leader->school_id,
-                    $leader->email
-                ),
+                'secondary' => $showContact
+                    ? sprintf(
+                        'Organization: %s · Role: %s · ID: %s · Email: %s',
+                        $orgLabel,
+                        $this->roleName($leader->role),
+                        $leader->school_id,
+                        $leader->email
+                    )
+                    : sprintf('Organization: %s · Role: %s', $orgLabel, $this->roleName($leader->role)),
                 'status' => $position,
                 'status_tone' => $leader->role === 'ADMIN' ? 'success' : 'info',
-                'meta' => 'ID #'.$leader->school_id,
+                'meta' => $showContact ? 'ID #'.$leader->school_id : $orgLabel,
                 'href' => $this->routeAccess->hrefFor($role, '/dashboard/users'),
                 'action_label' => 'Directory',
-                'entity_terms' => array_filter([$fullName, $leader->first_name, $leader->last_name, $position, $leader->org_acronym, (string) $leader->school_id]),
+                'entity_terms' => array_filter([$fullName, $leader->first_name, $leader->last_name, $position, $leader->org_acronym, $showContact ? (string) $leader->school_id : null]),
                 'search_text' => implode(' ', array_filter([
                     'who is officer leader admin president vice secretary treasurer auditor adviser dean directory roster member position email contact',
                     $fullName,
@@ -2959,8 +2962,8 @@ class AskAiService
                     $leader->role,
                     $orgLabel,
                     $leader->org_name,
-                    $leader->email,
-                    (string) $leader->school_id,
+                    $showContact ? $leader->email : null,
+                    $showContact ? (string) $leader->school_id : null,
                 ])),
             ];
         }
@@ -3630,6 +3633,11 @@ class AskAiService
             'SBO_OFFICER' => 'Officer Workflow Copilot',
             default => 'Student Portal Copilot',
         };
+    }
+
+    private function roleName(string $role): string
+    {
+        return $role === 'SBO_OFFICER' ? 'SBO Officer' : Str::headline(Str::lower($role));
     }
 
     private function scopeLabel(User $user): string
