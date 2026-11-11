@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Download, X } from 'lucide-react';
 import { Button, Drawer, EmptyState, FlowStepper, NextStep, Skeleton } from '../ui';
-import { formatDisplayText } from '../../utils/displayText.js';
+import { formatDisplayText, signatoryLabel } from '../../utils/displayText.js';
 import { roleLabel, toNextStepProps } from '../../lib/lifecycle';
 import { downloadFinancialReportPdf } from '../../services/financeService';
 import { openProtectedFile } from '../../utils/openProtectedFile';
@@ -94,7 +94,7 @@ function ReportExtras({ request }) {
         <div>
           <dt className="text-xs font-semibold text-ink-muted-strong">Required signatories</dt>
           {Object.entries(summary.signatories || {}).map(([role, name]) => (
-            <dd key={role} className="mt-2 capitalize text-ink-muted-strong">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></dd>
+            <dd key={role} className="mt-2 text-ink-muted-strong">{signatoryLabel(role)}: <strong>{formatDisplayText(name)}</strong></dd>
           ))}
         </div>
         <div>

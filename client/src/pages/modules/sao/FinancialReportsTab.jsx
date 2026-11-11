@@ -1,4 +1,4 @@
-import { formatDisplayText } from '../../../utils/displayText.js';
+import { formatDisplayText, signatoryLabel } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Check, Download, ExternalLink, Eye, X } from 'lucide-react';
 import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, StatusBadge, Textarea } from '../../../components/ui';
@@ -227,7 +227,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '' }) {
           <p className="text-sm text-ink-muted-strong">{detail.report.summary_text}</p>
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-ink">Required signatories</h3>
-            {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-ink-muted-strong">{role.replaceAll('_', ' ')}: <span className="font-medium text-ink">{formatDisplayText(name)}</span></p>)}
+            {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm text-ink-muted-strong">{signatoryLabel(role)}: <span className="font-medium text-ink">{formatDisplayText(name)}</span></p>)}
           </div>
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-ink">Supporting documents</h3>

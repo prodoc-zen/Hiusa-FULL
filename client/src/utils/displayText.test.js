@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { displayAuditValue, formatDisplayText, humanizeIdentifier } from './displayText';
+import { displayAuditValue, formatDisplayText, humanizeIdentifier, signatoryLabel } from './displayText';
 
 describe('display text formatting', () => {
+  it('words a signatory role as the report form does', () => {
+    expect(signatoryLabel('sbo_adviser')).toBe('SBO Adviser');
+    expect(signatoryLabel('treasurer')).toBe('Treasurer');
+    expect(signatoryLabel('dean_of_students')).toBe('Dean Of Students');
+  });
+
   it('tidies a name or title that was stored entirely in lower case', () => {
     expect(formatDisplayText('john carlo')).toBe('John Carlo');
     expect(formatDisplayText('prepare meeting minutes')).toBe('Prepare Meeting Minutes');
