@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\ClearanceSignature;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use App\Support\FilterValues;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Rule;
 class SystemUsersController extends Controller
 {
     private const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
+
+    public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
     public function index(Request $request)
     {
@@ -122,6 +125,34 @@ class SystemUsersController extends Controller
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
 
+    /** The SAO's way to reset a student or officer, since the organization Admin cannot while voting is open. */
+    public function initiatePasswordReset(Request $request, User $user)
+    {
+        if (! in_array($user->role, ['STUDENT', 'SBO_OFFICER'], true)) {
+            return response()->json(['message' => 'Only student and officer accounts are reset here.'], 422);
+        }
+        if ($user->account_status !== 'active') {
+            return response()->json(['message' => 'Activate this account before initiating a password reset.'], 422);
+        }
+
+        $resetLink = $this->passwordResetService->issue($user);
+        AuditLog::create([
+            'organization_id' => $user->getRawOriginal('organization_id'),
+            'user_id' => $request->user()->school_id,
+            'actor_role' => 'SUPER_ADMIN',
+            'module' => 'system_users',
+            'action' => 'user_password_reset_initiated',
+            'record_type' => User::class,
+            'record_id' => $user->school_id,
+            'description' => 'SAO initiated a secure password reset for a student or officer.',
+            'new_values' => ['email' => $user->email],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return SystemAdministrationController::resetResponse($resetLink, 'Password reset instructions were sent to the member email address.');
+    }
+
     private function summary(User $user): array
     {
         return [
@@ -151,6 +182,16 @@ class SystemUsersController extends Controller
             'event_requirement_files' => DB::table('event_requirement_files')->where('uploaded_by', $schoolId)->count(),
             'votes' => DB::table('votes')->where('voter_id', $schoolId)->count(),
             'candidates' => DB::table('candidates')->where('user_id', $schoolId)->count(),
+            'tasks' => DB::table('tasks')->where('created_by', $schoolId)->count(),
+            'approval_requests' => DB::table('approval_requests')->where('requested_by', $schoolId)->count(),
+            'grievances' => DB::table('grievances')->where('submitted_by', $schoolId)->count(),
+            'venue_bookings' => DB::table('venue_bookings')->where('requested_by', $schoolId)->count(),
+            'organization_compliance_submissions' => DB::table('organization_compliance_submissions')->where('submitted_by', $schoolId)->count(),
+            'event_registrations' => DB::table('event_registrations')->where('user_id', $schoolId)->count(),
+            'evaluation_responses' => DB::table('evaluation_responses')->where('user_id', $schoolId)->count(),
+            'remittances' => DB::table('remittances')->where('remitted_by', $schoolId)->count(),
+            'invoice_payments' => DB::table('invoice_payments')->where('recorded_by', $schoolId)->count(),
+            'cash_advance_repayments' => DB::table('cash_advance_repayments')->where('recorded_by', $schoolId)->count(),
         ];
     }
 

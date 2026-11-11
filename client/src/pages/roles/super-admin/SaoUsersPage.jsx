@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, Trash2, UserPlus } from 'lucide-react';
+import { Eye, KeyRound, Trash2, UserPlus } from 'lucide-react';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
+import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
-import { getSystemUser, getSystemUsers, deleteSystemUser } from '../../../services/systemAdministrationService';
+import { getSystemUser, getSystemUsers, deleteSystemUser, resetSystemUserPassword } from '../../../services/systemAdministrationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { visibleSchoolId } from '../../../utils/schoolId';
@@ -29,6 +30,8 @@ export default function SaoUsersPage() {
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState('');
   const [deleting, setDeleting] = useState(null);
+  const [resetting, setResetting] = useState(null);
+  const [resetLink, setResetLink] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
@@ -71,6 +74,22 @@ export default function SaoUsersPage() {
       else load();
     } catch (error) {
       setActionError(getApiErrorMessage(error, 'Could not delete this user.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    if (!resetting) return;
+    setBusy(true);
+    setActionError('');
+    try {
+      const response = await resetSystemUserPassword(resetting.school_id);
+      if (response.reset_link) setResetLink({ link: response.reset_link, name: fullName(resetting) });
+      else setNotice(response.message || 'Password reset instructions were sent.');
+      setResetting(null);
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, 'Could not reset this password.'));
     } finally {
       setBusy(false);
     }
@@ -131,6 +150,7 @@ export default function SaoUsersPage() {
       actions={(user) => <TableRowActions subject={fullName(user)} actions={[
         { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
         user.role !== 'SUPER_ADMIN' && user.account_status === 'active' && { label: 'Add admin profile', icon: UserPlus, onClick: () => setExistingAdmin({ user }) },
+        ['STUDENT', 'SBO_OFFICER'].includes(user.role) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
         { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
       ]} />}
       pagination={<PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" />}
@@ -144,6 +164,8 @@ export default function SaoUsersPage() {
       </div>}
     </Drawer>
     {existingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={existingAdmin.user} onClose={() => setExistingAdmin(null)} onAdded={() => { setNotice('Administrator added.'); load(); }} />}
+    <ConfirmModal open={Boolean(resetting)} title="Reset password" recordName={fullName(resetting)} message="A secure reset link will be sent to this person's registered email address. If email is off, the link shows here once for you to hand over. Their current password will not be shown." confirmText="Send reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
+    {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user and linked records?" recordName={fullName(deleting)} message="This permanently removes the account, profiles, clearances, and linked submissions, financial, event, and order records. It cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
 }
