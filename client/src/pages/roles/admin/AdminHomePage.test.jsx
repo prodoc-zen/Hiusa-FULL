@@ -24,7 +24,7 @@ describe('AdminHomePage', () => {
 
   it('shows live operational counts, ledger movement, announcement preview, and destinations', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
-    expect(await screen.findByText('Enrollment Notice')).toBeInTheDocument();
+    expect(await screen.findByText('Enrollment notice')).toBeInTheDocument();
     expect(screen.getByText('Pending orders').closest('a')).toHaveTextContent('4');
     expect(screen.getByText('Approval requests').closest('a')).toHaveTextContent('2');
     expect(screen.getByRole('img', { name: /monthly ledger income and expenses/i })).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe('AdminHomePage', () => {
 
   it('opens with the process tracker above everything else', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
-    await screen.findByText('Enrollment Notice');
+    await screen.findByText('Enrollment notice');
     const tracker = screen.getByTestId('process-tracker');
     expect(tracker.parentElement.firstElementChild).toBe(tracker);
   });

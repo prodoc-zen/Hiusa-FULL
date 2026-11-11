@@ -28,8 +28,8 @@ describe('ManageAnnouncementsPage', () => {
 
   it('opens a drawer with the announcement details and keeps management actions in the row menu', async () => {
     renderPage();
-    fireEvent.click(await titleButton('Campus Update'));
-    expect(await screen.findByRole('dialog', { name: 'Campus Update' })).toBeInTheDocument();
+    fireEvent.click(await titleButton('Campus update'));
+    expect(await screen.findByRole('dialog', { name: 'Campus update' })).toBeInTheDocument();
     expect(screen.getByText('Room change')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Campus update' })[0]);
     expect(screen.getByRole('menuitem', { name: 'Edit announcement' })).toBeInTheDocument();
@@ -60,14 +60,14 @@ describe('ManageAnnouncementsPage', () => {
 
   it('has one h1 and no second heading above the list', async () => {
     renderPage();
-    await titleButton('Campus Update');
+    await titleButton('Campus update');
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.queryByRole('heading', { name: 'Announcement list' })).not.toBeInTheDocument();
   });
 
   it('puts New announcement in the header as the one primary action, linking to the create page', async () => {
     renderPage();
-    await titleButton('Campus Update');
+    await titleButton('Campus update');
     expect(screen.getByRole('heading', { level: 1, name: 'Announcements' })).toBeInTheDocument();
     const links = screen.getAllByRole('link', { name: 'New announcement' });
     expect(links).toHaveLength(1);
@@ -94,17 +94,17 @@ describe('ManageAnnouncementsPage', () => {
       announcementMocks.getAnnouncements.mockResolvedValue(listOf(...stages));
       renderPage();
       const row = async (name) => within((await titleButton(name)).closest('div'));
-      expect((await row('Draft Post')).getByText('Draft')).toBeInTheDocument();
-      expect((await row('Pending Post')).getByText('Waiting for Admin approval')).toBeInTheDocument();
-      expect((await row('Returned Post')).getByText('Returned')).toBeInTheDocument();
-      expect((await row('Live Post')).queryByText('Published')).not.toBeInTheDocument();
+      expect((await row('Draft post')).getByText('Draft')).toBeInTheDocument();
+      expect((await row('Pending post')).getByText('Waiting for Admin approval')).toBeInTheDocument();
+      expect((await row('Returned post')).getByText('Returned')).toBeInTheDocument();
+      expect((await row('Live post')).queryByText('Published')).not.toBeInTheDocument();
     });
 
     it('tells an officer a pending announcement waits for the Admin, with no button', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       announcementMocks.getAnnouncements.mockResolvedValue(listOf(stages[1]));
       renderPage();
-      fireEvent.click(await titleButton('Pending Post'));
+      fireEvent.click(await titleButton('Pending post'));
       const status = screen.getAllByRole('status').find((node) => node.textContent.includes('No action needed from you.'));
       expect(status).toHaveTextContent('Waiting for Admin approval');
       expect(status).toHaveTextContent('Owner: Admin');
@@ -115,7 +115,7 @@ describe('ManageAnnouncementsPage', () => {
     it('says in the header that an officer announcement goes to the Admin for approval', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       renderPage();
-      await titleButton('Campus Update');
+      await titleButton('Campus update');
       expect(screen.getByText(/goes to the Admin for approval before it is published/)).toBeInTheDocument();
       expect(screen.queryByText('Needs Admin approval')).not.toBeInTheDocument();
     });
@@ -123,7 +123,7 @@ describe('ManageAnnouncementsPage', () => {
     it('sends the Admin to Approvals to review a pending announcement', async () => {
       announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[1], created_by: 202 }));
       renderPage();
-      fireEvent.click(await titleButton('Pending Post'));
+      fireEvent.click(await titleButton('Pending post'));
       const link = screen.getByRole('link', { name: 'Review this announcement' });
       expect(link).toHaveAttribute('href', '/dashboard/approvals');
     });
@@ -131,7 +131,7 @@ describe('ManageAnnouncementsPage', () => {
     it('opens the approval record when the announcement carries its approval id', async () => {
       announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[1], created_by: 202, approval_id: 58 }));
       renderPage();
-      fireEvent.click(await titleButton('Pending Post'));
+      fireEvent.click(await titleButton('Pending post'));
       expect(screen.getByRole('link', { name: 'Review this announcement' })).toHaveAttribute('href', '/dashboard/approvals?record=58');
     });
 
@@ -139,7 +139,7 @@ describe('ManageAnnouncementsPage', () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[3], review_remarks: 'Add the venue.' }));
       renderPage();
-      fireEvent.click(await titleButton('Returned Post'));
+      fireEvent.click(await titleButton('Returned post'));
       expect(screen.getByText('Returned by the Admin')).toBeInTheDocument();
       expect(screen.getByText(/Add the venue\. Edit it to send it for approval again\./)).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Edit announcement' }));
@@ -149,7 +149,7 @@ describe('ManageAnnouncementsPage', () => {
     it('lets the Admin publish a draft from its next step', async () => {
       announcementMocks.getAnnouncements.mockResolvedValue(listOf(stages[0]));
       renderPage();
-      fireEvent.click(await titleButton('Draft Post'));
+      fireEvent.click(await titleButton('Draft post'));
       fireEvent.click(screen.getByRole('button', { name: 'Publish announcement' }));
       expect(await screen.findByRole('dialog', { name: 'Publish announcement' })).toBeInTheDocument();
     });
@@ -158,7 +158,7 @@ describe('ManageAnnouncementsPage', () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[2], created_by: 202 }));
       renderPage();
-      fireEvent.click(await titleButton('Live Post'));
+      fireEvent.click(await titleButton('Live post'));
       expect(screen.getByText('Only its author or the Admin can change it.')).toBeInTheDocument();
     });
   });
@@ -182,11 +182,11 @@ describe('ManageAnnouncementsPage', () => {
     it('offers Clear filters when a search finds nothing', async () => {
       announcementMocks.getAnnouncements.mockImplementation((params) => Promise.resolve(params.search ? listOf() : { data: list }));
       renderPage();
-      await titleButton('Campus Update');
+      await titleButton('Campus update');
       fireEvent.change(screen.getByPlaceholderText('Search title, content, or author'), { target: { value: 'zzz' } });
       expect(await screen.findByText('No announcements match these filters')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-      expect(await titleButton('Campus Update')).toBeInTheDocument();
+      expect(await titleButton('Campus update')).toBeInTheDocument();
     });
   });
 });

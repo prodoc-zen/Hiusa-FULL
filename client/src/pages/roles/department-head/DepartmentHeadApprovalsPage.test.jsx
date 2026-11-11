@@ -627,10 +627,10 @@ describe('SAO organization approvals', () => {
     respondWith({ id: 77, organization_id: 7, entity_type: 'election', entity_id: 3, title: 'Council election', status: 'pending', required_role: 'SUPER_ADMIN', requested_by: 123, summary: {} });
     try {
       renderPage('/dashboard/super-admin/organization-approvals');
-      expect(await screen.findByText('Council Election')).toBeInTheDocument();
+      expect(await screen.findByText('Council election')).toBeInTheDocument();
       expect(mocks.getSystemOrganizations).toHaveBeenCalled();
       expect(mocks.getCollegeOrganizations).not.toHaveBeenCalled();
-      expect(screen.getByRole('button', { name: 'Review: Council Election' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Review: Council election' })).toBeInTheDocument();
       expect(screen.queryByText('Review this election')).not.toBeInTheDocument();
       expect(screen.queryByText('Awaiting Department Head review')).not.toBeInTheDocument();
     } finally { localStorage.clear(); }

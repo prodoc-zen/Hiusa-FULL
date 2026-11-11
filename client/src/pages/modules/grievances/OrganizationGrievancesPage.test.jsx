@@ -36,7 +36,7 @@ describe('OrganizationGrievancesPage', () => {
     mocks.getGrievances.mockResolvedValue(envelope([{ ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Repaired.' }]));
     mocks.deleteGrievance.mockResolvedValue({});
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    const [rowTitle] = await screen.findAllByText('Unsafe Stairwell');
+    const [rowTitle] = await screen.findAllByText('Unsafe stairwell');
     fireEvent.click(rowTitle);
     fireEvent.click(screen.getByRole('button', { name: 'Delete closed grievance' }));
     const confirm = screen.getByRole('dialog', { name: 'Delete closed grievance?' });
@@ -65,9 +65,9 @@ describe('OrganizationGrievancesPage', () => {
   it('never renders an identity for an anonymous filer, showing a plain confidential label instead', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([ANONYMOUS_GRIEVANCE]));
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    const [titleElement] = await screen.findAllByText('Unsafe Stairwell');
+    const [titleElement] = await screen.findAllByText('Unsafe stairwell');
     const table = within(titleElement.closest('[data-view="table"]'));
-    expect(table.getByText('Unsafe Stairwell')).toBeInTheDocument();
+    expect(table.getByText('Unsafe stairwell')).toBeInTheDocument();
     expect(table.getByText('Confidential')).toBeInTheDocument();
     expect(table.queryByText(/Student \d/)).not.toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe('OrganizationGrievancesPage', () => {
     mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Bulb replaced.' } });
 
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
-    const [tableTrigger] = await screen.findAllByText('Unsafe Stairwell');
+    const [tableTrigger] = await screen.findAllByText('Unsafe stairwell');
     fireEvent.click(tableTrigger);
 
     expect(screen.getByText('Filed anonymously')).toBeInTheDocument();

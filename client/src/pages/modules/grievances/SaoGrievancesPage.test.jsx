@@ -49,7 +49,7 @@ describe('SaoGrievancesPage', () => {
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     const rows = await screen.findAllByRole('row');
     // rows[0] is the header row; the table body should lead with Critical.
-    expect(within(rows[1]).getByText('Critical Concern')).toBeTruthy();
+    expect(within(rows[1]).getByText('Critical concern')).toBeTruthy();
   });
 
   it('shows no badge on default states and one word for a closed grievance', async () => {
@@ -59,7 +59,7 @@ describe('SaoGrievancesPage', () => {
       : Promise.resolve(envelope([]))));
 
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
-    const closedRow = (await screen.findAllByText('Closed Concern')).map((node) => node.closest('tr')).find(Boolean);
+    const closedRow = (await screen.findAllByText('Closed concern')).map((node) => node.closest('tr')).find(Boolean);
     expect(within(closedRow).getAllByText('Resolved')).toHaveLength(1);
     expect(within(closedRow).getByText('Medium').className).not.toMatch(/rounded/);
     expect(within(closedRow).queryByRole('button', { name: 'View details' })).not.toBeInTheDocument();
@@ -80,7 +80,7 @@ describe('SaoGrievancesPage', () => {
     mocks.getGrievances.mockImplementation((params) => Promise.resolve({ data: { data: params?.per_page === 50 ? [CRITICAL] : [], current_page: params?.page || 1, last_page: 3, per_page: 50, total: 120 } }));
 
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
-    await screen.findAllByText('Critical Concern');
+    await screen.findAllByText('Critical concern');
     fireEvent.click(screen.getByRole('button', { name: /next page of grievances/i }));
     await waitFor(() => expect(mocks.getGrievances).toHaveBeenCalledWith(expect.objectContaining({ page: 2, per_page: 50 })));
 
@@ -106,7 +106,7 @@ describe('SaoGrievancesPage', () => {
 
     releaseFirst();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.queryByText('Critical Concern')).not.toBeInTheDocument();
+    expect(screen.queryByText('Critical concern')).not.toBeInTheDocument();
     expect(screen.getByText('No grievances match')).toBeInTheDocument();
   });
 });

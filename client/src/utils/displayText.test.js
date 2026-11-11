@@ -2,12 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { displayAuditValue, formatDisplayText, humanizeIdentifier } from './displayText';
 
 describe('display text formatting', () => {
-  it('normalizes displayed names and titles regardless of entered casing', () => {
-    expect(formatDisplayText('jOhN CARLO')).toBe('John Carlo');
-    expect(formatDisplayText('PREPARE meeting MINUTES')).toBe('Prepare Meeting Minutes');
-    expect(formatDisplayText('COLLEGE OF arts AND sciences')).toBe('College of Arts and Sciences');
-    expect(formatDisplayText("o'NEILL de-la CRUZ")).toBe("O'Neill De-La Cruz");
-    expect(formatDisplayText('élise DELA CRUZ')).toBe('Élise Dela Cruz');
+  it('tidies a name or title that was stored entirely in lower case', () => {
+    expect(formatDisplayText('john carlo')).toBe('John Carlo');
+    expect(formatDisplayText('prepare meeting minutes')).toBe('Prepare Meeting Minutes');
+    expect(formatDisplayText('college of arts and sciences')).toBe('College of Arts and Sciences');
+    expect(formatDisplayText("o'neill de-la cruz")).toBe("O'Neill De-La Cruz");
+    expect(formatDisplayText('élise dela cruz')).toBe('Élise Dela Cruz');
+  });
+
+  it('shows anything with a capital letter exactly as it was typed', () => {
+    expect(formatDisplayText('QA Alpha Event')).toBe('QA Alpha Event');
+    expect(formatDisplayText('HIUSA T-Shirt (L/XL)')).toBe('HIUSA T-Shirt (L/XL)');
+    expect(formatDisplayText('<b>x</b> QA-HTML')).toBe('<b>x</b> QA-HTML');
+    expect(formatDisplayText("Faculty Adviser's Data Sheet")).toBe("Faculty Adviser's Data Sheet");
+    expect(formatDisplayText('VP Internal QA')).toBe('VP Internal QA');
+    expect(formatDisplayText('VMGO')).toBe('VMGO');
+    expect(formatDisplayText('EDITED')).toBe('EDITED');
+    expect(formatDisplayText('jOhN CARLO')).toBe('jOhN CARLO');
+    expect(formatDisplayText('=1+1 QA formula')).toBe('=1+1 QA formula');
   });
 
   it('preserves canonical acronyms, email addresses, URLs, and identifiers', () => {
@@ -21,7 +33,8 @@ describe('display text formatting', () => {
     expect(formatDisplayText('1-a')).toBe('1-A');
     expect(formatDisplayText('BS Information Technology')).toBe('BS Information Technology');
     expect(formatDisplayText('bs information technology')).toBe('BS Information Technology');
-    expect(formatDisplayText('Prepare a plan')).toBe('Prepare a Plan');
+    expect(formatDisplayText('Prepare a plan')).toBe('Prepare a plan');
+    expect(formatDisplayText('prepare a plan')).toBe('Prepare a Plan');
     expect(formatDisplayText('Section for 1-A and 2-B')).toBe('Section for 1-A and 2-B');
   });
 
