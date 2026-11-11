@@ -94,7 +94,7 @@ export default function RecoverAccountPage() {
         )}
 
         <Button type="submit" loading={loading} className="w-full">
-          Send reset link
+          Request reset
         </Button>
       </form>
 
