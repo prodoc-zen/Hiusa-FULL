@@ -109,7 +109,7 @@ const NAV_BY_ROLE = {
     group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
     group('store', 'Store', merchandisePillar.icon, [L.inventory, L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
-    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.archive, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
+    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.archive, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Oversight' }),
     myActivity(),
   ],
   SBO_OFFICER: [
@@ -121,8 +121,8 @@ const NAV_BY_ROLE = {
     group('voting', 'Voting', electionsPillar.icon, [L.candidates, L.voters, L.results], { band: 'Community' }),
     group('store', 'Store', merchandisePillar.icon, [L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
-    { id: 'clearance-signing', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances', aliases: ['Clearances'], band: 'Records' },
-    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'], band: 'Records' },
+    { id: 'clearance-signing', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances', aliases: ['Clearances'], band: 'Oversight' },
+    { id: 'records-archive', label: 'Records', icon: Archive, path: '/dashboard/records', aliases: ['School year records', 'Past school years'], band: 'Oversight' },
     myActivity(),
   ],
   DEPARTMENT_HEAD: [
