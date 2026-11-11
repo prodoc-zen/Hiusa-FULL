@@ -3,7 +3,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Megaphone, Pencil, Plus, Search, Send, Trash2 } from 'lucide-react';
-import { AnnouncementStageChip, announcementStage } from './announcementShared.jsx';
+import { AnnouncementStageChip, announcementStage, announcementVisibility } from './announcementShared.jsx';
 import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, Input, NextStep, PageHeader } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -274,7 +274,7 @@ export default function ManageAnnouncementsPage() {
       render: (a) => (
         <div className="min-w-0">
           <button type="button" onClick={() => setDetails(a)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button>
-          {announcementStage(a).key !== 'published' && <div className="mt-0.5"><AnnouncementStageChip announcement={a} /></div>}
+          {(announcementStage(a).key !== 'published' || announcementVisibility(a)) && <div className="mt-0.5"><AnnouncementStageChip announcement={a} /></div>}
         </div>
       ),
     },

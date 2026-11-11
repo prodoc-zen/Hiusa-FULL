@@ -100,6 +100,19 @@ describe('ManageAnnouncementsPage', () => {
       expect((await row('Live post')).queryByText('Published')).not.toBeInTheDocument();
     });
 
+    it('marks a published post that students cannot see yet or any more', async () => {
+      announcementMocks.getAnnouncements.mockResolvedValue(listOf(
+        { ...record, id: 5, title: 'Later post', scheduled_at: '2099-01-05T04:00:00Z' },
+        { ...record, id: 6, title: 'Old post', expires_at: '2020-03-02T04:00:00Z' },
+        { ...record, id: 8, title: 'Open post', scheduled_at: '2020-01-05T04:00:00Z', expires_at: '2099-03-02T04:00:00Z' },
+      ));
+      renderPage();
+      const row = async (name) => within((await titleButton(name)).closest('div'));
+      expect((await row('Later post')).getByText('Scheduled for Jan 5, 2099')).toBeInTheDocument();
+      expect((await row('Old post')).getByText('Expired Mar 2, 2020')).toBeInTheDocument();
+      expect((await row('Open post')).queryByText(/Scheduled|Expired/)).not.toBeInTheDocument();
+    });
+
     it('tells an officer a pending announcement waits for the Admin, with no button', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       announcementMocks.getAnnouncements.mockResolvedValue(listOf(stages[1]));
