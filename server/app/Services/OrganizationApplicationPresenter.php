@@ -70,7 +70,7 @@ class OrganizationApplicationPresenter
     /**
      * The reviewer's accepted marks from earlier rounds that still hold. A document row is never edited: replacing a file deletes the
      * row and stores a new one, so a document created before the mark was made is the very file that was accepted. A requirement
-     * that was returned, or whose latest mark in this stage is not an acceptance, is never carried.
+     * that any stage returned in the round just ended, or whose latest mark in this stage is not an acceptance, is never carried.
      */
     private function carriedForward(OrganizationApplication $application, ?string $stage): Collection
     {
@@ -78,12 +78,13 @@ class OrganizationApplicationPresenter
             return collect();
         }
         $current = $application->requirementReviews()->where('round', $application->round)->where('stage', $stage)->pluck('requirement_type_id');
+        $returned = $application->requirementReviews()->where('round', $application->round - 1)->where('status', '!=', 'ok')->pluck('requirement_type_id');
         $documents = $application->documents->keyBy('requirement_type_id');
 
         return $application->requirementReviews()->where('stage', $stage)->where('round', '<', $application->round)
             ->orderByDesc('round')->orderByDesc('id')->get()
             ->unique('requirement_type_id')
-            ->reject(fn ($review) => $current->contains($review->requirement_type_id))
+            ->reject(fn ($review) => $current->contains($review->requirement_type_id) || $returned->contains($review->requirement_type_id))
             ->filter(fn ($review) => $review->status === 'ok' && $documents->get($review->requirement_type_id)?->created_at?->lt($review->updated_at))
             ->map(function ($review) use ($application) {
                 $carried = $review->replicate()->forceFill(['round' => $application->round, 'note' => null]);

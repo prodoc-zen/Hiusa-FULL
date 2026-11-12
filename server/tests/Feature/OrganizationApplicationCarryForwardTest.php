@@ -147,6 +147,35 @@ class OrganizationApplicationCarryForwardTest extends TestCase
         $this->assertTrue($this->reviewsOf($response, $this->constitutionId)[0]['carried']);
     }
 
+    public function test_a_file_the_sao_returned_and_the_student_sent_back_unchanged_is_not_carried_to_the_dean(): void
+    {
+        $this->travel(10)->minutes();
+        Sanctum::actingAs($this->dean);
+        $this->review(['action' => 'endorse', 'requirements' => [
+            ['requirement_type_id' => $this->constitutionId, 'status' => 'ok'],
+            ['requirement_type_id' => $this->letterId, 'status' => 'ok'],
+        ]])->assertOk()->assertJsonPath('status', 'pending_sao');
+
+        $this->travel(10)->minutes();
+        Sanctum::actingAs($this->sao);
+        $this->review(['action' => 'return', 'remarks' => 'Fix the constitution.', 'requirements' => [
+            ['requirement_type_id' => $this->constitutionId, 'status' => 'needs_changes', 'note' => 'Fix it.'],
+            ['requirement_type_id' => $this->letterId, 'status' => 'ok'],
+        ]])->assertOk()->assertJsonPath('status', 'returned');
+
+        $this->travel(10)->minutes();
+        Sanctum::actingAs($this->student);
+        $this->post("/api/my/organization-applications/{$this->application->id}/resubmit", ['name' => 'Computing Council', 'acronym' => 'CC', 'position_title' => 'President', 'files' => []], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('status', 'pending_dean');
+
+        Sanctum::actingAs($this->dean);
+        $response = $this->show()->assertOk()->assertJsonPath('round', 2);
+        $this->assertSame([], array_values(array_filter($this->reviewsOf($response, $this->constitutionId), fn ($review) => $review['stage'] === 'dean')));
+        $letter = array_values(array_filter($this->reviewsOf($response, $this->letterId), fn ($review) => $review['stage'] === 'dean'));
+        $this->assertCount(1, $letter);
+        $this->assertTrue($letter[0]['carried']);
+    }
+
     public function test_carried_marks_follow_the_reviewer_who_made_them_and_never_leak_to_the_applicant(): void
     {
         $this->returnedThenResent([$this->letterId]);
