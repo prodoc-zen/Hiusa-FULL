@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ApplicationReview from './ApplicationReview';
@@ -148,7 +149,7 @@ describe('ApplicationReview', () => {
     renderReview();
     await screen.findByText('Ana Cruz');
 
-    expect(screen.getByText('1 file is unchanged since you accepted it, so it starts as Accepted.')).toBeInTheDocument();
+    expect(screen.getByText('1 file is unchanged since the Department Head stage accepted it, so it starts as Accepted.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review Officer list' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
@@ -162,6 +163,51 @@ describe('ApplicationReview', () => {
     }));
   });
 
+  it('names the SAO as the one who accepted the unchanged files when the SAO is reviewing', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      status: 'pending_sao',
+      round: 2,
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [{ stage: 'sao', stage_label: 'SAO', status: 'ok', note: null, carried: true }], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 12, name: 'officers.pdf', open_url: '/y' }, reviews: [{ stage: 'sao', stage_label: 'SAO', status: 'ok', note: null, carried: true }], review_files: [] },
+      ],
+    }) });
+    renderReview('SUPER_ADMIN');
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getByText('2 files are unchanged since the SAO accepted them, so they start as Accepted.')).toBeInTheDocument();
+  });
+
+  it('keeps a mark the reviewer made when an earlier, slower load answers afterwards under StrictMode', async () => {
+    const pending = [];
+    mocks.getOrganizationApplication.mockImplementation(() => new Promise((resolve) => { pending.push(resolve); }));
+    render(<StrictMode><MemoryRouter><ApplicationReview applicationId={8} viewerRole="DEPARTMENT_HEAD" /></MemoryRouter></StrictMode>);
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    await act(async () => { pending[1]({ data: detail() }); });
+    await screen.findByText('Ana Cruz');
+    mark('Constitution', 'ok');
+    expect(screen.getByLabelText('Review of Constitution')).toHaveValue('ok');
+
+    await act(async () => { pending[0]({ data: detail() }); });
+    expect(screen.getByLabelText('Review of Constitution')).toHaveValue('ok');
+  });
+
+  it('does not carry a mark from one application into another when the id changes while a load is in flight', async () => {
+    const pending = [];
+    mocks.getOrganizationApplication.mockImplementation((id) => new Promise((resolve) => { pending.push({ id, resolve }); }));
+    const { rerender } = render(<MemoryRouter><ApplicationReview applicationId={8} viewerRole="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    rerender(<MemoryRouter><ApplicationReview applicationId={9} viewerRole="DEPARTMENT_HEAD" /></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    await act(async () => { pending[0].resolve({ data: detail({ name: 'Old Club' }) }); });
+    expect(screen.queryByText('Old Club')).not.toBeInTheDocument();
+    await act(async () => { pending[1].resolve({ data: detail({ id: 9, name: 'New Club' }) }); });
+    expect(await screen.findByText('Ana Cruz')).toBeInTheDocument();
+    expect(screen.getAllByText('Not checked', { selector: 'span' })).toHaveLength(2);
+  });
+
   it('does not seed an accepted mark from another stage or when nothing was carried', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
       round: 2,
@@ -173,7 +219,7 @@ describe('ApplicationReview', () => {
     renderReview();
     await screen.findByText('Ana Cruz');
 
-    expect(screen.queryByText(/unchanged since you accepted/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unchanged since/)).not.toBeInTheDocument();
     expect(screen.getAllByText('Not checked', { selector: 'span' })).toHaveLength(2);
   });
 
