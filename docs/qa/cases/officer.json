@@ -346,9 +346,9 @@
       "2. Type 2100217 but do not click the result. Look at the button again.",
       "3. Click the result, set \"Attendance status\" to Late and click \"Confirm check-in\".",
       "4. Check in 2200055 with the status Excused.",
-      "5. Read the cards at the top (\"Late\") and the attendance log."
+      "5. Read the tiles at the top (\"Arrivals\" and \"Late\") and the attendance log."
     ],
-    "expected": "The button is greyed out until a result is clicked. Typing alone is not enough. Both check-ins save with \"Check-in recorded.\" The log shows Late and Excused chips. The \"Late\" card goes up by 1 for the Late record. The choices in the list are Present, Late, Excused and Absent.",
+    "expected": "The button is greyed out until a result is clicked. Typing alone is not enough. Both check-ins save with \"Check-in recorded.\" The log shows Late and Excused chips. The \"Late\" tile goes up by 1 for the Late record. The \"Arrivals\" tile counts only Present and Late members, so it never counts Absent. The choices in the list are Present, Late, Excused and Absent.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",
@@ -1112,12 +1112,11 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. At least one order exists (a student placed one in Store > Shop).",
     "steps": [
       "1. Open Store > Orders.",
-      "2. Read the four cards under \"Order summary\".",
+      "2. Read the line \"N orders\" next to \"Order queue\" and the small line under it (\"N pending review, N ready for pickup, N claimed, the amount collected\").",
       "3. Click the tabs \"All orders\", \"Pending review\", \"Ready for pickup\", \"Claimed\" and \"Cancelled\" one by one.",
-      "4. Read the line \"N orders\" next to \"Order queue\".",
-      "5. Read the chips on one order (\"Officer: ...\" and \"Admin: ...\")."
+      "4. Read one order (a card on a phone or a small screen, a table row on a laptop)."
     ],
-    "expected": "The cards are \"Pending review\", \"Ready for pickup\", \"Claimed\" and \"Collected\". Each tab shows only orders of that status and the count matches the card. Orders show ORD-n, the buyer, item, total and payment mode. Review chips show Officer and Admin steps. On the Dashboard the card \"Pending Orders\" shows the pending number (VERIFY: it matches \"Pending review\").",
+    "expected": "There are no summary cards. The line under \"Order queue\" gives the counts: \"N pending review · N ready for pickup · N claimed · ₱X collected\". Each tab shows only orders of that status. Each order shows ORD-n, the buyer, item, total and payment mode, a small four-step progress bar and one line saying the next step (for example \"Verify the payment\" or \"Verified: waiting for Admin approval\"). On the Dashboard the card \"Pending Orders\" shows the pending number (VERIFY: it matches \"Pending review\").",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -1150,12 +1149,12 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Student 2100142 placed a cash order in Store > Shop (add, cart, checkout with cash) and it is Pending. This is officer journey 2 in docs/MEMBER_TESTING.md section 4 (6 clicks).",
     "steps": [
       "1. Open Store > Orders and find the new order ORD-n.",
-      "2. Click \"Verify\" on its card (or the row menu \"Actions for Order n\" > \"Verify & submit\").",
-      "3. In the window \"Verify Payment Amount\" read the receipt and check the box \"Amount verified\" holds the order total.",
-      "4. Click \"Verify & Submit\".",
+      "2. Click \"Verify payment\" on its card or row.",
+      "3. In the window \"Verify payment amount\" read the receipt and check the box \"Amount verified\" holds the order total.",
+      "4. Click \"Verify and submit\".",
       "5. Read the order again."
     ],
-    "expected": "A message says \"Order ORD-n submitted for Admin approval.\" The order shows \"Verified: waiting for Admin approval\", the chip \"Officer: Approved\" and \"Admin: Pending\", and the note \"Token unlocks after Admin approval\". No claim token is shown yet. The student's My orders shows \"Payment verified: waiting for Admin approval\" with no token.",
+    "expected": "A message says \"Order ORD-n submitted for Admin approval.\" The order shows \"Verified: waiting for Admin approval\". On a phone card the note \"Token unlocks after Admin approval\" shows where the token will be. No claim token is shown yet. The student's My orders shows \"Payment verified: waiting for Admin approval\" with no token.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1166,11 +1165,11 @@
     "role": "SBO Officer",
     "module": "Store > Orders",
     "title": "Payment amount must match the order total",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A Pending order is open in the window \"Verify Payment Amount\".",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A Pending order is open in the window \"Verify payment amount\".",
     "steps": [
-      "1. Clear the box \"Amount verified\" and click \"Verify & Submit\".",
-      "2. Type 0 and click \"Verify & Submit\".",
-      "3. Type an amount lower than the order total and click \"Verify & Submit\".",
+      "1. Clear the box \"Amount verified\" and click \"Verify and submit\".",
+      "2. Type 0 and click \"Verify and submit\".",
+      "3. Type an amount lower than the order total and click \"Verify and submit\".",
       "4. Close the window and read the order status."
     ],
     "expected": "The messages are \"Enter the verified payment amount.\" for empty and 0, and \"The verified payment amount must exactly match the order total.\" for a wrong amount. The order stays Pending and Officer review stays Pending.",
@@ -1187,12 +1186,12 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order you already verified is still waiting for the Admin (\"Verified: waiting for Admin approval\").",
     "steps": [
       "1. Open Store > Orders and find that order.",
-      "2. Click \"Verify\" again and click \"Verify & Submit\".",
+      "2. Click \"Verify payment\" again and click \"Verify and submit\".",
       "3. Read the message.",
-      "4. Close the window, click \"Reject\", type a reason and click \"Reject Payment\".",
+      "4. Close the window, click \"Reject\", type a reason and click \"Reject payment\".",
       "5. Read the message."
     ],
-    "expected": "Verifying again is refused with \"This payment has already been submitted for admin approval.\" Rejecting is refused with \"Review this payment from the Approvals module.\" The order does not change. VERIFY: the Verify and Reject buttons may still be shown on the card even though the system refuses them.",
+    "expected": "Verifying again is refused with \"This payment has already been submitted for admin approval.\" Rejecting is refused with \"Review this payment from the Approvals module.\" The order does not change. VERIFY: the Verify payment and Reject buttons may still be shown on the card even though the system refuses them.",
     "priority": "Medium",
     "device": "Any",
     "type": "Negative",
@@ -1205,10 +1204,10 @@
     "title": "Reject a payment with a reason",
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A new Pending order that nobody has verified yet.",
     "steps": [
-      "1. Open Store > Orders and click \"Reject\" on the order (or the row menu \"Reject order\").",
-      "2. Read the window \"Reject Payment\" and look at the red button with the box empty.",
+      "1. Open Store > Orders. On a phone click \"Reject\" on the order card. On a laptop open the menu \"Actions for Order n\" on the row and select \"Reject order\".",
+      "2. Read the window \"Reject payment\" and look at the red button \"Reject payment\" with the box empty.",
       "3. Type a reason in \"Rejection reason\".",
-      "4. Click \"Reject Payment\".",
+      "4. Click \"Reject payment\".",
       "5. Read the order and then check the buyer's My orders."
     ],
     "expected": "The red button is greyed out until a reason is typed. After rejecting, a message says \"Order ORD-n marked as Cancelled.\" and the order shows Cancelled with \"Order cancelled\". The buyer sees it cancelled with the reason. VERIFY: the item stock goes back up after a rejection.",
@@ -1244,12 +1243,12 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order you verified is waiting for the Admin. Admin 900001 is available in another browser.",
     "steps": [
       "1. Open Store > Orders and read the verified order. Note there is no token.",
-      "2. Open Store > Claim desk and set the register to \"Waiting to be claimed\". Check the order is not there.",
-      "3. As Admin 900001 approve the payment (Approvals, or Store > Orders > Approve).",
-      "4. As the officer reload Store > Orders and read the order again.",
+      "2. Open Store > Claim desk and set the register to \"Pending claim\". Check the order is not there.",
+      "3. As Admin 900001 approve the payment (Approvals, or Store > Orders > Approve payment).",
+      "4. Go back to Store > Orders as the officer and do not reload. Within 30 seconds the list refreshes by itself. Read the order again.",
       "5. Open Store > Claim desk again."
     ],
-    "expected": "Before approval: \"Token unlocks after Admin approval\" and the order is not in the claim desk register. After approval: the order shows \"Ready for pickup\" with a 16-character token, and the claim desk register lists it as \"Waiting to be claimed\". The student sees \"Paid\" and the token in My orders.",
+    "expected": "Before approval the order says \"Verified: waiting for Admin approval\" and it is not in the claim desk register. After approval, without a reload, the list shows the order as Paid with \"Step 3 of 4: Paid\", the line \"Release at the claim desk\" and the button \"Release order\". The 16-character token is in \"Review order\" on a laptop, and on a phone card under \"Ready for pickup\". The claim desk register lists it and its row says \"Waiting to be claimed\". The student sees \"Ready for pickup\" and \"Show token <token> at the claim desk\" in My orders.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -1319,11 +1318,11 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
     "steps": [
       "1. Open Store > Claim desk and read \"Claim desk register\".",
-      "2. Set \"Filter claim tokens by status\" to \"Waiting to be claimed\", then to \"Claimed\".",
-      "3. Click \"Review order\" on a row.",
+      "2. Set \"Filter claim tokens by status\" to \"All claim tokens\", then \"Pending claim\", then \"Claimed\".",
+      "3. Open the row menu \"Actions for Order n\" and select \"Review order\".",
       "4. If a list is empty read the message and click \"Open orders\" if it is offered."
     ],
-    "expected": "Waiting orders show a token and the label \"Waiting to be claimed\". Released orders show \"Claimed\". \"Review order\" opens the order details. Empty lists say \"Nothing is waiting at the claim desk.\" (with \"Orders appear here once their payment is verified and the buyer has a claim token.\") and \"No orders have been claimed yet.\"",
+    "expected": "Waiting orders show a token and the label \"Waiting to be claimed\". Released orders show \"Claimed\". \"Review order\" opens the order details. Empty lists say \"No claim tokens yet\" (All claim tokens) or \"Nothing is waiting at the claim desk\" (Pending claim), both with \"Orders appear here once their payment is verified and the buyer has a claim token.\" and the button \"Open orders\", and \"No orders have been claimed yet\" (Claimed).",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1396,7 +1395,7 @@
       "4. Open My activity > My orders and read the order.",
       "5. Open Store > Orders and find the same order."
     ],
-    "expected": "My orders shows the order from the buyer side with the next step (for cash: \"Pay cash at pickup\"). The same order also appears in Store > Orders under your own name with role SBO OFFICER. VERIFY: write down whether the system lets you verify your own order or not.",
+    "expected": "My orders shows the order from the buyer side with the banner \"ORD-n reserved\" and the next step (for cash: \"Pay cash at pickup, or submit GCash proof\", under \"Step 1 of 4: Reserved\"). The same order also appears in Store > Orders under your own name with role SBO OFFICER. VERIFY: write down whether the system lets you verify your own order or not.",
     "priority": "Low",
     "device": "Any",
     "type": "Functional",
@@ -1412,10 +1411,10 @@
       "1. Open Store > Orders on the phone.",
       "2. Read an order card (ORD number, buyer, item, total).",
       "3. Tap \"Review\" and close it.",
-      "4. Tap \"Verify\" and read the window.",
-      "5. Tap \"Verify & Submit\"."
+      "4. Tap \"Verify payment\" and read the window.",
+      "5. Tap \"Verify and submit\"."
     ],
-    "expected": "Orders show as cards with large buttons \"Review\", \"Verify\" and \"Reject\". The verify window fits the screen and can be scrolled. After submitting you see \"Order ORD-n submitted for Admin approval.\"",
+    "expected": "Orders show as cards with large buttons \"Review\", \"Verify payment\" and \"Reject\". The verify window fits the screen and can be scrolled. After submitting you see \"Order ORD-n submitted for Admin approval.\"",
     "priority": "Medium",
     "device": "Phone",
     "type": "Usability",
@@ -1433,10 +1432,10 @@
       "3. Type the \"Content\".",
       "4. Leave \"Audience\" on \"All Members\" and \"Category\" on \"General\".",
       "5. Click \"Submit for approval\".",
-      "6. In the box \"Submit for approval\" click \"Submit for approval\" again.",
-      "7. Click \"View in Announcements\"."
+      "6. In the box \"Submit for approval\" (it says \"The Admin approves it before members see it.\") click \"Submit for approval\" again.",
+      "7. Click \"View in announcements\"."
     ],
-    "expected": "The page says \"Sent to your Admin for approval\" and \"It goes to All Members once the Admin approves it.\" There is no \"Publish Now\" or \"Save Draft\" button for an officer. In the list the row shows the yellow chip \"Waiting for Admin approval\". The header shows \"Needs Admin approval\". Students cannot see it in the Feed yet.",
+    "expected": "Nothing is sent until you confirm in the box. Then the page says \"Sent to your Admin for approval\" and \"It goes to All Members once the Admin approves it.\" There is no \"Publish now\" or \"Save draft\" button for an officer. In the list the row shows the yellow chip \"Waiting for Admin approval\". The page purpose line says each announcement goes to the Admin for approval before it is published. Students cannot see it in the Feed yet.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1449,13 +1448,13 @@
     "title": "Announcement form needs a title and content and limits the title",
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The form \"New announcement\" is open.",
     "steps": [
-      "1. Look at the button \"Submit for approval\" with both fields empty and read the yellow note.",
-      "2. Type a title but leave the content empty.",
-      "3. Type only spaces in both fields.",
+      "1. Click \"Submit for approval\" with both fields empty.",
+      "2. Type a title but leave the content empty and click \"Submit for approval\".",
+      "3. Type only spaces in both fields and click \"Submit for approval\".",
       "4. Paste a title longer than 255 characters.",
-      "5. Under \"Poster or image\" pick a picture larger than 5 MB and submit."
+      "5. Under \"Poster or image\" pick a picture larger than 5 MB."
     ],
-    "expected": "The yellow note says \"Complete the title and content to enable these actions.\" and the button is greyed out. Spaces only do not count. The title stops at 255 characters. The big picture is refused by the system (VERIFY: its message) and nothing is sent.",
+    "expected": "The button stays active. With a field missing nothing is sent and no box opens; \"Enter a title.\" shows under Title and \"Write the announcement text.\" shows under Content. Spaces only do not count. The title stops at 255 characters. The big picture is refused at once with \"The poster must be 5 MB or smaller.\" and the button is greyed out until the picture is removed.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",

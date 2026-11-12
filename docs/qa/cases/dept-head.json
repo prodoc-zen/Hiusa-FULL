@@ -215,7 +215,7 @@
       "3. Read the steps Office staff added, Student records loaded, Students allowed to apply, Applications reviewed and Organizations active.",
       "4. Sign in as Student 2500101 (a student of the college who was allowed to apply) in another browser and open Apply for an organization."
     ],
-    "expected": "The step list shows which step is current and which are done, with a button on the current step (for example Allow a student to apply). The head can still allow a student to apply, but the student sees Applications are closed with the text The SAO has not opened a semester with its requirements yet. Try again later. until the SAO activates a semester. VERIFY: the step list shows only while the steps are not all done and it has not been hidden.",
+    "expected": "The step list shows which step is current and which are done, with a button on the current step. On a fresh seed the current step is Office staff added (button Add office staff), while Students allowed to apply, Applications reviewed and Organizations active show Done because PSITS-CCS is already active. The head can still allow a student to apply, but the student sees Applications are closed with the text The SAO has not opened a semester with its requirements yet. Try again later. until the SAO activates a semester. VERIFY: the step list shows only while the steps are not all done and it has not been hidden.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -534,7 +534,7 @@
       "2. Sign in as the head and open the bell.",
       "3. Open Organization applications and open the application."
     ],
-    "expected": "The student sees \"Sent again to your Department Head.\" and the status With the Department Head. The head gets a notice Resubmitted Organization Application and the application opens as a new review round, with every document Not checked (a file the head had accepted before and the student did not change starts as Accepted, see DH-031) and Endorse off until every requirement is Accepted. Resubmitting is the applicant's action; the head has no Edit and resubmit form.",
+    "expected": "The student sees \"Sent again to your Department Head.\" and the status With the Department Head. The head gets a notice titled \"Resubmitted organization application awaiting your review\" (with the organization name below) and the application opens as a new review round, with every document Not checked (a file the head had accepted before and the student did not change starts as Accepted, see DH-031) and Endorse off until every requirement is Accepted. Resubmitting is the applicant's action; the head has no Edit and resubmit form.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
