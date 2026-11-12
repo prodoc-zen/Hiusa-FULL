@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
 use App\Models\Candidate;
 use App\Models\Election;
@@ -25,6 +26,7 @@ class ElectionSeeder extends Seeder
             'start_time' => now()->subDay(),
             'end_time' => now()->addDays(7),
             'status' => 'active',
+            'academic_semester_id' => AcademicSemester::active()?->id,
             'organization_id' => $officer1->organization_id,
         ]);
 
