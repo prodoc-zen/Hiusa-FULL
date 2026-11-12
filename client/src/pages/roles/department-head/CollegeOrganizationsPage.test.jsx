@@ -6,6 +6,11 @@ import CollegeOrganizationsPage from './CollegeOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
   getCollegeOverview: vi.fn(),
+  getCollegeStaff: vi.fn(),
+  removeCollegeStaff: vi.fn(),
+  getStaffInvitations: vi.fn(),
+  relinkStaffInvitation: vi.fn(),
+  revokeStaffInvitation: vi.fn(),
 }));
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
 const grantMocks = vi.hoisted(() => ({ getApplicantGrants: vi.fn(), allowStudentToApply: vi.fn(), revokeApplicantGrant: vi.fn() }));
@@ -59,6 +64,8 @@ describe('CollegeOrganizationsPage', () => {
     vi.clearAllMocks();
     mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
     grantMocks.getApplicantGrants.mockResolvedValue({ data: { data: [] } });
+    mocks.getCollegeStaff.mockResolvedValue({ data: { data: [] } });
+    mocks.getStaffInvitations.mockResolvedValue({ data: { data: [] } });
     mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', code: 'COE', logo_url: null, color: '#0B8ED0' }, head: { name: 'Eduardo Ramos' } } });
   });
 
