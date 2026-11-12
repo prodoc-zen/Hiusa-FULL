@@ -57,18 +57,18 @@ describe('EventSubmissionPanel', () => {
     const proposalInput = (await screen.findByText('Event Proposal', { selector: 'label' })).querySelector('input[type="file"]');
     const file = new File(['pdf'], 'proposal.pdf', { type: 'application/pdf' });
     fireEvent.change(proposalInput, { target: { files: [file] } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files to SAO' }).closest('form'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files' }).closest('form'));
 
     await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, { 1: file }));
     await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
     expect(await screen.findByText('Review: pending department head')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Submit event files to SAO' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit event files' })).not.toBeInTheDocument();
   });
 
   it('keeps the submit button disabled and counts the required files still missing', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements: [...requirements, { id: 3, name: 'Risk assessment', description: '', is_optional: false }], files: [], approval_status: null } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
-    const send = await screen.findByRole('button', { name: 'Submit event files to SAO' });
+    const send = await screen.findByRole('button', { name: 'Submit event files' });
     const pick = (name) => screen.getByText(name, { selector: 'label' }).querySelector('input[type="file"]');
     const pdf = (name) => new File(['pdf'], name, { type: 'application/pdf' });
 
@@ -88,7 +88,7 @@ describe('EventSubmissionPanel', () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'rejected', approval_remarks: 'Replace the permit.' } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
 
-    expect(await screen.findByRole('button', { name: 'Submit event files to SAO' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Submit event files' })).toBeEnabled();
     expect(screen.queryByText(/still missing/)).not.toBeInTheDocument();
   });
 
@@ -102,7 +102,7 @@ describe('EventSubmissionPanel', () => {
   it('allows the admin to upload SAO files after Department Head approval', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
-    expect(await screen.findByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Submit event files' })).toBeInTheDocument();
     expect(screen.getAllByText('Not submitted').length).toBeGreaterThan(0);
   });
 
@@ -111,10 +111,10 @@ describe('EventSubmissionPanel', () => {
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
 
     await screen.findByText('Event Proposal', { selector: 'label' });
-    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files to SAO' }).closest('form'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files' }).closest('form'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The file must be a PDF.');
-    expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit event files' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(mocks.getEventSubmission).toHaveBeenLastCalledWith(9, { cache: false }));
   });
@@ -151,7 +151,7 @@ describe('EventSubmissionPanel', () => {
     expect(permitInput).not.toBeRequired();
     const permit = new File(['pdf'], 'permit.pdf', { type: 'application/pdf' });
     fireEvent.change(permitInput, { target: { files: [permit] } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files to SAO' }).closest('form'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files' }).closest('form'));
     await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, { 2: permit }));
   });
 
@@ -163,7 +163,7 @@ describe('EventSubmissionPanel', () => {
     expect(screen.getByText(/Wrong format/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'View sample' }).at(-1));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/event-requirements/1/template'));
-    expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit event files' })).toBeInTheDocument();
   });
 
   it('opens an SAO sample link from the upload form', async () => {
@@ -252,7 +252,7 @@ describe('EventSubmissionPanel', () => {
       mocks.getEventSubmission.mockResolvedValue({ data: returned });
       mocks.submitEventRequirements.mockResolvedValue({ data: { ...returned, approval_status: 'pending' } });
       render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
-      const send = await screen.findByRole('button', { name: 'Submit event files to SAO' });
+      const send = await screen.findByRole('button', { name: 'Submit event files' });
 
       expect(send).toBeDisabled();
       expect(screen.getByText('1 file still needs to be replaced.')).toBeInTheDocument();
