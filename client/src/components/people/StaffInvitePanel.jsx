@@ -127,7 +127,7 @@ export default function StaffInvitePanel({ onCreated, onCancel }) {
         />
       )}
       {record ? (
-        <Field label="ID number" hint="Given by the school. It cannot be changed.">
+        <Field label="School ID" hint="Given by the school. It cannot be changed.">
           <Input readOnly value={String(record.school_id)} />
         </Field>
       ) : (

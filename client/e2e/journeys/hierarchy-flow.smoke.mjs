@@ -369,10 +369,10 @@ async function runJourney(cfg) {
     await expect(option).toBeVisible({ timeout: 15000 });
     await snap('staff-search');
     await option.click();
-    const idField = page.getByLabel('ID number');
+    const idField = page.getByLabel('School ID', { exact: true });
     await expect(idField).toBeVisible();
-    if (!(await idField.evaluate((node) => node.readOnly || node.disabled))) throw new Error('the ID number can be edited');
-    if (!/^\d{5,}$/.test(await idField.inputValue())) throw new Error('the ID number is empty');
+    if (!(await idField.evaluate((node) => node.readOnly || node.disabled))) throw new Error('the School ID can be edited');
+    if (!/^\d{5,}$/.test(await idField.inputValue())) throw new Error('the School ID is empty');
     await snap('staff-picked');
     await page.getByRole('button', { name: 'Create invite link' }).click();
     await expect(page.getByLabel('Invite link')).toBeVisible({ timeout: 15000 });
