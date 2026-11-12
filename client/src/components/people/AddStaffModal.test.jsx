@@ -45,12 +45,12 @@ describe('AddStaffModal', () => {
     expect(screen.getByRole('status', { name: 'Loading employee records' })).toBeInTheDocument();
   });
 
-  it('picks an employee, shows the ID number read only, and creates the link from the record', async () => {
+  it('picks an employee, shows the School ID read only, and creates the link from the record', async () => {
     renderModal();
     fireEvent.click(await find('mar'));
 
     expect(college.getStaffRecords).toHaveBeenCalledWith({ q: 'mar' });
-    const idField = screen.getByLabelText('ID number');
+    const idField = screen.getByLabelText('School ID');
     expect(idField).toHaveValue('7100101');
     expect(idField).toHaveAttribute('readonly');
     expect(screen.getByLabelText(/^Position/)).toHaveValue('Department Secretary');

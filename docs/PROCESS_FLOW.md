@@ -129,7 +129,7 @@ Trigger: a new dean signs in and the tracker shows "Add office staff" and "Load 
 flowchart TD
     A["Dean opens People"] --> B["Tab Office staff: Add staff"]
     B --> C{"Person in the school employee records?"}
-    C -->|"yes"| D["Find in the school records: ID number and Position shown, read only"]
+    C -->|"yes"| D["Find in the school records: School ID and Position shown, read only"]
     C -->|"no"| E["Not in the school records? Create a plain invite link, type Position"]
     D --> F["Create invite link, Copy link"]
     E --> F
@@ -143,9 +143,9 @@ flowchart TD
 
 Steps, office staff:
 1. The dean opens **People** (sidebar) and the tab **Office staff**, then **Add staff**.
-2. In **Add office staff**, type in **Find in the school records**. The list holds only unclaimed employee records of the own college. Choosing one shows **ID number** ("Given by the school. It cannot be changed.") and **Position** read only.
+2. In **Add office staff**, type in **Find in the school records**. The list holds only unclaimed employee records of the own college. Choosing one shows **School ID** ("Given by the school. It cannot be changed.") and **Position** read only.
 3. **Create invite link**, then **Copy link** and **Close**. If the college has no employee records, or the person is not in them, **Not in the school records? Create a plain invite link** asks for a **Position** and creates a link with no identity.
-4. The staff member opens the link. The screen says "You're invited to <College> as office staff". For a school-record link the **Name** and **ID number** are read only and the person sets **Email** and **Password** only; for a plain link the person also types the names. **Create account**.
+4. The staff member opens the link. The screen says "You're invited to <College> as office staff". For a school-record link the **Name** and **School ID** are read only and the person sets **Email** and **Password** only; for a plain link the person also types the names. **Create account**.
 5. To take someone off the office the dean uses **Remove** in the same tab ("Remove from the college office").
 
 Steps, student records:

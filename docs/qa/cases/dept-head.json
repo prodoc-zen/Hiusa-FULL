@@ -1771,7 +1771,7 @@
     "steps": [
       "1. Open People in the menu and select the Office staff tab.",
       "2. Select Add staff.",
-      "3. Either find a person in Find in the employee records and pick them (their ID number shows and cannot be changed), or skip the records. The dialog never asks you for a name or a School ID.",
+      "3. Either find a person in Find in the employee records and pick them (their School ID shows and cannot be changed), or skip the records. The dialog never asks you for a name or a School ID.",
       "4. Optionally type an Email (the link then only works for that email and is emailed when email is set up) and a Position such as College Secretary. Leave them empty to make a link anyone can open once.",
       "5. Select Create invite link, read the Invite link, select Copy link and then Done.",
       "6. Select Add staff again and find the person under Waiting for a reply. Select Revoke on that row.",

@@ -568,10 +568,10 @@ await step('staff_add', 'Dean adds office staff from the employee records (link 
     await option.waitFor({ state: 'visible', timeout: 15000 });
     await shot('dean', 'staff-search', rec);
     await option.click();
-    const idField = dialog.getByLabel('ID number');
+    const idField = dialog.getByLabel('School ID', { exact: true });
     await idField.waitFor({ state: 'visible' });
     const readOnly = await idField.evaluate((node) => node.readOnly || node.disabled);
-    if (!readOnly) rec.defect('app_bug', 'The staff ID number can be edited.', ['client/src/components/people/StaffInvitePanel.jsx']);
+    if (!readOnly) rec.defect('app_bug', 'The staff School ID can be edited.', ['client/src/components/people/StaffInvitePanel.jsx']);
     const idShown = await idField.inputValue();
     if (idShown !== String(SPEC.staff.schoolId)) rec.defect('app_bug', `The picked record shows ID ${idShown}, expected ${SPEC.staff.schoolId}.`, ['client/src/components/people/StaffInvitePanel.jsx']);
     // The position starts as the record's own; the dean may reword it in this form, so it is checked for the value, not for read only.
