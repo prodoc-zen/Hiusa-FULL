@@ -267,6 +267,33 @@ describe('EventsPage approval-request launch', () => {
     expect(eventMocks.getAttendance).toHaveBeenCalledWith(21, { page: 1, per_page: 20 });
   });
 
+  it('keeps the check-in pane when the already selected event is chosen again', async () => {
+    const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: {} };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    expect(await screen.findByText('Manual check-in')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open attendance for Foundation Day' }));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText('Manual check-in')).toBeInTheDocument();
+    expect(screen.getByText('Arrivals')).toBeInTheDocument();
+  });
+
+  it('counts only Present and Late members as arrivals', async () => {
+    const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: { expected_participants: 10 } };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 3, checked_in_count: 2, summary: { present: 1, late: 1, excused: 0, absent: 1 }, records: [] } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+
+    const label = await screen.findByText('Arrivals');
+    expect(label.nextElementSibling).toHaveTextContent(/^2$/);
+    expect(label.closest('div')).toHaveTextContent('20% of 10 expected');
+  });
+
   it('checks a member in by finding their name, never by typing a school ID', async () => {
     const event = { id: 22, title: 'Orientation', status: 'ongoing', organization_id: 5, start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'Gym', planning_details: {} };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
