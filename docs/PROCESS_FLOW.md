@@ -276,7 +276,7 @@ flowchart TD
     A["Grantor opens People and access"] --> B["Give access"]
     B --> C["Student, Access level, Position, What can they open?"]
     C --> D{"Allowed to give this level?"}
-    D -->|"no"| E["Refused: only the dean or the SAO can name another organization head"]
+    D -->|"no"| E["Refused: only the Department Head can name another organization head in a college organization (the SAO only in a university-wide one)"]
     D -->|"yes"| F["Profile created, student notified: You have new access"]
     F --> G["Student switches to the organization from the workspace switcher"]
     G --> H["Sidebar and routes show only the ticked modules"]
@@ -294,7 +294,7 @@ Outputs: an `AccountProfile` for the student in the organization, with `modules`
 The system enforces (`Http/Controllers/AccountProfileController.php`, `Services/AccountProfileDeletionService.php`, `Http/Middleware/EnsureOrganizationModule.php`):
 - Only an active student account of the college of the organization can be picked (`eligibleUsers()`); someone already in the organization is a 409.
 - The position must be on the organization's own position list, and module keys must be in `AccountProfile::MODULES`.
-- An organization head cannot name another organization head in the own organization; only the dean or the SAO changes or removes an Admin profile (`assertMayGrant()`, `permissionFailure()`).
+- An organization head cannot name another organization head in the own organization; only the Department Head changes or removes an Admin profile in a college organization, and the SAO only in a university-wide organization, where it may name only the Admin (`assertMayGrant()`, `permissionFailure()`).
 - The last active Admin cannot be demoted or removed (422 "Assign another active Admin before changing the last one.").
 - An officer with ticked modules gets 403 "You do not have access to this part of the organization." on any other module route; the routes an officer uses as an ordinary member (vote, feed, shop, own tasks) stay open.
 - Students and officers cannot grant: the invite route is `role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN`.
@@ -425,7 +425,7 @@ flowchart TD
 Steps:
 1. The dean opens **Organizations** and the row action **Open organization space**. The sidebar switches to the organization space and the banner reads "Viewing <Organization>" with **Back to mine**; the header button **Back to my college** returns to the college.
 2. The tabs are **Overview**, **People and access**, **Events**, **Finance**, **Transactions** and **Documents**. **Transactions** is a paginated read only ledger. **Documents** has **Open** on each file and **Open records** to the archive.
-3. The SAO opens **Colleges**, expands a college's organizations and uses **Open** on a row. The same page opens in oversight mode with **Back to colleges** and **Registration details**; its people list is read only, because the organization's own Admin gives and removes access.
+3. The SAO opens **Colleges**, expands a college's organizations and uses **Open** on a row. The same page opens in oversight mode with **Back to colleges** and **Registration details**; its people list is read only, because the Department Head (or, for a college organization's officers, its own Admin) gives and removes access; the SAO names only the Admin of a university-wide organization.
 
 Outputs: nothing is changed; this is a view. The organization cannot see the dean's or the SAO's part.
 

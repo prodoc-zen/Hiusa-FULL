@@ -59,7 +59,7 @@ ADM-057 | Members > Programs and sections | Import a class list: preview, apply,
 ADM-058 | Members > Programs and sections | Class list: nothing to apply, wrong file | M | Any
 ADM-059 | Members > Programs and sections | A student created by class list import must change the temporary password | H | Any
 ADM-060 | Members > Programs and sections | With no program configured, the program list is empty and can be refilled | M | Any
-ADM-061 | Events and tasks > Events | Events page shows the list, the filters and the academic period | H | R1
+ADM-061 | Events and tasks > Events | Events page shows the list and the filters | H | R1
 ADM-062 | Events and tasks > Events | Propose an event (the main Admin journey) | H | R2
 ADM-063 | Events and tasks > Events | Event form: required fields and end before start | H | Any
 ADM-064 | Events and tasks > Events | Event dates must be inside the active semester | H | R2
@@ -445,8 +445,8 @@ GEN-101 | Print and export | Orders CSV export | M | Any
 GEN-102 | Print and export | Exports contain all matching rows, not just the visible page | M | Any
 GEN-103 | Print and export | Exported files do not run formulas | M | Any
 GEN-104 | Print and export | Temporary passwords file after a class list import | M | Any
-GEN-105 | Semesters | After a semester is closed, an old event cannot be edited | H | R2
-GEN-106 | Semesters | After a semester is closed, old tasks can be read but not changed | H | R2
+GEN-105 | Semesters | After a semester is closed, an old event is read only and leaves the Events list | H | R2
+GEN-106 | Semesters | After a semester is closed, old tasks leave the Tasks page | H | R2
 GEN-107 | Semesters | After a semester is closed, an old election is read only and students cannot vote in it | H | R2
 GEN-108 | Semesters | Check-in on an event of a closed semester is refused | M | R2
 GEN-109 | Semesters | After a semester is closed, a pending approval for an old event or election cannot be decided | M | R2

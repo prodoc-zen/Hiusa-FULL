@@ -41,7 +41,7 @@ All paths are under `/dashboard`. Page file paths are fixed so the integration s
 | `clearances` | ADMIN, SBO_OFFICER | `pages/modules/clearances/SignatoryClearancesPage.jsx` |
 | `my-clearance` | STUDENT | `pages/modules/clearances/StudentClearancePage.jsx` |
 | `evaluation` | ADMIN, SBO_OFFICER, DEPARTMENT_HEAD, STUDENT | `pages/modules/evaluation/EvaluationPage.jsx` |
-| `objectives` | all five roles | `pages/modules/objectives/StudyObjectivesPage.jsx` |
+| `objectives` | Removed in round r15: no page, no route, no sidebar entry | `pages/modules/objectives/StudyObjectivesPage.jsx` (deleted) |
 
 Role home pages keep their existing paths and files: `super-admin` (`pages/roles/super-admin/SuperAdminHomePage.jsx`), `admin` (`pages/roles/admin/AdminHomePage.jsx`), `officer` (`pages/roles/officer/DashboardPage.jsx`), `department-head` (`pages/roles/department-head/DepartmentHeadHomePage.jsx`), `student` (`pages/roles/student/StudentHomePage.jsx`).
 
@@ -54,6 +54,8 @@ Group navigation by the six study areas plus governance, per role, using `lib/pi
 - SBO_OFFICER: add Venues, Clearances, Evaluation, Study objectives.
 - DEPARTMENT_HEAD: add Evaluation, Study objectives.
 - STUDENT: add My grievances, My clearance, Evaluation, Study objectives.
+
+The Study objectives entries above were removed in round r15, together with the page. The SAO Admins entry was also removed in round r15: the Department Head names a college organization's head through Give access, and the SAO names the Admin only of a university-wide organization.
 
 ## Server endpoints the pages consume
 
