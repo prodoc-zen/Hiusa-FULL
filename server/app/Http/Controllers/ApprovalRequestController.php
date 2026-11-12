@@ -18,6 +18,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\EventApprovalChain;
+use App\Services\EventFileReview;
 use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
 use App\Support\FilterValues;
@@ -38,6 +39,7 @@ class ApprovalRequestController extends Controller
         private readonly OrderFulfillmentService $fulfillmentService,
         private readonly ApprovalEntityLabel $entityLabels,
         private readonly EventApprovalChain $eventChain,
+        private readonly EventFileReview $eventFileReview,
     ) {}
 
     public function index(Request $request)
@@ -203,7 +205,12 @@ class ApprovalRequestController extends Controller
         $data = $request->validate([
             'status' => ['required', 'in:approved,rejected'],
             'remarks' => ['nullable', 'string', 'required_if:status,rejected'],
+            ...EventFileReview::rules(),
         ]);
+
+        if (! empty($data['files']) && $approval->entity_type !== 'event') {
+            return response()->json(['message' => 'Only event requests have files to mark.'], 422);
+        }
 
         if (! $this->entityExists($approval)) {
             return response()->json(['message' => 'The record attached to this approval request no longer exists.'], 409);
@@ -235,6 +242,10 @@ class ApprovalRequestController extends Controller
 
                 if (Organization::whereKey($approval->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
                     throw new DomainException(self::ARCHIVED_MESSAGE);
+                }
+
+                if ($approval->entity_type === 'event') {
+                    $this->eventFileReview->record($approval, $data['files'] ?? [], $data['status'], $request->user()->school_id);
                 }
 
                 $approval->update([
@@ -550,7 +561,7 @@ class ApprovalRequestController extends Controller
     private function eventExtras(Collection $events): array
     {
         $described = $this->eventChain->describe($events);
-        $files = EventRequirementFile::with('requirement:id,name')->whereIn('event_id', $events->keys())->get()->groupBy('event_id');
+        $files = EventRequirementFile::with('requirement:id,name', 'reviews')->whereIn('event_id', $events->keys())->get()->groupBy('event_id');
         $budgets = Budget::whereIn('event_id', $events->keys())->orderBy('id')->get(['id', 'event_id', 'submission_status'])->groupBy('event_id');
 
         return $events->mapWithKeys(fn (Event $event) => [$event->id => [
@@ -562,6 +573,8 @@ class ApprovalRequestController extends Controller
                 'id' => $file->id,
                 'requirement' => $file->requirement?->name,
                 'original_name' => $file->original_name,
+                'open_url' => '/events/'.$file->event_id.'/submission/files/'.$file->id,
+                'reviews' => $file->reviews->map->only(['stage', 'status', 'note'])->values()->all(),
             ])->all(),
         ]])->all();
     }
