@@ -15,6 +15,18 @@ class ElectionPosition extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'is_executive' => 'boolean',
+            'is_active' => 'boolean',
+            'eligible_year_levels' => 'array',
+            'runoff_candidate_ids' => 'array',
+            'resolved_winner_ids' => 'array',
+            'tie_resolved_at' => 'datetime',
+        ];
+    }
+
     public function election(): BelongsTo
     {
         return $this->belongsTo(Election::class);
