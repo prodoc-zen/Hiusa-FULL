@@ -104,8 +104,6 @@ test.beforeAll(async () => {
   fixtures.deanToken = new URL(deanInvite.body.magic_link).searchParams.get('token');
 
   const staffInvite = await dean.post('/college/staff/invitations', {
-    first_name: 'Walk',
-    last_name: 'Staff',
     email: `walk.staff.${Date.now()}@journey.test`,
     position_title: 'College Secretary',
   });

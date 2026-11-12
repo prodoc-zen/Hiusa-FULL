@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 import { HEAD_CCS, SAO, apiAs, liveEnabled, shot, uiLogin } from '../support/live.js';
 import { addStudentRecord, randomPassword } from '../support/pipeline.js';
 
-// How people get an account without anyone typing a school ID for them: a student signs up against the
-// school records, the SAO sends the dean a link, and the dean sends office staff a link. Each runs at 1440
-// and 390 px, signs in through the screens, and ends on what the new person sees.
+// How people get an account: a student signs up against the school records, the SAO sends the dean a link,
+// and the dean sends office staff a link. The invited person types their own name and School ID; the inviter
+// types neither. Each runs at 1440 and 390 px, signs in through the screens, and ends on what the new person sees.
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
 const WIDTHS = [
@@ -16,6 +16,10 @@ const WIDTHS = [
 const COLLEGE_FOR_DEAN = { 1440: 'College of Teacher Education', 390: 'College of Health Sciences' };
 
 const runTag = Date.now().toString(36).slice(-5);
+
+// An employee number a person types on the invitation page: below the generated range, clear of the student numbers.
+let idCounter = 0;
+const employeeId = () => 70000000 + ((Date.now() + (idCounter += 1)) % 20000000);
 
 async function noSidewaysScroll(page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -61,6 +65,7 @@ async function acceptInvitation(page, token, person, landing) {
   await page.goto(`/accept-invitation?token=${encodeURIComponent(token)}`);
   await page.getByLabel('First name').fill(person.firstName);
   await page.getByLabel('Last name').fill(person.lastName);
+  await page.getByLabel('School ID').fill(String(person.schoolId));
   // A link made for one email (office staff) arrives with it filled in and locked; the dean's link asks for it.
   const email = page.getByLabel('Email');
   if (await email.isEditable()) await email.fill(person.email);
@@ -126,7 +131,7 @@ for (const { label, viewport } of WIDTHS) {
     test(`ON-2 ${label}px: the SAO sends a dean a link and the dean sets up their own account`, async ({ page, browser }) => {
       const college = COLLEGE_FOR_DEAN[viewport.width];
       await vacateDeanOf(college);
-      const dean = { firstName: 'Journey', lastName: `Dean ${runTag}${label}`, email: `dean.${runTag}.${label}@journey.test`, password: randomPassword() };
+      const dean = { firstName: 'Journey', lastName: `Dean ${runTag}${label}`, schoolId: employeeId(), email: `dean.${runTag}.${label}@journey.test`, password: randomPassword() };
 
       await uiLogin(page, SAO);
       await page.goto('/dashboard/super-admin/colleges');
@@ -144,7 +149,7 @@ for (const { label, viewport } of WIDTHS) {
       const invited = await context.newPage();
       await invited.goto(`/accept-invitation?token=${encodeURIComponent(tokenOf(link))}`);
       await expect(invited.getByRole('heading', { name: `You're invited to lead ${college}` })).toBeVisible();
-      await expect(invited.getByLabel('School ID')).toHaveCount(0);
+      await expect(invited.getByLabel('School ID')).toBeVisible();
       await noSidewaysScroll(invited);
       await acceptInvitation(invited, tokenOf(link), dean, /\/dashboard\/department-head/);
       await expect(invited.getByRole('navigation').first()).toBeVisible();
@@ -160,19 +165,16 @@ for (const { label, viewport } of WIDTHS) {
     });
 
     test(`ON-3 ${label}px: a dean sends office staff a link`, async ({ page, browser }) => {
-      const staff = { firstName: 'Journey', lastName: `Staff ${runTag}${label}`, email: `staff.${runTag}.${label}@journey.test`, password: randomPassword() };
+      const staff = { firstName: 'Journey', lastName: `Staff ${runTag}${label}`, schoolId: employeeId(), email: `staff.${runTag}.${label}@journey.test`, password: randomPassword() };
 
       await uiLogin(page, HEAD_CCS);
       await page.goto('/dashboard/department-head/people');
       await page.getByRole('tab', { name: 'Office staff' }).click();
       await page.getByRole('button', { name: 'Add staff' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add office staff' });
-      // The dialog offers the employee records first; a person who is not in them is invited by name and email.
-      const notInRecords = dialog.getByRole('button', { name: 'Not in the records? Invite by name and email' });
-      await expect(dialog.getByLabel(/^First name/).or(notInRecords)).toBeVisible();
-      if (await notInRecords.isVisible()) await notInRecords.click();
-      await dialog.getByLabel(/^First name/).fill(staff.firstName);
-      await dialog.getByLabel(/^Last name/).fill(staff.lastName);
+      // The dean types no name and no School ID: the link is for an email (optional) and the person fills in the rest.
+      await expect(dialog.getByLabel(/^First name/)).toHaveCount(0);
+      await expect(dialog.getByLabel(/^Last name/)).toHaveCount(0);
       await dialog.getByLabel(/^Email/).fill(staff.email);
       await dialog.getByLabel(/^Position/).fill('College Secretary');
       await dialog.getByRole('button', { name: 'Create invite link' }).click();

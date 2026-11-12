@@ -246,7 +246,7 @@ async function runJourney(cfg) {
   const saoCall = (method, route, body) => apiCall(api.sao.token, method, route, body);
   const deanCall = (method, route, body) => apiCall(api.dean.token, method, route, body);
 
-  const dean = { email: `dean.${state.tag}@smoke.test`, first: 'Delia', last: `Dean${state.tag}` };
+  const dean = { email: `dean.${state.tag}@smoke.test`, first: 'Delia', last: `Dean${state.tag}`, schoolId: 70000000 + (Date.now() % 20000000) };
   const applicant = { email: `${cfg.student.first}.${state.tag}@smoke.test`.toLowerCase() };
   const orgName = `Smoke Society ${state.tag}`;
   const orgAcronym = `SS${state.tag}`.toUpperCase();
@@ -326,7 +326,7 @@ async function runJourney(cfg) {
   });
 
   // ---------------------------------------------------------------- 2
-  await step('s2-open-link', 'Open the link logged out, register without a school ID, land on the dean home, sign out, sign in by email', async () => {
+  await step('s2-open-link', 'Open the link logged out, register with their own School ID, land on the dean home, sign out, sign in by email', async () => {
     if (!inviteLink) throw new Error('no link from step 1');
     await signOutLocal();
     const url = new URL(inviteLink);
@@ -335,10 +335,11 @@ async function runJourney(cfg) {
     const intro = await page.locator('main, body').first().innerText();
     if (!/Student Affairs Office invited you to/.test(intro)) throw new Error('the page does not name who invited you');
     if (!intro.includes(cfg.college)) throw new Error('the page does not name the college');
-    if (await page.getByLabel(/school id/i).count()) throw new Error('the dean form asks for a school ID');
+    if (!(await page.getByLabel(/school id/i).count())) throw new Error('the dean form does not ask for a School ID');
     await snap('invitation');
     await page.getByLabel('First name').fill(dean.first);
     await page.getByLabel('Last name').fill(dean.last);
+    await page.getByLabel(/school id/i).fill(String(dean.schoolId));
     await page.getByLabel('Email').fill(dean.email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByLabel('Confirm password').fill(PASSWORD);
