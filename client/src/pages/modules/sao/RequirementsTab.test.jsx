@@ -114,4 +114,70 @@ describe('Organization requirement samples', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(5, expect.objectContaining({ deadline_at: '2026-12-31' })));
   });
+
+  describe('deadline range', () => {
+    const semester = { id: 3, starts_on: '2026-08-01', ends_on: '2026-12-31' };
+    const message = 'The deadline must fall inside this semester, between August 1, 2026 and December 31, 2026.';
+
+    async function fillAndSubmit(dialog) {
+      fireEvent.change(within(dialog).getByLabelText(/^Deadline/), { target: { value: '2028-11-10' } });
+      fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: 'Valid ID' } });
+      fireEvent.change(within(dialog).getByLabelText(/^Sample format/), { target: { value: 'link' } });
+      fireEvent.change(within(dialog).getByLabelText(/^Sample link/), { target: { value: 'https://example.edu/id' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add requirement' }));
+    }
+
+    async function openNew(props = { semester }) {
+      render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} {...props} />);
+      fireEvent.click((await screen.findAllByRole('button', { name: 'New requirement' }))[0]);
+      return screen.findByRole('dialog');
+    }
+
+    async function openEdit(type) {
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [type] } });
+      render(<RequirementsTab currentAcademicYear="2026-2027" semester={semester} onChanged={() => {}} />);
+      fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${type.name}` }))[0]);
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit requirement' }));
+      return screen.findByRole('dialog');
+    }
+
+    const stored = { id: 5, name: 'Valid ID', academic_year: '2026-2027', academic_semester_id: 3, is_active: true, template_url: 'https://example.edu/id', allowed_extensions: ['pdf'] };
+
+    it('limits the date picker to the semester and says the range in the field hint', async () => {
+      const dialog = await openNew();
+      const deadline = within(dialog).getByLabelText(/^Deadline/);
+      expect(deadline).toHaveAttribute('min', '2026-08-01');
+      expect(deadline).toHaveAttribute('max', '2026-12-31');
+      expect(within(dialog).getByText('Pick a day from August 1, 2026 to December 31, 2026.')).toBeInTheDocument();
+    });
+
+    it('refuses a deadline outside the semester before anything is sent', async () => {
+      const dialog = await openNew();
+      await fillAndSubmit(dialog);
+      expect(await within(dialog).findByText(message)).toBeInTheDocument();
+      expect(mocks.createRequirementType).not.toHaveBeenCalled();
+    });
+
+    it('shows the server refusal under the deadline when the date still gets through', async () => {
+      mocks.createRequirementType.mockRejectedValue({ response: { status: 422, data: { message, errors: { deadline_at: [message] } } } });
+      const dialog = await openNew({});
+      await fillAndSubmit(dialog);
+      expect((await within(dialog).findAllByText(message)).length).toBeGreaterThan(0);
+    });
+
+    it('lets a stored deadline that is already outside the semester stay while the rest is edited', async () => {
+      mocks.updateRequirementType.mockResolvedValue({ data: {} });
+      const dialog = await openEdit({ ...stored, deadline_at: '2028-11-10T15:59:59.000000Z' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+      await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(5, expect.objectContaining({ deadline_at: '2028-11-10' })));
+    });
+
+    it('refuses moving a stored deadline to a day outside the semester', async () => {
+      const dialog = await openEdit({ ...stored, deadline_at: '2026-11-10T15:59:59.000000Z' });
+      fireEvent.change(within(dialog).getByLabelText(/^Deadline/), { target: { value: '2027-02-01' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+      expect(await within(dialog).findByText(message)).toBeInTheDocument();
+      expect(mocks.updateRequirementType).not.toHaveBeenCalled();
+    });
+  });
 });
