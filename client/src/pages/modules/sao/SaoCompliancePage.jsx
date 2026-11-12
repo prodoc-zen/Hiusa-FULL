@@ -5,6 +5,7 @@ import ResponsiveTabs from './ResponsiveTabs';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getApprovalRequest } from '../../../services/approvalService';
 import { getComplianceStatus } from '../../../services/complianceService';
+import { readSelectedPeriod } from '../../../utils/academicPeriodStore';
 import { fetchAllPages } from '../../../services/pagination';
 import * as systemAdminService from '../../../services/systemAdministrationService';
 import AccreditationTab from './AccreditationTab';
@@ -59,6 +60,7 @@ function getCurrentRole() {
 
 export default function SaoCompliancePage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const readOnly = useMemo(() => readSelectedPeriod()?.status === 'completed', []);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const hasRecord = Boolean(searchParams.get('record'));
@@ -163,13 +165,13 @@ export default function SaoCompliancePage() {
             <AccreditationTab title="Annual organization renewal" overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} onChanged={loadOverview} />
           )}
           {activeTab === 'requirements' && (
-            <RequirementsTab currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} onChanged={loadOverview} />
+            <RequirementsTab currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} readOnly={readOnly} onChanged={loadOverview} />
           )}
           {activeTab === 'renewal-requirements' && (
-            <RequirementsTab key="renewal" category="renewal" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} onChanged={loadOverview} />
+            <RequirementsTab key="renewal" category="renewal" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} readOnly={readOnly} onChanged={loadOverview} />
           )}
           {activeTab === 'semestral-requirements' && (
-            <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} onChanged={loadOverview} />
+            <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semester={overview.semester} readOnly={readOnly} onChanged={loadOverview} />
           )}
           {activeTab === 'review' && (
             <ReviewQueueTab
@@ -182,7 +184,7 @@ export default function SaoCompliancePage() {
               onChanged={loadOverview}
             />
           )}
-          {activeTab === 'events' && <EventRequirementsTab noSemester={overview.noSemester} />}
+          {activeTab === 'events' && <EventRequirementsTab noSemester={overview.noSemester} readOnly={readOnly} />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} initialEventId={searchParams.get('event') || ''} onEventOpen={changeOpenEvent} />}</OrganizationReviewFolders>}
           {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>}
         </div>

@@ -48,6 +48,39 @@ describe('Organization requirement samples', () => {
     expect(screen.queryByText(/There is no active semester/)).not.toBeInTheDocument();
   });
 
+  describe('in a completed semester', () => {
+    const closedType = { id: 5, name: 'Old pledge', is_active: true, template_url: 'https://example.edu/pledge.pdf', deadline_at: '2026-12-01T09:00:00Z', allowed_extensions: ['pdf'] };
+    const sentence = 'This semester is completed, so its requirements are read only.';
+
+    it('shows no New requirement, toggle, Edit or Delete and says why', async () => {
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [closedType] } });
+      render(<RequirementsTab currentAcademicYear="2026-2027" readOnly onChanged={() => {}} />);
+      await screen.findAllByText('Old pledge');
+      expect(screen.getAllByText(sentence).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('button', { name: 'New requirement' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+      expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Old pledge' })[0]);
+      expect(await screen.findByRole('menuitem', { name: 'View sample' })).toBeInTheDocument();
+      for (const name of ['Edit requirement', 'Mark inactive', 'Mark active', 'Delete requirement']) {
+        expect(screen.queryByRole('menuitem', { name })).not.toBeInTheDocument();
+      }
+    });
+
+    it('keeps New requirement, the toggle, Edit and Delete in an active or upcoming semester', async () => {
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [closedType] } });
+      render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} />);
+      await screen.findAllByText('Old pledge');
+      expect(screen.queryByText(sentence)).not.toBeInTheDocument();
+      expect((await screen.findAllByRole('button', { name: 'New requirement' }))[0]).toBeEnabled();
+      expect(screen.getAllByRole('switch', { name: 'Deactivate Old pledge' })[0]).toBeEnabled();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Old pledge' })[0]);
+      for (const name of ['Edit requirement', 'Mark inactive', 'Delete requirement']) {
+        expect(await screen.findByRole('menuitem', { name })).toBeInTheDocument();
+      }
+    });
+  });
+
   it('leaves edit, activate, delete and sample actions on existing requirements usable without a semester', async () => {
     mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ id: 5, name: 'Old pledge', is_active: true, template_url: 'https://example.edu/pledge.pdf', deadline_at: '2026-12-01T09:00:00Z', allowed_extensions: ['pdf'] }] } });
     render(<RequirementsTab currentAcademicYear="2026-2027" noSemester onChanged={() => {}} />);

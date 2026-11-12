@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Eye, FileText, Pencil, Trash2, X } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, SegmentedControl, Select, SkeletonText, StatusToggleSwitch, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, SegmentedControl, Select, SkeletonText, StatusBadge, StatusToggleSwitch, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
@@ -42,8 +42,9 @@ const OFF_CAMPUS_PRESETS = [
 ];
 
 const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
+const READ_ONLY_MESSAGE = 'This semester is completed, so its requirements are read only.';
 
-export default function EventRequirementsTab({ mode = 'settings', organizationId = '', noSemester = false, initialEventId = '', onEventOpen }) {
+export default function EventRequirementsTab({ mode = 'settings', organizationId = '', noSemester = false, readOnly = false, initialEventId = '', onEventOpen }) {
   const [reviewSearch, setReviewSearch] = useState('');
   const [venueFilter, setVenueFilter] = useState('all');
   const [togglingId, setTogglingId] = useState(null);
@@ -308,14 +309,14 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     {
       key: 'status',
       header: 'Status',
-      render: (requirement) => (
+      render: (requirement) => (readOnly ? <StatusBadge status={requirement.is_active ? 'active' : 'inactive'} /> : (
         <StatusToggleSwitch
           checked={Boolean(requirement.is_active)}
           disabled={busy || togglingId === requirement.id}
           onChange={() => toggleRequirementActive(requirement)}
           label={`${requirement.is_active ? 'Deactivate' : 'Activate'} ${formatDisplayText(requirement.name)}`}
         />
-      ),
+      )),
     },
   ];
   const editingRequirement = requirements.find((item) => item.id === editingId);
@@ -332,7 +333,9 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
         <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{actionError}</p>
       )}
 
-      {mode === 'settings' && <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
+      {mode === 'settings' && readOnly && <p className="text-sm text-ink-muted">{READ_ONLY_MESSAGE}</p>}
+
+      {mode === 'settings' && <section className={readOnly ? undefined : 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]'}>
         <Card
           title="Event requirements"
           description="Each active item needs one file for an event."
@@ -356,7 +359,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
             loading={loading}
             actions={(requirement) => <TableRowActions subject={formatDisplayText(requirement.name)} actions={[
               (requirement.template_url || requirement.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewTemplate(requirement) },
-              { label: 'Edit requirement', icon: Pencil, disabled: busy, onClick: () => {
+              !readOnly && { label: 'Edit requirement', icon: Pencil, disabled: busy, onClick: () => {
                     setNameError(null);
                     setEditingId(requirement.id);
                     setForm({ name: requirement.name, description: requirement.description || '', allowed_extensions: ['pdf'], venue_type: requirement.venue_type || 'all', is_optional: requirement.is_optional, is_active: requirement.is_active });
@@ -366,7 +369,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                     setTemplateError(null);
                     if (templateInputRef.current) templateInputRef.current.value = '';
                   } },
-              { label: 'Remove requirement', icon: Trash2, danger: true, disabled: busy, onClick: () => { setActionError(''); setRemoveTarget(requirement); } },
+              !readOnly && { label: 'Remove requirement', icon: Trash2, danger: true, disabled: busy, onClick: () => { setActionError(''); setRemoveTarget(requirement); } },
             ]} />}
             emptyState={loadError ? <div /> : (
               <EmptyState
@@ -379,7 +382,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
           />
         </Card>
 
-        <form onSubmit={save} noValidate className="h-fit">
+        {!readOnly && <form onSubmit={save} noValidate className="h-fit">
           <Card title={editingId ? 'Edit event requirement' : 'Add event requirement'}>
             <div className="flex flex-col gap-4">
               <Field label="File name" required error={nameError}>
@@ -457,7 +460,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
               </div>
             </div>
           </Card>
-        </form>
+        </form>}
       </section>}
 
       {mode === 'reviews' && <Card title="Events waiting for SAO">
