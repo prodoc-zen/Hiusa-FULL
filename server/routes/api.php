@@ -187,6 +187,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/system/academic-years/{academicYear}/semesters', [AcademicSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/active', [AcademicSemesterController::class, 'activate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/close', [AcademicSemesterController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/academic-semesters/{academicSemester}/reopen', [AcademicSemesterController::class, 'reopen'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/academic-years', [AcademicYearController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/academic-years/{academicYear}', [AcademicYearController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-years/{academicYear}/current', [AcademicYearController::class, 'makeCurrent'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);

@@ -60,10 +60,11 @@ class AcademicYearController extends Controller
         if ($academicYear->closed_at) {
             throw ValidationException::withMessages(['academic_year' => ['A completed academic year cannot be reopened.']]);
         }
-        if (AcademicSemester::where('status', 'active')->exists() && ! $academicYear->is_current) {
-            throw ValidationException::withMessages(['academic_year' => ['Activate a semester in this year to change the active academic period.']]);
-        }
         DB::transaction(function () use ($request, $academicYear) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            if (AcademicSemester::where('status', 'active')->where('academic_year_id', '!=', $academicYear->id)->exists()) {
+                throw ValidationException::withMessages(['academic_year' => ['A semester in another academic year is active. Activate a semester in this year to change the current year.']]);
+            }
             AcademicYear::whereKeyNot($academicYear->id)->where('is_current', true)->update(['is_current' => false]);
             $academicYear->update(['is_current' => true]);
             $this->audit($request, 'academic_year_made_current', $academicYear);
