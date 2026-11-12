@@ -416,7 +416,6 @@ class AcademicSemesterTest extends TestCase
         [$director, $year] = $this->liveSemester();
         Sanctum::actingAs($director);
         $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
-        ComplianceRequirementType::where('academic_semester_id', $second)->update(['deadline_at' => '2027-03-15 23:59:59']);
 
         $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-11', 'ends_on' => '2027-05-28'])
             ->assertOk()->assertJsonPath('starts_on', '2027-01-11')->assertJsonPath('ends_on', '2027-05-28')->assertJsonPath('status', 'upcoming');
@@ -489,8 +488,13 @@ class AcademicSemesterTest extends TestCase
         $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
         $total = ComplianceRequirementType::where('academic_semester_id', $second)->count();
         $this->assertGreaterThan(2, $total);
-        ComplianceRequirementType::where('academic_semester_id', $second)->update(['deadline_at' => '2027-03-15 23:59:59']);
-        ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->limit(2)->update(['deadline_at' => '2027-05-31 23:59:59']);
+        $ids = ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->pluck('id');
+        foreach ($ids->take(2) as $id) {
+            $this->putJson("/api/compliance/requirement-types/{$id}", ['deadline_at' => '2027-05-28'])->assertOk();
+        }
+        foreach ($ids->slice(2, 3) as $id) {
+            $this->putJson("/api/compliance/requirement-types/{$id}", ['deadline_at' => '2027-03-15'])->assertOk();
+        }
         $before = ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->pluck('deadline_at', 'id')->map->toDateTimeString()->all();
 
         $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-15'])
@@ -498,13 +502,49 @@ class AcademicSemesterTest extends TestCase
             ->assertJsonPath('errors.semester.0', '2 requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.');
         $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-03-16', 'ends_on' => '2027-05-31'])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.semester.0', ($total - 2).' requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.');
+            ->assertJsonPath('errors.semester.0', '3 requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.');
 
         $this->assertSame('2027-01-01', AcademicSemester::find($second)->starts_on->toDateString());
         $this->assertSame('2027-05-31', AcademicSemester::find($second)->ends_on->toDateString());
         $this->assertSame($before, ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->pluck('deadline_at', 'id')->map->toDateTimeString()->all());
         $this->assertSame(0, AuditLog::where('action', 'academic_semester_dates_changed')->count());
         $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertOk();
+    }
+
+    public function test_shortening_an_upcoming_semester_moves_the_deadlines_seeded_at_its_end(): void
+    {
+        [$director, $year] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
+        $handSet = ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->firstOrFail();
+        $this->putJson("/api/compliance/requirement-types/{$handSet->id}", ['deadline_at' => '2027-03-15'])->assertOk();
+
+        $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-15'])->assertOk()->assertJsonPath('ends_on', '2027-05-15');
+
+        $deadlines = ComplianceRequirementType::where('academic_semester_id', $second)->where('id', '!=', $handSet->id)->pluck('deadline_at')->map->toDateTimeString()->unique()->all();
+        $this->assertSame(['2027-05-15 23:59:59'], $deadlines);
+        $this->assertSame('2027-03-15 23:59:59', $handSet->fresh()->deadline_at->toDateTimeString());
+    }
+
+    public function test_requirements_of_an_upcoming_semester_can_be_edited_and_those_of_a_completed_semester_cannot(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
+        $upcoming = ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->firstOrFail();
+        $upcomingEvent = EventRequirement::where('academic_semester_id', $second)->orderBy('id')->firstOrFail();
+
+        $this->putJson("/api/compliance/requirement-types/{$upcoming->id}", ['description' => 'Edited ahead of the term'])->assertOk()->assertJsonPath('description', 'Edited ahead of the term');
+        $this->putJson("/api/compliance/requirement-types/{$upcoming->id}/template-link", ['template_url' => 'https://example.edu/format'])->assertOk();
+        $this->putJson("/api/event-requirements/{$upcomingEvent->id}", ['name' => $upcomingEvent->name, 'allowed_extensions' => ['pdf'], 'description' => 'Edited ahead'])->assertOk();
+        $this->deleteJson("/api/compliance/requirement-types/{$upcoming->id}/template")->assertStatus(409)->assertJsonPath('message', 'Active requirements must keep a sample format. Replace the sample, or deactivate the requirement first.');
+
+        $closed = ComplianceRequirementType::create(['category' => 'organization', 'academic_year' => $year->label, 'academic_semester_id' => $first->id, 'name' => 'List of Members', 'allowed_extensions' => ['pdf'], 'deadline_at' => '2026-12-31 23:59:59', 'is_active' => false, 'created_by' => $director->school_id]);
+        $closedEvent = EventRequirement::create(['name' => 'Old requirement', 'venue_type' => 'all', 'academic_semester_id' => $first->id, 'allowed_extensions' => ['pdf'], 'is_active' => false, 'sort_order' => 99]);
+        $first->update(['status' => 'completed']);
+
+        $this->putJson("/api/compliance/requirement-types/{$closed->id}", ['description' => 'Too late'])->assertStatus(409)->assertJsonPath('message', 'Completed semester requirements are read only.');
+        $this->putJson("/api/event-requirements/{$closedEvent->id}", ['name' => 'Old requirement', 'allowed_extensions' => ['pdf']])->assertStatus(409)->assertJsonPath('message', 'Completed semester requirements are read only.');
     }
 
     public function test_activate_still_refuses_a_future_semester_until_its_dates_are_changed_to_start_today(): void
