@@ -299,7 +299,7 @@ for (const { width, height } of WIDTHS) {
         const reportRow = onScreen(panel.locator('tr, article, li').filter({ hasText: report.title }));
         await expect(reportRow).toBeVisible({ timeout: 20000 });
 
-        await tap(reportRow.getByRole('button', { name: /View/ }));
+        await tap(reportRow.getByRole('button', { name: /^Review / }));
         const detail = page.getByRole('dialog');
         await expect(detail.getByRole('button', { name: /Approve/ })).toBeVisible({ timeout: 20000 });
 
