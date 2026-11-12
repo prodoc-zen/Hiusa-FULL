@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -16,6 +16,7 @@ vi.mock('../../../services/systemAdministrationService', () => ({
   activateAcademicSemester: vi.fn(),
   closeAcademicSemester: vi.fn(),
   reopenAcademicSemester: vi.fn(),
+  updateAcademicSemesterDates: vi.fn(),
   deleteAcademicYear: vi.fn(),
   deleteAcademicSemester: vi.fn(),
 }));
@@ -373,8 +374,55 @@ describe('AcademicYearsPage', () => {
       renderPage();
       const button = await activateButton(1, '2027-2028');
       expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription('Starts on August 1, 2999. Activate it from that day.');
+      expect(button).toHaveAccessibleDescription('Starts on August 1, 2999. Change its dates or activate it from that day.');
       expect(screen.getByRole('button', { name: 'Close 1st semester of AY 2026-2027' })).toBeEnabled();
+    });
+
+    it('offers Edit dates on an upcoming semester only, never on an active or completed one', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2999-08-01')]),
+        thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'active', '2026-12-16', '2027-05-31')]),
+      ]);
+      renderPage();
+
+      expect(await screen.findByRole('button', { name: 'Edit dates of 1st semester of AY 2027-2028' })).toBeEnabled();
+      expect(screen.getAllByRole('button', { name: /^Edit dates of/ })).toHaveLength(1);
+    });
+
+    it('changes the dates of an upcoming semester and reloads the calendar', async () => {
+      vi.mocked(getAcademicYears)
+        .mockResolvedValueOnce([nextYear([sem(21, 1, 'upcoming', '2027-08-01', '2027-12-15')]), thisYear([])])
+        .mockResolvedValueOnce([nextYear([sem(21, 1, 'upcoming', '2027-08-10', '2027-12-18')]), thisYear([])]);
+      vi.mocked(updateAcademicSemesterDates).mockResolvedValue({});
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit dates of 1st semester of AY 2027-2028' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit dates of the 1st semester, AY 2027-2028' });
+      expect(within(dialog).getByLabelText(/Starts on/)).toHaveValue('2027-08-01');
+      expect(within(dialog).getByLabelText(/Ends on/)).toHaveValue('2027-12-15');
+      fireEvent.change(within(dialog).getByLabelText(/Starts on/), { target: { value: '2027-08-10' } });
+      fireEvent.change(within(dialog).getByLabelText(/Ends on/), { target: { value: '2027-12-18' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save dates' }));
+
+      await waitFor(() => expect(updateAcademicSemesterDates).toHaveBeenCalledWith(21, { starts_on: '2027-08-10', ends_on: '2027-12-18' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await screen.findByText(/August 10, 2027 to December 18, 2027/)).toBeInTheDocument();
+    });
+
+    it('keeps the dialog open and says why when the server refuses the new dates', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([nextYear([sem(21, 1, 'upcoming', '2027-08-01', '2027-12-15')]), thisYear([])]);
+      vi.mocked(updateAcademicSemesterDates)
+        .mockRejectedValueOnce({ response: { status: 422, data: { message: 'x', errors: { semester: ['3 requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.'] } } } })
+        .mockRejectedValueOnce({ response: { status: 422, data: { message: 'x', errors: { starts_on: ['Semester dates cannot overlap.'] } } } });
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit dates of 1st semester of AY 2027-2028' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit dates of the 1st semester, AY 2027-2028' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save dates' }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('3 requirement deadlines in this semester fall outside these dates.');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save dates' }));
+      expect(await within(dialog).findByText('Semester dates cannot overlap.')).toBeInTheDocument();
+      expect(within(dialog).queryByText(/3 requirement deadlines/)).not.toBeInTheDocument();
     });
 
     it('asks for the current year to be completed first, naming the semester to activate', async () => {

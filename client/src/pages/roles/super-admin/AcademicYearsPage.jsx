@@ -9,7 +9,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicYear } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
 const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
@@ -51,7 +51,7 @@ function liveSemester(years) {
 // The server's reasons for refusing Activate, as the one thing to do first. Empty when it would accept.
 function activateBlocker(semester, year, years) {
   if (year.closed_at) return `AY ${year.label} is completed, so its semesters cannot be activated.`;
-  if (!hasStarted(semester)) return `Starts on ${manilaDate(semester.starts_on, 'long')}. Activate it from that day.`;
+  if (!hasStarted(semester)) return `Starts on ${manilaDate(semester.starts_on, 'long')}. Change its dates or activate it from that day.`;
   const current = years.find((item) => item.is_current);
   if (!current || current.id === year.id) return '';
   const own = current.semesters || [];
@@ -125,6 +125,8 @@ export default function AcademicYearsPage() {
   const [semesterDeleteError, setSemesterDeleteError] = useState(null);
   const [yearDeleteError, setYearDeleteError] = useState('');
   const [semesterChange, setSemesterChange] = useState(null);
+  const [datesTarget, setDatesTarget] = useState(null);
+  const [datesForm, setDatesForm] = useState({ starts_on: '', ends_on: '' });
   const [semesterChangeError, setSemesterChangeError] = useState('');
 
   const load = useCallback(async () => {
@@ -223,6 +225,22 @@ export default function AcademicYearsPage() {
     } catch (cause) {
       setSemesterErrors(cause?.response?.data?.errors || {});
       if (!cause?.response?.data?.errors) notify.error(getApiErrorMessage(cause, 'The semester was not saved.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDates() {
+    setBusy(true);
+    setSemesterErrors({});
+    try {
+      await updateAcademicSemesterDates(datesTarget.semester.id, datesForm);
+      notify.success('Semester dates changed');
+      setDatesTarget(null);
+      await load();
+    } catch (cause) {
+      setSemesterErrors(cause?.response?.data?.errors || {});
+      if (!cause?.response?.data?.errors) notify.error(getApiErrorMessage(cause, 'The semester dates were not saved.'));
     } finally {
       setBusy(false);
     }
@@ -375,6 +393,17 @@ export default function AcademicYearsPage() {
                     <Button
                       size="sm"
                       variant="secondary"
+                      aria-label={`Edit dates of ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                      disabled={busy}
+                      onClick={() => { setSemesterErrors({}); setDatesForm({ starts_on: String(semester.starts_on).slice(0, 10), ends_on: String(semester.ends_on).slice(0, 10) }); setDatesTarget({ semester, yearLabel: year.label }); }}
+                    >
+                      Edit dates
+                    </Button>
+                  )}
+                  {semester.status !== 'active' && semester.status !== 'completed' && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
                       aria-label={`Activate ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
                       aria-describedby={blocker ? `semester-note-${semester.id}` : undefined}
                       disabled={busy || Boolean(blocker)}
@@ -409,6 +438,14 @@ export default function AcademicYearsPage() {
           <Field label="Semester" required error={semesterErrors.number?.[0]}><Select value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))}><option value="1">1st semester</option><option value="2">2nd semester</option></Select></Field>
           <Field label="Starts on" required error={semesterErrors.starts_on?.[0]}><Input type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm((current) => ({ ...current, starts_on: event.target.value }))} /></Field>
           <Field label="Ends on" required error={semesterErrors.ends_on?.[0]}><Input type="date" value={semesterForm.ends_on} onChange={(event) => setSemesterForm((current) => ({ ...current, ends_on: event.target.value }))} /></Field>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(datesTarget)} title={datesTarget ? `Edit dates of the ${semesterLabel(datesTarget.semester, datesTarget.yearLabel)}` : ''} onClose={busy ? undefined : () => setDatesTarget(null)} maxWidth="max-w-lg" footer={<><Button variant="secondary" disabled={busy} onClick={() => setDatesTarget(null)}>Cancel</Button><Button loading={busy} disabled={!datesForm.starts_on || !datesForm.ends_on} onClick={saveDates}>Save dates</Button></>}>
+        <div className="space-y-4">
+          <Field label="Starts on" required error={semesterErrors.starts_on?.[0]}><Input type="date" value={datesForm.starts_on} onChange={(event) => setDatesForm((current) => ({ ...current, starts_on: event.target.value }))} /></Field>
+          <Field label="Ends on" required error={semesterErrors.ends_on?.[0]}><Input type="date" value={datesForm.ends_on} onChange={(event) => setDatesForm((current) => ({ ...current, ends_on: event.target.value }))} /></Field>
+          {semesterErrors.semester?.[0] && <p role="alert" className="text-sm font-semibold text-danger-strong">{semesterErrors.semester[0]}</p>}
         </div>
       </Modal>
 
