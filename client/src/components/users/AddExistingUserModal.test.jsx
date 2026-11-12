@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AddExistingUserModal from './AddExistingUserModal';
 
@@ -7,6 +7,8 @@ vi.mock('../../services/authService', () => ({ getProfileOrganizations: mocks.ge
 vi.mock('../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
 
 const organization = { id: 8, name: 'Computing Council', college: 'College of Computer Studies' };
+const universityWide = { id: 8, name: 'University Council', is_university_wide: true };
+const universityWideChild = { id: 9, name: 'University Club', is_university_wide: true, parent_organization_id: 8 };
 const maria = { school_id: 24001001, name: 'Maria Reyes', email: 'maria@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] };
 
 async function pickMaria() {
@@ -37,15 +39,16 @@ describe('AddExistingUserModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it.each([['ADMIN', 'college'], ['SUPER_ADMIN', 'all']])('searches with the right scope for %s', async (actorRole, scope) => {
-    render(<AddExistingUserModal organization={organization} actorRole={actorRole} onClose={vi.fn()} />);
+  it.each([['ADMIN', 'college', organization], ['SUPER_ADMIN', 'all', universityWide]])('searches with the right scope for %s', async (actorRole, scope, target) => {
+    render(<AddExistingUserModal organization={target} actorRole={actorRole} onClose={vi.fn()} />);
     await pickMaria();
     expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope, exclude_organization_id: 8, eligible_for_organization_id: 8 });
   });
 
   it('asks only for students the chosen organization would accept, and drops a picked student when the organization changes', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [universityWide, universityWideChild] });
     render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
-    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    await screen.findByRole('option', { name: 'University Club (Suborganization)' });
     fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '8' } });
     await pickMaria();
     expect(mocks.searchPeople).toHaveBeenLastCalledWith({ q: 'maria', scope: 'all', exclude_organization_id: 8, eligible_for_organization_id: 8 });
@@ -59,14 +62,30 @@ describe('AddExistingUserModal', () => {
   });
 
   it('keeps the person a row opened the dialog for when the organization changes', async () => {
-    render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={{ school_id: 24001001, first_name: 'Maria', last_name: 'Reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
+    render(<AddExistingUserModal actorRole="DEPARTMENT_HEAD" initialRole="ADMIN" initialUser={{ school_id: 24001001, first_name: 'Maria', last_name: 'Reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
     await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
     fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
     expect(screen.getByRole('button', { name: 'Remove Maria Reyes' })).toBeInTheDocument();
   });
 
-  it.each(['DEPARTMENT_HEAD', 'SUPER_ADMIN'])('lets %s assign the organization head role', async (actorRole) => {
-    render(<AddExistingUserModal actorRole={actorRole} onClose={vi.fn()} />);
+  it('lets the SAO name only the Admin of a university-wide organization', async () => {
+    render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" organization={universityWide} onClose={vi.fn()} />);
+    await pickMaria();
+    const options = within(screen.getByLabelText('Role in this organization')).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual(['Organization head']);
+    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'ADMIN' }));
+  });
+
+  it('offers the SAO nothing to grant in a college organization, where the Department Head names heads', () => {
+    render(<AddExistingUserModal actorRole="SUPER_ADMIN" organization={organization} onClose={vi.fn()} />);
+    expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Officer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Member' })).not.toBeInTheDocument();
+  });
+
+  it('lets the Department Head assign the organization head role', async () => {
+    render(<AddExistingUserModal actorRole="DEPARTMENT_HEAD" onClose={vi.fn()} />);
     await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
     fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
     await pickMaria();
@@ -127,6 +146,18 @@ describe('AddExistingUserModal', () => {
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
   });
 
+  it('names the Department Head as who names a college organization head, and the SAO for a university-wide one', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [organization] });
+    const { unmount } = render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    expect(await screen.findByText(/Only the Department Head can name another organization head/)).toBeInTheDocument();
+    unmount();
+
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [universityWide] });
+    render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    expect(await screen.findByText(/Only the SAO can name another organization head/)).toBeInTheDocument();
+    expect(screen.queryByText(/Department Head/)).not.toBeInTheDocument();
+  });
+
   it('words the title and button for a member when the head role falls back to member', async () => {
     mocks.getProfileOrganizations.mockResolvedValue({ data: [organization] });
     render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
@@ -176,7 +207,7 @@ describe('AddExistingUserModal', () => {
 
   it('lets the person retry when the organizations fail to load', async () => {
     mocks.getProfileOrganizations.mockRejectedValueOnce(new Error('Offline'));
-    render(<AddExistingUserModal actorRole="SUPER_ADMIN" onClose={vi.fn()} />);
+    render(<AddExistingUserModal actorRole="ADMIN" onClose={vi.fn()} />);
     expect(await screen.findByText(/We could not load the organizations/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('option', { name: 'Computing Council' })).toBeInTheDocument();
