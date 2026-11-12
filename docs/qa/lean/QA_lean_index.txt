@@ -676,6 +676,7 @@ SAO-118 | Updates > University announcements | SAO publishes system-wide global 
 SAO-119 | Files > Storage and limits | SAO inspects system file storage usage and quotas | M | Any
 SAO-120 | Governance > Colleges | SAO invites a Department Head (Dean) using a 48h Magic Link and branded HTML email | H | Any
 SAO-121 | Academic setup > Semesters | SAO previews upcoming academic semesters in Advance Planning mode | H | Any
+SAO-122 | Governance > Student records | The Student records table shows each student's birth date | M | Any
 STU-001 | Sign in | Sign in with School ID and password | H | Any
 STU-002 | Sign in | The sign-in box takes an email or a school ID | M | Any
 STU-003 | Sign in | An email address works as the sign-in name | M | Any

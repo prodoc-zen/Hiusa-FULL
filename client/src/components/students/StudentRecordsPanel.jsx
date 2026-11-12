@@ -5,6 +5,7 @@ import StudentRecordsUpload from './StudentRecordsUpload';
 import PaginationControls from '../PaginationControls';
 import { getStudentRegistry } from '../../services/studentRegistryService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { manilaDate } from '../../lib/format';
 
 const PAGE_SIZE = 20;
 
@@ -87,6 +88,7 @@ export default function StudentRecordsPanel({ collegeId }) {
     isEmployee
       ? { key: 'position', header: 'Position', render: (row) => row.position }
       : { key: 'program', header: 'Program', render: (row) => [row.program, row.year_level, row.section].filter(Boolean).join(', ') },
+    ...(collegeId ? [] : [{ key: 'birth_date', header: 'Birth date', render: (row) => (row.birth_date ? manilaDate(row.birth_date, 'long') : '-') }]),
     {
       key: 'claimed',
       header: 'Account',
@@ -100,7 +102,7 @@ export default function StudentRecordsPanel({ collegeId }) {
     <div className="flex flex-col gap-6">
       <Card
         title="Upload school records"
-        description="Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are only used for that check and are never shown."
+        description="Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are what they are checked against, and they show in the table below."
       >
         <StudentRecordsUpload collegeId={collegeId} onSaved={() => { setPage(1); load(); }} />
       </Card>

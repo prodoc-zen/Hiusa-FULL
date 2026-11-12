@@ -49,6 +49,27 @@ describe('StudentRecordsPanel', () => {
     expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student' });
   });
 
+  it('shows each birth date as a long date, with a dash when a record has none, in the table and the mobile cards', async () => {
+    mocks.getStudentRegistry.mockResolvedValue(list([
+      entry({ birth_date: '2004-03-05' }),
+      entry({ id: 2, school_id: 2600102, name: 'Ben Tan', birth_date: null }),
+    ]));
+    render(<StudentRecordsPanel />);
+
+    expect(await screen.findByRole('columnheader', { name: 'Birth date' })).toBeInTheDocument();
+    expect(screen.getAllByText('March 5, 2004')).toHaveLength(2);
+    expect(screen.getAllByText('-').length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-view="cards"]')).toHaveTextContent('Birth dateMarch 5, 2004');
+  });
+
+  it('adds no Birth date column to a college view', async () => {
+    mocks.getStudentRegistry.mockResolvedValue(list([entry()]));
+    render(<StudentRecordsPanel collegeId={4} />);
+
+    expect((await screen.findAllByText('Hannah Reyes')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: 'Birth date' })).not.toBeInTheDocument();
+  });
+
   it('leaves empty values blank instead of writing None', async () => {
     mocks.getStudentRegistry.mockResolvedValue(list([entry({ program: null, year_level: null, section: null })]));
     render(<StudentRecordsPanel collegeId={4} />);

@@ -204,21 +204,31 @@ class StudentRegistryImportTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('file');
     }
 
-    public function test_the_list_shows_claimed_state_searches_and_never_exposes_the_birth_date(): void
+    public function test_the_list_shows_claimed_state_searches_and_gives_the_sao_each_birth_date(): void
     {
         $this->entry();
-        $this->entry(['school_id' => 2600002, 'first_name' => 'Ben', 'last_name' => 'Tan', 'claimed_at' => now(), 'college_id' => $this->cbe->id]);
+        $this->entry(['school_id' => 2600002, 'first_name' => 'Ben', 'last_name' => 'Tan', 'birth_date' => '2004-03-05', 'claimed_at' => now(), 'college_id' => $this->cbe->id]);
 
-        $response = $this->actingAs($this->sao)->getJson('/api/students/registry')->assertOk()
-            ->assertJsonPath('summary.total', 2)->assertJsonPath('summary.claimed', 1)->assertJsonCount(2, 'data');
-        $this->assertStringNotContainsString('2007-01-02', $response->getContent());
-        $this->assertStringNotContainsString('birth', $response->getContent());
+        $this->actingAs($this->sao)->getJson('/api/students/registry')->assertOk()
+            ->assertJsonPath('summary.total', 2)->assertJsonPath('summary.claimed', 1)->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.birth_date', '2007-01-02')->assertJsonPath('data.1.birth_date', '2004-03-05');
 
         $this->actingAs($this->sao)->getJson('/api/students/registry?q=tan')->assertJsonCount(1, 'data')->assertJsonPath('data.0.claimed', true);
         $this->actingAs($this->sao)->getJson('/api/students/registry?q=2600001')->assertJsonCount(1, 'data')->assertJsonPath('data.0.claimed', false);
         $this->actingAs($this->sao)->getJson('/api/students/registry?claimed=unclaimed')->assertJsonCount(1, 'data');
         $this->actingAs($this->sao)->getJson('/api/students/registry?college_id='.$this->cbe->id)->assertJsonCount(1, 'data');
         $this->actingAs($this->sao)->getJson('/api/students/registry?q=%25')->assertJsonCount(0, 'data');
+    }
+
+    public function test_a_dean_never_receives_a_birth_date_from_the_registry(): void
+    {
+        $this->entry();
+        $this->entry(['school_id' => 2600003, 'record_type' => 'employee', 'position' => 'Registrar']);
+
+        $response = $this->actingAs($this->dean)->getJson('/api/students/registry')->assertOk()->assertJsonCount(2, 'data');
+
+        $this->assertStringNotContainsString('2007-01-02', $response->getContent());
+        $this->assertStringNotContainsString('birth', $response->getContent());
     }
 
     public function test_a_dean_sees_only_the_own_college_whatever_the_filter_says(): void

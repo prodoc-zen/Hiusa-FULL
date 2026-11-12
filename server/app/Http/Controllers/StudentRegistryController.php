@@ -52,11 +52,13 @@ class StudentRegistryController extends Controller
                 ->orWhere('last_name', 'like', $like)->orWhere('school_id', 'like', $like));
         }
 
+        $showBirthDate = $request->user()->role === 'SUPER_ADMIN';
         $rows = $query->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')->paginate($filters['per_page'] ?? 20);
         $rows->getCollection()->transform(fn (StudentRegistryEntry $entry) => [
             'id' => $entry->id,
             'school_id' => $entry->school_id,
             'name' => $entry->full_name,
+            ...($showBirthDate ? ['birth_date' => $entry->birth_date?->format('Y-m-d')] : []),
             'record_type' => $entry->record_type,
             'position' => $entry->position,
             'college' => $entry->college ? ['id' => $entry->college->id, 'name' => $entry->college->name, 'code' => $entry->college->code] : null,

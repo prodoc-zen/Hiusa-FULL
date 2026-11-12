@@ -2049,5 +2049,23 @@
     "device": "Any",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "SAO-122",
+    "role": "SAO",
+    "module": "Governance > Student records",
+    "title": "The Student records table shows each student's birth date",
+    "preconditions": "Signed in as SAO 990001. School records are uploaded (the demo copy comes with student records).",
+    "steps": [
+      "1. Open Governance, then Student records.",
+      "2. Look at the table columns under Student records.",
+      "3. Find a student in the table and read the Birth date cell.",
+      "4. Open the same page on a phone, or narrow the window, and read the same student."
+    ],
+    "expected": "The table has the columns Student, College, Program, Birth date and Account. The Birth date reads like \"March 5, 2004\". On a narrow screen the birth date appears under the student name with the college, program and account. Only the SAO sees birth dates: the Department Head People page does not show them.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]
