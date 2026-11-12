@@ -37,7 +37,7 @@ class RequirementSampleService
                 if ($requirement->exists) {
                     $locked = $requirement->newQuery()->whereKey($requirement->getKey())->lockForUpdate()->firstOrFail();
                     $requirement->setRawAttributes($locked->getAttributes(), true);
-                    abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
+                    abort_if(AcademicSemester::isClosed($locked->academic_semester_id), 409, 'Completed semester requirements are read only.');
                 }
                 $oldPath = $requirement->template_path;
                 $sample = $this->validate($request, $requirement->exists ? $requirement : null, $extensions);
@@ -67,7 +67,7 @@ class RequirementSampleService
     {
         DB::transaction(function () use ($requirement) {
             $locked = $requirement->newQuery()->whereKey($requirement->getKey())->lockForUpdate()->firstOrFail();
-            abort_if($locked->academic_semester_id && $locked->academic_semester_id !== AcademicSemester::active()?->id, 409, 'Completed semester requirements are read only.');
+            abort_if(AcademicSemester::isClosed($locked->academic_semester_id), 409, 'Completed semester requirements are read only.');
             abort_if($locked->is_active, 409, 'Active requirements must keep a sample format. Replace the sample, or deactivate the requirement first.');
             $oldPath = $locked->template_path;
             $locked->update(['template_path' => null, 'template_original_name' => null, 'template_url' => null]);

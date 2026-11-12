@@ -148,6 +148,9 @@ class AcademicSemesterController extends Controller
                 throw ValidationException::withMessages(['semester' => ['Only a semester that has not started can have its dates changed.']]);
             }
             $this->validateDates($semester->academicYear, $data, $semester->id);
+            ComplianceRequirementType::where('academic_semester_id', $semester->id)
+                ->whereBetween('deadline_at', [$semester->ends_on->copy()->startOfDay(), $semester->ends_on->copy()->endOfDay()])
+                ->update(['deadline_at' => Carbon::parse($data['ends_on'])->endOfDay()]);
             $outside = ComplianceRequirementType::where('academic_semester_id', $semester->id)
                 ->where(fn ($query) => $query->where('deadline_at', '<', Carbon::parse($data['starts_on'])->startOfDay())
                     ->orWhere('deadline_at', '>', Carbon::parse($data['ends_on'])->endOfDay()))

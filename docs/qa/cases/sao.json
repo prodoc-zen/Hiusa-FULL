@@ -1606,7 +1606,7 @@
       "5. Select Add semester.",
       "6. Read the message and the new row."
     ],
-    "expected": "The message reads \"Semester added\". The row shows \"1st Semester\", the dates and the word upcoming, with the buttons Edit dates, Activate and a trash button (a semester that starts in the future shows Activate greyed out with \"Starts on <date>. Change its dates or activate it from that day.\"; Edit dates opens a window to change the start and end dates, which are checked like the Add semester form and refused while requirement deadlines would fall outside them). Adding the semester also creates the semester requirements for Compliance > Requirements and Event requirements (VERIFY counts: 11 compliance requirements and 18 event file requirements). Nothing changes for Department Heads yet.",
+    "expected": "The message reads \"Semester added\". The row shows \"1st Semester\", the dates and the word upcoming, with the buttons Edit dates, Activate and a trash button (a semester that starts in the future shows Activate greyed out with \"Starts on <date>. Change its dates or activate it from that day.\"; Edit dates opens a window to change the start and end dates, which are checked like the Add semester form and refused while a requirement deadline the SAO set by hand would fall outside them; deadlines still on the old end date move to the new end date). Adding the semester also creates the semester requirements for Compliance > Requirements and Event requirements (VERIFY counts: 11 compliance requirements and 18 event file requirements). Nothing changes for Department Heads yet.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
