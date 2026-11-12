@@ -39,6 +39,39 @@ function semesterChangeMessage({ semester, action, yearLabel }, years) {
   return `This closes the current semester, ${closingLabel}. Members stop seeing its data.${completesYear || ` You can reopen ${closingLabel} from this page after the new one is closed.`}`;
 }
 
+function semesterName(semester, yearLabel) {
+  return `${semester.number === 1 ? '1st' : '2nd'} semester of AY ${yearLabel}`;
+}
+
+function liveSemester(years) {
+  return years
+    .flatMap((year) => (year.semesters || []).map((semester) => ({ semester, yearLabel: year.label })))
+    .find((item) => item.semester.status === 'active');
+}
+
+// The server's reasons for refusing Activate, as the one thing to do first. Empty when it would accept.
+function activateBlocker(semester, year, years) {
+  if (year.closed_at) return `AY ${year.label} is completed, so its semesters cannot be activated.`;
+  if (!hasStarted(semester)) return `Starts on ${manilaDate(semester.starts_on, 'long')}. Activate it from that day.`;
+  const current = years.find((item) => item.is_current);
+  if (!current || current.id === year.id) return '';
+  const own = current.semesters || [];
+  if (own.length === 2 && own.every((item) => item.status !== 'upcoming')) return '';
+  if (String(year.starts_on).slice(0, 10) < String(current.starts_on).slice(0, 10)) {
+    const live = liveSemester(years);
+    return live ? `Close the ${semesterName(live.semester, live.yearLabel)} first.` : `Make AY ${year.label} the current year first.`;
+  }
+  if (own.length === 0) return `Add both semesters to AY ${current.label} and complete them first.`;
+  if (own.length === 1) return `Add the ${own[0].number === 1 ? '2nd' : '1st'} semester to AY ${current.label} and complete both first.`;
+  const upcoming = [...own].sort((left, right) => left.number - right.number).find((item) => item.status === 'upcoming');
+  return `Activate the ${semesterName(upcoming, current.label)} first.`;
+}
+
+function reopenBlocker(years) {
+  const live = liveSemester(years);
+  return live ? `Close the ${semesterName(live.semester, live.yearLabel)} first.` : '';
+}
+
 // The server refuses this while a semester in another year is active.
 function makeCurrentBlocker(target, years) {
   const active = years.find((year) => (year.semesters || []).some((item) => item.status === 'active'));
@@ -48,7 +81,7 @@ function makeCurrentBlocker(target, years) {
 function makeCurrentMessage(target, years) {
   const active = makeCurrentBlocker(target, years);
   const base = "Accreditation status will count this year's requirements, and new requirement sets and clearance periods will default to it. This does not start a semester.";
-  if (active) return `${base} A semester in AY ${active.label} is active, so this is refused until you activate a semester in this year.`;
+  if (active) return `${base} A semester in AY ${active.label} is active, so this is refused. Close it first, or activate a semester in this year to make it current.`;
   return base;
 }
 
@@ -108,7 +141,6 @@ export default function AcademicYearsPage() {
   useEffect(() => { load(); }, [load]);
 
   const current = years.items.find((year) => year.is_current);
-  const anyActive = years.items.some((year) => (year.semesters || []).some((semester) => semester.status === 'active'));
 
   function openModal(year = null) {
     setFieldErrors({});
@@ -310,17 +342,20 @@ export default function AcademicYearsPage() {
                   </Button>
                 )}
               </div>
-              <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+              <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => {
+                const blocker = semester.status === 'completed' ? reopenBlocker(years.items) : (semester.status === 'active' ? '' : activateBlocker(semester, year, years.items));
+                return <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-ink">{semester.number === 1 ? '1st' : '2nd'} semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span></div>
                 <div className="flex items-center gap-2">
                   {semester.status === 'active' && <StatusBadge label="Active" tone="success" />}
                   {semester.status === 'completed' && <StatusBadge label="Completed" tone="neutral" />}
-                  {semester.status === 'completed' && !anyActive && !year.closed_at && (
+                  {semester.status === 'completed' && !year.closed_at && (
                     <Button
                       size="sm"
                       variant="secondary"
                       aria-label={`Reopen ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
-                      disabled={busy}
+                      aria-describedby={blocker ? `semester-note-${semester.id}` : undefined}
+                      disabled={busy || Boolean(blocker)}
                       onClick={() => { setSemesterChangeError(''); setSemesterChange({ semester, action: 'reopen', yearLabel: year.label }); }}
                     >
                       Reopen
@@ -337,17 +372,18 @@ export default function AcademicYearsPage() {
                       Close semester
                     </Button>
                   )}
-                  {semester.status !== 'active' && semester.status !== 'completed' && (hasStarted(semester) ? (
+                  {semester.status !== 'active' && semester.status !== 'completed' && (
                     <Button
                       size="sm"
                       variant="secondary"
                       aria-label={`Activate ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
-                      disabled={busy}
+                      aria-describedby={blocker ? `semester-note-${semester.id}` : undefined}
+                      disabled={busy || Boolean(blocker)}
                       onClick={() => { setSemesterChangeError(''); setSemesterChange({ semester, action: 'activate', yearLabel: year.label }); }}
                     >
                       Activate
                     </Button>
-                  ) : <span className="text-xs text-ink-muted">Not started yet</span>)}
+                  )}
                   {semester.status !== 'active' && (
                     <button
                       type="button"
@@ -361,7 +397,9 @@ export default function AcademicYearsPage() {
                     </button>
                   )}
                 </div>
-              </div>)}{!year.semesters?.length && <p className="py-2.5 text-sm text-ink-muted">No semesters added.</p>}</div>
+                {blocker && <p id={`semester-note-${semester.id}`} className="basis-full text-xs text-ink-muted">{blocker}</p>}
+              </div>;
+              })}{!year.semesters?.length && <p className="py-2.5 text-sm text-ink-muted">No semesters added.</p>}</div>
             </div>)}
           </div>
         )}

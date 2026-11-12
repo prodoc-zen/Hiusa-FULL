@@ -68,7 +68,7 @@ describe('AcademicYearsPage', () => {
     fireEvent.click(await findRowAction('Make current'));
     const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
     expect(within(dialog).getByText(/This does not start a semester\./)).toBeInTheDocument();
-    expect(within(dialog).getByText(/A semester in AY 2026-2027 is active, so this is refused until you activate a semester in this year\./)).toBeInTheDocument();
+    expect(within(dialog).getByText(/A semester in AY 2026-2027 is active, so this is refused\. Close it first, or activate a semester in this year to make it current\./)).toBeInTheDocument();
     expect(makeAcademicYearCurrent).not.toHaveBeenCalled();
   });
 
@@ -299,14 +299,18 @@ describe('AcademicYearsPage', () => {
       await waitFor(() => expect(getAcademicYears).toHaveBeenCalledTimes(2));
     });
 
-    it('is not offered while any semester is active', async () => {
+    it('is held back with a sentence while any semester is active', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[1], semesters: [
         { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
         { id: 12, number: 2, status: 'active', starts_on: '2026-12-16', ends_on: '2027-05-31' },
       ] }]);
       renderPage();
       expect(await screen.findByRole('button', { name: 'Close 2nd semester of AY 2026-2027' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /^Reopen/ })).not.toBeInTheDocument();
+      const reopen = screen.getByRole('button', { name: 'Reopen 1st semester of AY 2026-2027' });
+      expect(reopen).toBeDisabled();
+      expect(reopen).toHaveAccessibleDescription('Close the 2nd semester of AY 2026-2027 first.');
+      fireEvent.click(reopen);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('is not offered for a semester of a completed year', async () => {
@@ -337,14 +341,14 @@ describe('AcademicYearsPage', () => {
       return screen.findByRole('dialog', { name: 'Close semester' });
     };
 
-    it('says when the next semester can start and never offers to activate one that has not started', async () => {
+    it('says when the next semester can start and holds back Activate until then', async () => {
       vi.mocked(getAcademicYears).mockResolvedValue(closing({ starts_on: '2999-12-19', ends_on: '3000-05-31' }));
       renderPage();
       const dialog = await openClose();
 
       expect(within(dialog).getByText(/2nd semester, AY 2026-2027 starts on December 19, 2999\. Until then no semester is active\./)).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' })).not.toBeInTheDocument();
-      expect(screen.getByText('Not started yet')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Activate 2nd semester of AY 2026-2027' })).toBeDisabled();
+      expect(screen.queryByText('Not started yet')).not.toBeInTheDocument();
     });
 
     it('warns that no semester will be active when there is nothing to start after it', async () => {
@@ -352,6 +356,106 @@ describe('AcademicYearsPage', () => {
       renderPage();
 
       expect(within(await openClose()).getByText(/No other semester is set up, so no semester will be active until you add one and activate it\./)).toBeInTheDocument();
+    });
+  });
+
+  describe('every semester row shows its action', () => {
+    const sem = (id, number, status, starts_on, ends_on = '2999-12-31') => ({ id, number, status, starts_on, ends_on });
+    const thisYear = (semesters, overrides = {}) => ({ ...years[1], ...overrides, semesters });
+    const nextYear = (semesters, overrides = {}) => ({ ...years[0], ...overrides, semesters });
+    const activateButton = (number, label) => screen.findByRole('button', { name: `Activate ${number === 1 ? '1st' : '2nd'} semester of AY ${label}` });
+
+    it('shows Activate on the first semester of a new year that has not started, disabled with the date', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2999-08-01')]),
+        thisYear([sem(11, 1, 'active', '2026-08-01', '2026-12-15'), sem(12, 2, 'upcoming', '2999-01-05')]),
+      ]);
+      renderPage();
+      const button = await activateButton(1, '2027-2028');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription('Starts on August 1, 2999. Activate it from that day.');
+      expect(screen.getByRole('button', { name: 'Close 1st semester of AY 2026-2027' })).toBeEnabled();
+    });
+
+    it('asks for the current year to be completed first, naming the semester to activate', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2026-08-02')]),
+        thisYear([sem(11, 1, 'active', '2026-08-01', '2026-12-15'), sem(12, 2, 'upcoming', '2026-10-05')]),
+      ]);
+      renderPage();
+      const button = await activateButton(1, '2027-2028');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription('Activate the 2nd semester of AY 2026-2027 first.');
+      fireEvent.click(button);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(await activateButton(2, '2026-2027')).toBeEnabled();
+    });
+
+    it('asks for the missing semester to be added when the current year has only one', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2026-08-02')]),
+        thisYear([sem(11, 1, 'active', '2026-08-01', '2026-12-15')]),
+      ]);
+      renderPage();
+      expect(await activateButton(1, '2027-2028')).toHaveAccessibleDescription('Add the 2nd semester to AY 2026-2027 and complete both first.');
+    });
+
+    it('enables Activate once both semesters of the current year are completed', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2026-08-02')]),
+        thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'completed', '2026-12-16', '2027-05-31')]),
+      ]);
+      renderPage();
+      const button = await activateButton(1, '2027-2028');
+      expect(button).toBeEnabled();
+      expect(button).not.toHaveAccessibleDescription();
+    });
+
+    it('sends the SAO back to the older year when a newer year was made current without a semester', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'upcoming', '2999-08-01')], { is_current: true }),
+        thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'upcoming', '2026-10-05')], { is_current: false }),
+      ]);
+      renderPage();
+      expect(await activateButton(2, '2026-2027')).toHaveAccessibleDescription('Make AY 2026-2027 the current year first.');
+      expect(screen.getByRole('button', { name: 'Reopen 1st semester of AY 2026-2027' })).toBeEnabled();
+    });
+
+    it('names the active semester to close when it is the thing in the way of the older year', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        nextYear([sem(21, 1, 'active', '2026-08-02')], { is_current: true }),
+        thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'upcoming', '2026-10-05')], { is_current: false }),
+      ]);
+      renderPage();
+      expect(await activateButton(2, '2026-2027')).toHaveAccessibleDescription('Close the 1st semester of AY 2027-2028 first.');
+    });
+
+    it('moves from the last semester of the current year to the first of the new year, always leaving a button to press', async () => {
+      const first = nextYear([sem(21, 1, 'upcoming', '2026-08-02')]);
+      const states = {
+        before: [first, thisYear([sem(11, 1, 'active', '2026-08-01', '2026-12-15'), sem(12, 2, 'upcoming', '2026-10-05')])],
+        secondLive: [first, thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'active', '2026-10-05')])],
+        newLive: [nextYear([sem(21, 1, 'active', '2026-08-02')], { is_current: true }), thisYear([sem(11, 1, 'completed', '2026-08-01', '2026-12-15'), sem(12, 2, 'completed', '2026-10-05')], { is_current: false, closed_at: '2026-11-12T00:00:00Z' })],
+      };
+      vi.mocked(getAcademicYears).mockResolvedValueOnce(states.before).mockResolvedValueOnce(states.secondLive).mockResolvedValueOnce(states.newLive);
+      vi.mocked(activateAcademicSemester).mockResolvedValue({});
+      renderPage();
+
+      expect(await activateButton(1, '2027-2028')).toBeDisabled();
+      fireEvent.click(await activateButton(2, '2026-2027'));
+      fireEvent.click(within(await screen.findByRole('dialog', { name: 'Activate semester' })).getByRole('button', { name: 'Activate semester' }));
+      await waitFor(() => expect(activateAcademicSemester).toHaveBeenCalledWith(12));
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Close 2nd semester of AY 2026-2027' })).toBeEnabled());
+      const next = await activateButton(1, '2027-2028');
+      expect(next).toBeEnabled();
+      fireEvent.click(next);
+      const dialog = await screen.findByRole('dialog', { name: 'Activate semester' });
+      expect(within(dialog).getByText(/This also completes AY 2026-2027\./)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Activate semester' }));
+      await waitFor(() => expect(activateAcademicSemester).toHaveBeenCalledWith(21));
+
+      expect(await screen.findByRole('button', { name: 'Close 1st semester of AY 2027-2028' })).toBeEnabled();
     });
   });
 

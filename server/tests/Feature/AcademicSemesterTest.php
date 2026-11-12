@@ -349,6 +349,54 @@ class AcademicSemesterTest extends TestCase
         $this->assertSame(['2026-2027'], AcademicYear::where('is_current', true)->pluck('label')->all());
     }
 
+    public function test_the_sao_can_walk_from_the_last_semester_of_the_year_to_the_first_of_the_next_without_leaving_the_app_empty(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Organization::factory()->create();
+        Sanctum::actingAs($director);
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $next = $this->postJson('/api/system/academic-years', ['label' => '2027-2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-05-31'])->assertCreated()->json('id');
+        $newFirst = $this->postJson("/api/system/academic-years/{$next}/semesters", ['number' => 1, 'starts_on' => '2027-08-01', 'ends_on' => '2027-12-15'])->assertCreated()->json('id');
+
+        $this->travelTo('2026-11-12');
+        $this->patchJson("/api/system/academic-semesters/{$newFirst}/active")->assertUnprocessable()->assertJsonPath('errors.semester.0', 'This semester starts on Aug 1, 2027. It cannot be made active before then.');
+        $this->patchJson("/api/system/academic-years/{$next}/current")->assertUnprocessable()->assertJsonValidationErrors('academic_year');
+        $this->assertSame($first->id, AcademicSemester::active()?->id);
+
+        $this->travelTo('2027-08-02');
+        $this->patchJson("/api/system/academic-semesters/{$newFirst}/active")->assertUnprocessable()->assertJsonPath('errors.semester.0', 'Complete both semesters in the current academic year before starting a new year.');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->assertSame($second->id, AcademicSemester::active()?->id);
+
+        $this->patchJson("/api/system/academic-semesters/{$newFirst}/active")->assertOk()->assertJsonPath('status', 'active');
+        $this->assertSame($newFirst, AcademicSemester::active()?->id);
+        $this->assertSame(1, AcademicSemester::where('status', 'active')->count());
+        $this->assertSame(['2027-2028'], AcademicYear::where('is_current', true)->pluck('label')->all());
+        $this->assertNotNull($year->fresh()->closed_at);
+        $this->assertSame('completed', $second->fresh()->status);
+    }
+
+    public function test_after_closing_the_last_semester_the_new_year_can_be_made_current_and_its_first_semester_activated(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Organization::factory()->create();
+        Sanctum::actingAs($director);
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $next = $this->postJson('/api/system/academic-years', ['label' => '2027-2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-05-31'])->assertCreated()->json('id');
+        $newFirst = $this->postJson("/api/system/academic-years/{$next}/semesters", ['number' => 1, 'starts_on' => '2027-08-01', 'ends_on' => '2027-12-15'])->assertCreated()->json('id');
+
+        $this->travelTo('2027-01-02');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/close", $this->confirming($second))->assertOk();
+        $this->patchJson("/api/system/academic-years/{$next}/current")->assertOk()->assertJsonPath('is_current', true);
+        $this->assertSame(0, AcademicSemester::where('status', 'active')->count());
+
+        $this->travelTo('2027-08-01');
+        $this->patchJson("/api/system/academic-semesters/{$newFirst}/active")->assertOk();
+        $this->assertSame($newFirst, AcademicSemester::active()?->id);
+        $this->assertSame(['2027-2028'], AcademicYear::where('is_current', true)->pluck('label')->all());
+    }
+
     public function test_making_a_year_current_is_refused_whenever_a_semester_of_another_year_is_active(): void
     {
         [$director, $year] = $this->liveSemester();
