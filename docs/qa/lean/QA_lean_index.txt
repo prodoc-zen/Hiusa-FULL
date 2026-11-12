@@ -324,8 +324,8 @@ DH-076 | College view (read only) > Calendar | Open an event for reading only | 
 DH-077 | College view (read only) > Calendar | Calendar shows only events of the head college | H | Any
 DH-078 | College view (read only) > Election results | Election results are read only and the head cannot vote | M | Any
 DH-079 | College view (read only) > Election results | Voting and the election workspace are refused to the head | H | Any
-DH-080 | College view (read only) > Announcements | Announcements feed: read, search and filter | M | Any
-DH-081 | College view (read only) > Announcements | Writing announcements is closed to the head | M | Any
+DH-080 | Announcements > Announcement feed | Announcements feed: read, search and filter | M | Any
+DH-081 | Announcements | The head writes, publishes and deletes a college announcement | M | Any
 DH-082 | Access limits | Store, shopping and orders are refused to the head | H | Any
 DH-083 | Access limits | Admin, officer and task pages are refused to the head | H | Any
 DH-084 | Access limits | SAO pages are refused: no creating colleges, no approving own SAO step | H | Any
@@ -343,7 +343,7 @@ DH-095 | Organization applications | Department Head returns an application with
 DH-096 | College files | Department Head accesses College Files and Documents | M | Any
 DH-097 | College compliance | Department Head accesses College Compliance and Semestral Submissions | M | Any
 DH-098 | Onboarding and invitation | Dean accepts invitation via Magic Link and sets School ID and password | H | Any
-DH-099 | College administration and staff | Dean delegates office staff and assigns College Secretary | H | Any
+DH-099 | People > Office staff | Dean invites office staff by link, gives a position such as College Secretary, and removes them | H | Any
 DH-100 | College organizations and supervision | Dean switches context into student organizations using GHL-style Sub-Account Oversight Mode | H | Any
 DH-101 | Academic terms and planning | Dean previews upcoming semester in Advance Planning mode | M | Any
 GEN-001 | Smoke test | Open the root link and see the Public Landing Page | H | Any
@@ -498,7 +498,7 @@ SBO-015 | Dashboard | Dashboard summary tiles go to the right pages (there is no
 SBO-016 | Dashboard | Items in Your work queue open the exact record | M | Any
 SBO-017 | Dashboard | Dashboard for an officer with nothing assigned | L | R2
 SBO-018 | Events and tasks > Check-in | Check someone in by hand | H | R1
-SBO-019 | Events and tasks > Check-in | Confirm Check-In waits for a chosen member and saves Late and Excused | M | Any
+SBO-019 | Events and tasks > Check-in | Confirm check-in waits for a chosen member and saves Late and Excused | M | Any
 SBO-020 | Events and tasks > Check-in | Checking in the same member twice is refused | H | Any
 SBO-021 | Events and tasks > Check-in | Member search finds only members of your own organization | M | Any
 SBO-022 | Events and tasks > Check-in | Check-in lists only approved and ongoing events | M | R1
@@ -688,8 +688,8 @@ SAO-111 | Profile | The SAO profile page shows the account and saves changes | M
 SAO-112 | Profile | Password change form checks | M | Any
 SAO-113 | Study objectives | The Study objectives page opens for the SAO | L | Any
 SAO-114 | Study objectives | Study objectives evidence links open pages the SAO may see | L | Any
-SAO-115 | Governance > Organization applications | SAO evaluates department-endorsed organization applications | H | R2
-SAO-116 | Governance > Organization applications | SAO approves organization application and provisions administrator credentials | H | R2
+SAO-115 | Governance > Applications | SAO evaluates department-endorsed organization applications | H | R2
+SAO-116 | Governance > Applications | SAO approves an organization application and the applicant becomes its administrator | H | R2
 SAO-117 | Governance > Colleges | SAO adds a new college and assigns a department head | H | Any
 SAO-118 | Updates > University announcements | SAO publishes system-wide global announcement | H | Any
 SAO-119 | Files > Storage and limits | SAO inspects system file storage usage and quotas | M | Any

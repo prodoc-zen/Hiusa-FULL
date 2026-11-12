@@ -196,7 +196,7 @@
     "role": "SAO",
     "module": "Dashboard",
     "title": "The Dashboard Review inbox lists what waits for the SAO",
-    "preconditions": "Signed in as SAO 990001. At least one registration or compliance submission is waiting (a Department Head 940001 has registered an organization, see Academic years first: A semester must be active first (Setup and records > Academic years, Set as active).).",
+    "preconditions": "Signed in as SAO 990001. At least one registration or compliance submission is waiting (a Department Head 940001 has registered an organization, see Academic years first: A semester must be active first (Setup and records > Academic years, Activate).).",
     "steps": [
       "1. Open Dashboard from the menu.",
       "2. Find the card titled Review inbox.",
@@ -271,7 +271,7 @@
     "role": "SAO",
     "module": "Organizations > Agency overview",
     "title": "Colleges grouped on the Agency overview (not part of the system)",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active). Department Head 940001 has registered a new organization that is still Pending review.",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate). Department Head 940001 has registered a new organization that is still Pending review.",
     "steps": [
       "1. Open the SAO menu and look for Agency overview.",
       "2. Open Governance > Colleges and read the college cards."
@@ -342,7 +342,7 @@
     "role": "SAO",
     "module": "Organizations > Registrations and organizations",
     "title": "The Review registration drawer is retired (not part of the system); the Applications page shows the application and its documents",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active). Department Head 940001 has registered an organization with all ten files.",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate). Department Head 940001 has registered an organization with all ten files.",
     "steps": [
       "1. Open Organizations and look for a Review button on a Pending review row.",
       "2. Open Applications in the SAO menu and open an application that is With the SAO.",
@@ -940,7 +940,7 @@
     "role": "SAO",
     "module": "Reviews > Compliance",
     "title": "Accreditation tab ranks organizations by what needs attention",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate).",
     "steps": [
       "1. Open the Accreditation tab.",
       "2. Read the card title and the academic year line.",
@@ -959,7 +959,7 @@
     "role": "SAO",
     "module": "Reviews > Compliance",
     "title": "Add a requirement and see the checks on the form",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate).",
     "steps": [
       "1. Open the Requirements tab and select New requirement.",
       "2. Select Add requirement with the form empty (clear the Academic year first if it is prefilled).",
@@ -1077,7 +1077,7 @@
     "role": "SAO",
     "module": "Reviews > Compliance",
     "title": "Event requirements checklist: add, edit and remove a file requirement",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate).",
     "steps": [
       "1. Open the Event requirements tab and read the card Submission checklist.",
       "2. Select Add requirement with File name empty and read the message.",
@@ -1779,7 +1779,7 @@
     "role": "SAO",
     "module": "Updates > Notifications",
     "title": "Other roles create SAO notices that lead to the right page",
-    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Activate).",
     "steps": [
       "1. Sign in as Department Head 940001 and register a new organization with the ten files.",
       "2. Sign in as Admin 900001 and upload one compliance requirement on Records > Compliance.",
@@ -1826,7 +1826,7 @@
       "5. Select Add semester.",
       "6. Read the message and the new row."
     ],
-    "expected": "The message reads \"Semester added\". The row shows \"1st Semester\", the dates and the word upcoming, with the buttons Set as active and a trash button. Adding the semester also creates the semester requirements for Compliance > Requirements and Event requirements (VERIFY counts: 11 compliance requirements and 18 event file requirements). Nothing changes for Department Heads yet.",
+    "expected": "The message reads \"Semester added\". The row shows \"1st Semester\", the dates and the word upcoming, with the buttons Activate and a trash button. Adding the semester also creates the semester requirements for Compliance > Requirements and Event requirements (VERIFY counts: 11 compliance requirements and 18 event file requirements). Nothing changes for Department Heads yet.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1858,14 +1858,14 @@
     "title": "Set a semester as active and see the effect everywhere",
     "preconditions": "Signed in as SAO 990001. A semester in upcoming status exists. Department Head 940001 and Student 2100142 exist.",
     "steps": [
-      "1. Select Set as active on the semester.",
+      "1. Select Activate on the semester, then Activate semester in the window.",
       "2. Read the message and the row.",
       "3. Look at the top bar next to the page title.",
-      "4. Sign in as Department Head 940001 and open Organizations.",
-      "5. Check the Register an organization form for its required files.",
+      "4. Sign in as Department Head 940001 and allow a student of the college to apply (People, Allow a student to apply).",
+      "5. Sign in as that student, open Apply for an organization and read the requirement files.",
       "6. Sign in as Student 2100142 and open Events."
     ],
-    "expected": "The message reads \"Academic semester activated\". The row shows active and the button Close semester. The top bar shows \"AY 2026-2027 · 1st Semester\". Department Head 940001 can now register an organization and sees ten required files. Seeded events, tasks and the seeded election belong to no semester, so they disappear from lists once a semester is active (the student sees fewer events).",
+    "expected": "The message reads \"Academic semester activated\". The row shows active and the button Close semester. The top bar shows \"AY 2026-2027 · 1st Semester\". The student can now apply and sees the ten requirement files (before a semester is active the same page says \"Applications are closed\"). Seeded events, tasks and the seeded election belong to no semester, so they disappear from lists once a semester is active (the student sees fewer events).",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1895,15 +1895,15 @@
     "role": "SAO",
     "module": "Setup and records > Academic years",
     "title": "Close a semester and activate the next one",
-    "preconditions": "Signed in as SAO 990001. An active 1st Semester and a 2nd Semester that starts on or before today exist in the same year (otherwise Set as active is hidden and the row reads \"Not started yet\").",
+    "preconditions": "Signed in as SAO 990001. An active 1st Semester and a 2nd Semester that starts on or before today exist in the same year (otherwise Activate is hidden and the row reads \"Not started yet\").",
     "steps": [
-      "1. Select Close semester on the active semester.",
+      "1. Select Close semester on the active semester, then Close semester in the window.",
       "2. Read the message and the row.",
-      "3. Check the completed semester for a Set as active button.",
-      "4. Select Set as active on the 2nd Semester.",
+      "3. Check the completed semester for a Activate button.",
+      "4. Select Activate on the 2nd Semester, then Activate semester in the window.",
       "5. Read the rows."
     ],
-    "expected": "Closing shows \"Academic semester completed\" and the row reads completed with no Set as active button (a completed semester cannot be reopened: \"A completed semester cannot be reopened.\"). Activating the 2nd Semester makes it active and completes any other active semester. Activating a semester in a new year while the current year has a semester that has not started, or has only one semester, is refused with \"Complete both semesters in the current academic year before starting a new year.\"",
+    "expected": "Closing shows \"Academic semester completed\" and the row reads completed with no Activate button (a completed semester cannot be reopened: \"A completed semester cannot be reopened.\"). Activating the 2nd Semester makes it active and completes any other active semester. Activating a semester in a new year while the current year has a semester that has not started, or has only one semester, is refused with \"Complete both semesters in the current academic year before starting a new year.\"",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -2181,16 +2181,16 @@
   {
     "id": "SAO-115",
     "role": "SAO",
-    "module": "Governance > Organization applications",
+    "module": "Governance > Applications",
     "title": "SAO evaluates department-endorsed organization applications",
     "preconditions": "Signed in as SAO 990001. A Department Head has endorsed an organization application.",
     "steps": [
-      "1. Open Governance > Organization applications in the left menu (address ends with /dashboard/organization-applications).",
-      "2. Filter by status 'Endorsed, for SAO review'.",
-      "3. Select View application on an endorsed application row.",
-      "4. Inspect the applicant credentials, college name, and submitted compliance documents."
+      "1. Open Governance, then Applications, in the left menu (address ends with /dashboard/organization-applications).",
+      "2. Read the tabs: To review, With the Department Head, Returned, Approved and Not approved.",
+      "3. On the To review tab select Review on an endorsed application row.",
+      "4. Read the applicant, the position, the note from the Department Head and each requirement with its file."
     ],
-    "expected": "The application details modal opens displaying applicant information, the department head's endorsement notes, and protected links to view all attached accreditation PDF files.",
+    "expected": "The application opens as its own page (the address ends with ?record=<id>), not in a window. It shows the applicant and position, the Department Head's comments under Note from the Department Head when there are any, each requirement with a protected link to its file and the Department Head's mark, the History, and the Decision area with Approve, Return with comments and Reject application.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2199,15 +2199,17 @@
   {
     "id": "SAO-116",
     "role": "SAO",
-    "module": "Governance > Organization applications",
-    "title": "SAO approves organization application and provisions administrator credentials",
-    "preconditions": "Signed in as SAO 990001 with an endorsed application open in the review modal.",
+    "module": "Governance > Applications",
+    "title": "SAO approves an organization application and the applicant becomes its administrator",
+    "preconditions": "Signed in as SAO 990001 with an application under To review on Applications (the Department Head endorsed it, see DH-094).",
     "steps": [
-      "1. Select Approve registration in the modal footer.",
-      "2. Confirm the approval.",
-      "3. Open Governance > Registrations and organizations and check the Active tab."
+      "1. Open Governance, then Applications, and select Review on the row under To review.",
+      "2. Open the files, then mark each requirement Accepted or select Accept all not checked.",
+      "3. Type optional Comments for the applicant.",
+      "4. Select Approve.",
+      "5. Open Governance, then Organizations, and select the Active tab."
     ],
-    "expected": "The application is marked Approved and a success notification appears. The organization is created in the active registry and the founder is provisioned as the first administrator.",
+    "expected": "Approve stays off until every requirement is Accepted. A green message reads \"Approved. The organization now exists.\" The page changes to Summary with the status Approved. The organization shows on the Active tab with Admins 1: the applicant holds the position they asked for at once, and there is no separate step to provision an administrator. Approve has no confirmation window, because every requirement had to be Accepted first.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",

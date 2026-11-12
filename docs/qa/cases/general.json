@@ -1638,7 +1638,7 @@
     "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001. A fresh seed with no active semester, then one the SAO activates.",
     "steps": [
       "1. Before a semester is active, look at the top bar of any role.",
-      "2. As the SAO, open Academic years, add a semester and choose Set as active.",
+      "2. As the SAO, open Academic years, add a semester, choose Activate and confirm with Activate semester.",
       "3. Reload any page and look at the top bar."
     ],
     "expected": "Before: no chip. After: a small chip such as \"AY 2026-2027 · 1st Semester\" shows in the top bar for every role.",
@@ -1927,7 +1927,7 @@
     "steps": [
       "1. As the officer, open Events and tasks > Check-in and open the event. Do not close the page.",
       "2. The SAO closes the 1st semester and activates the 2nd.",
-      "3. In the same page (no reload) type 2100142 in \"Member\", pick the result and click \"Confirm Check-In\".",
+      "3. In the same page (no reload) type 2100142 in \"Member\", pick the result and click \"Confirm check-in\".",
       "4. Read the message. Then reload the page and look in the \"Event queue\"."
     ],
     "expected": "The check-in is refused with \"Historical semester events are read only.\" and no attendance record is added. After the reload the old event is not in the \"Event queue\", because the queue lists only events of the active period. Seeded events that never had a semester are not affected. This is the other side of the guard EnsureCurrentEventSemester (see SBO-091). VERIFY: where the message shows.",
@@ -2088,7 +2088,7 @@
       "4. Read the sentence at the top of the panel. With no active semester the event goes straight to Approved and the SAO files step shows Skipped.",
       "5. Sign out. Sign in as Student 2100142. Open the bell and read the notification \"Event Approved: QA Chain Event\". Open Events and find the event.",
       "6. Open the event and select \"Register for this event\". Read the badge.",
-      "7. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event, type 2100142 in \"Member\", pick the result and select \"Confirm Check-In\". Read the message.",
+      "7. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event, type 2100142 in \"Member\", pick the result and select \"Confirm check-in\". Read the message.",
       "8. Sign out. Sign in as Student 2100142. Open the event and read the badge and the three steps.",
       "9. Sign out. Sign in as Admin 900001. Open the event, select \"Mark Ongoing\" and then \"Mark Completed\".",
       "10. Select \"Prepare event report\", fill the four signatory names and select \"Generate Financial Report\". Read the new row in the list."
@@ -2107,14 +2107,14 @@
     "title": "Event from proposal to report inside an active semester (Round 2)",
     "preconditions": "The test copy is running and you have its link. Round 2: the SAO has added and activated a semester whose dates cover your test dates (SAO-096 and SAO-098). The seeded events are gone from the lists in this round. Accounts: Admin 900001, Department Head 940001, SAO 990001 (the SAO password the demo owner gave you), Officer 900004, Student 2100142. The password for the others comes from the tester sheet. If the event window says \"SAO has not listed any file requirements.\", skip steps 6 to 8. Pick a start date a few days ahead, inside the semester.",
     "steps": [
-      "1. Sign in as Admin 900001. Open Events and tasks > Events, select \"New event\", fill the title (for example \"QA Semester Event\"), dates inside the semester, an on-campus venue, and select \"Submit proposal\".",
+      "1. Sign in as Admin 900001. Open Events and tasks > Events, select \"New event\", fill the title (for example \"QA Semester Event\"), dates inside the semester, an on-campus venue, and select \"Send proposal\".",
       "2. Try one more proposal with dates a year later and read the refusal. Cancel it.",
       "3. Sign out. Sign in as Department Head 940001. Open Approvals, select Review on the event, select Approve and confirm.",
       "4. Sign out. Sign in as Student 2100142. Open Events and check that only the new event shows (the seeded events are gone).",
       "5. Sign out. Sign in as Admin 900001. Open the event and, in \"SAO event requirements\", choose one PDF per item and select \"Submit event files to SAO\".",
       "6. Sign out. Sign in as SAO 990001. Open Reviews > Compliance > Event requirements, select Approve on the event and then \"Approve event\".",
       "7. Sign out. Sign in as Student 2100142. Read the bell notification \"Event Approved: QA Semester Event\". Open the event and select \"Register for this event\".",
-      "8. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event and check in 2100142 with \"Confirm Check-In\". Read the message.",
+      "8. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event and check in 2100142 with \"Confirm check-in\". Read the message.",
       "9. Sign out. Sign in as Student 2100142. Open the event and read the badge.",
       "10. Sign out. Sign in as Admin 900001. Open the event, select \"Mark Ongoing\", then \"Mark Completed\".",
       "11. Select \"Prepare event report\", fill the signatory names and select \"Generate Financial Report\"."
@@ -2238,7 +2238,7 @@
     "preconditions": "The test copy is running and you have its link. Round 2: the 1st Semester is active and a 2nd Semester exists as upcoming in the same year. In the 1st semester Admin 900001 made: an approved event (\"QA Old Event\"), a task for Officer 900004, a finalized election, and a second event that Department Head 940001 has not approved. Student 2100142 is registered for the approved event. Accounts: SAO 990001 (the SAO password the demo owner gave you). The password for the others comes from the tester sheet.",
     "steps": [
       "1. Sign in as SAO 990001. Open Setup and records > Academic years.",
-      "2. Select \"Close semester\" on the 1st Semester, then \"Set as active\" on the 2nd Semester.",
+      "2. Select \"Close semester\" on the 1st Semester and confirm, then select \"Activate\" on the 2nd Semester and confirm.",
       "3. Sign out. Sign in as Admin 900001. Open Events and tasks > Events, choose the closed semester in \"Academic period\", edit \"QA Old Event\" and select \"Save Changes\". Read the message.",
       "4. Open Events and tasks > Tasks with the same period. Read the note and the row menu of the old task.",
       "5. Open Voting > Elections with the same period. Read the note and the buttons on the old election card.",
@@ -2287,12 +2287,12 @@
     "role": "All roles",
     "module": "Usability protocol",
     "title": "SAO journeys: count the clicks against the limits",
-    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does the journey, one watches and writes. The watcher does not help. Sign in as SAO 990001 (the SAO password the demo owner gave you). Journey 1 needs a registration from a Department Head and an active semester (Round 2), and journey 5 needs a grievance addressed to the SAO. Start each journey at the home page after signing in. Typing and choosing a file do not count as clicks.",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does the journey, one watches and writes. The watcher does not help. Sign in as SAO 990001 (the SAO password the demo owner gave you). Journey 1 needs an organization application that a Department Head endorsed and an active semester (Round 2), journey 4 needs something waiting for the SAO (for example a compliance submission), and journey 5 needs a grievance addressed to the SAO. Start each journey at the home page after signing in. Typing and choosing a file do not count as clicks.",
     "steps": [
-      "1. Journey 1, approve a registration and give it an administrator: limit 5 clicks. End: the organization is Active with one administrator.",
+      "1. Journey 1, approve an organization application: limit 5 clicks (Governance, Applications, Review on the row under To review, Accept all not checked, Approve). Approve has no confirmation window. A tester who opens the notification from the bell instead of the menu needs 4. Opening each file before accepting it is the review itself: the limit counts the shortest path. End: the page reads Approved with the message \"Approved. The organization now exists.\" Afterwards Governance, Organizations, Active tab shows the organization with one administrator (that check is not counted).",
       "2. Journey 2, SAO approves a compliance submission: limit 5 clicks. The confirmation step is counted and kept on purpose, because it protects the decision. Follow the amber \"N waiting\" badge in the Awaiting review column: organizations with submissions waiting are listed first. End: the submission shows its new status.",
       "3. Journey 3, SAO approves a financial report: limit 5 clicks. The confirmation step is counted and kept on purpose, because it protects the decision. Follow the amber \"N waiting\" badge in the Awaiting review column: organizations with reports waiting are listed first. End: the report shows Approved.",
-      "4. Journey 4, see who needs attention: limit 2 clicks. End: organizations that need action are listed first.",
+      "4. Journey 4, see what needs attention: limit 1 click from home. The Dashboard Review inbox counts the work waiting for the SAO, one row per area, and each row opens the list that holds it. Select the row with the highest count, or the filled button at the top of the page, which opens the first queue. End: you land on the list that holds that work without searching.",
       "5. Journey 5, answer a grievance: limit 4 clicks. End: the student's My grievances shows Resolved.",
       "6. For each journey write the clicks you counted, whether the end state was reached, and any moment the person stopped and asked \"where do I go now\"."
     ],
@@ -2301,18 +2301,18 @@
     "device": "Any",
     "type": "Usability",
     "round": "Any time",
-    "depends": "Run with SAO-022, SAO-055, SAO-062, SAO-075 and SAO-014"
+    "depends": "Run with SAO-116, SAO-055, SAO-062, SAO-075 and SAO-011"
   },
   {
     "id": "GEN-125",
     "role": "All roles",
     "module": "Usability protocol",
     "title": "Department Head journeys: count the clicks against the limits",
-    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Department Head 940001 (password given to you separately). Journey 1 needs an active semester (Round 2). Journey 3 needs a registration that the SAO returned. Start each journey at the home page after signing in.",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Department Head 940001 (password given to you separately). Journey 1 needs an active semester (Round 2) and an application sent by a student the head allowed to apply (DH-021). Journey 3 needs an application that was returned and that the student sent again (DH-030). Start each journey at the home page after signing in.",
     "steps": [
-      "1. Journey 1, register an organization: limit 3 clicks. End: the row reads Pending review and its status says \"Pending review: waiting for SAO review\".",
+      "1. Journey 1, endorse an organization application: limit 4 clicks (Organization applications, Review on the row under To review, Accept all not checked, Endorse). Endorse has no confirmation window. Opening each file before accepting it is the review itself: the limit counts the shortest path. End: the message reads \"Endorsed. The SAO is next.\" and the page shows the status With the SAO.",
       "2. Journey 2, approve an item: limit 4 clicks (Approvals, open an item, Approve, confirm). End: the item shows Approved and links to the event, budget or report.",
-      "3. Journey 3, follow up a returned registration: limit 3 clicks from home. End: the row reads \"Waiting for SAO review\" again.",
+      "3. Journey 3, review an application again after it was returned and sent again: limit 4 clicks from home, the same path as journey 1 (3 when the student changed no file, because files you accepted before and that did not change start as Accepted). End: the page shows the status With the SAO again and the History lists the return and the new endorsement.",
       "4. Journey 4, act from a notification: limit 2 clicks (the bell, then the notification). End: you land on the exact item.",
       "5. For each journey write the clicks you counted, whether the end state was reached, and any moment the person asked \"where do I go now\"."
     ],

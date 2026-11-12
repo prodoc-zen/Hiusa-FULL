@@ -1105,7 +1105,7 @@
       "2. Type an 'Event Name *'.",
       "3. Set 'Start Date *', 'Start Time *', 'End Date' and 'End Time' inside the active semester.",
       "4. Under 'Venue type' keep 'On campus' and choose a venue in 'SAO venue'.",
-      "5. Select 'Submit proposal'."
+      "5. Select 'Send proposal'."
     ],
     "expected": "The form closes and the 'Event details' window opens with the event title and an 'Event progress' stepper. The current step is Department Head approval and the text says 'Waiting for Department Head approval'. The event shows in the list with status planning.",
     "priority": "High",
@@ -1121,11 +1121,11 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Select 'New event'.",
-      "2. Look at 'Submit proposal' with an empty Event Name.",
+      "2. Look at 'Send proposal' with an empty Event Name.",
       "3. Fill the name, start date and start time. Leave the end date and end time empty.",
-      "4. Set an end date and time earlier than the start and select 'Submit proposal'."
+      "4. Set an end date and time earlier than the start and select 'Send proposal'."
     ],
-    "expected": "The Submit proposal button is off until Event Name, Start Date, Start Time, End Date and End Time are filled. An end before the start is refused with a red message under the form (the end time must be after the start time). VERIFY: exact wording. No event is created.",
+    "expected": "The Send proposal button is off until Event Name, Start Date, Start Time, End Date and End Time are filled. An end before the start is refused with a red message under the form (the end time must be after the start time). VERIFY: exact wording. No event is created.",
     "priority": "High",
     "device": "Any",
     "type": "Validation",
@@ -1141,7 +1141,7 @@
       "1. Select 'New event'.",
       "2. Fill the name and a venue.",
       "3. Pick a start date and end date outside the active semester (for example one year later).",
-      "4. Select 'Submit proposal'."
+      "4. Select 'Send proposal'."
     ],
     "expected": "The proposal is refused with 'Event dates must fall within the active academic semester.' and no event is created.",
     "priority": "High",
@@ -1157,8 +1157,8 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Select 'New event' and fill the required fields.",
-      "2. Keep 'On campus' and leave 'SAO venue' on 'Choose a venue', then select 'Submit proposal'.",
-      "3. Change 'Venue type' to 'Off campus' and leave 'Off-campus location' empty, then select 'Submit proposal'.",
+      "2. Keep 'On campus' and leave 'SAO venue' on 'Choose a venue', then select 'Send proposal'.",
+      "3. Change 'Venue type' to 'Off campus' and leave 'Off-campus location' empty, then select 'Send proposal'.",
       "4. Type a location and submit again."
     ],
     "expected": "The first two attempts are refused with 'Choose an active SAO on-campus venue.' and 'Enter the off-campus location.' The third works.",
@@ -1610,7 +1610,7 @@
       "2. Read the stage line and 'Progress History'.",
       "3. Use 'Start task' if the task is Pending.",
       "4. In 'Add Progress Update' type a note and a Progress (%) and select 'Save Progress Update'.",
-      "5. Select 'Complete task' and then 'Confirm Completion'."
+      "5. Select 'Complete task' and then 'Confirm completion'."
     ],
     "expected": "The details show Assigned officer, Priority, Category, Required position, Progress and Academic period. A note is required before a progress update can be saved (progress is held below 100). Completing sets Progress to 100% and the status to Completed.",
     "priority": "High",
@@ -1683,7 +1683,7 @@
       "2. Read the line 'N events open for check-in' and the Event queue.",
       "3. In 'Member' type 2100142 and choose the student from the list.",
       "4. Leave 'Attendance status' on Present.",
-      "5. Select 'Confirm Check-In'."
+      "5. Select 'Confirm check-in'."
     ],
     "expected": "The ongoing event is already selected with a 'Live now' tag. The page says 'Check-in recorded.' and the member appears in the attendance log with Method Manual and the counts go up.",
     "priority": "High",
@@ -1700,7 +1700,7 @@
     "steps": [
       "1. Open Events and tasks > Check-in.",
       "2. Search the same member in 'Member'.",
-      "3. Select 'Confirm Check-In'."
+      "3. Select 'Confirm check-in'."
     ],
     "expected": "The second record is refused with 'This member is already checked in for this event.' and the log still holds one row.",
     "priority": "High",
@@ -1755,7 +1755,7 @@
       "2. In 'Member' type 2400118 (a student of another organization).",
       "3. Read the message under the box."
     ],
-    "expected": "The box shows 'No matching members found.' and Confirm Check-In stays off.",
+    "expected": "The box shows 'No matching members found.' and Confirm check-in stays off.",
     "priority": "Medium",
     "device": "Any",
     "type": "Access",
@@ -4075,7 +4075,7 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The SAO has added a semester but has not set it as active (MEMBER_TESTING section 3: adding is not enough).",
     "steps": [
       "1. Select 'New event' and fill the required fields.",
-      "2. Select 'Submit proposal'.",
+      "2. Select 'Send proposal'.",
       "3. Try 'New task' in Events and tasks > Tasks and create a task."
     ],
     "expected": "The event is refused with 'SAO must activate an academic semester before new events can be created.' and the task with 'SAO must activate an academic semester before new tasks can be created.' A new election is refused the same way ('SAO must activate an academic semester before new elections can be created.'). Once the SAO sets the semester as active all three work again.",
@@ -4092,7 +4092,7 @@
     "preconditions": "Sign in as Adviser 990002 (PSITS-CCS). The password is the adviser password on the tester sheet.",
     "steps": [
       "1. Open Events and tasks > Events and select 'New event'.",
-      "2. Fill the required fields and select 'Submit proposal'.",
+      "2. Fill the required fields and select 'Send proposal'.",
       "3. Open Approvals and select 'Submitted by me'.",
       "4. Open the event row."
     ],
@@ -4268,7 +4268,7 @@
     "steps": [
       "1. Select \"New event\". Fill the title, the dates and the venue.",
       "2. Fill \"Event Type\" (for example Workshop), \"Planning Requirements\", \"Available / Required Resources\", \"Vendor Deadlines\" and \"Logistics Checklist\" with short sentences. Choose a picture in \"Event poster\".",
-      "3. Select \"Submit proposal\".",
+      "3. Select \"Send proposal\".",
       "4. In the event window read the picture and the lines for event type, requirements, resources, vendor deadlines and logistics.",
       "5. Close it, select \"Edit event\" on the row, change \"Vendor Deadlines\" and select \"Save Changes\".",
       "6. Open the event again."

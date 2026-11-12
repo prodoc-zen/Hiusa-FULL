@@ -226,7 +226,7 @@
     "role": "Department Head",
     "module": "Dashboard",
     "title": "A returned application is listed on Organization applications with its status",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. A student of the college was allowed to apply and sent an application, and the head or the SAO returned it with comments (see DH-029).",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. A student of the college was allowed to apply and sent an application, and the head or the SAO returned it with comments (see DH-029).",
     "steps": [
       "1. Open Organization applications in the menu.",
       "2. Find the row of the returned application.",
@@ -338,7 +338,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Allow a student to apply: the dialog opens",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Organizations.",
       "2. Select Allow a student to apply.",
@@ -373,7 +373,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Allow a student to apply and see the application reach the head",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Pick a student of the college who belongs to no organization. The student has ten small PDF files ready (any PDF under 10 MB).",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Pick a student of the college who belongs to no organization. The student has ten small PDF files ready (any PDF under 10 MB).",
     "steps": [
       "1. Open Organizations, select Allow a student to apply, pick the student and select Allow to apply.",
       "2. Sign in as that student, select Apply for an organization, fill Organization name, Acronym, Your position and What the organization is for.",
@@ -391,7 +391,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: blank name, acronym and files are refused (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -408,7 +408,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: one missing document is named (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -425,7 +425,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: only PDF files are accepted (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a picture or a Word file ready.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a picture or a Word file ready.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -442,7 +442,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: a file over 10 MB is refused (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a PDF larger than 10 MB ready.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a PDF larger than 10 MB ready.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -459,7 +459,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: a wrong color code is refused (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -476,7 +476,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Register form: a name or acronym that already exists is refused (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS already exists.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS already exists.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -493,7 +493,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Cancel the register form: nothing is saved (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -510,7 +510,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "An application is returned: the head and the applicant both see the comments",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has sent an application that is With the Department Head.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has sent an application that is With the Department Head.",
     "steps": [
       "1. Open Organization applications and open the application.",
       "2. In Decision type a Comments for the applicant text such as Replace the constitution with the signed copy.",
@@ -528,13 +528,13 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "The applicant sends a returned application again and the head reviews it again",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that was returned.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that was returned.",
     "steps": [
       "1. Sign in as the student, open the returned application, change the description if you wish and select Send again.",
       "2. Sign in as the head and open the bell.",
       "3. Open Organization applications and open the application."
     ],
-    "expected": "The student sees \"Sent again to your Department Head.\" and the status With the Department Head. The head gets a notice Resubmitted Organization Application and the application opens as a new review round, with every document back to Not checked and Endorse off until each one is reviewed. Resubmitting is the applicant's action; the head has no Edit and resubmit form.",
+    "expected": "The student sees \"Sent again to your Department Head.\" and the status With the Department Head. The head gets a notice Resubmitted Organization Application and the application opens as a new review round, with every document Not checked (a file the head had accepted before and the student did not change starts as Accepted, see DH-031) and Endorse off until every requirement is Accepted. Resubmitting is the applicant's action; the head has no Edit and resubmit form.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -545,14 +545,14 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "The applicant replaces one document and the head sees the new round",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that was returned.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that was returned.",
     "steps": [
       "1. Sign in as the student and open the returned application.",
       "2. Under Fix and send again choose a different PDF for one requirement only.",
       "3. Leave the other files as they are and send it again.",
       "4. Sign in as the head and open the application on Organization applications."
     ],
-    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round with all ten documents listed as Not checked and Endorse off until each is reviewed; the replaced requirement shows the new file name. There is no Edit and resubmit form for the head.",
+    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round; the replaced requirement shows the new file name and starts as Not checked. A file that this head had marked Accepted before returning the application, and that the student did not change, starts as Accepted and the page says so (\"<n> files are unchanged since you accepted them, so they start as Accepted.\"). Every other document is Not checked, and Endorse stays off until every requirement is Accepted. There is no Edit and resubmit form for the head.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -563,7 +563,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Resubmit form: a blank name or a wrong file is refused (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Returned registration.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Returned registration.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -597,7 +597,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "Withdraw a pending registration (not part of the system)",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Pending review registration that nobody uses yet.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Pending review registration that nobody uses yet.",
     "steps": [
       "1. Open Organizations.",
       "2. Look for a Register an organization button or any form to register an organization.",
@@ -614,7 +614,7 @@
     "role": "Department Head",
     "module": "Organizations",
     "title": "SAO approves: the organization is Active and the applicant is its Admin",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that is With the SAO. The SAO approves it.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A student of the college has an application that is With the SAO. The SAO approves it.",
     "steps": [
       "1. Open the bell and read the notice about the approval.",
       "2. Open Organizations and select the Active tab.",
@@ -786,7 +786,7 @@
     "role": "Department Head",
     "module": "Approvals",
     "title": "Approve a budget",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Admin 900001 has proposed a budget (Finance > Budgets, Propose budget) for PSITS-CCS. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Admin 900001 has proposed a budget (Finance > Budgets, Propose budget) for PSITS-CCS. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Approvals.",
       "2. Set Request type to Budget.",
@@ -825,7 +825,7 @@
     "role": "Department Head",
     "module": "Approvals",
     "title": "Approve an election proposal",
-    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Admin 900001 has proposed an election (it waits for the Department Head). Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Activate). A fresh seed has no semester. Admin 900001 has proposed an election (it waits for the Department Head). Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
     "steps": [
       "1. Open Approvals.",
       "2. Set Request type to Election.",
@@ -1447,18 +1447,18 @@
   {
     "id": "DH-080",
     "role": "Department Head",
-    "module": "College view (read only) > Announcements",
+    "module": "Announcements > Announcement feed",
     "title": "Announcements feed: read, search and filter",
     "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least one published announcement of an organization of this college or of the SAO.",
     "steps": [
-      "1. Select Announcements in the menu.",
+      "1. Select Announcements in the menu, then View announcement feed.",
       "2. Type a word in Search announcements.",
       "3. Open Announcement category and choose one category.",
       "4. Choose All categories.",
       "5. Type a word that matches nothing.",
       "6. Select Clear filters."
     ],
-    "expected": "Announcements show as cards. Search and category narrow the list. No match says: No announcements match, with Try a different search or category. With none at all the page says: No announcements yet. Your officers post them here. There is no button to write an announcement.",
+    "expected": "Announcements show as cards. Search and category narrow the list. No match says: No announcements match, with Try a different search or category. With none at all the page says: No announcements yet. Your officers post them here. The feed has no write button: the head writes from College announcements (see DH-081).",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1467,18 +1467,22 @@
   {
     "id": "DH-081",
     "role": "Department Head",
-    "module": "College view (read only) > Announcements",
-    "title": "Writing announcements is closed to the head",
-    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "module": "Announcements",
+    "title": "The head writes, publishes and deletes a college announcement",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS is an active organization of the college.",
     "steps": [
-      "1. Type /dashboard/announcements/manage-announcements in the address bar and press Enter.",
-      "2. Type /dashboard/announcements/create-announcement and press Enter.",
-      "3. Type /dashboard/approval-requests/new and press Enter."
+      "1. Select Announcements in the menu and read the page title.",
+      "2. Select New announcement.",
+      "3. In Organization choose PSITS-CCS, type a Title and a Message and leave Audience on All organization members.",
+      "4. Select Save draft and read the message. Open Actions on the new row and select Publish.",
+      "5. Open Actions on the row, select Edit announcement and change the Title. Check that Organization cannot be changed. Select Save changes.",
+      "6. Open Actions on the row, select Delete announcement and confirm with Delete announcement.",
+      "7. Type /dashboard/announcements/create-announcement in the address bar and press Enter. Then type /dashboard/approval-requests/new and press Enter."
     ],
-    "expected": "Each address sends you back to the Department Head Dashboard. The head cannot create or manage announcements and cannot send a new request.",
+    "expected": "The page title is College announcements and it lists only the announcements you wrote, with a Draft badge on the ones not published. The messages read \"Announcement saved as a draft.\", \"Announcement published.\", \"Announcement updated.\" and \"Announcement deleted.\". Delete asks first and removes nothing until you confirm. The announcement reaches the organization you chose; the head does not need an Admin to approve it. Both addresses in step 7 send you back to the Department Head Dashboard: the officers' writing page and a new approval request are closed to the head.",
     "priority": "Medium",
     "device": "Any",
-    "type": "Access",
+    "type": "Functional",
     "round": "Any time"
   },
   {
@@ -1711,13 +1715,15 @@
     "role": "Department Head",
     "module": "Organization applications",
     "title": "Department Head endorses an organization application to SAO",
-    "preconditions": "Signed in as Department Head 940001 with a pending application open in the review modal.",
+    "preconditions": "Signed in as Department Head 940001 with an application under To review on Organization applications (a student the head allowed to apply has sent one, see DH-021).",
     "steps": [
-      "1. Review the applicant credentials and open the attached Constitution and By-Laws document.",
-      "2. Type optional endorsement remarks in the Review remarks field.",
-      "3. Select Endorse to SAO."
+      "1. Open Organization applications and select Review on the row under To review.",
+      "2. Read the applicant and open the file of each requirement, including the Constitution and By-Laws.",
+      "3. Mark each requirement Accepted in its Review list, or select Accept all not checked.",
+      "4. Type optional Comments for the applicant.",
+      "5. Select Endorse."
     ],
-    "expected": "The application updates immediately and a confirmation toast appears. The application status changes to 'Endorsed, for SAO review' and advances to the SAO review queue.",
+    "expected": "Endorse stays off until every requirement is Accepted. A green message reads \"Endorsed. The SAO is next.\" The page changes to Summary with the status With the SAO and the line \"Endorsed by the Department Head. With the SAO for a decision.\" The application leaves To review and shows on the With the SAO tab. The SAO finds it under To review, with the head's comments under Note from the Department Head.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1796,17 +1802,19 @@
   {
     "id": "DH-099",
     "role": "Department Head",
-    "module": "College administration and staff",
-    "title": "Dean delegates office staff and assigns College Secretary",
-    "preconditions": "Signed in as Department Head 940001.",
+    "module": "People > Office staff",
+    "title": "Dean invites office staff by link, gives a position such as College Secretary, and removes them",
+    "preconditions": "Signed in as Department Head 940001. Office staff are faculty or other employees, never students.",
     "steps": [
-      "1. Open Governance > Organizations (/dashboard/department-head/organizations).",
-      "2. Click Deans Office Staff & Secretary in the college header.",
-      "3. Enter staff full name, email, School ID, and select role (ADMIN or DEPARTMENT_HEAD).",
-      "4. Save the staff delegation and verify their entry in the active office roster.",
-      "5. Test the 1-click revoke button on an office staff entry."
+      "1. Open People in the menu and select the Office staff tab.",
+      "2. Select Add staff.",
+      "3. In Find in the employee records type a name and pick the person. If the college has no employee records, or the person is not in them, select \"Not in the records? Invite by name and email\" and fill First name, Last name and Email.",
+      "4. Type College Secretary in Position.",
+      "5. Select Create invite link, read the Invite link, select Copy link and then Done.",
+      "6. Select Add staff again and find the person under Waiting for a reply. Select Revoke on that row.",
+      "7. Once a person has accepted their link, find them on the Office staff tab. Select Remove, then Remove in the window \"Remove from the college office\"."
     ],
-    "expected": "Staff member is granted delegated authority to assist with college reviews and compliance. Dean can manage or revoke delegated access in 1 click.",
+    "expected": "The link works once and expires in 48 hours. Nothing is emailed: you copy it and share it yourself. The person shows under Waiting for a reply with their position and the time it expires. Revoke takes one click and the message reads \"The link for <name> no longer works.\" Once the person has accepted, they appear on the Office staff tab with their position and work on every organization of the college. Removing takes two clicks and the message reads \"<name> was removed from the college office.\" Their account stays and you can invite them again. You and the lead head have no Remove button.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
