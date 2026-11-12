@@ -21,13 +21,15 @@ it('adds no explanation under the steps of a college organization', () => {
 const CASES = [
   ['DEPARTMENT_HEAD', { lifecycle_status: 'pending' }, 'Pending review: waiting for SAO review', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'returned', review_remarks: 'Sign the constitution.' }, 'Returned: edit and resubmit', 'action', 'Edit and resubmit'],
-  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Approved: waiting for SAO to add the first Admin account', 'waiting', null],
+  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Name the organization head', 'action', null],
+  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0, is_university_wide: true }, 'Approved: waiting for SAO to add the Admin account', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 1 }, 'Active: administrator can sign in', 'done', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: undefined }, 'Active', 'done', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
   ['SUPER_ADMIN', { lifecycle_status: 'pending' }, 'Review this registration', 'action', 'Review registration'],
   ['SUPER_ADMIN', { lifecycle_status: 'returned' }, 'Waiting for the Department Head to resubmit', 'waiting', null],
-  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Add the first Admin account', 'action', null],
+  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Approved: waiting for the Department Head to name the organization head', 'waiting', null],
+  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0, is_university_wide: true }, 'Add the Admin account', 'action', null],
   ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 2 }, 'Active: administrator can sign in', 'done', null],
   ['SUPER_ADMIN', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
 ];
@@ -50,10 +52,16 @@ describe('RegistrationNextStep', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('tells the SAO the first Admin account is missing without linking to a removed administrators page', () => {
-    renderIn(<RegistrationNextStep organization={record({ lifecycle_status: 'active' })} viewerRole="SUPER_ADMIN" />);
+  it('tells the SAO a college organization without an Admin waits for its Department Head, and a university-wide one waits for the SAO', () => {
+    const { unmount } = renderIn(<RegistrationNextStep organization={record({ lifecycle_status: 'active' })} viewerRole="SUPER_ADMIN" />);
 
-    expect(screen.getByText('Add the first Admin account')).toBeInTheDocument();
+    expect(screen.getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Owner: Department Head');
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    unmount();
+
+    renderIn(<RegistrationNextStep organization={record({ lifecycle_status: 'active', is_university_wide: true })} viewerRole="SUPER_ADMIN" />);
+    expect(screen.getByText('Add the Admin account')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
