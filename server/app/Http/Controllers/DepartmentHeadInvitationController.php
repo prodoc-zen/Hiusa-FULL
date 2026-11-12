@@ -33,6 +33,8 @@ use Illuminate\Validation\ValidationException;
  * that record's number and name instead. An employee who already has an account signs in and
  * accepts the link (claim); an employee without one sets an email and password. Nothing attaches
  * to an account until the person accepts, and the link is always handed back for the inviter to copy.
+ * The SAO adds the people who help run the SAO the same way: a plain link that belongs to no college, and accepting
+ * it makes a SUPER_ADMIN account on the SAO organization.
  */
 class DepartmentHeadInvitationController extends Controller
 {
@@ -45,6 +47,10 @@ class DepartmentHeadInvitationController extends Controller
     private const STAFF = 'COLLEGE_STAFF';
 
     private const HEAD = 'DEPARTMENT_HEAD';
+
+    private const SAO = 'SAO_STAFF';
+
+    private const SAO_POSITION = 'SAO staff';
 
     private const DEFAULT_POSITION = 'Office staff';
 
@@ -148,6 +154,81 @@ class DepartmentHeadInvitationController extends Controller
         ], 201);
     }
 
+    public function inviteSao(Request $request): JsonResponse
+    {
+        $home = $this->saoHome();
+        $data = $request->validate(['email' => ['nullable', 'email', 'max:100']]);
+        $email = isset($data['email']) && trim($data['email']) !== '' ? Str::lower(trim($data['email'])) : null;
+
+        [$invitation, $magicLink] = DB::transaction(function () use ($request, $home, $email) {
+            if ($email === null) {
+                return $this->createInvitation($request, null, $home, self::SAO, self::SAO_POSITION, 'sao_staff_invited', 'Created an SAO staff invitation link.');
+            }
+
+            if (User::where('email', $email)->exists()) {
+                throw ValidationException::withMessages(['email' => ['That email already has an account.']]);
+            }
+            DepartmentHeadInvitation::where('role', self::SAO)->where('email', $email)->whereNull('accepted_at')->delete();
+
+            return $this->createInvitation($request, null, $home, self::SAO, self::SAO_POSITION, 'sao_staff_invited', 'Created an SAO staff invitation link.', null, ['email' => $email]);
+        });
+
+        // With the log mail driver a sent mail goes nowhere, so the answer must not claim it was emailed.
+        $mailIsOff = app(PasswordResetService::class)->mailIsOff();
+        $emailed = ! $mailIsOff && $this->sendLink($email, null, self::SAO_POSITION, $magicLink);
+
+        return response()->json([
+            'message' => 'The link is ready.',
+            'invitation' => $invitation,
+            'magic_link' => $magicLink,
+            'emailed' => $emailed,
+            'mail_is_off' => $mailIsOff,
+        ], 201);
+    }
+
+    public function pendingSao(): JsonResponse
+    {
+        $invitations = DepartmentHeadInvitation::where('role', self::SAO)->pending()->orderByDesc('id')->get();
+
+        return response()->json(['data' => $invitations->map(fn (DepartmentHeadInvitation $invitation) => [
+            'id' => $invitation->id,
+            'name' => $invitation->email ?: 'Open link',
+            'email' => $invitation->email,
+            'position_title' => $invitation->position_title,
+            'expires_at' => $invitation->expires_at,
+        ])->values()])->header('Cache-Control', 'no-store, private');
+    }
+
+    /** Replaces the link of a pending SAO invitation with a new one that lasts 48 hours; the old link stops working. */
+    public function relinkSao(Request $request, int $invitation): JsonResponse
+    {
+        $home = $this->saoHome();
+
+        [$row, $magicLink] = DB::transaction(function () use ($request, $home, $invitation) {
+            $row = DepartmentHeadInvitation::where('role', self::SAO)->whereNull('accepted_at')->lockForUpdate()->findOrFail($invitation);
+            $plainToken = Str::random(64);
+            $row->update(['token_hash' => hash('sha256', $plainToken), 'expires_at' => now()->addHours(48)]);
+            $this->audit($request, $home, 'sao_staff_link_renewed', $row, 'Made a new SAO staff link.');
+
+            return [$row, $this->linkFor($plainToken)];
+        });
+
+        return response()->json(['message' => 'The link is ready.', 'invitation' => $row, 'magic_link' => $magicLink]);
+    }
+
+    public function revokeSao(Request $request, int $invitation): JsonResponse
+    {
+        $home = $this->saoHome();
+
+        DB::transaction(function () use ($request, $home, $invitation) {
+            $row = DepartmentHeadInvitation::where('role', self::SAO)->whereNull('accepted_at')->lockForUpdate()->findOrFail($invitation);
+            $row->delete();
+            $this->audit($request, $home, 'sao_staff_invitation_revoked', $row, 'Revoked an SAO staff invitation link.');
+        });
+
+        return response()->json(['message' => 'The link no longer works.']);
+    }
+
     /** The links nobody has used yet. The link itself is never stored, so Copy link makes a fresh one. */
     public function pendingStaff(Request $request): JsonResponse
     {
@@ -211,7 +292,7 @@ class DepartmentHeadInvitationController extends Controller
             return response()->json(['message' => 'This link was already used. Sign in instead.'], 410);
         }
 
-        if ($invitation->isExpired() || ! $invitation->college?->is_active) {
+        if ($invitation->isExpired() || $this->collegeGone($invitation)) {
             return response()->json(['message' => 'This link has expired. Ask for a new one.'], 410);
         }
 
@@ -236,7 +317,7 @@ class DepartmentHeadInvitationController extends Controller
                     'last_name' => $record->last_name,
                 ] : null,
             ],
-            'college' => $invitation->college->only(['id', 'name', 'code']),
+            'college' => $invitation->college?->only(['id', 'name', 'code']),
         ]);
     }
 
@@ -252,7 +333,7 @@ class DepartmentHeadInvitationController extends Controller
             return response()->json(['message' => 'This link was already used. Sign in instead.'], 410);
         }
 
-        if ($invitation->isExpired() || ! $invitation->college?->is_active) {
+        if ($invitation->isExpired() || $this->collegeGone($invitation)) {
             return response()->json(['message' => 'This link has expired. Ask for a new one.'], 410);
         }
 
@@ -305,7 +386,7 @@ class DepartmentHeadInvitationController extends Controller
             return response()->json(['message' => 'This link was already used.'], 410);
         }
 
-        if ($invitation->isExpired() || ! $invitation->college?->is_active) {
+        if ($invitation->isExpired() || $this->collegeGone($invitation)) {
             return response()->json(['message' => 'This link has expired. Ask for a new one.'], 410);
         }
 
@@ -364,18 +445,32 @@ class DepartmentHeadInvitationController extends Controller
         return response()->json(['message' => 'You are now on the college office staff.', 'profile_id' => $profile->id, 'position_title' => $profile->position_title]);
     }
 
+    /** A college link dies with its college; an SAO link belongs to none. */
+    private function collegeGone(DepartmentHeadInvitation $invitation): bool
+    {
+        return $invitation->college_id !== null && ! $invitation->college?->is_active;
+    }
+
+    private function saoHome(): Organization
+    {
+        $home = Organization::where('organization_type', 'SYSTEM_ADMINISTRATION')->orderBy('id')->first();
+        abort_if(! $home, 404, 'The SAO organization was not found.');
+
+        return $home;
+    }
+
     private function find(string $token): ?DepartmentHeadInvitation
     {
         return DepartmentHeadInvitation::where('token_hash', hash('sha256', $token))->with('college')->first();
     }
 
-    private function createInvitation(Request $request, College $college, Organization $home, string $role, ?string $positionTitle, string $action, string $description, ?int $registrySchoolId = null, array $identity = []): array
+    private function createInvitation(Request $request, ?College $college, Organization $home, string $role, ?string $positionTitle, string $action, string $description, ?int $registrySchoolId = null, array $identity = []): array
     {
         $plainToken = Str::random(64);
 
         $invitation = DepartmentHeadInvitation::create([
             ...$identity,
-            'college_id' => $college->id,
+            'college_id' => $college?->id,
             'role' => $role,
             'position_title' => $positionTitle,
             'registry_school_id' => $registrySchoolId,
@@ -384,7 +479,7 @@ class DepartmentHeadInvitationController extends Controller
             'expires_at' => now()->addHours(48),
         ]);
 
-        $this->audit($request, $home, $action, $invitation, $description, ['college_id' => $college->id, 'role' => $role, 'position_title' => $positionTitle, 'registry_school_id' => $registrySchoolId]);
+        $this->audit($request, $home, $action, $invitation, $description, ['college_id' => $college?->id, 'role' => $role, 'position_title' => $positionTitle, 'registry_school_id' => $registrySchoolId]);
 
         return [$invitation, $this->linkFor($plainToken)];
     }
@@ -411,14 +506,14 @@ class DepartmentHeadInvitationController extends Controller
         ]);
     }
 
-    private function sendLink(?string $email, College $college, string $roleLabel, string $magicLink): bool
+    private function sendLink(?string $email, ?College $college, string $roleLabel, string $magicLink): bool
     {
         if (! $email) {
             return false;
         }
 
         try {
-            Mail::to(Str::lower(trim($email)))->send(new DeanInvitationMail($college->name, $roleLabel, $magicLink, 48));
+            Mail::to(Str::lower(trim($email)))->send(new DeanInvitationMail($college?->name ?? 'the Student Affairs Office', $roleLabel, $magicLink, 48));
 
             return true;
         } catch (\Throwable $e) {
@@ -435,17 +530,23 @@ class DepartmentHeadInvitationController extends Controller
         abort_if($invitation->isAccepted(), 410, 'This link was already used. Sign in instead.');
         abort_if($invitation->isExpired(), 410, 'This link has expired. Ask for a new one.');
 
-        $college = College::whereKey($invitation->college_id)->lockForUpdate()->first();
-        abort_if(! $college || ! $college->is_active, 410, 'This link has expired. Ask for a new one.');
+        $isSao = $invitation->role === self::SAO;
+        if ($isSao) {
+            $college = null;
+            $home = $this->saoHome();
+        } else {
+            $college = College::whereKey($invitation->college_id)->lockForUpdate()->first();
+            abort_if(! $college || ! $college->is_active, 410, 'This link has expired. Ask for a new one.');
 
-        $home = $this->collegeHome($college);
-        abort_if(! $home, 404, 'College organization home not found.');
+            $home = $this->collegeHome($college);
+            abort_if(! $home, 404, 'College organization home not found.');
+        }
 
         $isHead = $invitation->role === self::HEAD;
         abort_if($isHead && $this->collegeHasActiveHead($home->id), 409, self::ACTIVE_HEAD_EXISTS);
 
-        $role = $isHead ? 'DEPARTMENT_HEAD' : 'ADMIN';
-        $positionTitle = $isHead ? null : ($invitation->position_title ?: self::DEFAULT_POSITION);
+        $role = $isSao ? 'SUPER_ADMIN' : ($isHead ? 'DEPARTMENT_HEAD' : 'ADMIN');
+        $positionTitle = $isHead ? null : ($isSao ? self::SAO_POSITION : ($invitation->position_title ?: self::DEFAULT_POSITION));
 
         if ($invitation->registry_school_id !== null) {
             $record = $this->availableEmployeeRecord($college, $invitation->registry_school_id, lock: true);
@@ -468,7 +569,7 @@ class DepartmentHeadInvitationController extends Controller
             'position_title' => $positionTitle,
             'account_status' => 'active',
             'is_member' => true,
-            'department' => $college->name,
+            'department' => $college?->name,
             'must_change_password' => false,
         ]);
 
@@ -484,11 +585,11 @@ class DepartmentHeadInvitationController extends Controller
             'user_id' => $user->school_id,
             'actor_role' => $role,
             'module' => 'users',
-            'action' => $isHead ? 'department_head_invitation_accepted' : 'college_staff_invitation_accepted',
+            'action' => $isSao ? 'sao_staff_invitation_accepted' : ($isHead ? 'department_head_invitation_accepted' : 'college_staff_invitation_accepted'),
             'record_type' => User::class,
             'record_id' => $user->school_id,
-            'new_values' => ['school_id' => $user->school_id, 'college_id' => $college->id, 'role' => $role],
-            'description' => ($isHead ? 'Department Head' : 'Office staff')." invitation accepted by {$user->first_name} {$user->last_name}.",
+            'new_values' => ['school_id' => $user->school_id, 'college_id' => $college?->id, 'role' => $role],
+            'description' => ($isSao ? 'SAO staff' : ($isHead ? 'Department Head' : 'Office staff'))." invitation accepted by {$user->first_name} {$user->last_name}.",
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
