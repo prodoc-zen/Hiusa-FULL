@@ -585,6 +585,9 @@ export default function MerchandisePage({ initialTab }) {
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const ordersEpoch = useRef(0);
+  // The search the student's order list was last requested with, so a silent refresh and a page change
+  // ask for the list that is on screen while the typed text is still waiting out its debounce.
+  const appliedOrderSearch = useRef("");
   const [mineOrders, setMineOrders] = useState([]);
   const [placedOrderIds, setPlacedOrderIds] = useState(() => location.state?.placedOrderIds ?? []);
   const [loading, setLoading] = useState(true);
@@ -790,13 +793,15 @@ export default function MerchandisePage({ initialTab }) {
     ordersEpoch.current += 1;
     setLoading(true);
     setError(null);
+    const personalSearch = isPersonalShoppingView ? studentOrderSearch.trim() : "";
+    if (isPersonalShoppingView) appliedOrderSearch.current = personalSearch;
     const managerOrderFilters = activeTab === "tokens"
       ? { ...EMPTY_ORDER_FILTERS, status: tokenStatusFilter, sort: "oldest" }
       : EMPTY_ORDER_FILTERS;
     const calls = isPersonalShoppingView
       ? [
           fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })),
-          getOrders({ mine: 1 }),
+          getOrders({ mine: 1, ...(personalSearch ? { search: personalSearch } : {}) }),
           getGcashSettings(),
           // /orders ignores status filters entirely for the personal ("mine")
           // view server-side, so the only way to get an accurate pending count
@@ -846,7 +851,8 @@ export default function MerchandisePage({ initialTab }) {
     ordersEpoch.current += 1;
     setLoading(true);
     try {
-      const oRes = await getOrders({ mine: 1, page });
+      const search = appliedOrderSearch.current;
+      const oRes = await getOrders({ mine: 1, page, ...(search ? { search } : {}) });
       extractOrders(oRes);
     } catch {
       setError("Failed to load orders.");
@@ -862,7 +868,7 @@ export default function MerchandisePage({ initialTab }) {
     let request;
     if (activeTab === "orders") request = { page: ordersMeta.current_page, ...orderFilters };
     else if (activeTab === "tokens") request = { page: ordersMeta.current_page, ...EMPTY_ORDER_FILTERS, status: tokenStatusFilter, sort: "oldest" };
-    else if (activeTab === "my-orders") request = { mine: 1, page: ordersMeta.current_page };
+    else if (activeTab === "my-orders") request = { mine: 1, page: ordersMeta.current_page, ...(appliedOrderSearch.current ? { search: appliedOrderSearch.current } : {}) };
     else return undefined;
     const epoch = ordersEpoch.current;
     const mineRefresh = activeTab === "my-orders"
@@ -877,6 +883,8 @@ export default function MerchandisePage({ initialTab }) {
 
   useRefetchOnReturn(refreshOrdersSilently);
 
+  // Typed order search is not a dependency: it has its own debounced effect below, and a reload per keystroke would defeat it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [activeTab, isPersonalShoppingView, tokenStatusFilter]);
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab === "gcash" ? "orders" : initialTab);
@@ -929,6 +937,27 @@ export default function MerchandisePage({ initialTab }) {
     if (!orderDetails?.id || isPersonalShoppingView) return;
     loadOrderTrail(orderDetails.id);
   }, [orderDetails?.id, isPersonalShoppingView]);
+  // The student's order search runs on the server, over every order they have, not over the loaded page.
+  // A newer request supersedes an older one, so a slow answer to earlier text never overwrites a later one.
+  useEffect(() => {
+    if (!isPersonalShoppingView || activeTab !== "my-orders") return undefined;
+    const search = studentOrderSearch.trim();
+    if (search === appliedOrderSearch.current) return undefined;
+    const timer = window.setTimeout(async () => {
+      appliedOrderSearch.current = search;
+      const epoch = ++ordersEpoch.current;
+      setLoading(true);
+      try {
+        const response = await getOrders({ mine: 1, page: 1, ...(search ? { search } : {}) });
+        if (epoch === ordersEpoch.current) extractOrders(response);
+      } catch {
+        if (epoch === ordersEpoch.current) setError("Failed to load orders.");
+      } finally {
+        if (epoch === ordersEpoch.current) setLoading(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [studentOrderSearch, activeTab, isPersonalShoppingView]);
   useEffect(() => {
     if (isPersonalShoppingView || activeTab !== "orders") return undefined;
     const timer = window.setTimeout(async () => {
@@ -1845,15 +1874,6 @@ export default function MerchandisePage({ initialTab }) {
       return Number(right.stock_quantity > 0) - Number(left.stock_quantity > 0);
     });
 
-  const filteredStudentOrders = orders.filter((o) => {
-    const q = studentOrderSearch.toLowerCase();
-    return (
-      (o.merchandise?.name ?? "").toLowerCase().includes(q) ||
-      `ord-${o.id}`.toLowerCase().includes(q) ||
-      (o.claim_token ?? "").toLowerCase().includes(q)
-    );
-  });
-
   const analyticsRows = analyticsModal.users.flatMap((user) =>
     user.orders?.length
       ? user.orders.map((order) => ({ user, order }))
@@ -2335,7 +2355,7 @@ export default function MerchandisePage({ initialTab }) {
         {/* My Orders tab */}
         {activeTab === "my-orders" && (
           <section className="space-y-4">
-            {orders.length > 0 && (
+            {(orders.length > 0 || studentOrderSearch.trim()) && (
               <div className="max-w-sm">
                 <Input
                   value={studentOrderSearch}
@@ -2349,11 +2369,11 @@ export default function MerchandisePage({ initialTab }) {
 
             {loading ? (
               <SkeletonTable columns={4} rows={3} />
-            ) : filteredStudentOrders.length === 0 ? (
-              studentOrderSearch.trim() && ordersMeta.total > 0 ? (
+            ) : orders.length === 0 ? (
+              studentOrderSearch.trim() ? (
                 <EmptyState
                   kind="filtered"
-                  title="No orders on this page match your search"
+                  title="No orders match your search"
                   onClearFilters={() => setStudentOrderSearch("")}
                 />
               ) : (
@@ -2366,7 +2386,7 @@ export default function MerchandisePage({ initialTab }) {
               )
             ) : (
               <ul className="divide-y divide-line rounded-card border border-line bg-surface">
-                {filteredStudentOrders.map((o) => (
+                {orders.map((o) => (
                   <li key={o.id} className="min-w-0 space-y-3 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
