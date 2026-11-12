@@ -171,11 +171,9 @@ for (const viewport of VIEWPORTS) {
         await page.getByRole('tab', { name: 'Office staff' }).click();
         await page.getByRole('button', { name: 'Add staff' }).click();
         const dialog = page.getByRole('dialog', { name: 'Add office staff' });
-        const notInRecords = dialog.getByRole('button', { name: 'Not in the records? Invite by name and email' });
-        await expect(dialog.getByLabel(/^First name/).or(notInRecords)).toBeVisible();
-        if (await notInRecords.isVisible()) await notInRecords.click();
-        await dialog.getByLabel(/^First name/).fill('Walk');
-        await dialog.getByLabel(/^Last name/).fill('Modal');
+        await expect(dialog.getByLabel(/^Email/)).toBeVisible();
+        await expect(dialog.getByLabel(/^First name/)).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: /Not in the records/ })).toHaveCount(0);
         await dialog.getByLabel(/^Email/).fill(`walk.modal.${Date.now()}@journey.test`);
         await dialog.getByLabel(/^Position/).fill('College Secretary');
         await dialog.getByRole('button', { name: 'Create invite link' }).click();
