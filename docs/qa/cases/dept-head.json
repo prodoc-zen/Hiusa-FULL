@@ -1220,7 +1220,7 @@
       "5. Type a word that matches nothing and press Enter.",
       "6. Select Clear filters."
     ],
-    "expected": "Search and the type filter narrow the rows and the tiles. A search with no match says: No matching transactions, with Try a different search or clear the filters. Clear filters brings the list back. Other filters: Filter by academic semester, Filter by event, Filter from date, Filter to date.",
+    "expected": "Search and the type filter narrow the rows and the tiles. A search with no match says: No matching transactions, with Try a different search or clear the filters. Clear filters brings the list back. Other filters: Filter by event, Filter from date, Filter to date.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",

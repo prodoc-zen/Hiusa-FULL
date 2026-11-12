@@ -38,7 +38,7 @@ Mobile: cards 1 column (2 at 640 px, 3 at 1280 px).
 
 ## Events > Events (/dashboard/events/activity-calendar)
 Tiles: Total Events (This academic year) | Upcoming (Scheduled) | Completed (Successfully held) | Total Tasks (Across all events)
-Filters: select "Academic period" (Active period, "AY <label> · 1st/2nd Semester · <status>") when periods exist; view switch List | Calendar (default Calendar); List view: search "Search events"; Event date (date); Status (All statuses, Pending Approval, Approved, Ongoing, Completed, Cancelled); Sort by (Soonest, Latest date, Newest created, Title)
+Filters: view switch List | Calendar (default Calendar); List view: search "Search events"; Event date (date); Status (All statuses, Pending Approval, Approved, Ongoing, Completed, Cancelled); Sort by (Soonest, Latest date, Newest created, Title)
 Calendar view: month title, buttons "Previous month", "Today", "Next month"; grid Sun Mon Tue Wed Thu Fri Sat; clicking a day with one event opens it, with several opens a day panel (event cards: image, title, description, time, location, status chip); empty month "No events scheduled for <Month Year>."; day panel "No events scheduled on this day."
 Table "Events (List view)": Event | Organizer | Schedule | Venue | Attendance | Tasks | Status | Actions
 Row actions ("Event actions"): View event
@@ -60,7 +60,7 @@ Empty: "No election is open for voting" ("Elections appear here when the Admin o
 Mobile: cards one column; ballot progress list scrolls sideways above the candidates.
 
 ## Voting > Results (/dashboard/elections/election-results)
-Screen "Election picker" (first step): tiles Total elections | Live voting | Awaiting approval | Closed; search "Search by election title..."; select "Filter elections by status" (All statuses, Pending approval, Upcoming, Live, Closed); select "Academic period"; election cards [banner image, status chip Pending Approval amber / Upcoming blue / Live green / Closed grey, title, timeline, stepper, dates, room or "Online ballot", Positions | Candidates | Votes, button "Open election"]; Paging: 6 (label "elections"); Empty: "No election is currently open" ("Voting and live totals become available after the Admin finalizes and opens an election.")
+Screen "Election picker" (first step): tiles Total elections | Live voting | Awaiting approval | Closed; search "Search by election title..."; select "Filter elections by status" (All statuses, Pending approval, Upcoming, Live, Closed); election cards [banner image, status chip Pending Approval amber / Upcoming blue / Live green / Closed grey, title, timeline, stepper, dates, room or "Online ballot", Positions | Candidates | Votes, button "Open election"]; Paging: 6 (label "elections"); Empty: "No election is currently open" ("Voting and live totals become available after the Admin finalizes and opens an election.")
 Workspace header: "Change election" button, election title, status chip (Upcoming blue, Voting open green, Closed grey), date range, stepper "Election progress", NextStep, banner "Vote while the election is open. Results appear after voting closes and they are released."
 Tiles: Ballots | Selections | Positions | Candidates (hero card; badge "Official final results" or "Live vote totals")
 Filters: "Available results" election buttons when more than one ("Final results"/"Live totals"); "Filter by position" buttons "All positions" + one per position

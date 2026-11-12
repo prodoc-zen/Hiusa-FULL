@@ -482,7 +482,7 @@
       "5. Click \"Calendar view\" (button with the calendar icon), then \"List view\".",
       "6. Click \"View details\" on one event."
     ],
-    "expected": "The page title is Calendar. The list can be searched, filtered by date and status, and sorted. When nothing matches it says \"No events match these filters\" with a way to clear. The calendar view shows a month grid; clicking an event opens its details. If the \"Academic period\" box is set to a closed semester the page says \"Viewing completed semester records. New events use only the active period.\"",
+    "expected": "The page title is Calendar. The list can be searched, filtered by date and status, and sorted. When nothing matches it says \"No events match these filters\" with a way to clear. The calendar view shows a month grid; clicking an event opens its details. There is no Academic period box: the list follows the semester the top bar shows.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
