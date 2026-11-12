@@ -182,4 +182,91 @@ describe('CastVoteRedirectPage', () => {
     expect(await screen.findByText('No election is open for voting')).toBeInTheDocument();
     expect(screen.getByText(/Elections appear here when the Admin opens one/)).toBeInTheDocument();
   });
+
+  describe('phase cards', () => {
+    const phased = (id, title, phase, extra = {}) => ({ id, title, phase, status: 'upcoming', finalized_at: null, start_time: iso(10 * HOUR), end_time: iso(12 * HOUR), open_round: null, has_voted: false, my_ballot: null, filing_starts_at: iso(HOUR), results_visible: false, ...extra });
+
+    it('says when filing opens for a scheduled election and offers no action', async () => {
+      getElections.mockResolvedValue([phased(1, 'Scheduled Election', 'scheduled', { filing_starts_at: '2026-11-20T00:00:00Z' })]);
+      renderPage();
+      await screen.findByText('Scheduled Election');
+      const card = cardFor('Scheduled Election');
+      expect(within(card).getByText(/Filing opens Nov 20, 8:00 AM/)).toBeInTheDocument();
+      expect(within(card).queryByRole('link')).not.toBeInTheDocument();
+    });
+
+    it('offers Read the rules and file candidacy while filing is open', async () => {
+      getElections.mockResolvedValue([phased(2, 'Filing Election', 'filing')]);
+      renderPage();
+      await screen.findByText('Filing Election');
+      expect(within(cardFor('Filing Election')).getByRole('link', { name: 'Read the rules and file candidacy' })).toHaveAttribute('href', '/dashboard/elections/election-info?record=2');
+      expect(within(cardFor('Filing Election')).getByText('Filing')).toBeInTheDocument();
+    });
+
+    it('offers See the election during screening and campaign', async () => {
+      getElections.mockResolvedValue([phased(3, 'Screening Election', 'screening'), phased(4, 'Campaign Election', 'campaign')]);
+      renderPage();
+      await screen.findByText('Screening Election');
+      expect(within(cardFor('Screening Election')).getByRole('link', { name: 'See the election' })).toHaveAttribute('href', '/dashboard/elections/election-info?record=3');
+      expect(within(cardFor('Campaign Election')).getByRole('link', { name: 'See the election' })).toHaveAttribute('href', '/dashboard/elections/election-info?record=4');
+    });
+
+    it('offers the ballot while voting is open and again in the runoff', async () => {
+      const list = [
+        phased(5, 'Voting Election', 'voting', { status: 'active', finalized_at: iso(-3 * HOUR), start_time: iso(-HOUR), end_time: iso(HOUR), open_round: 1 }),
+        phased(6, 'Runoff Election', 'runoff', { status: 'active', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR), open_round: 2 }),
+      ];
+      getElections.mockResolvedValue(list);
+      getElectionDetails.mockImplementation(async (id) => list.find((item) => item.id === id));
+      renderPage();
+      await screen.findByText('Voting Election');
+      expect(within(cardFor('Voting Election')).getByRole('link', { name: 'Vote in this election' })).toHaveAttribute('href', '/elections/5/vote');
+      expect(within(cardFor('Runoff Election')).getByRole('link', { name: 'Vote in this election' })).toHaveAttribute('href', '/elections/6/vote');
+    });
+
+    it('shows Voted with the receipt reference and time instead of the ballot link', async () => {
+      const list = [phased(7, 'Voted Election', 'voting', { status: 'active', finalized_at: iso(-3 * HOUR), start_time: iso(-HOUR), end_time: iso(HOUR), open_round: 1, has_voted: true, my_ballot: { receipt_ref: 'RCPT-9', submitted_at: '2026-11-13T09:30:00.000Z', round: 1 } })];
+      getElections.mockResolvedValue(list);
+      getElectionDetails.mockResolvedValue(list[0]);
+      renderPage();
+      expect(await screen.findByText('RCPT-9')).toBeInTheDocument();
+      const card = cardFor('Voted Election');
+      expect(within(card).getByText('Voted')).toBeInTheDocument();
+      expect(within(card).queryByRole('link', { name: 'Vote in this election' })).not.toBeInTheDocument();
+      expect(within(card).getByText(/Nov 13, 5:30 PM/)).toBeInTheDocument();
+    });
+
+    it('says the votes are being counted after voting closes and links to results once released', async () => {
+      const list = [
+        phased(8, 'Counting Election', 'canvassing', { status: 'closed', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR) }),
+        phased(9, 'Completed Election', 'completed', { status: 'closed', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR), results_visible: true }),
+      ];
+      getElections.mockResolvedValue(list);
+      getElectionDetails.mockImplementation(async (id) => list.find((item) => item.id === id));
+      renderPage();
+      await screen.findByText('Counting Election');
+      expect(within(cardFor('Counting Election')).getByText(/being counted/)).toBeInTheDocument();
+      expect(within(cardFor('Completed Election')).getByText('Closed')).toBeInTheDocument();
+      expect(within(cardFor('Completed Election')).getByRole('link', { name: 'View results' })).toHaveAttribute('href', '/dashboard/elections/election-results?record=9');
+    });
+
+    it('says voting is paused when the server has no round open during the voting phase', async () => {
+      const list = [phased(10, 'Paused Election', 'voting', { status: 'active', finalized_at: iso(-3 * HOUR), start_time: iso(-HOUR), end_time: iso(HOUR), open_round: null })];
+      getElections.mockResolvedValue(list);
+      getElectionDetails.mockResolvedValue(list[0]);
+      renderPage();
+      await screen.findByText('Paused Election');
+      expect(within(cardFor('Paused Election')).getByText(/Voting is not open right now/)).toBeInTheDocument();
+      expect(within(cardFor('Paused Election')).queryByRole('link', { name: 'Vote in this election' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the legacy card for an election with no phase and reads has_voted when it is sent', async () => {
+      const list = [{ ...open, id: 11, title: 'Legacy Voted', phase: null, has_voted: true, my_ballot: { receipt_ref: 'LEG-1', submitted_at: iso(-1000), round: 1 } }];
+      getElections.mockResolvedValue(list);
+      getElectionDetails.mockResolvedValue(list[0]);
+      renderPage();
+      expect(await screen.findByText('LEG-1')).toBeInTheDocument();
+      expect(within(cardFor('Legacy Voted')).getByText('Voted')).toBeInTheDocument();
+    });
+  });
 });
