@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, KeyRound, Trash2, UserPlus } from 'lucide-react';
-import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Eye, KeyRound, Trash2 } from 'lucide-react';
+import { DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
-import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -47,7 +46,6 @@ export default function SaoUsersPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
-  const [existingAdmin, setExistingAdmin] = useState(null);
   const loadCounter = useRef(0);
 
   useEffect(() => {
@@ -140,7 +138,7 @@ export default function SaoUsersPage() {
   ];
 
   return <div className="space-y-5 pb-8">
-    <PageHeader title="University users" primary={<Button leftIcon={UserPlus} onClick={() => setExistingAdmin({})}>Add administrator</Button>} />
+    <PageHeader title="University users" />
     {notice && <p role="status" className="text-sm font-medium text-success-strong">{notice}</p>}
     <DataTable
       caption="University user accounts"
@@ -162,8 +160,7 @@ export default function SaoUsersPage() {
       </div>}
       actions={(user) => <TableRowActions subject={fullName(user)} actions={[
         { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
-        user.role !== 'SUPER_ADMIN' && user.account_status === 'active' && { label: 'Add admin profile', icon: UserPlus, onClick: () => setExistingAdmin({ user }) },
-        ['STUDENT', 'SBO_OFFICER'].includes(user.role) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
+        ['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
         { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
       ]} />}
       pagination={<PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" />}
@@ -176,7 +173,6 @@ export default function SaoUsersPage() {
         <section><h3 className="text-sm font-semibold text-ink">Linked records</h3>{detailRecords.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No linked records. This account can be deleted.</p> : <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{detailRecords.map(({ key, label, count }) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{label}</dt><dd className="text-sm font-semibold tabular-nums text-ink">{count}</dd></div>)}</dl>}</section>
       </div>}
     </Drawer>
-    {existingAdmin && <AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={existingAdmin.user} onClose={() => setExistingAdmin(null)} onAdded={() => { setNotice('Administrator added.'); load(); }} />}
     <ConfirmModal open={Boolean(resetting)} title="Create reset link" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Create reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
     {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user?" recordName={fullName(deleting)} message="Only the account and its profiles are removed. An account with any history, such as submissions, finance, event, order, or clearance records, cannot be deleted and should be deactivated instead. This cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
