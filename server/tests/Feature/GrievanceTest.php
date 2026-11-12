@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountProfile;
 use App\Models\Grievance;
 use App\Models\Notification;
 use App\Models\Organization;
@@ -66,6 +67,25 @@ class GrievanceTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['module' => 'grievances', 'action' => 'grievance_filed']);
         $this->assertDatabaseHas('notifications', ['user_id' => $superAdmin->school_id, 'reference_type' => 'grievance']);
         $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'reference_type' => 'grievance']);
+    }
+
+    public function test_a_grievance_against_an_organization_notifies_an_admin_who_holds_the_role_only_through_a_profile(): void
+    {
+        Http::fake(['http://127.0.0.1:8001/*' => Http::response(['urgency' => 'Low', 'category' => 'Other', 'confidence_score' => 0.9, 'reasoning' => 'x'])]);
+        $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $head = $this->user('STUDENT');
+        AccountProfile::create(['user_school_id' => $head->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+
+        $id = $this->postJson('/api/grievances', [
+            'title' => 'Fund concern',
+            'description' => 'The organization did not account for the collected fees.',
+            'addressed_to' => 'organization',
+        ])->assertCreated()->json('id');
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $head->school_id, 'organization_id' => $organization->id, 'title' => 'New grievance filed against your organization', 'reference_id' => $id]);
     }
 
     public function test_organization_id_is_always_derived_never_accepted_from_input(): void

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
 use App\Services\Compliance\RegistrationRequirementCatalog;
+use App\Services\OrganizationRecipients;
 use App\Services\RequirementSampleService;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
@@ -41,7 +42,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ComplianceController extends Controller
 {
-    public function __construct(private readonly AccreditationStatusService $accreditation) {}
+    public function __construct(
+        private readonly AccreditationStatusService $accreditation,
+        private readonly OrganizationRecipients $recipients,
+    ) {}
 
     public function requirementTypes(Request $request)
     {
@@ -119,13 +123,9 @@ class ComplianceController extends Controller
             'created_at' => now(),
         ]);
 
-        $admins = User::where('role', 'ADMIN')
-            ->where('account_status', 'active')
-            ->whereHas('organization', fn ($organization) => $organization->student())
-            ->get(['school_id', 'organization_id']);
-        Notification::insert($admins->map(fn (User $admin) => [
+        Notification::insert($this->recipients->studentOrganizationAdministrators()->map(fn ($admin) => [
             'organization_id' => $admin->organization_id,
-            'user_id' => $admin->school_id,
+            'user_id' => $admin->user_school_id,
             'notification_type' => 'general',
             'title' => 'New compliance requirement',
             'message' => "SAO added a new compliance requirement for {$requirementType->academic_year}: {$requirementType->name}. It is due ".$requirementType->deadline_at->format('F j, Y').'.',
@@ -330,14 +330,9 @@ class ComplianceController extends Controller
 
     private function notifyAdminsOfDeadlineChange(ComplianceRequirementType $requirementType): void
     {
-        $admins = User::where('role', 'ADMIN')
-            ->where('account_status', 'active')
-            ->whereHas('organization', fn ($organization) => $organization->student())
-            ->get(['school_id', 'organization_id']);
-
-        Notification::insert($admins->map(fn (User $admin) => [
+        Notification::insert($this->recipients->studentOrganizationAdministrators()->map(fn ($admin) => [
             'organization_id' => $admin->organization_id,
-            'user_id' => $admin->school_id,
+            'user_id' => $admin->user_school_id,
             'notification_type' => 'general',
             'title' => 'Compliance deadline changed',
             'message' => "The deadline for \"{$requirementType->name}\" ({$requirementType->academic_year}) is now ".$requirementType->deadline_at->format('F j, Y').'.',
@@ -672,17 +667,18 @@ class ComplianceController extends Controller
             'record_type' => OrganizationComplianceSubmission::class, 'record_id' => $submission->id,
             'description' => "Document for {$requirement} {$action}.", 'ip_address' => $request->ip(), 'created_at' => now(),
         ]);
-        $recipients = User::where('account_status', 'active')->where(function ($query) use ($organization) {
+        $reviewers = User::where('account_status', 'active')->where(function ($query) use ($organization) {
             $query->where('role', 'SUPER_ADMIN')
-                ->orWhere(fn ($admins) => $admins->where('role', 'ADMIN')->where('organization_id', $organization->id))
                 ->orWhere(fn ($heads) => $heads->where('role', 'DEPARTMENT_HEAD')->whereHas('organization', fn ($home) => $home->where('organization_type', 'COLLEGE')->where('college_id', $organization->college_id)));
         })->get(['school_id', 'organization_id']);
+        $recipients = $reviewers->map(fn (User $reviewer) => ['school_id' => $reviewer->school_id, 'organization_id' => $reviewer->organization_id])
+            ->concat($this->recipients->administrators($organization->id)->map(fn ($admin) => ['school_id' => $admin->user_school_id, 'organization_id' => $admin->organization_id]));
         foreach ($recipients as $recipient) {
-            if ($recipient->school_id === $request->user()->school_id) {
+            if ($recipient['school_id'] === $request->user()->school_id) {
                 continue;
             }
             Notification::create([
-                'organization_id' => $recipient->organization_id, 'user_id' => $recipient->school_id,
+                'organization_id' => $recipient['organization_id'], 'user_id' => $recipient['school_id'],
                 'notification_type' => 'general', 'title' => 'Submitted file '.$action,
                 'message' => "{$organization->name}: {$requirement} was {$action} by {$request->user()->first_name} {$request->user()->last_name}.",
                 'reference_type' => 'organization_compliance_submission', 'reference_id' => $submission->id,
@@ -766,13 +762,10 @@ class ComplianceController extends Controller
         ]);
 
         $requirementType = $submission->requirementType()->first();
-        User::where('organization_id', $submission->organization_id)
-            ->where('role', 'ADMIN')
-            ->where('account_status', 'active')
-            ->get(['school_id', 'organization_id'])
-            ->each(fn (User $admin) => Notification::create([
+        $this->recipients->administrators($submission->organization_id)
+            ->each(fn ($admin) => Notification::create([
                 'organization_id' => $admin->organization_id,
-                'user_id' => $admin->school_id,
+                'user_id' => $admin->user_school_id,
                 'notification_type' => 'general',
                 'title' => $data['status'] === 'approved' ? 'Compliance document approved' : 'Compliance document returned',
                 'message' => $data['status'] === 'approved'

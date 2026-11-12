@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\Election;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
@@ -90,6 +92,33 @@ class ApprovalWorkflowTest extends TestCase
         $this->assertSame('event', $notification->reference_type);
         $this->assertSame($eventId, $notification->reference_id);
         $this->assertStringContainsString('Leadership Seminar', $notification->message);
+    }
+
+    public function test_an_approved_event_reaches_members_who_belong_to_the_organization_only_through_a_profile(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $admin = User::factory()->create(['role' => 'ADMIN', 'password_hash' => 'password123', 'organization_id' => $organization->id]);
+        $departmentHead = $this->makeCollegeHead($college);
+        $profileAdmin = User::factory()->create(['role' => 'STUDENT', 'account_status' => 'active']);
+        $profileMember = User::factory()->create(['role' => 'STUDENT', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $profileAdmin->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $profileMember->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $eventId = $this->withToken($this->loginAs($admin))->postJson('/api/events', [
+            'title' => 'Leadership Seminar',
+            'start_time' => now()->addWeek()->toDateTimeString(),
+            'end_time' => now()->addWeek()->addHours(2)->toDateTimeString(),
+        ])->json('id');
+        $approvalId = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->value('id');
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($departmentHead);
+        $this->patchJson("/api/approval-requests/{$approvalId}", ['status' => 'approved'])->assertOk();
+
+        foreach ([$profileAdmin, $profileMember] as $person) {
+            $this->assertDatabaseHas('notifications', ['user_id' => $person->school_id, 'organization_id' => $organization->id, 'notification_type' => 'event', 'reference_id' => $eventId]);
+        }
     }
 
     public function test_department_head_rejection_keeps_event_in_planning_and_records_remarks(): void
