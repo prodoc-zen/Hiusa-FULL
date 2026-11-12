@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, Paperclip, X } from 'lucide-react';
 import { Button, ErrorState, Field, PageHeader, Select, SkeletonCard, StatusBadge, Textarea } from '../ui';
 import api from '../../services/api';
@@ -124,14 +124,22 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const [commenting, setCommenting] = useState(false);
   const [comment, setComment] = useState('');
 
+  // Only the newest load may answer: an earlier one (StrictMode's first mount, a previous application) is dropped.
+  const latestLoad = useRef(0);
+
   const load = useCallback((silent = false) => {
+    const ticket = ++latestLoad.current;
     if (!silent) setState({ loading: true, error: null, application: null });
     return getOrganizationApplication(applicationId)
       .then((res) => {
-        if (!silent) setMarks(carriedMarks(res.data, stage));
+        if (ticket !== latestLoad.current) return;
+        if (!silent) setMarks((current) => ({ ...carriedMarks(res.data, stage), ...current }));
         setState({ loading: false, error: null, application: res.data });
       })
-      .catch((err) => setState({ loading: false, error: err?.response?.status === 404 ? 'This application is not in your queue.' : getApiErrorMessage(err, 'Could not load this application.'), application: null }));
+      .catch((err) => {
+        if (ticket !== latestLoad.current) return;
+        setState({ loading: false, error: err?.response?.status === 404 ? 'This application is not in your queue.' : getApiErrorMessage(err, 'Could not load this application.'), application: null });
+      });
   }, [applicationId, stage]);
 
   useEffect(() => {
@@ -143,6 +151,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
     setCommenting(false);
     setComment('');
     load();
+    return () => { latestLoad.current += 1; };
   }, [applicationId, load]);
 
   const { application } = state;
@@ -269,7 +278,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
               <h2 className="text-base font-semibold text-ink">Requirements</h2>
               {actionable && notChecked.length > 0 && <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={acceptNotChecked}>Accept all not checked</Button>}
             </div>
-            {actionable && carriedCount > 0 && <p className="mt-2 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since you accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
+            {actionable && carriedCount > 0 && <p className="mt-2 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since {stage === 'dean' ? 'the Department Head stage' : 'the SAO'} accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
             <ul className="mt-3 divide-y divide-line-soft">
               {requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
