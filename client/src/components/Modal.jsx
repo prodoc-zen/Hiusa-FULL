@@ -12,6 +12,8 @@ export default function Modal({
   closeOnBackdrop = true,
   closeOnEscape = true,
   maxWidth = 'max-w-2xl',
+  centered = false,
+  titleClassName = 'text-ink',
 }) {
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
@@ -101,20 +103,24 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
+        data-layout={centered ? 'centered' : undefined}
         className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
       >
         {(title || description || onClose) && (
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
+          <header className={centered
+            ? 'relative shrink-0 px-6 pb-1 pt-8 text-center'
+            : 'flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4'}
+          >
             <div className="min-w-0">
-              {title && <h2 id="modal-title" className="break-words text-lg font-semibold text-ink">{title}</h2>}
-              {description && <p className="mt-1 text-sm font-normal leading-5 text-ink-muted">{description}</p>}
+              {title && <h2 id="modal-title" className={`break-words text-lg font-semibold ${titleClassName} ${centered ? 'text-center' : ''}`}>{title}</h2>}
+              {description && <p className={`mt-1 text-sm font-normal leading-5 text-ink-muted ${centered ? 'text-center' : ''}`}>{description}</p>}
             </div>
             {onClose && (
               <button
                 type="button"
                 aria-label="Close modal"
                 onClick={onClose}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-control text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-control text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${centered ? 'absolute right-2 top-2' : ''}`}
               >
                 <X size={17} />
               </button>
@@ -122,12 +128,18 @@ export default function Modal({
           </header>
         )}
 
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
+        <div className={centered
+          ? 'min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pb-4 pt-1 text-center'
+          : 'min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5'}
+        >
           {children}
         </div>
 
         {footer && (
-          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-line bg-subtle px-4 py-3 [&>button]:w-full sm:flex-row sm:flex-wrap sm:justify-end sm:px-5 sm:py-4 sm:[&>button]:w-auto">
+          <footer className={centered
+            ? 'flex shrink-0 flex-col gap-2 px-6 pb-6 pt-2 [&>button]:w-full sm:flex-row sm:justify-between sm:[&>button]:w-auto sm:[&>button]:min-w-28'
+            : 'flex shrink-0 flex-col-reverse gap-2 border-t border-line bg-subtle px-4 py-3 [&>button]:w-full sm:flex-row sm:flex-wrap sm:justify-end sm:px-5 sm:py-4 sm:[&>button]:w-auto'}
+          >
             {footer}
           </footer>
         )}
