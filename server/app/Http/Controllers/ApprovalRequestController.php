@@ -625,6 +625,7 @@ class ApprovalRequestController extends Controller
                 'target_status' => $entity->status,
                 'finalized_at' => $entity->finalized_at,
                 'results_visible' => $entity->results_visible,
+                'informative_letter_url' => $entity->has_informative_letter ? '/elections/'.$entity->id.'/informative-letter' : null,
                 'approval_status' => null,
                 ...$extra,
             ],
