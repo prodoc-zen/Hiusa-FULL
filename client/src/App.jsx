@@ -26,6 +26,7 @@ const StudentRecordsPage = lazy(() => import('./pages/roles/super-admin/StudentR
 const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
 const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
 const RecordsPage = lazy(() => import('./pages/modules/records/RecordsPage'));
+const OfficerTransitionPage = lazy(() => import('./pages/modules/records/OfficerTransitionPage'));
 const CollegeCompliancePage = lazy(() => import('./pages/roles/department-head/CollegeCompliancePage'));
 const SaoStoragePage = lazy(() => import('./pages/modules/sao/StorageOverview'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
@@ -60,6 +61,8 @@ const ManageCandidatesPage = lazy(() => import('./pages/modules/elections/Manage
 const ManagePartylistsPage = lazy(() => import('./pages/modules/elections/ManagePartylistsPage'));
 const ManageVotersPage = lazy(() => import('./pages/modules/elections/ManageVotersPage'));
 const ElectionResultsPage = lazy(() => import('./pages/modules/elections/ElectionResultsPage'));
+const ElectionApplicationsPage = lazy(() => import('./pages/modules/elections/ElectionApplicationsPage'));
+const ElectionInfoPage = lazy(() => import('./pages/modules/elections/ElectionInfoPage'));
 const CastVoteRedirectPage = lazy(() => import('./pages/modules/elections/CastVoteRedirectPage'));
 const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/ImmersiveVotePage'));
 const SaoCompliancePage = lazy(() => import('./pages/modules/sao/SaoCompliancePage'));
@@ -110,6 +113,8 @@ const ELECTION_MANAGE_PAGE_ROLES = {
   'manage-candidates': ['ADMIN', 'SBO_OFFICER'],
   'manage-partylists': ['ADMIN'],
   'manage-voters': ['SBO_OFFICER'],
+  applications: ['ADMIN', 'SBO_OFFICER'],
+  'election-info': ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
 };
 
 function ElectionPageGate({ children }) {
@@ -302,6 +307,7 @@ function App() {
           <Route path="department-head/people" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><CollegePeoplePage /></OfficeReviewRoute></ProtectedRoute>} />
           <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD", "ADMIN"]}><OfficeReviewRoute><CollegeOrganizationsPage /></OfficeReviewRoute></ProtectedRoute>} />
           <Route path="records" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN", "SBO_OFFICER"]}><RecordsRoute /></ProtectedRoute>} />
+          <Route path="records/officer-transition" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD", "ADMIN", "SBO_OFFICER"]}><OfficerTransitionPage /></ProtectedRoute>} />
           <Route path="department-head/org/:orgId" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><OrgSpacePage /></ProtectedRoute>} />
           <Route path="submitted-files" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><SubmittedFilesRoute /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><ApprovalsRoute /></ProtectedRoute>} />
@@ -389,6 +395,8 @@ function App() {
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
             <Route path="manage-partylists" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManagePartylistsPage /></ProtectedRoute>} />
             <Route path="manage-voters" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><ManageVotersPage /></ProtectedRoute>} />
+            <Route path="applications" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ElectionApplicationsPage /></ProtectedRoute>} />
+            <Route path="election-info" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><ElectionInfoPage /></ProtectedRoute>} />
             <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />
             <Route path="election-results" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><ElectionResultsPage /></ProtectedRoute>} />
 
