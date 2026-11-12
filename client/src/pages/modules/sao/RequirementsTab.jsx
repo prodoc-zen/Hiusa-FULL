@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, Eye, Pencil, Plus, Power, Trash2 } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, Select, StatusToggleSwitch } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, Select, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
@@ -24,8 +24,9 @@ import {
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
 const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
+const READ_ONLY_MESSAGE = 'This semester is completed, so its requirements are read only.';
 
-export default function RequirementsTab({ currentAcademicYear, noSemester = false, semester = null, onChanged, category = 'organization' }) {
+export default function RequirementsTab({ currentAcademicYear, noSemester = false, semester = null, readOnly = false, onChanged, category = 'organization' }) {
   const semestral = category === 'semestral_report';
   const renewal = category === 'renewal';
   const [types, setTypes] = useState({ loading: true, error: null, items: [], total: 0 });
@@ -194,14 +195,14 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
     {
       key: 'status',
       header: 'Status',
-      render: (type) => (
+      render: (type) => (readOnly ? <StatusBadge status={type.is_active ? 'active' : 'inactive'} /> : (
         <StatusToggleSwitch
           checked={Boolean(type.is_active)}
           disabled={togglingId === type.id}
           onChange={() => requestToggle(type)}
           label={`${type.is_active ? 'Deactivate' : 'Activate'} ${formatDisplayText(type.name)}`}
         />
-      ),
+      )),
     },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'allowed_extensions', header: 'Accepted files', render: (type) => fileTypesLabel(type.allowed_extensions) },
@@ -214,13 +215,14 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
       <Card
         title={semestral ? 'Semestral and financial report requirements' : renewal ? 'Renewal requirements' : 'Organization requirements'}
         description={semestral ? 'Files organizations send the SAO for their semestral and financial report.' : renewal ? 'Files active organizations send each year to renew.' : 'Files for organization registration and accreditation.'}
-        actions={(
+        actions={readOnly ? undefined : (
           <div className="flex flex-wrap items-center justify-end gap-3">
             {noSemester && <p id={`new-requirement-${category}-note`} className="max-w-sm text-sm text-ink-muted">{NO_SEMESTER_MESSAGE}</p>}
             <Button leftIcon={Plus} disabled={noSemester} aria-describedby={noSemester ? `new-requirement-${category}-note` : undefined} onClick={() => openTypeModal()}>New requirement</Button>
           </div>
         )}
       >
+        {readOnly && <p className="mb-4 text-sm text-ink-muted">{READ_ONLY_MESSAGE}</p>}
         {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="status" className="mb-4 rounded-control border border-warning/40 bg-warning-tint p-3 text-sm text-ink">Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.</p>}
         {deleteError && (
           <p role="alert" className="mb-4 rounded-control border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong">{deleteError}</p>
@@ -235,9 +237,9 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
           pagination={<PaginationControls currentPage={page} totalItems={types.total} pageSize={10} onPageChange={setPage} label="requirements" />}
           actions={(type) => <TableRowActions subject={formatDisplayText(type.name)} actions={[
             (type.template_url || type.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewSample(type) },
-            { label: 'Edit requirement', icon: Pencil, onClick: () => openTypeModal(type) },
-            { label: type.is_active ? 'Mark inactive' : 'Mark active', icon: Power, disabled: togglingId === type.id, onClick: () => requestToggle(type) },
-            { label: 'Delete requirement', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(type); } },
+            !readOnly && { label: 'Edit requirement', icon: Pencil, onClick: () => openTypeModal(type) },
+            !readOnly && { label: type.is_active ? 'Mark inactive' : 'Mark active', icon: Power, disabled: togglingId === type.id, onClick: () => requestToggle(type) },
+            !readOnly && { label: 'Delete requirement', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(type); } },
           ]} />}
           emptyState={(
             <EmptyState

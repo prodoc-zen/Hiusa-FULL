@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoCompliancePage from './SaoCompliancePage';
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYea
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequest: mocks.getApprovalRequest }));
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
-vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester, mode, organizationId, initialEventId, onEventOpen }) => <div><p data-no-semester={String(Boolean(noSemester))} data-mode={mode || 'settings'} data-organization={organizationId || ''} data-event={initialEventId || ''}>Event requirements content</p><button type="button" onClick={() => onEventOpen?.(31)}>Open event 31</button><button type="button" onClick={() => onEventOpen?.(null)}>Close event</button></div> }));
+vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester, readOnly, mode, organizationId, initialEventId, onEventOpen }) => <div><p data-no-semester={String(Boolean(noSemester))} data-read-only={String(Boolean(readOnly))} data-mode={mode || 'settings'} data-organization={organizationId || ''} data-event={initialEventId || ''}>Event requirements content</p><button type="button" onClick={() => onEventOpen?.(31)}>Open event 31</button><button type="button" onClick={() => onEventOpen?.(null)}>Close event</button></div> }));
 vi.mock('./FinancialReportsTab', () => ({ default: ({ initialStatus }) => <p data-status={initialStatus || ''}>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
 
@@ -188,6 +188,25 @@ describe('SaoCompliancePage', () => {
     renderPage(`/dashboard/super-admin/compliance?tab=${tab}`);
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'New requirement' })[0]).toBeDisabled());
     expect(screen.getByText('There is no active semester. Activate or select a semester before adding a requirement.')).toBeInTheDocument();
+  });
+
+  describe.each([['completed', true], ['active', false], ['upcoming', false]])('with a %s semester selected', (status, closed) => {
+    const sentence = 'This semester is completed, so its requirements are read only.';
+    beforeEach(() => localStorage.setItem('hiusa_selected_academic_period', JSON.stringify({ id: 10, number: 2, status, academic_year: { label: '2026-2027' } })));
+    afterEach(() => localStorage.removeItem('hiusa_selected_academic_period'));
+
+    it.each(['requirements', 'renewal-requirements', 'semestral-requirements'])(`${closed ? 'hides' : 'keeps'} the actions on the %s tab`, async (tab) => {
+      renderPage(`/dashboard/super-admin/compliance?tab=${tab}`);
+      await screen.findAllByText('Officer Roster');
+      expect(screen.queryAllByText(sentence).length > 0).toBe(closed);
+      expect(screen.queryAllByRole('button', { name: 'New requirement' }).length > 0).toBe(!closed);
+      expect(screen.queryAllByRole('switch').length > 0).toBe(!closed);
+    });
+
+    it(`${closed ? 'tells' : 'does not tell'} the event requirements tab it is read only`, async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=events');
+      await waitFor(() => expect(screen.getByText('Event requirements content')).toHaveAttribute('data-read-only', String(closed)));
+    });
   });
 
   it('tells the event requirements tab when no semester is selected', async () => {

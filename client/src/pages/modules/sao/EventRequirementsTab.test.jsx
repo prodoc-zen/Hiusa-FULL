@@ -59,6 +59,35 @@ describe('EventRequirementsTab', () => {
     expect(screen.queryByRole('button', { name: 'Move Proposal down' })).not.toBeInTheDocument();
   });
 
+  describe('in a completed semester', () => {
+    const sentence = 'This semester is completed, so its requirements are read only.';
+
+    it('shows no Add requirement form, toggle, Edit or Remove and says why', async () => {
+      mocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Proposal', description: '', allowed_extensions: ['pdf'], is_active: true, template_url: 'https://example.edu/proposal' }] });
+      render(<EventRequirementsTab readOnly />);
+      await screen.findAllByText('Proposal');
+      expect(screen.getAllByText(sentence).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('button', { name: 'Add requirement' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Add event requirement')).not.toBeInTheDocument();
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Proposal' })[0]);
+      expect(await screen.findByRole('menuitem', { name: 'View sample' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Edit requirement' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Remove requirement' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the form, the toggle, Edit and Remove in an active or upcoming semester', async () => {
+      render(<EventRequirementsTab />);
+      await screen.findAllByText('Proposal');
+      expect(screen.queryByText(sentence)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add requirement' })).toBeInTheDocument();
+      expect(screen.getAllByRole('switch', { name: 'Deactivate Proposal' }).length).toBeGreaterThan(0);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Proposal' })[0]);
+      expect(await screen.findByRole('menuitem', { name: 'Edit requirement' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Remove requirement' })).toBeInTheDocument();
+    });
+  });
+
   it('keeps the requirements table to the columns that fit its card and shows the details under the name', async () => {
     mocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Proposal', description: '', allowed_extensions: ['pdf'], venue_type: 'on_campus', is_optional: false, is_active: true }] });
     render(<EventRequirementsTab />);

@@ -16,6 +16,7 @@ import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { readSelectedPeriod } from '../../../utils/academicPeriodStore';
 import {
   createVenue, deleteVenue, getVenueAvailability, getVenueBookings, getVenues,
   reviewVenueBooking, updateVenue,
@@ -92,6 +93,7 @@ function BookingDetail({ booking, conflict, onApprove, onReject }) {
 
 export default function SaoVenuesPage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const closedSemester = useMemo(() => readSelectedPeriod()?.status === 'completed', []);
   const narrow = useNarrowScreen();
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
@@ -424,7 +426,7 @@ export default function SaoVenuesPage() {
       )}
 
       {activeTab === 'requirements' && (
-        <EventRequirementsTab />
+        <EventRequirementsTab readOnly={closedSemester} />
       )}
 
       {activeTab === 'bookings' && (

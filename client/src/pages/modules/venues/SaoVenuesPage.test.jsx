@@ -19,6 +19,15 @@ vi.mock('../../../services/venueService', () => ({
   deleteVenue: vi.fn(),
 }));
 
+const eventMocks = vi.hoisted(() => ({ getEventRequirements: vi.fn() }));
+vi.mock('../../../services/eventService', () => ({
+  getEventRequirements: eventMocks.getEventRequirements,
+  createEventRequirement: vi.fn(),
+  updateEventRequirement: vi.fn(),
+  deleteEventRequirement: vi.fn(),
+  removeEventRequirementTemplate: vi.fn(),
+}));
+
 const EMPTY = { data: { data: [], total: 0, current_page: 1, last_page: 1 } };
 
 const booking = (id, status, start, end, orgName, extra = {}) => ({
@@ -64,6 +73,23 @@ describe('SaoVenuesPage', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe.each([['completed', true], ['active', false], ['upcoming', false]])('venue requirements with a %s semester selected', (status, closed) => {
+    beforeEach(() => {
+      eventMocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Proposal', description: '', allowed_extensions: ['pdf'], is_active: true }] });
+      localStorage.setItem('hiusa_selected_academic_period', JSON.stringify({ id: 10, number: 2, status }));
+    });
+    afterEach(() => localStorage.removeItem('hiusa_selected_academic_period'));
+
+    it(`${closed ? 'hides' : 'keeps'} the form and the toggle`, async () => {
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
+      openTab('Venue requirements');
+      await screen.findAllByText('Proposal');
+      expect(screen.queryAllByText('This semester is completed, so its requirements are read only.').length > 0).toBe(closed);
+      expect(screen.queryAllByRole('button', { name: 'Add requirement' }).length > 0).toBe(!closed);
+      expect(screen.queryAllByRole('switch').length > 0).toBe(!closed);
+    });
   });
 
   it('keeps the tabs plain text, with no icon in front of a label', async () => {
