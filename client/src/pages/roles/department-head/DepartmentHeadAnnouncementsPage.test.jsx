@@ -40,6 +40,14 @@ describe('Department Head announcements', () => {
     expect(await screen.findByText('Announcement published to the selected organization.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
+  it('limits the message to 10,000 characters and shows how many are used', async () => {
+    renderPage();
+    await openForm();
+    expect(screen.getByLabelText(/Message/)).toHaveAttribute('maxLength', '10000');
+    expect(screen.getByText('19 of 10,000 characters')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'x'.repeat(1234) } });
+    expect(screen.getByText('1,234 of 10,000 characters')).toBeInTheDocument();
+  });
   it('saves a draft and preserves entered fields after validation fails', async () => {
     announcements.createAnnouncement.mockRejectedValueOnce({ response: { status: 422, data: { message: 'Please correct the title.', errors: { title: ['Title already exists.'] } } } });
     renderPage();
