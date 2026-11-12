@@ -6,7 +6,7 @@ import { PencilLine, Plus, Search, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import TableRowActions from '../../../components/TableRowActions';
-import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, StatusToggleSwitch } from '../../../components/ui';
 import { createSboPosition, deleteSboPosition, getSboPositions, updateSboPosition } from '../../../services/userService';
 
 const EMPTY_FORM = { role: 'ADMIN', title: '', description: '', is_active: true };
@@ -29,6 +29,7 @@ export default function ManageSboPositionsPage() {
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [switchingId, setSwitchingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
@@ -75,6 +76,17 @@ export default function ManageSboPositionsPage() {
     finally { setBusy(false); }
   };
 
+  // The booking switch saves on its own: only that field is sent, and it moves once the server has taken it.
+  const toggleBooking = async (position, canBook) => {
+    setSwitchingId(position.id);
+    try {
+      await updateSboPosition(position.id, { can_book_venues: canBook });
+      setPositions((current) => current.map((row) => (row.id === position.id ? { ...row, can_book_venues: canBook } : row)));
+    } catch (requestError) {
+      setFeedback({ open: true, type: 'error', message: firstError(requestError, 'Unable to save this change.') });
+    } finally { setSwitchingId(null); }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setBusy(true);
@@ -92,6 +104,8 @@ export default function ManageSboPositionsPage() {
   // Responsibilities and the inactive flag sit under the title so a row has no empty cells; the account
   // role gets a column only while the list holds more than one role.
   const mixedRoles = new Set(filtered.map((position) => position.role)).size > 1;
+  // An Admin can always book, so the switch column only appears while the list holds officer positions.
+  const hasOfficers = filtered.some((position) => position.role === 'SBO_OFFICER');
   const columns = [
     {
       key: 'title',
@@ -105,6 +119,22 @@ export default function ManageSboPositionsPage() {
       ),
     },
     ...(mixedRoles ? [{ key: 'role', header: 'Account role', render: (position) => ROLE_LABELS[position.role] || position.role }] : []),
+    ...(hasOfficers ? [{
+      key: 'can_book_venues',
+      header: 'Can book venues',
+      render: (position) => (position.role === 'ADMIN'
+        ? <span className="text-xs text-ink-muted">Always</span>
+        : (
+          <StatusToggleSwitch
+            checked={Boolean(position.can_book_venues)}
+            onChange={(canBook) => toggleBooking(position, canBook)}
+            disabled={switchingId === position.id}
+            label={`Can book venues: ${position.title}`}
+            activeText="Yes"
+            inactiveText="No"
+          />
+        )),
+    }] : []),
   ];
 
   const filters = (

@@ -272,10 +272,21 @@ export function filterNavByModules(items, modules) {
 // The list a signed-in person gets: office staff share the ADMIN role with organization heads but not their pages.
 export const navRoleFor = (user) => (isOfficeStaff(user) ? 'OFFICE_STAFF' : user?.role);
 
-// Only an officer's pages are narrowed by modules; an org head always has every module.
-export function getNavForRole(role, modules) {
+// An officer books venues only when the Admin switched it on for their position (user.can_book_venues).
+function withoutVenueBooking(items) {
+  return items.flatMap((item) => {
+    if (!item.children) return item.id === 'gov-venues' ? [] : [item];
+    const children = item.children.filter((child) => child.id !== 'gov-venues');
+    return children.length > 0 ? [{ ...item, children }] : [];
+  });
+}
+
+// Only an officer's pages are narrowed by modules and by position; an org head always has every module.
+export function getNavForRole(role, modules, canBookVenues = true) {
   const nav = NAV_BY_ROLE[role] || [];
-  return role === 'SBO_OFFICER' ? filterNavByModules(nav, modules) : nav;
+  if (role !== 'SBO_OFFICER') return nav;
+  const byModules = filterNavByModules(nav, modules);
+  return canBookVenues === false ? withoutVenueBooking(byModules) : byModules;
 }
 
 // The sidebar a Department Head sees while working inside one organization's space.
@@ -291,8 +302,8 @@ export function getOrgSpaceNav(organizationId) {
 }
 
 // The clickable destinations of the sidebar: a group's children, or the row itself when it has none.
-export function getNavLeaves(role, modules) {
-  return getNavForRole(role, modules).flatMap((item) => (item.children ? item.children : [item]));
+export function getNavLeaves(role, modules, canBookVenues = true) {
+  return getNavForRole(role, modules, canBookVenues).flatMap((item) => (item.children ? item.children : [item]));
 }
 
 function splitTarget(target) {
@@ -338,10 +349,10 @@ export function findActiveNavId(items, pathname, search = '') {
 
 // Flattens the role's nav into individual pages for the command palette: leaf pages where a group
 // has children, the row itself otherwise, then the footer and the demoted pages that left the menu.
-export function getFlatPages(role, modules) {
+export function getFlatPages(role, modules, canBookVenues = true) {
   const pages = [];
 
-  getNavForRole(role, modules).forEach((item) => {
+  getNavForRole(role, modules, canBookVenues).forEach((item) => {
     const children = getVisibleChildren(item);
     if (children.length > 0) {
       children.forEach((child) => {

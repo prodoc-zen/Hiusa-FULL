@@ -1,8 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { eventFlow, stageText } from './eventStage';
 
 const base = { id: 7, status: 'planning', requires_budget: false, budgets: [], tasks_count: 0, completed_tasks_count: 0, requirements_required: false, requirements_submitted: false, approval_id: 3, approval_status: null, approval_required_role: null, approval_remarks: null };
 const states = (flow) => Object.fromEntries(flow.steps.map((step) => [step.key, step.state]));
+
+describe('eventFlow venue booking link', () => {
+  const approved = { ...base, status: 'approved', approval_stage: 'approved', approval_status: 'approved', requirements_required: true, requirements_submitted: true };
+  afterEach(() => localStorage.clear());
+
+  it('is offered to an officer whose position can book and withheld from one whose position cannot', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', can_book_venues: true }));
+    expect(eventFlow(approved, 'SBO_OFFICER').secondary).toEqual({ label: 'Book venue', to: '/dashboard/venues?event=7' });
+
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', can_book_venues: false }));
+    expect(eventFlow(approved, 'SBO_OFFICER').secondary).toBeNull();
+    expect(eventFlow(approved, 'ADMIN').secondary).toEqual({ label: 'Book venue', to: '/dashboard/venues?event=7' });
+  });
+});
 
 describe('eventFlow', () => {
   it('orders the steps as the chain runs: Department Head, then the SAO files', () => {

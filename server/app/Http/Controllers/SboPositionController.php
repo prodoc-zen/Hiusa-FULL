@@ -44,6 +44,7 @@ class SboPositionController extends Controller
             'title' => ['required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $request->input('role')))],
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
+            'can_book_venues' => ['sometimes', 'boolean'],
         ]);
         $row = SboPosition::create([...$data, 'organization_id' => $request->user()->organization_id]);
         $this->audit($request, 'created', $row, null, $row->getAttributes());
@@ -67,6 +68,7 @@ class SboPositionController extends Controller
             'title' => ['sometimes', 'required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $role))->ignore($position->id)],
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
+            'can_book_venues' => ['sometimes', 'boolean'],
         ]);
         DB::transaction(function () use ($position, $data) {
             $oldRole = $position->role;

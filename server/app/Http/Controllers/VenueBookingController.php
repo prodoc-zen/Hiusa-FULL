@@ -19,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * Venue booking requests. ADMIN and SBO_OFFICER request bookings for their own
- * organization; SUPER_ADMIN approves or rejects. A booking that ends exactly
+ * organization (an officer only when the position allows it); SUPER_ADMIN approves or rejects. A booking that ends exactly
  * when another starts does not overlap it - overlap requires the intervals
  * to actually intersect (strict inequalities on both sides).
  */
@@ -66,6 +66,10 @@ class VenueBookingController extends Controller
 
     public function store(Request $request)
     {
+        if ($refused = $this->refuseOfficerWithoutBooking($request)) {
+            return $refused;
+        }
+
         $data = $request->validate([
             'venue_type' => ['nullable', 'in:on_campus,off_campus'],
             'venue_id' => [Rule::requiredIf($request->input('venue_type', 'on_campus') === 'on_campus'), 'nullable', 'integer', Rule::exists('venues', 'id')->where('is_active', true)],
@@ -237,6 +241,10 @@ class VenueBookingController extends Controller
 
     public function withdraw(Request $request, VenueBooking $venueBooking)
     {
+        if ($refused = $this->refuseOfficerWithoutBooking($request)) {
+            return $refused;
+        }
+
         // Both the ownership and the withdrawable-status checks must run
         // against the row as of the moment it is locked, not the possibly
         // stale $venueBooking the route resolved before a concurrent review()
@@ -304,6 +312,14 @@ class VenueBookingController extends Controller
             ]));
 
         return response()->json($booking->load('venue:id,name,location'));
+    }
+
+    /** An officer books by position: the Admin turns the switch on for a position on the Positions page. */
+    private function refuseOfficerWithoutBooking(Request $request)
+    {
+        return $request->user()->canBookVenues()
+            ? null
+            : response()->json(['message' => 'Your position cannot book venues. Ask your Admin.'], 403);
     }
 
     private function hasApprovedOverlap(int $venueId, $startTime, $endTime, ?int $excludingBookingId = null, bool $includePending = false): bool

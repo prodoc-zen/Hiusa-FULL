@@ -1,4 +1,5 @@
 import { eventLifecycle, roleLabel } from '../../lib/lifecycle';
+import { readCanBookVenues } from '../../utils/userModules';
 
 // The server's approval_stage is the source of truth for the approval chain. eventLifecycle reads
 // approval_status and approval_required_role instead, and cannot tell "the head approved, files are
@@ -118,7 +119,9 @@ export function eventFlow(event, viewerRole, progress = null) {
     }
   }
 
-  const prepare = lifecycle.current?.key === 'prepare' && ['ADMIN', 'SBO_OFFICER'].includes(viewerRole);
+  // An officer is offered the booking page only while their position can book venues.
+  const canBook = viewerRole === 'ADMIN' || (viewerRole === 'SBO_OFFICER' && readCanBookVenues());
+  const prepare = lifecycle.current?.key === 'prepare' && canBook;
   const secondary = prepare ? { label: 'Book venue', to: `/dashboard/venues?event=${e.id}` } : null;
 
   return { ...lifecycle, steps, nextAction, action, secondary };
