@@ -10,6 +10,8 @@ use App\Models\EventRequirementFile;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\Venue;
+use App\Models\VenueBooking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -364,6 +366,125 @@ class EventApprovalChainTest extends TestCase
         $this->assertSame('pending', $sao->fresh()->status);
         $this->assertSame(1, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->count());
         $this->assertSame('awaiting_sao', $this->payload($eventId)['approval_stage']);
+    }
+
+    private function approvedEvent(): int
+    {
+        Sanctum::actingAs($this->admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'General Assembly',
+            'description' => 'Yearly meeting',
+            'start_time' => now()->addWeek()->setTime(9, 0)->toDateTimeString(),
+            'end_time' => now()->addWeek()->setTime(11, 0)->toDateTimeString(),
+            'planning_details' => ['expected_participants' => 80, 'logistics_checklist' => 'Chairs'],
+        ])->assertCreated()->json('id');
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
+
+        return $eventId;
+    }
+
+    public function test_saving_an_approved_event_without_changes_keeps_it_approved(): void
+    {
+        $eventId = $this->approvedEvent();
+        $event = Event::findOrFail($eventId);
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, [
+            'title' => 'General Assembly',
+            'description' => 'Yearly meeting',
+            'start_time' => $event->start_time->format('Y-m-d\TH:i'),
+            'end_time' => $event->end_time->format('Y-m-d\TH:i'),
+            'location' => '',
+            'requires_budget' => false,
+            'planning_details' => ['expected_participants' => '80', 'event_type' => '', 'budget_notes' => '', 'logistics_checklist' => 'Chairs'],
+        ])->assertOk()->assertJsonPath('status', 'approved');
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+        $this->assertNotNull($event->fresh()->approved_at);
+    }
+
+    public function test_changing_only_the_image_keeps_an_approved_event_approved(): void
+    {
+        Storage::fake('public');
+        $eventId = $this->approvedEvent();
+
+        Sanctum::actingAs($this->admin);
+        $this->post('/api/events/'.$eventId, [
+            '_method' => 'PUT',
+            'image' => UploadedFile::fake()->image('poster.png'),
+        ])->assertOk()->assertJsonPath('status', 'approved');
+
+        $this->assertNotNull(Event::findOrFail($eventId)->image_url);
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+    }
+
+    public function test_changing_only_logistics_keeps_an_approved_event_approved(): void
+    {
+        $eventId = $this->approvedEvent();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['planning_details' => ['logistics_checklist' => 'Chairs and tables', 'vendor_deadlines' => 'Friday']])
+            ->assertOk()->assertJsonPath('status', 'approved');
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+    }
+
+    public function test_changing_the_date_of_an_approved_event_sends_it_back_to_the_head(): void
+    {
+        $eventId = $this->approvedEvent();
+        $event = Event::findOrFail($eventId);
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, [
+            'title' => 'General Assembly',
+            'start_time' => $event->start_time->addDay()->format('Y-m-d\TH:i'),
+            'end_time' => $event->end_time->addDay()->format('Y-m-d\TH:i'),
+        ])->assertOk()->assertJsonPath('status', 'planning');
+
+        $this->assertSame('pending', $this->headRow($eventId)->status);
+        $this->assertNull($event->fresh()->approved_at);
+        $this->assertSame('awaiting_department_head', $this->payload($eventId)['approval_stage']);
+    }
+
+    public function test_changing_the_participant_count_of_an_approved_event_sends_it_back_to_the_head(): void
+    {
+        $eventId = $this->approvedEvent();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['planning_details' => ['expected_participants' => 120]])
+            ->assertOk()->assertJsonPath('status', 'planning');
+
+        $this->assertSame('pending', $this->headRow($eventId)->status);
+    }
+
+    public function test_a_date_change_is_refused_while_the_event_holds_a_venue_booking(): void
+    {
+        $eventId = $this->approvedEvent();
+        $event = Event::findOrFail($eventId);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        VenueBooking::create([
+            'venue_id' => $venue->id,
+            'event_id' => $eventId,
+            'organization_id' => $this->organization->id,
+            'start_time' => $event->start_time,
+            'end_time' => $event->end_time,
+            'status' => 'pending',
+            'requested_by' => $this->admin->school_id,
+        ]);
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, [
+            'start_time' => $event->start_time->addDay()->format('Y-m-d\TH:i'),
+            'end_time' => $event->end_time->addDay()->format('Y-m-d\TH:i'),
+        ])->assertUnprocessable()->assertJsonPath('message', 'Withdraw the venue booking first, then change the date.');
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+        $this->assertEquals($event->start_time, $event->fresh()->start_time);
+
+        // A save that keeps the same date still goes through while the booking is held.
+        $this->putJson('/api/events/'.$eventId, ['start_time' => $event->start_time->format('Y-m-d\TH:i')])
+            ->assertOk()->assertJsonPath('status', 'approved');
     }
 
     public function test_a_head_from_another_college_cannot_see_or_decide_the_event_approvals(): void

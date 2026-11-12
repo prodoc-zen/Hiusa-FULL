@@ -113,7 +113,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         </div>)}
         {missingFiles > 0 && <p id="event-files-missing" className="text-xs text-ink-muted-strong">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
         {toReplace > 0 && <p id="event-files-replace" className="text-xs text-ink-muted-strong">{toReplace === 1 ? '1 file still needs to be replaced.' : `${toReplace} files still need to be replaced.`}</p>}
-        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>Submit event files to SAO</Button>
+        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>Submit event files</Button>
       </form>}
       {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
     </section>
