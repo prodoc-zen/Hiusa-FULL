@@ -70,9 +70,7 @@ export const deleteForecast = (id) =>
   api.delete(`/forecasts/${id}`);
 
 // Reports
-export const getFinancialSemesters = () => api.get('/financial-semesters');
 
-export const createFinancialSemester = (data) => api.post('/financial-semesters', data);
 
 export const getFinancialReports = (params) =>
   api.get('/financial-reports', { params });

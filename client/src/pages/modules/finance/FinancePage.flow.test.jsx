@@ -15,7 +15,6 @@ const financeMocks = vi.hoisted(() => ({
   createBudget: vi.fn(),
   updateBudget: vi.fn(),
   getFinancialReports: vi.fn(),
-  getFinancialSemesters: vi.fn(),
   submitFinancialReport: vi.fn(),
 }));
 
@@ -28,11 +27,11 @@ vi.mock('../../../services/financeService', () => ({
   generateForecast: vi.fn(),
   generateBudgetAdvice: vi.fn(),
   getFinancialReport: vi.fn(),
-  createFinancialSemester: vi.fn(),
   generateFinancialReport: vi.fn(),
   downloadFinancialReportPdf: vi.fn(),
 }));
 
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicPeriods: vi.fn(() => Promise.resolve([])) }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: vi.fn(() => Promise.resolve({ data: [] })) }));
 
 const eventMocks = vi.hoisted(() => ({ getEvents: vi.fn() }));
@@ -74,7 +73,6 @@ beforeEach(() => {
   financeMocks.getForecasts.mockResolvedValue({ data: [] });
   financeMocks.getBudgets.mockResolvedValue({ data: [] });
   financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
-  financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   eventMocks.getEvents.mockResolvedValue({ data: [{ id: 3, title: 'Sports Fest' }, { id: 4, title: 'Foundation Day' }] });
 });
 
