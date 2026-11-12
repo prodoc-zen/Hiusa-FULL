@@ -342,7 +342,7 @@ DH-094 | Organization applications | Department Head endorses an organization ap
 DH-095 | Organization applications | Department Head returns an application with mandatory comments (only the SAO can reject) | M | R2
 DH-096 | College files | Department Head accesses College Files and Documents | M | Any
 DH-097 | College compliance | Department Head accesses College Compliance and Semestral Submissions | M | Any
-DH-098 | Onboarding and invitation | Dean accepts invitation via Magic Link and sets School ID and password | H | Any
+DH-098 | Onboarding and invitation | Dean accepts invitation via Magic Link and types their own School ID and password | H | Any
 DH-099 | People > Office staff | Dean invites office staff by link, gives a position such as College Secretary, and removes them | H | Any
 DH-100 | College organizations and supervision | Dean switches context into student organizations using GHL-style Sub-Account Oversight Mode | H | Any
 DH-101 | Academic terms and planning | Dean previews upcoming semester in Advance Planning mode | M | Any
