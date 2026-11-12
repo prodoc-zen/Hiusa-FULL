@@ -51,6 +51,9 @@ vi.mock('../../../services/financeService', () => ({
 const clearanceMocks = vi.hoisted(() => ({ getMyClearances: vi.fn() }));
 vi.mock('../../../services/clearanceService', () => clearanceMocks);
 
+const periodMocks = vi.hoisted(() => ({ getAcademicPeriods: vi.fn(() => Promise.resolve([{ id: 8, status: 'active', number: 1, academic_year: { label: '2026-2027' } }])) }));
+vi.mock('../../../services/systemAdministrationService', () => periodMocks);
+
 const collegeMocks = vi.hoisted(() => ({ getCollegeOrganizations: vi.fn() }));
 vi.mock('../../../services/collegeOrganizationService', () => collegeMocks);
 
@@ -93,6 +96,17 @@ describe('FinancePage transaction search', () => {
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
+  });
+
+  it('has no semester picker of its own in the ledger filters', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    await screen.findByPlaceholderText('Search transactions...');
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+    expect(await screen.findByRole('combobox', { name: 'Filter by transaction type' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Filter by academic semester' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'All semesters' })).not.toBeInTheDocument();
+    expect(periodMocks.getAcademicPeriods).not.toHaveBeenCalled();
   });
 
   it('shows the Active search chip and fires a request only when the search is applied, one per data set', async () => {
