@@ -539,7 +539,8 @@ export function orderLifecycle(order, viewerRole) {
 
 // ---------------------------------------------------------------------------------------------
 // Organization registration. lifecycle_status: pending, returned, active, archived. After approval
-// the SAO must provision an administrator (administrators_count). setup_steps_done and
+// an organization with no administrator (administrators_count) waits for the Department Head to name
+// one, or for the SAO when the organization is university-wide and has no dean. setup_steps_done and
 // setup_steps_total are optional and describe the Admin first-use checklist.
 
 const REGISTRATION_STAGES = [
@@ -576,10 +577,16 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
         return finish(buildSteps(REGISTRATION_STAGES, 2), terminal('done', 'Approved and active', 'The SAO approved this registration.'), null, href);
       }
       if (Number(o.administrators_count) === 0) {
-        return finish(buildSteps(REGISTRATION_STAGES, 2), turn(viewerRole, ['SUPER_ADMIN'], {
-          title: 'Add the first Admin account',
-          body: 'SAO approved this organization. Add its first Admin account from the Organizations list so an administrator can sign in and manage it.',
-        }, { title: 'Approved: waiting for the SAO to assign an administrator' }), 'SUPER_ADMIN', href);
+        if (o.is_university_wide) {
+          return finish(buildSteps(REGISTRATION_STAGES, 2), turn(viewerRole, ['SUPER_ADMIN'], {
+            title: 'Add the Admin account',
+            body: 'This organization is open to every college and has no dean. Add its Admin from the Organizations list so an administrator can sign in and manage it.',
+          }, { title: 'Approved: waiting for the SAO to add the Admin account' }), 'SUPER_ADMIN', href);
+        }
+        return finish(buildSteps(REGISTRATION_STAGES, 2, { actors: { administrator: 'Department Head' } }), turn(viewerRole, ['DEPARTMENT_HEAD'], {
+          title: 'Name the organization head',
+          body: 'This organization has no Admin. Open it and use Give access to name its Organization head so they can sign in and manage it.',
+        }, { title: 'Approved: waiting for the Department Head to name the organization head' }), 'DEPARTMENT_HEAD', href);
       }
       const total = Number(o.setup_steps_total ?? 0);
       const left = total - Number(o.setup_steps_done ?? 0);
