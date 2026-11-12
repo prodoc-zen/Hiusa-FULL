@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\VenueBookingController;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\Venue;
@@ -347,6 +350,90 @@ class VenueBookingTest extends TestCase
         $this->assertDatabaseHas('notifications', ['user_id' => $superAdmin->school_id, 'reference_type' => 'venue_booking', 'reference_id' => $bookingId]);
 
         $this->patchJson("/api/venue-bookings/{$bookingId}/withdraw")->assertStatus(409);
+    }
+
+    private function semesterEvent(string $status, Organization $organization, User $admin): Event
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'status' => $status]);
+
+        return Event::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $admin->school_id,
+            'status' => 'approved',
+            'academic_semester_id' => $semester->id,
+            'start_time' => now()->addDays(3),
+            'end_time' => now()->addDays(3)->addHours(2),
+        ]);
+    }
+
+    public function test_a_booking_for_an_event_in_a_closed_semester_is_refused_and_creates_no_row(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        $event = $this->semesterEvent('completed', $organization, $admin);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'event_id' => $event->id,
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
+        ])->assertStatus(409)->assertJsonPath('message', 'This school year is closed. Its records are read only.');
+
+        $this->assertDatabaseMissing('venue_bookings', ['event_id' => $event->id]);
+    }
+
+    public function test_a_booking_for_an_event_in_an_active_semester_is_still_created(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->user('SBO_OFFICER', $organization->id);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        $event = $this->semesterEvent('active', $organization, $admin);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'event_id' => $event->id,
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('venue_bookings', ['event_id' => $event->id, 'academic_semester_id' => $event->academic_semester_id]);
+    }
+
+    public function test_withdrawing_a_booking_in_a_closed_semester_is_refused_and_an_active_one_still_withdraws(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        $event = $this->semesterEvent('active', $organization, $admin);
+        $semester = AcademicSemester::find($event->academic_semester_id);
+
+        Sanctum::actingAs($admin);
+        $closedId = $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'event_id' => $event->id,
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
+        ])->assertCreated()->json('id');
+        $openId = $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'event_id' => $event->id,
+            'start_time' => now()->addDays(2)->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDays(2)->setTime(10, 0)->toISOString(),
+        ])->assertCreated()->json('id');
+        VenueBooking::whereKey($openId)->update(['academic_semester_id' => null]);
+
+        $semester->update(['status' => 'completed']);
+        $this->patchJson("/api/venue-bookings/{$closedId}/withdraw")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This school year is closed. Its records are read only.');
+        $this->assertSame('pending', VenueBooking::find($closedId)->status);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'booking_withdrawn', 'record_id' => $closedId]);
+
+        $this->patchJson("/api/venue-bookings/{$openId}/withdraw")->assertOk()->assertJsonPath('status', 'withdrawn');
     }
 
     public function test_a_future_approved_booking_can_be_withdrawn_but_a_past_one_cannot(): void
