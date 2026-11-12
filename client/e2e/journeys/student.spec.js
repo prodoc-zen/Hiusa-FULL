@@ -252,13 +252,16 @@ for (const viewport of WIDTHS) {
       const c = counter();
 
       await menuTo(page, c, { group: 'My payments', leaf: 'Statement of account' });
-      const main = page.getByRole('main');
-      const balance = main.getByText('₱500.00').first();
+      // The student home still sits in main for a moment after the tap and also says "You owe ₱500.00" (and can
+      // say "on hold") a long way down a phone screen, so the balance and the clearance are read inside the
+      // statement page's own Account summary, which only exists once the page has replaced the home.
+      const summary = page.getByRole('main').getByRole('region', { name: 'Account summary' });
+      const balance = summary.getByText('₱500.00').first();
       await expect(balance).toBeVisible();
       record(testInfo, c);
       expect.soft(c.n, c.log.join(' > ')).toBeLessThanOrEqual(2);
       expect.soft(await inViewport(page, balance), 'the balance is visible without scrolling').toBe(true);
-      const clearance = main.getByText(/cleared|on hold|held/i).first();
+      const clearance = summary.getByText(/cleared|on hold|held/i).first();
       await expect.soft(clearance, 'the page says whether this student is cleared').toBeVisible({ timeout: 3000 });
       if (await clearance.count()) expect.soft(await inViewport(page, clearance), 'the clearance status is visible without scrolling').toBe(true);
     });
