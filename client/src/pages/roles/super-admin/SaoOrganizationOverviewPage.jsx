@@ -189,7 +189,8 @@ export default function SaoOrganizationOverviewPage() {
   const { organization, lifecycle, leadership = [], member_counts: members = {}, events = {}, budget = {}, compliance = {}, pending_approvals_count: pendingApprovals = 0 } = overview;
   const accreditation = accreditationBadge(compliance.accreditation_status);
   const name = formatDisplayText(organization.name);
-  const registration = { id: organization.id, name, lifecycle_status: lifecycle.status, review_remarks: lifecycle.review_remarks, administrators_count: members.ADMIN ?? 0 };
+  const universityWide = !organization.college_id && !organization.college;
+  const registration = { id: organization.id, name, lifecycle_status: lifecycle.status, review_remarks: lifecycle.review_remarks, administrators_count: members.ADMIN ?? 0, is_university_wide: universityWide };
   const registrationFinished = lifecycle.status === 'active' && (members.ADMIN ?? 0) > 0;
   const hasEvents = (events.upcoming || []).length + (events.recent || []).length > 0;
 
@@ -231,7 +232,7 @@ export default function SaoOrganizationOverviewPage() {
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm font-medium text-ink-muted">{lifecycle.status === 'active' ? 'No administrators or officers yet. Add the first Admin account so the organization can sign in.' : 'No administrators or officers yet. The first Admin account is added after SAO approves the registration.'}</p>}
+          ) : <p className="text-sm font-medium text-ink-muted">{lifecycle.status === 'active' ? `No administrators or officers yet. ${universityWide ? 'Add the Admin account so the organization can sign in.' : 'The Department Head names the organization head with Give access.'}` : 'No administrators or officers yet. The first Admin account is added after SAO approves the registration.'}</p>}
         </Section>
 
         <Section id="members" title="Members by role">
