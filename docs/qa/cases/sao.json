@@ -940,7 +940,7 @@
     "preconditions": "Signed in as SAO 990001. Admin 900001 generated and submitted a financial report and Department Head 940001 approved it first.",
     "steps": [
       "1. Open the Financial reports tab and find the report with the amber status.",
-      "2. Select View and read the window.",
+      "2. Select Review and read the window.",
       "3. Select Download PDF.",
       "4. Select Approve.",
       "5. Read the box and select Approve report.",

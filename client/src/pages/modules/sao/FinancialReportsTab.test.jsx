@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancialReportsTab from './FinancialReportsTab';
 
@@ -13,11 +13,13 @@ const approvalMocks = vi.hoisted(() => ({
 }));
 const systemMocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn() }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 vi.mock('../../../services/financeService', () => financeMocks);
 vi.mock('../../../services/approvalService', () => approvalMocks);
 vi.mock('../../../services/systemAdministrationService', () => systemMocks);
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../../lib/notify', () => ({ default: toasts }));
 
 const report = {
   id: 8,
@@ -32,8 +34,7 @@ const report = {
 };
 
 async function viewReportFromMenu() {
-  fireEvent.click(screen.getByRole('button', { name: 'Actions for September Income Statement' }));
-  fireEvent.click(await screen.findByRole('menuitem', { name: 'View report' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Review September Income Statement' }));
 }
 
 describe('FinancialReportsTab', () => {
@@ -98,12 +99,27 @@ describe('FinancialReportsTab', () => {
     expect(screen.getByText('SBO Adviser', { selector: 'span' })).toBeInTheDocument();
   });
 
-  it('offers pending decisions in the report row menu', async () => {
+  it('lists each report as one aligned Report, Status, Details, Action row', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: { data: [report, { ...report, id: 9, title: 'October Financial Report', document_type: 'financial_report', submission_status: 'approved' }], current_page: 1, per_page: 20, total: 2 } });
     render(<FinancialReportsTab />);
-    await screen.findByText('September Income Statement');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for September Income Statement' }));
-    expect(screen.getByRole('menuitem', { name: 'Download PDF' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Approve' }));
+
+    const inbox = await screen.findByRole('region', { name: 'Report inbox' });
+    ['Report', 'Status', 'Details', 'Action'].forEach((name) => expect(within(inbox).getByText(name)).toBeInTheDocument());
+    const rows = within(inbox).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => expect(row.firstElementChild.children).toHaveLength(4));
+    expect(within(rows[0]).getByText('Awaiting SAO review')).toBeInTheDocument();
+    expect(within(rows[0]).getByText(/Income Statement/, { selector: 'p:not(.font-semibold)' })).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Approved')).toBeInTheDocument();
+    expect(within(rows[1]).getByRole('button', { name: 'View October Financial Report' })).toBeInTheDocument();
+    expect(within(inbox).queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+  });
+
+  it('offers Download PDF and the pending decisions in the report drawer', async () => {
+    render(<FinancialReportsTab />);
+    await viewReportFromMenu();
+    expect(await screen.findByRole('button', { name: 'Download PDF' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'approved' }));
   });
@@ -147,7 +163,19 @@ describe('FinancialReportsTab', () => {
     await viewReportFromMenu();
     fireEvent.click(await screen.findByRole('button', { name: 'Receipts.pdf' }));
 
-    expect(await screen.findByText('Allow pop-ups to open this file.')).toBeInTheDocument();
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Allow pop-ups to open this file.'));
+  });
+
+  it('cuts a long supporting document name with an ellipsis and keeps it whole in the title', async () => {
+    const longName = 'official-receipts-and-liquidation-statement-for-the-foundation-day-2026.pdf';
+    const withDocument = { ...report, supporting_documents: [{ index: 0, name: longName, open_url: '/financial-reports/8/documents/0' }] };
+    financeMocks.getFinancialReport.mockResolvedValue({ data: { report: withDocument, transactions: [] } });
+    render(<FinancialReportsTab />);
+
+    await viewReportFromMenu();
+    const link = await screen.findByRole('button', { name: longName });
+    expect(link).toHaveAttribute('title', longName);
+    expect(within(link).getByText(longName)).toHaveClass('truncate');
   });
 
   it('shows the empty inbox message', async () => {
