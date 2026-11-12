@@ -3,6 +3,7 @@ import { peso as formatCurrency } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
+import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -478,8 +479,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     // browsable event table is loaded separately with backend pagination.
     const canLoadTasks = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
     const requests = canLoadTasks
-      ? [fetchAllPages((p) => getEvents(p).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
-      : [fetchAllPages((p) => getEvents(p).then((r) => r.data)), Promise.resolve([])];
+      ? [fetchAllPages((p) => getEvents({ ...p, ...closedPeriodParams(currentUserRole) }).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
+      : [fetchAllPages((p) => getEvents({ ...p, ...closedPeriodParams(currentUserRole) }).then((r) => r.data)), Promise.resolve([])];
     Promise.all(requests)
       .then(([eventList, taskList]) => {
         setEvents(eventList);
@@ -526,7 +527,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     let active = true;
     const timer = window.setTimeout(() => {
       setEventListLoading(true);
-      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort })
+      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort, ...closedPeriodParams(currentUserRole) })
         .then((response) => {
           if (!active) return;
           setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
@@ -537,7 +538,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }, 250);
 
     return () => { active = false; window.clearTimeout(timer); };
-  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search]);
+  }, [currentUserRole, dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search]);
 
   useEffect(() => {
     setActiveTab(initialTab);

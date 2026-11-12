@@ -33,3 +33,9 @@ export function writeSelectedPeriod(period) {
     // The period still applies to this page view when browser storage is unavailable.
   }
 }
+
+// The server ignores the semester header for a student, so the lists a student reads ask for a closed semester by query instead.
+export function closedPeriodParams(role) {
+  const period = role === 'STUDENT' ? readSelectedPeriod() : null;
+  return period?.status === 'completed' ? { academic_semester_id: period.id } : {};
+}

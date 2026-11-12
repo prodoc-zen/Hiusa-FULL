@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import EventsPage from './EventsPage';
+import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 
 const eventMocks = vi.hoisted(() => ({
   getEvents: vi.fn(),
@@ -120,5 +121,54 @@ describe('Student My attendance panel', () => {
     await screen.findByText('Sports Fest 2024');
     expect(screen.queryByRole('region', { name: 'Personal attendance summary' })).not.toBeInTheDocument();
     expect(eventMocks.getPersonalAttendance).not.toHaveBeenCalled();
+  });
+});
+
+describe('Student events list in a closed semester', () => {
+  const closed = { id: 2, number: 2, status: 'completed', academic_year: { label: '2025-2026' } };
+  const upcoming = { id: 4, number: 2, status: 'upcoming', academic_year: { label: '2026-2027' } };
+  const past = { ...event, id: 9, title: 'Foundation Day 2025', status: 'completed', start_time: '2025-12-01T08:00:00Z', end_time: '2025-12-01T10:00:00Z' };
+  const listParams = () => eventMocks.getEvents.mock.calls.map(([params]) => params);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem('user', JSON.stringify({ school_id: 2100142, role: 'STUDENT' }));
+    eventMocks.getEvents.mockResolvedValue(page(past));
+    eventMocks.getPersonalAttendance.mockResolvedValue(summary());
+  });
+
+  it('asks for the closed semester chosen in the top bar and shows its events read only', async () => {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
+    renderEvents();
+
+    await screen.findByText('Foundation Day 2025');
+    expect(listParams().length).toBeGreaterThan(0);
+    expect(listParams().every((params) => params?.academic_semester_id === 2)).toBe(true);
+    expect(screen.queryByRole('button', { name: /^(New event|Register|Edit|Delete)/ })).not.toBeInTheDocument();
+  });
+
+  it('sends no semester while the current one is chosen', async () => {
+    renderEvents();
+
+    await screen.findByText('Foundation Day 2025');
+    expect(listParams().some((params) => params && 'academic_semester_id' in params)).toBe(false);
+  });
+
+  it('never sends an upcoming semester for a student', async () => {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify(upcoming));
+    renderEvents();
+
+    await screen.findByText('Foundation Day 2025');
+    expect(listParams().some((params) => params && 'academic_semester_id' in params)).toBe(false);
+  });
+
+  it('leaves an officer on the top bar header, with no semester in the query', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 900004, role: 'SBO_OFFICER' }));
+    localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
+    renderEvents();
+
+    await screen.findByText('Foundation Day 2025');
+    expect(listParams().some((params) => params && 'academic_semester_id' in params)).toBe(false);
   });
 });

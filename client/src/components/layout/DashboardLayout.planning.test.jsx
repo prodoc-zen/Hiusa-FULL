@@ -14,13 +14,15 @@ vi.mock('./TopBar', () => ({ default: () => <div>Top bar</div> }));
 
 const live = { id: 3, number: 1, status: 'active', academic_year: { label: '2026-2027' } };
 const upcoming = { id: 4, number: 2, status: 'upcoming', academic_year: { label: '2026-2027' } };
+const closed = { id: 2, number: 2, status: 'completed', academic_year: { label: '2025-2026' } };
 
-function renderLayout() {
+function renderLayout(path = '/dashboard/department-head') {
   return render(
-    <MemoryRouter initialEntries={['/dashboard/department-head']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route path="department-head" element={<p>Dean page</p>} />
+          <Route path="student" element={<p>Student page</p>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -62,6 +64,19 @@ describe('DashboardLayout planning and workspace banners', () => {
     await screen.findByText('Dean page');
 
     expect(screen.queryByRole('complementary', { name: 'Planning' })).not.toBeInTheDocument();
+  });
+
+  it('tells a student viewing a closed semester it is read only, never that they are planning', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
+    renderLayout('/dashboard/student');
+
+    const banner = await screen.findByRole('complementary', { name: 'Closed semester' });
+    expect(banner).toHaveTextContent('You are viewing AY 2025-2026 · 2nd Semester, a closed semester. Everything here is read only.');
+    expect(screen.queryByRole('complementary', { name: 'Planning' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to current semester' }));
+    expect(screen.queryByRole('complementary', { name: 'Closed semester' })).not.toBeInTheDocument();
   });
 
   it('shows the viewing banner for a dean inside an organization space, not the old oversight copy', async () => {

@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CastVoteRedirectPage from './CastVoteRedirectPage';
+import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 
 const { getElectionDetails, getElections } = vi.hoisted(() => ({ getElectionDetails: vi.fn(), getElections: vi.fn() }));
 vi.mock('../../../services/electionService', () => ({ getElectionDetails, getElections }));
@@ -40,6 +41,19 @@ describe('CastVoteRedirectPage', () => {
     expect(within(cardFor('Voted Election')).getByText('Voted')).toBeInTheDocument();
     expect(within(cardFor('Upcoming Election')).getByText('Upcoming')).toBeInTheDocument();
     expect(within(cardFor('Closed Election')).getByText('Closed')).toBeInTheDocument();
+  });
+
+  it('lists the elections of the closed semester chosen in the top bar, none of them votable', async () => {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify({ id: 2, number: 2, status: 'completed', academic_year: { label: '2025-2026' } }));
+    const list = [{ id: 4, title: 'Closed Election', status: 'closed', finalized_at: iso(-9 * HOUR), start_time: iso(-8 * HOUR), end_time: iso(-6 * HOUR), results_visible: true }];
+    getElections.mockResolvedValue(list);
+    getElectionDetails.mockResolvedValue({ ...list[0], my_votes: [] });
+    renderPage();
+
+    await screen.findByText('Closed Election');
+    expect(getElections).toHaveBeenCalledWith({ academic_semester_id: 2 });
+    expect(within(cardFor('Closed Election')).queryByRole('link', { name: /vote/i })).not.toBeInTheDocument();
+    localStorage.removeItem(PERIOD_KEY);
   });
 
   it('shows the receipt for an election already voted in, and offers the ballot only for open ones', async () => {

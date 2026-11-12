@@ -12,7 +12,7 @@ import { clearApiCache } from '../../services/api';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { getActiveAcademicPeriod, getAcademicPeriods } from '../../services/systemAdministrationService';
 import { unwrapList } from '../../services/pagination';
-import { getNotificationDestination } from '../../utils/notificationLinks';
+import { getNotificationDestination, getStoredRole } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
 import { peso } from '../../lib/format';
@@ -79,7 +79,7 @@ export default function TopBar({ onMenuToggle }) {
         setAvailablePeriods(periods);
         const stored = readSelectedPeriod();
         const known = periods.find((period) => period.id === stored?.id);
-        if (stored && periods.length > 0 && (!known || known.status === 'completed')) {
+        if (stored && periods.length > 0 && (!known || (known.status === 'completed' && getStoredRole() !== 'STUDENT'))) {
           writeSelectedPeriod(null);
           setViewingPeriod(null);
           clearApiCache();
@@ -125,6 +125,7 @@ export default function TopBar({ onMenuToggle }) {
   const showCart = role === 'STUDENT';
   const hasRecords = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER'].includes(role);
   const canPlanAhead = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'].includes(role);
+  const viewsClosedInPlace = role === 'STUDENT';
   const { subAccount } = useActiveSubAccount();
   const workspaces = useWorkspaces({ enabled: role !== 'SUPER_ADMIN', activeSubAccount: subAccount });
   const accountProfiles = workspaces.profiles;
@@ -148,7 +149,7 @@ export default function TopBar({ onMenuToggle }) {
 
   const handleSelectPeriod = (period) => {
     setPeriodDropdownOpen(false);
-    if (period.status === 'completed') {
+    if (period.status === 'completed' && !viewsClosedInPlace) {
       navigate('/dashboard/records');
       return;
     }
@@ -332,7 +333,7 @@ export default function TopBar({ onMenuToggle }) {
       <img src={hiusaLogo} alt="" className="hidden h-8 w-8 shrink-0 object-contain min-[420px]:block lg:hidden" />
 
       {(() => {
-        const currentDisplayPeriod = (canPlanAhead && viewingPeriod) || activeAcademicPeriod;
+        const currentDisplayPeriod = ((canPlanAhead || viewsClosedInPlace) && viewingPeriod) || activeAcademicPeriod;
         const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
         const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
         return (
@@ -370,11 +371,11 @@ export default function TopBar({ onMenuToggle }) {
                   >
                     <div className="border-b border-line px-3 pb-2 pt-1.5">
                       <p className="text-sm font-semibold text-ink">School year and semester</p>
-                      <p className="mt-0.5 text-xs text-ink-muted">Pick an upcoming semester to plan ahead. Closed semesters are in Records.</p>
+                      <p className="mt-0.5 text-xs text-ink-muted">{viewsClosedInPlace ? 'Closed semesters show their events and election results, read only.' : 'Pick an upcoming semester to plan ahead. Closed semesters are in Records.'}</p>
                     </div>
                     <div className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
                       {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : []))
-                        .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords : canPlanAhead))
+                        .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords || viewsClosedInPlace : canPlanAhead))
                         .map((p) => {
                         const isSelected = p.id === currentDisplayPeriod.id;
                         const isLive = p.id === activeAcademicPeriod?.id;
@@ -391,7 +392,7 @@ export default function TopBar({ onMenuToggle }) {
                             <div>
                               <p className="text-sm font-medium text-ink">AY {p.academic_year?.label} · {p.number === 1 ? '1st' : '2nd'} Semester</p>
                               <p className="text-xs text-ink-muted">
-                                {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : 'Closed, open in Records'}
+                                {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : viewsClosedInPlace ? 'Closed, read only' : 'Closed, open in Records'}
                               </p>
                             </div>
                             {isSelected && <Check size={16} aria-hidden="true" className="text-brand-700" />}

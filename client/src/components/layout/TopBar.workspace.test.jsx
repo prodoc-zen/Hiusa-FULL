@@ -153,6 +153,41 @@ describe('TopBar school year picker', () => {
     expect(within(list).queryByRole('button', { name: 'Open records' })).not.toBeInTheDocument();
   });
 
+  describe('for a student', () => {
+    beforeEach(() => {
+      localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Sam', last_name: 'Student' }));
+    });
+
+    it('lists the current and the closed semesters, never an upcoming one', async () => {
+      renderTopBar('/dashboard/student');
+      const list = await openPicker();
+
+      expect(within(list).getByRole('button', { name: /AY 2026-2027 · 1st Semester/ })).toBeInTheDocument();
+      expect(within(list).getByRole('button', { name: /AY 2025-2026 · 2nd Semester/ })).toBeInTheDocument();
+      expect(within(list).queryByRole('button', { name: /AY 2026-2027 · 2nd Semester/ })).not.toBeInTheDocument();
+    });
+
+    it('switches to a closed semester in place instead of opening Records', async () => {
+      renderTopBar('/dashboard/student');
+      const list = await openPicker();
+
+      fireEvent.click(within(list).getByRole('button', { name: /AY 2025-2026 · 2nd Semester/ }));
+
+      expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/student');
+      expect(JSON.parse(localStorage.getItem(PERIOD_KEY)).id).toBe(2);
+      expect(await screen.findByText('Archive')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Academic Period: AY 2025-2026 · 2nd Semester/ })).toBeInTheDocument();
+    });
+
+    it('keeps a saved closed semester across a reload', async () => {
+      localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
+      renderTopBar('/dashboard/student');
+
+      expect(await screen.findByRole('button', { name: /Academic Period: AY 2025-2026 · 2nd Semester/ })).toBeInTheDocument();
+      expect(JSON.parse(localStorage.getItem(PERIOD_KEY)).id).toBe(2);
+    });
+  });
+
   it('drops a saved choice that is gone or closed so the API never gets a stale period', async () => {
     localStorage.setItem(PERIOD_KEY, JSON.stringify({ ...closed }));
     renderTopBar('/dashboard/admin');
