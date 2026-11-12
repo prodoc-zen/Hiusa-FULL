@@ -38,6 +38,8 @@ const LEADERSHIP_TITLES = [
   "Secretary",
 ];
 
+const positionLabel = (admin) => formatDisplayText(admin.position_title) || "Organization Admin";
+
 const emptyForm = () => ({
   editing_school_id: null,
   school_id: "",
@@ -454,7 +456,7 @@ export default function SystemAdminsPage() {
                           {admin.organization?.acronym || formatDisplayText(admin.organization?.name)}
                         </td>
                         <td className="break-words px-4 py-2.5 align-middle text-ink">
-                          {formatDisplayText(admin.position_title)}
+                          {positionLabel(admin)}
                         </td>
                         <td className="px-4 py-2.5 align-middle"><StatusBadge status={admin.account_status || "active"} /></td>
                         <td className="px-4 py-2.5 text-right align-middle">{rowActions(admin)}</td>
@@ -475,7 +477,7 @@ export default function SystemAdminsPage() {
                         <div className="min-w-0 flex-1">
                           <AdminIdentity admin={admin} />
                           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-muted-strong">
-                            <span>{[admin.organization?.acronym || formatDisplayText(admin.organization?.name), formatDisplayText(admin.position_title)].filter(Boolean).join(", ")}</span>
+                            <span>{[admin.organization?.acronym || formatDisplayText(admin.organization?.name), positionLabel(admin)].filter(Boolean).join(", ")}</span>
                             {admin.account_status !== "active" && <StatusBadge status={admin.account_status} />}
                           </p>
                         </div>

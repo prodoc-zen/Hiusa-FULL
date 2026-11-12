@@ -144,6 +144,21 @@ describe('SystemAdminsPage', () => {
     expect(within(cards).getByRole('button', { name: 'Actions for Ana Reyes' })).toBeInTheDocument();
   });
 
+  it('shows Organization Admin as the position when none is set, and keeps a set one', async () => {
+    serviceMocks.getSystemAdmins.mockResolvedValue({ data: [
+      { school_id: 10101, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test', organization_id: 8, account_status: 'active', position_title: 'Adviser', organization: { id: 8, name: 'Computing Council', acronym: 'CC' } },
+      { school_id: 20202, first_name: 'Ben', last_name: 'Cruz', email: 'ben@example.test', organization_id: 9, account_status: 'active', position_title: null, organization: { id: 9, name: 'Chess Club', acronym: 'CHESS' } },
+    ] });
+    renderPage();
+    const table = await screen.findByRole('table');
+    const rows = within(table).getAllByRole('row');
+    const benRow = rows.find((row) => within(row).queryByText('Ben Cruz'));
+    const anaRow = rows.find((row) => within(row).queryByText('Ana Reyes'));
+    expect(within(benRow).getByText('Organization Admin')).toBeInTheDocument();
+    expect(within(anaRow).getByText('Adviser')).toBeInTheDocument();
+    expect(within(anaRow).queryByText('Organization Admin')).not.toBeInTheDocument();
+  });
+
   describe('admin profiles', () => {
     const profile = (overrides) => ({
       school_id: 10101, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test', organization_id: 8, account_status: 'active', position_title: 'Adviser',
