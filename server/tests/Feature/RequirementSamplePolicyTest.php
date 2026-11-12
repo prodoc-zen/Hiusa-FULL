@@ -31,6 +31,12 @@ class RequirementSamplePolicyTest extends TestCase
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]));
     }
 
+    private function activeSemester(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+    }
+
     public static function catalogs(): array
     {
         return [
@@ -43,6 +49,7 @@ class RequirementSamplePolicyTest extends TestCase
     #[DataProvider('catalogs')]
     public function test_a_publisher_cannot_create_a_requirement_without_a_sample(string $url, string $table, array $payload): void
     {
+        $this->activeSemester();
         $count = DB::table($table)->count();
         $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors(['template', 'template_url']);
         $this->assertDatabaseCount($table, $count);
@@ -53,6 +60,7 @@ class RequirementSamplePolicyTest extends TestCase
     #[DataProvider('catalogs')]
     public function test_a_sample_is_created_and_replaced_atomically_in_the_same_request(string $url, string $table, array $payload): void
     {
+        $this->activeSemester();
         $id = $this->post($url, [...$payload, 'template' => UploadedFile::fake()->create('sample.pdf', 10, 'application/pdf')], ['Accept' => 'application/json'])
             ->assertCreated()->assertJsonPath('template_original_name', 'sample.pdf')->assertJsonMissingPath('template_path')->json('id');
         $path = DB::table($table)->where('id', $id)->value('template_path');
@@ -68,12 +76,14 @@ class RequirementSamplePolicyTest extends TestCase
         $this->deleteJson($url.'/'.$id.'/template')->assertConflict();
         $this->putJson($url.'/'.$id, [...$payload, 'is_active' => false])->assertOk();
         $this->deleteJson($url.'/'.$id.'/template')->assertOk();
+        DB::table($table)->where('id', $id)->update(['academic_semester_id' => null]);
         $this->putJson($url.'/'.$id, [...$payload, 'is_active' => true])->assertUnprocessable()->assertJsonValidationErrors('template');
     }
 
     #[DataProvider('catalogs')]
     public function test_a_failed_sample_upload_rolls_back_the_requirement(string $url, string $table, array $payload): void
     {
+        $this->activeSemester();
         $count = DB::table($table)->count();
         $disk = \Mockery::mock(FilesystemAdapter::class);
         $disk->shouldReceive('putFileAs')->once()->andReturn(false);
@@ -94,6 +104,7 @@ class RequirementSamplePolicyTest extends TestCase
 
     public function test_sample_permissions_and_file_validation_cannot_be_bypassed(): void
     {
+        $this->activeSemester();
         $payload = self::catalogs()['event'][2];
         $this->post('/api/event-requirements', [...$payload, 'template' => UploadedFile::fake()->image('photo.png')], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('template');
         $this->post('/api/event-requirements', [...$payload, 'template' => UploadedFile::fake()->create('sample.pdf', 10, 'application/pdf'), 'template_url' => 'https://example.edu/format'], ['Accept' => 'application/json'])->assertUnprocessable();
@@ -105,6 +116,7 @@ class RequirementSamplePolicyTest extends TestCase
     #[DataProvider('catalogs')]
     public function test_standalone_sample_upload_cannot_silently_accept_a_second_link(string $url, string $table, array $payload): void
     {
+        $this->activeSemester();
         $id = $this->postJson($url, [...$payload, 'template_url' => 'https://example.edu/original'])->assertCreated()->json('id');
         $this->post($url.'/'.$id.'/template', [
             'template' => UploadedFile::fake()->create('sample.pdf', 10, 'application/pdf'),

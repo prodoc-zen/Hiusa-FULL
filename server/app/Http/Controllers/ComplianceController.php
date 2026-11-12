@@ -20,6 +20,7 @@ use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -86,12 +87,19 @@ class ComplianceController extends Controller
         ]);
 
         $samples = app(RequirementSampleService::class);
-        $activeSemester = AcademicSemester::selected($request);
-        $this->assertUniqueRequirementName($data['name'], $data['academic_year'], $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester->id : null, $data['category'] ?? ($data['name'] === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization'));
+        $semester = AcademicSemester::selected($request);
+        if (! $semester) {
+            throw ValidationException::withMessages(['academic_year' => ['There is no active semester. Activate or select a semester before adding a requirement.']]);
+        }
+        if ($semester->academicYear->label !== $data['academic_year']) {
+            throw ValidationException::withMessages(['academic_year' => ["New requirements belong to {$semester->academicYear->label}, the year you are working in. Switch the semester to add one for another year."]]);
+        }
+        $this->assertUniqueRequirementName($data['name'], $data['academic_year'], $semester->id, $data['category'] ?? ($data['name'] === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization'));
         $requirementType = $samples->save(new ComplianceRequirementType, [
             ...$data,
+            'deadline_at' => $this->deadlineDate($data['deadline_at'])->endOfDay(),
             'allowed_extensions' => $data['allowed_extensions'] ?? ['pdf'],
-            'academic_semester_id' => $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester?->id : null,
+            'academic_semester_id' => $semester->id,
             'is_active' => $data['is_active'] ?? true,
             'created_by' => $request->user()->school_id,
         ], $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates');
@@ -150,6 +158,10 @@ class ComplianceController extends Controller
             $this->assertUniqueRequirementName($data['name'] ?? $requirementType->name, $requirementType->academic_year, $requirementType->academic_semester_id, $requirementType->category, $requirementType->id);
         }
         $previousDeadline = $requirementType->deadline_at;
+        if (array_key_exists('deadline_at', $data)) {
+            $date = $this->deadlineDate($data['deadline_at']);
+            $data['deadline_at'] = $date->isSameDay($previousDeadline) ? $previousDeadline : $previousDeadline->copy()->setDateFrom($date);
+        }
         $samples = app(RequirementSampleService::class);
         $samples->save($requirementType, $data, $request, ComplianceRequirementType::SUPPORTED_EXTENSIONS, 'compliance-requirement-templates');
 
@@ -171,6 +183,11 @@ class ComplianceController extends Controller
         }
 
         return response()->json($requirementType);
+    }
+
+    private function deadlineDate(string $value): Carbon
+    {
+        return Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfDay();
     }
 
     private function assertUniqueRequirementName(string $name, string $year, ?int $semesterId, string $category, ?int $except = null): void
