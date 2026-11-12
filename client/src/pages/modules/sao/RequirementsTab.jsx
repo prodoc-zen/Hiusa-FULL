@@ -25,7 +25,7 @@ const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
 const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
 
-export default function RequirementsTab({ currentAcademicYear, noSemester = false, semesterId = '', onChanged, category = 'organization' }) {
+export default function RequirementsTab({ currentAcademicYear, noSemester = false, semester = null, onChanged, category = 'organization' }) {
   const semestral = category === 'semestral_report';
   const renewal = category === 'renewal';
   const [types, setTypes] = useState({ loading: true, error: null, items: [], total: 0 });
@@ -45,11 +45,13 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
   const [sampleFile, setSampleFile] = useState(null);
   const [sampleUrl, setSampleUrl] = useState('');
   const loadVersion = useRef(0);
+  const deadlineRange = semester?.starts_on && semester?.ends_on && (!typeModal?.type || typeModal.type.academic_semester_id === semester.id) ? semester : null;
+  const deadlineRangeMessage = deadlineRange ? `${manilaDate(deadlineRange.starts_on, 'long')} and ${manilaDate(deadlineRange.ends_on, 'long')}` : '';
 
   const loadTypes = useCallback((refresh = false) => {
     const version = ++loadVersion.current;
     setTypes((current) => ({ ...current, loading: true, error: null }));
-    const params = { per_page: 10, page, category, ...(semesterId ? { academic_semester_id: semesterId } : {}) };
+    const params = { per_page: 10, page, category };
     const request = refresh ? getRequirementTypes(params, { cache: false }) : getRequirementTypes(params);
     request
       .then((response) => {
@@ -58,7 +60,7 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
       .catch((err) => {
         if (version === loadVersion.current) setTypes((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load requirement types.') }));
       });
-  }, [category, page, semesterId]);
+  }, [category, page]);
 
   useEffect(() => {
     const requests = loadVersion;
@@ -87,7 +89,9 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
     event.preventDefault();
     const errors = {};
     if (!typeForm.academic_year.trim()) errors.academic_year = NO_SEMESTER_MESSAGE;
+    const storedDeadline = typeModal?.type?.deadline_at ? manilaDateStamp(new Date(typeModal.type.deadline_at)) : null;
     if (!typeForm.deadline_at) errors.deadline_at = 'Set the deadline for organizations.';
+    else if (deadlineRange && typeForm.deadline_at !== storedDeadline && (typeForm.deadline_at < deadlineRange.starts_on || typeForm.deadline_at > deadlineRange.ends_on)) errors.deadline_at = `The deadline must fall inside this semester, between ${deadlineRangeMessage}.`;
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
     if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
     if (sampleMode === 'file' && !sampleFile && !typeModal?.type?.template_original_name) errors.sample = 'Choose a sample file.';
@@ -264,8 +268,8 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
               {typeForm.academic_year ? <option value={typeForm.academic_year}>{typeForm.academic_year}</option> : <option value="">No active semester</option>}
             </Select>
           </Field>
-          <Field label="Deadline" required error={fieldErrors.deadline_at}>
-            <Input ref={(node) => { fieldRefs.current.deadline_at = node; }} type="date" value={typeForm.deadline_at} onChange={(event) => { setTypeForm({ ...typeForm, deadline_at: event.target.value }); setFieldErrors((current) => ({ ...current, deadline_at: null })); }} />
+          <Field label="Deadline" required error={fieldErrors.deadline_at} hint={deadlineRange ? `Pick a day from ${manilaDate(deadlineRange.starts_on, 'long')} to ${manilaDate(deadlineRange.ends_on, 'long')}.` : undefined}>
+            <Input ref={(node) => { fieldRefs.current.deadline_at = node; }} type="date" min={deadlineRange?.starts_on} max={deadlineRange?.ends_on} value={typeForm.deadline_at} onChange={(event) => { setTypeForm({ ...typeForm, deadline_at: event.target.value }); setFieldErrors((current) => ({ ...current, deadline_at: null })); }} />
           </Field>
           <Field label="Name" required error={fieldErrors.name} className="sm:col-span-2">
             <Input ref={(node) => { fieldRefs.current.name = node; }} placeholder="e.g. Accomplishment report" value={typeForm.name} onChange={(event) => { setTypeForm({ ...typeForm, name: event.target.value }); setFieldErrors((current) => ({ ...current, name: null })); }} />

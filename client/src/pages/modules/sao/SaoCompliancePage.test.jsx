@@ -13,13 +13,14 @@ const mocks = vi.hoisted(() => ({
   reviewSubmission: vi.fn(),
   downloadSubmissionDocument: vi.fn(),
   getAcademicYears: vi.fn(),
+  getAcademicPeriods: vi.fn(),
   getSystemOrganizations: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock('../../../services/complianceService', () => mocks);
-vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getSystemOrganizations: mocks.getSystemOrganizations }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getAcademicPeriods: mocks.getAcademicPeriods, getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
 vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester }) => <p data-no-semester={String(Boolean(noSemester))}>Event requirements content</p> }));
@@ -71,6 +72,7 @@ describe('SaoCompliancePage', () => {
     mocks.getRequirementTypes.mockResolvedValue({ data: { data: [requirementType] } });
     mocks.getSubmissions.mockResolvedValue({ data: { data: [submission], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
     mocks.getAcademicYears.mockResolvedValue([{ id: 1, label: '2026-2027', is_current: true }]);
+    mocks.getAcademicPeriods.mockResolvedValue([{ id: 9, number: 1, is_active: true, academic_year: { label: '2026-2027' } }, { id: 10, number: 2, academic_year: { label: '2026-2027' } }]);
     mocks.getSystemOrganizations.mockResolvedValue({ data: [], current_page: 1, last_page: 1 });
     openMocks.openProtectedFile.mockResolvedValue();
     mocks.reviewSubmission.mockResolvedValue({ data: {} });
@@ -83,6 +85,32 @@ describe('SaoCompliancePage', () => {
     const headers = within(screen.getByRole('table')).getAllByRole('columnheader').map((header) => header.textContent);
     expect(headers.at(-1)).toBe('Actions');
     expect(headers).not.toContain('Next action');
+  });
+
+  it('has no semester picker of its own and leaves the choice to the top bar', async () => {
+    renderPage();
+    await screen.findAllByText('Computing Society');
+    expect(screen.queryByRole('combobox', { name: 'Semester' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Active semester')).not.toBeInTheDocument();
+    expect(mocks.getAcademicPeriods).not.toHaveBeenCalled();
+  });
+
+  it.each(['requirements', 'renewal-requirements', 'semestral-requirements'])('asks for the %s list without naming a semester so the top bar choice applies', async (tab) => {
+    renderPage(`/dashboard/super-admin/compliance?tab=${tab}`);
+    await screen.findAllByText('Officer Roster');
+    expect(mocks.getRequirementTypes).toHaveBeenCalled();
+    for (const [params] of mocks.getRequirementTypes.mock.calls) expect(params).not.toHaveProperty('academic_semester_id');
+    for (const call of mocks.getComplianceStatus.mock.calls) expect(call[0] ?? {}).not.toHaveProperty('academic_semester_id');
+  });
+
+  it('gives the requirement form the range of the semester the status names', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { ...status, academic_semester_id: 9, semester_starts_on: '2026-08-01', semester_ends_on: '2026-12-31' } });
+    renderPage('/dashboard/super-admin/compliance?tab=requirements');
+    await waitFor(() => expect(mocks.getComplianceStatus).toHaveBeenCalled());
+    fireEvent.click((await screen.findAllByRole('button', { name: 'New requirement' }))[0]);
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Deadline/)).toHaveAttribute('max', '2026-12-31'));
+    expect(within(dialog).getByLabelText(/^Deadline/)).toHaveAttribute('min', '2026-08-01');
   });
 
   it('blocks everyone but the SAO', () => {
