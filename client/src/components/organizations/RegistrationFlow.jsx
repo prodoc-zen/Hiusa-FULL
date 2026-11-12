@@ -14,7 +14,8 @@ function titleFor(organization, viewerRole, fallback) {
   if (organization.lifecycle_status !== 'active') return fallback;
   if (!hasAdministrators(organization)) return 'Active';
   if (Number(organization.administrators_count) === 0) {
-    return viewerRole === 'SUPER_ADMIN' ? 'Add the first Admin account' : 'Approved: waiting for SAO to add the first Admin account';
+    if (organization.is_university_wide) return viewerRole === 'SUPER_ADMIN' ? 'Add the Admin account' : 'Approved: waiting for SAO to add the Admin account';
+    return viewerRole === 'DEPARTMENT_HEAD' ? 'Name the organization head' : 'Approved: waiting for the Department Head to name the organization head';
   }
   return 'Active: administrator can sign in';
 }
@@ -36,7 +37,7 @@ export function registrationView(organization, viewerRole) {
 export function RegistrationStepper({ organization, viewerRole, variant = 'full', className = '' }) {
   const { lifecycle } = registrationView(organization, viewerRole);
   const steps = organization.is_university_wide ? lifecycle.steps.map((step) => step.key === 'registered' ? { ...step, label: 'College endorsement', actor: null, state: 'skipped', note: 'Not required for a unified organization' } : step) : lifecycle.steps;
-  return <div className={className}><FlowStepper steps={steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} />{variant === 'full' && organization.is_university_wide && <p className="mt-3 text-xs text-ink-muted-strong">SAO approves unified organizations directly and adds the first Admin account.</p>}</div>;
+  return <div className={className}><FlowStepper steps={steps} variant={variant} ariaLabel={`Registration progress for ${organization.name}`} />{variant === 'full' && organization.is_university_wide && <p className="mt-3 text-xs text-ink-muted-strong">SAO approves unified organizations directly and adds the Admin account.</p>}</div>;
 }
 
 const LINE_TONE = {
