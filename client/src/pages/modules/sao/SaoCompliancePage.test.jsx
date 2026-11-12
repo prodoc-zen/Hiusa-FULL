@@ -287,14 +287,14 @@ describe('SaoCompliancePage', () => {
       mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, status: 'approved' }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
       renderPage('/dashboard/super-admin/compliance?tab=review&organization=7');
       await screen.findAllByText('Semestral Accomplishment Report');
-      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(5)');
+      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(6)');
       expect(within(cell).getAllByText('Approved')).toHaveLength(1);
     });
 
     it('still explains a submission that is not decided yet', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review&organization=7');
       await screen.findAllByText('Semestral Accomplishment Report');
-      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(5)');
+      const cell = document.querySelector('[data-view="table"] tbody tr td:nth-child(6)');
       expect(within(cell).getByText('Submitted')).toBeInTheDocument();
       expect(within(cell).getByText('Waiting for SAO review')).toBeInTheDocument();
     });
@@ -533,6 +533,20 @@ describe('SaoCompliancePage', () => {
 
       await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
       expect(mocks.downloadSubmissionDocument).not.toHaveBeenCalled();
+    });
+
+    it('shows the submitted file in its own File column and opens it from the row through the shared helper', async () => {
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, file_original_name: 'semestral-accomplishment-report-2026.pdf' }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      const table = await screen.findByRole('table', { name: 'Submissions to review' });
+      expect(within(table).getByRole('columnheader', { name: 'File' })).toBeInTheDocument();
+      const link = within(table).getByRole('button', { name: 'semestral-accomplishment-report-2026.pdf' });
+      expect(link).toHaveAttribute('title', 'semestral-accomplishment-report-2026.pdf');
+      expect(link.querySelector('.truncate')).not.toBeNull();
+
+      fireEvent.click(link);
+      await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
     });
 
     it('says the registration was withdrawn when its file is gone, closes the record and refreshes the queue', async () => {

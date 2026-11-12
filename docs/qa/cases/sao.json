@@ -788,7 +788,7 @@
       "4. Choose a combination that has no rows and read the message.",
       "5. Select Clear filters."
     ],
-    "expected": "The default status is Awaiting review. The count reads \"N submissions\" or \"1 submission\". Columns are Organization, Requirement (with Registration document, Renewal document or Semestral report), Submitted, Submitted by, Status. A filter with no rows shows \"No submissions match these filters\" with \"Try a different status or organization, or clear the filters.\" Clear filters returns to Awaiting review. With nothing at all the page says \"Nothing to review\". The organization list also holds registrations written as \"<Name> (registration)\".",
+    "expected": "The default status is Awaiting review. The count reads \"N submissions\" or \"1 submission\". Columns are Organization, Requirement (with Registration document, Renewal document or Semestral report), File (the file name, cut with an ellipsis, opens the file), Submitted, Submitted by, Status. A filter with no rows shows \"No submissions match these filters\" with \"Try a different status or organization, or clear the filters.\" Clear filters returns to Awaiting review. With nothing at all the page says \"Nothing to review\". The organization list also holds registrations written as \"<Name> (registration)\".",
     "priority": "High",
     "device": "Any",
     "type": "Functional",

@@ -12,6 +12,7 @@ import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { FileLink } from '../../../components/reviews/FileReviewList';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
@@ -168,6 +169,13 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           <p className="text-xs text-ink-muted">{documentKind(submission)}</p>
         </div>
       ),
+    },
+    {
+      key: 'file',
+      header: 'File',
+      render: (submission) => (submission.file_original_name
+        ? <div className="min-w-0 max-w-56"><FileLink name={submission.file_original_name} disabled={openingDocumentId === submission.id} onOpen={() => openDocument(submission)} /></div>
+        : <span className="text-ink-muted-strong">No file</span>),
     },
     { key: 'submitted_at', header: 'Submitted', render: (submission) => manilaDate(submission.submitted_at, 'long') },
     { key: 'submitted_by', header: 'Submitted by', render: (submission) => (submission.submitter ? `${submission.submitter.first_name} ${submission.submitter.last_name}` : 'Unknown') },
