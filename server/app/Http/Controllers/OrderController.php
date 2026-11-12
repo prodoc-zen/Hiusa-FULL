@@ -40,6 +40,7 @@ class OrderController extends Controller
 
         if ($personalView) {
             $query->where('student_id', $user->id);
+            $this->applyOwnOrderSearch($query, $filters['search'] ?? null);
         } else {
             $this->applyOrderFilters($query, $filters);
         }
@@ -245,6 +246,32 @@ class OrderController extends Controller
                     });
             });
         }
+    }
+
+    /**
+     * The search on a person's own order list. It reads only the order's own columns, never the buyer's profile
+     * or the reviewer's remarks, and a claim token matches only once it has been released (paid or claimed),
+     * the same rule that hides it from the response.
+     */
+    private function applyOwnOrderSearch(Builder $query, ?string $search): void
+    {
+        $search = trim((string) $search);
+        if ($search === '') {
+            return;
+        }
+        if (preg_match('/^ord[-\s]?(\d{0,18})$/i', $search, $reference)) {
+            if ($reference[1] !== '') {
+                $query->where('orders.id', (int) $reference[1]);
+            }
+
+            return;
+        }
+        $query->where(function (Builder $nested) use ($search) {
+            $nested->where('orders.id', 'like', "%{$search}%")
+                ->orWhere('orders.payment_reference', 'like', "%{$search}%")
+                ->orWhereHas('merchandise', fn (Builder $item) => $item->where('name', 'like', "%{$search}%")->orWhere('category', 'like', "%{$search}%"))
+                ->orWhere(fn (Builder $token) => $token->whereIn('orders.status', ['paid', 'claimed'])->where('orders.claim_token', 'like', "%{$search}%"));
+        });
     }
 
     private function applyOrderRecordFilters($query, array $filters): void
