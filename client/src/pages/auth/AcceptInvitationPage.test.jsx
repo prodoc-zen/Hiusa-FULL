@@ -39,7 +39,7 @@ const existingInvite = {
 };
 
 const prefilledInvite = {
-  invitation: { role: 'COLLEGE_STAFF', position_title: 'Lab Technician', existing_account: false, prefill: { first_name: 'Ramon', last_name: 'Cruz', email: 'ramon@example.edu' }, expires_at: '2026-11-10T00:00:00Z' },
+  invitation: { role: 'COLLEGE_STAFF', position_title: 'Lab Technician', existing_account: false, prefill: { email: 'ramon@example.edu' }, expires_at: '2026-11-10T00:00:00Z' },
   college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
 };
 
@@ -60,9 +60,10 @@ const summary = () => screen.getByRole('group', { name: 'There is a problem' });
 const type = (label, value) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 function fillForm(overrides = {}) {
-  const values = { first: 'Arthur', last: 'Dent', email: 'Arthur.Dent@Example.edu ', password: 'Password123!', confirm: 'Password123!', ...overrides };
+  const values = { first: 'Arthur', last: 'Dent', schoolId: '20261234', email: 'Arthur.Dent@Example.edu ', password: 'Password123!', confirm: 'Password123!', ...overrides };
   type(/First name/, values.first);
   type(/Last name/, values.last);
+  type(/^School ID/, values.schoolId);
   type(/^Email/, values.email);
   type(/^Password/, values.password);
   type(/^Confirm password/, values.confirm);
@@ -118,15 +119,16 @@ describe('AcceptInvitationPage', () => {
     expect(await screen.findByRole('heading', { name: "You're invited to lead College of Arts and Sciences" })).toBeInTheDocument();
   });
 
-  it('asks the dean for their own details and never for a school ID', async () => {
+  it('asks the dean for their own name, School ID, email and password', async () => {
     mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
     renderPage();
 
     expect(await screen.findByRole('heading', { name: "You're invited to lead College of Arts and Sciences" })).toBeInTheDocument();
-    [/^First name/, /^Last name/, /^Email/, /^Password/, /^Confirm password/].forEach((label) => {
+    [/^First name/, /^Last name/, /^School ID/, /^Email/, /^Password/, /^Confirm password/].forEach((label) => {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     });
-    expect(screen.queryByLabelText(/School ID|Employee number/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^School ID/)).toBeRequired();
+    expect(screen.getByLabelText(/^School ID/)).not.toHaveAttribute('readonly');
     expect(screen.getAllByRole('button', { name: /Create account/ })).toHaveLength(1);
   });
 
@@ -169,6 +171,7 @@ describe('AcceptInvitationPage', () => {
     await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', {
       first_name: 'Arthur',
       last_name: 'Dent',
+      school_id: 20261234,
       email: 'arthur.dent@example.edu',
       password: 'Password123!',
       password_confirmation: 'Password123!',
@@ -178,7 +181,7 @@ describe('AcceptInvitationPage', () => {
     expect(localStorage.getItem('auth_token')).toBe('real-token');
   });
 
-  it('shows the name and ID number from the school records read only and asks only for email and password', async () => {
+  it('shows the name and School ID from the school records read only and asks only for email and password', async () => {
     mocks.getDepartmentHeadInvitation.mockResolvedValue(recordInvite);
     mocks.acceptDepartmentHeadInvitation.mockResolvedValue({});
     mocks.login.mockResolvedValue({ data: { access_token: 't', user: { role: 'ADMIN' } } });
@@ -187,8 +190,8 @@ describe('AcceptInvitationPage', () => {
     await screen.findByRole('heading', { name: /as office staff/ });
     expect(screen.getByLabelText('Name')).toHaveValue('Marites Dizon');
     expect(screen.getByLabelText('Name')).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('ID number')).toHaveValue('7100101');
-    expect(screen.getByLabelText('ID number')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('School ID')).toHaveValue('7100101');
+    expect(screen.getByLabelText('School ID')).toHaveAttribute('readonly');
     expect(screen.queryByLabelText(/^First name/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Last name/)).not.toBeInTheDocument();
 
@@ -213,10 +216,23 @@ describe('AcceptInvitationPage', () => {
 
     expect(await screen.findByRole('heading', { name: "You're invited to College of Arts and Sciences as office staff" })).toBeInTheDocument();
     expect(screen.getByText(/Your role: College Secretary/)).toBeInTheDocument();
-    fillForm({ first: 'Clara', last: 'Cruz', email: 'clara@example.edu' });
+    fillForm({ first: 'Clara', last: 'Cruz', schoolId: ' 20269999 ', email: 'clara@example.edu' });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
+    await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', expect.objectContaining({ first_name: 'Clara', last_name: 'Cruz', school_id: 20269999 })));
     expect(await screen.findByText('Staff home')).toBeInTheDocument();
+  });
+
+  it('asks office staff from a bare link for their own name and School ID', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(staffInvite);
+    renderPage();
+    await screen.findByRole('heading', { name: /as office staff/ });
+
+    [/^First name/, /^Last name/, /^School ID/].forEach((label) => {
+      expect(screen.getByLabelText(label)).toHaveValue('');
+      expect(screen.getByLabelText(label)).not.toHaveAttribute('readonly');
+    });
+    expect(screen.getByLabelText(/^Email/)).not.toHaveAttribute('readonly');
   });
 
   it('validates the form before sending anything', async () => {
@@ -226,7 +242,7 @@ describe('AcceptInvitationPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     const errorSummary = await screen.findByRole('group', { name: 'There is a problem' });
-    ['Enter your first name.', 'Enter your last name.', 'Enter your email.', 'Choose a password.'].forEach((message) => {
+    ['Enter your first name.', 'Enter your last name.', 'Enter your school ID.', 'Enter your email.', 'Choose a password.'].forEach((message) => {
       expect(within(errorSummary).getByText(message)).toBeInTheDocument();
       expect(screen.getAllByText(message)).toHaveLength(2);
     });
@@ -242,6 +258,32 @@ describe('AcceptInvitationPage', () => {
     expect(await within(summary()).findByText('The two passwords do not match.')).toBeInTheDocument();
     expect(screen.getAllByText('The two passwords do not match.')).toHaveLength(2);
     expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
+  });
+
+  it.each(['abc', '12 34', '123456789', '12.5', '-5'])('refuses the School ID %s before sending anything', async (typed) => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    renderPage();
+    await screen.findByRole('heading', { name: /You're invited to lead/ });
+
+    fillForm({ schoolId: typed });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText('Enter your school ID using numbers only.')).toBeInTheDocument();
+    expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
+  });
+
+  it('shows a taken School ID under the field with the server sentence', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    mocks.acceptDepartmentHeadInvitation.mockRejectedValue({ response: { status: 422, data: { message: 'invalid', errors: { school_id: ['This school ID already has an account. Sign in, or reset your password.'] } } } });
+    renderPage();
+    await screen.findByRole('heading', { name: /You're invited to lead/ });
+
+    fillForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText('This school ID already has an account. Sign in, or reset your password.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^School ID/)).toHaveValue('20261234');
+    expect(screen.getByLabelText(/^School ID/)).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('shows server field errors under the field and keeps what was typed', async () => {
@@ -329,7 +371,8 @@ describe('AcceptInvitationPage', () => {
 
     expect(await screen.findByLabelText(/^Email/)).toHaveValue('ramon@example.edu');
     expect(screen.getByLabelText(/^Email/)).toHaveAttribute('readonly');
-    expect(screen.getByLabelText(/First name/)).toHaveValue('Ramon');
-    expect(screen.getByLabelText(/Last name/)).toHaveValue('Cruz');
+    expect(screen.getByLabelText(/First name/)).toHaveValue('');
+    expect(screen.getByLabelText(/Last name/)).toHaveValue('');
+    expect(screen.getByLabelText(/^School ID/)).toHaveValue('');
   });
 });

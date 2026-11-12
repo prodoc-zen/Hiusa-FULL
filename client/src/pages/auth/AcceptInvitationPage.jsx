@@ -13,7 +13,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMPTY = { first_name: '', last_name: '', email: '', password: '', password_confirmation: '' };
+const EMPTY = { first_name: '', last_name: '', school_id: '', email: '', password: '', password_confirmation: '' };
 const FIELD_KEYS = Object.keys(EMPTY);
 const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
 
@@ -48,6 +48,9 @@ function validate(values, fromRecord) {
   const found = {};
   if (!fromRecord && !values.first_name.trim()) found.first_name = 'Enter your first name.';
   if (!fromRecord && !values.last_name.trim()) found.last_name = 'Enter your last name.';
+  const schoolId = values.school_id.trim();
+  if (!fromRecord && !schoolId) found.school_id = 'Enter your school ID.';
+  else if (!fromRecord && !/^\d{1,8}$/.test(schoolId)) found.school_id = 'Enter your school ID using numbers only.';
   const email = values.email.trim();
   if (!email) found.email = 'Enter your email.';
   else if (!EMAIL_PATTERN.test(email)) found.email = 'That email does not look right.';
@@ -95,8 +98,8 @@ export default function AcceptInvitationPage() {
         if (!current) return;
         setInvite(data);
         if (data.invitation?.prefill) {
-          const { first_name: first = '', last_name: last = '', email = '' } = data.invitation.prefill;
-          setValues((existing) => ({ ...existing, first_name: first, last_name: last, email }));
+          const { first_name: first, last_name: last, email } = data.invitation.prefill;
+          setValues((existing) => ({ ...existing, first_name: first || '', last_name: last || '', email: email || '' }));
         }
         setState('ready');
       })
@@ -128,7 +131,7 @@ export default function AcceptInvitationPage() {
     const email = values.email.trim().toLowerCase();
     try {
       const body = {
-        ...(!record && { first_name: values.first_name.trim(), last_name: values.last_name.trim() }),
+        ...(!record && { first_name: values.first_name.trim(), last_name: values.last_name.trim(), school_id: Number(values.school_id.trim()) }),
         email,
         password: values.password,
         password_confirmation: values.password_confirmation,
@@ -213,7 +216,7 @@ export default function AcceptInvitationPage() {
           <p className="mt-2 text-sm text-ink-muted">
             {invitedLine(invite.invitation, college)}
             {invite.invitation?.role === 'COLLEGE_STAFF' && invite.invitation?.position_title ? ` Your role: ${invite.invitation.position_title}.` : ''}
-            {record ? ' Your name and ID number come from the school records.' : ''}
+            {record ? ' Your name and School ID come from the school records.' : ''}
           </p>
 
           {existingAccount ? (
@@ -239,12 +242,13 @@ export default function AcceptInvitationPage() {
             {record ? (
               <>
                 <AuthField label="Name" value={`${record.first_name} ${record.last_name}`} readOnly />
-                <AuthField label="ID number" value={String(record.school_id)} readOnly hint="Given by the school. It cannot be changed." />
+                <AuthField label="School ID" value={String(record.school_id)} readOnly hint="Given by the school. It cannot be changed." />
               </>
             ) : (
               <>
                 <AuthField id={FIELD_IDS.first_name} label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
                 <AuthField id={FIELD_IDS.last_name} label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
+                <AuthField id={FIELD_IDS.school_id} label="School ID" inputMode="numeric" autoComplete="off" hint="Your employee or student number." value={values.school_id} error={errors.school_id} onChange={(event) => setField('school_id', event.target.value)} required />
               </>
             )}
             <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} readOnly={lockedEmail} hint={lockedEmail ? 'The invitation was made for this email.' : undefined} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
