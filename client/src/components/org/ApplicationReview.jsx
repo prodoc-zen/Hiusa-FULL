@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileText, Paperclip, X } from 'lucide-react';
+import { Paperclip, X } from 'lucide-react';
 import { Button, ErrorState, Field, PageHeader, Select, SkeletonCard, StatusBadge, Textarea } from '../ui';
 import api from '../../services/api';
 import notify from '../../lib/notify';
 import { manilaDate } from '../../lib/format';
 import { attachReviewFile, getOrganizationApplication, removeReviewFile, reviewOrganizationApplication } from '../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../utils/apiError';
-import { openProtectedFile } from '../../utils/openProtectedFile';
+import FileReviewList, { FileLink } from '../reviews/FileReviewList';
 import { APPLICATION_LABELS } from './applicationStatus';
 
 // A comment-only note: it saves without a decision and the applicant does not see it.
@@ -41,13 +41,9 @@ function worstStatus(reviews) {
   return '';
 }
 
-function RowStatus({ state }) {
-  return state
-    ? <StatusBadge status={state} label={REVIEW_WORD[state]} />
-    : <StatusBadge status="pending" tone="neutral" label="Not checked" />;
+function rowStatus(state) {
+  return state ? { status: state, label: REVIEW_WORD[state] } : { status: 'pending', tone: 'neutral', label: 'Not checked' };
 }
-
-const LINK_BUTTON = 'inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
 
 const STATUS_LINE = {
   pending_dean: 'With the Department Head for review.',
@@ -56,23 +52,6 @@ const STATUS_LINE = {
   approved: 'Approved. The organization now exists.',
   rejected: 'Not approved.',
 };
-
-async function open(url) {
-  try {
-    await openProtectedFile(url);
-  } catch (error) {
-    notify.error(getApiErrorMessage(error, 'Could not open this file.'));
-  }
-}
-
-function FileLink({ url, children, icon: Icon = FileText }) {
-  return (
-    <button type="button" onClick={() => open(url)} className="inline-flex min-h-11 items-center gap-2 text-left text-sm font-medium text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
-      <Icon size={16} className="shrink-0" aria-hidden="true" />
-      <span className="break-all">{children}</span>
-    </button>
-  );
-}
 
 function AttachButton({ label, busy, onFile }) {
   return (
@@ -97,8 +76,8 @@ function AttachButton({ label, busy, onFile }) {
 
 function ReviewFileRow({ file, removable, busy, onRemove }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FileLink url={file.open_url} icon={Paperclip}>{file.name} ({file.stage_label})</FileLink>
+    <div className="flex max-w-full flex-wrap items-center gap-2">
+      <FileLink url={file.open_url} name={`${file.name} (${file.stage_label})`} icon={Paperclip} />
       {removable && (
         <button type="button" aria-label={`Remove ${file.name}`} disabled={busy} onClick={() => onRemove(file)} className="grid h-11 w-11 place-items-center rounded-control text-ink-muted hover:bg-subtle hover:text-danger-strong focus-visible:outline-2 focus-visible:outline-brand-600">
           <X size={16} aria-hidden="true" />
@@ -236,7 +215,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const breadcrumbs = [{ label: 'Applications', to: LIST_PATH }, { label: application?.name || 'Application' }];
 
   return (
-    <div className="max-w-3xl space-y-6 pb-8">
+    <div className="max-w-5xl space-y-6 pb-8">
       <PageHeader breadcrumbs={breadcrumbs} title={application?.name || 'Application'} />
 
       {state.loading && <SkeletonCard />}
@@ -274,13 +253,12 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
           </section>
 
           <section aria-label="Requirements" className="border-t border-line pt-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-ink">Requirements</h2>
               {actionable && notChecked.length > 0 && <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={acceptNotChecked}>Accept all not checked</Button>}
             </div>
-            {actionable && carriedCount > 0 && <p className="mt-2 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since {stage === 'dean' ? 'the Department Head stage' : 'the SAO'} accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
-            <ul className="mt-3 divide-y divide-line-soft">
-              {requirements.map((requirement) => {
+            {actionable && carriedCount > 0 && <p className="mb-3 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since {stage === 'dean' ? 'the Department Head stage' : 'the SAO'} accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
+            <FileReviewList rows={requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
                 const priorReviews = requirement.reviews.filter((review) => !actionable || review.stage !== stage);
                 // One word per row. While deciding it is this reviewer's own mark, so an unmarked row reads
@@ -289,57 +267,47 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
                 const needsAction = state === 'needs_changes' || state === 'missing' || priorReviews.some((review) => review.status !== 'ok');
                 const hasDetail = priorReviews.some((review) => review.note) || requirement.review_files.length > 0;
                 const open = openId === requirement.id;
-                const expanded = open || needsAction;
                 // A row that needs nothing stays one line. The reviewer can open any row to change it.
                 const toggle = !needsAction && (actionable || hasDetail);
                 const toggleLabel = actionable ? (open ? 'Close' : (mark ? 'Change' : 'Review')) : (open ? 'Hide details' : 'Details');
-                return (
-                  <li key={requirement.id} className="py-3 first:pt-0">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-3">
-                        <p className="min-w-0 break-words text-sm font-semibold text-ink">{requirement.name}</p>
-                        <RowStatus state={state} />
-                      </div>
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-4 sm:justify-end">
-                        {requirement.document ? <FileLink url={requirement.document.open_url}>{requirement.document.name}</FileLink> : <p className="text-sm text-danger-strong">No file attached.</p>}
-                        {toggle && (
-                          <button type="button" aria-expanded={open} aria-label={`${toggleLabel} ${requirement.name}`} onClick={() => setOpenId(open ? null : requirement.id)} className={LINK_BUTTON}>{toggleLabel}</button>
-                        )}
-                      </div>
+                return {
+                  id: requirement.id,
+                  name: requirement.name,
+                  status: rowStatus(state),
+                  file: requirement.document ? { name: requirement.document.name, url: requirement.document.open_url } : null,
+                  emptyFile: 'No file attached.',
+                  actions: toggle ? [{ label: toggleLabel, ariaLabel: `${toggleLabel} ${requirement.name}`, expanded: open, onClick: () => setOpenId(open ? null : requirement.id) }] : [],
+                  expanded: open || needsAction,
+                  detail: (
+                    <div className="space-y-2">
+                      {actionable && (
+                        <div className="sm:w-44">
+                          <Select aria-label={`Review of ${requirement.name}`} value={mark} onChange={(event) => { setOpenId(requirement.id); setMarks((current) => ({ ...current, [requirement.id]: event.target.value })); }}>
+                            {MARKS.map(([value, label]) => <option key={value || 'none'} value={value}>{label}</option>)}
+                          </Select>
+                        </div>
+                      )}
+
+                      {priorReviews.map((review) => (
+                        <p key={review.stage} className="text-sm text-ink">
+                          <span className="font-medium">{review.stage_label}:</span> {review.status === 'ok' ? 'Accepted' : (REVIEW_WORD[review.status] || review.status)}{review.note ? `. ${review.note}` : '.'}
+                        </p>
+                      ))}
+
+                      {actionable && mark === 'needs_changes' && (
+                        <Field label="Note for the applicant">
+                          <Textarea rows={2} maxLength={1000} value={notes[requirement.id] || ''} onChange={(event) => setNotes((current) => ({ ...current, [requirement.id]: event.target.value }))} />
+                        </Field>
+                      )}
+
+                      {requirement.review_files.map((file) => (
+                        <ReviewFileRow key={file.id} file={file} removable={actionable && file.stage === stage} busy={Boolean(busy)} onRemove={removeFile} />
+                      ))}
+                      {actionable && <AttachButton label={`Attach a file to ${requirement.name}`} busy={busy === 'attach'} onFile={(file) => attach(file, requirement.id)} />}
                     </div>
-
-                    {expanded && (
-                      <div className="mt-2 space-y-2">
-                        {actionable && (
-                          <div className="sm:w-44">
-                            <Select aria-label={`Review of ${requirement.name}`} value={mark} onChange={(event) => { setOpenId(requirement.id); setMarks((current) => ({ ...current, [requirement.id]: event.target.value })); }}>
-                              {MARKS.map(([value, label]) => <option key={value || 'none'} value={value}>{label}</option>)}
-                            </Select>
-                          </div>
-                        )}
-
-                        {priorReviews.map((review) => (
-                          <p key={review.stage} className="text-sm text-ink">
-                            <span className="font-medium">{review.stage_label}:</span> {review.status === 'ok' ? 'Accepted' : (REVIEW_WORD[review.status] || review.status)}{review.note ? `. ${review.note}` : '.'}
-                          </p>
-                        ))}
-
-                        {actionable && mark === 'needs_changes' && (
-                          <Field label="Note for the applicant">
-                            <Textarea rows={2} maxLength={1000} value={notes[requirement.id] || ''} onChange={(event) => setNotes((current) => ({ ...current, [requirement.id]: event.target.value }))} />
-                          </Field>
-                        )}
-
-                        {requirement.review_files.map((file) => (
-                          <ReviewFileRow key={file.id} file={file} removable={actionable && file.stage === stage} busy={Boolean(busy)} onRemove={removeFile} />
-                        ))}
-                        {actionable && <AttachButton label={`Attach a file to ${requirement.name}`} busy={busy === 'attach'} onFile={(file) => attach(file, requirement.id)} />}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                  ),
+                };
+              })} />
           </section>
 
           {(application.review_files.length > 0 || actionable) && (

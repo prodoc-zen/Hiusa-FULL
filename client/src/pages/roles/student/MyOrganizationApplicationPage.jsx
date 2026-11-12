@@ -1,31 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { FileText, Paperclip } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 import { Card, EmptyState, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
 import ApplicationForm from '../../../components/org/ApplicationForm';
 import { APPLICATION_LABELS, applicantStatusLine } from '../../../components/org/applicationStatus';
+import FileReviewList, { FileLink } from '../../../components/reviews/FileReviewList';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { getMyOrganizationApplication, resubmitOrganizationApplication } from '../../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { openProtectedFile } from '../../../utils/openProtectedFile';
-
-async function open(url) {
-  try {
-    await openProtectedFile(url);
-  } catch (error) {
-    notify.error(getApiErrorMessage(error, 'Could not open this file.'));
-  }
-}
-
-function FileButton({ url, children, icon: Icon = FileText }) {
-  return (
-    <button type="button" onClick={() => open(url)} className="inline-flex min-h-11 items-center gap-2 text-left text-sm font-semibold text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
-      <Icon size={16} className="shrink-0" aria-hidden="true" />
-      <span className="break-all">{children}</span>
-    </button>
-  );
-}
 
 const LINK_BUTTON = 'inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
 
@@ -44,42 +27,36 @@ function needsAction(requirement) {
   return state === 'needs_changes' || state === 'missing';
 }
 
-function RequirementRow({ requirement }) {
-  const [open, setOpen] = useState(false);
+function requirementRow(requirement, open, onToggle) {
   const state = requirementState(requirement);
   const flagged = needsAction(requirement);
   const hasDetail = requirement.reviews.some((review) => review.note) || requirement.review_files.length > 0;
   const toggle = !flagged && hasDetail;
-  const expanded = flagged || open;
+  const label = open ? 'Hide details' : 'Details';
 
-  return (
-    <li className="px-5 py-3">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3">
-          <p className="min-w-0 break-words text-sm font-semibold text-ink">{requirement.name}</p>
-          {state ? <StatusBadge status={state} /> : <StatusBadge status="pending" tone="neutral" label="Not reviewed yet" />}
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 sm:justify-end">
-          {requirement.document
-            ? <FileButton url={requirement.document.open_url}>{requirement.document.name}</FileButton>
-            : <p className="text-sm font-medium text-ink-muted">No file yet.</p>}
-          {toggle && (
-            <button type="button" aria-expanded={open} aria-label={`${open ? 'Hide details' : 'Details'} ${requirement.name}`} onClick={() => setOpen(!open)} className={LINK_BUTTON}>{open ? 'Hide details' : 'Details'}</button>
-          )}
-        </div>
+  return {
+    id: requirement.id,
+    name: requirement.name,
+    status: state ? { status: state } : { status: 'pending', tone: 'neutral', label: 'Not reviewed yet' },
+    file: requirement.document ? { name: requirement.document.name, url: requirement.document.open_url } : null,
+    emptyFile: 'No file yet.',
+    actions: toggle ? [{ label, ariaLabel: `${label} ${requirement.name}`, expanded: open, onClick: onToggle }] : [],
+    expanded: flagged || open,
+    note: requirement.reviews.length > 0 && (
+      <div className="space-y-2">
+        {requirement.reviews.map((review) => (
+          <p key={review.stage} className="min-w-0"><span className="font-semibold">{review.stage_label}:</span> {review.note || (review.status === 'ok' ? 'No problem found.' : 'No note.')}</p>
+        ))}
       </div>
-      {expanded && (
-        <div className="mt-2 space-y-2">
-          {requirement.reviews.map((review) => (
-            <p key={review.stage} className="min-w-0 text-sm text-ink"><span className="font-semibold">{review.stage_label}:</span> {review.note || (review.status === 'ok' ? 'No problem found.' : 'No note.')}</p>
-          ))}
-          {requirement.review_files.map((file) => (
-            <div key={file.id}><FileButton url={file.open_url} icon={Paperclip}>{file.name} ({file.stage_label})</FileButton></div>
-          ))}
-        </div>
-      )}
-    </li>
-  );
+    ),
+    detail: requirement.review_files.length > 0 && (
+      <div className="space-y-2">
+        {requirement.review_files.map((file) => (
+          <div key={file.id}><FileLink url={file.open_url} name={`${file.name} (${file.stage_label})`} icon={Paperclip} /></div>
+        ))}
+      </div>
+    ),
+  };
 }
 
 function Note({ who, children }) {
@@ -98,6 +75,7 @@ export default function MyOrganizationApplicationPage() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [allFiles, setAllFiles] = useState(false);
+  const [openRows, setOpenRows] = useState({});
 
   const load = useCallback(() => {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -142,7 +120,7 @@ export default function MyOrganizationApplicationPage() {
   const returnedBy = application?.returned_by_role === 'DEPARTMENT_HEAD' ? 'your Department Head' : 'the SAO';
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="max-w-5xl space-y-5 pb-8">
       <PageHeader title={application?.name} />
 
       {loading && <SkeletonCard />}
@@ -166,15 +144,15 @@ export default function MyOrganizationApplicationPage() {
                 <EmptyState title="Nothing to submit yet" description="No requirements are listed for this application." />
               </div>
             )}
-            {application.requirements.length > 0 && <ul className="divide-y divide-line-soft">
-              {application.requirements.map((requirement) => <RequirementRow key={requirement.id} requirement={requirement} />)}
-            </ul>}
+            {application.requirements.length > 0 && (
+              <FileReviewList rows={application.requirements.map((requirement) => requirementRow(requirement, Boolean(openRows[requirement.id]), () => setOpenRows((current) => ({ ...current, [requirement.id]: !current[requirement.id] }))))} />
+            )}
           </Card>
 
           {generalFiles.length > 0 && (
             <Card title="Files from the reviewers">
               <ul className="space-y-1">
-                {generalFiles.map((file) => <li key={file.id}><FileButton url={file.open_url} icon={Paperclip}>{file.name} ({file.stage_label})</FileButton></li>)}
+                {generalFiles.map((file) => <li key={file.id}><FileLink url={file.open_url} name={`${file.name} (${file.stage_label})`} icon={Paperclip} /></li>)}
               </ul>
             </Card>
           )}
