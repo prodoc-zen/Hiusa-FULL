@@ -277,7 +277,6 @@ export default function SystemOrganizationsPage() {
   const reviewParam = searchParams.get('review');
   const [form, setForm] = useState(null);
   const [logoFile, setLogoFile] = useState(null);
-  const [membershipOrganization, setMembershipOrganization] = useState(null);
   const [creatingUnified, setCreatingUnified] = useState(false);
   const [existingAdminOrganization, setExistingAdminOrganization] = useState(null);
   const [profileOrganization, setProfileOrganization] = useState(null);
@@ -550,11 +549,9 @@ export default function SystemOrganizationsPage() {
         <TableRowActions subject={name} label="Organization actions" actions={[
           { label: 'Open organization', icon: Building2, to: organizationOverviewPath(org.id) },
           lifecycle === 'pending' && { label: 'Review registration', icon: ClipboardCheck, disabled: org.college_is_active === false, onClick: () => { setReviewTarget(org); setReviewOpen(true); } },
-          needsAdministrator({ ...org, lifecycle_status: lifecycle }) && { label: 'Add first administrator', icon: UserPlus, disabled: org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
           lifecycle === 'archived' && { label: 'Restore organization', icon: RotateCcw, disabled: org.college_is_active === false, onClick: () => { setLifecycleError(''); setRestoreTarget(org); } },
           lifecycle === 'active' && { label: 'Edit organization', icon: PencilLine, disabled: org.college_is_active === false, onClick: () => { setLogoFile(null); setFormError(''); setFieldErrors({}); setForm(org); } },
-          lifecycle === 'active' && { label: 'Add existing student', icon: UserPlus, disabled: !org.is_active || (!org.college && !org.is_university_wide) || org.college_is_active === false, onClick: () => setMembershipOrganization(org) },
-          lifecycle === 'active' && !needsAdministrator(org) && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active || org.college_is_active === false, onClick: () => setExistingAdminOrganization(org) },
+          lifecycle === 'active' && org.is_university_wide && { label: 'Add administrator', icon: UserPlus, disabled: !org.is_active, onClick: () => setExistingAdminOrganization(org) },
           lifecycle === 'active' && { label: 'Manage user profiles', icon: Users, disabled: org.college_is_active === false, onClick: () => setProfileOrganization(org) },
           lifecycle === 'active' && { label: 'Archive organization', icon: Archive, disabled: org.college_is_active === false, danger: true, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } },
           { label: 'Delete organization', icon: Trash2, danger: true, onClick: () => { setLifecycleError(''); setDeleteTarget(org); } },
@@ -592,7 +589,7 @@ export default function SystemOrganizationsPage() {
       />
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs text-ink-muted"><Button variant="secondary" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span>Page {page} of {lastPage}</span><Button variant="secondary" size="sm" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </div>
-      {form && !membershipOrganization && !profileOrganization && (
+      {form && !profileOrganization && (
         <Drawer
           open
           title="Edit organization"
@@ -630,9 +627,8 @@ export default function SystemOrganizationsPage() {
             </div>
             <div className="border-t border-line pt-4">
               <h4 className="text-sm font-semibold text-ink">Organization members</h4>
-              <p className="mt-1 text-xs text-ink-muted">Add an eligible existing university user with a separate organization profile.</p>
+              <p className="mt-1 text-xs text-ink-muted">Remove a person's profile in this organization.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="secondary" leftIcon={UserPlus} disabled={busy || !editingBase?.is_active || (!editingBase?.college_id && !editingBase?.is_university_wide)} onClick={() => setMembershipOrganization(editingBase)}>Add existing student</Button>
                 <Button variant="secondary" disabled={busy} onClick={() => setProfileOrganization(editingBase)}>Manage user profiles</Button>
               </div>
             </div>
@@ -645,8 +641,7 @@ export default function SystemOrganizationsPage() {
       {archiveTarget && <ArchiveModal organization={archiveTarget} busy={lifecycleBusy} error={lifecycleError} onCancel={() => setArchiveTarget(null)} onConfirm={(reason) => runLifecycle(() => archiveSystemOrganization(archiveTarget.id, reason ? { reason } : {}), archiveTarget, `${formatDisplayText(archiveTarget.name)} archived.`)} />}
       <ConfirmModal open={Boolean(restoreTarget)} title="Restore organization" message={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)} so it can be edited and used again?` : ''} recordName={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)}?` : ''} confirmText="Restore organization" variant="primary" busy={lifecycleBusy} onCancel={() => setRestoreTarget(null)} onConfirm={() => runLifecycle(() => restoreSystemOrganization(restoreTarget.id), restoreTarget, `${formatDisplayText(restoreTarget.name)} restored.`)} />
       {profileOrganization && <ManageAccountProfilesModal organization={profileOrganization} onClose={() => setProfileOrganization(null)} onDeleted={(result) => { setNotice(result.message); load(); }} />}
-      {creatingUnified && <CreateUnifiedOrganizationModal onClose={() => setCreatingUnified(false)} onCreated={(organization) => { setCreatingUnified(false); setNotice('Unified organization created. Add its first administrator to get started.'); setSearchParams({ status: 'active' }); setPage(1); load(); setExistingAdminOrganization(organization); }} />}
-      {membershipOrganization && <AddExistingUserModal actorRole="SUPER_ADMIN" organization={membershipOrganization} onClose={() => setMembershipOrganization(null)} onAdded={() => { setNotice('User added to the organization.'); load(); }} />}
+      {creatingUnified && <CreateUnifiedOrganizationModal onClose={() => setCreatingUnified(false)} onCreated={(organization) => { setCreatingUnified(false); setNotice('Unified organization created. Add its Admin to get started.'); setSearchParams({ status: 'active' }); setPage(1); load(); setExistingAdminOrganization(organization); }} />}
       {existingAdminOrganization && <AddExistingUserModal actorRole="SUPER_ADMIN" organization={existingAdminOrganization} initialRole="ADMIN" onClose={() => setExistingAdminOrganization(null)} onAdded={() => { setNotice('Admin profile added to the organization.'); load(); }} />}
     </div>
   );

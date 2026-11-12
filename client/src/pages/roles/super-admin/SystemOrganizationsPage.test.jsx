@@ -22,6 +22,7 @@ vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refet
 
 const SUBMITTED_AT = '2026-10-01T08:30:00.000000Z';
 const org = (overrides = {}) => ({ id: 3, name: 'Main SBO', acronym: 'SBO', college: 'College of Arts', college_id: 1, lifecycle_status: 'active', is_active: true, users_count: 0, administrators: [], ...overrides });
+const universityWide = (overrides = {}) => org({ id: 9, name: 'University Council', acronym: 'UC', college: null, college_id: null, is_university_wide: true, ...overrides });
 const pageOf = (data) => ({ data, current_page: 1, last_page: 1 });
 const agency = (pending = 0, others = {}) => ({ totals: { colleges: 1, organizations: 5, by_lifecycle_status: { pending, returned: 1, active: 3, archived: 1, ...others } } });
 
@@ -54,19 +55,29 @@ describe('SystemOrganizationsPage', () => {
     peopleMocks.searchPeople.mockResolvedValue([{ school_id: 123, name: 'Ana Reyes', email: 'ana@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
-  it('adds an additional administrator by finding the person for an active organization', async () => {
-    mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ administrators_count: 1 })]));
+  it('adds an additional administrator by finding the person for a university-wide organization', async () => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([universityWide({ administrators_count: 1 })]));
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(await actionsFor('Main SBO'));
+    fireEvent.click(await actionsFor('University Council'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
-    expect(within(dialog).getByText('Main SBO')).toBeInTheDocument();
+    expect(within(dialog).getByText('University Council')).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/school id/i)).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
     fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
-    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'ADMIN' }));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 9, school_id: 123, role: 'ADMIN' }));
     expect(await screen.findByText('Admin profile added to the organization.')).toBeInTheDocument();
+  });
+
+  it.each([['with an Admin', { administrators_count: 1 }], ['without an Admin', { administrators_count: 0 }]])('gives the SAO no way to add an administrator or a student to a college organization %s', async (_label, overrides) => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([org(overrides)]));
+    renderPage('/dashboard/super-admin/organizations?status=active');
+    fireEvent.click(await actionsFor('Main SBO'));
+    expect(screen.queryByRole('menuitem', { name: 'Add administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Add first administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Add existing student' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Manage user profiles' })).toBeInTheDocument();
   });
 
   it('has no manual add organization button and no admin invite link action', async () => {
@@ -76,16 +87,18 @@ describe('SystemOrganizationsPage', () => {
     expect(screen.queryByRole('menuitem', { name: 'Copy admin invite link' })).not.toBeInTheDocument();
   });
 
-  it('opens the add administrator dialog with the Admin role preselected for that organization', async () => {
+  it('opens the add administrator dialog with the Admin role preselected for a university-wide organization with no Admin', async () => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([universityWide({ administrators_count: 0 })]));
     renderPage('/dashboard/super-admin/organizations?status=active');
-    fireEvent.click(await actionsFor('Main SBO'));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add first administrator' }));
+    fireEvent.click(await actionsFor('University Council'));
+    expect(screen.queryByRole('menuitem', { name: 'Add first administrator' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add administrator' });
     expect(within(dialog).getByLabelText('Role in this organization')).toHaveValue('ADMIN');
     fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
     fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add administrator' }));
-    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'ADMIN' }));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 9, school_id: 123, role: 'ADMIN' }));
   });
 
   it('loads only the totals and visible page until editing needs parent options', async () => {
@@ -275,29 +288,12 @@ describe('SystemOrganizationsPage', () => {
   });
 
   describe('active organizations', () => {
-    it('opens searchable membership from the organization action menu', async () => {
-      renderPage();
-      fireEvent.click(await actionsFor('Main SBO'));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add existing student' }));
-      const dialog = screen.getByRole('dialog', { name: 'Add an existing student' });
-      fireEvent.change(within(dialog).getByRole('combobox', { name: 'Student' }), { target: { value: 'ana' } });
-      fireEvent.click(await within(dialog).findByRole('option', { name: /Ana Reyes/ }));
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
-      await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 3, school_id: 123, role: 'STUDENT' }));
-      expect(await screen.findByRole('status')).toHaveTextContent('User added to the organization.');
-    });
-
-    it('adds users from the organization editor and preserves unsaved edits when returning', async () => {
+    it('keeps Manage user profiles in the organization editor and offers no Add existing student there', async () => {
       renderPage();
       fireEvent.click(await actionsFor('Main SBO'));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
-      fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Changed name' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Add existing student' }));
-      expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
-      expect(await screen.findByRole('combobox', { name: 'Student' })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      expect(screen.getByRole('dialog', { name: 'Edit organization' })).toBeInTheDocument();
-      expect(screen.getByLabelText('Organization name')).toHaveValue('Changed name');
+      expect(screen.getByRole('button', { name: 'Manage user profiles' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Add existing student' })).not.toBeInTheDocument();
     });
 
     it('opens profile management from the editor and preserves unsaved changes', async () => {
@@ -439,11 +435,11 @@ describe('SystemOrganizationsPage', () => {
       const before = mocks.getSystemOrganizations.mock.calls.length;
       fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
       await waitFor(() => expect(mocks.reviewSystemOrganization).toHaveBeenCalledWith(8, { decision: 'approve', submitted_at: SUBMITTED_AT }));
-      expect(await screen.findByRole('status')).toHaveTextContent('Robotics Club approved and activated.');
+      expect(await screen.findByText('Robotics Club approved and activated.')).toBeInTheDocument();
       await waitFor(() => expect(mocks.getSystemOrganizations.mock.calls.length).toBeGreaterThan(before));
     });
 
-    it('keeps the drawer open after approval and hands over to Add first administrator', async () => {
+    it('keeps the drawer open after approval and says the Department Head names the organization head', async () => {
       mocks.reviewSystemOrganization.mockResolvedValue({});
       const drawer = await openReview();
       await within(drawer).findByText('Dean Reyes');
@@ -452,7 +448,7 @@ describe('SystemOrganizationsPage', () => {
 
       fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
 
-      await waitFor(() => expect(within(drawer).getByText('Add the first Admin account')).toBeInTheDocument());
+      await waitFor(() => expect(within(drawer).getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument());
       expect(screen.getByRole('dialog', { name: 'Review registration' })).toBe(drawer);
       expect(within(drawer).queryByRole('link', { name: 'Add Admin account' })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
@@ -549,7 +545,7 @@ describe('SystemOrganizationsPage', () => {
     const waiting = org({ id: 4, name: 'Chess Club', acronym: 'CC', administrators_count: 0 });
     const staffed = org({ id: 5, name: 'Art Club', acronym: 'AC', administrators_count: 2 });
 
-    it('lists organizations that need an administrator first with a link to provision one', async () => {
+    it('lists organizations that need an administrator first and says the Department Head names it', async () => {
       mocks.getSystemOrganizations.mockResolvedValue(pageOf([staffed, waiting]));
       renderPage('/dashboard/super-admin/organizations?status=active');
       await rowText('Chess Club');
@@ -557,16 +553,26 @@ describe('SystemOrganizationsPage', () => {
       const names = within(tableView()).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
       expect(names).toEqual(['Chess Club', 'Art Club']);
       const card = within(tableView()).getByText('Chess Club').closest('tr');
-      expect(within(card).getByText('Add the first Admin account')).toBeInTheDocument();
+      expect(within(card).getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: 'Actions for Chess Club' }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add first administrator' }));
-      expect(await screen.findByRole('dialog', { name: 'Add administrator' })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      const done = within(tableView()).getByText('Art Club').closest('tr');
-      expect(within(done).queryByText('Add the first Admin account')).not.toBeInTheDocument();
-      expect(within(done).queryByText(/administrator can sign in/)).not.toBeInTheDocument();
-      fireEvent.click(within(done).getByRole('button', { name: 'Actions for Art Club' }));
       expect(screen.queryByRole('menuitem', { name: 'Add first administrator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Add administrator' })).not.toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      const done = within(tableView()).getByText('Art Club').closest('tr');
+      expect(within(done).queryByText(/waiting for the Department Head/)).not.toBeInTheDocument();
+      expect(within(done).queryByText(/administrator can sign in/)).not.toBeInTheDocument();
+    });
+
+    it('says a university-wide organization with no Admin waits for the SAO and opens its Add administrator dialog', async () => {
+      mocks.getSystemOrganizations.mockResolvedValue(pageOf([universityWide({ administrators_count: 0 })]));
+      renderPage('/dashboard/super-admin/organizations?status=active');
+      await rowText('University Council');
+
+      const card = within(tableView()).getByText('University Council').closest('tr');
+      expect(within(card).getByText('Add the Admin account')).toBeInTheDocument();
+      fireEvent.click(within(card).getByRole('button', { name: 'Actions for University Council' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add administrator' }));
+      expect(await screen.findByRole('dialog', { name: 'Add administrator' })).toBeInTheDocument();
     });
   });
 
