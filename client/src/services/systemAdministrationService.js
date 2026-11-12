@@ -25,7 +25,11 @@ export const uploadSystemCollegeLogo = (id, file) => {
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
 export const inviteDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/invite-department-head`, payload));
-export const getDepartmentHeadInvitation = (token) => unwrap(api.get(`/department-head-invitations/${token}`));
+export const createSaoStaffInvitation = (payload) => unwrap(api.post('/system/sao-staff/invitations', payload));
+export const getSaoStaffInvitations = () => unwrap(api.get('/system/sao-staff/invitations', { cache: false }));
+export const relinkSaoStaffInvitation = (id) => unwrap(api.post(`/system/sao-staff/invitations/${id}/link`));
+export const revokeSaoStaffInvitation = (id) => unwrap(api.delete(`/system/sao-staff/invitations/${id}`));
+export const getDepartmentHeadInvitation =(token) => unwrap(api.get(`/department-head-invitations/${token}`));
 export const claimStaffInvitation = (token) => unwrap(api.post(`/department-head-invitations/${token}/claim`));
 export const acceptDepartmentHeadInvitation = (token, payload) => unwrap(api.post(`/department-head-invitations/${token}/accept`, payload));
 export const archiveSystemCollege = (id) => unwrap(api.post(`/system/colleges/${id}/archive`));

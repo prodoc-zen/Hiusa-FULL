@@ -282,7 +282,7 @@ Format: group (band): children in order, each `Label  route`.
 
 **SUPER_ADMIN (SAO)** (8 rows, 19 leaves)
 - Dashboard `/dashboard/super-admin` (the inbox: attention list is a queue count per review area, each deep linked)
-- University users `/dashboard/super-admin/users` (university-wide account and clearance directory)
+- University users `/dashboard/super-admin/users` (university-wide account and clearance directory; the primary button **Add SAO staff** opens one dialog that makes a 48 hour single-use link for a person who will help run the SAO, with an optional email and the pending links)
 - Ask AI `/dashboard/ask-ai`
 - Governance: Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against); Applications `/dashboard/organization-applications`; Organizations `/dashboard/super-admin/organizations?status=pending`
 - Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Approvals `/dashboard/super-admin/organization-approvals`; Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`

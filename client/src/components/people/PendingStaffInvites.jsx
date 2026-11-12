@@ -6,9 +6,16 @@ import { getStaffInvitations, relinkStaffInvitation, revokeStaffInvitation } fro
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 
+const COLLEGE_API = {
+  list: async () => (await getStaffInvitations()).data,
+  relink: async (id) => (await relinkStaffInvitation(id)).data,
+  revoke: revokeStaffInvitation,
+};
+
 // Links the dean made that nobody has used yet. The link is never stored, so Copy link makes a new one
-// (and the old one stops working), the same as the first time.
-export default function PendingStaffInvites({ reloadKey = 0 }) {
+// (and the old one stops working), the same as the first time. The SAO's staff links use the same list
+// through its own api, whose calls answer with the payload.
+export default function PendingStaffInvites({ reloadKey = 0, api = COLLEGE_API }) {
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -18,10 +25,10 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
   const load = useCallback(() => {
     setLoading(true);
     setError('');
-    getStaffInvitations()
-      .then((response) => { setInvites(Array.isArray(response.data?.data) ? response.data.data : []); setLoading(false); })
+    api.list()
+      .then((payload) => { setInvites(Array.isArray(payload?.data) ? payload.data : []); setLoading(false); })
       .catch((cause) => { setError(getApiErrorMessage(cause, 'Could not load the pending links.')); setLoading(false); });
-  }, []);
+  }, [api]);
 
   useEffect(() => { load(); }, [load, reloadKey]);
 
@@ -32,8 +39,8 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
     let link = links[invite.id];
     try {
       if (!link) {
-        const response = await relinkStaffInvitation(invite.id);
-        link = response.data.magic_link;
+        const payload = await api.relink(invite.id);
+        link = payload.magic_link;
         setLinks((existing) => ({ ...existing, [invite.id]: link }));
         load();
       }
@@ -56,7 +63,7 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
   async function revoke(invite) {
     setBusyId(invite.id);
     try {
-      await revokeStaffInvitation(invite.id);
+      await api.revoke(invite.id);
       setLinks((existing) => Object.fromEntries(Object.entries(existing).filter(([id]) => Number(id) !== invite.id)));
       notify.success(`The link for ${invite.name} no longer works.`);
       load();
