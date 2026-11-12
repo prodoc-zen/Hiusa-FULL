@@ -196,6 +196,23 @@ describe('EventRequirementsTab', () => {
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: undefined }));
   });
 
+  it('opens the files of the event a link named and tells the page when the SAO opens or hides one', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }, { id: 42, entity_id: 12, title: 'Sports Fest', requester: {} }] } });
+    const onEventOpen = vi.fn();
+    render(<EventRequirementsTab mode="reviews" initialEventId="12" onEventOpen={onEventOpen} />);
+    await screen.findByText('Sports Fest');
+    expect(screen.getAllByText('Submission files')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Sports Fest' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide files' }));
+    expect(screen.queryByText('Submission files')).not.toBeInTheDocument();
+    expect(onEventOpen).toHaveBeenLastCalledWith(null);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));
+    expect(onEventOpen).toHaveBeenLastCalledWith(9);
+  });
+
   it('keeps event decisions inside the three-dot action menu', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
     render(<EventRequirementsTab mode="reviews" />);

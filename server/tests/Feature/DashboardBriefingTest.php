@@ -646,6 +646,30 @@ class DashboardBriefingTest extends TestCase
         }
     }
 
+    public function test_super_admin_event_approval_links_to_that_events_review_not_the_requirement_settings(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $event = Event::factory()->create(['organization_id' => $organization->id, 'created_by' => $admin->id]);
+        ApprovalRequest::create([
+            'organization_id' => $organization->id,
+            'entity_type' => 'event',
+            'entity_id' => $event->id,
+            'requested_by' => $admin->id,
+            'required_role' => 'SUPER_ADMIN',
+            'status' => 'pending',
+            'requested_at' => now()->subHours(5),
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $approval = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->firstWhere('type', 'approval');
+
+        $this->assertSame("/dashboard/super-admin/compliance?tab=event-reviews&organization={$organization->id}&event={$event->id}", $approval['href']);
+        $this->assertContains('/dashboard/super-admin/compliance', config('client_routes.SUPER_ADMIN'));
+    }
+
     public function test_super_admin_pending_approval_and_overdue_report_items_link_into_the_compliance_home(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);

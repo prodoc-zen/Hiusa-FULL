@@ -5,7 +5,7 @@ const AREAS = [
   { key: 'compliance', label: 'Compliance submissions awaiting review', action: 'Review compliance', noun: ['compliance submission', 'compliance submissions'], match: (item) => item.type === 'compliance_submissions_pending' },
   { key: 'financial-reports', label: 'Financial reports to approve', action: 'Review financial reports', noun: ['financial report', 'financial reports'], match: (item) => item.type === 'approval' && /[?&]tab=financial\b/.test(item.href || '') },
   { key: 'reports-overdue', label: 'Organizations with overdue financial reports', action: 'Open financial reports', noun: ['overdue report', 'overdue reports'], match: (item) => item.type === 'financial_report_due' },
-  { key: 'event-files', label: 'Event files to approve', action: 'Review event files', noun: ['event file', 'event files'], match: (item) => item.type === 'approval' && /[?&]tab=events\b/.test(item.href || '') },
+  { key: 'event-files', label: 'Event files to approve', action: 'Review event files', noun: ['event file', 'event files'], match: (item) => item.type === 'approval' && /[?&]tab=event-reviews\b/.test(item.href || '') },
   { key: 'budgets', label: 'Budgets to approve', action: 'Review budgets', noun: ['budget', 'budgets'], match: (item) => item.type === 'approval' },
   { key: 'venues', label: 'Venue bookings awaiting review', action: 'Review venue bookings', noun: ['venue booking', 'venue bookings'], match: (item) => item.type === 'venue_bookings_pending' },
   { key: 'grievances', label: 'Urgent grievances unresolved', action: 'Answer grievances', noun: ['urgent grievance', 'urgent grievances'], match: (item) => item.type === 'grievances_urgent' },

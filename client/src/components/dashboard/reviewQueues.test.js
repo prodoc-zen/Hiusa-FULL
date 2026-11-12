@@ -22,7 +22,7 @@ describe('buildReviewAreas', () => {
     const areas = buildReviewAreas([
       item('approval', { href: '/dashboard/super-admin/compliance?tab=financial' }),
       item('approval', { href: '/dashboard/super-admin/compliance?tab=financial' }),
-      item('approval', { href: '/dashboard/super-admin/compliance?tab=events' }),
+      item('approval', { href: '/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31' }),
       item('approval', { href: '/dashboard/super-admin/compliance' }),
       item('financial_report_due', { href: '/dashboard/super-admin/compliance?tab=financial' }),
     ]);

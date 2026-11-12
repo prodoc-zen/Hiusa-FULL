@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import ResponsiveTabs from './ResponsiveTabs';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { getApprovalRequest } from '../../../services/approvalService';
 import { getComplianceStatus } from '../../../services/complianceService';
 import { fetchAllPages } from '../../../services/pagination';
 import * as systemAdminService from '../../../services/systemAdministrationService';
@@ -96,11 +97,31 @@ export default function SaoCompliancePage() {
       .catch(() => setPendingRegistrations([]));
   }, [role]);
 
+  const approvalId = searchParams.get('approval');
+  useEffect(() => {
+    if (role !== 'SUPER_ADMIN' || activeTab !== 'event-reviews' || !approvalId) return;
+    let current = true;
+    const settle = (organizationId, eventId) => setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      next.delete('approval');
+      if (organizationId && eventId) { next.set('organization', String(organizationId)); next.set('event', String(eventId)); }
+      return next;
+    }, { replace: true });
+    getApprovalRequest(approvalId)
+      .then((response) => { if (current) settle(response.data?.entity_type === 'event' ? response.data.organization_id : null, response.data?.entity_id); })
+      .catch(() => { if (current) settle(null, null); });
+    return () => { current = false; };
+  }, [role, activeTab, approvalId, setSearchParams]);
+
   const changeTab = useCallback((key) => setSearchParams({ tab: key }), [setSearchParams]);
 
   function changeReviewFilters(filters) {
     setReviewFilters(filters);
     setSearchParams((current) => { const next = new URLSearchParams(current); if (filters.organizationId) next.set('organization', filters.organizationId); else next.delete('organization'); return next; });
+  }
+
+  function changeOpenEvent(eventId) {
+    setSearchParams((current) => { const next = new URLSearchParams(current); if (eventId) next.set('event', String(eventId)); else next.delete('event'); return next; }, { replace: true });
   }
 
   function reviewOrganization(organizationId) {
@@ -162,7 +183,7 @@ export default function SaoCompliancePage() {
             />
           )}
           {activeTab === 'events' && <EventRequirementsTab noSemester={overview.noSemester} />}
-          {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
+          {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} initialEventId={searchParams.get('event') || ''} onEventOpen={changeOpenEvent} />}</OrganizationReviewFolders>}
           {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>}
         </div>
       </div>

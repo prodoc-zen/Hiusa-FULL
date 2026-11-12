@@ -272,7 +272,7 @@ describe('getNotificationDestination rules', () => {
 
   it('lands an approval notice for the SAO on the tab of the entity type it names', () => {
     const notice = (entity_type) => ({ reference_type: 'approval_request', reference_id: 31, notification_type: 'general', entity_type });
-    expect(getNotificationDestination(notice('event'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=events');
+    expect(getNotificationDestination(notice('event'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=event-reviews&approval=31');
     expect(getNotificationDestination(notice('financial_report'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
     for (const other of ['budget', 'election', 'announcement', 'payment']) {
       expect(getNotificationDestination(notice(other), 'SUPER_ADMIN'), other).toBe('/dashboard/super-admin/compliance');

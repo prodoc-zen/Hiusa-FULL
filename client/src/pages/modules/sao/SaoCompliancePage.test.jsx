@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   downloadSubmissionDocument: vi.fn(),
   getAcademicYears: vi.fn(),
   getAcademicPeriods: vi.fn(),
+  getApprovalRequest: vi.fn(),
   getSystemOrganizations: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
@@ -22,8 +23,9 @@ const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock('../../../services/complianceService', () => mocks);
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getAcademicPeriods: mocks.getAcademicPeriods, getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequest: mocks.getApprovalRequest }));
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
-vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester }) => <p data-no-semester={String(Boolean(noSemester))}>Event requirements content</p> }));
+vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester, mode, organizationId, initialEventId, onEventOpen }) => <div><p data-no-semester={String(Boolean(noSemester))} data-mode={mode || 'settings'} data-organization={organizationId || ''} data-event={initialEventId || ''}>Event requirements content</p><button type="button" onClick={() => onEventOpen?.(31)}>Open event 31</button><button type="button" onClick={() => onEventOpen?.(null)}>Close event</button></div> }));
 vi.mock('./FinancialReportsTab', () => ({ default: ({ initialStatus }) => <p data-status={initialStatus || ''}>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
 
@@ -111,6 +113,47 @@ describe('SaoCompliancePage', () => {
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(within(dialog).getByLabelText(/^Deadline/)).toHaveAttribute('max', '2026-12-31'));
     expect(within(dialog).getByLabelText(/^Deadline/)).toHaveAttribute('min', '2026-08-01');
+  });
+
+  describe('event review links', () => {
+    it('lands on Event reviews with that organization and event open', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31');
+      const content = await screen.findByText('Event requirements content');
+      expect(screen.getByRole('tab', { name: 'Event reviews' })).toHaveAttribute('aria-selected', 'true');
+      expect(content).toHaveAttribute('data-mode', 'reviews');
+      expect(content).toHaveAttribute('data-organization', '7');
+      expect(content).toHaveAttribute('data-event', '31');
+    });
+
+    it('keeps the opened event in the address so a reload comes back to it', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=event-reviews&organization=7');
+      fireEvent.click(await screen.findByRole('button', { name: 'Open event 31' }));
+      expect(screen.getByTestId('search')).toHaveTextContent('tab=event-reviews&organization=7&event=31');
+      fireEvent.click(screen.getByRole('button', { name: 'Close event' }));
+      expect(screen.getByTestId('search')).toHaveTextContent(/^\/dashboard\/super-admin\/compliance\?tab=event-reviews&organization=7$/);
+    });
+
+    it('turns an approval link into that organization and event', async () => {
+      mocks.getApprovalRequest.mockResolvedValue({ data: { id: 55, entity_type: 'event', entity_id: 31, organization_id: 7 } });
+      renderPage('/dashboard/super-admin/compliance?tab=event-reviews&approval=55');
+      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('tab=event-reviews&organization=7&event=31'));
+      expect(screen.getByTestId('search')).not.toHaveTextContent('approval=');
+      expect(mocks.getApprovalRequest).toHaveBeenCalledWith('55');
+    });
+
+    it('falls back to the organization list when the approval cannot be found', async () => {
+      mocks.getApprovalRequest.mockRejectedValue({ response: { status: 404 } });
+      renderPage('/dashboard/super-admin/compliance?tab=event-reviews&approval=99');
+      await waitFor(() => expect(screen.getByTestId('search')).not.toHaveTextContent('approval='));
+      expect(screen.getByRole('tab', { name: 'Event reviews' })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('drops the opened event when another organization is chosen', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=event-reviews&event=31');
+      fireEvent.click((await screen.findAllByRole('button', { name: /Arts Guild/ }))[0]);
+      expect(screen.getByTestId('search')).toHaveTextContent('organization=8');
+      expect(screen.getByTestId('search')).not.toHaveTextContent('event=');
+    });
   });
 
   it('blocks everyone but the SAO', () => {
