@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\ComplianceController;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ComplianceRequirementType;
 use App\Models\FinancialReport;
 use App\Models\Organization;
@@ -19,6 +21,13 @@ use Tests\TestCase;
 class OrganizationComplianceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+    }
 
     /** A review carries the submitted_at the reviewer saw, exactly as the SAO client sends it. */
     private function review(int $submissionId, array $payload): array

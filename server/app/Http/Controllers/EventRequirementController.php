@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EventRequirementController extends Controller
 {
@@ -34,9 +35,13 @@ class EventRequirementController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateRequirement($request);
+        $semester = AcademicSemester::selected($request);
+        if (! $semester) {
+            throw ValidationException::withMessages(['name' => ['There is no active semester. Activate or select a semester before adding a requirement.']]);
+        }
 
         $data['sort_order'] = (int) EventRequirement::max('sort_order') + 1;
-        $data['academic_semester_id'] = AcademicSemester::selected($request)?->id;
+        $data['academic_semester_id'] = $semester->id;
 
         $samples = app(RequirementSampleService::class);
 

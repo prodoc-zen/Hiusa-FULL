@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\EventRequirement;
@@ -19,6 +21,13 @@ use Tests\TestCase;
 class EventRequirementSubmissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+    }
 
     public function test_failed_event_upload_preserves_existing_documents_and_does_not_open_review(): void
     {
