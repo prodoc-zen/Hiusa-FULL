@@ -76,7 +76,7 @@ Clicks are counted from the role's home. "Expand" is the group click: groups wit
 | Job | Current path | Clicks |
 |---|---|---|
 | Approve a new organization | SAO Administration expand > Organizations > Review > Approve (`SystemOrganizationsPage.jsx:126-127`). The home briefing never lists pending registrations (see break 22) | 4 |
-| Give it an administrator | Administrators (another item, second in the list) > Create Admin User > fill > submit. The approval toast says only "approved and activated" (`SystemOrganizationsPage.jsx:101`) | 3 more |
+| Give it an administrator | Governance > Administrators > Add administrator > fill > submit. The approval toast says only "approved and activated" (`SystemOrganizationsPage.jsx:101`) | 3 more |
 | Review compliance | Compliance > Review queue tab > open > decide. The briefing link lands on the Accreditation tab, not the queue (`DashboardBriefingService.php:1170`, `SaoCompliancePage.jsx:16`) | 4 |
 | Decide a financial report or an event with requirements | Compliance > Financial reports or Event requirements tab (`SaoCompliancePage.jsx:22-23`). There is no SAO Approvals item; `/super-admin/approvals` redirects (`App.jsx:216`) | 4 |
 | Find any file an organization submitted | Compliance > Track documents tab: one row per organization (college, file count, latest submission), expand it for its files grouped by Event requirements, Semestral report, Semester renewal, Financial reports, Financial report supporting documents and Registration documents. Each file shows a status (and the Department Head or SAO stage for events) and View opens it in a new tab. An event file appears only once the Department Head has approved the event, because that is when the SAO can open it. A pending registration document links to "Open organization review" for the decision, and the Review queue marks it the same way | 3 |
@@ -200,7 +200,7 @@ flowchart LR
   SA1[Dashboard inbox: N registrations, N compliance, N reports] --> SA2[Organizations: review]
   SA2 --> SA3[Approve]
   SA3 --> SA4["NextStep: Provision administrator"]
-  SA4 --> SA5[Administrators: create]
+  SA4 --> SA5[Administrators: Add administrator]
   SA1 --> SA6[Reviews: Compliance tab, Financial reports tab, Venues, Grievances, Clearances]
 ```
 
@@ -216,7 +216,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   OF1[Dashboard: due tasks, orders to verify, events today] --> OF2[Events and tasks: Check-in, My tasks]
-  OF1 --> OF3[Store: Orders then Claim desk]
+  OF1 --> OF3[Store: Orders, verify payment, release order]
   OF1 --> OF4[Updates: New announcement, waiting for Admin]
 ```
 
@@ -631,7 +631,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 
 **SBO_OFFICER**
 1. Check someone in (ceiling 4): Events and tasks > Check-in, pick member, confirm. End: attendance count increments.
-2. Verify a payment and release an order (ceiling 6): Store > Orders, open order, verify; Claim desk, enter token, release. End: order shows "Claimed", stepper complete.
+2. Verify a payment and release an order (ceiling 6): Store > Orders, "Verify payment" on the order row, "Verify and submit"; after an Admin approves, "Release order" on the Paid row, "Confirm release". The Claim desk with a typed token remains as an alternative. End: order shows "Claimed", stepper complete.
 3. Update my task (ceiling 3): Events and tasks > My tasks, change status. End: card shows the new stage.
 4. Send an announcement for approval (ceiling 4): Updates > Announcements, New announcement, submit. End: the row says "Waiting for Admin approval".
 
@@ -660,7 +660,6 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 | Journey | Widths | Listed ceiling | Measured and accepted | Why the extra taps stay |
 |---|---|---|---|---|
 | ADMIN 4, check-in | 1440 and 390 | 3 | 4 (Events and tasks, Check-in, pick member, Confirm Check-In) | The member is picked from the search result and then confirmed, so a mistyped school ID is never recorded. The ongoing event is already preselected, so nothing else is tapped. It is the same path as the officer's check-in (ceiling 4). |
-| SBO_OFFICER 2, verify and release | 1440 and 390 | 6 | 8 | Two confirms guard changes that move money and stock (verify the payment, confirm the claim and release). Orders and Claim desk are two pages, so the menu is used twice, and the last tap returns to Orders to see the stepper complete. |
 | SBO_OFFICER 4, announcement | 1440 / 390 | 4 | 5 at 1440, 6 at 390 | Submit for approval opens a confirm that names who approves it, because it changes approval state: members see nothing until the Admin approves. One more tap opens the sent row in Announcements. On a phone the Updates group opens first and does not navigate, so Announcements is one more tap. |
 | STUDENT 3, order | 1440 and 390 | 5 | 6 (Store, Shop, Add to Cart, My Cart, Review and Continue, Place Reservation) | The cart is reviewed before Place Reservation, which commits stock and a payment at pickup. |
 | SUPER_ADMIN 5, grievance | 1440 and 390 | 4 | 6 (Reviews, Grievances, open, Move to under review, Resolve, Resolve) | Resolving opens a confirm that requires the remarks the student reads, so the answer is written before it is sent. Under review is its own recorded status, tapped before Resolve. |

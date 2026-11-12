@@ -552,7 +552,7 @@
       "3. Leave the other files as they are and send it again.",
       "4. Sign in as the head and open the application on Organization applications."
     ],
-    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round; the replaced requirement shows the new file name and starts as Not checked. A file that this head had marked Accepted before returning the application, and that the student did not change, starts as Accepted and the page says so (\"<n> files are unchanged since you accepted them, so they start as Accepted.\"). Every other document is Not checked, and Endorse stays off until every requirement is Accepted. There is no Edit and resubmit form for the head.",
+    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round; the replaced requirement shows the new file name and starts as Not checked. A file that this head had marked Accepted before returning the application, and that the student did not change, starts as Accepted and the page says so (\"<n> files are unchanged since the Department Head stage accepted them, so they start as Accepted.\", or \"1 file is unchanged since the Department Head stage accepted it, so it starts as Accepted.\" for a single file). Every other document is Not checked, and Endorse stays off until every requirement is Accepted. There is no Edit and resubmit form for the head.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
