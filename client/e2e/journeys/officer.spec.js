@@ -149,7 +149,7 @@ for (const viewport of WIDTHS) {
       });
     });
 
-    test('O2 verify a payment and release an order (ceiling 8)', async ({ page }) => {
+    test('O2 verify a payment and release an order (ceiling 6)', async ({ page }) => {
       const student = await apiAs(STUDENT_B);
       const catalog = (await student.get('/merchandise?per_page=50')).body.data;
       const item = catalog.find((row) => row.is_active && row.stock_quantity > 2 && !(row.variants || []).length);
@@ -164,13 +164,7 @@ for (const viewport of WIDTHS) {
       await openFromMenu(page, flow, 'Store', 'Orders');
       const orderEntry = () => page.getByRole('row').filter({ hasText: `ORD-${orderId}` }).or(page.locator('article:visible').filter({ hasText: `ORD-${orderId}` }));
       await expect(orderEntry()).toBeVisible();
-      const verifyButton = orderEntry().getByRole('button', { name: 'Verify', exact: true });
-      if (await verifyButton.isVisible()) {
-        await flow.tap(verifyButton);
-      } else {
-        await openRowActions(page, flow, orderEntry());
-        await flow.tap(page.getByRole('menuitem', { name: 'Verify and submit' }));
-      }
+      await flow.tap(orderEntry().getByRole('button', { name: 'Verify payment', exact: true }));
       await flow.tap(page.getByRole('dialog', { name: 'Verify merchandise payment' }).getByRole('button', { name: 'Verify and submit' }));
       await expect(page.getByRole('dialog', { name: 'Verify merchandise payment' })).toBeHidden();
 
@@ -181,21 +175,17 @@ for (const viewport of WIDTHS) {
       const token = (await student.get(`/orders/${orderId}`)).body.claim_token;
       expect(token, 'the buyer sees the claim token once the payment is approved').toMatch(/^[A-Z0-9]{16}$/);
 
-      await openFromMenu(page, flow, 'Store', 'Claim desk');
-      await page.getByLabel('16-character claim token').fill(token);
-      await flow.tap(page.getByRole('button', { name: 'Claim', exact: true }));
-      await flow.tap(page.getByRole('button', { name: 'Confirm release' }));
-
-      // The claim desk register only lists orders still waiting, so the stepper is looked for where the order shows it.
-      const stepper = page.getByRole('progressbar', { name: `ORD-${orderId} progress` });
-      if (!(await stepper.isVisible().catch(() => false))) {
-        await openFromMenu(page, flow, 'Store', 'Orders');
-      }
+      // The officer's list does not poll, so the page is reloaded (not a step) to receive the Admin's approval.
+      await page.reload();
+      await expect(orderEntry()).toBeVisible();
+      await flow.tap(orderEntry().getByRole('button', { name: 'Release order', exact: true }));
+      await flow.tap(page.getByRole('dialog', { name: 'Verify claim before release' }).getByRole('button', { name: 'Confirm release' }));
+      await expect(page.getByRole('dialog', { name: 'Verify claim before release' })).toBeHidden();
       await expect(orderEntry()).toBeVisible();
 
       await finish(page, flow, {
         id: 'O2',
-        ceiling: 8,
+        ceiling: 6,
         endLocator: () => orderEntry().getByText('Claimed', { exact: true }),
         end: async () => {
           await expect(orderEntry().getByText('Claimed', { exact: true })).toBeVisible();
