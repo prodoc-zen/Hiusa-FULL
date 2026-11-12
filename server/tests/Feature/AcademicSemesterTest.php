@@ -14,6 +14,7 @@ use App\Models\OrganizationSemesterRecord;
 use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -408,5 +409,116 @@ class AcademicSemesterTest extends TestCase
         $this->assertSame(['2027-2028'], AcademicYear::where('is_current', true)->pluck('label')->all());
         $this->patchJson("/api/system/academic-years/{$year->id}/current")->assertOk();
         $this->assertSame(['2026-2027'], AcademicYear::where('is_current', true)->pluck('label')->all());
+    }
+
+    public function test_the_sao_can_change_the_dates_of_an_upcoming_semester_and_it_is_audited(): void
+    {
+        [$director, $year] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
+        ComplianceRequirementType::where('academic_semester_id', $second)->update(['deadline_at' => '2027-03-15 23:59:59']);
+
+        $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-11', 'ends_on' => '2027-05-28'])
+            ->assertOk()->assertJsonPath('starts_on', '2027-01-11')->assertJsonPath('ends_on', '2027-05-28')->assertJsonPath('status', 'upcoming');
+
+        $this->assertSame('2027-01-11', AcademicSemester::find($second)->starts_on->toDateString());
+        $this->assertSame('2027-05-28', AcademicSemester::find($second)->ends_on->toDateString());
+        $audit = AuditLog::where('action', 'academic_semester_dates_changed')->where('record_id', $second)->first();
+        $this->assertNotNull($audit);
+        $this->assertSame($director->school_id, $audit->user_id);
+        $this->assertSame('SUPER_ADMIN', $audit->actor_role);
+    }
+
+    public function test_changing_semester_dates_is_for_the_sao_only_and_throttled_as_a_write(): void
+    {
+        [$director, $year] = $this->liveSemester();
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
+        $dean = User::factory()->departmentHead()->create();
+
+        foreach ([$admin, $dean] as $user) {
+            Sanctum::actingAs($user);
+            $this->patchJson("/api/system/academic-semesters/{$second->id}/dates", ['starts_on' => '2027-01-11', 'ends_on' => '2027-05-31'])->assertForbidden();
+        }
+        $this->assertSame('2027-01-01', $second->fresh()->starts_on->toDateString());
+
+        $route = app('router')->getRoutes()->match(Request::create("/api/system/academic-semesters/{$second->id}/dates", 'PATCH'));
+        $this->assertContains('throttle:api-write', $route->gatherMiddleware());
+        $this->assertContains('role:SUPER_ADMIN', $route->gatherMiddleware());
+    }
+
+    public function test_dates_of_an_active_or_completed_semester_cannot_be_changed(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Sanctum::actingAs($director);
+
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/dates", ['starts_on' => '2026-08-03', 'ends_on' => '2026-12-31'])
+            ->assertUnprocessable()->assertJsonValidationErrors('semester');
+        $first->update(['status' => 'completed']);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/dates", ['starts_on' => '2026-08-03', 'ends_on' => '2026-12-31'])
+            ->assertUnprocessable()->assertJsonValidationErrors('semester');
+        $this->assertSame('2026-08-01', $first->fresh()->starts_on->toDateString());
+        $this->assertSame(0, AuditLog::where('action', 'academic_semester_dates_changed')->count());
+    }
+
+    public function test_changed_semester_dates_are_validated_exactly_as_when_adding_one(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $url = "/api/system/academic-semesters/{$second->id}/dates";
+
+        $this->patchJson($url, ['starts_on' => '2027-01-01'])->assertUnprocessable()->assertJsonValidationErrors('ends_on');
+        $this->patchJson($url, ['starts_on' => 'not a date', 'ends_on' => '2027-05-31'])->assertUnprocessable()->assertJsonValidationErrors('starts_on');
+        $this->patchJson($url, ['starts_on' => '2027-05-31', 'ends_on' => '2027-05-31'])->assertUnprocessable()->assertJsonValidationErrors('ends_on');
+        $this->patchJson($url, ['starts_on' => '2027-02-01', 'ends_on' => '2027-01-15'])->assertUnprocessable()->assertJsonValidationErrors('ends_on');
+        $this->patchJson($url, ['starts_on' => '2026-07-15', 'ends_on' => '2027-05-31'])->assertUnprocessable()->assertJsonPath('errors.starts_on.0', 'Semester dates must fall within the academic year.');
+        $this->patchJson($url, ['starts_on' => '2027-01-01', 'ends_on' => '2027-06-30'])->assertUnprocessable()->assertJsonPath('errors.starts_on.0', 'Semester dates must fall within the academic year.');
+        $this->patchJson($url, ['starts_on' => '2026-12-31', 'ends_on' => '2027-05-31'])->assertUnprocessable()->assertJsonPath('errors.starts_on.0', 'Semester dates cannot overlap.');
+        $this->assertSame('2027-01-01', $second->fresh()->starts_on->toDateString());
+        $this->assertSame('2027-05-31', $second->fresh()->ends_on->toDateString());
+
+        $this->patchJson($url, ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertOk();
+        $this->assertSame('2026-12-31', $first->fresh()->ends_on->toDateString());
+    }
+
+    public function test_changing_semester_dates_is_refused_when_requirement_deadlines_would_fall_outside_and_names_how_many(): void
+    {
+        [$director, $year] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
+        $total = ComplianceRequirementType::where('academic_semester_id', $second)->count();
+        $this->assertGreaterThan(2, $total);
+        ComplianceRequirementType::where('academic_semester_id', $second)->update(['deadline_at' => '2027-03-15 23:59:59']);
+        ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->limit(2)->update(['deadline_at' => '2027-05-31 23:59:59']);
+        $before = ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->pluck('deadline_at', 'id')->map->toDateTimeString()->all();
+
+        $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-15'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.semester.0', '2 requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.');
+        $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-03-16', 'ends_on' => '2027-05-31'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.semester.0', ($total - 2).' requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.');
+
+        $this->assertSame('2027-01-01', AcademicSemester::find($second)->starts_on->toDateString());
+        $this->assertSame('2027-05-31', AcademicSemester::find($second)->ends_on->toDateString());
+        $this->assertSame($before, ComplianceRequirementType::where('academic_semester_id', $second)->orderBy('id')->pluck('deadline_at', 'id')->map->toDateTimeString()->all());
+        $this->assertSame(0, AuditLog::where('action', 'academic_semester_dates_changed')->count());
+        $this->patchJson("/api/system/academic-semesters/{$second}/dates", ['starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertOk();
+    }
+
+    public function test_activate_still_refuses_a_future_semester_until_its_dates_are_changed_to_start_today(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        Sanctum::actingAs($director);
+        $this->travelTo('2026-12-20');
+        $first->update(['ends_on' => '2026-12-15']);
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))->assertOk();
+
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertUnprocessable()->assertJsonValidationErrors('semester');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/dates", ['starts_on' => '2026-12-16', 'ends_on' => '2027-05-31'])->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk()->assertJsonPath('status', 'active');
+        $this->assertSame(1, AcademicSemester::where('status', 'active')->count());
     }
 }

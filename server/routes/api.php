@@ -183,6 +183,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/system/department-heads/{user}/password-reset', [SystemAdministrationController::class, 'initiateDepartmentHeadPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/academic-years/{academicYear}/semesters', [AcademicSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/academic-semesters/{academicSemester}/dates', [AcademicSemesterController::class, 'updateDates'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/active', [AcademicSemesterController::class, 'activate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/close', [AcademicSemesterController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/reopen', [AcademicSemesterController::class, 'reopen'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
