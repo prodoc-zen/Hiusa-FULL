@@ -11,7 +11,7 @@ import { manilaDate } from '../../../lib/format';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import PaginationControls from '../../../components/PaginationControls';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { getAcademicYears } from '../../../services/systemAdministrationService';
+import { manilaDateStamp } from '../../../utils/dateTime';
 import { fileAccept, fileTypesLabel, SUPPORTED_REQUIREMENT_EXTENSIONS, validateRequirementFile } from '../../../utils/requirementFiles';
 import { openRequirementSample } from '../../../utils/requirementSample';
 import {
@@ -31,7 +31,6 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
   const [page, setPage] = useState(1);
   const [typeModal, setTypeModal] = useState(null);
   const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM);
-  const [academicYears, setAcademicYears] = useState([]);
   const [typeFormError, setTypeFormError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const fieldRefs = useRef({});
@@ -65,7 +64,6 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
     loadTypes();
     return () => { requests.current++; };
   }, [loadTypes]);
-  useEffect(() => { getAcademicYears().then(setAcademicYears).catch(() => setAcademicYears([])); }, []);
 
   function openTypeModal(type = null) {
     setTypeFormError(null);
@@ -78,7 +76,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
       academic_year: type.academic_year || '',
       name: type.name || '',
       description: type.description || '',
-      deadline_at: String(type.deadline_at || '').slice(0, 10),
+      deadline_at: type.deadline_at ? manilaDateStamp(new Date(type.deadline_at)) : '',
       allowed_extensions: type.allowed_extensions || SUPPORTED_REQUIREMENT_EXTENSIONS,
       is_active: type.is_active !== false,
     } : { ...EMPTY_TYPE_FORM, academic_year: currentAcademicYear || '' });
@@ -87,7 +85,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
   async function handleTypeSubmit(event) {
     event.preventDefault();
     const errors = {};
-    if (!typeForm.academic_year.trim()) errors.academic_year = 'Choose the academic year this requirement applies to.';
+    if (!typeForm.academic_year.trim()) errors.academic_year = 'There is no active semester. Activate or select a semester before adding a requirement.';
     if (!typeForm.deadline_at) errors.deadline_at = 'Set the deadline for organizations.';
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
     if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
@@ -255,10 +253,9 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
         )}
       >
         <form onSubmit={handleTypeSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="Academic year" required error={fieldErrors.academic_year} hint={typeModal?.mode === 'edit' ? 'The academic year stays fixed after creation.' : undefined}>
-            <Select ref={(node) => { fieldRefs.current.academic_year = node; }} autoFocus disabled={typeModal?.mode === 'edit'} value={typeForm.academic_year} onChange={(event) => { setTypeForm({ ...typeForm, academic_year: event.target.value }); setFieldErrors((current) => ({ ...current, academic_year: null })); }}>
-              <option value="">Choose academic year</option>
-              {academicYears.map((year) => <option key={year.id} value={year.label}>{year.label}{year.is_current ? ' · Current' : ''}</option>)}
+          <Field label="Academic year" required error={fieldErrors.academic_year} hint={typeModal?.mode === 'edit' ? 'The academic year stays fixed after creation.' : 'New requirements belong to the semester you are working in.'}>
+            <Select ref={(node) => { fieldRefs.current.academic_year = node; }} disabled value={typeForm.academic_year}>
+              {typeForm.academic_year ? <option value={typeForm.academic_year}>{typeForm.academic_year}</option> : <option value="">No active semester</option>}
             </Select>
           </Field>
           <Field label="Deadline" required error={fieldErrors.deadline_at}>

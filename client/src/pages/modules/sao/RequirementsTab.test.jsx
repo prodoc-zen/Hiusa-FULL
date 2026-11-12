@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 const sampleMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../services/complianceService', () => mocks);
-vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([{ id: 1, label: '2026-2027' }]) }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([{ id: 1, label: '2026-2027' }, { id: 2, label: '2027-2028' }]) }));
 vi.mock('../../../utils/openProtectedFile', () => sampleMocks);
 
 describe('Organization requirement samples', () => {
@@ -66,5 +66,25 @@ describe('Organization requirement samples', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add requirement' }));
     expect(within(dialog).getByRole('alert')).toHaveTextContent('Choose a sample file.');
     expect(mocks.createRequirementType).not.toHaveBeenCalled();
+  });
+
+  it('only offers the academic year of the semester the SAO is working in', async () => {
+    const dialog = await openNewRequirement();
+    const year = within(dialog).getByLabelText(/^Academic year/);
+    expect(year).toBeDisabled();
+    expect(year).toHaveValue('2026-2027');
+    expect(within(year).queryByRole('option', { name: /2027-2028/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the Manila day of a deadline stored at midnight and sends that same day back on save', async () => {
+    mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ id: 5, name: 'Constitution', academic_year: '2026-2027', deadline_at: '2026-12-30T16:00:00.000000Z', is_active: true, template_url: 'https://example.edu/guide', allowed_extensions: ['pdf'] }] } });
+    mocks.updateRequirementType.mockResolvedValue({ data: {} });
+    render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Constitution' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit requirement' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/^Deadline/)).toHaveValue('2026-12-31');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(5, expect.objectContaining({ deadline_at: '2026-12-31' })));
   });
 });
