@@ -436,12 +436,19 @@ function AddStockModal({
   );
 }
 
+// An officer's verification only submits the payment for Admin approval, so it is offered once per order.
+function canSubmitPayment(order, role) {
+  return order.status === "pending" && (role === "ADMIN" || order.officer_review_status !== "approved");
+}
+
 function FulfillmentOrderRow({
   order,
   role,
   onDetails,
   onApprove,
   onReject,
+  onRelease,
+  releasing = false,
 }) {
   const studentName = order.student
     ? `${order.student.first_name} ${order.student.last_name}`
@@ -535,16 +542,18 @@ function FulfillmentOrderRow({
           <Button type="button" variant="secondary" onClick={() => onDetails(order)}>
             Review
           </Button>
-          {order.status === "paid" && (
-            <Button variant="secondary" to="/dashboard/merchandise/claim-tokens" rightIcon={ArrowRight}>
-              Claim desk
+          {order.status === "paid" && order.claim_token && (
+            <Button type="button" disabled={releasing} onClick={() => onRelease(order)} rightIcon={ArrowRight}>
+              Release order
             </Button>
           )}
           {order.status === "pending" && (
             <>
-              <Button type="button" variant="secondary" onClick={() => onApprove(order)} rightIcon={ArrowRight}>
-                {role === "ADMIN" ? "Approve" : "Verify"}
-              </Button>
+              {canSubmitPayment(order, role) && (
+                <Button type="button" variant="secondary" onClick={() => onApprove(order)} rightIcon={ArrowRight}>
+                  {role === "ADMIN" ? "Approve payment" : "Verify payment"}
+                </Button>
+              )}
               <Button type="button" variant="secondary" className="text-danger-strong" onClick={() => onReject(order)}>
                 Reject
               </Button>
@@ -1435,6 +1444,20 @@ export default function MerchandisePage({ initialTab }) {
         setTransactionMessage(`${addAmount} unit(s) added to ${item.name}.`);
       },
     });
+  }
+
+  async function openRowRelease(order) {
+    setClaiming(true);
+    setClaimError(null);
+    setClaimSuccess(null);
+    try {
+      const response = await verifyClaimToken(order.claim_token);
+      setClaimPreview(response.data);
+    } catch (requestError) {
+      setClaimError(requestError.response?.data?.message || "Unable to verify this order for release.");
+    } finally {
+      setClaiming(false);
+    }
   }
 
   async function handleClaim(e) {
@@ -3189,6 +3212,8 @@ export default function MerchandisePage({ initialTab }) {
                       onDetails={openOrderDetails}
                       onApprove={openPaymentVerification}
                       onReject={openOrderRejection}
+                      onRelease={openRowRelease}
+                      releasing={claiming}
                     />
                   ))}
                 </div>
@@ -3245,11 +3270,15 @@ export default function MerchandisePage({ initialTab }) {
                             <OrderStage flow={staffOrderFlow(o, role)} order={o} className="mt-1.5" />
                           </td>
                           <td className="px-3 py-2.5 text-right align-top">
-                            <div className="flex justify-end">
+                            <div className="flex items-center justify-end gap-2">
+                              {o.status === 'paid' && o.claim_token && (
+                                <Button type="button" disabled={claiming} onClick={() => openRowRelease(o)}>Release order</Button>
+                              )}
+                              {canSubmitPayment(o, role) && (
+                                <Button type="button" onClick={() => openPaymentVerification(o)}>{role === 'ADMIN' ? 'Approve payment' : 'Verify payment'}</Button>
+                              )}
                               <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
                                 { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
-                                o.status === 'paid' && { label: 'Release at claim desk', icon: Ticket, onClick: () => navigate('/dashboard/merchandise/claim-tokens') },
-                                o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify and submit', icon: ArrowRight, onClick: () => openPaymentVerification(o) },
                                 o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => openOrderRejection(o) },
                               ]} />
                             </div>

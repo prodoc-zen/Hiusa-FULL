@@ -897,7 +897,7 @@ describe("MerchandisePage order stages for staff", () => {
     expect(progress(4)).toHaveAttribute("aria-valuetext", "Step 3 of 4: Paid");
     expect(progress(5)).toHaveAttribute("aria-valuetext", "Complete: 4 of 4 steps done");
     expect(screen.queryByRole("progressbar", { name: "ORD-6 progress" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /Claim desk/ })[0]).toHaveAttribute("href", "/dashboard/merchandise/claim-tokens");
+    expect(screen.getAllByRole("button", { name: "Release order" }).length).toBeGreaterThan(0);
   });
 
   it("shows the stage and the next action inside each order row of the table", async () => {
@@ -915,6 +915,67 @@ describe("MerchandisePage order stages for staff", () => {
     expect(within(rowOf(4)).getByRole("progressbar", { name: "ORD-4 progress" })).toHaveAttribute("aria-valuetext", "Step 3 of 4: Paid");
     expect(within(rowOf(4)).getByText("Release at the claim desk")).toBeInTheDocument();
     expect(within(rowOf(6)).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  const paidRow = (overrides) => staffOrder({ id: 4, status: "paid", claim_token: "CLAIMTOKEN123456", officer_review_status: "approved", admin_review_status: "approved", ...overrides });
+
+  it("releases a paid order from its row with one confirmation and no token typing", async () => {
+    const row = paidRow();
+    orderMocks.getOrders.mockResolvedValue(queue([row]));
+    orderMocks.verifyClaimToken.mockResolvedValue({ data: row });
+    orderMocks.claimByToken.mockResolvedValue({ data: { ...row, status: "claimed" } });
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    fireEvent.click(within(table).getByRole("button", { name: "Release order" }));
+    await waitFor(() => expect(orderMocks.verifyClaimToken).toHaveBeenCalledWith("CLAIMTOKEN123456"));
+    expect(orderMocks.claimByToken).not.toHaveBeenCalled();
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/merchandise/manage-orders");
+    const dialog = await screen.findByRole("dialog", { name: "Verify claim before release" });
+    expect(dialog).toHaveTextContent("ORD-4");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm release" }));
+    await waitFor(() => expect(orderMocks.claimByToken).toHaveBeenCalledWith("CLAIMTOKEN123456"));
+  });
+
+  it("shows why a row release could not start and releases nothing", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([paidRow()]));
+    orderMocks.verifyClaimToken.mockRejectedValue({ response: { data: { message: "This token has already been used." } } });
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    fireEvent.click(within(await screen.findByRole("table")).getByRole("button", { name: "Release order" }));
+    expect((await screen.findAllByText("This token has already been used.")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("dialog", { name: "Verify claim before release" })).not.toBeInTheDocument();
+    expect(orderMocks.claimByToken).not.toHaveBeenCalled();
+  });
+
+  it("offers Release order on the mobile card instead of a link to the Claim desk", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([paidRow()]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    await screen.findByRole("table");
+    expect(screen.getAllByRole("button", { name: "Release order" })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: /Claim desk/ })).not.toBeInTheDocument();
+  });
+
+  it("puts Verify payment on the pending row and only the less used actions in the menu", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 2 })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    fireEvent.click(within(table).getByRole("button", { name: "Verify payment" }));
+    expect(screen.getByRole("dialog", { name: "Verify merchandise payment" })).toHaveTextContent("ORD-2");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(table).getByRole("button", { name: "Actions for Order 2" }));
+    expect(screen.queryByRole("menuitem", { name: "Verify and submit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Reject order" })).toBeInTheDocument();
+  });
+
+  it("does not offer Verify payment once the officer has submitted it for the Admin", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 3, officer_review_status: "approved" })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    const table = await screen.findByRole("table");
+    expect(within(table).queryByRole("button", { name: "Verify payment" })).not.toBeInTheDocument();
   });
 
   it("asks the Admin to approve a payment the officer already verified", async () => {
