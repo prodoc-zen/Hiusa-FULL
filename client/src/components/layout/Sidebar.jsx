@@ -264,9 +264,10 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                       setFlyout((current) => current?.id === item.id ? null : { id: item.id, top });
                       return;
                     }
-                    if (!isExpanded) {
+                    // On a phone a group tap only opens or folds its children: the person picks one, and that
+                    // pick closes the drawer. Navigating here would change the page behind the drawer unasked.
+                    if (!isExpanded && window.innerWidth >= 1024) {
                       navigate(itemPath);
-                      handleNavItemClick();
                     }
 
                     setExpandedMenus((previous) => ({
