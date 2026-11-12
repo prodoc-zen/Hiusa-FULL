@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsurePeriodWritable;
 use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Event;
@@ -85,6 +86,9 @@ class VenueBookingController extends Controller
             $event = Event::where('organization_id', $organizationId)->find($data['event_id']);
             if (! $event) {
                 return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+            }
+            if (AcademicSemester::isClosed($event->academic_semester_id)) {
+                return response()->json(['message' => EnsurePeriodWritable::CLOSED], 409);
             }
         }
 
@@ -242,6 +246,10 @@ class VenueBookingController extends Controller
 
             if ($booking->organization_id !== $request->user()->organization_id) {
                 return ['not_found' => true];
+            }
+
+            if (AcademicSemester::isClosed($booking->academic_semester_id)) {
+                return ['conflict' => EnsurePeriodWritable::CLOSED];
             }
 
             $canWithdraw = $booking->status === 'pending'
