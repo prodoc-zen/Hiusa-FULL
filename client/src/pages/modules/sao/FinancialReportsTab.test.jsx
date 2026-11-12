@@ -115,6 +115,23 @@ describe('FinancialReportsTab', () => {
     expect(within(inbox).queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
   });
 
+  it('puts Download PDF in the row next to Review, a read that costs no extra step, and leaves Approve and Reject to the drawer', async () => {
+    financeMocks.downloadFinancialReportPdf.mockResolvedValue({ headers: {}, data: new Blob(['pdf']) });
+    URL.createObjectURL = vi.fn(() => 'blob:report');
+    URL.revokeObjectURL = vi.fn();
+    render(<FinancialReportsTab />);
+
+    const inbox = await screen.findByRole('region', { name: 'Report inbox' });
+    const row = within(inbox).getByRole('listitem');
+    expect(within(row).getByRole('button', { name: 'Review September Income Statement' })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Download PDF of September Income Statement' }));
+    await waitFor(() => expect(financeMocks.downloadFinancialReportPdf).toHaveBeenCalledWith(8));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('offers Download PDF and the pending decisions in the report drawer', async () => {
     render(<FinancialReportsTab />);
     await viewReportFromMenu();

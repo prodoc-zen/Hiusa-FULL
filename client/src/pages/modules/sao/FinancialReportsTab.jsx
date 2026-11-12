@@ -138,7 +138,10 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
       status: { status: report.submission_status || 'pending_sao', label: statusLabel(report.submission_status) },
       file: null,
       emptyFile: `${report.organization?.acronym || formatDisplayText(report.organization?.name)} · ${documentLabel(report.document_type)} · ${date(report.submitted_at || report.generated_at)}`,
-      actions: [{ label: verb, ariaLabel: `${verb} ${title}`, onClick: () => openReport(report) }],
+      actions: [
+        { label: verb, ariaLabel: `${verb} ${title}`, onClick: () => openReport(report) },
+        { label: 'Download PDF', ariaLabel: `Download PDF of ${title}`, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
+      ],
     };
   });
 
@@ -177,7 +180,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
           <SkeletonTable rows={5} columns={4} />
         ) : reports.length ? (
           <div className="overflow-hidden rounded-card border border-line">
-            <FileReviewList rows={reportRows} labels={{ name: 'Report', file: 'Details' }} />
+            <FileReviewList wideAction rows={reportRows} labels={{ name: 'Report', file: 'Details' }} />
           </div>
         ) : (
           <EmptyState

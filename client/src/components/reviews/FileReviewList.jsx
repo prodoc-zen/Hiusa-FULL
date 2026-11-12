@@ -7,6 +7,8 @@ import { openProtectedFile } from '../../utils/openProtectedFile';
 // One column template for the header and every row, so Requirement, Status, File and Action line up
 // on each row. Under 640px a row stacks: name and status, then the file, then the action.
 const GRID = 'grid-cols-[minmax(0,1fr)_auto] gap-x-4 sm:grid-cols-[minmax(0,1.3fr)_9rem_minmax(0,1.7fr)_7rem]';
+// For a row that carries two actions side by side, such as Review and Download PDF.
+const GRID_WIDE = 'grid-cols-[minmax(0,1fr)_auto] gap-x-4 sm:grid-cols-[minmax(0,1.3fr)_9rem_minmax(0,1.7fr)_13rem]';
 
 const LINK_BUTTON = 'inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50';
 
@@ -43,11 +45,12 @@ export function FileLink({ url, name, icon: Icon = FileText }) {
 //   }]} />
 //
 // note and detail show under the row while expanded is true.
-export default function FileReviewList({ rows, labels = {} }) {
+export default function FileReviewList({ rows, labels = {}, wideAction = false }) {
   const heads = { name: 'Requirement', status: 'Status', file: 'File', action: 'Action', ...labels };
+  const grid = wideAction ? GRID_WIDE : GRID;
   return (
     <>
-      <div aria-hidden="true" className={`${GRID} hidden items-center border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:grid`}>
+      <div aria-hidden="true" className={`${grid} hidden items-center border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:grid`}>
         <span>{heads.name}</span>
         <span>{heads.status}</span>
         <span>{heads.file}</span>
@@ -56,7 +59,7 @@ export default function FileReviewList({ rows, labels = {} }) {
       <ul className="divide-y divide-line-soft border-b border-line-soft sm:border-b-0">
         {rows.map((row) => (
           <li key={row.id} className="px-4 py-3 sm:min-h-[3.25rem] sm:py-2.5">
-            <div className={`${GRID} grid items-center gap-y-1 sm:gap-y-0`}>
+            <div className={`${grid} grid items-center gap-y-1 sm:gap-y-0`}>
               <p className="min-w-0 break-words text-sm font-semibold text-ink">{row.name}</p>
               <div>{row.status && <StatusBadge {...row.status} />}</div>
               <div className="col-span-2 min-w-0 sm:col-span-1">
