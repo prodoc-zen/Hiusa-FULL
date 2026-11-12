@@ -22,7 +22,7 @@ class TransactionFactory extends Factory
             'amount' => fake()->randomFloat(2, 100, 20000),
             'description' => fake()->sentence(),
             'receipt_reference' => fake()->boolean(70) ? fake()->unique()->bothify('RCPT-######') : null,
-            'transaction_date' => fake()->dateTimeBetween('-6 months', 'now'),
+            'transaction_date' => fake()->dateTimeBetween('-1 week', 'now'),
         ];
     }
 }
