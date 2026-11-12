@@ -185,7 +185,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
         <NextStep
           title="What happens next"
           body={`Your receipt stays on the Vote page. ${resultsSentence}`}
-          primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/elections/cast-vote') }}
+          primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard(true) : navigate('/dashboard/elections/cast-vote') }}
         />
       </div>
     );

@@ -50,7 +50,8 @@ export default function ImmersiveVotePage() {
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [dirty]);
 
-  const leaveVoting = () => navigate('/dashboard/elections/cast-vote', { replace: true });
+  // Leaving an unsubmitted ballot drops it from history. A cast ballot stays, so Back from Vote reaches its receipt.
+  const leaveVoting = (afterVote = false) => navigate('/dashboard/elections/cast-vote', afterVote === true ? undefined : { replace: true });
   const requestExit = () => dirty ? setConfirmExit(true) : leaveVoting();
 
   return (
