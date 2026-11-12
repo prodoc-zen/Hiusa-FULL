@@ -512,7 +512,7 @@ describe('SystemCollegesPage', () => {
 
       const order = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
       expect(order).toEqual(['College of Computing', 'College of Arts']);
-      expect(cardOf('College of Computing')).toHaveTextContent('1 awaiting administrator');
+      expect(cardOf('College of Computing')).toHaveTextContent('1 awaiting organization head');
     });
 
     it('says what the SAO does next for each lifecycle status', async () => {
@@ -523,7 +523,7 @@ describe('SystemCollegesPage', () => {
 
       expect(within(rowOf('Robotics Club')).getByText('Review this registration')).toBeInTheDocument();
       expect(within(rowOf('Robotics Club')).getByText('Step 2 of 4: SAO approval')).toBeInTheDocument();
-      expect(within(rowOf('Chess Club')).getByText('Add the first Admin account')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument();
       expect(within(rowOf('Chess Club')).getByText('Step 3 of 4: Admin account')).toBeInTheDocument();
       expect(within(rowOf('Art Club')).getByText('Active: administrator can sign in')).toBeInTheDocument();
       expect(within(rowOf('Drama Guild')).getByText('Waiting for the Department Head to resubmit')).toBeInTheDocument();

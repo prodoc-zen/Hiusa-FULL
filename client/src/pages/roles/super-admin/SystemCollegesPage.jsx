@@ -49,7 +49,7 @@ function OrganizationsSummary({ college, awaitingAdministrator }) {
   const counts = college.by_lifecycle_status || {};
   return (
     <p className="text-xs font-semibold text-ink-muted">
-      <Count value={college.organizations_count} /> {college.organizations_count === 1 ? 'organization' : 'organizations'} · <Count value={counts.pending || 0} /> pending · <Count value={counts.active || 0} /> active · <Count value={counts.returned || 0} /> returned · <Count value={counts.archived || 0} /> archived{hasAdministratorCount(college) && <> · <Count value={college.administrators_count} /> {college.administrators_count === 1 ? 'administrator' : 'administrators'}</>}{awaitingAdministrator > 0 && <> · <Count value={awaitingAdministrator} /> awaiting administrator</>}
+      <Count value={college.organizations_count} /> {college.organizations_count === 1 ? 'organization' : 'organizations'} · <Count value={counts.pending || 0} /> pending · <Count value={counts.active || 0} /> active · <Count value={counts.returned || 0} /> returned · <Count value={counts.archived || 0} /> archived{hasAdministratorCount(college) && <> · <Count value={college.administrators_count} /> {college.administrators_count === 1 ? 'administrator' : 'administrators'}</>}{awaitingAdministrator > 0 && <> · <Count value={awaitingAdministrator} /> awaiting organization head</>}
     </p>
   );
 }
@@ -58,7 +58,7 @@ function waitingSummary(counts, awaitingAdministrator) {
   return [
     counts.pending && `${counts.pending} pending`,
     counts.returned && `${counts.returned} returned`,
-    awaitingAdministrator && `${awaitingAdministrator} awaiting administrator`,
+    awaitingAdministrator && `${awaitingAdministrator} awaiting organization head`,
   ].filter(Boolean).join(' · ');
 }
 
