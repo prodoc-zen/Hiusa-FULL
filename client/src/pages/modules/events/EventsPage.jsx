@@ -627,6 +627,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }, [activeTab, attendanceReload, canManageAttendance]);
 
   function handleSelectAttEvent(id) {
+    if (id === selectedAttEventId) return;
     setSelectedAttEventId(id);
     setAttendanceData(null);
     setAttendanceLoading(true);
@@ -1071,7 +1072,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }, [activeTab, canManageAttendance, viewingHistory, loading, preselectedEventId, ongoingAttendanceEvents.length]);
 
   const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
-  const attendanceCount = Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
+  const attendanceSummary = attendanceData?.summary;
+  const attendanceCount = attendanceSummary
+    ? Number(attendanceSummary.present ?? 0) + Number(attendanceSummary.late ?? 0)
+    : Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
   const currentlyInside = Number(attendanceData?.checked_in_count ?? attendanceCount);
   const expectedAttendance = Number(attendanceEvent?.planning_details?.expected_participants ?? 0);
   const attendanceRate = expectedAttendance > 0 ? Math.min(100, Math.round((attendanceCount / expectedAttendance) * 100)) : null;
