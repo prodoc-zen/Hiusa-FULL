@@ -102,11 +102,6 @@ class ElectionHandoverTest extends TestCase
         return $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'password']);
     }
 
-    private function endedMessage(): string
-    {
-        return 'Your officer access for '.$this->organization->name.' ended when the new officers took over.';
-    }
-
     private function release(Election $election)
     {
         Sanctum::actingAs($this->admin);
@@ -134,7 +129,7 @@ class ElectionHandoverTest extends TestCase
         $this->assertNotNull($election->fresh()->access_handed_over_at);
     }
 
-    public function test_other_positions_become_officers_and_listed_head_titles_become_admins(): void
+    public function test_other_positions_become_officers_even_when_the_organization_lists_them_as_admin(): void
     {
         SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'ADMIN', 'title' => 'Chairperson']);
         $election = $this->closedElection();
@@ -143,23 +138,49 @@ class ElectionHandoverTest extends TestCase
 
         $this->release($election)->assertOk();
 
-        $this->assertSame('ADMIN', $this->profile($chair)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($chair)->role);
         $this->assertSame('SBO_OFFICER', $this->profile($secretary)->role);
         $this->assertSame('Secretary', $this->profile($secretary)->position_title);
     }
 
-    public function test_an_unlisted_vice_president_becomes_an_officer_not_an_admin(): void
+    public function test_the_president_and_every_vice_president_become_admins(): void
     {
         $election = $this->closedElection();
         [$vp] = $this->position($election, 'Vice President', [3]);
         [$vpFinance] = $this->position($election, 'Vice President for Finance', [3]);
+        [$vpInternal] = $this->position($election, 'Vice President – Internal', [3]);
+        [$vpExternal] = $this->position($election, ' vice-president   EXTERNAL ', [3]);
         [$president] = $this->position($election, '  PRESIDENT ', [3]);
 
         $this->release($election)->assertOk();
 
-        $this->assertSame('SBO_OFFICER', $this->profile($vp)->role);
-        $this->assertSame('SBO_OFFICER', $this->profile($vpFinance)->role);
-        $this->assertSame('ADMIN', $this->profile($president)->role);
+        foreach ([$vp, $vpFinance, $vpInternal, $vpExternal, $president] as $winner) {
+            $this->assertSame('ADMIN', $this->profile($winner)->role);
+        }
+        $this->assertSame('Vice President – Internal', $this->profile($vpInternal)->position_title);
+    }
+
+    public function test_the_standard_titles_listed_under_both_roles_still_split_admin_from_officer(): void
+    {
+        $titles = ['President', 'Vice President – Internal', 'Vice President – External', 'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Business Manager'];
+        foreach ($titles as $title) {
+            foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
+                SboPosition::create(['organization_id' => $this->organization->id, 'role' => $role, 'title' => $title]);
+            }
+        }
+        $election = $this->closedElection();
+        $winners = [];
+        foreach ($titles as $title) {
+            [$winners[$title]] = $this->position($election, $title, [3]);
+        }
+
+        $this->release($election)->assertOk();
+
+        foreach ($titles as $title) {
+            $expected = ($title === 'President' || str_starts_with($title, 'Vice President')) ? 'ADMIN' : 'SBO_OFFICER';
+            $this->assertSame($expected, $this->profile($winners[$title])->role, $title);
+            $this->assertSame($title, $this->profile($winners[$title])->position_title);
+        }
     }
 
     public function test_a_tie_grants_nothing_and_the_results_flag_it(): void
@@ -201,7 +222,27 @@ class ElectionHandoverTest extends TestCase
         $this->assertNull($this->access($tiedB));
     }
 
-    public function test_an_outgoing_officer_is_told_the_profile_is_unavailable_so_the_client_can_sign_out(): void
+    public function test_an_outgoing_officer_stays_in_the_organization_as_a_plain_student(): void
+    {
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        AccountProfile::where('user_school_id', $outgoing->school_id)->update(['modules' => ['events']]);
+        $election = $this->closedElection();
+        $this->position($election, 'Secretary', [6, 1]);
+
+        $this->release($election)->assertOk();
+
+        $profile = $this->profile($outgoing);
+        $this->assertSame('STUDENT', $profile->role);
+        $this->assertNull($profile->position_title);
+        $this->assertNull($profile->modules);
+        $this->assertSame('active', $profile->account_status);
+        $this->assertSame($this->organization->id, $profile->organization_id);
+
+        Sanctum::actingAs($outgoing);
+        $this->getJson('/api/elections')->assertOk();
+    }
+
+    public function test_an_outgoing_officer_stays_on_the_voter_roll_for_the_next_election(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $election = $this->closedElection();
@@ -209,10 +250,7 @@ class ElectionHandoverTest extends TestCase
 
         $this->release($election)->assertOk();
 
-        Sanctum::actingAs($outgoing);
-        $this->getJson('/api/elections')
-            ->assertForbidden()
-            ->assertJson(['message' => $this->endedMessage(), 'error_code' => 'PROFILE_UNAVAILABLE']);
+        $this->assertTrue(AccountProfile::votingMembers()->where('organization_id', $this->organization->id)->where('user_school_id', $outgoing->school_id)->exists());
     }
 
     public function test_a_winner_signs_in_as_the_role_the_hand_over_gave_them(): void
@@ -265,7 +303,7 @@ class ElectionHandoverTest extends TestCase
         $this->withToken($token)->getJson('/api/account-profiles')->assertOk();
     }
 
-    public function test_a_replaced_officer_with_no_profile_left_is_told_why_at_sign_in(): void
+    public function test_a_replaced_officer_still_signs_in_as_a_student_of_the_organization(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $election = $this->closedElection();
@@ -273,29 +311,28 @@ class ElectionHandoverTest extends TestCase
 
         $this->release($election)->assertOk();
 
-        $this->signIn($outgoing)->assertForbidden()
-            ->assertJsonPath('message', $this->endedMessage())
-            ->assertJsonMissingPath('access_token');
-        $this->assertSame(0, $outgoing->tokens()->count());
+        $this->signIn($outgoing)->assertOk()
+            ->assertJsonPath('user.role', 'STUDENT')
+            ->assertJsonPath('user.organization_id', $this->organization->id);
     }
 
-    public function test_a_replaced_officer_signs_in_to_the_profile_they_still_have(): void
+    public function test_a_replaced_officer_keeps_every_profile_they_had(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $other = Organization::factory()->create();
-        $kept = AccountProfile::create(['user_school_id' => $outgoing->school_id, 'organization_id' => $other->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $outgoing->school_id, 'organization_id' => $other->id, 'role' => 'STUDENT', 'account_status' => 'active']);
         $election = $this->closedElection();
         $this->position($election, 'Secretary', [6, 1]);
 
         $this->release($election)->assertOk();
 
-        $token = $this->signIn($outgoing)->assertOk()
-            ->assertJsonPath('user.role', 'STUDENT')
-            ->assertJsonPath('user.organization_id', $other->id)
-            ->json('access_token');
+        $token = $this->signIn($outgoing)->assertOk()->json('access_token');
         $this->app['auth']->forgetGuards();
-        $this->withToken($token)->getJson('/api/user')->assertOk()->assertJsonPath('role', 'STUDENT')->assertJsonPath('organization_id', $other->id);
-        $this->withToken($token)->getJson('/api/user/profiles')->assertOk()->assertJsonPath('active_profile_id', $kept->id);
+        $profiles = collect($this->withToken($token)->getJson('/api/user/profiles')->assertOk()->json('profiles'));
+        $here = $profiles->firstWhere('organization_id', $this->organization->id);
+
+        $this->assertCount(2, $profiles);
+        $this->assertSame('STUDENT', $here['role']);
     }
 
     public function test_a_profile_switched_off_for_another_reason_does_not_claim_a_hand_over(): void
@@ -321,7 +358,7 @@ class ElectionHandoverTest extends TestCase
         $this->assertNull($this->access($three));
     }
 
-    public function test_outgoing_holders_of_the_same_position_are_deactivated_and_other_admins_are_left(): void
+    public function test_outgoing_holders_of_the_same_position_become_students_and_other_admins_are_left(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $deansAdmin = $this->member('ADMIN', 'Org Head');
@@ -331,7 +368,7 @@ class ElectionHandoverTest extends TestCase
 
         $this->release($election)->assertOk();
 
-        $this->assertSame('inactive', $this->profile($outgoing)->account_status);
+        $this->assertSame(['STUDENT', 'active', null], $this->held($outgoing));
         $this->assertSame('active', $this->profile($deansAdmin)->account_status);
         $this->assertSame('ADMIN', $this->profile($deansAdmin)->role);
         $this->assertSame('active', $this->profile($otherOfficer)->account_status);
@@ -479,11 +516,11 @@ class ElectionHandoverTest extends TestCase
 
         $profile = $this->profile($incumbent);
         $this->assertSame('active', $profile->account_status);
-        $this->assertSame('SBO_OFFICER', $profile->role);
+        $this->assertSame('ADMIN', $profile->role);
         $this->assertSame('Vice President', $profile->position_title);
         $this->assertSame('ADMIN', $this->profile($president)->role);
-        $deactivated = AuditLog::where('action', 'access_handed_over')->first()->new_values['deactivated'];
-        $this->assertNotContains($incumbent->school_id, $deactivated);
+        $demoted = AuditLog::where('action', 'access_handed_over')->first()->new_values['demoted'];
+        $this->assertNotContains($incumbent->school_id, $demoted);
     }
 
     public function test_a_winner_deactivated_for_cause_is_not_reactivated_and_the_results_say_so(): void
@@ -621,7 +658,7 @@ class ElectionHandoverTest extends TestCase
         $this->assertDatabaseCount('password_reset_tokens', 1);
     }
 
-    public function test_an_officer_the_hand_over_retired_must_be_reactivated_before_a_password_reset(): void
+    public function test_an_officer_the_hand_over_replaced_is_an_active_student_who_can_have_a_password_reset(): void
     {
         Mail::fake();
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
@@ -630,22 +667,22 @@ class ElectionHandoverTest extends TestCase
         $this->release($election)->assertOk();
         $this->colleague();
 
-        $this->postJson('/api/users/'.$outgoing->school_id.'/password-reset')->assertUnprocessable();
-        $this->assertSame(0, $this->resetTokens($outgoing));
+        $this->postJson('/api/users/'.$outgoing->school_id.'/password-reset')->assertOk();
+        $this->assertSame(1, $this->resetTokens($outgoing));
+        $this->assertSame(['STUDENT', 'active', null], $this->held($outgoing));
     }
 
-    public function test_an_admin_can_reactivate_an_officer_the_hand_over_retired(): void
+    public function test_the_hand_over_audit_lists_who_was_stepped_down_to_student(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $election = $this->closedElection();
         $this->position($election, 'Secretary', [6, 1]);
+
         $this->release($election)->assertOk();
-        $this->assertSame('inactive', $this->profile($outgoing)->account_status);
-        $this->colleague();
 
-        $this->postJson('/api/users/'.$outgoing->school_id.'/reactivate')->assertOk();
-
-        $this->assertSame(['SBO_OFFICER', 'active', 'Secretary'], $this->held($outgoing));
+        $values = AuditLog::where('action', 'access_handed_over')->where('record_id', $election->id)->firstOrFail()->new_values;
+        $this->assertSame([$outgoing->school_id], $values['demoted']);
+        $this->assertArrayNotHasKey('deactivated', $values);
     }
 
     public function test_editing_a_member_elected_president_answers_with_the_role_they_hold(): void
@@ -736,8 +773,7 @@ class ElectionHandoverTest extends TestCase
 
     public function test_the_last_admin_check_counts_active_admin_profiles_not_account_rows(): void
     {
-        SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'ADMIN', 'title' => 'Chairperson']);
-        $chair = $this->elected('Chairperson');
+        $chair = $this->elected('Vice President');
         $this->assertSame('STUDENT', $this->accountRowRole($chair));
         $dormant = $this->member('ADMIN', 'Treasurer');
         User::where('school_id', $dormant->school_id)->update(['account_status' => 'inactive']);
@@ -754,18 +790,13 @@ class ElectionHandoverTest extends TestCase
             ->assertJsonPath('message', 'Cannot deactivate the last active admin account.');
     }
 
-    public function test_the_unavailable_message_names_the_hand_over_only_while_it_is_why_the_profile_is_inactive(): void
+    public function test_a_replaced_officer_switched_off_later_is_told_the_plain_unavailable_message(): void
     {
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $election = $this->closedElection();
         $this->position($election, 'Secretary', [6, 1]);
         $this->release($election)->assertOk();
 
-        $this->signIn($outgoing)->assertForbidden()->assertJsonPath('message', $this->endedMessage());
-
-        // Reactivated, then switched off again later for some other reason: the hand over is no longer why.
-        $this->travel(2)->hours();
-        $this->profile($outgoing)->update(['account_status' => 'active']);
         $this->profile($outgoing)->update(['account_status' => 'inactive']);
 
         $this->signIn($outgoing)->assertForbidden()->assertJsonPath('message', 'This account profile is unavailable.');

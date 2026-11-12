@@ -87,6 +87,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState('');
+  const [submittedAt, setSubmittedAt] = useState('');
   const [alreadyVotedDetected, setAlreadyVotedDetected] = useState(false);
   const [confirmingSubmission, setConfirmingSubmission] = useState(false);
   const currentUser = useMemo(() => {
@@ -126,6 +127,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
       const ballot = groupedPositions.map((entry) => ({ position_id: entry.position.id, candidate_id: votes[entry.position.id] }));
       const response = await castVotes(election.id, ballot);
       setReceipt(response.receipt || 'CAST-SUCCESSFUL');
+      setSubmittedAt(new Date().toISOString());
       setPhase('submitted');
       refreshElection().catch(() => {});
     } catch (error) {
@@ -164,6 +166,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
   }
 
   if (phase === 'submitted') {
+    const submittedOn = formatVotingDateTime(currentUserVotes[0]?.cast_at || submittedAt);
     const rows = ballotRows(groupedPositions, (entry) => {
       const voteItem = currentUserVotes.find((item) => item.position_id === entry.position.id);
       return entry.candidates.find((item) => item.id === (voteItem?.candidate_id ?? votes[entry.position.id]));
@@ -175,6 +178,8 @@ export default function CastVotePage({ election: electionOverride = null, refres
       <div className="mx-auto max-w-3xl space-y-5">
         <div>
           <h1 className="text-xl font-semibold text-ink sm:text-2xl">Ballot submitted</h1>
+          <p className="mt-1 text-sm font-medium text-ink">{formatDisplayText(election.title)}</p>
+          {submittedOn && <p className="text-sm text-ink-muted">{`Submitted ${submittedOn}`}</p>}
           <p className="mt-1 text-sm text-ink-muted">Your choices were recorded and cannot be changed.</p>
         </div>
         <div className="border-t border-line pt-4">
