@@ -27,7 +27,6 @@ use App\Http\Controllers\FileStorageController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
-use App\Http\Controllers\FinancialSemesterController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
@@ -308,8 +307,6 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
 
     // Finance Routes - Reports
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::get('/financial-semesters', [FinancialSemesterController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN']);
-    Route::post('/financial-semesters', [FinancialSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/financial-reports/{financialReport}', [FinancialReportController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/financial-reports/{financialReport}/pdf', [FinancialReportController::class, 'downloadPdf'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);

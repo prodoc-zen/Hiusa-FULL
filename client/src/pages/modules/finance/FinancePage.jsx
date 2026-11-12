@@ -4,7 +4,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -41,13 +41,13 @@ import {
   getFinancialReports,
   getFinancialReport,
   getStudentDebts,
-  getFinancialSemesters,
-  createFinancialSemester,
   generateFinancialReport,
   downloadFinancialReportPdf,
   submitFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
+import { getAcademicPeriods } from '../../../services/systemAdministrationService';
+import { readSelectedPeriod } from '../../../utils/academicPeriodStore';
 import { getMyClearances } from '../../../services/clearanceService';
 import { humanizeRole } from '../clearances/clearanceLabels';
 import { debtBreakdown, debtRowFrom, owedSentence } from './accountDebt';
@@ -423,12 +423,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [forecastGenerating, setForecastGenerating] = useState(false);
   const [reports, setReports] = useState([]);
   const [reportFilter, setReportFilter] = useState({ search: '', status: '', event_id: '' });
-  const [semesters, setSemesters] = useState([]);
-  const [semesterForm, setSemesterForm] = useState({ name: '', starts_on: '', ends_on: '', endToday: true });
-  const [semesterSaving, setSemesterSaving] = useState(false);
+  const [reportSemesters, setReportSemesters] = useState(null);
   const [generatedReport, setGeneratedReport] = useState(null);
   const [reportGenerating, setReportGenerating] = useState(false);
-  const [reportForm, setReportForm] = useState({ document_type: 'financial_report', report_type: 'semester', financial_semester_id: '', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '', letterhead: null, letter_date: '', letter_subject: '', letter_recipient: '', letter_body: '', letter_closing: '' });
+  const [reportForm, setReportForm] = useState({ document_type: 'financial_report', report_type: 'semester', academic_semester_id: '', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '', letterhead: null, letter_date: '', letter_subject: '', letter_recipient: '', letter_body: '', letter_closing: '' });
   const [reportFiles, setReportFiles] = useState({});
   const [reportSubmitting, setReportSubmitting] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -450,7 +448,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [budgets, setBudgets] = useState([]);
   const [events, setEvents] = useState([]);
   const [showBudgetForm, setShowBudgetForm] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+  const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
   const [editingBudget, setEditingBudget] = useState(null);
   const [budgetFormError, setBudgetFormError] = useState(null);
   const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
@@ -575,12 +573,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
-      currentUserRole === 'ADMIN' ? getFinancialSemesters() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
       .then(async (first) => [first, await fetchLists()])
-      .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, semesterRes, clearanceRes, debtRes], [forecasts, reports]]) => {
+      .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes], [forecasts, reports]]) => {
         if (ticket !== loadTicket.current) return;
         if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
@@ -590,7 +587,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setReports(reports);
-        setSemesters(semesterRes.data || []);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
         setStudentDebt(debtRowFrom(debtRes));
       })
@@ -636,8 +632,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       allocated_amount: budget.allocated_amount ?? '',
       warning_threshold: budget.warning_threshold ?? '',
       event_id: budget.event_id ? String(budget.event_id) : '',
-      financial_semester_id: budget.financial_semester_id ? String(budget.financial_semester_id) : '',
-    } : { title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+    } : { title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
     setBudgetFormError(null);
     setShowBudgetForm(true);
   }
@@ -676,13 +671,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         allocated_amount: parseFloat(budgetForm.allocated_amount),
         warning_threshold: parseFloat(budgetForm.warning_threshold),
         event_id: budgetForm.event_id || null,
-        financial_semester_id: budgetForm.financial_semester_id || null,
       };
       if (editingBudget) await updateBudget(editingBudget.id, payload);
       else await createBudget(payload);
       const sentFromRequestPage = inlineBudgetForm;
       closeBudgetForm();
-      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
       if (sentFromRequestPage) setProposalSent(true);
       else showFeedback('success', editingBudget ? 'Budget updated and sent back for approval.' : 'Budget proposal submitted for approval.');
       refreshAfterSave(txMeta.current_page);
@@ -705,7 +699,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   useEffect(() => {
     if (startBudgetProposal && canProposeBudget) {
-      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
       setBudgetFormError(null);
       setShowBudgetForm(true);
     }
@@ -716,7 +710,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     if (!eventParam || eventParamHandled.current === eventParam) return;
     if (activeTab === 'budgets' && canProposeBudget) {
       setEditingBudget(null);
-      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: eventParam, financial_semester_id: '' });
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: eventParam });
       setBudgetFormError(null);
       setShowBudgetForm(true);
     } else if (activeTab === 'reports' && currentUserRole === 'ADMIN') {
@@ -825,8 +819,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', 'Select an event for the event-specific report.');
       return;
     }
-    if (reportForm.report_type === 'semester' && !reportForm.financial_semester_id) {
-      showFeedback('error', 'Add and select a semester before generating the report.');
+    if (reportForm.report_type === 'semester' && !reportForm.academic_semester_id) {
+      showFeedback('error', 'Select a semester before generating the report.');
       return;
     }
     if (reportForm.report_type === 'custom' && (!reportForm.period_start || !reportForm.period_end || reportForm.period_end < reportForm.period_start)) {
@@ -843,7 +837,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       const payload = {
         document_type: reportForm.document_type,
         report_type: reportForm.report_type,
-        financial_semester_id: reportForm.report_type === 'semester' ? reportForm.financial_semester_id : null,
+        academic_semester_id: reportForm.report_type === 'semester' ? reportForm.academic_semester_id : null,
         event_id: reportForm.report_type === 'event' ? reportForm.event_id : null,
         period_start: reportForm.report_type === 'custom' ? reportForm.period_start : null,
         period_end: reportForm.report_type === 'custom' ? reportForm.period_end : null,
@@ -930,26 +924,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', getApiErrorMessage(cause, 'Could not export the saved report.'));
     } finally {
       setReportExcelDownloading(null);
-    }
-  }
-
-  async function handleCreateSemester(event) {
-    event.preventDefault();
-    setSemesterSaving(true);
-    try {
-      const response = await createFinancialSemester({
-        name: semesterForm.name.trim(),
-        starts_on: semesterForm.starts_on,
-        ends_on: semesterForm.endToday ? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : semesterForm.ends_on,
-      });
-      setSemesters((current) => [response.data, ...current]);
-      setReportForm((current) => ({ ...current, financial_semester_id: String(response.data.id) }));
-      setSemesterForm({ name: '', starts_on: '', ends_on: '', endToday: true });
-      showFeedback('success', 'Semester added.');
-    } catch (err) {
-      showFeedback('error', getApiErrorMessage(err, 'Could not add the semester.'));
-    } finally {
-      setSemesterSaving(false);
     }
   }
 
@@ -1153,6 +1127,20 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const inlineBudgetForm = startBudgetProposal && showBudgetForm && !editingBudget;
   const requestFlow = startBudgetProposal && !editingBudget && (showBudgetForm || proposalSent);
   const reportFormVisible = currentUserRole === 'ADMIN' && (reportFormOpen || (!loading && reports.length === 0));
+  // The semesters a report can cover are the SAO's own, so they load once the report form is on screen. A semester
+  // that has not started has nothing to report; the one picked at the top bar (else the active one) is preselected.
+  useEffect(() => {
+    if (activeTab !== 'reports' || !reportFormVisible || reportSemesters !== null) return;
+    getAcademicPeriods()
+      .then((periods) => {
+        const reportable = (Array.isArray(periods) ? periods : []).filter((period) => period.status !== 'upcoming');
+        const chosen = readSelectedPeriod();
+        const preferred = reportable.find((period) => period.id === chosen?.id) || reportable.find((period) => period.status === 'active');
+        setReportSemesters(reportable);
+        if (preferred) setReportForm((current) => (current.academic_semester_id ? current : { ...current, academic_semester_id: String(preferred.id) }));
+      })
+      .catch(() => setReportSemesters([]));
+  }, [activeTab, reportFormVisible, reportSemesters]);
   const sortedForecasts = sortForecasts(forecasts);
 
   // A form drawer carries its own filled button, so the header's one is hidden while it is open.
@@ -1200,15 +1188,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           ))}
         </HiusaSelect>
       </Field>
-      <div>
-        <Field label="Financial semester" optional>
-          <HiusaSelect id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })}>
-            <option value="">No semester</option>
-            {semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)}</option>)}
-          </HiusaSelect>
-        </Field>
-        <Link to="/dashboard/finance/transaction-history" className="mt-1 inline-flex min-h-10 items-center rounded-control text-xs font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Need a new semester? Add one in Financial reports</Link>
-      </div>
       {budgetFormError && <p role="alert" className="text-sm font-semibold text-danger-strong">{budgetFormError}</p>}
     </form>
   );
@@ -1677,19 +1656,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <div className="space-y-6">
           {reportFormVisible && <section aria-labelledby="prepare-report-title" className="rounded-card border border-line bg-surface p-4 sm:p-5">
             <h2 id="prepare-report-title" className="text-base font-semibold text-ink">Prepare a report</h2>
-            {/* A semester report cannot be built before a semester exists, so the add form starts open until then. */}
-            <details open={semesters.length === 0 && reportForm.report_type === 'semester' ? true : undefined} className="mt-4 border-t border-line pt-4">
-              <summary className="min-h-10 cursor-pointer rounded-control text-sm font-medium text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Need a new semester? Add one here</summary>
-              <form onSubmit={handleCreateSemester} className="mt-4">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <Field label="Semester name" required><Input value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" /></Field>
-                  <Field label="Start date" required><Input type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} /></Field>
-                  <Field label="End date" required={!semesterForm.endToday}><Input type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} /></Field>
-                  <div className="flex items-end gap-3"><label className="flex min-h-10 items-center gap-2 text-[13px] font-medium text-ink"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> End today</label><Button type="submit" variant="secondary" loading={semesterSaving}>Add</Button></div>
-                </div>
-              </form>
-            </details>
-            <form onSubmit={handleGenerateReport} className="mt-4 space-y-5 border-t border-line pt-4">
+            <form onSubmit={handleGenerateReport} className="mt-4 space-y-5">
               <fieldset>
                 <legend className="text-[13px] font-medium text-ink">Document</legend>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -1716,7 +1683,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </HiusaSelect>
                 </Field>
                 {reportForm.report_type === 'semester' ? <Field label="Semester" required>
-                  <HiusaSelect value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })}><option value="">{semesters.length === 0 ? 'No semester added yet' : 'Select semester'}</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
+                  <HiusaSelect value={reportForm.academic_semester_id} onChange={(event) => setReportForm({ ...reportForm, academic_semester_id: event.target.value })}><option value="">Select semester</option>{(reportSemesters || []).map((semester) => <option key={semester.id} value={semester.id}>AY {semester.academic_year?.label}, {semester.number === 1 ? '1st' : '2nd'} Semester ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
                 </Field> : null}
                 {reportForm.report_type === 'event' && <Field label="Event" required>
                   <HiusaSelect value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })}>
