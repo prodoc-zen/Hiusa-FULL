@@ -17,8 +17,27 @@ vi.mock('../../../services/eventService', () => ({
   setEventRequirementTemplateLink: mocks.setEventRequirementTemplateLink,
 }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest }));
-vi.mock('../../../components/events/EventSubmissionPanel', () => ({ default: () => <div>Submission files</div> }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+
+const FILES = [
+  { id: 7, requirement: 'Venue Reservation Letter', original_name: 'venue.pdf', open_url: '/events/9/submission/files/7', reviews: [] },
+  { id: 8, requirement: 'Request Letter', original_name: 'request.pdf', open_url: '/events/9/submission/files/8', reviews: [] },
+];
+const waiting = (files = FILES) => ({ id: 41, entity_type: 'event', entity_id: 9, title: 'Foundation Day', required_role: 'SUPER_ADMIN', requester: { first_name: 'Ana', last_name: 'Cruz' }, summary: { requirement_files: files } });
+
+async function openFiles() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions for Foundation Day' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));
+  return screen.getByRole('region', { name: 'SAO event files' });
+}
+
+const mark = (section, name, value) => {
+  fireEvent.click(within(section).getByRole('button', { name: `Review ${name}` }));
+  fireEvent.change(within(section).getByLabelText(`Review of ${name}`), { target: { value } });
+};
+
+const openMenu = () => fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
+const closeMenu = () => fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Approve' }), { key: 'Escape' });
 
 describe('EventRequirementsTab', () => {
   beforeEach(() => {
@@ -187,7 +206,7 @@ describe('EventRequirementsTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));
-    expect(screen.getByText('Submission files')).toBeInTheDocument();
+    expect(screen.getByText('No files have been submitted for this event.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Approve' }));
@@ -197,20 +216,83 @@ describe('EventRequirementsTab', () => {
   });
 
   it('opens the files of the event a link named and tells the page when the SAO opens or hides one', async () => {
-    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }, { id: 42, entity_id: 12, title: 'Sports Fest', requester: {} }] } });
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ ...waiting(), requester: {} }, { ...waiting(), id: 42, entity_id: 12, title: 'Sports Fest', requester: {} }] } });
     const onEventOpen = vi.fn();
     render(<EventRequirementsTab mode="reviews" initialEventId="12" onEventOpen={onEventOpen} />);
     await screen.findByText('Sports Fest');
-    expect(screen.getAllByText('Submission files')).toHaveLength(1);
+    expect(screen.getAllByRole('region', { name: 'SAO event files' })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Sports Fest' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide files' }));
-    expect(screen.queryByText('Submission files')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'SAO event files' })).not.toBeInTheDocument();
     expect(onEventOpen).toHaveBeenLastCalledWith(null);
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));
     expect(onEventOpen).toHaveBeenLastCalledWith(9);
+  });
+
+  it('lists each submitted file with a status, a file link and a Review action under a filled Action column', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    expect(within(section).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(section).getByText('Action')).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Review Venue Reservation Letter' })).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole('button', { name: 'request.pdf' }));
+    expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/8');
+  });
+
+  it('puts the file list straight in the Events waiting for SAO card, with no bordered box of its own', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    expect(section.querySelector('.rounded-card')).toBeNull();
+    expect(section.querySelector('.border')).toBeNull();
+  });
+
+  it('keeps Approve off until every file is accepted, then approves with the marks', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeDisabled();
+    closeMenu();
+    expect(screen.getByText('Accept every file to approve. Reject the event to send back a file with a note.')).toBeInTheDocument();
+
+    mark(section, 'Venue Reservation Letter', 'ok');
+    mark(section, 'Request Letter', 'ok');
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve event' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: undefined, files: [{ id: 7, status: 'ok' }, { id: 8, status: 'ok' }] }));
+  });
+
+  it('keeps Approve off while a file needs changes and sends the marked files with their notes on Reject', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    mark(section, 'Request Letter', 'needs_changes');
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Reject' })).toBeDisabled();
+    closeMenu();
+
+    fireEvent.change(within(section).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }));
+    fireEvent.change(await screen.findByLabelText(/Remarks for rejection/), { target: { value: 'Fix the letter' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reject event' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Fix the letter', files: [{ id: 8, status: 'needs_changes', note: 'The seal is missing.' }] }));
   });
 
   it('keeps event decisions inside the three-dot action menu', async () => {
