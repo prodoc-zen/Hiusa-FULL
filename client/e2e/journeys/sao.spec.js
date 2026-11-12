@@ -121,11 +121,17 @@ async function seedEndorsedApplication() {
 async function fileFinancialReport(seed) {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
-  const offset = 1 + (Date.now() % 300);
-  const end = new Date(Date.UTC(2026, 0, 1 + offset)).toISOString().slice(0, 10);
+  // The period ends today and starts inside the semester the pipeline opens (from 2026-06-01), so the report
+  // stays in the open semester; the start varies so each report gets a title of its own.
+  const now = new Date();
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const semesterStart = Date.UTC(2026, 5, 1);
+  const spanDays = Math.max(1, Math.round((monthStart - semesterStart) / 86400000));
+  const start = new Date(semesterStart + (Date.now() % spanDays) * 86400000).toISOString().slice(0, 10);
+  const end = now.toISOString().slice(0, 10);
   const generated = await admin.post('/financial-reports/generate', {
     report_type: 'custom',
-    period_start: '2026-01-01',
+    period_start: start,
     period_end: end,
     signatories: { treasurer: `Treasurer ${seed}`, president: 'President', adviser: 'Adviser', sbo_adviser: 'SBO Adviser' },
   });
