@@ -180,6 +180,10 @@ class AcademicSemesterController extends Controller
         DB::transaction(function () use ($request, $academicSemester) {
             AcademicYear::orderBy('id')->lockForUpdate()->first();
             $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            $name = $this->name($semester);
+            if (trim((string) $request->input('confirmation')) !== $name) {
+                throw ValidationException::withMessages(['confirmation' => ["Type the semester name exactly as shown to close it: {$name}."]]);
+            }
             if ($semester->status !== 'active') {
                 throw ValidationException::withMessages(['semester' => ['Only the active semester can be closed.']]);
             }
@@ -193,6 +197,36 @@ class AcademicSemesterController extends Controller
         });
 
         return response()->json($academicSemester->load('academicYear:id,label'));
+    }
+
+    public function reopen(Request $request, AcademicSemester $academicSemester)
+    {
+        $semester = DB::transaction(function () use ($request, $academicSemester) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            if ($semester->status !== 'completed') {
+                throw ValidationException::withMessages(['semester' => ['Only a completed semester can be reopened.']]);
+            }
+            if ($semester->academicYear->closed_at) {
+                throw ValidationException::withMessages(['semester' => ['A completed academic year cannot be reopened.']]);
+            }
+            if (AcademicSemester::where('status', 'active')->exists()) {
+                throw ValidationException::withMessages(['semester' => ['A semester is already active. Close it before reopening another one.']]);
+            }
+            AcademicYear::where('is_current', true)->update(['is_current' => false]);
+            $semester->academicYear()->update(['is_current' => true]);
+            $semester->update(['status' => 'active']);
+            $this->audit($request, 'academic_semester_reopened', $semester);
+
+            return $semester;
+        });
+
+        return response()->json($semester->load('academicYear:id,label'));
+    }
+
+    private function name(AcademicSemester $semester): string
+    {
+        return ($semester->number === 1 ? '1st' : '2nd').' semester, AY '.$semester->academicYear->label;
     }
 
     private function openElections($semesterIds)

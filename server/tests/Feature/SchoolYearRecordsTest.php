@@ -254,7 +254,7 @@ class SchoolYearRecordsTest extends TestCase
     {
         Sanctum::actingAs($this->sao);
 
-        $this->patchJson("/api/system/academic-semesters/{$this->active->id}/close")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$this->active->id}/close", ['confirmation' => '2nd semester, AY 2026-2027'])->assertOk();
 
         $this->assertDatabaseHas('organization_semester_records', ['organization_id' => $this->org->id, 'academic_semester_id' => $this->active->id]);
     }

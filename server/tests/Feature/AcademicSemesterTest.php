@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\Organization;
+use App\Models\OrganizationSemesterRecord;
 use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,7 +43,7 @@ class AcademicSemesterTest extends TestCase
         $this->travelTo('2027-01-02');
         $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
         $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertUnprocessable();
-        $this->patchJson("/api/system/academic-semesters/{$second->id}/close")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/close", $this->confirming($second))->assertOk();
         $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertOk()->assertJsonPath('is_current', false);
         $this->assertNotNull($year->fresh()->closed_at);
         $this->patchJson("/api/system/academic-years/{$year->id}/current")->assertUnprocessable();
@@ -195,13 +197,13 @@ class AcademicSemesterTest extends TestCase
         ]);
         Sanctum::actingAs($director);
 
-        $this->patchJson("/api/system/academic-semesters/{$first->id}/close")
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))
             ->assertUnprocessable()
             ->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'Council Election 2026') && str_contains($message, 'Computer Science Society'));
         $this->assertSame('active', $first->fresh()->status);
 
         $election->update(['status' => 'closed']);
-        $this->patchJson("/api/system/academic-semesters/{$first->id}/close")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))->assertOk();
         $this->assertSame('completed', $first->fresh()->status);
     }
 
@@ -240,5 +242,123 @@ class AcademicSemesterTest extends TestCase
             }
         }
         $this->post("/api/events/{$outside}/submission", ['documents' => $documents])->assertOk()->assertJsonCount(13, 'files');
+    }
+
+    private function confirming(AcademicSemester $semester): array
+    {
+        return ['confirmation' => ($semester->number === 1 ? '1st' : '2nd').' semester, AY '.$semester->academicYear->label];
+    }
+
+    /** @return array{0: User, 1: AcademicYear, 2: AcademicSemester} */
+    private function liveSemester(): array
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+
+        return [$director, $year, $first];
+    }
+
+    public function test_closing_a_semester_needs_its_typed_name_and_a_wrong_name_changes_nothing(): void
+    {
+        [$director, , $first] = $this->liveSemester();
+        Organization::factory()->create();
+        Sanctum::actingAs($director);
+
+        foreach ([[], ['confirmation' => ''], ['confirmation' => '2nd semester, AY 2026-2027'], ['confirmation' => '1st semester']] as $payload) {
+            $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $payload)
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.confirmation.0', 'Type the semester name exactly as shown to close it: 1st semester, AY 2026-2027.');
+        }
+        $this->assertSame('active', $first->fresh()->status);
+        $this->assertSame(0, OrganizationSemesterRecord::where('academic_semester_id', $first->id)->count());
+        $this->assertFalse(AuditLog::where('action', 'academic_semester_closed')->exists());
+
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", ['confirmation' => ' 1st semester, AY 2026-2027 '])->assertOk();
+        $this->assertSame('completed', $first->fresh()->status);
+        $this->assertTrue(AuditLog::where('action', 'academic_semester_closed')->exists());
+    }
+
+    public function test_reopening_restores_the_semester_and_its_year_only_when_nothing_is_active(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        $other = AcademicYear::create(['label' => '2027-2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-05-31', 'is_current' => false]);
+        $org = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+
+        Sanctum::actingAs($director);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/reopen")->assertUnprocessable()->assertJsonPath('errors.semester.0', 'Only a completed semester can be reopened.');
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))->assertOk();
+        $snapshots = OrganizationSemesterRecord::where('academic_semester_id', $first->id)->count();
+        $this->assertSame(0, AcademicSemester::where('status', 'active')->count());
+
+        $year->update(['is_current' => false]);
+        $other->update(['is_current' => true]);
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/reopen")->assertForbidden();
+        Sanctum::actingAs($director);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/reopen")->assertOk()->assertJsonPath('status', 'active');
+
+        $this->assertSame($first->id, AcademicSemester::active()?->id);
+        $this->assertSame(['2026-2027'], AcademicYear::where('is_current', true)->pluck('label')->all());
+        $this->assertSame($snapshots, OrganizationSemesterRecord::where('academic_semester_id', $first->id)->count());
+        $audit = AuditLog::where('action', 'academic_semester_reopened')->firstOrFail();
+        $this->assertSame($first->id, $audit->record_id);
+        $this->assertSame('system_administration', $audit->module);
+
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))->assertOk();
+        $this->travelTo('2027-01-02');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/reopen")->assertUnprocessable()->assertJsonPath('errors.semester.0', 'A semester is already active. Close it before reopening another one.');
+        $this->assertSame('completed', $first->fresh()->status);
+        $this->assertSame($second->id, AcademicSemester::active()?->id);
+    }
+
+    public function test_a_semester_of_a_completed_academic_year_cannot_be_reopened(): void
+    {
+        [$director, $year, $first] = $this->liveSemester();
+        $second = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']);
+        Organization::factory()->create();
+        Sanctum::actingAs($director);
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close", $this->confirming($first))->assertOk();
+        $this->travelTo('2027-01-02');
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/active")->assertOk();
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/close", $this->confirming($second))->assertOk();
+        $this->patchJson("/api/system/academic-years/{$year->id}/close")->assertOk();
+
+        $this->patchJson("/api/system/academic-semesters/{$second->id}/reopen")->assertUnprocessable()->assertJsonPath('errors.semester.0', 'A completed academic year cannot be reopened.');
+        $this->assertSame(0, AcademicSemester::where('status', 'active')->count());
+        $this->assertSame(0, AcademicYear::where('is_current', true)->count());
+    }
+
+    public function test_the_incident_sequence_of_a_far_future_year_cannot_empty_the_app(): void
+    {
+        [$director, , $first] = $this->liveSemester();
+        Organization::factory()->create();
+        Sanctum::actingAs($director);
+        $future = $this->postJson('/api/system/academic-years', ['label' => '2099-2100', 'starts_on' => '2099-08-01', 'ends_on' => '2100-05-31'])->assertCreated()->json('id');
+
+        $this->patchJson("/api/system/academic-semesters/{$first->id}/close")->assertUnprocessable();
+        $this->patchJson("/api/system/academic-years/{$future}/current")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.academic_year.0', 'A semester in another academic year is active. Activate a semester in this year to change the current year.');
+
+        $this->assertSame($first->id, AcademicSemester::active()?->id);
+        $this->assertSame(['2026-2027'], AcademicYear::where('is_current', true)->pluck('label')->all());
+    }
+
+    public function test_making_a_year_current_is_refused_whenever_a_semester_of_another_year_is_active(): void
+    {
+        [$director, $year] = $this->liveSemester();
+        $future = AcademicYear::create(['label' => '2027-2028', 'starts_on' => '2027-08-01', 'ends_on' => '2028-05-31', 'is_current' => true]);
+        $year->update(['is_current' => false]);
+        Sanctum::actingAs($director);
+
+        $this->patchJson("/api/system/academic-years/{$future->id}/current")->assertUnprocessable()->assertJsonValidationErrors('academic_year');
+        $this->assertSame(['2027-2028'], AcademicYear::where('is_current', true)->pluck('label')->all());
+        $this->patchJson("/api/system/academic-years/{$year->id}/current")->assertOk();
+        $this->assertSame(['2026-2027'], AcademicYear::where('is_current', true)->pluck('label')->all());
     }
 }
