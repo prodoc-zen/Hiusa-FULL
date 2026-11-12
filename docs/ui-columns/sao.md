@@ -46,6 +46,13 @@ Table "Latest documents" (list rows, max 10): item over "<file name> · <date>" 
 Status badges: accreditation: Accredited = green, Pending review = blue, Incomplete = amber, Returned = red, Not applicable = grey; event statuses use default map
 Mobile: sections stack to 1 column
 
+## Governance > Student records (/dashboard/super-admin/student-records)
+Card "Upload school records" (CSV upload with preview), then card "Student records" / "Employee records" (select "Show").
+Filters: search "Name or school ID"; "Show" Students | Employees; "Account" All students | Signed up | Not yet
+Table: Student (name over "ID <school id>") | College | Program (program, year level, section) | Birth date ("March 5, 2004", a dash when none) | Account (Signed up / Not yet). Employees show Position in place of Program.
+Paging: 20 per page   Empty: "No student records yet"
+Mobile: DataTable cards; the birth date sits with the college, program and account under the name
+
 ## Organizations > Colleges (/dashboard/super-admin/colleges)
 Filters: search "College name or code" (label "Search colleges")
 No table: cards, 2 columns. Card fields in order: logo | name | "<code or No code> · <n> organization(s) · Active/Inactive" | description | "Department Head": name + status badge + email, or "No Department Head yet"

@@ -552,6 +552,10 @@ SAO,SAO-121,Academic setup > Semesters,SAO previews upcoming academic semesters 
 2. Select an upcoming academic semester labeled Advance Planning.
 3. Verify the amber planning mode banner appears across the dashboard.
 4. Click Return to Live Semester in the banner to restore active university operations.","The dashboard context switches into Advance Planning mode without disrupting active live university operations, allowing advance preparation of proposals and budgets.",,Not run,,,,,,
+SAO,SAO-122,Governance > Student records,The Student records table shows each student's birth date,Functional,Medium,Any,Any time,,Signed in as SAO 990001. School records are uploaded (the demo copy comes with student records).,"1. Open Governance, then Student records.
+2. Look at the table columns under Student records.
+3. Find a student in the table and read the Birth date cell.
+4. Open the same page on a phone, or narrow the window, and read the same student.","The table has the columns Student, College, Program, Birth date and Account. The Birth date reads like ""March 5, 2004"". On a narrow screen the birth date appears under the student name with the college, program and account. Only the SAO sees birth dates: the Department Head People page does not show them.",,Not run,,,,,,
 Department Head,DH-001,Sign in,Department Head signs in and lands on the Department Head dashboard,Functional,High,Any,Any time,,Account 940001 exists. The password is given to you separately.,"1. Open the HIUSA address in a browser.
 2. Type 940001 in School ID / ID Number.
 3. Type the password you were given.
