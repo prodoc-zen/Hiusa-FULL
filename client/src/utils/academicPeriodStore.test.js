@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PERIOD_KEY, readSelectedPeriod, writeSelectedPeriod } from './academicPeriodStore';
+import { PERIOD_KEY, readSelectedPeriod, viewsClosedSemester, writeSelectedPeriod } from './academicPeriodStore';
 
 describe('academicPeriodStore', () => {
   beforeEach(() => {
@@ -33,5 +33,14 @@ describe('academicPeriodStore', () => {
     localStorage.setItem(PERIOD_KEY, 'not json');
 
     expect(readSelectedPeriod()).toBeNull();
+  });
+
+  it('knows a student is reading a closed semester, and nobody else', () => {
+    expect(viewsClosedSemester('STUDENT')).toBe(false);
+    writeSelectedPeriod({ id: 2, status: 'completed' });
+    expect(viewsClosedSemester('STUDENT')).toBe(true);
+    expect(viewsClosedSemester('ADMIN')).toBe(false);
+    writeSelectedPeriod({ id: 4, status: 'upcoming' });
+    expect(viewsClosedSemester('STUDENT')).toBe(false);
   });
 });
