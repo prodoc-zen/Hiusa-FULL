@@ -7,6 +7,7 @@ use App\Models\ClearanceSignature;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
+use App\Support\FullNameSearch;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
@@ -165,11 +166,13 @@ class SystemUsersController extends Controller
                 ->orWhereHas('accountProfiles', fn ($profiles) => $profiles->whereIn('role', FilterValues::values($role)))))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->whereIn('account_status', FilterValues::values($status)))
             ->when($filters['organization_id'] ?? null, fn ($query, $id) => $query->whereIn('organization_id', FilterValues::values($id)))
-            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($matches) => $matches
-                ->where('first_name', 'like', '%'.$search.'%')
-                ->orWhere('last_name', 'like', '%'.$search.'%')
-                ->orWhere('email', 'like', '%'.$search.'%')
-                ->orWhere('school_id', 'like', '%'.$search.'%')));
+            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(function ($matches) use ($search) {
+                $matches->where('first_name', 'like', '%'.$search.'%')
+                    ->orWhere('last_name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('school_id', 'like', '%'.$search.'%');
+                FullNameSearch::orWhereMatches($matches, $search);
+            }));
 
         return response()->json($query->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')
             ->paginate($filters['per_page'] ?? 20)->through(fn (User $user) => $this->summary($user)));

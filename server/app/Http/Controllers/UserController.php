@@ -16,6 +16,7 @@ use App\Services\Edp\StudentSignup;
 use App\Services\PasswordResetService;
 use App\Support\AdviserPosition;
 use App\Support\FilterValues;
+use App\Support\FullNameSearch;
 use App\Support\YearLevel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -108,12 +109,7 @@ class UserController extends Controller
                     ->orWhere('users.section', 'like', "%{$search}%")
                     ->orWhere('users.major', 'like', "%{$search}%");
 
-                // A full name spans both columns: "Juan Dela Cruz", "Dela Cruz Juan" or "Dela Cruz, Juan".
-                if (str_contains($search, ' ')) {
-                    foreach ([['first_name', "' '", 'last_name'], ['last_name', "' '", 'first_name'], ['last_name', "', '", 'first_name']] as [$leading, $separator, $trailing]) {
-                        $userQuery->orWhereRaw($this->concatenated(["users.{$leading}", $separator, "users.{$trailing}"]).' like ?', ["%{$search}%"]);
-                    }
-                }
+                FullNameSearch::orWhereMatches($userQuery, $search);
             });
         }
 
@@ -350,12 +346,6 @@ class UserController extends Controller
 
         return response()->json(['imported' => true, 'summary' => $summary, 'rows' => $report, 'credentials' => $credentials], 201)
             ->header('Cache-Control', 'no-store');
-    }
-
-    /** @param  array<int, string>  $parts */
-    private function concatenated(array $parts): string
-    {
-        return DB::getDriverName() === 'sqlite' ? '('.implode(' || ', $parts).')' : 'concat('.implode(', ', $parts).')';
     }
 
     /**

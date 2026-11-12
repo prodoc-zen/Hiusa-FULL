@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
 use App\Support\FilterValues;
+use App\Support\FullNameSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -205,7 +206,10 @@ class SystemAdministrationController extends Controller
             $query->whereIn('account_profiles.account_status', FilterValues::values($filters['status']));
         }
         if (! empty($filters['search'])) {
-            $query->where(fn ($q) => $q->where('users.first_name', 'like', '%'.$filters['search'].'%')->orWhere('users.last_name', 'like', '%'.$filters['search'].'%')->orWhere('users.email', 'like', '%'.$filters['search'].'%')->orWhere('users.school_id', 'like', '%'.$filters['search'].'%'));
+            $query->where(function ($q) use ($filters) {
+                $q->where('users.first_name', 'like', '%'.$filters['search'].'%')->orWhere('users.last_name', 'like', '%'.$filters['search'].'%')->orWhere('users.email', 'like', '%'.$filters['search'].'%')->orWhere('users.school_id', 'like', '%'.$filters['search'].'%');
+                FullNameSearch::orWhereMatches($q, $filters['search']);
+            });
         }
 
         $admins = $query->orderBy('users.last_name')->orderBy('account_profiles.id')->paginate($filters['per_page'] ?? 20);
@@ -340,11 +344,13 @@ class SystemAdministrationController extends Controller
         $members = User::where('organization_id', $organization->id)
             ->where('account_status', 'active')
             ->whereIn('role', self::SUCCESSOR_ROLES)
-            ->when(! empty($filters['search']), fn ($query) => $query->where(fn ($q) => $q
-                ->where('first_name', 'like', '%'.$filters['search'].'%')
-                ->orWhere('last_name', 'like', '%'.$filters['search'].'%')
-                ->orWhere('email', 'like', '%'.$filters['search'].'%')
-                ->orWhere('school_id', 'like', '%'.$filters['search'].'%')))
+            ->when(! empty($filters['search']), fn ($query) => $query->where(function ($q) use ($filters) {
+                $q->where('first_name', 'like', '%'.$filters['search'].'%')
+                    ->orWhere('last_name', 'like', '%'.$filters['search'].'%')
+                    ->orWhere('email', 'like', '%'.$filters['search'].'%')
+                    ->orWhere('school_id', 'like', '%'.$filters['search'].'%');
+                FullNameSearch::orWhereMatches($q, $filters['search']);
+            }))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->limit(20)

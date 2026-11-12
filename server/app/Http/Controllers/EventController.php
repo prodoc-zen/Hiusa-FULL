@@ -24,6 +24,7 @@ use App\Services\EventVenueRelease;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use App\Support\FilterValues;
+use App\Support\FullNameSearch;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -1166,6 +1167,7 @@ class EventController extends Controller
                     ->orWhere('major', 'like', "%{$search}%")
                     ->orWhere('year_level', 'like', "%{$search}%")
                     ->orWhere('section', 'like', "%{$search}%");
+                FullNameSearch::orWhereMatches($userQuery, $search);
             });
         }
 

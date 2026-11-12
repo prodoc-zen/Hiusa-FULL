@@ -119,7 +119,7 @@ class AccountProfileController extends Controller
             ->with(['organization:id,name,acronym,college,is_active', 'user' => fn ($query) => $query
                 ->without('organization')->select('school_id', 'organization_id', 'role', 'first_name', 'last_name', 'email')->withCount('accountProfiles')])
             ->when(! empty($data['user_school_id']), fn ($query) => $query->where('user_school_id', $data['user_school_id']));
-        foreach (preg_split('/\s+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
+        foreach (preg_split('/[\s,]+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
             $query->whereHas('user', fn ($query) => $query->where(fn ($query) => $query
                 ->where('first_name', 'like', '%'.$term.'%')->orWhere('last_name', 'like', '%'.$term.'%')
                 ->orWhere('email', 'like', '%'.$term.'%')->orWhere('school_id', 'like', '%'.$term.'%')));
@@ -165,7 +165,7 @@ class AccountProfileController extends Controller
         $organization = $this->targetOrganization($request, $data['organization_id']);
         $query = $this->eligibleUsers($organization)->without('organization')
             ->whereDoesntHave('accountProfiles', fn ($query) => $query->where('organization_id', $organization->id));
-        foreach (preg_split('/\s+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
+        foreach (preg_split('/[\s,]+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
             $query->where(fn ($query) => $query->where('first_name', 'like', '%'.$term.'%')
                 ->orWhere('last_name', 'like', '%'.$term.'%')->orWhere('email', 'like', '%'.$term.'%')
                 ->orWhere('school_id', 'like', '%'.$term.'%'));
