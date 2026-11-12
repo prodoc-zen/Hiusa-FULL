@@ -176,11 +176,13 @@ class OrganizationApplicationCarryForwardTest extends TestCase
         $this->assertTrue($letter[0]['carried']);
     }
 
-    public function test_carried_marks_follow_the_reviewer_who_made_them_and_never_leak_to_the_applicant(): void
+    public function test_carried_marks_follow_the_reviewer_who_made_them_and_the_applicant_sees_only_the_accepted_flag(): void
     {
         $this->returnedThenResent([$this->letterId]);
         Sanctum::actingAs($this->student);
-        $this->getJson("/api/my/organization-applications/{$this->application->id}")->assertOk()->assertJsonPath('requirements.0.reviews', []);
+        $mine = $this->getJson("/api/my/organization-applications/{$this->application->id}")->assertOk();
+        $this->assertSame([['stage' => 'dean', 'stage_label' => 'Department Head', 'status' => 'ok', 'note' => null, 'carried' => true]], $this->reviewsOf($mine, $this->constitutionId));
+        $this->assertSame([], $this->reviewsOf($mine, $this->letterId));
 
         Sanctum::actingAs($this->dean);
         $this->review(['action' => 'endorse'])->assertOk()->assertJsonPath('status', 'pending_sao');
@@ -203,5 +205,38 @@ class OrganizationApplicationCarryForwardTest extends TestCase
         $this->assertSame(['dean', 'sao'], array_column($constitution, 'stage'));
         $this->assertSame([null, true], array_map(fn ($review) => $review['carried'] ?? null, $constitution));
         $this->assertSame(['dean'], array_column($this->reviewsOf($response, $this->letterId), 'stage'));
+    }
+
+    public function test_the_applicant_sees_an_earlier_acceptance_without_a_note_and_nothing_for_a_replaced_file(): void
+    {
+        $this->returnedThenResent([$this->letterId]);
+
+        Sanctum::actingAs($this->student);
+        $response = $this->getJson("/api/my/organization-applications/{$this->application->id}")->assertOk()->assertJsonPath('round', 2);
+        $this->assertSame([['stage' => 'dean', 'stage_label' => 'Department Head', 'status' => 'ok', 'note' => null, 'carried' => true]], $this->reviewsOf($response, $this->constitutionId));
+        $this->assertSame([], $this->reviewsOf($response, $this->letterId));
+    }
+
+    public function test_the_applicant_keeps_both_earlier_acceptances_of_an_unchanged_file_and_never_reads_a_private_note(): void
+    {
+        $this->returnedThenResent([$this->letterId]);
+        Sanctum::actingAs($this->dean);
+        $this->review(['action' => 'endorse'])->assertOk()->assertJsonPath('status', 'pending_sao');
+        $this->travel(10)->minutes();
+        Sanctum::actingAs($this->sao);
+        $this->review(['action' => 'return', 'remarks' => 'Fix the letter.', 'requirements' => [
+            ['requirement_type_id' => $this->constitutionId, 'status' => 'ok'],
+            ['requirement_type_id' => $this->letterId, 'status' => 'needs_changes', 'note' => 'Fix it.'],
+        ]])->assertOk()->assertJsonPath('status', 'returned');
+        $this->travel(10)->minutes();
+        Sanctum::actingAs($this->student);
+        $this->post("/api/my/organization-applications/{$this->application->id}/resubmit", ['name' => 'Computing Council', 'acronym' => 'CC', 'position_title' => 'President', 'files' => [$this->letterId => UploadedFile::fake()->create('letter-v3.pdf', 10, 'application/pdf')]], ['Accept' => 'application/json'])->assertOk();
+
+        $response = $this->getJson("/api/my/organization-applications/{$this->application->id}")->assertOk()->assertJsonPath('round', 3);
+        $constitution = $this->reviewsOf($response, $this->constitutionId);
+        $this->assertSame(['dean', 'sao'], array_column($constitution, 'stage'));
+        $this->assertSame([true, true], array_column($constitution, 'carried'));
+        $this->assertSame([null, null], array_column($constitution, 'note'));
+        $this->assertSame([], $this->reviewsOf($response, $this->letterId));
     }
 }
