@@ -1896,7 +1896,7 @@
     "role": "SAO",
     "module": "Setup and records > Academic years",
     "title": "Close a semester and activate the next one",
-    "preconditions": "Signed in as SAO 990001. An active 1st Semester and a 2nd Semester that starts on or before today exist in the same year (otherwise Activate is hidden and the row reads \"Not started yet\").",
+    "preconditions": "Signed in as SAO 990001. An active 1st Semester and a 2nd Semester that starts on or before today exist in the same year (otherwise Activate stays disabled and a line under the row says what to do first, for example the date it starts).",
     "steps": [
       "1. Select Close semester on the active semester, then Close semester in the window.",
       "2. Read the message and the row.",

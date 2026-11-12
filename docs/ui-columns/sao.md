@@ -185,7 +185,7 @@ Table "Calendar" ("Exactly one year is current at a time."): Academic year | Dat
   Bulk/Toolbar: "Add academic year"
   Paging: none   Empty: "No academic year set" / "Add the current academic year. Until then, accreditation follows the newest set of requirements." (button "Add academic year")
   Mobile: DataTable cards
-Table "Semesters" (cards per year, no headers): heading "AY <label>" + button "Add semester"; rows "<1st|2nd> Semester" | "<dates>" | status text (upcoming / active / completed) | buttons Set as active | Close semester | delete (icon). Empty: "No semesters added."
+Table "Semesters" (cards per year, no headers): heading "AY <label>" + button "Add semester"; rows "<1st|2nd> Semester" | "<dates>" | status text (upcoming / active / completed) | buttons Activate (upcoming) | Close semester (active) | Reopen (completed) | delete (icon); Activate and Reopen stay visible but disabled, with one line under the row saying what to do first, when the server would refuse them. Empty: "No semesters added."
   Modal "Add academic year" / "Edit <label>": Starts on | Ends on | Label (hint "Two consecutive years, like 2026-2027.", placeholder "2026-2027"); Cancel | Add academic year / Save changes
   Modal "Add semester to AY <label>": Semester (1st Semester, 2nd Semester) | Starts on | Ends on; Cancel | Add semester
   Dialogs: "Make this the current year" (Make current), "Complete academic year" (Close year), "Delete semester" (Delete semester), "Remove academic year" (Remove year)
