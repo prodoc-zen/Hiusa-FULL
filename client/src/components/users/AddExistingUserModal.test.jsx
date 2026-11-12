@@ -91,6 +91,32 @@ describe('AddExistingUserModal', () => {
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
   });
 
+  it('adds a member, and says so, when the only organization is auto-selected and cannot take a head', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [organization] });
+    render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByLabelText(/^Organization/)).toHaveValue('8'));
+    const role = screen.getByLabelText('Role in this organization');
+    expect(screen.queryByRole('option', { name: 'Organization head' })).not.toBeInTheDocument();
+    expect(role).toHaveValue('STUDENT');
+    expect(screen.getByRole('option', { name: 'Member' }).selected).toBe(true);
+    expect(screen.getByText(/can be added only as a member/i)).toBeInTheDocument();
+    await pickMaria();
+    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
+  });
+
+  it('still sends the head role when the auto-selected organization is one the administrator may name a head for', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 9, name: 'Computing Club', parent_organization_id: 8, college: organization.college }, organization] });
+    render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    expect(screen.getByLabelText('Role in this organization')).toHaveValue('ADMIN');
+    expect(screen.queryByText(/can be added only as a member/i)).not.toBeInTheDocument();
+    await pickMaria();
+    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 9, role: 'ADMIN' }));
+  });
+
   it('starts with the person already chosen when opened from a row', () => {
     render(<AddExistingUserModal organization={organization} initialUser={{ school_id: 24001001, first_name: 'maria', last_name: 'reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
     expect(screen.getByText('Maria Reyes')).toBeInTheDocument();
