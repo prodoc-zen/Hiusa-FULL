@@ -1080,15 +1080,15 @@
     "id": "ADM-061",
     "role": "Admin / Adviser",
     "module": "Events and tasks > Events",
-    "title": "Events page shows the list, the filters and the academic period",
+    "title": "Events page shows the list and the filters",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Round 1 (no semester opened yet) shows the seeded events and tasks; Round 2 needs the SAO to add and activate a semester covering the test dates (docs/MEMBER_TESTING.md section 3). Once a semester is active the seeded events, tasks and election leave the lists.",
     "steps": [
       "1. Open Events and tasks > Events.",
       "2. Read the filters: Search events, Event date and Status.",
       "3. Read the table headings.",
-      "4. Look for the Academic period box."
+      "4. Look for an Academic period box."
     ],
-    "expected": "The title is Events and the button New event is the main button. Table columns: Event, Status, Schedule, Venue, Budget (for people who can propose events) and Actions. Each row shows a stage line such as \"Waiting for Department Head\". There are no count tiles and no Organizer, Attendance or Tasks columns. The Academic period box appears only once a semester exists and defaults to Active period.",
+    "expected": "The title is Events and the button New event is the main button. Table columns: Event, Status, Schedule, Venue, Budget (for people who can propose events) and Actions. Each row shows a stage line such as \"Waiting for Department Head\". There are no count tiles and no Organizer, Attendance or Tasks columns. There is no Academic period box: the list follows the semester the top bar shows.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",

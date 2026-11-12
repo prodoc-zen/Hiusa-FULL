@@ -33,7 +33,7 @@ Mobile: attendance log becomes cards [name, School ID, status badge, Check-in, M
 
 ## Events and tasks > Calendar (/dashboard/events/activity-calendar)
 Tiles: Total Events (This academic year) | Upcoming (Scheduled) | Completed (Successfully held) | Total Tasks (Across all events)
-Filters: select "Academic period" (Active period, "AY <label> · 1st/2nd Semester · <status>") when periods exist; view switch List | Calendar (default Calendar); List view filter bar: search "Search events"; Event date (date); Status (All statuses, Pending Approval, Approved, Ongoing, Completed, Cancelled); Sort by (Soonest, Latest date, Newest created, Title)
+Filters: view switch List | Calendar (default Calendar); List view filter bar: search "Search events"; Event date (date); Status (All statuses, Pending Approval, Approved, Ongoing, Completed, Cancelled); Sort by (Soonest, Latest date, Newest created, Title)
 Calendar view: month title, buttons "Previous month", "Today", "Next month"; grid Sun Mon Tue Wed Thu Fri Sat; day click opens day panel (event cards: image, title, description, time, location, status chip); empty "No events scheduled for <Month Year>." ; day panel empty "No events scheduled on this day."
 Table "Events (List view)": Event | Organizer | Schedule | Venue | Attendance | Tasks | Status | Actions
 Row actions ("Event actions"): View event
@@ -58,7 +58,7 @@ Mobile: DataTable becomes cards below 768 px.
 
 ## Events and tasks > My tasks (/dashboard/tasks/assigned-tasks)
 Tiles: Total Tasks | Event-Related (Linked to an event) | Standalone (Organization work) | Pending (Awaiting work) | In Progress (Active assignments) | Completed (Successfully done) | Overdue (Past deadline)
-Filters: select "Academic period" (when periods exist); search "Search tasks, assignees, or events"; selects: "Filter tasks by status" (All statuses, Pending, In Progress, Completed, Overdue), "Filter tasks by event" (All events), "Filter tasks by type" (All task types, Event-related, Standalone), "Filter tasks by priority" (All priorities, Low, Medium, High, Critical), "Filter tasks by deadline" (date)
+Filters: search "Search tasks, assignees, or events"; selects: "Filter tasks by status" (All statuses, Pending, In Progress, Completed, Overdue), "Filter tasks by event" (All events), "Filter tasks by type" (All task types, Event-related, Standalone), "Filter tasks by priority" (All priorities, Low, Medium, High, Critical), "Filter tasks by deadline" (date)
 Table "Assigned Tasks" (subtitle "View and update your assignments"): Task | Assignee / Position | Academic Profile | Related Event | Type / Progress | Deadline | Status | Assigned By / Dates | Action
 Row actions: buttons "Start" (pending) and "Complete" (in progress or overdue) plus menu "Task actions": View task | Start task | Complete task
 Status badges: Pending = grey, Ready = blue, In Progress = blue, Completed = green, Overdue = red, Blocked = amber; stepper under status
@@ -70,7 +70,7 @@ Mobile: table becomes cards below 1024 px [title, Event task/Standalone, descrip
 
 ## Events and tasks > AI delegation (/dashboard/tasks/ai-delegation)
 Tiles: same 7 tiles as My tasks
-Filters: select "Academic period"
+Filters: none (the list follows the top bar semester)
 No table: card "AI Task Suggestions" ("Weighted officer fit scoring, per task"): collapsible "Full officer ranking" (engine badge; per officer: name, Recommended chip, tier chip, Position / Workload / Performance / Recency scores with weight %, explanation); task cards [title, "Recommended: <name>", engine badge, Role | Workload | Performance | Recency scores, note]; empty "Create a task to generate an eligible officer recommendation and score breakdown." ; side card "How AI Delegation Works" (3 bullet rules) + "Eligibility rules for the latest request"
 Mobile: two cards stack.
 
@@ -85,7 +85,7 @@ Mobile: cards stack, buttons wrap.
 
 ## Finance (view only) > Ledger (/dashboard/finance/financial-ledger)
 Tiles: Income | Expenses | Net balance | Ledger entries
-Filters: search "Search transactions..." (Enter applies); Filters panel: select "Filter by academic semester" (All semesters, "AY <label> · 1st/2nd Semester (active/closed)"), "Filter by transaction type" (All types, Income, Expense), "Filter by event" (All events), "Filter from date", "Filter to date", button Apply
+Filters: search "Search transactions..." (Enter applies); Filters panel: "Filter by transaction type" (All types, Income, Expense), "Filter by event" (All events), "Filter from date", "Filter to date", button Apply
 Table "Ledger" (Income and expenses, with their source and receipt): Date | Description | Source | Payer / Recorder | Category | Type | Amount   (Source and Payer / Recorder only at 1024 px and wider; Category only at 768 px and wider)
 Row actions: none for officer
 Status badges: Income = green, Expense = grey; amount green "+" or dark "-"
@@ -124,7 +124,7 @@ Paging: 10 (label "users")   Empty: "No users found." ; "No users on this page."
 Mobile: cards below 768 px [name, School ID, actions, chips Role / Active / Fingerprint enrolled, Program / Major, Year level, Section].
 
 ## Voting > Candidates (/dashboard/elections/manage-candidates)
-Screen "Election picker" (shown until an election is opened; same for Voters and Results): tiles Total elections | Live voting | Awaiting approval | Closed; search "Search by election title..."; select "Filter elections by status" (All statuses, Pending approval, Upcoming, Live, Closed); select "Academic period"; election cards [banner image, status chip Pending Approval amber / Upcoming blue / Live green / Closed grey / Returned red, title, timeline, stepper, dates, room or "Online ballot", Positions | Candidates | Votes, button "Open election", link "Informative letter"]; Paging: 6 (label "elections"); Empty: "No elections yet" ("Only the Admin creates elections. It appears here once the Department Head approves it.")
+Screen "Election picker" (shown until an election is opened; same for Voters and Results): tiles Total elections | Live voting | Awaiting approval | Closed; search "Search by election title..."; select "Filter elections by status" (All statuses, Pending approval, Upcoming, Live, Closed); election cards [banner image, status chip Pending Approval amber / Upcoming blue / Live green / Closed grey / Returned red, title, timeline, stepper, dates, room or "Online ballot", Positions | Candidates | Votes, button "Open election", link "Informative letter"]; Paging: 6 (label "elections"); Empty: "No elections yet" ("Only the Admin creates elections. It appears here once the Department Head approves it.")
 Workspace header after opening: "Change election" button, election title, status chip (Pending approval amber, Upcoming blue, Voting open green, Closed grey, Returned red), date range, stepper "Election progress", NextStep, step strip "1. Candidates  2. Voters  3. Results"
 Tiles: none; line "n candidates registered for <title>"
 Filters: chips All + one chip per position

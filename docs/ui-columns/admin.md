@@ -82,7 +82,7 @@ Mobile: cards stack
 
 ## Finance > Ledger (/dashboard/finance/financial-ledger)
 Tiles: Income | Expenses | Net balance | Ledger entries
-Filters: search "Search transactions..."; "Filter by academic semester" (All semesters | AY <label> · 1st|2nd Semester (active|closed)); "Filter by transaction type" (All types | Income | Expense); "Filter by event" (All events | <events>); Filter from date; Filter to date; Apply; Clear; "<n> transactions"
+Filters: search "Search transactions..."; "Filter by transaction type" (All types | Income | Expense); "Filter by event" (All events | <events>); Filter from date; Filter to date; Apply; Clear; "<n> transactions"
 Table "Ledger": Date | Description | Source | Payer / Recorder | Category | Type | Amount | (Actions)
 Row actions: Edit transaction | Delete transaction (locked rows show a lock note instead; entries from collections, cash advances, invoices, orders are locked)
 Status badges: Type Income = green, Expense = grey; Amount +green for income
@@ -149,7 +149,7 @@ Mobile: single column
 
 ## Events and tasks > Events (/dashboard/events/manage-events)
 Tiles: Total Events ("This academic year") | Upcoming ("Scheduled") | Completed ("Successfully held") | Total Tasks ("Across all events")
-Filters: Academic period select (Active period | AY <label> · 1st|2nd Semester · <status>); view toggle List | Calendar; search "Search events"; Event date (date); Status (All statuses | Pending Approval | Approved | Ongoing | Completed | Cancelled); Sort by (Soonest | Latest date | Newest created | Title); Clear; "<n> events"
+Filters: view toggle List | Calendar; search "Search events"; Event date (date); Status (All statuses | Pending Approval | Approved | Ongoing | Completed | Cancelled); Sort by (Soonest | Latest date | Newest created | Title); Clear; "<n> events"
 Table "Events": Event | Organizer | Schedule | Venue | Attendance | Tasks | Status | Budget Status | Actions
 Row actions (kebab "Event actions"): View event | Edit event | Delete event | Cancel event
 Status badges: Pending Approval/planning = amber (text can show the approval stage), Approved/Ongoing/Upcoming = blue, Completed = green, Cancelled = red; Budget Status: Not linked = red, Not required = grey, Pending = amber, Approved = green, Rejected = red; row shows "Returned: <remarks>" in red when returned; compact stepper under status
@@ -191,7 +191,7 @@ Mobile: table scrolls horizontally (min 600 px); draft cards stack
 
 ## Events and tasks > Tasks (/dashboard/tasks/task-board)
 Tiles: Total Tasks | Event-Related ("Linked to an event") | Standalone ("Organization work") | Pending ("Awaiting work") | In Progress ("Active assignments") | Completed ("Successfully done") | Overdue ("Past deadline")
-Filters: view toggle Board | Progress; Academic period (Active period | AY <label> · 1st|2nd Semester · <status>); search "Search tasks, assignees, or events"; "Filter tasks by status" (All statuses | Pending | In Progress | Completed | Overdue); "Filter tasks by assignee" (All assignees | <officers>); "Filter tasks by event" (All events); "Filter tasks by type" (All task types | Event-related | Standalone); "Filter tasks by priority" (All priorities | Low | Medium | High | Critical); "Filter tasks by deadline" (date); Clear; "<n> tasks"
+Filters: view toggle Board | Progress; search "Search tasks, assignees, or events"; "Filter tasks by status" (All statuses | Pending | In Progress | Completed | Overdue); "Filter tasks by assignee" (All assignees | <officers>); "Filter tasks by event" (All events); "Filter tasks by type" (All task types | Event-related | Standalone); "Filter tasks by priority" (All priorities | Low | Medium | High | Critical); "Filter tasks by deadline" (date); Clear; "<n> tasks"
 Table "All Tasks": Task | Assignee / Position | Academic Profile | Related Event | Type / Progress | Deadline | Status | Assigned By / Dates | Action
 Row actions: Start | Complete (inline); kebab "Task actions": View task | Start task | Complete task | Reopen task | Edit task | Delete task
 Status badges: Pending = grey, Ready = blue, In Progress = blue, Blocked = amber, Completed = green, Overdue = red; progress bar "<n>% complete"; stepper under status
@@ -206,7 +206,7 @@ Table "Officer Workload" (Progress view, no table): per officer row: avatar, nam
 
 ## Events and tasks > AI delegation (/dashboard/tasks/ai-delegation)
 Tiles: same seven as Tasks (Total Tasks | Event-Related | Standalone | Pending | In Progress | Completed | Overdue)
-Filters: Academic period select (Active period | AY ...)
+Filters: none (the list follows the top bar semester)
 No table: two panels.
   Panel "AI Task Suggestions" ("Weighted officer fit scoring, per task"): collapsible "Full officer ranking" with engine badge, "Inferred task area: <area>", list per officer: name + chips "Recommended" and position tier; Position | Workload | Performance | Recency (score with weight, e.g. 0.80 (x35%)); explanation text
   Cards "Scored assignments" (one per task): title | "Recommended: <name>" | engine badge | Role | Workload | Performance | Recency | note
@@ -229,7 +229,7 @@ Mobile: under 1024 px cards (name, School ID, status badge, Check-in, Method, ac
 ## Voting > Elections (/dashboard/elections/manage-elections)
 Two states. Picker (no election chosen), then Workspace (election chosen).
 Tiles (picker): Total elections | Live voting | Awaiting approval | Closed
-Filters (picker): Academic period (Active period | AY ...); search "Search by election title..."; "Filter elections by status" (All statuses | Pending approval | Upcoming | Live | Closed)
+Filters (picker): search "Search by election title..."; "Filter elections by status" (All statuses | Pending approval | Upcoming | Live | Closed)
 Table "Elections": cards (2 per row, 6 per page, no headers): banner image + status chip (Pending Approval = amber, Upcoming = blue, Live = green, Closed = grey, Returned = red) | title | timeline | compact stepper + "Next: <step>" | start and end date times | Positions | Candidates | Votes
 Row actions: Open election | Informative letter | Edit (or "Edit and resubmit") | Delete | Open voting (upcoming, finalized) | Close (live) | "In review" (pending approval chip)
 Bulk/Toolbar: Create election (also from Approvals > New request > Election)

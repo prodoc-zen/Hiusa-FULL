@@ -59,7 +59,7 @@ Mobile: cards stack; Allocated/Remaining/Warning at in 2 columns; buttons wrap.
 
 ## College view (read only) > Finance > Ledger (/dashboard/finance/financial-ledger)
 Tiles: Income | Expenses | Net balance | Ledger entries
-Filters: search "Search transactions..." (Enter submits); select "Organization" [All organizations, ...]; button "Filters" opens: select "Filter by academic semester" [All semesters, "AY <label> · 1st|2nd Semester (<status>)"], select "Filter by transaction type" [All types, Income, Expense], select "Filter by event" [All events, <events>], date "Filter from date", date "Filter to date", button Apply; chips "Active ..." + "Clear all"; count "<n> transaction(s)"
+Filters: search "Search transactions..." (Enter submits); select "Organization" [All organizations, ...]; button "Filters" opens: select "Filter by transaction type" [All types, Income, Expense], select "Filter by event" [All events, <events>], date "Filter from date", date "Filter to date", button Apply; chips "Active ..." + "Clear all"; count "<n> transaction(s)"
 Table "Ledger" (sub "Income and expenses, with their source and receipt"): Date | Description | Source | Payer / Recorder | Category | Type | Amount
   Column visibility: Source and Payer / Recorder from lg; Category from md; below lg their content moves under Description. Description cell: description + receipt label. Amount: "+₱..." or "-₱...".
 Row actions: none for this role (Actions column is Admin only)
@@ -92,7 +92,7 @@ Mobile: forecast metrics 2 columns (4 at sm); panels stack below xl.
 
 ## College view (read only) > Calendar (/dashboard/events/activity-calendar)
 Tiles: Total Events ("This academic year") | Upcoming ("Scheduled") | Completed ("Successfully held") | Total Tasks ("Across all events")
-Filters: select "Academic period" [Active period, "AY <label> · 1st|2nd Semester · <status>"]; view switch "List view" | "Calendar view" (opens on Calendar)
+Filters: view switch "List view" | "Calendar view" (opens on Calendar)
 Calendar: month title, buttons "Previous month", "Today", "Next month"; weekday headers Sun | Mon | Tue | Wed | Thu | Fri | Sat; day cells with count badge, up to 2 event chips, "+n more"; selecting a day opens panel "<weekday, month day, year>" listing events (title, description, time, location, status chip); empty month "No events scheduled for <Month Year>."; empty day "No events scheduled on this day."
 Table "Events" (List view): Event | Organizer | Schedule | Venue | Attendance | Tasks | Status | Actions
   Cells: Event = title + description; Organizer = name + position/role; Schedule = start + "Ends <time>"; Venue; Attendance = "<n> present/late" + "<n> total records"; Tasks = "<n> linked" + "Workflow tasks"; Status = badge + stepper (Proposal > Department Head approval > SAO files > Funding > Prepare > Run > Report; SAO files step only when the event needs SAO files) + "Returned: <remarks>". ("Budget Status" column is Admin only.)
@@ -105,7 +105,7 @@ Mobile: below sm the calendar grid becomes a day agenda (cards with "<n> events"
 
 ## College view (read only) > Election results (/dashboard/elections/election-results)
 Tiles: Total elections | Live voting | Awaiting approval | Closed (election picker, shown until an election is open)
-Filters: select Academic period [Active period, ...]; search "Search by election title..."; select "Filter elections by status" [All statuses, Pending approval, Upcoming, Live, Closed]
+Filters: search "Search by election title..."; select "Filter elections by status" [All statuses, Pending approval, Upcoming, Live, Closed]
 Table "Elections" (picker, cards, 2 columns from lg), fields in order: cover image | status badge | title | timeline ("Awaiting Department Head review", "<n> hours remaining", "Starts in <n> hours", "Ended <date>", "Returned by the Department Head") | stepper (Submitted > Build ballot > Ballot locked > Voting > Results) + "Next: <text>" | start and end date-time | room or "Online ballot" | Positions | Candidates | Votes
 Row actions: Open election; Informative letter (link)
 Status badges: Pending Approval = amber, Upcoming = blue, Live = green, Closed = grey, Returned = red
