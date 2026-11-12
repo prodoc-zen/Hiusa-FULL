@@ -14,7 +14,6 @@ use App\Models\User;
 use App\Models\Vote;
 use App\Services\ElectionHandoverService;
 use App\Support\FilterValues;
-use App\Support\FullNameSearch;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -457,6 +456,11 @@ class ElectionController extends Controller
         }
 
         return response()->json($this->withApprovalFields($request, [$freshElection->toArray()])[0]);
+    }
+
+    public function submit(Request $request, $id)
+    {
+        abort(501);
     }
 
     private function validElectionStatusTransition(string $currentStatus, string $nextStatus): bool
@@ -1157,229 +1161,6 @@ class ElectionController extends Controller
     private function onVoterRoll(Election $election, User $user): bool
     {
         return $election->listsVoter($user->school_id);
-    }
-
-    public function vote(Request $request, $id)
-    {
-        $votingOrganizationIds = $request->user()->votingOrganizationIds();
-        $this->synchronizeScheduledStatuses($votingOrganizationIds, (int) $id);
-        $election = Election::whereIn('organization_id', $votingOrganizationIds)->find($id);
-        if (! $election) {
-            return response()->json(['message' => 'Election not found'], 404);
-        }
-
-        if ($election->status !== 'active' || ! $election->approved_at || ! $election->finalized_at) {
-            return response()->json(['message' => 'This election is not currently accepting votes'], 400);
-        }
-
-        if ($periodMessage = $this->votingPeriodStatusMessage($election)) {
-            return response()->json(['message' => $periodMessage], 422);
-        }
-
-        if (! $this->onVoterRoll($election, $request->user())) {
-            return response()->json(['message' => self::JOINED_AFTER_ROLL], 403);
-        }
-
-        $request->validate([
-            'votes' => 'required|array|min:1',
-            'votes.*.position_id' => 'required|distinct|exists:election_positions,id',
-            'votes.*.candidate_id' => 'required|distinct|exists:candidates,id',
-        ]);
-
-        $expectedPositionIds = ElectionPosition::where('election_id', $election->id)
-            ->whereHas('candidates')
-            ->pluck('id')
-            ->sort()
-            ->values();
-        $submittedPositionIds = collect($request->votes)
-            ->pluck('position_id')
-            ->map(fn ($value) => (int) $value)
-            ->sort()
-            ->values();
-
-        if ($expectedPositionIds->isEmpty()) {
-            return response()->json(['message' => 'This election does not have a complete official ballot yet.'], 422);
-        }
-
-        if ($submittedPositionIds->all() !== $expectedPositionIds->all()) {
-            return response()->json(['message' => 'Please select one candidate for every position on the official ballot.'], 422);
-        }
-
-        $voter = $request->user();
-
-        if (Vote::where('election_id', $election->id)->where('voter_id', $voter->id)->exists()) {
-            return response()->json(['message' => 'You have already voted in this election.'], 422);
-        }
-
-        $receipts = [];
-
-        try {
-            DB::transaction(function () use ($election, $voter, $request, &$receipts) {
-                foreach ($request->votes as $voteData) {
-                    // Verify candidate belongs to the position and election
-                    $candidate = Candidate::where('id', $voteData['candidate_id'])
-                        ->where('position_id', $voteData['position_id'])
-                        ->where('election_id', $election->id)
-                        ->first();
-
-                    if (! $candidate) {
-                        throw ValidationException::withMessages([
-                            'votes' => ['Invalid candidate selection for the specified position.'],
-                        ]);
-                    }
-
-                    // Check if user has already voted for this specific position (secondary safety check)
-                    $hasVotedPosition = Vote::where('election_id', $election->id)
-                        ->where('position_id', $voteData['position_id'])
-                        ->where('voter_id', $voter->id)
-                        ->exists();
-
-                    if ($hasVotedPosition) {
-                        throw ValidationException::withMessages([
-                            'votes' => ['Multiple votes for a single position are not permitted.'],
-                        ]);
-                    }
-
-                    $hash = strtoupper(Str::random(12));
-                    $receipts[] = $hash;
-
-                    Vote::create([
-                        'election_id' => $election->id,
-                        'position_id' => $voteData['position_id'],
-                        'candidate_id' => $voteData['candidate_id'],
-                        'voter_id' => $voter->id,
-                        'vote_hash' => $hash,
-                    ]);
-                }
-            });
-        } catch (UniqueConstraintViolationException $e) {
-            return response()->json(['message' => 'You have already voted for one of these positions.'], 422);
-        } catch (\Exception $e) {
-            if (str_contains($e->getMessage(), 'UNIQUE constraint failed') || str_contains($e->getMessage(), 'Duplicate entry')) {
-                return response()->json(['message' => 'You have already voted for one of these positions.'], 422);
-            }
-            throw $e;
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Your ballot has been cast successfully!',
-            'receipt' => $receipts[0] ?? 'CAST-SUCCESSFUL',
-            'receipts' => $receipts,
-        ]);
-    }
-
-    public function voters(Request $request, $id)
-    {
-        $organizationId = $request->user()->organization_id;
-        $election = Election::where('organization_id', $organizationId)->find($id);
-        if (! $election) {
-            return response()->json(['message' => 'Election not found'], 404);
-        }
-
-        $voterIds = Vote::where('election_id', $id)
-            ->distinct()
-            ->pluck('voter_id');
-
-        // Belonging to the organization is an active profile there, as in the people directory; a member the
-        // head added keeps their own account in the college and still votes and counts here. The ballot
-        // (`vote`) admits exactly this set, through the same scope. Someone who already voted stays on the list
-        // after losing voting access (outgoing officers at the handover), so turnout never drops below the ballots.
-        $onRoll = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $organizationId)->select('account_profiles.id');
-        $votersQuery = AccountProfile::where('account_profiles.organization_id', $organizationId)
-            ->where(fn ($profiles) => $profiles->whereIn('account_profiles.id', $onRoll)->orWhereIn('account_profiles.user_school_id', $voterIds));
-
-        $eligibleTotal = (clone $votersQuery)->count();
-        $votedCount = (clone $votersQuery)->whereIn('account_profiles.user_school_id', $voterIds)->count();
-
-        $search = trim((string) $request->query('search', ''));
-        $vote = $request->query('vote');
-
-        $paginated = $votersQuery
-            ->join('users as voter', 'voter.school_id', '=', 'account_profiles.user_school_id')
-            ->when($search !== '', fn ($query) => $query->where(function ($matches) use ($search) {
-                $matches->where('voter.first_name', 'like', "%{$search}%")
-                    ->orWhere('voter.last_name', 'like', "%{$search}%")
-                    ->orWhere('voter.school_id', 'like', "%{$search}%");
-                FullNameSearch::orWhereMatches($matches, $search, 'voter');
-            }))
-            ->when($vote === 'voted', fn ($query) => $query->whereIn('voter.school_id', $voterIds))
-            ->when($vote === 'not_voted', fn ($query) => $query->whereNotIn('voter.school_id', $voterIds))
-            ->orderBy('voter.last_name')
-            ->orderBy('voter.first_name')
-            ->select(['voter.school_id', 'voter.first_name', 'voter.last_name', 'voter.email', 'account_profiles.role'])
-            ->paginate(10)
-            ->through(fn ($voter) => array_merge($voter->toArray(), [
-                'has_voted' => $voterIds->contains($voter->school_id),
-            ]));
-
-        return response()->json(array_merge($paginated->toArray(), [
-            'summary' => [
-                'eligible_total' => $eligibleTotal,
-                'voted_count' => $votedCount,
-                'turnout_percent' => $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0,
-            ],
-        ]));
-    }
-
-    public function results(Request $request, $id)
-    {
-        $organizationIds = $request->user()->electionOrganizationIds();
-        $this->synchronizeScheduledStatuses($organizationIds, (int) $id);
-        $election = Election::whereIn('organization_id', $organizationIds)->find($id);
-        if (! $election) {
-            return response()->json(['message' => 'Election not found'], 404);
-        }
-
-        if (! in_array($election->status, ['active', 'closed'], true) || ($election->status === 'active' && ! $election->finalized_at)) {
-            return response()->json(['message' => 'Results are available after the ballot is finalized and voting opens.'], 403);
-        }
-
-        if (! $election->results_visible && $request->user()->role !== 'ADMIN') {
-            return response()->json(['message' => 'Election results have not been released yet.'], 403);
-        }
-
-        $positions = ElectionPosition::where('election_id', $id)->get();
-        $positionIds = $positions->pluck('id');
-
-        $allCandidates = Candidate::with(['user:school_id,first_name,last_name', 'partylist:id,name'])
-            ->withCount('votes')
-            ->whereIn('position_id', $positionIds)
-            ->get()
-            ->groupBy('position_id');
-
-        $standings = app(ElectionHandoverService::class)->standings($election)->keyBy(fn (array $row) => $row['position']->id);
-        $handedOver = $election->access_handed_over_at !== null;
-        $skippedTitles = $handedOver ? app(ElectionHandoverService::class)->skippedTitles($election) : [];
-
-        $closed = $election->status === 'closed';
-
-        $results = $positions->map(function ($position) use ($allCandidates, $standings, $handedOver, $skippedTitles, $closed) {
-            $candidates = $allCandidates->get($position->id, collect())
-                ->map(fn ($c) => [
-                    'id' => $c->id,
-                    'name' => trim(($c->user->first_name ?? '').' '.($c->user->last_name ?? '')),
-                    'partylist' => $c->partylist ? $c->partylist->name : 'Independent',
-                    'image_url' => $c->image_url,
-                    'platform' => $c->platform,
-                    'votes' => $closed ? $c->votes_count : null,
-                ])
-                ->when($closed, fn ($rows) => $rows->sortByDesc('votes'))
-                ->values();
-
-            $standing = $standings->get($position->id);
-
-            return [
-                'position' => $position,
-                'candidates' => $candidates,
-                'totalVotes' => $closed ? $allCandidates->get($position->id, collect())->sum('votes_count') : null,
-                'winner_ids' => $closed && $standing ? $standing['winners']->pluck('id')->values() : [],
-                'tie' => $closed && (bool) ($standing['tie'] ?? false),
-                'access_handed_over' => $handedOver && $standing && $standing['winners']->isNotEmpty() && ! in_array($position->title, $skippedTitles, true),
-            ];
-        })->values();
-
-        return response()->json($results);
     }
 
     private function auditableCandidateValues(Candidate $candidate): array
