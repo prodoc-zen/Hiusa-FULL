@@ -16,6 +16,7 @@ use App\Models\Task;
 use App\Services\Compliance\RegistrationRequirementCatalog;
 use App\Services\Records\SemesterSnapshotService;
 use App\Services\RequirementSampleService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -131,6 +132,39 @@ class AcademicSemesterController extends Controller
         });
 
         return response()->json($semester->load('academicYear:id,label'), 201);
+    }
+
+    public function updateDates(Request $request, AcademicSemester $academicSemester)
+    {
+        $data = $request->validate([
+            'starts_on' => ['required', 'date'],
+            'ends_on' => ['required', 'date', 'after:starts_on'],
+        ]);
+
+        $semester = DB::transaction(function () use ($request, $academicSemester, $data) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            if ($semester->status !== 'upcoming') {
+                throw ValidationException::withMessages(['semester' => ['Only a semester that has not started can have its dates changed.']]);
+            }
+            $this->validateDates($semester->academicYear, $data, $semester->id);
+            $outside = ComplianceRequirementType::where('academic_semester_id', $semester->id)
+                ->where(fn ($query) => $query->where('deadline_at', '<', Carbon::parse($data['starts_on'])->startOfDay())
+                    ->orWhere('deadline_at', '>', Carbon::parse($data['ends_on'])->endOfDay()))
+                ->count();
+            if ($outside > 0) {
+                $message = $outside === 1
+                    ? '1 requirement deadline in this semester falls outside these dates. Change that deadline first, or pick dates that include it.'
+                    : "{$outside} requirement deadlines in this semester fall outside these dates. Change those deadlines first, or pick dates that include them.";
+                throw ValidationException::withMessages(['semester' => [$message]]);
+            }
+            $semester->update($data);
+            $this->audit($request, 'academic_semester_dates_changed', $semester);
+
+            return $semester;
+        });
+
+        return response()->json($semester->load('academicYear:id,label'));
     }
 
     public function activate(Request $request, AcademicSemester $academicSemester)
@@ -282,12 +316,13 @@ class AcademicSemesterController extends Controller
         ]));
     }
 
-    private function validateDates(AcademicYear $year, array $data): void
+    private function validateDates(AcademicYear $year, array $data, ?int $exceptId = null): void
     {
         if ($data['starts_on'] < $year->starts_on->toDateString() || $data['ends_on'] > $year->ends_on->toDateString()) {
             throw ValidationException::withMessages(['starts_on' => ['Semester dates must fall within the academic year.']]);
         }
-        if ($year->semesters()->where('starts_on', '<=', $data['ends_on'])
+        if ($year->semesters()->when($exceptId, fn ($query) => $query->whereKeyNot($exceptId))
+            ->where('starts_on', '<=', $data['ends_on'])
             ->where('ends_on', '>=', $data['starts_on'])->exists()) {
             throw ValidationException::withMessages(['starts_on' => ['Semester dates cannot overlap.']]);
         }
