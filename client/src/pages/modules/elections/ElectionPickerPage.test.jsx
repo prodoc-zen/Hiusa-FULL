@@ -3,12 +3,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionPickerPage from './ElectionPickerPage';
 import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
+import { isoToLocalDateTimeInput } from '../../../utils/dateTime';
 
 const electionMocks = vi.hoisted(() => ({
   getElections: vi.fn(),
   createElection: vi.fn(),
   updateElection: vi.fn(),
   deleteElection: vi.fn(),
+  submitElection: vi.fn(),
 }));
 
 vi.mock('../../../services/electionService', () => electionMocks);
@@ -366,5 +368,415 @@ describe('ElectionPickerPage delete rules', () => {
     render(<ElectionPickerPage onSelect={vi.fn()} />);
     const votedRow = await rowFor('HIUSA General Election 2026');
     expect(within(votedRow).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+  });
+});
+
+// The catalog spells the Vice President titles with an en dash.
+const EN_DASH = String.fromCharCode(0x2013);
+const VICE_INTERNAL = `Vice President ${EN_DASH} Internal`;
+const VICE_EXTERNAL = `Vice President ${EN_DASH} External`;
+const CATALOG = ['President', VICE_INTERNAL, VICE_EXTERNAL, 'Secretary', 'Treasurer', 'Auditor', 'Public Information Officer'];
+
+// Optional fields carry an "(optional)" suffix in their label, so match by substring. The first match in the page is the election level field.
+const byLabel = (label) => screen.getAllByLabelText(label, { exact: false })[0];
+const setValue = (label, value) => fireEvent.change(byLabel(label), { target: { value } });
+const iso = (local) => new Date(local).toISOString();
+
+const SCHEDULE_VALUES = {
+  'Filing opens': '2026-11-01T08:00',
+  'Filing closes': '2026-11-05T17:00',
+  'Screening starts': '2026-11-06T08:00',
+  'Screening ends': '2026-11-08T17:00',
+  'Campaign starts': '2026-11-09T08:00',
+  'Campaign ends': '2026-11-12T17:00',
+  'Voting starts': '2026-11-13T08:00',
+  'Voting ends': '2026-11-14T17:00',
+  'Results published': '2026-11-15T09:00',
+};
+
+function fillSchedule(overrides = {}) {
+  Object.entries({ ...SCHEDULE_VALUES, ...overrides }).forEach(([label, value]) => setValue(label, value));
+}
+
+function fillFullForm() {
+  setValue('Election title', 'HIUSA General Elections 2026');
+  setValue('Voting room', 'Online ballot');
+  setValue('Description', 'Yearly officer election.');
+  fillSchedule();
+  setValue('Official rules', 'Only enrolled members may vote.');
+  setValue('Tie-break rule', 'Coin toss witnessed by the adviser.');
+  setValue('Position 1 title', 'President');
+}
+
+describe('ElectionPickerPage create form: students file their own candidacy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    electionMocks.getElections.mockResolvedValue([]);
+    electionMocks.createElection.mockResolvedValue({ id: 31, title: 'HIUSA General Elections 2026', status: 'pending_approval' });
+  });
+
+  it('opens with the switch ON and the full form', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    const toggle = await screen.findByRole('switch', { name: 'Students file their own candidacy' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(toggle).not.toBeDisabled();
+
+    const order = ['Description', 'Filing opens', 'Filing closes', 'Screening starts', 'Screening ends', 'Campaign starts', 'Campaign ends', 'Voting starts', 'Voting ends', 'Results published', 'Minimum enrolled units', 'Minimum GPA', 'Official rules', 'Tie-break rule'];
+    const nodes = order.map((label) => byLabel(label));
+    for (let i = 1; i < nodes.length; i += 1) {
+      expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    // The switch comes first, before the artwork and the title.
+    expect(toggle.compareDocumentPosition(screen.getByLabelText('Election title')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText('Minimum enrolled units')).toHaveValue(10);
+    expect(screen.getByLabelText('Official rules').tagName).toBe('TEXTAREA');
+    expect(screen.getByText('How the Department Head decides a tie that remains after the runoff')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
+  });
+
+  it("shows exactly today's form when the switch is OFF", async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Students file their own candidacy' }));
+    expect(screen.getByRole('switch', { name: 'Students file their own candidacy' })).toHaveAttribute('aria-checked', 'false');
+
+    expect(screen.getByLabelText(/Election artwork/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Informative letter/)).toBeRequired();
+    expect(screen.getByLabelText('Election title')).toBeRequired();
+    expect(screen.getByLabelText(/Voting room/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Voting starts')).toBeRequired();
+    expect(screen.getByLabelText('Voting ends')).toBeRequired();
+    expect(screen.getByLabelText('Position 1 title')).toBeInTheDocument();
+    expect(screen.getByLabelText('Position 1 maximum winners')).toBeInTheDocument();
+    ['Add position', 'Add executive positions', 'Cancel', 'Submit for approval'].forEach((name) => expect(screen.getByRole('button', { name })).toBeInTheDocument());
+
+    ['Description', 'Filing opens', 'Filing closes', 'Screening starts', 'Campaign starts', 'Results published', 'Minimum enrolled units', 'Minimum GPA', 'Official rules', 'Tie-break rule', 'Position 1 seats', 'Position 1 description'].forEach((label) => expect(screen.queryByLabelText(label)).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Schedule')).not.toBeInTheDocument();
+  });
+
+  it('submits the legacy form with the short payload and no filing keys', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Students file their own candidacy' }));
+    setValue('Election title', 'Demo Representative');
+    setValue('Voting starts', '2026-11-13T08:00');
+    setValue('Voting ends', '2026-11-14T17:00');
+    setValue('Position 1 title', 'Representative');
+    // jsdom cannot attach a file to the required letter input, so submit the form directly.
+    fireEvent.submit(document.getElementById('create-election-form'));
+    await waitFor(() => expect(electionMocks.createElection).toHaveBeenCalled());
+    const payload = electionMocks.createElection.mock.calls[0][0];
+    expect(payload).toMatchObject({ title: 'Demo Representative', room: '', start_time: iso('2026-11-13T08:00'), end_time: iso('2026-11-14T17:00'), positions: [{ title: 'Representative', max_winners: 1 }] });
+    expect(payload.positions[0]).not.toHaveProperty('is_executive');
+    ['draft', 'filing_starts_at', 'rules', 'tie_break_rule', 'min_units', 'description'].forEach((key) => expect(payload).not.toHaveProperty(key));
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+  });
+
+  it('says when a date in the schedule is out of order', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    await screen.findByLabelText('Filing opens');
+    fillSchedule({ 'Filing closes': '2026-10-30T08:00', 'Screening ends': '2026-11-05T08:00', 'Voting ends': '2026-11-13T08:00', 'Results published': '2026-11-13T07:00' });
+    expect(screen.getByText('Filing closes must be at or after filing opens.')).toBeInTheDocument();
+    expect(screen.getByText('Screening ends must be at or after screening starts.')).toBeInTheDocument();
+    expect(screen.getByText('Voting end time must be after the start time.')).toBeInTheDocument();
+    expect(screen.getByText('Results published must be at or after voting ends.')).toBeInTheDocument();
+    expect(screen.queryByText('Screening starts must be at or after filing closes.')).not.toBeInTheDocument();
+
+    // A date equal to the one before it is allowed, except for the voting end.
+    fillSchedule({ 'Filing closes': '2026-11-01T08:00', 'Screening ends': '2026-11-06T08:00', 'Voting ends': '2026-11-13T09:00', 'Results published': '2026-11-13T09:00' });
+    expect(screen.queryByText(/must be at or after/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Voting end time must be after the start time.')).not.toBeInTheDocument();
+  });
+
+  it('refuses a submit that has no schedule, rules or tie-break rule and sends nothing', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    setValue('Election title', 'HIUSA General Elections 2026');
+    setValue('Position 1 title', 'President');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    expect(await screen.findByText('Set every date in the schedule.')).toBeInTheDocument();
+    expect(screen.getByText('Enter the official rules.')).toBeInTheDocument();
+    expect(screen.getByText('Enter the tie-break rule.')).toBeInTheDocument();
+    expect(electionMocks.createElection).not.toHaveBeenCalled();
+  });
+
+  it('refuses a submit with no position, and with a repeated one', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fillFullForm();
+    setValue('Position 1 title', '');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    expect(await screen.findByText('Add at least one election position.')).toBeInTheDocument();
+    expect(electionMocks.createElection).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add position' }));
+    setValue('Position 1 title', 'President');
+    setValue('Position 2 title', 'president');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    expect(await screen.findByText('Election position titles must be unique.')).toBeInTheDocument();
+    expect(electionMocks.createElection).not.toHaveBeenCalled();
+  });
+
+  it('saves a draft with only a title and marks it as a draft', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    setValue('Election title', 'Half done');
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(electionMocks.createElection).toHaveBeenCalledTimes(1));
+    const payload = electionMocks.createElection.mock.calls[0][0];
+    expect(payload.draft).toBe(true);
+    expect(payload.title).toBe('Half done');
+    ['start_time', 'end_time', 'filing_starts_at', 'rules', 'tie_break_rule', 'positions'].forEach((key) => expect(payload).not.toHaveProperty(key));
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+    expect(await screen.findByText('Draft saved.')).toBeInTheDocument();
+  });
+
+  it('keeps Save draft and Submit unusable without a title', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    expect(await screen.findByRole('button', { name: 'Save draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeDisabled();
+  });
+
+  it('submits the full payload for approval', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    await screen.findByLabelText('Filing opens');
+    fillFullForm();
+    setValue('Minimum GPA', '2.5');
+    setValue('Position 1 description', 'Leads the council.');
+    fireEvent.click(screen.getByLabelText('Position 1 executive'));
+    setValue('Position 1 seats', '2');
+    setValue('Position 1 voter may choose up to', '1');
+    fireEvent.click(screen.getByLabelText('Position 1 2nd year'));
+    fireEvent.click(screen.getByLabelText('Position 1 3rd year'));
+    setValue('Position 1 other qualifications', 'No pending disciplinary case.');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+
+    await waitFor(() => expect(electionMocks.createElection).toHaveBeenCalledTimes(1));
+    const payload = electionMocks.createElection.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      title: 'HIUSA General Elections 2026',
+      room: 'Online ballot',
+      description: 'Yearly officer election.',
+      filing_starts_at: iso('2026-11-01T08:00'),
+      filing_ends_at: iso('2026-11-05T17:00'),
+      screening_starts_at: iso('2026-11-06T08:00'),
+      screening_ends_at: iso('2026-11-08T17:00'),
+      campaign_starts_at: iso('2026-11-09T08:00'),
+      campaign_ends_at: iso('2026-11-12T17:00'),
+      start_time: iso('2026-11-13T08:00'),
+      end_time: iso('2026-11-14T17:00'),
+      results_publish_at: iso('2026-11-15T09:00'),
+      rules: 'Only enrolled members may vote.',
+      tie_break_rule: 'Coin toss witnessed by the adviser.',
+      min_units: 10,
+      min_gpa: 2.5,
+      positions: [{
+        title: 'President', max_winners: 2, description: 'Leads the council.', is_executive: true, vote_limit: 1, eligible_year_levels: [2, 3], other_qualifications: 'No pending disciplinary case.', is_active: true,
+      }],
+    });
+    expect(payload.draft).toBeFalsy();
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+    expect(await screen.findByText('Election submitted for approval.')).toBeInTheDocument();
+  });
+
+  it('defaults the voter limit to the seats and never lets it pass them', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    await screen.findByLabelText('Position 1 title');
+    expect(screen.getByLabelText('Position 1 voter may choose up to')).toHaveValue(1);
+
+    setValue('Position 1 seats', '3');
+    expect(screen.getByLabelText('Position 1 voter may choose up to')).toHaveValue(3);
+    expect(screen.getByLabelText('Position 1 voter may choose up to')).toHaveAttribute('max', '3');
+
+    setValue('Position 1 voter may choose up to', '9');
+    expect(screen.getByLabelText('Position 1 voter may choose up to')).toHaveValue(3);
+
+    setValue('Position 1 voter may choose up to', '2');
+    setValue('Position 1 seats', '1');
+    expect(screen.getByLabelText('Position 1 voter may choose up to')).toHaveValue(1);
+
+    fillFullForm();
+    setValue('Position 1 seats', '4');
+    setValue('Position 1 voter may choose up to', '2');
+    setValue('Position 1 seats', '3');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(electionMocks.createElection).toHaveBeenCalled());
+    expect(electionMocks.createElection.mock.calls[0][0].positions[0]).toMatchObject({ max_winners: 3, vote_limit: 2 });
+  });
+
+  it('adds the catalog executive positions, marked executive, and says so', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    await screen.findByLabelText('Position 1 title');
+    fireEvent.click(screen.getByRole('button', { name: 'Add executive positions' }));
+    CATALOG.forEach((title, index) => {
+      expect(screen.getByLabelText(`Position ${index + 1} title`)).toHaveValue(title);
+      expect(screen.getByLabelText(`Position ${index + 1} executive`)).toBeChecked();
+    });
+    expect(screen.queryByLabelText('Position 8 title')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Business Manager/)).not.toBeInTheDocument();
+    expect(screen.getByText(`Adds ${CATALOG.slice(0, -1).join(', ')} and ${CATALOG.at(-1)}.`)).toBeInTheDocument();
+
+    // A second press adds nothing twice.
+    fireEvent.click(screen.getByRole('button', { name: 'Add executive positions' }));
+    expect(screen.queryByLabelText('Position 8 title')).not.toBeInTheDocument();
+  });
+
+  it('inserts the same catalog titles on the OFF form', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Students file their own candidacy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add executive positions' }));
+    CATALOG.forEach((title, index) => expect(screen.getByLabelText(`Position ${index + 1} title`)).toHaveValue(title));
+    expect(screen.queryByLabelText('Position 1 executive')).not.toBeInTheDocument();
+  });
+
+  it('gives each position its extra fields only when the switch is ON', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    await screen.findByLabelText('Position 1 title');
+    ['Position 1 description', 'Position 1 executive', 'Position 1 seats', 'Position 1 voter may choose up to', 'Position 1 1st year', 'Position 1 2nd year', 'Position 1 3rd year', 'Position 1 4th year', 'Position 1 other qualifications', 'Position 1 active'].forEach((label) => expect(screen.getByLabelText(label)).toBeInTheDocument());
+    expect(screen.getByLabelText('Position 1 active')).toBeChecked();
+    expect(screen.getByLabelText('Position 1 executive')).not.toBeChecked();
+    expect(screen.getByText('Fourth year students cannot run')).toBeInTheDocument();
+  });
+});
+
+describe('ElectionPickerPage editing a filing election', () => {
+  const draft = {
+    id: 12, title: 'Half done', status: 'pending_approval', submitted_at: null, declined_at: null, filing_starts_at: null,
+    start_time: null, end_time: null, positions_count: 0, candidates_count: 0, votes_count: 0,
+  };
+  const submitted = {
+    ...draft, id: 13, title: 'Filing election', submitted_at: '2026-11-01T00:00:00Z', filing_starts_at: '2026-11-02T00:00:00Z', start_time: '2026-11-20T00:00:00Z', end_time: '2026-11-21T00:00:00Z',
+    filing_ends_at: '2026-11-04T00:00:00Z', screening_starts_at: '2026-11-05T00:00:00Z', screening_ends_at: '2026-11-07T00:00:00Z', campaign_starts_at: '2026-11-08T00:00:00Z', campaign_ends_at: '2026-11-19T00:00:00Z', results_publish_at: '2026-11-22T00:00:00Z',
+    rules: 'Rules text', tie_break_rule: 'Coin toss', min_units: 12, min_gpa: '2.50', description: 'About it',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+  });
+
+  it('reads the switch from the filing dates and locks it once the election exists', async () => {
+    electionMocks.getElections.mockResolvedValue([submitted]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="13" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    const toggle = screen.getByRole('switch', { name: 'Students file their own candidacy' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(toggle).toBeDisabled();
+    expect(screen.getByLabelText('Official rules')).toHaveValue('Rules text');
+    expect(screen.getByLabelText('Tie-break rule')).toHaveValue('Coin toss');
+    expect(screen.getByLabelText('Minimum enrolled units')).toHaveValue(12);
+    expect(byLabel('Minimum GPA')).toHaveValue(2.5);
+    expect(byLabel('Description')).toHaveValue('About it');
+    expect(screen.getByLabelText('Filing opens')).toHaveValue(isoToLocalDateTimeInput('2026-11-02T00:00:00Z'));
+    // A submitted election is saved, not saved as a draft or submitted again here.
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+  });
+
+  it('reads the switch OFF for an election with no filing dates and a recorded submission', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, submitted_at: '2026-09-01T00:00:00Z', filing_starts_at: null }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    const toggle = screen.getByRole('switch', { name: 'Students file their own candidacy' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toBeDisabled();
+    expect(screen.queryByLabelText('Official rules')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Voting starts')).toBeInTheDocument();
+  });
+
+  it('saves a submitted filing election through updateElection only', async () => {
+    electionMocks.getElections.mockResolvedValue([submitted]);
+    electionMocks.updateElection.mockResolvedValue({ ...submitted, rules: 'New rules' });
+    const onEditClosed = vi.fn();
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="13" onEditClosed={onEditClosed} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    setValue('Official rules', 'New rules');
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(electionMocks.updateElection).toHaveBeenCalledWith(13, expect.objectContaining({ rules: 'New rules', tie_break_rule: 'Coin toss', min_units: 12 })));
+    expect(electionMocks.updateElection.mock.calls[0][1]).not.toHaveProperty('draft');
+    expect(electionMocks.updateElection.mock.calls[0][1]).not.toHaveProperty('positions');
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+    await waitFor(() => expect(onEditClosed).toHaveBeenCalled());
+  });
+
+  it('opens a draft as a filing election even with nothing but a title, and keeps it a draft on Save draft', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.updateElection.mockResolvedValue({ ...draft });
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(screen.getByRole('switch', { name: 'Students file their own candidacy' })).toHaveAttribute('aria-checked', 'true');
+    setValue('Election title', 'Half done, more');
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(electionMocks.updateElection).toHaveBeenCalledWith(12, expect.objectContaining({ title: 'Half done, more', draft: true })));
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+  });
+
+  it('submits a draft by saving it and then submitting it for approval', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.updateElection.mockResolvedValue({ ...draft });
+    electionMocks.submitElection.mockResolvedValue({ ...draft, submitted_at: '2026-11-13T00:00:00Z' });
+    const onEditClosed = vi.fn();
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={onEditClosed} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    fillFullForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(electionMocks.submitElection).toHaveBeenCalledWith(12));
+    expect(electionMocks.updateElection).toHaveBeenCalledWith(12, expect.objectContaining({ rules: 'Only enrolled members may vote.', positions: [expect.objectContaining({ title: 'President' })] }));
+    expect(electionMocks.updateElection.mock.calls[0][1].draft).toBeFalsy();
+    expect(electionMocks.updateElection.mock.invocationCallOrder[0]).toBeLessThan(electionMocks.submitElection.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(onEditClosed).toHaveBeenCalledWith(expect.objectContaining({ id: 12, submitted_at: '2026-11-13T00:00:00Z' })));
+  });
+
+  it('does not submit a draft that fails validation', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    expect(await screen.findByText('Enter the official rules.')).toBeInTheDocument();
+    expect(electionMocks.updateElection).not.toHaveBeenCalled();
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+  });
+
+  it('labels a draft in the list and offers to finish it', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('Half done');
+    expect(within(row).getByText('Draft')).toBeInTheDocument();
+    expect(within(row).queryByText('Pending approval')).not.toBeInTheDocument();
+    expect(await findRowAction(/Edit/)).toBeInTheDocument();
+  });
+});
+
+describe('ElectionPickerPage a rejected election', () => {
+  const declined = {
+    ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'The schedule clashes with finals.', declined_at: '2026-11-10T00:00:00Z', submitted_at: '2026-11-01T00:00:00Z', filing_starts_at: '2026-11-02T00:00:00Z',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    electionMocks.getElections.mockResolvedValue([declined]);
+  });
+
+  it('shows the Department Head decision and the remarks instead of a form', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(screen.getByText('The Department Head rejected this election')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('The schedule clashes with finals.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Election title')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit for approval' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
+  it('lists it as Rejected with the reason and no edit action', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Rejected')).toBeInTheDocument();
+    expect(within(row).queryByText('Returned')).not.toBeInTheDocument();
+    expect(within(row).getByText('Reason: The schedule clashes with finals.')).toBeInTheDocument();
+    expect(within(row).queryByText(/^Next:/)).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: /^Actions for/ }));
+    expect(screen.queryByRole('menuitem', { name: /Edit/ })).not.toBeInTheDocument();
   });
 });
