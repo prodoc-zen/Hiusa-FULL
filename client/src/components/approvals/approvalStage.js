@@ -23,7 +23,7 @@ function pick(source, keys) {
 function eventRecord(request) {
   const summary = request.summary ?? {};
   const files = Array.isArray(summary.requirement_files) ? summary.requirement_files.length : 0;
-  const base = { id: request.entity_id, status: summary.status, approval_id: request.id, approval_remarks: request.remarks, ...pick(summary, EVENT_EXTRAS) };
+  const base = { id: request.entity_id, organization_id: request.organization_id, status: summary.status, approval_id: request.id, approval_remarks: request.remarks, ...pick(summary, EVENT_EXTRAS) };
 
   // The Department Head approved but the event is still in planning: the SAO chain is next, or the
   // organization still owes the SAO files.

@@ -140,6 +140,15 @@ describe('ApprovalDetailDrawer election letter', () => {
   });
 });
 
+describe('ApprovalDetailDrawer Open approval link for the SAO', () => {
+  it('carries the organization and the event so Compliance opens that event review', () => {
+    const waiting = request({ required_role: 'SUPER_ADMIN', organization_id: 2, entity_id: 8 });
+    const { drawer } = renderDrawer({ request: waiting, role: 'SUPER_ADMIN', canAct: true });
+
+    expect(within(drawer).getByRole('link', { name: 'Open approval' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=event-reviews&organization=2&event=8');
+  });
+});
+
 describe('ApprovalDetailDrawer step tracker', () => {
   it('wraps the steps into a grid that fits the drawer and stays pinned above the scrolling content', () => {
     const { drawer } = renderDrawer();

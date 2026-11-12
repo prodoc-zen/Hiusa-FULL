@@ -42,6 +42,20 @@ describe('describeApproval for events', () => {
   it('reads plain Approved for an event the head approved outright', () => {
     expect(decisionMessage(event({ status: 'approved' }, { status: 'approved' }))).toBe('Approved');
   });
+
+  it('gives the SAO an Open approval link that carries the organization and the event', () => {
+    const waiting = event({ status: 'approved', organization_id: 7, entity_id: 31 }, { requirement_files: [{ id: 1, original_name: 'a.pdf' }] });
+    const info = describeApproval(waiting, 'SUPER_ADMIN');
+
+    expect(info.lifecycle.nextAction.label).toBe('Open approval');
+    expect(info.lifecycle.nextAction.to).toBe('/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31');
+  });
+
+  it('gives the SAO the same link for an event the SAO itself holds', () => {
+    const info = describeApproval(event({ required_role: 'SUPER_ADMIN', organization_id: 7, entity_id: 31 }), 'SUPER_ADMIN');
+
+    expect(info.lifecycle.nextAction.to).toBe('/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31');
+  });
 });
 
 describe('describeApproval for the other lifecycles', () => {
