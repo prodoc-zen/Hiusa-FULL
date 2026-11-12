@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Controllers\ComplianceController;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\ComplianceRequirementType;
 use App\Models\FinancialReport;
 use App\Models\Organization;
@@ -42,6 +43,15 @@ class OrganizationComplianceTest extends TestCase
         return User::factory()->create(['role' => $role, 'organization_id' => $organizationId ?? Organization::factory(), 'account_status' => 'active']);
     }
 
+    /** An organization head who is an Admin only through an account profile: the users row is a student of some other organization. */
+    private function profileOnlyAdmin(Organization $organization): User
+    {
+        $person = $this->user('STUDENT');
+        AccountProfile::create(['user_school_id' => $person->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+
+        return $person;
+    }
+
     public function test_super_admin_defines_requirement_type_and_notifies_every_active_admin(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
@@ -63,6 +73,65 @@ class OrganizationComplianceTest extends TestCase
             'reference_type' => 'compliance_requirement_type',
             'reference_id' => $response->json('id'),
         ]);
+    }
+
+    public function test_a_new_requirement_notifies_an_admin_who_holds_the_role_only_through_a_profile(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $head = $this->profileOnlyAdmin($organization);
+        Sanctum::actingAs($superAdmin);
+
+        $id = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => '2026-12-01',
+        ])->assertCreated()->json('id');
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $head->school_id, 'organization_id' => $organization->id, 'title' => 'New compliance requirement', 'reference_id' => $id]);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $head->school_id, 'organization_id' => $head->getAttributes()['organization_id'], 'title' => 'New compliance requirement']);
+    }
+
+    public function test_a_deadline_change_notifies_an_admin_who_holds_the_role_only_through_a_profile(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $head = $this->profileOnlyAdmin($organization);
+        Sanctum::actingAs($superAdmin);
+        $id = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => '2026-12-01',
+        ])->assertCreated()->json('id');
+
+        $this->putJson("/api/compliance/requirement-types/{$id}", ['deadline_at' => '2026-12-15'])->assertOk();
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $head->school_id, 'organization_id' => $organization->id, 'title' => 'Compliance deadline changed', 'reference_id' => $id]);
+    }
+
+    public function test_a_review_notifies_an_admin_who_holds_the_role_only_through_a_profile(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $head = $this->profileOnlyAdmin($organization);
+        Sanctum::actingAs($superAdmin);
+        $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'template_url' => 'https://example.edu/statement-format',
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => '2026-12-01',
+        ])->assertCreated()->json('id');
+        $submission = OrganizationComplianceSubmission::create([
+            'organization_id' => $organization->id, 'requirement_type_id' => $requirementTypeId, 'status' => 'submitted',
+            'file_path' => 'compliance-submissions/'.$organization->id.'/f.pdf', 'file_original_name' => 'f.pdf', 'mime_type' => 'application/pdf', 'file_size' => 10,
+            'submitted_by' => $head->school_id, 'submitted_at' => now()->subMinute(),
+        ]);
+
+        $this->patchJson("/api/compliance/submissions/{$submission->id}/review", $this->review($submission->id, ['status' => 'returned', 'remarks' => 'Sign the last page.']))->assertOk();
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $head->school_id, 'organization_id' => $organization->id, 'title' => 'Compliance document returned', 'reference_id' => $submission->id]);
     }
 
     public function test_only_super_admin_can_define_requirement_types(): void
