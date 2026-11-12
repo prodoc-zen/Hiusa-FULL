@@ -72,6 +72,31 @@ describe('AcademicYearsPage', () => {
     expect(makeAcademicYearCurrent).not.toHaveBeenCalled();
   });
 
+  it('disables Make current while the server would refuse it, and keeps it enabled otherwise', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([
+      years[0],
+      { ...years[1], semesters: [{ id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }] },
+    ]);
+    const { unmount } = renderPage();
+
+    fireEvent.click(await findRowAction('Make current'));
+    const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
+    const confirm = within(dialog).getByRole('button', { name: 'Make current' });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(makeAcademicYearCurrent).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    unmount();
+
+    vi.mocked(getAcademicYears).mockResolvedValue([
+      years[0],
+      { ...years[1], semesters: [{ id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' }] },
+    ]);
+    renderPage();
+    fireEvent.click(await findRowAction('Make current'));
+    expect(within(await screen.findByRole('dialog', { name: 'Make this the current year' })).getByRole('button', { name: 'Make current' })).toBeEnabled();
+  });
+
   it('warns that a completed year cannot be reopened before closing it', async () => {
     vi.mocked(getAcademicYears).mockResolvedValue([
       { ...years[1], semesters: [{ id: 1, number: 1, status: 'completed' }, { id: 2, number: 2, status: 'completed' }] },
@@ -192,6 +217,64 @@ describe('AcademicYearsPage', () => {
 
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('Council Election (Computer Society)');
       expect(activateAcademicSemester).toHaveBeenCalledWith(12);
+    });
+
+    const openActivate = async (items, name) => {
+      vi.mocked(getAcademicYears).mockResolvedValue(items);
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name }));
+      return screen.findByRole('dialog', { name: 'Activate semester' });
+    };
+    const nextYear = { ...years[0], semesters: [{ id: 21, number: 1, status: 'upcoming', starts_on: '2026-08-02', ends_on: '2026-12-15' }] };
+
+    it('says activating a semester in another year also completes the current year, which cannot be reopened', async () => {
+      const dialog = await openActivate([
+        nextYear,
+        { ...years[1], semesters: [
+          { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+          { id: 12, number: 2, status: 'active', starts_on: '2026-12-16', ends_on: '2027-05-31' },
+        ] },
+      ], 'Activate 1st semester of AY 2027-2028');
+      expect(within(dialog).getByText(/This closes the current semester, 2nd semester, AY 2026-2027\./)).toBeInTheDocument();
+      expect(within(dialog).getByText(/This also completes AY 2026-2027\. A completed year cannot be reopened\./)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/cannot be undone from the app/)).not.toBeInTheDocument();
+    });
+
+    it('says the same when no semester is active at the moment', async () => {
+      const dialog = await openActivate([
+        nextYear,
+        { ...years[1], semesters: [
+          { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+          { id: 12, number: 2, status: 'completed', starts_on: '2026-12-16', ends_on: '2027-05-31' },
+        ] },
+      ], 'Activate 1st semester of AY 2027-2028');
+      expect(within(dialog).getByText(/This semester becomes the active one\./)).toBeInTheDocument();
+      expect(within(dialog).getByText(/This also completes AY 2026-2027\. A completed year cannot be reopened\./)).toBeInTheDocument();
+    });
+
+    it('says a same-year activation can be reversed by reopening the closed semester once the new one is closed', async () => {
+      const dialog = await openActivate(withSemesters, 'Activate 2nd semester of AY 2026-2027');
+      expect(within(dialog).queryByText(/cannot be undone from the app/)).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/also completes/)).not.toBeInTheDocument();
+      expect(within(dialog).getByText(/You can reopen 1st semester, AY 2026-2027 from this page after the new one is closed\./)).toBeInTheDocument();
+    });
+
+    it('does not promise a year completion or an undo when nothing is active and the year stays the same', async () => {
+      const dialog = await openActivate([{ ...years[1], semesters: [
+        { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+        { id: 12, number: 2, status: 'upcoming', starts_on: '2026-08-02', ends_on: '2027-05-31' },
+      ] }], 'Activate 2nd semester of AY 2026-2027');
+      expect(within(dialog).getByText(/This semester becomes the active one\. You can close it from this page when it is over\./)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/cannot be undone from the app/)).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/also completes/)).not.toBeInTheDocument();
+    });
+
+    it('tells the SAO the closed semester stays reopenable only while no other semester is active and its year is not completed', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Close 1st semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Close semester' });
+      expect(within(dialog).getByText(/You can reopen it from this page while no other semester is active and its academic year is not completed\./)).toBeInTheDocument();
     });
   });
 
