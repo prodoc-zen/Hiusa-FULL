@@ -106,7 +106,6 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [assigneeDirectory, setAssigneeDirectory] = useState([]);
   const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '', priority: '', deadline: '' });
   const [academicPeriods, setAcademicPeriods] = useState([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [page, setPage] = useState(1);
   const [detailTask, setDetailTask] = useState(null);
   const [totalsLoaded, setTotalsLoaded] = useState(false);
@@ -139,8 +138,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   })();
   const canManageTasks = currentUserRole === 'ADMIN';
   const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
-  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
-  const canEditTasks = (canManageTasks || canUpdateAssignedTasks) && !viewingHistory;
+  const canEditTasks = canManageTasks || canUpdateAssignedTasks;
   const query = new URLSearchParams(locationSearch);
   const activeTab = initialTab === 'ai' ? 'ai'
     : canManageTasks && (initialTab === 'create' || query.get('new') === '1') ? 'create'
@@ -179,15 +177,14 @@ export default function TasksPage({ initialTab = 'board' }) {
     ...(taskFilters.type ? { task_kind: taskFilters.type } : {}),
     ...(taskFilters.priority ? { priority: taskFilters.priority } : {}),
     ...(taskFilters.deadline ? { deadline_from: taskFilters.deadline, deadline_to: taskFilters.deadline } : {}),
-    ...(selectedPeriodId ? { academic_semester_id: selectedPeriodId } : {}),
     ...(appliedSearch ? { search: appliedSearch } : {}),
-  }), [taskFilters, selectedPeriodId, appliedSearch]);
+  }), [taskFilters, appliedSearch]);
 
   function load() {
     setLoading(true);
     setError(null);
     const usersRequest = canManageTasks ? fetchAllPages(getUsers, { role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
-    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)) : Promise.resolve([]);
+    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]);
     // Summaries use the same filters but refresh independently of board pagination.
     Promise.all([
       getTasks({ page, per_page: pageSize, ...serverFilters }),
@@ -234,7 +231,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     return () => { current = false; };
   }
 
-  useEffect(load, [canManageTasks, page, serverFilters, selectedPeriodId]);
+  useEffect(load, [canManageTasks, page, serverFilters]);
   useEffect(loadTotals, [canManageTasks, serverFilters]);
 
   useEffect(() => {
@@ -494,15 +491,6 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   const firstRunTasks = tasksMeta.total === 0 && activeTaskFilters.length === 0;
 
-  const periodSelect = academicPeriods.length > 0 && activeTab !== 'create' && (
-    <Field label="Academic period" className="max-w-xs">
-      <Select filter value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); closeDetails(); setPage(1); }}>
-        <option value="">Active period</option>
-        {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} semester · {period.status}</option>)}
-      </Select>
-    </Field>
-  );
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -510,10 +498,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         breadcrumbs={headerBreadcrumbs}
         actions={activeTab === 'create' || activeTab === 'progress' ? <Button variant="secondary" onClick={() => showView('board')}>Back to tasks</Button>
           : activeTab === 'board' && canManageTasks ? <Button variant="secondary" onClick={() => showView('progress')}>Officer progress</Button> : undefined}
-        primary={canManageTasks && !viewingHistory && (activeTab === 'board' || activeTab === 'progress') ? <Button leftIcon={Plus} onClick={() => showView('create')}>New task</Button> : undefined}
+        primary={canManageTasks && (activeTab === 'board' || activeTab === 'progress') ? <Button leftIcon={Plus} onClick={() => showView('create')}>New task</Button> : undefined}
       />
-      {periodSelect}
-      {viewingHistory && <p className="text-sm text-ink-muted">Completed semester tasks are available for viewing only.</p>}
 
       {activeTab === 'board' && (
         <section aria-label="Task counts" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -627,8 +613,8 @@ export default function TasksPage({ initialTab = 'board' }) {
               canManageTasks ? (
                 <EmptyState
                   title="No tasks yet"
-                  description={viewingHistory ? 'No tasks were recorded in this period.' : 'Create a task to give an officer something to do and a deadline to meet.'}
-                  action={viewingHistory ? undefined : <Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
+                  description="Create a task to give an officer something to do and a deadline to meet."
+                  action={<Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
                 />
               ) : (
                 <EmptyState title="Nothing assigned to you yet" description="Your Admin delegates tasks here." />
@@ -648,7 +634,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <TaskProgress task={t} />
                 {taskStepper(t)}
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-ink-muted">Assignee</dt><dd className="break-words font-medium text-ink">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : ''}</dd></div><div><dt className="text-ink-muted">Deadline</dt><dd className="font-medium text-ink">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-ink-muted">Related event</dt><dd className="break-words font-medium text-ink">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
-                <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)).catch(failedStatusChange)}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange)}>Reopen</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && !viewingHistory && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
+                <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)).catch(failedStatusChange)}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange)}>Reopen</Button>}{canManageTasks && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
               </li>)}
             </ul>
             <div className="hidden overflow-x-auto lg:block">
@@ -677,19 +663,19 @@ export default function TasksPage({ initialTab = 'board' }) {
                         <div className="w-44">{taskStepper(t)}</div>
                       </td>
                       <td className="px-4 py-2.5"><div className="flex items-center justify-end gap-2">
-                        {canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && (
+                        {canUpdateAssignedTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && (
                           <Button variant="secondary" size="sm" onClick={() => startTask(t)}>Start</Button>
                         )}
-                        {canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && (
+                        {canUpdateAssignedTasks && ['in_progress', 'overdue'].includes(t.status) && (
                           <Button variant="secondary" size="sm" onClick={() => setCompletionTask(t)}>Complete</Button>
                         )}
                         <TableRowActions subject={t.title} label="Task actions" actions={[
                           { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
-                          canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start', icon: CheckCircle2, onClick: () => startTask(t) },
-                          canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
-                          canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange) },
-                          canManageTasks && !viewingHistory && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
-                          canManageTasks && !viewingHistory && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
+                          canUpdateAssignedTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start', icon: CheckCircle2, onClick: () => startTask(t) },
+                          canUpdateAssignedTasks && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
+                          canManageTasks && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange) },
+                          canManageTasks && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
+                          canManageTasks && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
                         ]} />
                       </div></td>
                     </tr>
@@ -718,7 +704,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             <EmptyState
               title="No assigned tasks yet"
               description="Progress per officer appears here once a task is assigned."
-              action={viewingHistory ? undefined : <Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
+              action={<Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
             />
           ) : (
             <div className="divide-y divide-line border-t border-line">
@@ -945,7 +931,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 </div>
               </section>
             )}
-            {canManageTasks && !viewingHistory && selectedTask.status === 'completed' && (
+            {canManageTasks && selectedTask.status === 'completed' && (
               <section className="border-t border-line pt-4">
                 <h3 className="text-sm font-semibold text-ink">Reopen task</h3>
                 <p className="mt-1 text-sm text-ink-muted">Reset this completed task to not started and clear its completion progress.</p>
