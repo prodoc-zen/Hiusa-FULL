@@ -142,6 +142,11 @@ class User extends Authenticatable
             $attributes['role'] = $this->profileRole();
         }
 
+        // Only the signed-in payload says it; a user listed among others never costs a position lookup.
+        if ($this->activeAccountProfile) {
+            $attributes['can_book_venues'] = $this->canBookVenues();
+        }
+
         return $attributes;
     }
 
@@ -158,6 +163,20 @@ class User extends Authenticatable
     public function getPositionTitleAttribute($value): ?string
     {
         return $this->activeAccountProfile?->position_title ?? $value;
+    }
+
+    /**
+     * Admins always book venues. An officer books when the position on the active profile has its "Can book venues"
+     * switch on; an officer with no position, or one the list no longer holds, has no switch to turn off.
+     */
+    public function canBookVenues(): bool
+    {
+        return match ($this->profileRole()) {
+            'ADMIN' => true,
+            'SBO_OFFICER' => $this->position_title === null
+                || SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->where('title', $this->position_title)->value('can_book_venues') !== false,
+            default => false,
+        };
     }
 
     public function activeProfile(): ?AccountProfile

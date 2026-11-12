@@ -373,7 +373,7 @@ function App() {
 
           {/* Manage Profile */}
           <Route path="compliance" element={<ProtectedRoute allowedRoles={["ADMIN"]}><OrganizationCompliancePage /></ProtectedRoute>} />
-          <Route path="venues" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><VenueBookingPage /></ProtectedRoute>} />
+          <Route path="venues" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]} requireVenueBooking><VenueBookingPage /></ProtectedRoute>} />
           <Route path="grievances" element={<ProtectedRoute allowedRoles={["ADMIN"]}><OrganizationGrievancesPage /></ProtectedRoute>} />
           <Route path="my-grievances" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentGrievancesPage /></ProtectedRoute>} />
           <Route path="clearances" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><SignatoryClearancesPage /></ProtectedRoute>} />

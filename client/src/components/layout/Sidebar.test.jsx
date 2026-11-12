@@ -85,6 +85,23 @@ describe('desktop sidebar rail', () => {
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/organization-applications');
   });
 
+  it('lists Venue booking for an officer whose position can book and hides it for one whose position cannot', () => {
+    const open = (user) => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', first_name: 'Test', last_name: 'Officer', ...user }));
+      const view = render(<MemoryRouter initialEntries={['/dashboard/officer']}><SidebarHarness initialCollapsed /></MemoryRouter>);
+      fireEvent.click(screen.getByRole('button', { name: 'Events and tasks' }));
+      return view;
+    };
+
+    const allowed = open({ can_book_venues: true });
+    expect(screen.getByRole('link', { name: 'Venue booking' })).toHaveAttribute('href', '/dashboard/venues');
+    allowed.unmount();
+
+    open({ can_book_venues: false });
+    expect(screen.getByRole('link', { name: 'Calendar' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Venue booking' })).not.toBeInTheDocument();
+  });
+
   it.each([
     ['ADMIN', '/dashboard/admin', 'Members', 'Organization Setup'],
     ['SBO_OFFICER', '/dashboard/officer', 'Members and fingerprints', 'Manage Users'],

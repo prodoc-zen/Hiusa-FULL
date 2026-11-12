@@ -63,6 +63,43 @@ describe('ManageSboPositionsPage', () => {
     expect(table.getAllByText('Inactive')).toHaveLength(1);
   });
 
+  it('lets an Admin switch venue booking per officer position and saves just that switch', async () => {
+    service.getSboPositions.mockResolvedValue([
+      { id: 8, role: 'SBO_OFFICER', title: 'Treasurer', description: '', is_active: true, can_book_venues: false },
+      { id: 9, role: 'SBO_OFFICER', title: 'Secretary', description: '', is_active: true, can_book_venues: true },
+    ]);
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+    const table = tableView();
+    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Position', 'Can book venues', 'Actions']);
+    const switches = table.getAllByRole('switch', { name: /can book venues/i });
+    expect(switches.map((toggle) => toggle.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+
+    fireEvent.click(switches[0]);
+
+    await waitFor(() => expect(service.updateSboPosition).toHaveBeenCalledWith(8, { can_book_venues: true }));
+    await waitFor(() => expect(tableView().getAllByRole('switch', { name: /can book venues/i })[0]).toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('keeps the switch where it was and says so when saving it fails', async () => {
+    service.getSboPositions.mockResolvedValue([{ id: 8, role: 'SBO_OFFICER', title: 'Treasurer', description: '', is_active: true, can_book_venues: false }]);
+    service.updateSboPosition.mockRejectedValue({ response: { data: { message: 'Could not save.' } } });
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+
+    fireEvent.click(tableView().getByRole('switch', { name: /can book venues/i }));
+
+    expect(await screen.findByText('Could not save.')).toBeInTheDocument();
+    expect(tableView().getByRole('switch', { name: /can book venues/i })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('shows no booking switch for Admin positions because an Admin can always book', async () => {
+    service.getSboPositions.mockResolvedValue([{ id: 8, role: 'ADMIN', title: 'President', description: '', is_active: true, can_book_venues: true }]);
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('President');
+    expect(tableView().queryByRole('switch')).not.toBeInTheDocument();
+  });
+
   it('requires the position title before deletion', async () => {
     render(<ManageSboPositionsPage />);
     await screen.findAllByText('Treasurer');

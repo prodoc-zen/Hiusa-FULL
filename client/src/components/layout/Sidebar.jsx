@@ -9,7 +9,7 @@ import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import { useApplicantAccess } from '../../hooks/useApplicantAccess';
-import { readUserModules } from '../../utils/userModules';
+import { readCanBookVenues, readUserModules } from '../../utils/userModules';
 import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, navRoleFor, resolveItemPath, withApplicantAccess } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
@@ -172,13 +172,14 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const { subAccount, leave } = useActiveSubAccount();
   const orgSpace = role === 'DEPARTMENT_HEAD' ? subAccount : null;
   const modules = useMemo(() => readUserModules(), []);
+  const canBookVenues = useMemo(() => readCanBookVenues(), []);
   const { visible: canApply } = useApplicantAccess(role);
   const showApply = role === 'STUDENT' && canApply;
   const navRole = navRoleFor(user) || role;
-  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(navRole, modules), showApply)), [orgSpace, navRole, modules, showApply]);
+  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(navRole, modules, canBookVenues), showApply)), [orgSpace, navRole, modules, canBookVenues, showApply]);
   const activeId = useMemo(
-    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(navRole, modules), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
-    [orgSpace, nav, navRole, modules, showApply, location.pathname, location.search],
+    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(navRole, modules, canBookVenues), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
+    [orgSpace, nav, navRole, modules, canBookVenues, showApply, location.pathname, location.search],
   );
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
