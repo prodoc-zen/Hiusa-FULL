@@ -33,7 +33,65 @@ class Election extends Model
             'approved_at' => 'datetime',
             'finalized_at' => 'datetime',
             'results_visible' => 'boolean',
+            'filing_starts_at' => 'datetime',
+            'filing_ends_at' => 'datetime',
+            'screening_starts_at' => 'datetime',
+            'screening_ends_at' => 'datetime',
+            'campaign_starts_at' => 'datetime',
+            'campaign_ends_at' => 'datetime',
+            'results_publish_at' => 'datetime',
+            'runoff_starts_at' => 'datetime',
+            'runoff_ends_at' => 'datetime',
+            'runoff_publish_at' => 'datetime',
+            'submitted_at' => 'datetime',
+            'declined_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'rules_version' => 'integer',
+            'tally_version' => 'integer',
+            'min_gpa' => 'decimal:2',
+            'min_units' => 'integer',
+            'notices_sent' => 'array',
         ];
+    }
+
+    /** A filing election runs the full process; one without a filing window is the short form where the Admin adds candidates. */
+    public function usesFiling(): bool
+    {
+        return $this->filing_starts_at !== null;
+    }
+
+    /** Suspended and cancelled elections pause every phase, filing window and ballot. */
+    public function isHalted(): bool
+    {
+        return $this->suspended_at !== null || $this->cancelled_at !== null;
+    }
+
+    /** The ballot round that accepts votes right now: 1 inside the voting window, 2 inside the runoff window, otherwise null. */
+    public function openRound(): ?int
+    {
+        if ($this->isHalted()) {
+            return null;
+        }
+
+        $now = now();
+
+        if ($this->status === 'active'
+            && $this->approved_at !== null
+            && $this->finalized_at !== null
+            && $this->start_time !== null && $this->end_time !== null
+            && $this->start_time->lte($now) && $this->end_time->gte($now)) {
+            return 1;
+        }
+
+        if ($this->phase === 'runoff'
+            && $this->runoff_starts_at !== null && $this->runoff_ends_at !== null
+            && $this->runoff_starts_at->lte($now) && $this->runoff_ends_at->gte($now)) {
+            return 2;
+        }
+
+        return null;
     }
 
     /**
@@ -106,5 +164,25 @@ class Election extends Model
     public function votes(): HasMany
     {
         return $this->hasMany(Vote::class);
+    }
+
+    public function applications(): HasMany
+    {
+        return $this->hasMany(ElectionApplication::class);
+    }
+
+    public function ballots(): HasMany
+    {
+        return $this->hasMany(ElectionBallot::class);
+    }
+
+    public function ruleVersions(): HasMany
+    {
+        return $this->hasMany(ElectionRuleVersion::class);
+    }
+
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(OfficerAppointment::class);
     }
 }
