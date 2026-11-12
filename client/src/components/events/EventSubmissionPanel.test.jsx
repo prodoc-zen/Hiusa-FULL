@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import EventSubmissionPanel from './EventSubmissionPanel';
 
@@ -7,8 +7,10 @@ const mocks = vi.hoisted(() => ({
   submitEventRequirements: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+const toasts = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('../../services/eventService', () => mocks);
 vi.mock('../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../lib/notify', () => ({ default: toasts }));
 
 const requirements = [
   { id: 1, name: 'Event Proposal', description: '', is_optional: false },
@@ -123,8 +125,7 @@ describe('EventSubmissionPanel', () => {
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View submitted file' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'proposal.pdf' }));
 
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/5'));
   });
@@ -134,9 +135,8 @@ describe('EventSubmissionPanel', () => {
     openMocks.openProtectedFile.mockRejectedValue({ userMessage: 'Allow pop-ups to open this file.' });
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View submitted file' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
+    fireEvent.click(await screen.findByRole('button', { name: 'proposal.pdf' }));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Allow pop-ups to open this file.'));
   });
 
   it('shows rejected remarks and keeps an existing file while resubmitting', async () => {
@@ -189,6 +189,49 @@ describe('EventSubmissionPanel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load event requirements.');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect((await screen.findAllByText('Event Proposal', { exact: false })).length).toBeGreaterThan(0);
+  });
+
+  describe('the file list', () => {
+    const longName = 'event-proposal-foundation-day-2026-final-approved-by-the-adviser.pdf';
+    const sampled = [{ ...requirements[0], template_original_name: 'sample-proposal.pdf' }, requirements[1]];
+    const files = [{ ...uploadedFile, original_name: longName, reviews: [{ stage: 'dean', status: 'needs_changes', note: 'The seal is missing.' }] }];
+
+    it('reads as one aligned Requirement, Status, File, Action row per requirement, in no card of its own', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { requirements: sampled, files, approval_status: 'pending_sao' } });
+      const { container } = render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
+
+      const region = await screen.findByRole('region', { name: 'SAO event requirement files' });
+      expect(within(region).queryByRole('table')).not.toBeInTheDocument();
+      ['Requirement', 'Status', 'File', 'Action'].forEach((name) => expect(within(region).getByText(name)).toBeInTheDocument());
+      const rows = within(region).getAllByRole('listitem');
+      expect(rows).toHaveLength(2);
+      rows.forEach((row) => expect(row.firstElementChild.children).toHaveLength(4));
+      expect(within(rows[0]).getByText('Needs changes')).toBeInTheDocument();
+      expect(within(rows[0]).getByText('Department Head: Needs changes. The seal is missing.')).toBeInTheDocument();
+      expect(within(rows[1]).getByText('Not submitted')).toBeInTheDocument();
+      expect(within(rows[1]).getByText('No file')).toBeInTheDocument();
+      expect(container.firstElementChild.className).not.toMatch(/bg-surface|\bp-4\b/);
+    });
+
+    it('cuts a long file name with an ellipsis and keeps it whole in the title', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { requirements: sampled, files, approval_status: 'pending_sao' } });
+      const { container } = render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
+
+      const link = await screen.findByRole('button', { name: longName });
+      expect(link).toHaveAttribute('title', longName);
+      expect(within(link).getByText(longName)).toHaveClass('truncate');
+      expect(container.innerHTML).not.toContain('break-all');
+    });
+
+    it('keeps the SAO sample as a row action only where a sample exists', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { requirements: sampled, files, approval_status: 'pending_sao' } });
+      openMocks.openProtectedFile.mockResolvedValue();
+      render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'View SAO sample for Event Proposal' }));
+      await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/event-requirements/1/template'));
+      expect(screen.queryByRole('button', { name: 'View SAO sample for Venue Permit' })).not.toBeInTheDocument();
+    });
   });
 
   describe('per-file review notes', () => {

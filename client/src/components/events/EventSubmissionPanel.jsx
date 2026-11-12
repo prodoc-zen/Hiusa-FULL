@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Eye, FileText } from 'lucide-react';
 import { getEventSubmission, submitEventRequirements } from '../../services/eventService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { openProtectedFile } from '../../utils/openProtectedFile';
 import { formatDisplayText } from '../../utils/displayText';
 import { RichTextBody } from '../RichText';
-import { Button, DataTable, StatusBadge } from '../ui';
-import TableRowActions from '../TableRowActions';
+import { Button } from '../ui';
+import FileReviewList from '../reviews/FileReviewList';
 import { describeReview } from '../approvals/EventFilesReview';
 
 export default function EventSubmissionPanel(props) {
@@ -46,14 +45,6 @@ function EventSubmission({ eventId, role, onSubmitted }) {
     }
   }
 
-  async function view(file) {
-    try {
-      await openProtectedFile(`/events/${eventId}/submission/files/${file.id}`);
-    } catch (cause) {
-      setError(getApiErrorMessage(cause, 'Could not open the file.'));
-    }
-  }
-
   async function viewTemplate(requirement) {
     if (requirement.template_url) {
       window.open(requirement.template_url, '_blank', 'noopener,noreferrer');
@@ -74,44 +65,39 @@ function EventSubmission({ eventId, role, onSubmitted }) {
   const flagged = (file) => file?.reviews?.some((review) => review.status === 'needs_changes') ?? false;
   const toReplace = requirements.filter((requirement) => flagged(byRequirement.get(requirement.id)) && !files[requirement.id]).length;
   const accepted = (file) => Boolean(file?.reviews?.length) && file.reviews.every((review) => review.status === 'ok');
+  const rows = requirements.map((item) => {
+    const file = byRequirement.get(item.id);
+    const lines = file?.reviews?.filter((review) => review.status === 'needs_changes' || review.note) ?? [];
+    const name = formatDisplayText(item.name);
+    let status = { label: file ? 'Submitted' : 'Not submitted', tone: file ? 'info' : 'neutral' };
+    if (flagged(file)) status = { status: 'needs_changes', label: 'Needs changes' };
+    else if (accepted(file)) status = { status: 'ok', label: 'Accepted' };
+    return {
+      id: item.id,
+      name,
+      status,
+      file: file ? { name: file.original_name, url: `/events/${eventId}/submission/files/${file.id}` } : null,
+      emptyFile: 'No file',
+      actions: item.template_url || item.template_original_name ? [{ label: 'Sample', ariaLabel: `View SAO sample for ${name}`, onClick: () => viewTemplate(item) }] : [],
+      expanded: true,
+      note: item.description || lines.length > 0 ? (
+        <div className="space-y-1">
+          {item.description && <RichTextBody value={item.description} className="text-xs text-ink-muted-strong" />}
+          {lines.map((review) => <p key={review.stage} className="text-ink">{describeReview(review)}</p>)}
+        </div>
+      ) : null,
+    };
+  });
   const maySubmit = role === 'ADMIN' && requirements.length > 0 && (
     !submission?.approval_status || submission.approval_status === 'rejected' || submission.approval_stage === 'awaiting_requirements'
   );
 
   return (
-    <section className="rounded-card border border-line bg-surface p-4">
+    <section>
       <h3 className="text-sm font-semibold text-ink">SAO event requirements</h3>
       {error && <p role="alert" className="mt-2 rounded-lg bg-danger-tint p-2 text-xs text-danger-strong">{error} <button type="button" onClick={() => load(true)} className="font-semibold underline">Retry</button></p>}
       {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-ink-muted">SAO has not listed any file requirements.</p>}
-      {requirements.length > 0 && <div className="mt-3"><DataTable
-        caption="Event requirement submissions"
-        stickyHeader={false}
-        rows={requirements}
-        rowKey={(item) => item.id}
-        columns={[
-          { key: 'name', header: 'Requirement', render: (item) => <div><strong>{formatDisplayText(item.name)}</strong>{item.description && <RichTextBody value={item.description} className="mt-1 text-xs text-ink-muted-strong" />}</div> },
-          { key: 'file', header: 'File', render: (item) => {
-            const file = byRequirement.get(item.id);
-            return (
-              <div className="min-w-0 text-xs">
-                <span className="break-all">{file?.original_name || 'No file'}</span>
-                {file?.reviews?.filter((review) => review.status === 'needs_changes' || review.note).map((review) => <p key={review.stage} className="mt-1 text-ink">{describeReview(review)}</p>)}
-              </div>
-            );
-          } },
-          { key: 'sample', header: 'SAO sample', render: (item) => item.template_url ? 'Link' : item.template_original_name ? 'PDF file' : 'No sample' },
-          { key: 'status', header: 'Status', render: (item) => {
-            const file = byRequirement.get(item.id);
-            if (flagged(file)) return <StatusBadge status="needs_changes" label="Needs changes" />;
-            if (accepted(file)) return <StatusBadge status="ok" label="Accepted" />;
-            return <StatusBadge label={file ? 'Submitted' : 'Not submitted'} tone={file ? 'info' : 'neutral'} />;
-          } },
-        ]}
-        actions={(item) => (byRequirement.has(item.id) || item.template_url || item.template_original_name) && <TableRowActions subject={formatDisplayText(item.name)} actions={[
-          byRequirement.has(item.id) && { label: 'View submitted file', icon: Eye, onClick: () => view(byRequirement.get(item.id)) },
-          (item.template_url || item.template_original_name) && { label: 'View SAO sample', icon: FileText, onClick: () => viewTemplate(item) },
-        ]} />}
-      /></div>}
+      {rows.length > 0 && <section aria-label="SAO event requirement files" className="mt-3 overflow-hidden rounded-card border border-line"><FileReviewList rows={rows} /></section>}
       {submission?.approval_status === 'rejected' && submission.approval_remarks && <p className="mt-3 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong"><strong>Why this was returned:</strong> {submission.approval_remarks}</p>}
       {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3">
         <p className="text-xs text-ink-muted-strong">{uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.</p>
