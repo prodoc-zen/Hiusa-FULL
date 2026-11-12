@@ -15,6 +15,11 @@ const STAGE_LABEL = { dean: 'Department Head', sao: 'SAO' };
 // "Department Head: Needs changes. The seal is missing." One sentence per mark, read the same on every screen.
 export const describeReview = (review) => `${STAGE_LABEL[review.stage] ?? review.stage}: ${WORD[review.status] ?? review.status}.${review.note ? ` ${review.note}` : ''}`;
 
+// A mark that needs the organization to act reads in the warning tint, so it stands apart from the file list around it.
+export const reviewLineClass = (review) => (review.status === 'needs_changes' || review.status === 'missing'
+  ? 'rounded-control border border-warning/40 bg-warning-tint px-3 py-2 text-sm text-warning-strong'
+  : 'text-sm text-ink');
+
 export const stageOfRequest = (request) => (request.required_role === 'SUPER_ADMIN' ? 'sao' : 'dean');
 
 export const filesOf = (request) => (request.entity_type === 'event' ? request.summary?.requirement_files ?? [] : []);
@@ -65,7 +70,7 @@ export default function EventFilesReview({ files, actionable, marks, notes, onMa
           // Every note the file carries, from either step, reads beside the file. This step's earlier return
           // stays visible until the organization replaces the file.
           const lines = reviews.filter((review) => review.status === 'needs_changes' || review.note).map((review) => (
-            <p key={review.stage} className="text-sm text-ink">{describeReview(review)}</p>
+            <p key={review.stage} className={reviewLineClass(review)}>{describeReview(review)}</p>
           ));
           const open = openId === file.id;
           const flagged = mark === 'needs_changes';

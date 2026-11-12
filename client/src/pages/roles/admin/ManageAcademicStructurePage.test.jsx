@@ -32,6 +32,16 @@ describe('ManageAcademicStructurePage add program', () => {
     expect(within(dialog).getByRole('button', { name: 'Add program' })).toBeEnabled();
   });
 
+  it('carries no department line or Non Block explanation, on the page or in the add form', async () => {
+    const dialog = await openAdd();
+
+    expect(screen.queryByText(/Department:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/College of Computing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/letter labels/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Non Block/)).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Program duration in years')).toBeInTheDocument();
+  });
+
   it('clears a refusal once the name is changed', async () => {
     service.createAcademicProgram.mockRejectedValueOnce({ response: { status: 422, data: { errors: { name: ['A program with this name already exists.'] } } } });
     const dialog = await openAdd();

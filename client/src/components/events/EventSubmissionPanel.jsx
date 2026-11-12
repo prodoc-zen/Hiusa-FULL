@@ -6,7 +6,7 @@ import { formatDisplayText } from '../../utils/displayText';
 import { RichTextBody } from '../RichText';
 import { Button } from '../ui';
 import FileReviewList from '../reviews/FileReviewList';
-import { describeReview } from '../approvals/EventFilesReview';
+import { describeReview, reviewLineClass } from '../approvals/EventFilesReview';
 
 export default function EventSubmissionPanel(props) {
   return <EventSubmission key={props.eventId} {...props} />;
@@ -83,7 +83,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
       note: item.description || lines.length > 0 ? (
         <div className="space-y-1">
           {item.description && <RichTextBody value={item.description} className="text-xs text-ink-muted-strong" />}
-          {lines.map((review) => <p key={review.stage} className="text-ink">{describeReview(review)}</p>)}
+          {lines.map((review) => <p key={review.stage} className={reviewLineClass(review)}>{describeReview(review)}</p>)}
         </div>
       ) : null,
     };
