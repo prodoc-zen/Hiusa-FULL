@@ -269,11 +269,13 @@ class SystemUsersController extends Controller
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
 
-    /** The SAO's way to reset a student, officer or organization Admin (head, adviser, office staff). A Department Head has its own reset. */
+    /** The SAO's way to reset a student, officer, organization Admin (head, adviser, office staff) or another SAO account, never their own. A Department Head has its own reset. */
     public function initiatePasswordReset(Request $request, User $user)
     {
-        if (! in_array($user->role, ['STUDENT', 'SBO_OFFICER', 'ADMIN'], true)) {
-            return response()->json(['message' => 'Only student, officer and administrator accounts are reset here. A Department Head has a separate reset.'], 422);
+        $resettable = in_array($user->role, ['STUDENT', 'SBO_OFFICER', 'ADMIN'], true)
+            || ($user->role === 'SUPER_ADMIN' && $user->school_id !== $request->user()->school_id);
+        if (! $resettable) {
+            return response()->json(['message' => 'Only student, officer, administrator and other SAO accounts are reset here. A Department Head has a separate reset.'], 422);
         }
         if ($user->account_status !== 'active') {
             return response()->json(['message' => 'Activate this account before initiating a password reset.'], 422);

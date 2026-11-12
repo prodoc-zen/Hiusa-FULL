@@ -49,6 +49,7 @@ describe('password recovery pages', () => {
 
     const intro = screen.getByText(/When email is turned on/);
     expect(intro).toHaveTextContent(/When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link\./);
+    expect(intro).toHaveTextContent(/SAO staff ask another SAO account holder\./);
     expect(intro).not.toHaveTextContent(/^Enter the email or school ID you sign in with\. We send/);
   });
 
@@ -67,7 +68,7 @@ describe('password recovery pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request reset' }));
 
     expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
-    expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toHaveTextContent(/SAO staff ask another SAO account holder\./);
     expect(screen.queryByText(/we sent/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send another email' })).not.toBeInTheDocument();
   });

@@ -49,6 +49,8 @@ export default function SaoUsersPage() {
   const [notice, setNotice] = useState('');
   const [invitingSao, setInvitingSao] = useState(false);
   const loadCounter = useRef(0);
+  let ownSchoolId = null;
+  try { ownSchoolId = JSON.parse(localStorage.getItem('user') || '{}')?.school_id ?? null; } catch {}
 
   useEffect(() => {
     const timer = window.setTimeout(() => { setFilters((current) => current.search === query.trim() ? current : { ...current, search: query.trim() }); setPage(1); }, 250);
@@ -162,7 +164,7 @@ export default function SaoUsersPage() {
       </div>}
       actions={(user) => <TableRowActions subject={fullName(user)} actions={[
         { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
-        ['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
+        (['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) || (user.role === 'SUPER_ADMIN' && String(user.school_id) !== String(ownSchoolId))) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
         { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
       ]} />}
       pagination={<PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" />}

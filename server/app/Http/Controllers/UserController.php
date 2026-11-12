@@ -953,7 +953,7 @@ class UserController extends Controller
             Hash::make(Str::random(64));
 
             return response()->json([
-                'message' => 'Password reset by email is not available. Ask your organization Admin or the SAO to reset your password.',
+                'message' => 'Password reset by email is not available. Ask your organization Admin or the SAO to reset your password. SAO staff ask another SAO account holder.',
                 'email_sent' => false,
             ]);
         }

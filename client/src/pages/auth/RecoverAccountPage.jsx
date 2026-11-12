@@ -35,7 +35,7 @@ export default function RecoverAccountPage() {
       <AuthLayout>
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Ask for a reset</h1>
         <p className="mt-2 text-sm text-ink-muted">
-          Password reset by email is not available. Nothing was sent to anyone. Ask your organization Admin or the SAO for a one-time link to choose a new password, then open it to set one.
+          Password reset by email is not available. Nothing was sent to anyone. Ask your organization Admin or the SAO for a one-time link to choose a new password, then open it to set one. SAO staff ask another SAO account holder.
         </p>
 
         <div className="mt-6">
@@ -71,7 +71,7 @@ export default function RecoverAccountPage() {
     <AuthLayout>
       <h1 className="text-xl font-semibold text-ink sm:text-2xl">Reset your password</h1>
       <p className="mt-2 text-sm text-ink-muted">
-        Enter the email or school ID you sign in with. When email is turned on, we send a reset link to the email address on your account. When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link.
+        Enter the email or school ID you sign in with. When email is turned on, we send a reset link to the email address on your account. When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link. SAO staff ask another SAO account holder.
       </p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
