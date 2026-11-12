@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -15,6 +15,7 @@ vi.mock('../../../services/systemAdministrationService', () => ({
   createAcademicSemester: vi.fn(),
   activateAcademicSemester: vi.fn(),
   closeAcademicSemester: vi.fn(),
+  reopenAcademicSemester: vi.fn(),
   deleteAcademicYear: vi.fn(),
   deleteAcademicSemester: vi.fn(),
 }));
@@ -55,6 +56,31 @@ describe('AcademicYearsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Make current' }));
 
     await waitFor(() => expect(makeAcademicYearCurrent).toHaveBeenCalledWith(2));
+  });
+
+  it('tells the SAO that making a year current does not start a semester and is refused while another year is live', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([
+      years[0],
+      { ...years[1], semesters: [{ id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }] },
+    ]);
+    renderPage();
+
+    fireEvent.click(await findRowAction('Make current'));
+    const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
+    expect(within(dialog).getByText(/This does not start a semester\./)).toBeInTheDocument();
+    expect(within(dialog).getByText(/A semester in AY 2026-2027 is active, so this is refused until you activate a semester in this year\./)).toBeInTheDocument();
+    expect(makeAcademicYearCurrent).not.toHaveBeenCalled();
+  });
+
+  it('warns that a completed year cannot be reopened before closing it', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([
+      { ...years[1], semesters: [{ id: 1, number: 1, status: 'completed' }, { id: 2, number: 2, status: 'completed' }] },
+    ]);
+    renderPage();
+    fireEvent.click(await findRowAction('Close year'));
+    const dialog = await screen.findByRole('dialog', { name: 'Complete academic year' });
+    expect(within(dialog).getByText(/A completed year cannot be reopened\./)).toBeInTheDocument();
+    expect(closeAcademicYear).not.toHaveBeenCalled();
   });
 
   it('closes the year only after both semesters are completed', async () => {
@@ -128,15 +154,25 @@ describe('AcademicYearsPage', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Close 1st semester of AY 2026-2027' }));
 
       const dialog = await screen.findByRole('dialog', { name: 'Close semester' });
-      expect(within(dialog).getByText('1st semester, AY 2026-2027')).toBeInTheDocument();
-      expect(within(dialog).getByText(/Members stop seeing its data\. This cannot be undone from the app\./)).toBeInTheDocument();
+      expect(within(dialog).getAllByText('1st semester, AY 2026-2027').length).toBeGreaterThan(0);
+      expect(within(dialog).getByText(/Members stop seeing its data, and the app has no active semester until the next one is activated\./)).toBeInTheDocument();
       expect(within(dialog).getByText(/You can activate 2nd semester, AY 2026-2027 afterwards\./)).toBeInTheDocument();
       expect(closeAcademicSemester).not.toHaveBeenCalled();
       expect(activateAcademicSemester).not.toHaveBeenCalled();
 
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Close semester' }));
+      const confirm = within(dialog).getByRole('button', { name: 'Close semester' });
+      expect(confirm).toBeDisabled();
+      fireEvent.click(confirm);
+      expect(closeAcademicSemester).not.toHaveBeenCalled();
+
+      const typed = within(dialog).getByLabelText(/Type 1st semester, AY 2026-2027 to confirm/);
+      fireEvent.change(typed, { target: { value: '1st semester' } });
+      expect(confirm).toBeDisabled();
+      fireEvent.change(typed, { target: { value: '1st semester, AY 2026-2027' } });
+      expect(confirm).toBeEnabled();
+      fireEvent.click(confirm);
       await waitFor(() => expect(closeAcademicSemester).toHaveBeenCalledTimes(1));
-      expect(closeAcademicSemester).toHaveBeenCalledWith(11);
+      expect(closeAcademicSemester).toHaveBeenCalledWith(11, '1st semester, AY 2026-2027');
     });
 
     it('sends nothing on cancel and shows the server refusal inline when activating is refused', async () => {
@@ -156,6 +192,55 @@ describe('AcademicYearsPage', () => {
 
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('Council Election (Computer Society)');
       expect(activateAcademicSemester).toHaveBeenCalledWith(12);
+    });
+  });
+
+  describe('reopening a completed semester', () => {
+    const completed = (overrides = {}) => [{ ...years[1], ...overrides, semesters: [
+      { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+      { id: 12, number: 2, status: 'upcoming', starts_on: '2999-01-05', ends_on: '3000-05-31' },
+    ] }];
+
+    it('reopens only after one confirmation that says what it does', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(completed());
+      vi.mocked(reopenAcademicSemester).mockResolvedValue({});
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Reopen 1st semester of AY 2026-2027' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Reopen semester' });
+      expect(within(dialog).getByText(/the active semester and AY 2026-2027 the current year again/)).toBeInTheDocument();
+      expect(reopenAcademicSemester).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen semester' }));
+
+      await waitFor(() => expect(reopenAcademicSemester).toHaveBeenCalledWith(11));
+      await waitFor(() => expect(getAcademicYears).toHaveBeenCalledTimes(2));
+    });
+
+    it('is not offered while any semester is active', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[1], semesters: [
+        { id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+        { id: 12, number: 2, status: 'active', starts_on: '2026-12-16', ends_on: '2027-05-31' },
+      ] }]);
+      renderPage();
+      expect(await screen.findByRole('button', { name: 'Close 2nd semester of AY 2026-2027' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Reopen/ })).not.toBeInTheDocument();
+    });
+
+    it('is not offered for a semester of a completed year', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(completed({ closed_at: '2027-06-01T00:00:00Z', is_current: false }));
+      renderPage();
+      expect(await screen.findByText('1st semester')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Reopen/ })).not.toBeInTheDocument();
+    });
+
+    it('shows the server refusal inline', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(completed());
+      vi.mocked(reopenAcademicSemester).mockRejectedValue({ response: { status: 422, data: { message: 'The given data was invalid.', errors: { semester: ['A semester is already active. Close it before reopening another one.'] } } } });
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Reopen 1st semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Reopen semester' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen semester' }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('A semester is already active.');
     });
   });
 

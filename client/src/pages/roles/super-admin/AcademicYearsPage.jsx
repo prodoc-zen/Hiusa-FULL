@@ -9,10 +9,11 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
 const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
+const SEMESTER_CHANGE_TITLES = { activate: 'Activate semester', close: 'Close semester', reopen: 'Reopen semester' };
 
 const YEAR_START_STEPS = [
   { label: "Publish this year's accreditation requirements", to: '/dashboard/super-admin/compliance' },
@@ -25,12 +26,20 @@ function semesterLabel(semester, yearLabel) {
 }
 
 function semesterChangeMessage({ semester, action, yearLabel }, years) {
-  const closing = action === 'close' ? { semester, yearLabel } : years
+  if (action === 'reopen') return `This makes ${semesterLabel(semester, yearLabel)} the active semester and AY ${yearLabel} the current year again. Members see its data again. Close it again when it is over.`;
+  if (action === 'close') return `Closing this semester ends it. Members stop seeing its data, and the app has no active semester until the next one is activated. ${afterClosingNotice(semester, years)} You can reopen it from this page only while no other semester is active.`;
+  const closing = years
     .flatMap((year) => (year.semesters || []).map((item) => ({ semester: item, yearLabel: year.label })))
     .find((item) => item.semester.status === 'active');
   if (!closing) return 'This semester becomes the active one. This cannot be undone from the app.';
-  const closes = action === 'close' ? 'This closes' : 'This closes the current semester,';
-  return `${closes} ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.${action === 'close' ? ` ${afterClosingNotice(semester, years)}` : ''}`;
+  return `This closes the current semester, ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.`;
+}
+
+function makeCurrentMessage(target, years) {
+  const active = years.find((year) => (year.semesters || []).some((item) => item.status === 'active'));
+  const base = "Accreditation status will count this year's requirements, and new requirement sets and clearance periods will default to it. This does not start a semester.";
+  if (active && active.id !== target.id) return `${base} A semester in AY ${active.label} is active, so this is refused until you activate a semester in this year.`;
+  return base;
 }
 
 function hasStarted(semester) {
@@ -89,6 +98,7 @@ export default function AcademicYearsPage() {
   useEffect(() => { load(); }, [load]);
 
   const current = years.items.find((year) => year.is_current);
+  const anyActive = years.items.some((year) => (year.semesters || []).some((semester) => semester.status === 'active'));
 
   function openModal(year = null) {
     setFieldErrors({});
@@ -178,13 +188,14 @@ export default function AcademicYearsPage() {
   }
 
   async function confirmSemesterChange() {
-    const { semester, action } = semesterChange;
+    const { semester, action, yearLabel } = semesterChange;
     setBusy(true);
     setSemesterChangeError('');
     try {
       if (action === 'activate') await activateAcademicSemester(semester.id);
-      else await closeAcademicSemester(semester.id);
-      notify.success(action === 'activate' ? 'Academic semester activated' : 'Academic semester completed');
+      else if (action === 'reopen') await reopenAcademicSemester(semester.id);
+      else await closeAcademicSemester(semester.id, semesterLabel(semester, yearLabel));
+      notify.success({ activate: 'Academic semester activated', reopen: 'Academic semester reopened', close: 'Academic semester completed' }[action]);
       setSemesterChange(null);
       await load();
     } catch (cause) {
@@ -294,6 +305,17 @@ export default function AcademicYearsPage() {
                 <div className="flex items-center gap-2">
                   {semester.status === 'active' && <StatusBadge label="Active" tone="success" />}
                   {semester.status === 'completed' && <StatusBadge label="Completed" tone="neutral" />}
+                  {semester.status === 'completed' && !anyActive && !year.closed_at && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Reopen ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                      disabled={busy}
+                      onClick={() => { setSemesterChangeError(''); setSemesterChange({ semester, action: 'reopen', yearLabel: year.label }); }}
+                    >
+                      Reopen
+                    </Button>
+                  )}
                   {semester.status === 'active' && (
                     <Button
                       size="sm"
@@ -377,7 +399,7 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(currentTarget)}
         title="Make this the current year"
-        message="Accreditation status will count this year's requirements, and new requirement sets and clearance periods will default to it."
+        message={currentTarget ? makeCurrentMessage(currentTarget, years.items) : undefined}
         recordName={currentTarget?.label}
         confirmText="Make current"
         variant="primary"
@@ -388,7 +410,7 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(closeYearTarget)}
         title="Complete academic year"
-        message="Both semesters will remain available as historical records. Activate a semester in a new year to resume current operations."
+        message="Both semesters will remain available as historical records. A completed year cannot be reopened. Activate a semester in a new year to resume current operations."
         recordName={closeYearTarget?.label}
         confirmText="Close year"
         variant="primary"
@@ -398,10 +420,11 @@ export default function AcademicYearsPage() {
       />
       <ConfirmModal
         open={Boolean(semesterChange)}
-        title={semesterChange?.action === 'activate' ? 'Activate semester' : 'Close semester'}
+        title={SEMESTER_CHANGE_TITLES[semesterChange?.action]}
         message={semesterChange ? semesterChangeMessage(semesterChange, years.items) : undefined}
         recordName={semesterChange ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}
-        confirmText={semesterChange?.action === 'activate' ? 'Activate semester' : 'Close semester'}
+        confirmText={SEMESTER_CHANGE_TITLES[semesterChange?.action]}
+        confirmationText={semesterChange?.action === 'close' ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}
         variant="primary"
         busy={busy}
         error={semesterChangeError}
