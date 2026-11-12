@@ -34,7 +34,7 @@ class RoleAccessMatrixTest extends TestCase
             ['POST', '/api/notifications', ['ADMIN', 'SBO_OFFICER']],
             ['POST', '/api/users/'.$users['STUDENT']->school_id.'/fingerprint', ['ADMIN', 'SBO_OFFICER']],
             ['POST', '/api/elections', ['ADMIN']],
-            ['POST', '/api/elections/999/candidates', ['ADMIN', 'SBO_OFFICER']],
+            ['POST', '/api/elections/999/candidates', ['ADMIN']],
             ['POST', '/api/partylists', ['ADMIN']],
             ['POST', '/api/elections/999/vote', ['ADMIN', 'SBO_OFFICER', 'STUDENT']],
             ['GET', '/api/elections/999/results', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']],

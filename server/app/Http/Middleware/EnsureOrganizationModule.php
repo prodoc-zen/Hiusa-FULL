@@ -35,9 +35,17 @@ class EnsureOrganizationModule
     private const PARTICIPATION_ROUTES = [
         'GET' => [
             'api/elections', 'api/elections/{id}', 'api/elections/{id}/candidates', 'api/elections/{id}/results',
+            'api/elections/{id}/applications/mine', 'api/elections/{id}/applications/{application}/files/{kind}',
             'api/merchandise', 'api/merchandise/gcash-settings', 'api/tasks',
         ],
-        'POST' => ['api/elections/{id}/vote', 'api/orders', 'api/orders/{id}/payment', 'api/announcements/{id}/view'],
+        'POST' => [
+            'api/elections/{id}/vote', 'api/orders', 'api/orders/{id}/payment', 'api/announcements/{id}/view',
+            // Filing a candidacy or a party list is something any voting member does, officers included.
+            'api/elections/{id}/applications', 'api/elections/{id}/applications/{application}',
+            'api/elections/{id}/applications/{application}/submit', 'api/elections/{id}/applications/{application}/withdraw',
+            'api/elections/{id}/slates', 'api/elections/{id}/slates/{partylist}',
+            'api/elections/{id}/slates/{partylist}/members', 'api/elections/{id}/slates/{partylist}/submit',
+        ],
         'PUT' => ['api/announcements/{id}/reaction'],
         'DELETE' => ['api/announcements/{id}/reaction'],
         'PATCH' => ['api/orders/{id}/cancel', 'api/tasks/{id}/status'],
