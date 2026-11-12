@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ManageVotersPage from './ManageVotersPage';
 
@@ -8,10 +8,12 @@ const electionMocks = vi.hoisted(() => ({
 
 vi.mock('../../../services/electionService', () => electionMocks);
 
+const outletContext = vi.hoisted(() => ({
+  election: { id: 7, title: 'General Elections 2026', status: 'active' },
+}));
+
 vi.mock('react-router-dom', () => ({
-  useOutletContext: () => ({
-    election: { id: 7, title: 'General Elections 2026', status: 'active' },
-  }),
+  useOutletContext: () => outletContext,
 }));
 
 describe('ManageVotersPage', () => {
@@ -103,5 +105,42 @@ describe('ManageVotersPage', () => {
       expect(screen.getByText('Failed to load voters.')).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  // Search and the Vote filter run on the server across every voter, so a voter who is not on the loaded page
+  // is found, and the footer follows the filtered set while the headline turnout stays the whole election's.
+  it('asks the server for the search and the vote filter and shows the filtered total in the footer', async () => {
+    const everyone = Array.from({ length: 10 }, (_, index) => ({ school_id: `2021-0010${index}`, first_name: 'Pat', last_name: `Voter${index}`, email: 'p@hiusa.local', has_voted: false }));
+    electionMocks.getElectionVoters.mockImplementation(async (id, params = {}) => {
+      if (params.search === 'Torres') {
+        const matches = Array.from({ length: 10 }, (_, index) => ({ school_id: `2022-0005${index}`, first_name: 'Pia', last_name: `Torres${index}`, email: 'pia@hiusa.local', has_voted: true }));
+        return { current_page: 1, per_page: 10, total: 12, data: matches, summary: { eligible_total: 320, voted_count: 118, turnout_percent: 36.9 } };
+      }
+      return { current_page: 1, per_page: 10, total: 320, data: everyone, summary: { eligible_total: 320, voted_count: 118, turnout_percent: 36.9 } };
+    });
+
+    render(<ManageVotersPage />);
+    await screen.findAllByText('Pat Voter0');
+
+    fireEvent.change(screen.getByLabelText('Search voters'), { target: { value: 'Torres' } });
+
+    await waitFor(() => expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1, search: 'Torres' }));
+    expect((await screen.findAllByText('Pia Torres0')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pat Voter0')).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1-10 of 12 voters');
+    expect(screen.getByText(/eligible voters have voted/)).toHaveTextContent('118 of 320 eligible voters have voted');
+  });
+
+  it('sends the Vote filter to the server and returns to the first page', async () => {
+    electionMocks.getElectionVoters.mockResolvedValue({
+      current_page: 1, per_page: 10, total: 6, data: [{ school_id: '2022-00055', first_name: 'Pia', last_name: 'Torres', email: 'pia@hiusa.local', has_voted: true }], summary: { eligible_total: 26, voted_count: 6, turnout_percent: 23.1 },
+    });
+
+    render(<ManageVotersPage />);
+    await screen.findAllByText('Pia Torres');
+
+    fireEvent.change(screen.getByLabelText('Vote'), { target: { value: 'Voted' } });
+
+    await waitFor(() => expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1, vote: 'voted' }));
   });
 });

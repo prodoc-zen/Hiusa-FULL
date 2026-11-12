@@ -21,12 +21,23 @@ export default function ManageVotersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [total, setTotal] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     setPage(1);
   }, [election]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterStatus]);
 
   useEffect(() => {
     if (!election) return;
@@ -40,15 +51,23 @@ export default function ManageVotersPage() {
         // envelope ({ data, total, per_page, ... }) plus an organization-wide
         // `summary`. The rows live under `data`; the headline counts must come
         // from `summary` because this page holds only one page of voters.
-        const payload = await getElectionVoters(election.id, { page });
+        // Search and the vote filter run on the server, so `total` is the
+        // filtered count while `summary` stays the whole election's.
+        const payload = await getElectionVoters(election.id, {
+          page,
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          ...(filterStatus !== 'All' ? { vote: filterStatus === 'Voted' ? 'voted' : 'not_voted' } : {}),
+        });
         if (cancelled) return;
         setVoters(Array.isArray(payload?.data) ? payload.data : []);
         setSummary({ ...EMPTY_SUMMARY, ...(payload?.summary ?? {}) });
+        setTotal(Number(payload?.total) || 0);
         setPerPage(Number(payload?.per_page) || 10);
       } catch {
         if (!cancelled) {
           setVoters([]);
           setSummary(EMPTY_SUMMARY);
+          setTotal(0);
           setError('Failed to load voters.');
         }
       } finally {
@@ -58,23 +77,13 @@ export default function ManageVotersPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [election, page, retryKey]);
+  }, [election, page, debouncedSearch, filterStatus, retryKey]);
 
   if (!election) {
     return (
       <EmptyState title="Election not found" description="Go back and choose an election." />
     );
   }
-
-  const filtered = voters.filter((voter) => {
-    const fullName = `${voter.first_name} ${voter.last_name}`.toLowerCase();
-    const matchesSearch = fullName.includes(search.toLowerCase()) || String(voter.school_id || '').includes(search);
-    const matchesFilter =
-      filterStatus === 'All' ||
-      (filterStatus === 'Voted' && voter.has_voted) ||
-      (filterStatus === 'Not Yet' && !voter.has_voted);
-    return matchesSearch && matchesFilter;
-  });
 
   const eligibleTotal = summary.eligible_total;
   const votedCount = summary.voted_count;
@@ -112,7 +121,7 @@ export default function ManageVotersPage() {
       <EmptyState
         kind="filtered"
         title="No voters match"
-        description={eligibleTotal > perPage ? 'Search and filters apply to the current page only.' : 'Try another search or vote status.'}
+        description="Try another search or vote status."
         onClearFilters={clearFilters}
       />
     );
@@ -128,7 +137,7 @@ export default function ManageVotersPage() {
       <DataTable
         caption={`Voters for ${formatDisplayText(election.title)}`}
         columns={columns}
-        rows={filtered}
+        rows={voters}
         rowKey={(voter) => voter.school_id}
         loading={loading}
         error={error}
@@ -140,7 +149,7 @@ export default function ManageVotersPage() {
         pagination={!loading && !error ? (
           <PaginationControls
             currentPage={page}
-            totalItems={eligibleTotal}
+            totalItems={total}
             pageSize={perPage}
             onPageChange={setPage}
             label="voters"
