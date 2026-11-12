@@ -451,11 +451,16 @@ class EventController extends Controller
             return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
         }
 
-        if ($this->hasMaterialEventChange($data) && (in_array($event->status, ['completed', 'cancelled'], true) || $event->attendanceRecords()->exists())) {
+        if ($this->touchesEventDetails($data) && (in_array($event->status, ['completed', 'cancelled'], true) || $event->attendanceRecords()->exists())) {
             return response()->json(['message' => 'Event details cannot be changed after attendance has been recorded or the event is completed or cancelled.'], 409);
         }
 
-        if ($event->approved_at && $this->hasMaterialEventChange($data)) {
+        if ($this->scheduleChanged($event, $startTime, $endTime)
+            && VenueBooking::where('event_id', $event->id)->whereIn('status', EventVenueRelease::ACTIVE_STATUSES)->exists()) {
+            return response()->json(['message' => 'Withdraw the venue booking first, then change the date.'], 422);
+        }
+
+        if ($event->approved_at && $this->hasMaterialEventChange($event, $data, $updatedPlanning, $startTime, $endTime)) {
             $data['status'] = 'planning';
             $data['approved_at'] = null;
             $this->reopenApproval($event, $request);
@@ -492,7 +497,8 @@ class EventController extends Controller
         }
     }
 
-    private function hasMaterialEventChange(array $data): bool
+    /** Whether the request names any event detail at all, changed or not. */
+    private function touchesEventDetails(array $data): bool
     {
         return count(array_intersect(array_keys($data), [
             'title',
@@ -505,6 +511,58 @@ class EventController extends Controller
             'image',
             'remove_image',
         ])) > 0;
+    }
+
+    /** The date or time moved, compared to the minute because the edit form sends no seconds. */
+    private function scheduleChanged(Event $event, Carbon $startTime, Carbon $endTime): bool
+    {
+        return $startTime->copy()->startOfMinute()->ne($event->start_time->copy()->startOfMinute())
+            || $endTime->copy()->startOfMinute()->ne($event->end_time->copy()->startOfMinute());
+    }
+
+    /**
+     * Whether a value the Department Head approved on actually differs from what is stored. Submitting the same
+     * values, or changing only the image, logistics, vendor deadlines, resources or requirement notes, is not material.
+     */
+    private function hasMaterialEventChange(Event $event, array $data, array $updatedPlanning, Carbon $startTime, Carbon $endTime): bool
+    {
+        if ($this->scheduleChanged($event, $startTime, $endTime)) {
+            return true;
+        }
+        foreach (['title', 'description', 'location'] as $field) {
+            if (array_key_exists($field, $data) && $this->comparable($data[$field], true) !== $this->comparable($event->{$field}, true)) {
+                return true;
+            }
+        }
+        if (array_key_exists('requires_budget', $data) && (bool) $data['requires_budget'] !== (bool) $event->requires_budget) {
+            return true;
+        }
+        $existingPlanning = $event->planning_details ?? [];
+        foreach (['venue_type', 'venue_id', 'event_type', 'expected_participants', 'proposed_budget_amount', 'budget_warning_threshold', 'budget_notes'] as $key) {
+            if ($this->comparable($updatedPlanning[$key] ?? null) !== $this->comparable($existingPlanning[$key] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Null and blank text are the same, numbers compare as numbers, and text compares trimmed with one line ending. */
+    private function comparable(mixed $value, bool $text = false): mixed
+    {
+        if (is_string($value)) {
+            $value = trim(str_replace('
+', '
+', $value));
+            if ($value === '') {
+                return null;
+            }
+        }
+        if ($value === null) {
+            return null;
+        }
+
+        return ! $text && is_numeric($value) ? (float) $value : (string) $value;
     }
 
     private function validStatusTransition(string $currentStatus, string $nextStatus): bool
