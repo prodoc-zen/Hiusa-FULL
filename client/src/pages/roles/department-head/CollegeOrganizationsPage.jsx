@@ -20,7 +20,7 @@ import { headCollegeName, isOfficeStaff, storedUser } from '../../../utils/colle
 import { visibleSchoolId } from '../../../utils/schoolId';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
-import { RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
+import { RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
 
@@ -375,6 +375,7 @@ export default function CollegeOrganizationsPage() {
             <p className="text-xs text-ink-muted">{[organization.acronym, organization.submitted_at && `Submitted ${manilaDate(organization.submitted_at)}`].filter(Boolean).join(' · ')}</p>
             {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm text-danger-strong"><span className="block text-xs font-semibold">SAO remarks</span>{organization.review_remarks}</p>}
             {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs text-ink-muted">Archived by the SAO. Read only.</p>}
+            {organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? 1) === 0 && <RegistrationRowStatus organization={organization} viewerRole={dean ? 'DEPARTMENT_HEAD' : 'ADMIN'} className="mt-2" />}
           </div>
         </div>
       ),

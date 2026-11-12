@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
+import { RegistrationNextStep } from '../../../components/organizations/RegistrationFlow';
 import OrgTransactions from '../../../components/org/OrgTransactions';
 import { Button, Card, DataTable, EmptyState, ErrorState, Field, PageHeader, Select, SkeletonTable, Stat, StatusBadge, Tabs } from '../../../components/ui';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
@@ -34,9 +35,11 @@ function Loading() {
 function OverviewTab({ space, oversight }) {
   const { counts, lifecycle, events, finance } = space;
   const next = events.upcoming[0];
+  const needsHead = lifecycle.status === 'active' && counts.administrators === 0;
 
   return (
     <div className="space-y-4">
+      {needsHead && <RegistrationNextStep organization={{ ...space.organization, lifecycle_status: 'active', administrators_count: 0 }} viewerRole={oversight ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD'} />}
       <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-3">
         <Stat label="Members" value={counts.members} to="?tab=people" />
         <Stat label="Upcoming events" value={counts.upcoming_events} to="?tab=events" />

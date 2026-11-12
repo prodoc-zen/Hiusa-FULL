@@ -172,14 +172,20 @@ class ProcessStatusService
         $waiting = (int) ($applications['pending_dean'] ?? 0);
         $reviewed = (int) collect(self::APPLICATION_REVIEWED)->sum(fn (string $status) => $applications[$status] ?? 0);
         $active = Organization::student()->where('college_id', $collegeId)->where('lifecycle_status', 'active')->count();
+        $headless = Organization::student()->where('college_id', $collegeId)->where('lifecycle_status', 'active')
+            ->whereDoesntHave('accountProfiles', fn ($profiles) => $profiles->activeAdministrators())
+            ->orderBy('name')->get(['id', 'name']);
 
-        return $this->finish('DEPARTMENT_HEAD', 'Setting up your college', [
+        return $this->finish('DEPARTMENT_HEAD', 'Setting up your college', array_values(array_filter([
             ['key' => 'staff-added', 'label' => 'Office staff added', 'done' => $staff > 0, 'count' => $staff, 'action' => ['Add office staff', '/dashboard/department-head/people']],
             ['key' => 'records-loaded', 'label' => 'Student records loaded', 'done' => $records > 0, 'count' => $records, 'action' => ['Load student records', '/dashboard/department-head/people']],
             ['key' => 'students-allowed', 'label' => 'Students allowed to apply', 'done' => $grants > 0 || $applications->sum() > 0 || $active > 0, 'count' => $grants, 'action' => ['Allow a student to apply', '/dashboard/department-head/organizations']],
             ['key' => 'applications-reviewed', 'label' => 'Applications reviewed', 'done' => $waiting === 0 && $reviewed > 0, 'count' => $reviewed, 'total' => ($reviewed + $waiting) ?: null, 'action' => ['Review applications', '/dashboard/organization-applications']],
             ['key' => 'organizations-active', 'label' => 'Organizations active', 'done' => $active > 0, 'count' => $active, 'action' => ['Open organizations', '/dashboard/department-head/organizations']],
-        ]);
+            $headless->isEmpty() ? null : ['key' => 'organization-head', 'label' => 'Name the organization head of '.$headless->first()->name, 'done' => false,
+                'note' => $headless->count() > 1 ? ($headless->count() - 1).' more '.($headless->count() === 2 ? 'organization needs' : 'organizations need').' a head too.' : null,
+                'action' => ['Give access', '/dashboard/department-head/org/:orgId?tab=people', ['orgId' => $headless->first()->id]]],
+        ])));
     }
 
     private function organizationAdmin(User $user): array

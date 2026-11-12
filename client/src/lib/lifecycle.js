@@ -586,6 +586,8 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
         return finish(buildSteps(REGISTRATION_STAGES, 2, { actors: { administrator: 'Department Head' } }), turn(viewerRole, ['DEPARTMENT_HEAD'], {
           title: 'Name the organization head',
           body: 'This organization has no Admin. Open it and use Give access to name its Organization head so they can sign in and manage it.',
+          label: 'Give access',
+          to: o.id === undefined ? '/dashboard/department-head/organizations' : `/dashboard/department-head/org/${o.id}?tab=people`,
         }, { title: 'Approved: waiting for the Department Head to name the organization head' }), 'DEPARTMENT_HEAD', href);
       }
       const total = Number(o.setup_steps_total ?? 0);

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountProfile;
 use App\Models\Budget;
+use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Event;
 use App\Models\Organization;
@@ -65,6 +66,19 @@ class OrgSpaceTest extends TestCase
         $this->assertSame('Ana Reyes', $member['name']);
         $this->assertSame('ADMIN', $member['role']);
         $this->assertArrayNotHasKey('password', $member);
+    }
+
+    public function test_the_space_counts_active_administrators_and_says_whether_the_organization_is_university_wide(): void
+    {
+        ['head' => $head, 'organization' => $organization] = $this->world();
+        $empty = $this->makeCollegeStudentOrganization(College::findOrFail($organization->college_id), ['name' => 'Chess Club']);
+
+        $this->assertSame(1, $this->space($head, $organization)->assertOk()->assertJsonPath('organization.is_university_wide', false)->json('counts.administrators'));
+        $this->assertSame(0, $this->space($head, $empty)->assertOk()->json('counts.administrators'));
+
+        $suspended = $this->makeCollegeStudentOrganization(College::findOrFail($organization->college_id), ['name' => 'Brass Band']);
+        User::factory()->admin()->create(['organization_id' => $suspended->id, 'account_status' => 'inactive']);
+        $this->assertSame(0, $this->space($head, $suspended)->json('counts.administrators'));
     }
 
     public function test_other_college_head_cannot_read_it(): void

@@ -70,6 +70,23 @@ describe('OrgSpacePage', () => {
     await waitFor(() => expect(JSON.parse(sessionStorage.getItem(SUB_ACCOUNT_KEY))).toMatchObject({ id: 12, name: 'Computing Society' }));
   });
 
+  it('tells the dean on the overview to name the organization head when an active organization has no Admin, with a Give access link to People and access', async () => {
+    mocks.getOrganizationSpace.mockResolvedValue({ data: { ...space, counts: { ...space.counts, administrators: 0 } } });
+    renderPage();
+
+    expect(await screen.findByText('Name the organization head')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Give access' })).toHaveAttribute('href', '/dashboard/department-head/org/12?tab=people');
+  });
+
+  it('says nothing about an organization head once the organization has an Admin', async () => {
+    mocks.getOrganizationSpace.mockResolvedValue({ data: { ...space, counts: { ...space.counts, administrators: 1 } } });
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Computing Society' });
+    expect(screen.queryByText('Name the organization head')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Give access' })).not.toBeInTheDocument();
+  });
+
   it('makes each overview figure a link to the tab it counts', async () => {
     renderPage();
 

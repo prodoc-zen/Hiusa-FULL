@@ -49,7 +49,7 @@ The demo accounts and passwords are not in this file. See `docs/DEMO_SCRIPT.md` 
 | Role | Steps, in order |
 |---|---|
 | SAO, one row per college | Dean invited, Dean active, School records loaded, Organizations applying, Organizations active |
-| Department Head | Office staff added, Student records loaded, Students allowed to apply, Applications reviewed, Organizations active |
+| Department Head | Office staff added, Student records loaded, Students allowed to apply, Applications reviewed, Organizations active, and last, only while an active college organization has no Admin, Name the organization head of that organization (button Give access, opening its People and access) |
 | Organization Admin | Organization approved, Officers given access, Semester requirements submitted, Renewal (only when a renewal is due), Election of next officers |
 | Student with a grant or an application | Allowed to apply, Application sent, Dean review, SAO review, Approved |
 

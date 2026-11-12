@@ -139,6 +139,23 @@ describe('CollegeOrganizationsPage', () => {
     expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
+  it('tells the Department Head on the row to name the head of an active organization that has no Admin, and says nothing on a row that has one', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([
+      organization({ id: 1, name: 'Robotics Society', administrators_count: 1, role_counts: { admin: 1, sbo_officer: 0, student: 3 } }),
+      organization({ id: 5, name: 'Debate Society', acronym: 'DEBATE', administrators_count: 0, role_counts: { admin: 0, sbo_officer: 0, student: 0 } }),
+      organization({ id: 6, name: 'Brass Band', acronym: 'BRASS', lifecycle_status: 'archived', administrators_count: 0, role_counts: { admin: 0, sbo_officer: 0, student: 0 } }),
+    ]));
+    renderPage();
+
+    const rows = await screen.findAllByRole('row');
+    const debate = rows.find((row) => within(row).queryByText('Debate Society'));
+    const robotics = rows.find((row) => within(row).queryByText('Robotics Society'));
+    const brass = rows.find((row) => within(row).queryByText('Brass Band'));
+    expect(within(debate).getByText('Name the organization head')).toBeInTheDocument();
+    expect(within(robotics).queryByText(/organization head/)).not.toBeInTheDocument();
+    expect(within(brass).queryByText(/organization head/)).not.toBeInTheDocument();
+  });
+
   it('says so when an organization has no Admin or SBO Officer yet', async () => {
     renderPage();
     await screen.findAllByText('Chess Club');
