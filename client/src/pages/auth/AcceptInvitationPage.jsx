@@ -11,16 +11,18 @@ import { storedUser } from '../../utils/collegeIdentity';
 import { startAuthSession } from '../../utils/authSession';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText.js';
+import { INTERNAL_ID_START } from '../../utils/schoolId';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPTY = { first_name: '', last_name: '', school_id: '', email: '', password: '', password_confirmation: '' };
 const FIELD_KEYS = Object.keys(EMPTY);
 const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
 
-// A dean is invited by someone at the Student Affairs Office, office staff by their Department Head.
+// A dean and SAO staff are invited by someone at the Student Affairs Office, office staff by their Department Head.
 // The server sends the inviter's name only; without it the page names the office.
 function invitedLine(invitation, college) {
   const name = invitation?.inviter?.name?.trim();
+  if (invitation?.role === 'SAO_STAFF') return name ? `${name} from the Student Affairs Office invited you.` : 'Invited by the Student Affairs Office.';
   const staff = invitation?.role === 'COLLEGE_STAFF';
   if (!name) return `Invited by ${staff ? `the Department Head of ${college}` : 'the Student Affairs Office'}.`;
   return staff ? `${name}, the Department Head, invited you to ${college}.` : `${name} from the Student Affairs Office invited you to ${college}.`;
@@ -35,11 +37,13 @@ const INVALID_COPY = {
 const invalidKind = (cause) => (/already used/i.test(cause?.response?.data?.message || '') ? 'used' : 'expired');
 
 const ROLE_HOME = {
+  SUPER_ADMIN: '/dashboard/super-admin',
   DEPARTMENT_HEAD: '/dashboard/department-head',
   ADMIN: '/dashboard/admin',
 };
 
 function headline(invitation, college) {
+  if (invitation?.role === 'SAO_STAFF') return "You're invited to the Student Affairs Office as SAO staff";
   if (invitation?.role === 'COLLEGE_STAFF') return `You're invited to ${college} as office staff`;
   return `You're invited to lead ${college}`;
 }
@@ -51,6 +55,7 @@ function validate(values, fromRecord) {
   const schoolId = values.school_id.trim();
   if (!fromRecord && !schoolId) found.school_id = 'Enter your school ID.';
   else if (!fromRecord && !/^\d{1,8}$/.test(schoolId)) found.school_id = 'Enter your school ID using numbers only.';
+  else if (!fromRecord && Number(schoolId) >= INTERNAL_ID_START) found.school_id = 'That school ID cannot be used. Check the number the school gave you.';
   const email = values.email.trim();
   if (!email) found.email = 'Enter your email.';
   else if (!EMAIL_PATTERN.test(email)) found.email = 'That email does not look right.';
@@ -248,7 +253,7 @@ export default function AcceptInvitationPage() {
               <>
                 <AuthField id={FIELD_IDS.first_name} label="First name" autoComplete="given-name" value={values.first_name} error={errors.first_name} onChange={(event) => setField('first_name', event.target.value)} required />
                 <AuthField id={FIELD_IDS.last_name} label="Last name" autoComplete="family-name" value={values.last_name} error={errors.last_name} onChange={(event) => setField('last_name', event.target.value)} required />
-                <AuthField id={FIELD_IDS.school_id} label="School ID" inputMode="numeric" autoComplete="off" hint="Your employee or student number." value={values.school_id} error={errors.school_id} onChange={(event) => setField('school_id', event.target.value)} required />
+                <AuthField id={FIELD_IDS.school_id} label="School ID" inputMode="numeric" autoComplete="off" hint="Your employee number." value={values.school_id} error={errors.school_id} onChange={(event) => setField('school_id', event.target.value)} required />
               </>
             )}
             <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} readOnly={lockedEmail} hint={lockedEmail ? 'The invitation was made for this email.' : undefined} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />

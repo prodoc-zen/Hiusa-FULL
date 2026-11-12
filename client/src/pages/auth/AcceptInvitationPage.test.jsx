@@ -28,6 +28,11 @@ const staffInvite = {
   college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
 };
 
+const saoInvite = {
+  invitation: { role: 'SAO_STAFF', position_title: 'SAO staff', existing_account: false, expires_at: '2026-11-10T00:00:00Z' },
+  college: null,
+};
+
 const recordInvite = {
   invitation: { role: 'COLLEGE_STAFF', position_title: 'Department Secretary', expires_at: '2026-11-10T00:00:00Z', record: { school_id: 7100101, first_name: 'Marites', last_name: 'Dizon' } },
   college: { id: 5, name: 'College of Arts and Sciences', code: 'CAS' },
@@ -51,6 +56,7 @@ function renderPage(path = '/accept-invitation?token=valid-secret-token') {
         <Route path="/login" element={<p>Login page</p>} />
         <Route path="/dashboard/department-head" element={<p>Dean home</p>} />
         <Route path="/dashboard/admin" element={<p>Staff home</p>} />
+        <Route path="/dashboard/super-admin" element={<p>SAO home</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -223,6 +229,33 @@ describe('AcceptInvitationPage', () => {
     expect(await screen.findByText('Staff home')).toBeInTheDocument();
   });
 
+  it('asks for an employee number only, never a student number', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(staffInvite);
+    renderPage();
+    await screen.findByRole('heading', { name: /as office staff/ });
+
+    expect(screen.getByText('Your employee number.')).toBeInTheDocument();
+    expect(screen.queryByText(/student number/i)).not.toBeInTheDocument();
+  });
+
+  it('welcomes a person to the SAO, asks for their own details and lands them on the SAO dashboard', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue({ ...saoInvite, invitation: { ...saoInvite.invitation, inviter: { name: 'Jade Santos' } } });
+    mocks.acceptDepartmentHeadInvitation.mockResolvedValue({});
+    mocks.login.mockResolvedValue({ data: { access_token: 't', user: { role: 'SUPER_ADMIN' } } });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: "You're invited to the Student Affairs Office as SAO staff" })).toBeInTheDocument();
+    expect(screen.getByText('Jade Santos from the Student Affairs Office invited you.')).toBeInTheDocument();
+    expect(screen.queryByText(/your college/i)).not.toBeInTheDocument();
+    [/^First name/, /^Last name/, /^School ID/, /^Email/].forEach((label) => expect(screen.getByLabelText(label)).toHaveValue(''));
+
+    fillForm({ first: 'Ford', last: 'Prefect', schoolId: '20265551', email: 'ford@example.edu' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', expect.objectContaining({ first_name: 'Ford', last_name: 'Prefect', school_id: 20265551, email: 'ford@example.edu' })));
+    expect(await screen.findByText('SAO home')).toBeInTheDocument();
+  });
+
   it('asks office staff from a bare link for their own name and School ID', async () => {
     mocks.getDepartmentHeadInvitation.mockResolvedValue(staffInvite);
     renderPage();
@@ -269,6 +302,18 @@ describe('AcceptInvitationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText('Enter your school ID using numbers only.')).toBeInTheDocument();
+    expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
+  });
+
+  it.each(['95000000', '99999999'])('refuses the reserved School ID %s with its own sentence before sending anything', async (typed) => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    renderPage();
+    await screen.findByRole('heading', { name: /You're invited to lead/ });
+
+    fillForm({ schoolId: typed });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await within(await screen.findByRole('group', { name: 'There is a problem' })).findByText('That school ID cannot be used. Check the number the school gave you.')).toBeInTheDocument();
     expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
   });
 
