@@ -143,7 +143,7 @@ class StaffFromRecordsTest extends TestCase
 
     public function test_a_plain_link_shows_no_record(): void
     {
-        $response = $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'marites@example.edu'])->assertCreated();
+        $response = $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', [])->assertCreated();
 
         $this->getJson('/api/department-head-invitations/'.$this->token($response->json()))->assertOk()->assertJsonPath('invitation.record', null);
     }
@@ -227,15 +227,27 @@ class StaffFromRecordsTest extends TestCase
         $this->assertDatabaseCount('department_head_invitations', 0);
     }
 
-    public function test_a_plain_link_still_needs_a_position_and_still_gives_an_internal_id(): void
+    public function test_a_plain_link_asks_the_person_for_their_own_name_and_school_id(): void
     {
-        $this->actingAs($this->dean)->postJson('/api/college/staff/invitations', [])->assertJsonValidationErrors('position_title');
+        $token = $this->token($this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->assertCreated()->json());
 
-        $token = $this->token($this->actingAs($this->dean)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'marites@example.edu'])->json());
-        $accepted = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->credentials(['first_name' => 'Clara', 'last_name' => 'Cruz']))->assertOk();
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->credentials(['first_name' => 'Clara', 'last_name' => 'Cruz']))
+            ->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $accepted = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->credentials(['first_name' => 'Clara', 'last_name' => 'Cruz', 'school_id' => 7000555]))->assertOk();
 
-        $this->assertGreaterThanOrEqual(95000000, $accepted->json('user.school_id'));
-        $this->assertDatabaseHas('department_head_invitations', ['registry_school_id' => null, 'role' => 'COLLEGE_STAFF']);
+        $this->assertSame(7000555, $accepted->json('user.school_id'));
+        $this->assertDatabaseHas('users', ['school_id' => 7000555, 'position_title' => 'Clerk']);
+        $this->assertDatabaseHas('department_head_invitations', ['registry_school_id' => null, 'role' => 'COLLEGE_STAFF', 'school_id' => 7000555]);
+    }
+
+    public function test_a_record_without_a_position_gives_office_staff(): void
+    {
+        $this->employee(7000001, 'Marites', 'Dizon', null, ['position' => null]);
+        $token = $this->token($this->inviteFromRecord(7000001)->json());
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->credentials())->assertOk();
+
+        $this->assertDatabaseHas('users', ['school_id' => 7000001, 'position_title' => 'Office staff']);
     }
 
     public function test_a_record_link_cannot_be_made_for_the_head_role(): void

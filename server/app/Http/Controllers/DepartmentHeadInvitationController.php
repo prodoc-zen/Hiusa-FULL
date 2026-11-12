@@ -27,12 +27,12 @@ use Illuminate\Validation\ValidationException;
 /**
  * Account links for the people who run a college: one Department Head per college
  * and any number of office staff, the faculty and other non-students the dean gives access to.
- * A plain link carries no identity: the person types their own name and password; for office staff
- * the dean fills in the name and email too, and the link only works for that email. A link made
- * from an employee record in the school records carries that record's number and name instead.
- * An employee who already has an account signs in and accepts the link (claim); an employee without
- * one sets an email and password. Nothing attaches to an account until the person accepts, and no
- * email goes out for office staff: the dean copies the link.
+ * A plain link carries no identity: the person types their own name, School ID, email and password.
+ * For office staff the dean may give an email, and the link then only works for that email and is
+ * emailed when mail is set up. A link made from an employee record in the school records carries
+ * that record's number and name instead. An employee who already has an account signs in and
+ * accepts the link (claim); an employee without one sets an email and password. Nothing attaches
+ * to an account until the person accepts, and the link is always handed back for the inviter to copy.
  */
 class DepartmentHeadInvitationController extends Controller
 {
@@ -46,9 +46,10 @@ class DepartmentHeadInvitationController extends Controller
 
     private const HEAD = 'DEPARTMENT_HEAD';
 
-    private const INTERNAL_ID_START = 95000000;
+    private const DEFAULT_POSITION = 'Office staff';
 
-    private const MAX_ID = 99999999;
+    /** Numbers from here up were generated for accounts made before a typed School ID was required; a typed one stays below. */
+    private const INTERNAL_ID_START = 95000000;
 
     private function collegeHome(College $college): ?Organization
     {
@@ -104,13 +105,12 @@ class DepartmentHeadInvitationController extends Controller
 
         $data = $request->validate([
             'registry_school_id' => ['nullable', 'integer', 'min:1'],
-            'position_title' => ['required_without:registry_school_id', 'nullable', 'string', 'max:100'],
-            'first_name' => ['required_without:registry_school_id', 'nullable', 'string', 'max:60'],
-            'last_name' => ['required_without:registry_school_id', 'nullable', 'string', 'max:60'],
-            'email' => ['required_without:registry_school_id', 'nullable', 'email', 'max:100'],
+            'position_title' => ['nullable', 'string', 'max:100'],
+            'email' => ['nullable', 'email', 'max:100'],
         ]);
 
-        [$invitation, $magicLink] = DB::transaction(function () use ($request, $college, $home, $data) {
+        $email = null;
+        [$invitation, $magicLink] = DB::transaction(function () use ($request, $college, $home, $data, &$email) {
             $position = isset($data['position_title']) && trim($data['position_title']) !== '' ? trim($data['position_title']) : null;
             $description = "Created an office staff invitation link for {$college->name}.";
 
@@ -121,25 +121,30 @@ class DepartmentHeadInvitationController extends Controller
                 return $this->createInvitation($request, $college, $home, self::STAFF, $position ?: $record->position, 'college_staff_invited', $description, $record->school_id);
             }
 
-            $email = Str::lower(trim($data['email']));
+            $email = isset($data['email']) && trim($data['email']) !== '' ? Str::lower(trim($data['email'])) : null;
+            if ($email === null) {
+                return $this->createInvitation($request, $college, $home, self::STAFF, $position, 'college_staff_invited', $description);
+            }
+
             $existing = User::where('email', $email)->first();
             if ($existing) {
                 throw ValidationException::withMessages(['email' => [$this->isStudentAccount($existing) ? self::NOT_STUDENTS : 'That email already has an account. Pick them from the employee records.']]);
             }
             DepartmentHeadInvitation::where('college_id', $college->id)->where('role', self::STAFF)->where('email', $email)->whereNull('accepted_at')->delete();
 
-            return $this->createInvitation($request, $college, $home, self::STAFF, $position, 'college_staff_invited', $description, null, [
-                'first_name' => trim($data['first_name']),
-                'last_name' => trim($data['last_name']),
-                'email' => $email,
-            ]);
+            return $this->createInvitation($request, $college, $home, self::STAFF, $position, 'college_staff_invited', $description, null, ['email' => $email]);
         });
+
+        // With the log mail driver a sent mail goes nowhere, so the answer must not claim it was emailed.
+        $mailIsOff = app(PasswordResetService::class)->mailIsOff();
+        $emailed = ! $mailIsOff && $this->sendLink($email, $college, 'office staff', $magicLink);
 
         return response()->json([
             'message' => 'The link is ready.',
             'invitation' => $invitation->load('college:id,name,code'),
             'magic_link' => $magicLink,
-            'emailed' => false,
+            'emailed' => $emailed,
+            'mail_is_off' => $mailIsOff,
         ], 201);
     }
 
@@ -156,7 +161,7 @@ class DepartmentHeadInvitationController extends Controller
 
             return [
                 'id' => $invitation->id,
-                'name' => $record ? $record->full_name : trim("{$invitation->first_name} {$invitation->last_name}"),
+                'name' => $record ? $record->full_name : (trim("{$invitation->first_name} {$invitation->last_name}") ?: ($invitation->email ?: 'Open link')),
                 'email' => $invitation->email,
                 'position_title' => $invitation->position_title,
                 'expires_at' => $invitation->expires_at,
@@ -221,12 +226,8 @@ class DepartmentHeadInvitationController extends Controller
                 'expires_at' => $invitation->expires_at,
                 // An employee who already has an account signs in and accepts; nobody makes a second account.
                 'existing_account' => $invitation->registry_school_id !== null && User::whereKey($invitation->registry_school_id)->exists(),
-                // What the dean typed for a person who is not in the records; the page fills it in and locks the email.
-                'prefill' => $invitation->email ? [
-                    'first_name' => $invitation->first_name,
-                    'last_name' => $invitation->last_name,
-                    'email' => $invitation->email,
-                ] : null,
+                // The email the link was made for, if any; the page fills it in and locks it. The person types their own name.
+                'prefill' => $invitation->email ? ['email' => $invitation->email] : null,
                 // The name only: the page says who invited you, and the link holder gets no email or ID.
                 'inviter' => $inviter ? ['name' => trim("{$inviter->first_name} {$inviter->last_name}")] : null,
                 'record' => $record ? [
@@ -265,20 +266,21 @@ class DepartmentHeadInvitationController extends Controller
             'first_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'last_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'email' => ['required', 'email', 'max:100', 'unique:users,email', ...($invitation->email ? [Rule::in([$invitation->email])] : [])],
-            'school_id' => [$fromRecord || $invitation->role === self::STAFF ? 'prohibited' : 'nullable', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id'],
+            'school_id' => ['bail', $fromRecord ? 'prohibited' : 'required', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id', fn ($attribute, $value, $fail) => StudentRegistryEntry::students()->where('school_id', $value)->exists() && $fail('That school ID belongs to a student record. Enter your employee number.')],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ], ['email.in' => 'Use the email this invitation was made for.']);
+        ], [
+            'email.in' => 'Use the email this invitation was made for.',
+            'school_id.required' => 'Enter your school ID.',
+            'school_id.integer' => 'Enter your school ID using numbers only.',
+            'school_id.min' => 'Enter your school ID using numbers only.',
+            'school_id.max' => 'Enter your school ID using numbers only.',
+            'school_id.unique' => 'This school ID already has an account. Sign in, or reset your password.',
+        ]);
 
-        $user = null;
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
-            try {
-                $user = DB::transaction(fn () => $this->createAccount($request, $invitation->id, $validated));
-                break;
-            } catch (UniqueConstraintViolationException $e) {
-                if ($attempt === 3) {
-                    throw $e;
-                }
-            }
+        try {
+            $user = DB::transaction(fn () => $this->createAccount($request, $invitation->id, $validated));
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([$fromRecord ? 'email' : 'school_id' => ['That school ID or email already has an account. Sign in, or reset your password.']]);
         }
 
         $sanctumToken = $user->createToken('auth_token');
@@ -323,7 +325,7 @@ class DepartmentHeadInvitationController extends Controller
             abort_if(! $home, 404, 'College organization home not found.');
 
             $record = $this->staffRecord($home, $college, (int) $user->school_id);
-            $positionTitle = $invitation->position_title ?: ($record->position ?: 'College Secretary');
+            $positionTitle = $invitation->position_title ?: ($record->position ?: self::DEFAULT_POSITION);
 
             $profile = AccountProfile::updateOrCreate(
                 ['user_school_id' => $user->school_id, 'organization_id' => $home->id],
@@ -443,7 +445,7 @@ class DepartmentHeadInvitationController extends Controller
         abort_if($isHead && $this->collegeHasActiveHead($home->id), 409, self::ACTIVE_HEAD_EXISTS);
 
         $role = $isHead ? 'DEPARTMENT_HEAD' : 'ADMIN';
-        $positionTitle = $isHead ? null : ($invitation->position_title ?: 'College Secretary');
+        $positionTitle = $isHead ? null : ($invitation->position_title ?: self::DEFAULT_POSITION);
 
         if ($invitation->registry_school_id !== null) {
             $record = $this->availableEmployeeRecord($college, $invitation->registry_school_id, lock: true);
@@ -451,7 +453,7 @@ class DepartmentHeadInvitationController extends Controller
             $identity = ['school_id' => $record->school_id, 'first_name' => $record->first_name, 'last_name' => $record->last_name];
         } else {
             $identity = [
-                'school_id' => ! empty($validated['school_id']) ? (int) $validated['school_id'] : $this->nextInternalId(),
+                'school_id' => (int) $validated['school_id'],
                 'first_name' => trim($validated['first_name']),
                 'last_name' => trim($validated['last_name']),
             ];
@@ -583,15 +585,5 @@ class DepartmentHeadInvitationController extends Controller
         }
 
         return $record;
-    }
-
-    /** users.school_id is the primary key, so a person with no student or employee number still needs one. Internal numbers start high so they never meet real ones. */
-    private function nextInternalId(): int
-    {
-        $highest = DB::table('users')->where('school_id', '>=', self::INTERNAL_ID_START)->max('school_id');
-        $next = $highest ? (int) $highest + 1 : self::INTERNAL_ID_START;
-        abort_if($next > self::MAX_ID, 500, 'No internal account numbers are left.');
-
-        return $next;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\DeanInvitationMail;
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\College;
@@ -367,7 +368,7 @@ class CollegeOfficeStaffTest extends TestCase
         $this->employee(900002, 'Olive', 'Officer');
         $this->invite(['registry_school_id' => 900002])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
 
-        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Olive', 'last_name' => 'Officer', 'email' => $officer->email])
+        $this->invite(['email' => $officer->email])
             ->assertUnprocessable()->assertJsonPath('errors.email.0', self::NOT_STUDENTS);
 
         $this->assertSame(0, DepartmentHeadInvitation::count());
@@ -382,7 +383,7 @@ class CollegeOfficeStaffTest extends TestCase
         $this->employee(900001, 'Marco', 'Dela Cruz');
 
         $this->invite(['registry_school_id' => 900001])->assertUnprocessable()->assertJsonPath('errors.registry_school_id.0', self::NOT_STUDENTS);
-        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Marco', 'last_name' => 'Dela Cruz', 'email' => $marco->email])
+        $this->invite(['email' => $marco->email])
             ->assertUnprocessable()->assertJsonPath('errors.email.0', self::NOT_STUDENTS);
 
         $found = collect($this->actingAs($this->dean)->getJson('/api/college/staff/records?q=Marco')->assertOk()->json('data'))->pluck('school_id')->all();
@@ -436,27 +437,29 @@ class CollegeOfficeStaffTest extends TestCase
         $this->assertEqualsCanonicalizing([70000020, 70000023], $found);
     }
 
-    public function test_a_non_student_who_is_not_in_the_records_can_be_invited_by_name_and_email(): void
+    public function test_a_non_student_who_is_not_in_the_records_can_be_invited_by_email_alone(): void
     {
-        $response = $this->invite(['position_title' => 'Lab Technician', 'first_name' => 'Ramon', 'last_name' => 'Cruz', 'email' => 'Ramon@Example.edu'])->assertCreated();
+        $response = $this->invite(['position_title' => 'Lab Technician', 'email' => 'Ramon@Example.edu'])->assertCreated();
 
-        $this->assertDatabaseHas('department_head_invitations', ['role' => 'COLLEGE_STAFF', 'first_name' => 'Ramon', 'last_name' => 'Cruz', 'email' => 'ramon@example.edu', 'position_title' => 'Lab Technician']);
-        $response->assertJsonPath('emailed', false);
+        $this->assertDatabaseHas('department_head_invitations', ['role' => 'COLLEGE_STAFF', 'first_name' => null, 'last_name' => null, 'email' => 'ramon@example.edu', 'position_title' => 'Lab Technician']);
+        $response->assertJsonPath('emailed', true);
+        Mail::assertQueued(DeanInvitationMail::class, fn ($mail) => $mail->hasTo('ramon@example.edu'));
+    }
+
+    public function test_a_plain_link_needs_nothing_from_the_dean(): void
+    {
+        $this->invite([])->assertCreated()->assertJsonPath('emailed', false);
         Mail::assertNothingSent();
+        Mail::assertNothingQueued();
     }
 
-    public function test_a_plain_link_needs_a_name_and_an_email_when_it_is_not_from_a_record(): void
-    {
-        $this->invite(['position_title' => 'Clerk'])->assertUnprocessable()->assertJsonValidationErrors(['first_name', 'last_name', 'email']);
-    }
-
-    public function test_a_plain_staff_link_never_takes_a_typed_school_id_so_a_student_cannot_become_staff(): void
+    public function test_a_plain_staff_link_cannot_take_the_school_id_of_a_student_record(): void
     {
         StudentRegistryEntry::create([
             'record_type' => 'student', 'school_id' => 70000099, 'first_name' => 'Stu', 'last_name' => 'Dent',
             'birth_date' => '2004-01-01', 'college_id' => $this->computing->id, 'program' => 'BSIT', 'year_level' => 2,
         ]);
-        $token = $this->token($this->invite(['position_title' => 'Clerk', 'first_name' => 'Stu', 'last_name' => 'Dent', 'email' => 'stu@example.edu'])->assertCreated()->json());
+        $token = $this->token($this->invite(['email' => 'stu@example.edu'])->assertCreated()->json());
 
         $this->postJson("/api/department-head-invitations/{$token}/accept", [
             'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent', 'school_id' => 70000099,
@@ -467,10 +470,10 @@ class CollegeOfficeStaffTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'stu@example.edu']);
 
         $this->postJson("/api/department-head-invitations/{$token}/accept", [
-            'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent',
+            'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent', 'school_id' => 70000098,
             'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
         ])->assertOk();
-        $this->assertGreaterThanOrEqual(95000000, User::where('email', 'stu@example.edu')->value('school_id'));
+        $this->assertSame(70000098, User::where('email', 'stu@example.edu')->value('school_id'));
     }
 
     // ---- S3: link only, nothing attaches until the person accepts ----
@@ -538,37 +541,36 @@ class CollegeOfficeStaffTest extends TestCase
     {
         User::factory()->create(['organization_id' => $this->artsHome->id, 'role' => 'ADMIN', 'email' => 'ramon@example.edu']);
 
-        $this->invite(['position_title' => 'Clerk', 'first_name' => 'Ramon', 'last_name' => 'Cruz', 'email' => 'ramon@example.edu'])
+        $this->invite(['email' => 'ramon@example.edu'])
             ->assertUnprocessable()->assertJsonPath('errors.email.0', 'That email already has an account. Pick them from the employee records.');
     }
 
     public function test_a_plain_link_holds_the_email_the_dean_typed_and_prefills_it(): void
     {
-        $token = $this->token($this->invite(['position_title' => 'Lab Technician', 'first_name' => 'Ramon', 'last_name' => 'Cruz', 'email' => 'ramon@example.edu'])->assertCreated()->json());
+        $token = $this->token($this->invite(['position_title' => 'Lab Technician', 'email' => 'ramon@example.edu'])->assertCreated()->json());
 
         $this->getJson("/api/department-head-invitations/{$token}")->assertOk()
             ->assertJsonPath('invitation.existing_account', false)
-            ->assertJsonPath('invitation.prefill.email', 'ramon@example.edu')
-            ->assertJsonPath('invitation.prefill.first_name', 'Ramon');
+            ->assertJsonPath('invitation.prefill.email', 'ramon@example.edu');
 
-        $body = ['first_name' => 'Ramon', 'last_name' => 'Cruz', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!'];
+        $body = ['first_name' => 'Ramon', 'last_name' => 'Cruz', 'school_id' => 70000077, 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!'];
         $this->postJson("/api/department-head-invitations/{$token}/accept", [...$body, 'email' => 'someone.else@example.edu'])->assertUnprocessable()->assertJsonValidationErrors('email');
         $this->postJson("/api/department-head-invitations/{$token}/accept", [...$body, 'email' => 'ramon@example.edu'])->assertOk();
-        $this->assertDatabaseHas('users', ['email' => 'ramon@example.edu', 'role' => 'ADMIN', 'position_title' => 'Lab Technician']);
+        $this->assertDatabaseHas('users', ['school_id' => 70000077, 'email' => 'ramon@example.edu', 'role' => 'ADMIN', 'position_title' => 'Lab Technician']);
     }
 
     public function test_pending_links_list_copy_and_revoke(): void
     {
         $this->employee(70000034, 'Nora', 'Faculty');
         $first = $this->invite(['registry_school_id' => 70000034, 'position_title' => 'Records Clerk'])->assertCreated();
-        $plain = $this->invite(['position_title' => 'Lab Technician', 'first_name' => 'Ramon', 'last_name' => 'Cruz', 'email' => 'ramon@example.edu'])->assertCreated();
+        $plain = $this->invite(['position_title' => 'Lab Technician', 'email' => 'ramon@example.edu'])->assertCreated();
         DepartmentHeadInvitation::create(['college_id' => $this->arts->id, 'role' => 'COLLEGE_STAFF', 'position_title' => 'Clerk', 'token_hash' => hash('sha256', 'x'), 'invited_by' => $this->dean->school_id, 'expires_at' => now()->addDay()]);
         DepartmentHeadInvitation::create(['college_id' => $this->computing->id, 'role' => 'DEPARTMENT_HEAD', 'token_hash' => hash('sha256', 'y'), 'invited_by' => $this->dean->school_id, 'expires_at' => now()->addDay()]);
         DepartmentHeadInvitation::create(['college_id' => $this->computing->id, 'role' => 'COLLEGE_STAFF', 'position_title' => 'Old', 'token_hash' => hash('sha256', 'z'), 'invited_by' => $this->dean->school_id, 'expires_at' => now()->subDay()]);
 
         $list = $this->actingAs($this->dean)->getJson('/api/college/staff/invitations')->assertOk()->json('data');
         $this->assertCount(2, $list);
-        $this->assertEqualsCanonicalizing(['Nora Faculty', 'Ramon Cruz'], collect($list)->pluck('name')->all());
+        $this->assertEqualsCanonicalizing(['Nora Faculty', 'ramon@example.edu'], collect($list)->pluck('name')->all());
         $this->assertArrayNotHasKey('token_hash', $list[0]);
 
         $id = $first->json('invitation.id');
