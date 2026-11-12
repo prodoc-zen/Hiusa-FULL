@@ -79,7 +79,7 @@ export default function PendingStaffInvites({ reloadKey = 0 }) {
           <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-ink">{invite.name}</p>
-              <p className="text-xs text-ink-muted">{[invite.position_title, `Expires ${formatDateTime(invite.expires_at)}`].filter(Boolean).join(' · ')}</p>
+              <p className="text-xs text-ink-muted">{[invite.position_title || 'Office staff', `Expires ${formatDateTime(invite.expires_at)}`].filter(Boolean).join(' · ')}</p>
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" leftIcon={Copy} loading={busyId === invite.id} onClick={() => copy(invite)} aria-label={`Copy link for ${invite.name}`}>Copy link</Button>
