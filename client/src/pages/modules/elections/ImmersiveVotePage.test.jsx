@@ -13,8 +13,11 @@ const election = {
   start_time: new Date(Date.now() - 60_000).toISOString(),
   end_time: new Date(Date.now() + 3_600_000).toISOString(),
   voters_count: 24,
-  my_votes: [],
-  positions: [{ id: 1, title: 'President', max_winners: 1 }],
+  phase: 'voting',
+  open_round: 1,
+  has_voted: false,
+  my_ballot: null,
+  positions: [{ id: 1, title: 'President', max_winners: 1, is_active: true }],
   candidates: [{ id: 11, position_id: 1, platform: 'Transparent student services.', user: { first_name: 'Ana', last_name: 'Reyes' }, partylist: { name: 'Forward' } }],
 };
 
@@ -47,7 +50,6 @@ async function castBallot() {
   fireEvent.click(await screen.findByRole('button', { name: /Start my ballot/ }));
   fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
   fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
   await screen.findByText('Ballot submitted');
 }
@@ -61,8 +63,8 @@ describe('ImmersiveVotePage history', () => {
   it('keeps the ballot in history after a cast vote so Back from Vote reaches the already-voted message', async () => {
     getElectionDetails
       .mockResolvedValueOnce(election)
-      .mockResolvedValue({ ...election, my_votes: [{ position_id: 1, candidate_id: 11, vote_hash: 'SAFE-RECEIPT' }] });
-    castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
+      .mockResolvedValue({ ...election, has_voted: true, my_ballot: { receipt_ref: 'SAFE-RECEIPT', submitted_at: '2026-11-13T09:30:00.000Z', round: 1 } });
+    castVotes.mockResolvedValue({ success: true, receipt: 'SAFE-RECEIPT', submitted_at: '2026-11-13T09:30:00.000Z', election_title: 'Student Council Election', round: 1 });
     renderBallot();
     await castBallot();
 
@@ -84,5 +86,32 @@ describe('ImmersiveVotePage history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }));
     await waitFor(() => expect(screen.getByText('Vote hub at /dashboard/elections/cast-vote')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Start my ballot/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the receipt and no choices to a voter who opens the ballot after voting', async () => {
+    getElectionDetails.mockResolvedValue({ ...election, has_voted: true, my_ballot: { receipt_ref: 'RCPT-5', submitted_at: '2026-11-13T09:30:00.000Z', round: 1 } });
+    renderBallot();
+    expect(await screen.findByRole('heading', { name: 'Vote already recorded' })).toBeInTheDocument();
+    expect(screen.getByText('RCPT-5')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Reyes')).not.toBeInTheDocument();
+  });
+
+  it('opens the runoff ballot while a runoff round is open even though the first voting window has passed', async () => {
+    getElectionDetails.mockResolvedValue({
+      ...election,
+      phase: 'runoff',
+      open_round: 2,
+      end_time: new Date(Date.now() - 3_600_000).toISOString(),
+      positions: [{ id: 1, title: 'President', max_winners: 1, is_active: true, runoff_candidate_ids: [11], runoff_seats: 1 }],
+    });
+    renderBallot();
+    expect(await screen.findByRole('heading', { name: 'Runoff vote' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Start my ballot/ })).toBeInTheDocument();
+  });
+
+  it('shows no ballot when no round is open', async () => {
+    getElectionDetails.mockResolvedValue({ ...election, open_round: null });
+    renderBallot();
+    expect(await screen.findByRole('heading', { name: 'No election is currently open' })).toBeInTheDocument();
   });
 });
