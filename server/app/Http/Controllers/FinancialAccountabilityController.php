@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\CashAdvance;
@@ -18,6 +19,7 @@ use App\Services\OrderFulfillmentService;
 use App\Services\StudentAccountBalances;
 use App\Support\Csv;
 use App\Support\FilterValues;
+use App\Support\SemesterScope;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
@@ -76,14 +78,16 @@ class FinancialAccountabilityController extends Controller
         $organizationIds = $this->readableOrganizationIds($request);
         $collections = Collection::whereIn('organization_id', $organizationIds)->where('status', 'verified');
         $collected = (float) (clone $collections)->sum('amount_collected');
-        $remitted = (float) Remittance::whereIn('collection_id', (clone $collections)->select('id'))->where('status', 'recorded')->sum('amount');
+        $recorded = Remittance::whereIn('collection_id', (clone $collections)->select('id'))->where('status', 'recorded');
+        $remitted = (float) (clone $recorded)->sum('amount');
+        $remittedInSemester = (float) SemesterScope::selected(clone $recorded, 'remitted_at', AcademicSemester::selected($request))->sum('amount');
         $advances = CashAdvance::whereIn('organization_id', $organizationIds)->whereIn('status', ['released', 'partially_repaid', 'fully_repaid']);
         $borrowed = (float) (clone $advances)->sum('amount');
         $repaid = (float) CashAdvanceRepayment::whereIn('cash_advance_id', (clone $advances)->select('id'))->sum('amount');
         $income = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'income')->sum('amount');
         $expense = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'expense')->sum('amount');
 
-        return response()->json(['total_collections' => $collected, 'total_remitted' => $remitted, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count() + CashAdvance::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::whereIn('organization_id', $organizationIds)->latest('transaction_date')->limit(10)->get()]);
+        return response()->json(['total_collections' => $collected, 'total_remitted' => $remittedInSemester, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count() + CashAdvance::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::whereIn('organization_id', $organizationIds)->latest('transaction_date')->limit(10)->get()]);
     }
 
     public function collections(Request $request)
@@ -93,6 +97,7 @@ class FinancialAccountabilityController extends Controller
             ->whereIn('organization_id', $this->readableOrganizationIds($request))
             ->when(! empty($filters['status']), fn ($query) => $query->whereIn('status', FilterValues::values($filters['status'])))
             ->latest('collected_at');
+        SemesterScope::selected($query, 'collected_at', AcademicSemester::selected($request));
         if ($request->filled('search')) {
             $query->where(fn ($q) => $q->where('reference', 'like', '%'.$request->search.'%')->orWhere('source', 'like', '%'.$request->search.'%'));
         }

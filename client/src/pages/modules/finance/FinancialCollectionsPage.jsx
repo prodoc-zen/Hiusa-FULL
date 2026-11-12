@@ -142,6 +142,7 @@ export default function FinancialCollectionsPage() {
         ))}
       </dl>
     )}
+    {!loading && dashboard && <p className="-mt-3 text-xs text-ink-muted">Available funds and Awaiting remittance are running balances across all semesters. Remitted and the collections below follow the semester selected at the top.</p>}
     <section aria-labelledby="collection-records-title">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="collection-records-title" className="text-base font-semibold text-ink">Collections</h2>

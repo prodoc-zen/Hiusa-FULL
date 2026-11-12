@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AccountProfile;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Transaction;
+use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 
 /** The oversight view of one student organization: the Department Head sees their college's, the SAO sees any. Read only. */
@@ -38,15 +40,17 @@ class OrgSpaceController extends Controller
                 'users.school_id', 'users.first_name', 'users.last_name', 'users.email',
             ]);
 
-        $events = Event::where('organization_id', $id);
+        $semester = AcademicSemester::selected($request);
+        $events = Event::where('organization_id', $id)->when($semester, fn ($query) => $query->where('academic_semester_id', $semester->id));
         $budgets = Budget::where('organization_id', $id)->where('submission_status', 'approved')
+            ->tap(fn ($query) => SemesterScope::budgets($query, $semester))
             ->withSum(['transactions as spent_amount' => fn ($transactions) => $transactions->where('type', 'expense')], 'amount')
             ->withSum(['transactions as income_amount' => fn ($transactions) => $transactions->where('type', 'income')], 'amount')
             ->get();
         $submissions = OrganizationComplianceSubmission::where('organization_id', $id)->with('requirementType:id,name');
 
         return response()->json([
-            'organization' => $organization->only(['id', 'name', 'acronym', 'description', 'color', 'logo_url', 'college', 'college_id', 'lifecycle_status', 'is_active']),
+            'organization' => $organization->only(['id', 'name', 'acronym', 'description', 'color', 'logo_url', 'college', 'college_id', 'is_university_wide', 'lifecycle_status', 'is_active']),
             'lifecycle' => [
                 'status' => $organization->lifecycle_status,
                 'review_remarks' => $organization->review_remarks,
@@ -57,6 +61,7 @@ class OrgSpaceController extends Controller
             'counts' => [
                 'members' => (clone $people)->count(),
                 'officers' => (clone $people)->whereIn('account_profiles.role', ['ADMIN', 'SBO_OFFICER'])->count(),
+                'administrators' => (clone $people)->where('account_profiles.role', 'ADMIN')->count(),
                 'upcoming_events' => (clone $events)->where('start_time', '>=', now())->where('status', '!=', 'cancelled')->count(),
                 'pending_documents' => (clone $submissions)->where('status', 'submitted')->count(),
             ],
@@ -107,7 +112,7 @@ class OrgSpaceController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $ledger = Transaction::where('organization_id', $organization->id);
+        $ledger = SemesterScope::selected(Transaction::where('organization_id', $organization->id), 'transaction_date', AcademicSemester::selected($request));
         $summary = (clone $ledger)->selectRaw('type, sum(amount) as total')->groupBy('type')->pluck('total', 'type');
 
         $page = (clone $ledger)

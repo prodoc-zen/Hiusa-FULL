@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
@@ -18,6 +19,7 @@ use App\Services\FinancialReportStatement;
 use App\Services\GroqResponsesService;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
+use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +66,8 @@ class FinancialReportController extends Controller
             ->when($filters['status'] ?? null, fn ($builder, $status) => $builder->whereIn('submission_status', FilterValues::values($status)))
             ->when($filters['document_type'] ?? null, fn ($builder, $documentType) => $builder->whereIn('document_type', FilterValues::values($documentType)))
             ->when($filters['search'] ?? null, fn ($builder, $search) => $builder->where('title', 'like', '%'.trim($search).'%'));
+
+        SemesterScope::reports($query, AcademicSemester::selected($request));
 
         $page = $query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
         $this->attachApprovalRemarks($page->getCollection());
