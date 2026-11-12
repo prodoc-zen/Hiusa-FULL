@@ -865,8 +865,13 @@ export default function MerchandisePage({ initialTab }) {
     else if (activeTab === "my-orders") request = { mine: 1, page: ordersMeta.current_page };
     else return undefined;
     const epoch = ordersEpoch.current;
-    return getOrders(request).then((oRes) => {
-      if (epoch === ordersEpoch.current) extractOrders(oRes);
+    const mineRefresh = activeTab === "my-orders"
+      ? fetchAllPages((p) => getOrders({ mine: 1, ...p }).then((r) => r.data), {}, { perPage: 10 })
+      : Promise.resolve(null);
+    return Promise.all([getOrders(request), mineRefresh]).then(([oRes, allMineOrders]) => {
+      if (epoch !== ordersEpoch.current) return;
+      extractOrders(oRes);
+      if (allMineOrders) setMineOrders(allMineOrders);
     });
   }
 
@@ -1263,6 +1268,7 @@ export default function MerchandisePage({ initialTab }) {
       });
       const merge = (rows) =>
         rows.map((row) => (row.id === order.id ? { ...row, ...res.data } : row));
+      ordersEpoch.current += 1;
       setOrders(merge);
       setMineOrders(merge);
       setPaymentModal({
@@ -1331,6 +1337,7 @@ export default function MerchandisePage({ initialTab }) {
         const response = await cancelOrder(order.id);
         const replace = (rows) =>
           rows.map((row) => (row.id === order.id ? response.data : row));
+        ordersEpoch.current += 1;
         setOrders(replace);
         setMineOrders(replace);
         setTransactionMessage(

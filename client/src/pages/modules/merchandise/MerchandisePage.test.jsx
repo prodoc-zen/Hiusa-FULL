@@ -772,6 +772,55 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByText("Payment verified: waiting for Admin approval")).toBeInTheDocument();
   });
 
+  it("does not let a refresh sent before a payment submission put the old row back", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const before = buyerOrder({ id: 7 });
+      orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([before]) });
+      orderMocks.submitOrderPayment.mockResolvedValue({
+        data: { id: 7, payment_method: "gcash", payment_proof_url: "proofs/7.jpg", payment_reference: "1234567890123" },
+      });
+      renderAt("/dashboard/merchandise/my-orders", "my-orders");
+      await screen.findByRole("button", { name: "Submit GCash proof" });
+
+      let finish;
+      orderMocks.getOrders.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+
+      fireEvent.click(screen.getByRole("button", { name: "Submit GCash proof" }));
+      const dialog = await screen.findByRole("dialog", { name: "Submit GCash payment" });
+      fireEvent.change(within(dialog).getByLabelText(/13-digit GCash reference/), { target: { value: "1234567890123" } });
+      fireEvent.change(within(dialog).getByLabelText(/Payment proof/), { target: { files: [new File(["x"], "proof.jpg", { type: "image/jpeg" })] } });
+      await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Submit payment" })); });
+      expect(await screen.findByRole("button", { name: "Replace proof" })).toBeInTheDocument();
+
+      await act(async () => {
+        finish({ data: paginatedOrders([before]) });
+        await Promise.resolve();
+      });
+      expect(screen.getByRole("button", { name: "Replace proof" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Submit GCash proof" })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refreshes the student's whole order history, not only the open page, when the list refreshes on its own", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+      renderAt("/dashboard/merchandise/my-orders", "my-orders");
+      await screen.findByText("ORD-7");
+
+      orderMocks.getOrders.mockClear();
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+
+      expect(orderMocks.getOrders).toHaveBeenCalledWith({ mine: 1, page: 1, per_page: 100 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("tells the buyer at checkout that the claim token appears after the Admin approves", async () => {
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
