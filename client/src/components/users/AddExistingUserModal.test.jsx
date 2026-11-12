@@ -49,7 +49,7 @@ describe('AddExistingUserModal', () => {
     fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
     await pickMaria();
     fireEvent.change(screen.getByLabelText('Role in this organization'), { target: { value: 'ADMIN' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 9, role: 'ADMIN' }));
   });
 
@@ -67,7 +67,7 @@ describe('AddExistingUserModal', () => {
     expect(screen.getByRole('option', { name: 'Organization head' })).toBeInTheDocument();
     await pickMaria();
     fireEvent.change(screen.getByLabelText('Role in this organization'), { target: { value: 'ADMIN' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 9, role: 'ADMIN' }));
   });
 
@@ -101,8 +101,27 @@ describe('AddExistingUserModal', () => {
     expect(screen.getByRole('option', { name: 'Member' }).selected).toBe(true);
     expect(screen.getByText(/can be added only as a member/i)).toBeInTheDocument();
     await pickMaria();
-    fireEvent.click(screen.getByRole('button', { name: 'Add administrator' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
+  });
+
+  it('words the title and button for a member when the head role falls back to member', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [organization] });
+    render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByLabelText(/^Organization/)).toHaveValue('8'));
+    expect(screen.getByText('Add an existing student')).toBeInTheDocument();
+    expect(screen.queryByText('Add administrator')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add student' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add administrator' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the administrator wording when the head role is the one that will be sent', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 9, name: 'Computing Club', parent_organization_id: 8, college: organization.college }, organization] });
+    render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    expect(screen.getAllByText('Add administrator')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Add administrator' })).toBeInTheDocument();
   });
 
   it('still sends the head role when the auto-selected organization is one the administrator may name a head for', async () => {
