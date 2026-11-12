@@ -476,6 +476,37 @@ class CollegeOfficeStaffTest extends TestCase
         $this->assertSame(70000098, User::where('email', 'stu@example.edu')->value('school_id'));
     }
 
+    public function test_a_plain_staff_link_cannot_take_the_school_id_of_an_unclaimed_employee_record(): void
+    {
+        $this->employee(70000097, 'Elena', 'Faculty');
+        $plain = $this->token($this->invite([])->assertCreated()->json());
+
+        $this->postJson("/api/department-head-invitations/{$plain}/accept", [
+            'email' => 'squatter@example.edu', 'first_name' => 'Sam', 'last_name' => 'Squatter', 'school_id' => 70000097,
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+        ])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That number is in the employee records. Ask for a link made from your record.');
+        $this->assertDatabaseMissing('users', ['school_id' => 70000097]);
+
+        $own = $this->token($this->invite(['registry_school_id' => 70000097])->assertCreated()->json());
+        $this->postJson("/api/department-head-invitations/{$own}/accept", [
+            'email' => 'elena@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+        ])->assertOk();
+        $this->assertSame('Elena', User::whereKey(70000097)->value('first_name'));
+    }
+
+    public function test_a_school_id_in_the_reserved_range_is_refused_with_its_own_message(): void
+    {
+        $token = $this->token($this->invite([])->assertCreated()->json());
+
+        foreach ([95000000, 99999999] as $schoolId) {
+            $this->postJson("/api/department-head-invitations/{$token}/accept", [
+                'email' => 'reserved@example.edu', 'first_name' => 'Rey', 'last_name' => 'Served', 'school_id' => $schoolId,
+                'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            ])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That school ID cannot be used. Check the number the school gave you.');
+        }
+        $this->assertDatabaseMissing('users', ['email' => 'reserved@example.edu']);
+    }
+
     // ---- S3: link only, nothing attaches until the person accepts ----
 
     public function test_staff_are_no_longer_attached_instantly(): void

@@ -347,14 +347,14 @@ class DepartmentHeadInvitationController extends Controller
             'first_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'last_name' => [$fromRecord ? 'prohibited' : 'required', 'string', 'max:60'],
             'email' => ['required', 'email', 'max:100', 'unique:users,email', ...($invitation->email ? [Rule::in([$invitation->email])] : [])],
-            'school_id' => ['bail', $fromRecord ? 'prohibited' : 'required', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id', fn ($attribute, $value, $fail) => StudentRegistryEntry::students()->where('school_id', $value)->exists() && $fail('That school ID belongs to a student record. Enter your employee number.')],
+            'school_id' => ['bail', $fromRecord ? 'prohibited' : 'required', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id', fn ($attribute, $value, $fail) => StudentRegistryEntry::students()->where('school_id', $value)->exists() && $fail('That school ID belongs to a student record. Enter your employee number.'), fn ($attribute, $value, $fail) => StudentRegistryEntry::employees()->whereNull('claimed_at')->where('school_id', $value)->exists() && $fail('That number is in the employee records. Ask for a link made from your record.')],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
             'email.in' => 'Use the email this invitation was made for.',
             'school_id.required' => 'Enter your school ID.',
             'school_id.integer' => 'Enter your school ID using numbers only.',
             'school_id.min' => 'Enter your school ID using numbers only.',
-            'school_id.max' => 'Enter your school ID using numbers only.',
+            'school_id.max' => 'That school ID cannot be used. Check the number the school gave you.',
             'school_id.unique' => 'This school ID already has an account. Sign in, or reset your password.',
         ]);
 

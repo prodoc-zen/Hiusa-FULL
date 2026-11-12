@@ -259,20 +259,25 @@ class DepartmentHeadInvitationTest extends TestCase
     }
 
     /** @dataProvider badSchoolIds */
-    public function test_school_id_must_be_a_number_outside_the_internal_range(string $bad): void
+    public function test_school_id_must_be_a_number_outside_the_internal_range(string $bad, string $message): void
     {
         $token = $this->makeLink();
 
         $response = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => $bad]));
 
         $response->assertUnprocessable()->assertJsonValidationErrors('school_id');
-        $this->assertSame('Enter your school ID using numbers only.', $response->json('errors.school_id.0'));
+        $this->assertSame($message, $response->json('errors.school_id.0'));
         $this->assertDatabaseMissing('users', ['email' => 'arthur.dent@example.edu']);
     }
 
     public static function badSchoolIds(): array
     {
-        return ['internal range' => ['95000001'], 'letters' => ['abc'], 'zero' => ['0'], 'negative' => ['-5'], 'decimal' => ['12.5']];
+        $numbersOnly = 'Enter your school ID using numbers only.';
+
+        return [
+            'internal range' => ['95000001', 'That school ID cannot be used. Check the number the school gave you.'],
+            'letters' => ['abc', $numbersOnly], 'zero' => ['0', $numbersOnly], 'negative' => ['-5', $numbersOnly], 'decimal' => ['12.5', $numbersOnly],
+        ];
     }
 
     public function test_school_id_of_a_student_record_is_refused(): void
