@@ -46,7 +46,7 @@ const COLLEGE = { name: `Rehearsal College ${SUFFIX}`, code: `RHR${DIGITS}` };
 const ORG = { name: `Rehearsal Society ${SUFFIX}`, acronym: `RSR${DIGITS}`, purpose: 'Rehearsal organization for the dean check. Synthetic data.' };
 const ID_BASE = Number(process.env.ID_BASE || 25991100);
 const SPEC = {
-  dean: { first: 'Dario', last: 'Rehearsal', email: `dean.${SUFFIX}@example.com` },
+  dean: { first: 'Dario', last: 'Rehearsal', email: `dean.${SUFFIX}@example.com`, schoolId: ID_BASE + 5 },
   staff: { first: 'Sela', last: 'Rehearsal', email: `staff.${SUFFIX}@example.com`, schoolId: ID_BASE + 4, birth: '1985-02-11', position: 'Department Secretary' },
   a: { first: 'Lia', last: 'Rehearsal', email: `lia.${SUFFIX}@example.com`, schoolId: ID_BASE + 1, birth: '2004-03-05' },
   b: { first: 'Ben', last: 'Rehearsal', email: `ben.${SUFFIX}@example.com`, schoolId: ID_BASE + 2, birth: '2004-06-17' },
@@ -415,7 +415,7 @@ await step('dean_invite', 'SAO creates the dean invite link (link only), the dea
     const probe = await signIn('dean', rec);
     if (probe.ok) {
       rec.skipped = true;
-      rec.evidence.push(`dean already exists and signs in by email (internal ID ${probe.user?.school_id ?? 'unknown'})`);
+      rec.evidence.push(`dean already exists and signs in by email (School ID ${probe.user?.school_id ?? 'unknown'})`);
       await shot('dean', 'home', rec);
       return;
     }
@@ -445,7 +445,7 @@ await step('dean_invite', 'SAO creates the dean invite link (link only), the dea
     saveFact('links', 'dean_invite', link);
     await shot('sao', 'invite-link', rec);
     await sp.getByRole('button', { name: 'Done' }).click();
-    rec.evidence.push('link created from the SAO Colleges page (no identity fields, optional email left empty)');
+    rec.evidence.push('link created from the SAO Colleges page (no identity fields, optional email left empty); the dean types their own School ID on the invitation page');
   }
   const origin = new URL(link).origin;
   if (origin !== BASE) rec.defect('app_bug', `The invitation link points to ${origin.replace(/^https?:\/\//, '')}, not the address the app is served on, so the dean cannot open it as given.`, ['server/config/app.php', 'server/app/Http/Controllers/DepartmentHeadInvitationController.php']);
@@ -453,10 +453,12 @@ await step('dean_invite', 'SAO creates the dean invite link (link only), the dea
   if (!(await opens(link))) throw new Error('the dean link does not open to "You\'re invited to lead <college>"');
   const intro = await bodyText(dp);
   if (!/Student Affairs Office invited you|invited you/i.test(intro)) rec.defect('ux_gap', 'The invitation page does not say who invited you.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
-  if (await dp.getByLabel(/school id/i).count()) rec.defect('app_bug', 'The dean form asks for a school ID.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  const deanSchoolId = dp.getByLabel(/school id/i);
+  if (!(await deanSchoolId.count())) rec.defect('app_bug', 'The dean form does not ask for a School ID.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
   await shot('dean', 'invitation', rec);
   await dp.getByLabel('First name').fill(SPEC.dean.first);
   await dp.getByLabel('Last name').fill(SPEC.dean.last);
+  await deanSchoolId.fill(String(SPEC.dean.schoolId));
   await dp.getByLabel('Email').fill(dean.email);
   await dp.getByLabel('Password', { exact: true }).fill(dean.password);
   await dp.getByLabel('Confirm password').fill(dean.password);
@@ -469,10 +471,10 @@ await step('dean_invite', 'SAO creates the dean invite link (link only), the dea
   await shot('dean', 'signed-out', rec);
   const session = await signIn('dean', rec, { fresh: false });
   if (!session.ok) throw new Error(`dean sign-in by email answered ${session.status}`);
-  const internalId = Number(session.user?.school_id);
-  patchAccount('dean', { school_id: internalId || null });
-  rec.evidence.push(`dean signed in by email; internal ID ${internalId || 'not returned'}`);
-  if (!(internalId >= 95000000)) rec.defect('app_bug', `The dean's internal ID is ${internalId}, expected the 95000000 range.`, ['server/app/Http/Controllers/DepartmentHeadInvitationController.php']);
+  const deanId = Number(session.user?.school_id);
+  patchAccount('dean', { school_id: deanId || null });
+  rec.evidence.push(`dean signed in by email; School ID ${deanId || 'not returned'}`);
+  if (deanId !== SPEC.dean.schoolId) rec.defect('app_bug', `The dean's School ID is ${deanId}, expected the ${SPEC.dean.schoolId} they typed.`, ['server/app/Http/Controllers/DepartmentHeadInvitationController.php']);
   await shot('dean', 'signed-in-by-email', rec);
 });
 
@@ -609,11 +611,11 @@ await step('staff_add', 'Dean adds office staff from the employee records (link 
     const locked = await nameField.evaluate((node) => node.readOnly || node.disabled);
     if (!locked) rec.defect('app_bug', 'The staff name is editable on a school-record link.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
   } else rec.defect('app_bug', 'The staff invitation made from an employee record does not show the locked Name from the records.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
-  const acceptId = sp.getByLabel('ID number');
+  const acceptId = sp.getByLabel('School ID');
   if (await acceptId.count()) {
-    if (!(await acceptId.evaluate((node) => node.readOnly || node.disabled))) rec.defect('app_bug', 'The staff ID number is editable on the invitation page.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+    if (!(await acceptId.evaluate((node) => node.readOnly || node.disabled))) rec.defect('app_bug', 'The staff School ID is editable on a school-record link.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
     if ((await acceptId.inputValue()) !== String(SPEC.staff.schoolId)) rec.defect('app_bug', `The invitation page shows ID ${await acceptId.inputValue()}, expected ${SPEC.staff.schoolId}.`, ['client/src/pages/auth/AcceptInvitationPage.jsx']);
-  } else rec.defect('app_bug', 'The staff invitation page shows no ID number.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
+  } else rec.defect('app_bug', 'The staff invitation page shows no School ID.', ['client/src/pages/auth/AcceptInvitationPage.jsx']);
   const acceptEmail = sp.getByLabel('Email');
   if (await acceptEmail.isEditable()) await acceptEmail.fill(staff.email);
   else rec.evidence.push(`the invitation locked the email to ${await acceptEmail.inputValue()}`);
