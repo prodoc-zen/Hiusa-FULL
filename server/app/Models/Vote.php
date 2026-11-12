@@ -22,6 +22,7 @@ class Vote extends Model
     {
         return [
             'cast_at' => 'datetime',
+            'round' => 'integer',
         ];
     }
 
