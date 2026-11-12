@@ -5,7 +5,8 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRefetchOnReturn } from "../../../hooks/useRefetchOnReturn";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button, DataTable, Drawer, EmptyState, FlowStepper, Field, Input, NextStep, PageHeader, SkeletonCard, SkeletonTable, StatusBadge, Textarea } from "../../../components/ui";
 import { orderLifecycle, toNextStepProps } from "../../../lib/lifecycle";
@@ -583,6 +584,7 @@ export default function MerchandisePage({ initialTab }) {
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  const ordersEpoch = useRef(0);
   const [mineOrders, setMineOrders] = useState([]);
   const [placedOrderIds, setPlacedOrderIds] = useState(() => location.state?.placedOrderIds ?? []);
   const [loading, setLoading] = useState(true);
@@ -785,6 +787,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function load() {
+    ordersEpoch.current += 1;
     setLoading(true);
     setError(null);
     const managerOrderFilters = activeTab === "tokens"
@@ -827,6 +830,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   async function loadOrders(page, filters = orderFilters) {
+    ordersEpoch.current += 1;
     setLoading(true);
     try {
       const oRes = await getOrders({ page, ...filters });
@@ -839,6 +843,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   async function loadPersonalOrders(page) {
+    ordersEpoch.current += 1;
     setLoading(true);
     try {
       const oRes = await getOrders({ mine: 1, page });
@@ -849,6 +854,23 @@ export default function MerchandisePage({ initialTab }) {
       setLoading(false);
     }
   }
+
+  // Keeps the open list current without the spinner: the same page and filters, and only when nothing else
+  // has loaded or changed an order since the request left.
+  function refreshOrdersSilently() {
+    if (loading) return undefined;
+    let request;
+    if (activeTab === "orders") request = { page: ordersMeta.current_page, ...orderFilters };
+    else if (activeTab === "tokens") request = { page: ordersMeta.current_page, ...EMPTY_ORDER_FILTERS, status: tokenStatusFilter, sort: "oldest" };
+    else if (activeTab === "my-orders") request = { mine: 1, page: ordersMeta.current_page };
+    else return undefined;
+    const epoch = ordersEpoch.current;
+    return getOrders(request).then((oRes) => {
+      if (epoch === ordersEpoch.current) extractOrders(oRes);
+    });
+  }
+
+  useRefetchOnReturn(refreshOrdersSilently);
 
   useEffect(load, [activeTab, isPersonalShoppingView, tokenStatusFilter]);
   useEffect(() => {
@@ -905,6 +927,7 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(() => {
     if (isPersonalShoppingView || activeTab !== "orders") return undefined;
     const timer = window.setTimeout(async () => {
+      ordersEpoch.current += 1;
       setLoading(true);
       try {
         const response = await getOrders({ page: 1, ...orderFilters });
@@ -1197,8 +1220,10 @@ export default function MerchandisePage({ initialTab }) {
     remarks = null,
     verifiedAmount = null,
   ) {
+    const before = [verificationModal.order, orderDetails, ...orders].find((o) => o?.id === id);
     try {
       const res = await updateOrderStatus(id, status, remarks, verifiedAmount);
+      ordersEpoch.current += 1;
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
       if (orderDetails?.id === id) {
         await loadOrderTrail(id);
@@ -1207,7 +1232,9 @@ export default function MerchandisePage({ initialTab }) {
         role === "SBO_OFFICER" && status === "paid"
           ? `Order ORD-${id} submitted for Admin approval.`
           : role === "ADMIN" && status === "paid"
-            ? `Order ORD-${id} was directly approved and its receipt is ready.`
+            ? before?.officer_review_status === "approved"
+              ? `Order ORD-${id} payment approved and its receipt is ready.`
+              : `Order ORD-${id} was directly approved and its receipt is ready.`
             : `Order ORD-${id} marked as ${capitalize(status)}.`,
       );
       return res;
@@ -3683,12 +3710,14 @@ export default function MerchandisePage({ initialTab }) {
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-card border border-line bg-white p-6">
             <h3 className="text-lg font-semibold text-ink">
               {role === "ADMIN"
-                ? "Approve payment directly"
+                ? verificationModal.order.officer_review_status === "approved" ? "Approve payment" : "Approve payment directly"
                 : "Verify payment amount"}
             </h3>
             <p className="mt-1 text-sm text-ink-muted-strong">
               {role === "ADMIN"
-                ? "Approve this order without waiting for an SBO Officer review. "
+                ? verificationModal.order.officer_review_status === "approved"
+                  ? "An SBO Officer verified this payment and you are approving it. "
+                  : "Approve this order without waiting for an SBO Officer review. "
                 : ""}
               Confirm the payment for ORD-{verificationModal.order.id} matches{" "}
               {fmt(verificationModal.order.total_price)}.
