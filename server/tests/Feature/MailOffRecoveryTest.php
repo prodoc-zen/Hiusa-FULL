@@ -115,6 +115,25 @@ class MailOffRecoveryTest extends TestCase
         $this->postJson('/api/password/reset', $payload)->assertUnprocessable();
     }
 
+    public function test_with_mail_off_the_sao_reset_of_another_sao_staff_account_returns_a_working_one_time_link(): void
+    {
+        $this->mailOff();
+        $director = $this->director();
+        $staff = User::factory()->superAdmin()->create(['organization_id' => $director->organization_id, 'email' => 'staff@example.test', 'password_hash' => 'old-password']);
+        Sanctum::actingAs($director);
+
+        $response = $this->postJson("/api/system/users/{$staff->school_id}/password-reset")->assertOk();
+
+        $query = $this->resetQuery($response->json('reset_link'));
+        $this->assertSame('staff@example.test', $query['email']);
+        Mail::assertNothingOutgoing();
+        app('auth')->forgetGuards();
+        $payload = ['organization_id' => $staff->organization_id, 'email' => 'staff@example.test', 'token' => $query['token'], 'password' => 'New-password-2026', 'password_confirmation' => 'New-password-2026'];
+        $this->postJson('/api/password/reset', $payload)->assertOk();
+        $this->assertTrue(Hash::check('New-password-2026', $staff->fresh()->password_hash));
+        $this->postJson('/api/password/reset', $payload)->assertUnprocessable();
+    }
+
     public function test_with_mail_off_the_sao_reset_of_a_department_head_returns_a_working_link(): void
     {
         $this->mailOff();
@@ -156,6 +175,7 @@ class MailOffRecoveryTest extends TestCase
         $this->assertSame($known->json(), $unknown->json());
         $this->assertFalse($known->json('email_sent'));
         $this->assertStringContainsString('Ask your organization Admin or the SAO', $known->json('message'));
+        $this->assertStringContainsString('SAO staff ask another SAO account holder', $known->json('message'));
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'recover@example.com']);
         Mail::assertNothingOutgoing();
     }

@@ -512,7 +512,7 @@
       "3. Wait five minutes and check that inbox and its spam folder.",
       "4. Go back and try one unknown value, for example 12345678 or nobody@example.com, in Email or school ID."
     ],
-    "expected": "The \"Reset your password\" page has one field labelled \"Email or school ID\", a Request reset button and Back to login. With email off, the page changes to \"Ask for a reset\" and says password reset by email is not available and nothing was sent to anyone, with only a Back to login button. No email arrives. This is expected. An unknown value shows the very same \"Ask for a reset\" screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link. Only when email is on does the page show \"Check your email\" instead.",
+    "expected": "The \"Reset your password\" page has one field labelled \"Email or school ID\", a Request reset button and Back to login. With email off, the page changes to \"Ask for a reset\" and says password reset by email is not available and nothing was sent to anyone, with only a Back to login button. No email arrives. This is expected. An unknown value shows the very same \"Ask for a reset\" screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder. Only when email is on does the page show \"Check your email\" instead.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",

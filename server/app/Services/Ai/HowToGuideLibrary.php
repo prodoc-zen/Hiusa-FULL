@@ -889,7 +889,7 @@ class HowToGuideLibrary
                 'steps' => [
                     ['title' => 'Open Profile', 'detail' => 'Click your name at the bottom of the sidebar, then Profile.', 'path' => '/dashboard/profile', 'where' => 'Sidebar → Profile'],
                     ['title' => 'Change your details or password', 'detail' => 'Enter your current password, then the new one twice, and save.', 'path' => '/dashboard/profile', 'where' => 'Profile'],
-                    ['title' => 'Forgot your password?', 'detail' => 'On the login page, use account recovery to get a reset link by email.', 'path' => null, 'where' => 'Login page → Recover account'],
+                    ['title' => 'Forgot your password?', 'detail' => 'On the login page, use account recovery. When email is off, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder.', 'path' => null, 'where' => 'Login page → Recover account'],
                 ],
                 'tips' => [],
             ],

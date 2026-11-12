@@ -187,6 +187,29 @@ describe('SAO university users', () => {
     expect(screen.getByText('Reset link created for Ana Cruz.')).toBeInTheDocument();
   });
 
+  it('offers Reset password on another SAO staff row but not on the signed-in account', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 990001, role: 'SUPER_ADMIN' }));
+    try {
+      const sao = { ...user, role: 'SUPER_ADMIN', organization: { id: 1, name: 'Student Affairs Office' } };
+      service.getSystemUsers.mockResolvedValue(page([
+        { ...sao, school_id: 990001, first_name: 'Own', last_name: 'Account' },
+        { ...sao, school_id: 990002, first_name: 'Other', last_name: 'Staff' },
+        { ...sao, school_id: 990003, first_name: 'Dormant', last_name: 'Staff', account_status: 'inactive' },
+      ]));
+      render(<SaoUsersPage />);
+
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Other Staff' }))[0]);
+      expect(screen.getByRole('menuitem', { name: 'Reset password' })).toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Own Account' })[0]);
+      expect(screen.getByRole('menuitem', { name: 'Delete user' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Dormant Staff' })[0]);
+      expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
+    } finally { localStorage.removeItem('user'); }
+  });
+
   it('describes a one-time link and does not promise an email while mail is off', async () => {
     render(<SaoUsersPage />);
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Ana Cruz' }))[0]);
@@ -218,7 +241,7 @@ describe('SAO university users', () => {
     expect(screen.queryByRole('dialog', { name: 'Reset link ready' })).not.toBeInTheDocument();
   });
 
-  it('offers a password reset for active students, officers and administrators, and for nobody else', async () => {
+  it('offers a password reset for active students, officers, administrators and other SAO staff, and for nobody else', async () => {
     service.getSystemUsers.mockResolvedValue(page([
       { ...user, school_id: 1, first_name: 'Ben', role: 'SBO_OFFICER' },
       { ...user, school_id: 2, first_name: 'Cara', account_status: 'inactive' },
@@ -228,12 +251,12 @@ describe('SAO university users', () => {
       { ...user, school_id: 6, first_name: 'Gia', role: 'DEPARTMENT_HEAD' },
     ]));
     render(<SaoUsersPage />);
-    for (const name of ['Ben', 'Dan']) {
+    for (const name of ['Ben', 'Dan', 'Eve']) {
       fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${name} Cruz` }))[0]);
       expect(screen.getByRole('menuitem', { name: 'Reset password' })).toBeInTheDocument();
       fireEvent.keyDown(document, { key: 'Escape' });
     }
-    for (const name of ['Cara', 'Eve', 'Finn', 'Gia']) {
+    for (const name of ['Cara', 'Finn', 'Gia']) {
       fireEvent.click(screen.getAllByRole('button', { name: `Actions for ${name} Cruz` })[0]);
       expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
       fireEvent.keyDown(document, { key: 'Escape' });

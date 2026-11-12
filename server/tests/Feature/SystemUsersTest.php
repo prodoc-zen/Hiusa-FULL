@@ -128,6 +128,39 @@ class SystemUsersTest extends TestCase
         Mail::assertNothingOutgoing();
     }
 
+    public function test_an_sao_gets_a_one_time_reset_link_for_another_sao_account_but_never_their_own(): void
+    {
+        config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
+        Mail::fake();
+        $sao = User::factory()->superAdmin()->create();
+        $colleague = User::factory()->superAdmin()->create(['organization_id' => $sao->organization_id, 'email' => 'staff@example.test']);
+        Sanctum::actingAs($sao);
+
+        $response = $this->postJson('/api/system/users/'.$colleague->school_id.'/password-reset')->assertOk();
+
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        parse_str((string) parse_url($response->json('reset_link'), PHP_URL_QUERY), $query);
+        $this->assertSame('staff@example.test', $query['email']);
+        $audit = AuditLog::where('action', 'user_password_reset_initiated')->where('record_id', $colleague->school_id)->firstOrFail();
+        $this->assertSame($sao->school_id, (int) $audit->user_id);
+        $this->assertStringNotContainsString($query['token'], json_encode(AuditLog::all()->toArray()));
+        Mail::assertNothingOutgoing();
+
+        $this->postJson('/api/system/users/'.$sao->school_id.'/password-reset')->assertUnprocessable();
+        $this->assertDatabaseCount('password_reset_tokens', 1);
+    }
+
+    public function test_an_sao_reset_of_another_sao_account_still_refuses_an_inactive_one(): void
+    {
+        config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
+        $sao = User::factory()->superAdmin()->create();
+        $dormant = User::factory()->superAdmin()->create(['organization_id' => $sao->organization_id, 'account_status' => 'inactive']);
+        Sanctum::actingAs($sao);
+
+        $this->postJson('/api/system/users/'.$dormant->school_id.'/password-reset')->assertUnprocessable();
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+    }
+
     public function test_with_mail_on_the_sao_reset_link_is_emailed_and_not_returned(): void
     {
         config(['mail.default' => 'smtp']);
