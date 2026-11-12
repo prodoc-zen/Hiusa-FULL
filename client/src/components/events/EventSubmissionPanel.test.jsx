@@ -63,6 +63,33 @@ describe('EventSubmissionPanel', () => {
     expect(screen.queryByRole('button', { name: 'Submit event files to SAO' })).not.toBeInTheDocument();
   });
 
+  it('keeps the submit button disabled and counts the required files still missing', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements: [...requirements, { id: 3, name: 'Risk assessment', description: '', is_optional: false }], files: [], approval_status: null } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    const send = await screen.findByRole('button', { name: 'Submit event files to SAO' });
+    const pick = (name) => screen.getByText(name, { selector: 'label' }).querySelector('input[type="file"]');
+    const pdf = (name) => new File(['pdf'], name, { type: 'application/pdf' });
+
+    expect(send).toBeDisabled();
+    expect(screen.getByText('2 files are still missing.')).toBeInTheDocument();
+
+    fireEvent.change(pick('Event Proposal'), { target: { files: [pdf('proposal.pdf')] } });
+    expect(send).toBeDisabled();
+    expect(screen.getByText('1 file is still missing.')).toBeInTheDocument();
+
+    fireEvent.change(pick('Risk assessment'), { target: { files: [pdf('risk.pdf')] } });
+    expect(send).toBeEnabled();
+    expect(screen.queryByText(/still missing/)).not.toBeInTheDocument();
+  });
+
+  it('does not count a file the organization already submitted or an optional one', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'rejected', approval_remarks: 'Replace the permit.' } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+    expect(await screen.findByRole('button', { name: 'Submit event files to SAO' })).toBeEnabled();
+    expect(screen.queryByText(/still missing/)).not.toBeInTheDocument();
+  });
+
   it('does not tell an organization admin that the SAO sample is missing', async () => {
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
 

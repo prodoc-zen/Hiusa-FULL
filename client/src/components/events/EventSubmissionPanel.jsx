@@ -69,6 +69,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
   const requirements = submission?.requirements || [];
   const uploaded = submission?.files || [];
   const byRequirement = new Map(uploaded.map((file) => [file.requirement_id, file]));
+  const missingFiles = requirements.filter((requirement) => !requirement.is_optional && !byRequirement.has(requirement.id) && !files[requirement.id]).length;
   const maySubmit = role === 'ADMIN' && requirements.length > 0 && (
     !submission?.approval_status || submission.approval_status === 'rejected' || submission.approval_stage === 'awaiting_requirements'
   );
@@ -107,7 +108,8 @@ function EventSubmission({ eventId, role, onSubmitted }) {
             <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(requirement)}>View sample</Button>
           </div>}
         </div>)}
-        <Button type="submit" loading={busy}>Submit event files to SAO</Button>
+        {missingFiles > 0 && <p id="event-files-missing" className="text-xs text-ink-muted-strong">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
+        <Button type="submit" loading={busy} disabled={missingFiles > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : undefined}>Submit event files to SAO</Button>
       </form>}
       {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
     </section>

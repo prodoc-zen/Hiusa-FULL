@@ -172,6 +172,38 @@ describe('ApplyOrganizationPage', () => {
     expect(await screen.findByText('Application page 77')).toBeInTheDocument();
   });
 
+  it('keeps Send application disabled and says how many files are missing until every slot has one', async () => {
+    renderPage();
+    await screen.findByLabelText(/Organization name/);
+    const send = screen.getByRole('button', { name: 'Send application' });
+
+    expect(send).toBeDisabled();
+    expect(screen.getByText('2 files are still missing.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Constitution/), { target: { files: [pdf('constitution.pdf')] } });
+    expect(send).toBeDisabled();
+    expect(screen.getByText('1 file is still missing.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Officer list/), { target: { files: [pdf('officers.pdf')] } });
+    expect(send).toBeEnabled();
+    expect(screen.queryByText(/still missing/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Officer list/), { target: { files: [] } });
+    expect(send).toBeDisabled();
+    expect(screen.getByText('1 file is still missing.')).toBeInTheDocument();
+  });
+
+  it('does not count a slot whose chosen file was refused', async () => {
+    renderPage();
+    await screen.findByLabelText(/Organization name/);
+
+    fireEvent.change(screen.getByLabelText(/Constitution/), { target: { files: [new File(['x'], 'constitution.docx')] } });
+    fireEvent.change(screen.getByLabelText(/Officer list/), { target: { files: [pdf('officers.pdf')] } });
+
+    expect(screen.getByRole('button', { name: 'Send application' })).toBeDisabled();
+    expect(screen.getByText('1 file is still missing.')).toBeInTheDocument();
+  });
+
   it('shows the field errors the server returns and stays on the form', async () => {
     mocks.submitOrganizationApplication.mockRejectedValue({ response: { status: 422, data: { message: 'The name has already been taken.', errors: { name: ['The name has already been taken.'], 'files.1': ['The constitution must be a PDF.'] } } } });
     renderPage();
