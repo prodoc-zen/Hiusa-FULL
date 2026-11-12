@@ -80,16 +80,24 @@ describe('TasksPage', () => {
     expect(screen.queryByText('No tasks match these filters')).not.toBeInTheDocument();
   });
 
-  it('sends all selected filters to the count requests', async () => {
+  it('has no academic period picker of its own and asks for the semester the top bar is on', async () => {
     mocks.getAcademicPeriods.mockResolvedValue([{ id: 8, status: 'active', number: 1, academic_year: { label: '2026-2027' } }]);
+    render(<MemoryRouter><TasksPage /></MemoryRouter>);
+    await screen.findAllByText('Monthly Records');
+    expect(screen.queryByLabelText('Academic period')).not.toBeInTheDocument();
+    expect(screen.queryByText('Active period')).not.toBeInTheDocument();
+    expect(mocks.getTasks.mock.calls.every(([params]) => !('academic_semester_id' in params))).toBe(true);
+    expect(mocks.getEvents.mock.calls.every(([params]) => params.academic_semester_id === undefined)).toBe(true);
+  });
+
+  it('sends all selected filters to the count requests', async () => {
     render(<MemoryRouter><TasksPage /></MemoryRouter>);
     await screen.findAllByText('Monthly Records');
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     for (const [label, value] of [['assignee', 'OFF-1'], ['event', '7'], ['priority', 'high'], ['deadline', '2026-10-10']]) {
       fireEvent.change(screen.getByLabelText(`Filter tasks by ${label}`), { target: { value } });
     }
-    fireEvent.change(screen.getByLabelText('Academic period'), { target: { value: '8' } });
-    await waitFor(() => expect(mocks.getTasks).toHaveBeenCalledWith({ assigned_to: 'OFF-1', event_id: '7', priority: 'high', deadline_from: '2026-10-10', deadline_to: '2026-10-10', academic_semester_id: '8', status: 'pending', per_page: 1 }));
+    await waitFor(() => expect(mocks.getTasks).toHaveBeenCalledWith({ assigned_to: 'OFF-1', event_id: '7', priority: 'high', deadline_from: '2026-10-10', deadline_to: '2026-10-10', status: 'pending', per_page: 1 }));
   });
 
   it('requires a final officer choice after recommendation and preserves entered text when saving', async () => {
