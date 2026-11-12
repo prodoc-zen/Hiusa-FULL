@@ -51,19 +51,8 @@ class CollegeController extends Controller
 
         $college = DB::transaction(function () use ($request, $data) {
             $college = College::create([...$data, 'is_active' => true]);
-            $name = $college->name;
-            for ($suffix = 2; Organization::where('name', $name)->exists(); $suffix++) {
-                $tail = ' (College'.($suffix > 2 ? ' '.$suffix : '').')';
-                $name = mb_substr($college->name, 0, 255 - mb_strlen($tail)).$tail;
-            }
-            $base = rtrim(mb_substr(Str::slug($name), 0, 240), '-') ?: 'college';
-            $slug = $base;
-            for ($suffix = 2; Organization::where('slug', $slug)->exists(); $suffix++) {
-                $slug = $base.'-'.$suffix;
-            }
             $home = Organization::create([
-                'name' => $name,
-                'slug' => $slug,
+                ...$this->homeNameAndSlug($college),
                 'college' => $college->name,
                 'college_id' => $college->id,
                 'acronym' => $college->code,
@@ -77,6 +66,24 @@ class CollegeController extends Controller
         });
 
         return response()->json($college, 201);
+    }
+
+    /** The home organization's name is the college name, tagged "(College)" when another organization already holds it; the slug follows the name. */
+    private function homeNameAndSlug(College $college, ?int $exceptId = null): array
+    {
+        $taken = fn (string $column, string $value) => Organization::where($column, $value)->when($exceptId, fn ($query) => $query->where('id', '!=', $exceptId))->exists();
+        $name = $college->name;
+        for ($suffix = 2; $taken('name', $name); $suffix++) {
+            $tail = ' (College'.($suffix > 2 ? ' '.$suffix : '').')';
+            $name = mb_substr($college->name, 0, 255 - mb_strlen($tail)).$tail;
+        }
+        $base = rtrim(mb_substr(Str::slug($name), 0, 240), '-') ?: 'college';
+        $slug = $base;
+        for ($suffix = 2; $taken('slug', $slug); $suffix++) {
+            $slug = $base.'-'.$suffix;
+        }
+
+        return ['name' => $name, 'slug' => $slug];
     }
 
     /**
@@ -151,6 +158,7 @@ class CollegeController extends Controller
             }
             if ($college->homeOrganization) {
                 $college->homeOrganization->update([
+                    ...($oldName !== $college->name ? $this->homeNameAndSlug($college, $college->homeOrganization->id) : []),
                     'college' => $college->name,
                     'acronym' => $college->code,
                 ]);

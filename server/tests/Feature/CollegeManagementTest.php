@@ -174,6 +174,47 @@ class CollegeManagementTest extends TestCase
         $this->assertSame('College of Computing', $home->fresh()->college);
     }
 
+    public function test_renaming_a_college_renames_its_home_organization_and_its_slug(): void
+    {
+        $this->actingAsSao();
+        $id = $this->postJson('/api/system/colleges', ['name' => '34', 'code' => 'ENG'])->assertCreated()->json('id');
+        $home = Organization::where('college_id', $id)->where('organization_type', 'COLLEGE')->firstOrFail();
+        $this->assertSame('34', $home->name);
+
+        $this->putJson('/api/system/colleges/'.$id, ['name' => 'College of Engineering', 'code' => 'ENG'])->assertOk();
+
+        $this->assertSame('College of Engineering', $home->fresh()->name);
+        $this->assertSame('college-of-engineering', $home->fresh()->slug);
+        $this->assertSame('College of Engineering', $home->fresh()->college);
+    }
+
+    public function test_renaming_a_college_to_a_name_a_student_organization_holds_keeps_the_college_tag_and_a_free_slug(): void
+    {
+        Organization::factory()->create(['name' => 'College of Law', 'slug' => 'college-of-law']);
+        $this->actingAsSao();
+        $id = $this->postJson('/api/system/colleges', ['name' => 'Law School', 'code' => 'LAW'])->assertCreated()->json('id');
+        $home = Organization::where('college_id', $id)->where('organization_type', 'COLLEGE')->firstOrFail();
+
+        $this->putJson('/api/system/colleges/'.$id, ['name' => 'College of Law', 'code' => 'LAW'])->assertOk();
+
+        $this->assertSame('College of Law (College)', $home->fresh()->name);
+        $this->assertSame('college-of-law-college', $home->fresh()->slug);
+    }
+
+    public function test_saving_a_college_without_renaming_it_leaves_its_home_name_and_slug_alone(): void
+    {
+        $this->actingAsSao();
+        $id = $this->postJson('/api/system/colleges', ['name' => 'Law School', 'code' => 'LAW'])->assertCreated()->json('id');
+        $home = Organization::where('college_id', $id)->where('organization_type', 'COLLEGE')->firstOrFail();
+        $home->update(['name' => 'Law School (College)', 'slug' => 'law-school-college']);
+
+        $this->putJson('/api/system/colleges/'.$id, ['name' => 'Law School', 'code' => 'LWS'])->assertOk();
+
+        $this->assertSame('Law School (College)', $home->fresh()->name);
+        $this->assertSame('law-school-college', $home->fresh()->slug);
+        $this->assertSame('LWS', $home->fresh()->acronym);
+    }
+
     public function test_college_edit_rejects_a_duplicate_name_or_code_and_non_sao_callers(): void
     {
         $first = College::create(['name' => 'First College', 'code' => 'FIR', 'is_active' => true]);
