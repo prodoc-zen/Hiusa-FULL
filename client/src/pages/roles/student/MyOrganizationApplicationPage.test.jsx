@@ -93,6 +93,19 @@ describe('MyOrganizationApplicationPage', () => {
     expect(within(officers).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
   });
 
+  it('lines the requirements up as Requirement, Status, File and Action, with a file name that is cut, not wrapped', async () => {
+    renderPage();
+    const card = (await screen.findByRole('heading', { name: 'Requirements' })).closest('section');
+
+    ['Requirement', 'Status', 'File', 'Action'].forEach((name) => expect(within(card).getByText(name)).toBeInTheDocument());
+    const officers = screen.getAllByRole('listitem').find((item) => within(item).queryByText('Officer list'));
+    expect(officers.firstElementChild.children).toHaveLength(4);
+    const link = within(officers).getByRole('button', { name: 'officers.pdf' });
+    expect(link).toHaveAttribute('title', 'officers.pdf');
+    expect(within(link).getByText('officers.pdf')).toHaveClass('truncate');
+    expect(link.innerHTML).not.toContain('break-all');
+  });
+
   it('keeps an accepted requirement with a note or attachment to one line until Details is opened', async () => {
     const accepted = application({ status: 'pending_sao', remarks: null });
     accepted.requirements[0].reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: 'Clear scan.' }];

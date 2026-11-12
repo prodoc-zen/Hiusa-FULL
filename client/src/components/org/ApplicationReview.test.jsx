@@ -323,6 +323,27 @@ describe('ApplicationReview', () => {
     await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, expect.objectContaining({ action: 'reject', remarks: 'Same purpose as an existing club.' })));
   });
 
+  it('lines the requirements up as Requirement, Status, File and Action, with a file name that is cut, not wrapped', async () => {
+    const long = 'financial-report-qa-financial-semester-2026-10-30-1.pdf';
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ requirements: [
+      { id: 1, name: 'Calendar of Activities (1st & 2nd Sem)', document: { id: 11, name: long, open_url: '/organization-applications/8/documents/11' }, reviews: [], review_files: [] },
+      { id: 2, name: 'VMGO', document: null, reviews: [], review_files: [] },
+    ] }) });
+    renderReview();
+    const section = await screen.findByRole('region', { name: 'Requirements' });
+
+    ['Requirement', 'Status', 'File', 'Action'].forEach((name) => expect(within(section).getByText(name)).toBeInTheDocument());
+    const [first, second] = within(section).getAllByRole('listitem');
+    expect(first.firstElementChild.children).toHaveLength(4);
+    expect(second.firstElementChild.children).toHaveLength(4);
+    const link = within(first).getByRole('button', { name: long });
+    expect(link).toHaveAttribute('title', long);
+    expect(within(link).getByText(long)).toHaveClass('truncate');
+    expect(link.innerHTML).not.toContain('break-all');
+    expect(within(second).getByText('No file attached.')).toBeInTheDocument();
+    expect(section.parentElement).not.toHaveClass('max-w-3xl');
+  });
+
   it('has one filled button in the decision area', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderReview('SUPER_ADMIN');
