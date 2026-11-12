@@ -3,6 +3,7 @@ import { Button, Drawer, Field, Select } from '../ui';
 import PersonPicker from '../people/PersonPicker';
 import { getProfileOrganizations, inviteAccountProfile } from '../../services/authService';
 import { unwrapList } from '../../services/pagination';
+import { searchPeople } from '../../services/peopleService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDisplayText } from '../../utils/displayText';
 
@@ -49,6 +50,9 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   const headMode = initialRole === 'ADMIN';
   const target = organizations.find((item) => String(item.id) === organizationId);
   const headOffered = mayNameHead(actorRole, target, organizations);
+  const targetId = target?.id;
+  // The server accepts only a student of the chosen organization's college, so the picker asks for exactly those.
+  const searchEligible = (params) => searchPeople({ ...params, eligible_for_organization_id: targetId });
   // The chosen role can go stale when the target is picked without the select (a single organization is auto-selected).
   const effectiveRole = role === 'ADMIN' && !headOffered ? 'STUDENT' : role;
   const headRefused = headMode && Boolean(target) && !headOffered;
@@ -106,6 +110,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
             <Select value={organizationId} disabled={busy || optionsLoading} onChange={(event) => {
               const next = organizations.find((item) => String(item.id) === event.target.value);
               setOrganizationId(event.target.value);
+              setSelected((current) => (initialUser && current?.school_id === initialUser.school_id ? current : null));
               if (role === 'ADMIN' && !mayNameHead(actorRole, next, organizations)) setRole('STUDENT');
               setError('');
             }}>
@@ -122,7 +127,8 @@ export default function AddExistingUserModal({ organization = null, initialUser 
         <PersonPicker
           label="Student"
           scope={scopeFor(actorRole, target)}
-          excludeOrganizationId={target?.id}
+          excludeOrganizationId={targetId}
+          search={targetId ? searchEligible : undefined}
           value={selected}
           onSelect={(person) => { setSelected(person); setError(''); }}
           disabled={busy}

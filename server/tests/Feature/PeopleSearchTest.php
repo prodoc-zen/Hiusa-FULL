@@ -285,6 +285,36 @@ class PeopleSearchTest extends TestCase
         $this->assertSame([$outsider->school_id], collect($response->json('data'))->pluck('school_id')->all());
     }
 
+    public function test_the_sao_can_narrow_the_search_to_students_the_organization_would_accept(): void
+    {
+        $sao = User::factory()->superAdmin()->create([
+            ...$this->pinned(),
+            'organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id,
+        ]);
+        $this->student($this->computingHome, ['first_name' => 'Gia', 'last_name' => 'Computing']);
+        $this->student($this->computingOtherOrg, ['first_name' => 'Gia', 'last_name' => 'Sibling']);
+        $this->student($this->artsOrg, ['first_name' => 'Gia', 'last_name' => 'Arts']);
+        $this->student($this->computingHome, ['first_name' => 'Gia', 'last_name' => 'Elsewhere', 'department' => $this->arts->name]);
+
+        $this->assertSame(['Gia Arts', 'Gia Computing', 'Gia Elsewhere', 'Gia Sibling'], $this->names($this->search($sao, ['q' => 'gia', 'scope' => 'all'])));
+        $this->assertSame(
+            ['Gia Computing', 'Gia Sibling'],
+            $this->names($this->search($sao, ['q' => 'gia', 'scope' => 'all', 'eligible_for_organization_id' => $this->computingOrg->id])),
+        );
+        $this->assertSame(
+            ['Gia Arts'],
+            $this->names($this->search($sao, ['q' => 'gia', 'scope' => 'all', 'eligible_for_organization_id' => $this->artsOrg->id])),
+        );
+    }
+
+    public function test_only_someone_who_manages_the_organization_may_ask_who_it_would_accept(): void
+    {
+        $admin = User::factory()->admin()->create([...$this->pinned(), 'organization_id' => $this->computingOrg->id]);
+
+        $this->search($admin, ['q' => 'quill', 'eligible_for_organization_id' => $this->computingOtherOrg->id])->assertForbidden();
+        $this->search($admin, ['q' => 'quill', 'eligible_for_organization_id' => $this->computingOrg->id])->assertOk();
+    }
+
     public function test_only_someone_who_manages_the_organization_may_ask_who_already_belongs(): void
     {
         $admin = User::factory()->admin()->create([...$this->pinned(), 'organization_id' => $this->computingOrg->id]);
