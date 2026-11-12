@@ -16,11 +16,15 @@ vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mock
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
+const briefing = vi.hoisted(() => ({ getBriefing: vi.fn() }));
+vi.mock('../../../services/dashboardService', () => ({ getBriefing: briefing.getBriefing }));
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 const paginator = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 100, total: data.length } });
 const org = (id, lifecycle_status) => ({ id, name: `Org ${id}`, college: 'College of Engineering', lifecycle_status });
+
+const briefingWith = (attention) => ({ data: { user: { first_name: 'Eduardo', role: 'DEPARTMENT_HEAD', organization: { id: 9, name: 'College of Engineering' } }, summary: { attention_count: attention.length, headline: attention.length ? `${attention.length} item needs you today.` : 'Nothing needs you today.' }, attention, pillars: {}, insights: [] } });
 
 function renderPage() {
   return render(<MemoryRouter><DepartmentHeadHomePage /></MemoryRouter>);
@@ -30,6 +34,7 @@ describe('DepartmentHeadHomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Eduardo', last_name: 'Ramos', organization: { id: 9, name: 'College of Engineering', college: 'College of Engineering', college_id: 5, organization_type: 'COLLEGE' } }));
+    briefing.getBriefing.mockResolvedValue(briefingWith([]));
     mocks.getElections.mockResolvedValue([]);
     mocks.getEvents.mockResolvedValue(paginator([]));
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
@@ -49,6 +54,15 @@ describe('DepartmentHeadHomePage', () => {
       '/dashboard/department-head/organizations?status=active',
       '/dashboard/events',
     ]);
+  });
+
+  it('shows the Needs attention list of the briefing, with an organization that still has no Admin linked to Give access', async () => {
+    briefing.getBriefing.mockResolvedValue(briefingWith([{ id: 'org_no_admin-5', type: 'organization_awaiting_admin', severity: 'low', title: 'Name the organization head of Debate Society', detail: 'Debate Society is approved and active, but nobody can sign in to manage it yet.', due_at: null, href: '/dashboard/department-head/org/5?tab=people' }]));
+    renderPage();
+
+    const attention = (await screen.findByRole('heading', { name: 'Needs attention' })).closest('section');
+    expect(within(attention).getByRole('link', { name: /Name the organization head of Debate Society/ })).toHaveAttribute('href', '/dashboard/department-head/org/5?tab=people');
+    expect(screen.getAllByTestId('process-tracker')).toHaveLength(1);
   });
 
   it('counts every upcoming event, not only the four listed', async () => {
