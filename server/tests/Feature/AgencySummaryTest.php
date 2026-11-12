@@ -42,6 +42,24 @@ class AgencySummaryTest extends TestCase
         $this->assertSame(5, $full['organizations']);
     }
 
+    public function test_every_agency_row_and_the_organization_detail_say_whether_the_organization_is_university_wide(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => $sao->id]));
+        $college = College::create(['name' => 'Computing', 'is_active' => true]);
+        $collegeOrganization = Organization::factory()->create(['college_id' => $college->id, 'college' => $college->name, 'lifecycle_status' => 'active']);
+        $unified = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null, 'lifecycle_status' => 'active']);
+
+        $overview = $this->getJson('/api/system/agency')->assertOk();
+        $unassigned = collect($overview->json('unassigned_organizations'));
+        $this->assertTrue($unassigned->firstWhere('id', $unified->id)['is_university_wide']);
+        $listed = collect(collect($overview->json('colleges'))->firstWhere('id', $college->id)['organizations']);
+        $this->assertFalse($listed->firstWhere('id', $collegeOrganization->id)['is_university_wide']);
+
+        $this->getJson("/api/system/organizations/{$unified->id}/overview")->assertOk()->assertJsonPath('organization.is_university_wide', true);
+        $this->getJson("/api/system/organizations/{$collegeOrganization->id}/overview")->assertOk()->assertJsonPath('organization.is_university_wide', false);
+    }
+
     public function test_summary_retains_authentication_role_boundaries_and_validates_its_query(): void
     {
         $this->getJson('/api/system/agency?summary=1')->assertUnauthorized();
