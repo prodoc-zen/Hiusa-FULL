@@ -104,17 +104,18 @@ class SystemUsersTest extends TestCase
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $kept->id]);
     }
 
-    public function test_sao_gets_a_one_time_reset_link_for_a_student_and_an_officer_even_while_voting_is_open(): void
+    public function test_sao_gets_a_one_time_reset_link_for_a_student_an_officer_and_an_administrator_even_while_voting_is_open(): void
     {
         config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
         Mail::fake();
         $sao = User::factory()->superAdmin()->create();
         $student = User::factory()->student()->create(['email' => 'ana@example.test']);
         $officer = User::factory()->officer()->create(['organization_id' => $student->organization_id]);
+        $admin = User::factory()->admin()->create(['organization_id' => $student->organization_id]);
         Election::factory()->create(['organization_id' => $student->organization_id, 'status' => 'active']);
         Sanctum::actingAs($sao);
 
-        foreach ([$student, $officer] as $member) {
+        foreach ([$student, $officer, $admin] as $member) {
             $response = $this->postJson('/api/system/users/'.$member->school_id.'/password-reset')->assertOk();
 
             $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
@@ -157,12 +158,12 @@ class SystemUsersTest extends TestCase
     {
         config(['mail.default' => 'log', 'app.frontend_url' => 'https://hiusa.example.test']);
         $sao = User::factory()->superAdmin()->create();
-        $admin = User::factory()->admin()->create();
         $head = User::factory()->departmentHead()->create();
         $inactive = User::factory()->student()->create(['account_status' => 'inactive']);
+        $inactiveAdmin = User::factory()->admin()->create(['account_status' => 'inactive']);
 
         Sanctum::actingAs($sao);
-        foreach ([$admin, $head, $sao, $inactive] as $refused) {
+        foreach ([$head, $sao, $inactive, $inactiveAdmin] as $refused) {
             $this->postJson('/api/system/users/'.$refused->school_id.'/password-reset')->assertUnprocessable();
         }
         $this->assertDatabaseCount('password_reset_tokens', 0);
