@@ -21,7 +21,7 @@ const isUpcoming = (event) => new Date(event.start_time).getTime() > Date.now();
 function registrationSteps(status, event, open) {
   const closedForGood = !open && !['registered', 'attended', 'no_show'].includes(status);
   const registerState = ['registered', 'attended', 'no_show'].includes(status) ? 'done' : closedForGood ? 'blocked' : 'current';
-  const registerNote = closedForGood ? (event.status === 'approved' ? 'Closed' : 'Opens once approved') : undefined;
+  const registerNote = closedForGood ? (['approved', 'ongoing', 'completed', 'cancelled'].includes(event.status) ? 'Closed' : 'Opens once approved') : undefined;
   const checkInState = status === 'registered' ? 'current' : status === 'attended' ? 'done' : status === 'no_show' ? 'blocked' : 'upcoming';
   return [
     { key: 'register', label: 'Register', state: registerState, note: registerNote },
