@@ -13,6 +13,18 @@ describe('workspaceSteps', () => {
     expect(steps.map((step) => step.number)).toEqual([1, 2, 3, 4, 5]);
   });
 
+  it('adds Applications after Overview only for an election where students file their own candidacy', () => {
+    const filing = { ...election, filing_starts_at: FUTURE };
+    const steps = workspaceSteps('ADMIN', filing);
+    expect(steps.map((step) => step.label)).toEqual(['Overview', 'Applications', 'Party lists', 'Candidates', 'Voters', 'Results']);
+    expect(steps.map((step) => step.number)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(steps.find((step) => step.key === 'applications').to).toBe('/dashboard/elections/applications?record=12');
+    expect(workspaceSteps('SBO_OFFICER', filing).map((step) => step.label)).toEqual(['Applications', 'Candidates', 'Voters', 'Results']);
+    expect(workspaceSteps('DEPARTMENT_HEAD', filing).map((step) => step.label)).toEqual(['Results']);
+    expect(workspaceSteps('STUDENT', filing).map((step) => step.label)).toEqual(['Results']);
+    expect(workspaceSteps('ADMIN', filing, '/dashboard/elections/applications').filter((step) => step.active).map((step) => step.key)).toEqual(['applications']);
+  });
+
   it('keeps the election in the URL of every step', () => {
     const steps = workspaceSteps('ADMIN', election);
     expect(steps.find((step) => step.key === 'partylists').to).toBe('/dashboard/elections/manage-partylists?record=12');
@@ -49,21 +61,16 @@ describe('workspaceSteps', () => {
 describe('finalizeChecklist', () => {
   const positions = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
-  it('counts positions without candidates and names the missing party list candidates', () => {
+  it('counts positions without candidates and no longer asks for a party list', () => {
     const checklist = finalizeChecklist({ positions, candidates: [{ id: 9, position_id: 1, partylist_id: null }] });
     expect(checklist.ready).toBe(false);
+    expect(checklist.items.map((item) => item.key)).toEqual(['positions', 'candidates']);
     expect(checklist.items.find((item) => item.key === 'candidates').label).toBe('Positions without candidates: 2');
-    expect(checklist.items.find((item) => item.key === 'partylist').label).toBe('Party list candidates missing');
     expect(checklist.disabledReason).toBe('Add a candidate to each of the 2 positions that has none first.');
   });
 
-  it('asks for a party list candidate once every position has a candidate', () => {
+  it('is ready when every position has a candidate, even with every candidate independent', () => {
     const checklist = finalizeChecklist({ positions: [{ id: 1 }], candidates: [{ id: 9, position_id: 1, partylist_id: null }] });
-    expect(checklist.disabledReason).toBe('Assign at least one candidate to a party list first.');
-  });
-
-  it('is ready when every position has a candidate and one belongs to a party list', () => {
-    const checklist = finalizeChecklist({ positions: [{ id: 1 }], candidates: [{ id: 9, position_id: 1, partylist_id: 4 }] });
     expect(checklist.ready).toBe(true);
     expect(checklist.disabledReason).toBeUndefined();
   });
@@ -80,6 +87,12 @@ describe('studentVoteState', () => {
 
   it('says Open while a finalized election accepts ballots', () => {
     expect(studentVoteState(open)).toEqual({ key: 'open', label: 'Open' });
+  });
+
+  it('reads has_voted from the payload, since a ballot no longer lists the voter choices', () => {
+    expect(studentVoteState({ ...open, has_voted: true }).label).toBe('Voted');
+    expect(studentVoteState({ ...open, status: 'closed', has_voted: true }).label).toBe('Voted');
+    expect(studentVoteState({ ...open, has_voted: false, my_votes: [{ vote_hash: 'H' }] }).label).toBe('Open');
   });
 
   it('says Voted as soon as the viewer has a ballot, even after the election closes', () => {
@@ -120,7 +133,7 @@ describe('resultsLink', () => {
 describe('role banners and status', () => {
   it('words the banner for what each role does', () => {
     expect(roleBanner('ADMIN')).toMatch(/You run this election/);
-    expect(roleBanner('SBO_OFFICER')).toMatch(/candidates and voters/);
+    expect(roleBanner('SBO_OFFICER')).toBe('You can follow the candidates, the voters and the results. The Admin runs the election.');
     expect(roleBanner('DEPARTMENT_HEAD')).toMatch(/approve elections/);
     expect(roleBanner('STUDENT')).toMatch(/Vote while the election is open/);
   });

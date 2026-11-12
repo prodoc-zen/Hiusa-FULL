@@ -29,7 +29,7 @@ describe('modules narrow an officer menu', () => {
   it('removes a group once none of its pages remain, and an empty list leaves only the read-only feed', () => {
     const nav = getNavForRole('SBO_OFFICER', []);
 
-    expect(labels(nav)).toEqual(['Dashboard', 'Ask AI', 'Updates', 'Clearance signing', 'Records', 'My activity']);
+    expect(labels(nav)).toEqual(['Dashboard', 'Ask AI', 'Updates', 'Clearance signing', 'Records', 'Officer transition', 'My activity']);
     expect(labels(nav.find((item) => item.id === 'updates').children)).toEqual(['Feed']);
   });
 

@@ -97,6 +97,14 @@ describe('ElectionWorkspaceHeader step strip', () => {
     expect(within(strip).getByRole('link', { name: /Voters/ })).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=7&view=voters');
   });
 
+  it('adds the Applications step for a filing election', () => {
+    renderHeader({ ...base, status: 'upcoming', filing_starts_at: FUTURE }, 'ADMIN');
+    const strip = screen.getByRole('navigation', { name: 'Election workspace steps' });
+    const items = within(strip).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent.replace(/^\d\.\s*/, '').replace(/:.*$/, ''))).toEqual(['Overview', 'Applications', 'Party lists', 'Candidates', 'Voters', 'Results']);
+    expect(within(strip).getByRole('link', { name: /Applications/ })).toHaveAttribute('href', '/dashboard/elections/applications?record=7');
+  });
+
   it('marks the current step and explains an unavailable one in text', () => {
     renderHeader({ ...base, status: 'upcoming' }, 'ADMIN', { path: '/dashboard/elections/manage-partylists?record=7' });
     const strip = screen.getByRole('navigation', { name: 'Election workspace steps' });
@@ -138,7 +146,7 @@ describe('ElectionWorkspaceHeader finalize', () => {
     expect(button).toBeDisabled();
     expect(screen.getByText('Add a candidate to the 1 position that has none first.')).toBeInTheDocument();
     expect(screen.getByText('Positions without candidates: 1')).toBeInTheDocument();
-    expect(screen.getByText('Party list candidates missing')).toBeInTheDocument();
+    expect(screen.queryByText(/Party list candidates/)).not.toBeInTheDocument();
     expect(finalizeElection).not.toHaveBeenCalled();
   });
 
@@ -154,10 +162,10 @@ describe('ElectionWorkspaceHeader finalize', () => {
   });
 
   it('shows the reason the server gives when it refuses to finalize', async () => {
-    finalizeElection.mockRejectedValue({ response: { status: 422, data: { message: 'Assign at least one candidate to a party list before finalizing.' } } });
+    finalizeElection.mockRejectedValue({ response: { status: 422, data: { message: 'The ballot is not complete.' } } });
     renderHeader(ready, 'ADMIN');
     fireEvent.click(screen.getByRole('button', { name: 'Finalize ballot' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Assign at least one candidate to a party list before finalizing.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The ballot is not complete.');
   });
 
   it('shows the Officer the checklist but no Finalize button', () => {
