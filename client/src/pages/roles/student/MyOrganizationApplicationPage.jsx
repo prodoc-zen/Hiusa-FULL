@@ -21,6 +21,11 @@ function requirementState(requirement) {
   return '';
 }
 
+// An acceptance from an earlier round still holds on a file the applicant did not replace.
+function acceptedEarlier(requirement) {
+  return requirementState(requirement) === 'ok' && requirement.reviews.every((review) => review.carried);
+}
+
 // Rows that need nothing from the applicant stay on one line; the rest show their notes and files.
 function needsAction(requirement) {
   const state = requirementState(requirement);
@@ -37,7 +42,7 @@ function requirementRow(requirement, open, onToggle) {
   return {
     id: requirement.id,
     name: requirement.name,
-    status: state ? { status: state } : { status: 'pending', tone: 'neutral', label: 'Not reviewed yet' },
+    status: acceptedEarlier(requirement) ? { status: 'ok', label: 'Accepted earlier' } : state ? { status: state } : { status: 'pending', tone: 'neutral', label: 'Not reviewed yet' },
     file: requirement.document ? { name: requirement.document.name, url: requirement.document.open_url } : null,
     emptyFile: 'No file yet.',
     actions: toggle ? [{ label, ariaLabel: `${label} ${requirement.name}`, expanded: open, onClick: onToggle }] : [],
@@ -45,7 +50,9 @@ function requirementRow(requirement, open, onToggle) {
     note: requirement.reviews.length > 0 && (
       <div className="space-y-2">
         {requirement.reviews.map((review) => (
-          <p key={review.stage} className="min-w-0"><span className="font-semibold">{review.stage_label}:</span> {review.note || (review.status === 'ok' ? 'No problem found.' : 'No note.')}</p>
+          <p key={review.stage} className={`min-w-0 ${review.status === 'needs_changes' || review.status === 'missing' ? 'rounded-control border border-warning/40 bg-warning-tint px-3 py-2 text-warning-strong' : ''}`}>
+            <span className="font-semibold">{review.stage_label}:</span> {review.note || (review.carried ? 'Accepted earlier.' : review.status === 'ok' ? 'No problem found.' : 'No note.')}
+          </p>
         ))}
       </div>
     ),
@@ -59,11 +66,12 @@ function requirementRow(requirement, open, onToggle) {
   };
 }
 
-function Note({ who, children }) {
+// A returned note stands apart from the requirement text in the same danger tint the Admin sees on a returned event.
+function Note({ who, returned = false, children }) {
   return (
-    <div className="mt-3 border-t border-line pt-3">
-      <p className="text-xs font-semibold text-ink-muted">Note from {who}</p>
-      <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{children}</p>
+    <div className={returned ? 'mt-3 rounded-control border border-danger/30 bg-danger-tint p-3 text-danger-strong' : 'mt-3 border-t border-line pt-3'}>
+      <p className={`text-xs font-semibold ${returned ? '' : 'text-ink-muted'}`}>Note from {who}</p>
+      <p className={`mt-1 whitespace-pre-wrap text-sm ${returned ? '' : 'text-ink'}`}>{children}</p>
     </div>
   );
 }
@@ -134,7 +142,7 @@ export default function MyOrganizationApplicationPage() {
               <p className="text-sm font-medium text-ink-muted">{application.acronym} · {application.college?.name}{application.submitted_at ? ` · Sent ${manilaDate(application.submitted_at, 'long')}` : ''}</p>
             </div>
             <p className="mt-3 text-sm font-semibold text-ink">{applicantStatusLine(application)}</p>
-            {application.remarks && <Note who={application.status === 'returned' ? returnedBy : 'the SAO'}>{application.remarks}</Note>}
+            {application.remarks && <Note who={returned ? returnedBy : 'the SAO'} returned={returned}>{application.remarks}</Note>}
             {application.endorsement_note && <Note who="your Department Head">{application.endorsement_note}</Note>}
           </Card>
 
