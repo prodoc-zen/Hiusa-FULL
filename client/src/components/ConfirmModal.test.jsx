@@ -97,4 +97,61 @@ describe('ConfirmModal', () => {
     const dialog = screen.getByRole('dialog', { name: 'Delete this budget?' });
     expect(within(dialog).getByRole('alert')).toHaveTextContent('This budget has transactions.');
   });
+
+  it('lays a danger confirmation out as a centered stack: title, one consequence line, name, Delete then Cancel', () => {
+    render(
+      <ConfirmModal
+        open
+        title="Delete this event?"
+        message="Its tasks and attendance records will be removed."
+        recordName="General Assembly"
+        confirmText="Delete event"
+        onCancel={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Delete this event?' });
+    expect(dialog).toHaveAttribute('data-layout', 'centered');
+    expect(within(dialog).getByRole('heading', { name: 'Delete this event?' })).toHaveClass('text-danger-strong', 'text-center');
+    expect(within(dialog).getByText('Its tasks and attendance records will be removed.')).toHaveClass('text-center');
+    expect(within(dialog).getByText('General Assembly')).toHaveClass('font-semibold', 'text-center');
+    expect(within(dialog).getByRole('button', { name: 'Close modal' })).toBeInTheDocument();
+    const buttons = within(dialog).getAllByRole('button').filter((button) => button.getAttribute('aria-label') !== 'Close modal');
+    expect(buttons.map((button) => button.textContent)).toEqual(['Delete event', 'Cancel']);
+    expect(buttons[0]).toHaveAttribute('data-variant', 'danger');
+    expect(buttons[1]).toHaveAttribute('data-variant', 'secondary');
+    expect(Array.from(dialog.querySelectorAll('img, svg')).filter((node) => !node.closest('button'))).toHaveLength(0);
+  });
+
+  it('puts keyboard focus on Cancel, not on the destructive button', () => {
+    render(
+      <ConfirmModal open title="Delete this event?" message="Gone for good." confirmText="Delete event" onCancel={() => {}} onConfirm={() => {}} />,
+    );
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+
+  it('keeps the standard layout for a primary confirmation such as signing out', () => {
+    render(
+      <ConfirmModal open variant="primary" title="Log out?" message="You will need to sign in again." confirmText="Log Out" onCancel={() => {}} onConfirm={() => {}} />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Log out?' });
+    expect(dialog).not.toHaveAttribute('data-layout');
+    expect(within(dialog).getByRole('heading', { name: 'Log out?' })).not.toHaveClass('text-danger-strong');
+    const buttons = within(dialog).getAllByRole('button').filter((button) => button.getAttribute('aria-label') !== 'Close modal');
+    expect(buttons.map((button) => button.textContent)).toEqual(['Cancel', 'Log Out']);
+  });
+
+  it('shows the message as the single body line when no record name is given', () => {
+    render(
+      <ConfirmModal open title="Remove this draft?" message="The draft will be removed." confirmText="Remove" onCancel={() => {}} onConfirm={() => {}} />,
+    );
+    expect(screen.getAllByText('The draft will be removed.')).toHaveLength(1);
+  });
+
+  it('does not offer the corner close while busy', () => {
+    render(
+      <ConfirmModal open busy title="Delete this event?" message="Gone." confirmText="Delete event" onCancel={() => {}} onConfirm={() => {}} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Close modal' })).not.toBeInTheDocument();
+  });
 });

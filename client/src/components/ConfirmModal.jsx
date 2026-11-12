@@ -23,6 +23,17 @@ export default function ConfirmModal({
   const cancel = () => { setConfirmation({ recordName: '', value: '' }); onCancel?.(); };
   const confirm = () => { setConfirmation({ recordName: '', value: '' }); onConfirm?.(); };
 
+  const cancelButton = (
+    <Button variant="secondary" onClick={cancel} disabled={busy} data-autofocus={isDanger ? '' : undefined}>
+      {cancelText}
+    </Button>
+  );
+  const confirmButton = (
+    <Button variant={isDanger ? 'danger' : 'primary'} onClick={confirm} loading={busy} disabled={Boolean(confirmationText && entered.trim() !== confirmationText)}>
+      {confirmText}
+    </Button>
+  );
+
   return (
     <Modal
       open={open}
@@ -32,18 +43,11 @@ export default function ConfirmModal({
       closeOnBackdrop={false}
       closeOnEscape={!busy}
       maxWidth="max-w-md"
-      footer={(
-        <>
-          <Button variant="secondary" onClick={cancel} disabled={busy}>
-            {cancelText}
-          </Button>
-          <Button variant={isDanger ? 'danger' : 'primary'} onClick={confirm} loading={busy} disabled={Boolean(confirmationText && entered.trim() !== confirmationText)}>
-            {confirmText}
-          </Button>
-        </>
-      )}
+      centered={isDanger}
+      titleClassName={isDanger ? 'text-danger-strong' : 'text-ink'}
+      footer={isDanger ? <>{confirmButton}{cancelButton}</> : <>{cancelButton}{confirmButton}</>}
     >
-      <p className="text-sm font-semibold text-ink">{recordName || message}</p>
+      <p className={`text-sm text-ink ${isDanger ? 'text-center' : ''} ${isDanger && !recordName ? 'font-normal' : 'font-semibold'}`}>{recordName || message}</p>
       {error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error}</p>}
       {confirmationText && (
         <label className="mt-4 flex flex-col gap-1.5 text-[13px] font-medium text-ink">
