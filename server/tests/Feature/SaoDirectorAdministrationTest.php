@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Mail\PasswordResetMail;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\FinancialReport;
@@ -10,8 +9,6 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -115,92 +112,6 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_updated']);
     }
 
-    public function test_sao_can_create_admins_and_initiate_secure_recovery_without_overwriting_passwords(): void
-    {
-        Mail::fake();
-        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
-        $organization = Organization::factory()->create();
-        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        Sanctum::actingAs($director);
-
-        $this->postJson('/api/system/admins', [
-            'organization_id' => $organization->id,
-            'school_id' => 78001122,
-            'first_name' => 'Org',
-            'last_name' => 'Adviser',
-            'email' => 'adviser@example.test',
-            'position_title' => 'Adviser',
-            'password' => 'Initial-Admin-Password-123!',
-            'password_confirmation' => 'Initial-Admin-Password-123!',
-        ])->assertCreated();
-
-        $admin = User::findOrFail(78001122);
-        $initialHash = $admin->password_hash;
-        $this->assertTrue(Hash::check('Initial-Admin-Password-123!', $initialHash));
-        Mail::assertNothingOutgoing();
-        $this->assertDatabaseMissing('password_reset_tokens', ['organization_id' => $organization->id, 'email' => $admin->email]);
-
-        $this->putJson('/api/system/admins/'.$admin->school_id, [
-            'password' => 'SAO-must-not-set-this',
-            'password_confirmation' => 'SAO-must-not-set-this',
-        ])->assertUnprocessable();
-        $this->assertSame($initialHash, $admin->fresh()->password_hash);
-
-        $this->postJson('/api/system/admins/'.$admin->school_id.'/password-reset')
-            ->assertOk()
-            ->assertJsonPath('message', 'Password reset instructions were sent to the administrator email address.');
-
-        Mail::assertQueued(PasswordResetMail::class, fn (PasswordResetMail $mail) => $mail->hasTo($admin->email));
-        Mail::assertQueuedCount(1);
-        $this->assertDatabaseHas('password_reset_tokens', ['organization_id' => $organization->id, 'email' => $admin->email]);
-        $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'administrator_password_reset_initiated']);
-        $this->assertFalse(Hash::check('SAO-must-not-set-this', $admin->fresh()->password_hash));
-    }
-
-    public function test_sao_admin_creation_requires_a_confirmed_initial_password(): void
-    {
-        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
-        $organization = Organization::factory()->create();
-        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        Sanctum::actingAs($director);
-
-        $payload = [
-            'organization_id' => $organization->id,
-            'school_id' => 78001123,
-            'first_name' => 'New',
-            'last_name' => 'Administrator',
-            'email' => 'new-administrator@example.test',
-            'position_title' => 'President',
-        ];
-
-        $this->postJson('/api/system/admins', $payload)
-            ->assertUnprocessable()->assertJsonValidationErrors('password');
-
-        $this->postJson('/api/system/admins', [
-            ...$payload,
-            'password' => 'Initial-Admin-Password-123!',
-            'password_confirmation' => 'different-password',
-        ])->assertUnprocessable()->assertJsonValidationErrors('password');
-
-        $this->assertDatabaseMissing('users', ['school_id' => 78001123]);
-    }
-
-    public function test_sao_admin_management_excludes_the_system_administration_organization(): void
-    {
-        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
-        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        $invalidSystemAdmin = User::factory()->admin()->create(['organization_id' => $sao->id]);
-        Sanctum::actingAs($director);
-
-        $this->getJson('/api/system/admins')
-            ->assertOk()
-            ->assertJsonMissing(['school_id' => $invalidSystemAdmin->school_id]);
-        $this->putJson('/api/system/admins/'.$invalidSystemAdmin->school_id, ['first_name' => 'Blocked'])
-            ->assertUnprocessable();
-        $this->postJson('/api/system/admins/'.$invalidSystemAdmin->school_id.'/password-reset')
-            ->assertUnprocessable();
-    }
-
     public function test_non_sao_roles_cannot_access_sao_administration_endpoints(): void
     {
         $organization = Organization::factory()->create();
@@ -209,7 +120,6 @@ class SaoDirectorAdministrationTest extends TestCase
             Sanctum::actingAs($user);
             $this->getJson('/api/system/overview')->assertForbidden();
             $this->getJson('/api/system/organizations')->assertForbidden();
-            $this->getJson('/api/system/admins')->assertForbidden();
             $this->getJson('/api/system/announcements')->assertForbidden();
         }
     }

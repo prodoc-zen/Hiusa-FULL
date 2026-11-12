@@ -10,12 +10,8 @@ use App\Models\Election;
 use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Organization;
-use App\Models\SboPosition;
 use App\Models\User;
-use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
-use App\Support\FilterValues;
-use App\Support\FullNameSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,11 +23,6 @@ use Illuminate\Validation\ValidationException;
 /** SAO-only administration and read-only university oversight. */
 class SystemAdministrationController extends Controller
 {
-    // Department heads keep their oversight role; they never take over an organization.
-    private const SUCCESSOR_ROLES = ['STUDENT', 'SBO_OFFICER', 'ADMIN'];
-
-    private const PROFILE_ONLY_ADMIN = 'An administrator who holds the role only through an extra organization profile is changed with Manage profiles.';
-
     private const ACTIVE_HEAD_EXISTS = 'This college already has an active Department Head. Deactivate the current one first.';
 
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
@@ -190,199 +181,6 @@ class SystemAdministrationController extends Controller
         return response()->json($organization->fresh());
     }
 
-    public function admins(Request $request)
-    {
-        $filters = $request->validate(['organization_id' => ['nullable', FilterValues::rule(['nullable', 'integer', 'exists:organizations,id'])], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', FilterValues::rule(['nullable', 'in:active,inactive,disabled,all'])], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = AccountProfile::query()
-            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
-            ->select('account_profiles.*')
-            ->with(['organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS), 'user' => fn ($user) => $user->without('organization')])
-            ->where('account_profiles.role', 'ADMIN')
-            ->whereHas('organization', fn ($organization) => $organization->student());
-        if (! empty($filters['organization_id'])) {
-            $query->whereIn('account_profiles.organization_id', FilterValues::values($filters['organization_id']));
-        }
-        if (($filters['status'] ?? 'all') !== 'all') {
-            $query->whereIn('account_profiles.account_status', FilterValues::values($filters['status']));
-        }
-        if (! empty($filters['search'])) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('users.first_name', 'like', '%'.$filters['search'].'%')->orWhere('users.last_name', 'like', '%'.$filters['search'].'%')->orWhere('users.email', 'like', '%'.$filters['search'].'%')->orWhere('users.school_id', 'like', '%'.$filters['search'].'%');
-                FullNameSearch::orWhereMatches($q, $filters['search']);
-            });
-        }
-
-        $admins = $query->orderBy('users.last_name')->orderBy('account_profiles.id')->paginate($filters['per_page'] ?? 20);
-        $admins->getCollection()->transform(function (AccountProfile $profile) {
-            $isPrimary = $profile->user->getRawOriginal('role') === 'ADMIN'
-                && (int) $profile->user->getRawOriginal('organization_id') === (int) $profile->organization_id;
-            $profile->user->activateProfile($profile);
-
-            return [...$profile->user->toArray(), 'profile_id' => $profile->id, 'is_primary_profile' => $isPrimary];
-        });
-
-        return response()->json($admins);
-    }
-
-    public function storeAdmin(Request $request)
-    {
-        $this->normalizeAdminInput($request);
-        $data = $request->validate([
-            'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
-            'school_id' => ['required', 'integer', 'min:1', 'max:99999999', Rule::unique('users', 'school_id')],
-            'first_name' => ['required', 'string', 'max:60'],
-            'last_name' => ['required', 'string', 'max:60'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
-            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
-            'position_title' => ['nullable', 'string', 'max:100'],
-            'password' => ['required', 'string', 'min:8', 'max:72', 'confirmed'],
-            'password_hash' => ['prohibited'],
-            'role' => ['prohibited'],
-            'account_status' => ['prohibited'],
-        ]);
-        $user = DB::transaction(function () use ($request, $data) {
-            $organization = Organization::student()->whereKey($data['organization_id'])->lockForUpdate()->firstOrFail();
-            abort_unless($organization->is_active && $organization->isWritable(), 409, 'Choose an active organization in an active college.');
-            $user = User::create([
-                ...collect($data)->except('password')->all(),
-                'password_hash' => $data['password'],
-                'role' => 'ADMIN',
-                'account_status' => 'active',
-                'must_change_password' => true,
-                'department' => $organization->getRawOriginal('college'),
-            ]);
-            $this->ensureAdminPosition($organization->id, $data['position_title'] ?? null);
-            $this->audit($request, 'administrator_created', $user, $user->only(['school_id', 'organization_id', 'first_name', 'last_name', 'email', 'role']), 'SAO created an organization administrator account.');
-
-            return $user;
-        });
-
-        return response()->json($user->load('organization:id,name,acronym,college'), 201);
-    }
-
-    public function updateAdmin(Request $request, User $user)
-    {
-        if ($request->filled('organization_id') && $request->integer('organization_id') !== (int) $user->organization_id) {
-            abort(403, 'Administrator appointments in another organization must be handled by that organization.');
-        }
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
-            return response()->json(['message' => 'Only the primary administrator account is edited here. '.self::PROFILE_ONLY_ADMIN], 422);
-        }
-        if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
-            return response()->json(['message' => 'SAO cannot set administrator passwords. Initiate a secure password reset instead.'], 422);
-        }
-
-        $this->normalizeAdminInput($request);
-        $data = $request->validate(['organization_id' => ['sometimes', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'first_name' => ['sometimes', 'required', 'string', 'max:60'], 'last_name' => ['sometimes', 'required', 'string', 'max:60'], 'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->school_id, 'school_id')], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'account_status' => ['sometimes', 'in:active,inactive,disabled']]);
-        if (isset($data['organization_id'])) {
-            $organization = Organization::whereKey($data['organization_id'])->student()->first();
-            if (! $organization) {
-                return response()->json(['message' => 'Choose an active student organization.'], 422);
-            }
-            $data['department'] = $organization->college;
-        }
-
-        $leavesCurrentOrganization = isset($data['organization_id']) && (int) $data['organization_id'] !== (int) $user->organization_id;
-        $deactivatesAccount = isset($data['account_status']) && $data['account_status'] !== 'active';
-        $currentOrganizationIsActive = Organization::whereKey($user->organization_id)->where('is_active', true)->exists();
-        if ($user->account_status === 'active' && $currentOrganizationIsActive && ($leavesCurrentOrganization || $deactivatesAccount)) {
-            $hasAnotherActiveAdmin = AccountProfile::where('organization_id', $user->organization_id)
-                ->activeAdministrators()
-                ->where('user_school_id', '!=', $user->school_id)
-                ->exists();
-            if (! $hasAnotherActiveAdmin) {
-                return response()->json(['message' => 'Add another active administrator before transferring or deactivating this organization\'s last active administrator.'], 422);
-            }
-        }
-
-        $old = $user->toArray();
-        DB::transaction(function () use ($data, $old, $request, $user) {
-            $this->ensureAdminPosition((int) ($data['organization_id'] ?? $user->organization_id), $data['position_title'] ?? $user->position_title);
-            $emailChanges = isset($data['email']) && $data['email'] !== $user->email;
-            $user->update($data);
-            if ($emailChanges || ($data['account_status'] ?? $user->account_status) !== 'active') {
-                $user->tokens()->delete();
-            }
-            $fresh = $user->fresh();
-            $action = match (true) {
-                ($old['account_status'] ?? null) !== $fresh->account_status && $fresh->account_status === 'active' => 'administrator_activated',
-                ($old['account_status'] ?? null) !== $fresh->account_status => 'administrator_deactivated',
-                default => 'administrator_updated',
-            };
-            $this->audit($request, $action, $fresh, ['before' => $old, 'after' => $fresh->toArray()], 'SAO updated an organization Admin account.');
-        });
-
-        return response()->json($user->fresh()->load('organization:id,name,acronym'));
-    }
-
-    public function destroyAdmin(Request $request, User $user)
-    {
-        if ($user->role !== 'ADMIN' || $user->school_id === $request->user()->school_id) {
-            return response()->json(['message' => 'Only another organization Admin can be removed here. '.self::PROFILE_ONLY_ADMIN], 403);
-        }
-
-        $organizationId = $user->getRawOriginal('organization_id');
-        $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
-        $result = app(AccountProfileDeletionService::class)->remove($request->user(), $profile);
-
-        $this->audit($request, 'administrator_deleted', $user, [
-            'administrator_id' => $user->school_id,
-            'organization_id' => $organizationId,
-        ], 'SAO removed an organization administrator account.');
-
-        return response()->json(['message' => 'Administrator profile removed.', ...$result]);
-    }
-
-    /** Active members whose primary organization is this one, to pick an administrator successor from. */
-    public function organizationMembers(Request $request, Organization $organization)
-    {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:120']]);
-        if ($organization->organization_type !== 'STUDENT_ORGANIZATION') {
-            return response()->json(['message' => 'Choose a student organization.'], 422);
-        }
-
-        $members = User::where('organization_id', $organization->id)
-            ->where('account_status', 'active')
-            ->whereIn('role', self::SUCCESSOR_ROLES)
-            ->when(! empty($filters['search']), fn ($query) => $query->where(function ($q) use ($filters) {
-                $q->where('first_name', 'like', '%'.$filters['search'].'%')
-                    ->orWhere('last_name', 'like', '%'.$filters['search'].'%')
-                    ->orWhere('email', 'like', '%'.$filters['search'].'%')
-                    ->orWhere('school_id', 'like', '%'.$filters['search'].'%');
-                FullNameSearch::orWhereMatches($q, $filters['search']);
-            }))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->limit(20)
-            ->get(['school_id', 'first_name', 'last_name', 'email', 'role', 'position_title']);
-
-        return response()->json($members);
-    }
-
-    public function handoverAdmin(Request $request, User $user)
-    {
-        $organization = Organization::whereKey($user->organization_id)->student()->first();
-        if ($user->role !== 'ADMIN' || ! $organization) {
-            return response()->json(['message' => 'Only organization administrator accounts can be handed over. '.self::PROFILE_ONLY_ADMIN], 422);
-        }
-        abort(403, 'Administrator appointments must be handled by the organization.');
-    }
-
-    public function initiateAdminPasswordReset(Request $request, User $user)
-    {
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
-            return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
-        }
-        if ($user->account_status !== 'active') {
-            return response()->json(['message' => 'Activate this administrator before initiating a password reset.'], 422);
-        }
-
-        $resetLink = $this->passwordResetService->issue($user);
-        $this->audit($request, 'administrator_password_reset_initiated', $user, ['email' => $user->email], 'SAO initiated a secure password reset for an organization Admin.');
-
-        return self::resetResponse($resetLink, 'Password reset instructions were sent to the administrator email address.');
-    }
-
     public function updateDepartmentHead(Request $request, User $user)
     {
         $home = $this->collegeHomeOfHead($user);
@@ -481,18 +279,6 @@ class SystemAdministrationController extends Controller
             }
         }
         $request->merge($normalized);
-    }
-
-    private function ensureAdminPosition(int $organizationId, ?string $title): void
-    {
-        if (! $title) {
-            return;
-        }
-
-        SboPosition::firstOrCreate(
-            ['organization_id' => $organizationId, 'role' => 'ADMIN', 'title' => $title],
-            ['is_active' => true]
-        );
     }
 
     private function audit(Request $request, string $action, mixed $record, array $values, string $description = ''): void

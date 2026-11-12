@@ -13,7 +13,7 @@ const STEP_ORDER = {
 const ACTION_LABELS = {
   ADMIN: { positions: 'Add positions', members: 'Add members', event: 'Propose an event', academic: 'Set up programs', compliance: 'Open compliance', budget: 'Propose a budget' },
   DEPARTMENT_HEAD: { endorse: 'Review applications', review: 'Open approvals' },
-  SUPER_ADMIN: { 'academic-year': 'Set the academic year', 'college-heads': 'Open colleges', requirements: 'Publish requirements', admins: 'Open administrators', venues: 'List venues', announcement: 'Write an announcement' },
+  SUPER_ADMIN: { 'academic-year': 'Set the academic year', 'college-heads': 'Open colleges', requirements: 'Publish requirements', admins: 'Review applications', venues: 'List venues', announcement: 'Write an announcement' },
   STUDENT: { contact: 'Add contact number', event: 'Find an event', statement: 'Open statement' },
   SBO_OFFICER: { contact: 'Add contact number', tasks: 'Open My tasks' },
 };

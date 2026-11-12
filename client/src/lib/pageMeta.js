@@ -39,12 +39,6 @@ const PAGE_META = {
   },
   '/dashboard/super-admin/student-records': { title: 'Student records', purpose: 'Load the school records students are matched against when they sign up.', group: 'Governance' },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Governance' },
-  '/dashboard/super-admin/admins': {
-    title: 'Administrator accounts',
-    purpose: 'Provision organization administrators and maintain their accounts.',
-    group: 'Governance',
-    parents: [{ label: 'Organizations', to: '/dashboard/super-admin/organizations' }],
-  },
   '/dashboard/super-admin/users': { title: 'University users', purpose: 'Find accounts and review clearance records across the university.' },
   '/dashboard/department-head/announcements': { title: 'College announcements', purpose: 'Write announcements for an organization in your college.' },
   '/dashboard/super-admin/documents': { title: 'Submitted files', purpose: 'Browse files by organization and document type.', group: 'Files' },

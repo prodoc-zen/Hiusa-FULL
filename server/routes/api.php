@@ -193,13 +193,6 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::patch('/system/academic-years/{academicYear}/current', [AcademicYearController::class, 'makeCurrent'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-years/{academicYear}/close', [AcademicYearController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/academic-years/{academicYear}', [AcademicYearController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
-    Route::get('/system/admins', [SystemAdministrationController::class, 'admins'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
-    Route::post('/system/admins', [SystemAdministrationController::class, 'storeAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::put('/system/admins/{user}', [SystemAdministrationController::class, 'updateAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::delete('/system/admins/{user}', [SystemAdministrationController::class, 'destroyAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::post('/system/admins/{user}/handover', [SystemAdministrationController::class, 'handoverAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations/{organization}/space', [OrgSpaceController::class, 'show'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD,SUPER_ADMIN']);

@@ -120,9 +120,10 @@ class UnifiedOrganizationTest extends TestCase
     public function test_sao_can_add_the_first_admin_after_creating_the_unified_organization(): void
     {
         $organization = $this->unified();
+        $student = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
         Sanctum::actingAs($this->sao());
-        $this->postJson('/api/system/admins', ['organization_id' => $organization->id, 'school_id' => 78112233, 'first_name' => 'Council', 'last_name' => 'Admin', 'email' => 'council@example.test', 'password' => 'Initial-Password-123!', 'password_confirmation' => 'Initial-Password-123!'])
-            ->assertCreated()->assertJsonPath('must_change_password', true)->assertJsonPath('role', 'ADMIN')->assertJsonPath('department', null);
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
+            ->assertCreated()->assertJsonPath('role', 'ADMIN');
     }
 
     public function test_unified_budget_and_event_requests_go_to_sao_and_are_not_exposed_to_college_heads(): void

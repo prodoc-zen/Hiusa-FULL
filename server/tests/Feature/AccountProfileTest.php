@@ -94,24 +94,6 @@ class AccountProfileTest extends TestCase
         $this->assertDatabaseMissing('account_profiles', ['id' => $membership->id]);
     }
 
-    public function test_only_sao_can_delete_an_admin_and_last_active_admin_is_protected(): void
-    {
-        $organization = Organization::factory()->create();
-        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
-        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        $first = User::factory()->admin()->create(['organization_id' => $organization->id]);
-
-        Sanctum::actingAs($first);
-        $this->deleteJson('/api/system/admins/'.$first->school_id)->assertForbidden();
-
-        Sanctum::actingAs($director);
-        $this->deleteJson('/api/system/admins/'.$first->school_id)->assertUnprocessable();
-
-        $second = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $this->deleteJson('/api/system/admins/'.$second->school_id)->assertOk();
-        $this->assertDatabaseMissing('users', ['school_id' => $second->school_id]);
-    }
-
     public function test_invited_student_can_be_billed_and_notified_only_in_the_child_organization(): void
     {
         $main = Organization::factory()->create();

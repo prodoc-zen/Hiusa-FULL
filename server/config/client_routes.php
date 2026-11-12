@@ -52,7 +52,6 @@ return [
         '/dashboard/super-admin/clearances',
         '/dashboard/super-admin/audit-logs',
         '/dashboard/super-admin/academic-years',
-        '/dashboard/super-admin/admins',
         '/dashboard/objectives',
         '/dashboard/profile',
     ],

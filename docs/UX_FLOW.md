@@ -199,8 +199,7 @@ flowchart LR
 flowchart LR
   SA1[Dashboard inbox: N registrations, N compliance, N reports] --> SA2[Organizations: review]
   SA2 --> SA3[Approve]
-  SA3 --> SA4["NextStep: Provision administrator"]
-  SA4 --> SA5[Administrators: Add administrator]
+  SA3 --> SA4["Applicant becomes the Organization Admin"]
   SA1 --> SA6[Reviews: Compliance tab, Financial reports tab, Venues, Grievances, Clearances]
 ```
 
@@ -281,11 +280,11 @@ Format: group (band): children in order, each `Label  route`.
 - Updates (single link): Announcements `/dashboard/announcements/view-announcements`
 - Support: My clearance `/dashboard/my-clearance`; My grievances `/dashboard/my-grievances`
 
-**SUPER_ADMIN (SAO)** (8 rows, 20 leaves)
+**SUPER_ADMIN (SAO)** (8 rows, 19 leaves)
 - Dashboard `/dashboard/super-admin` (the inbox: attention list is a queue count per review area, each deep linked)
 - University users `/dashboard/super-admin/users` (university-wide account and clearance directory)
 - Ask AI `/dashboard/ask-ai`
-- Governance: Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against); Applications `/dashboard/organization-applications`; Organizations `/dashboard/super-admin/organizations?status=pending`; Administrators `/dashboard/super-admin/admins` (provision and manage each organization's administrator)
+- Governance: Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against); Applications `/dashboard/organization-applications`; Organizations `/dashboard/super-admin/organizations?status=pending`
 - Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Approvals `/dashboard/super-admin/organization-approvals`; Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
 - Files: Submitted files `/dashboard/super-admin/documents` (organization folders); Storage and limits `/dashboard/super-admin/file-storage`
 - Updates: University announcements `/dashboard/super-admin/announcements`; Notifications `/dashboard/super-admin/notifications`
@@ -559,7 +558,7 @@ One shape for every list-plus-detail page: `<route>?record=<id>` opens the detai
 | Briefing attention item | The exact tab or record (`?tab=review`, `?record=`), generated server side |
 | Approval row | An "Open <event, budget, election, report>" link to the entity page with its stepper |
 | Stepper NextStep button | The page and record where the next action happens (Propose budget opens the budget form with the event preselected: `?event=<id>`) |
-| Registration approved (SAO) | NextStep to `/dashboard/super-admin/admins?organization=<id>&create=1` |
+| Active with no Admin yet (SAO) | NextStep text only, with no link: the SAO has no Administrators page, and the first Admin account is added from the Organizations list row menu |
 | Event drawer "Prepare event report" | `/dashboard/finance/transaction-history?event=<id>` with the event report type preselected |
 | Event drawer "Book venue" | `/dashboard/venues?event=<id>` |
 | Study objectives | Footer link, plus the SAO and Admin briefing "see how the system serves the study" is out of scope |
@@ -601,7 +600,7 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 | F Merchandise | `client/src/pages/modules/merchandise/MerchandisePage.jsx`, `GcashPaymentSettingsPage.jsx` | `StepTracker` replaced with `FlowStepper` per 4.5 including proof and cancelled; Claim desk title; GCash QR NextStep on Inventory; student GCash unavailable copy | Vitest 4.5 fixtures; Playwright T3, F2 | 0, A |
 | G Approvals and requests | `client/src/pages/roles/department-head/DepartmentHeadApprovalsPage.jsx`, `client/src/pages/modules/approvals/SubmitApprovalRequestPage.jsx` (the shared `approvalService.js` belongs to B; G only calls it) | Tabs To review and Submitted by me (Admin), per row stepper and "Open <item>" link, `?record=` detail with the same drawer, New request button opening the picker, picker title "New request" with a one line "who approves it" per type; DH single route | Vitest: Admin sees own submissions with stage; row link goes to the entity; Playwright A3, D2 | 0, A, S2 |
 | H Tasks and announcements | `client/src/pages/modules/tasks/TasksPage.jsx`, `client/src/pages/modules/announcements/*` (delete unused `AnnouncementsPage.jsx`) | Tasks: New task button and Progress view (`?new=1`, `?view=progress`), task stepper on cards, first-run empty states; Announcements: New announcement primary button, approval stage chip and "Waiting for Admin approval" for officers, empty states | Vitest; Playwright F3, F4 | 0, A |
-| I Organizations lifecycle | `client/src/pages/roles/department-head/CollegeOrganizationsPage.jsx`, `client/src/pages/roles/super-admin/SystemOrganizationsPage.jsx`, `SystemAdminsPage.jsx`, `SaoAgencyPage.jsx`, `SaoOrganizationOverviewPage.jsx`, `AdminHandoverDrawer.jsx` | Registration stepper per 4.6; after Approve the drawer shows NextStep "Provision administrator" linking to the prefilled admin form; DH rows show "Waiting for SAO review" and "Approved: waiting for administrator"; `?record=` | Vitest 4.6; Playwright D1, D3, O1 | 0, A |
+| I Organizations lifecycle | `client/src/pages/roles/department-head/CollegeOrganizationsPage.jsx`, `client/src/pages/roles/super-admin/SystemOrganizationsPage.jsx`, `SaoAgencyPage.jsx`, `SaoOrganizationOverviewPage.jsx` | Registration stepper per 4.6; after Approve the drawer shows NextStep "Add the first Admin account" as text without a link; DH rows show "Waiting for SAO review" and "Approved: waiting for administrator"; `?record=` | Vitest 4.6; Playwright D1, D3, O1 | 0, A |
 | J Homes and first use | `client/src/pages/roles/admin/AdminHomePage.jsx`, `officer/DashboardPage.jsx`, `student/StudentHomePage.jsx`, `department-head/DepartmentHeadHomePage.jsx`, `super-admin/SuperAdminHomePage.jsx`, `client/src/components/dashboard/RoleBriefing.jsx`, `BriefingHeader.jsx`, `SetupChecklist.jsx`, `PillarPulse.jsx`, `AiInsightCard.jsx`, `BriefingSkeleton.jsx`, `OrganizationsHealthTable.jsx` | Setup card above attention and limited to next 3; role actions per section 7; Student drops the Tasks pillar and gets owed and clearance cues; SAO headline counts all review queues; consistent role names (one SAO name) | Vitest per role home; the first screen for each role shows exactly the steps in section 7; Playwright first-use tests | 0, S1 |
 | K Records | `client/src/pages/modules/sao/*`, `client/src/pages/modules/venues/*`, `client/src/pages/modules/grievances/*`, `client/src/pages/modules/clearances/*`, `client/src/pages/modules/objectives/*`, `client/src/pages/roles/super-admin/AcademicYearsPage.jsx`, `GlobalAnnouncementsPage.jsx`, `SaoNotificationsPage.jsx`, `client/src/pages/roles/admin/GeneralAuditLogPage.jsx` | Pages adopt the new `PageHeader` (purpose, no second `h1`); steppers 4.7, 4.9, 4.10; Student My grievances and My clearance purpose lines; Venue booking `?event=`; Compliance `?tab=` kept | Vitest 4.7, 4.9, 4.10; Playwright T5, O2, O3, O5 | 0, A |
 | L Journeys | `client/e2e/journeys/*.spec.js` (new), `client/e2e/support/*` additions | Section 9 as Playwright specs with click budgets | All journeys pass with their click ceilings; failure message names the step | all |

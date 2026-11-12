@@ -45,12 +45,6 @@ export const updateAcademicYear = (id, payload) => unwrap(api.put(`/system/acade
 export const makeAcademicYearCurrent = (id) => unwrap(api.patch(`/system/academic-years/${id}/current`));
 export const closeAcademicYear = (id) => unwrap(api.patch(`/system/academic-years/${id}/close`));
 export const deleteAcademicYear = (id) => unwrap(api.delete(`/system/academic-years/${id}`));
-export const getSystemAdmins = (params) => unwrap(api.get('/system/admins', { params, cache: false }));
-export const createSystemAdmin = (payload) => unwrap(api.post('/system/admins', payload));
-export const updateSystemAdmin = (id, payload) => unwrap(api.put(`/system/admins/${id}`, payload));
-export const deleteSystemAdmin = (id) => unwrap(api.delete(`/system/admins/${id}`));
-export const initiateSystemAdminPasswordReset = (id) => unwrap(api.post(`/system/admins/${id}/password-reset`));
-export const getSystemOrganizationMembers = (organizationId, params) => unwrap(api.get(`/system/organizations/${organizationId}/members`, { params }));
 export const getGlobalAnnouncements = (params) => unwrap(api.get('/system/announcements', { params }));
 function announcementUpload(payload, updating = false) {
   const { image, ...fields } = payload;

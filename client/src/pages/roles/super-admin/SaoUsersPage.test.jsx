@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoUsersPage from './SaoUsersPage';
 
-const service = vi.hoisted(() => ({ getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), resetSystemUserPassword: vi.fn(), createSystemAdmin: vi.fn() }));
+const service = vi.hoisted(() => ({ getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), resetSystemUserPassword: vi.fn() }));
 vi.mock('../../../services/systemAdministrationService', () => service);
 const profile = vi.hoisted(() => ({ getProfileOrganizations: vi.fn(), getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn() }));
 vi.mock('../../../services/authService', () => profile);
@@ -19,7 +19,6 @@ describe('SAO university users', () => {
     service.getSystemUser.mockResolvedValue({ user: { ...user, profiles: [{ id: 1, role: 'STUDENT', organization: user.organization }] }, clearances: [{ period_id: 3, title: 'First Semester', academic_year: '2026-2027', is_complete: false, signatures: [{ required_role: 'sao', status: 'held' }] }], linked_records: { events: { label: 'events created', count: 0 } } });
     service.deleteSystemUser.mockResolvedValue({ message: 'Deleted.' });
     service.resetSystemUserPassword.mockResolvedValue({ message: 'The reset link is ready.', reset_link: 'https://hiusa.example.test/reset-password?token=abc' });
-    service.createSystemAdmin.mockResolvedValue({ school_id: 78123456, role: 'ADMIN' });
     profile.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Robotics Club', college: 'College of Computing' }] });
     profile.getProfileCandidates.mockResolvedValue({ data: page([user]) });
     profile.inviteAccountProfile.mockResolvedValue({ data: { role: 'ADMIN' } });

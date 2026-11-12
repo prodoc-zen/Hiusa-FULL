@@ -38,7 +38,7 @@ describe('AcademicYearsPage', () => {
 
     expect(await screen.findByText('2026-2027 is the current year')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /accreditation requirements/ })).toHaveAttribute('href', '/dashboard/super-admin/compliance');
-    expect(screen.getByRole('link', { name: "Review each organization's administrators after elections: add the new ones, remove the old ones" })).toHaveAttribute('href', '/dashboard/super-admin/admins');
+    expect(screen.queryByRole('link', { name: /administrators after elections/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/hand over/i)).not.toBeInTheDocument();
     // The table renders a desktop row and a mobile card for each year.
     fireEvent.click(screen.getAllByRole('button', { name: 'Actions for 2026-2027' })[0]);

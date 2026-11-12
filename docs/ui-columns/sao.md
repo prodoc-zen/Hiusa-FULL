@@ -46,20 +46,6 @@ Table "Latest documents" (list rows, max 10): item over "<file name> · <date>" 
 Status badges: accreditation: Accredited = green, Pending review = blue, Incomplete = amber, Returned = red, Not applicable = grey; event statuses use default map
 Mobile: sections stack to 1 column
 
-## Organizations > Administrators (/dashboard/super-admin/admins)
-Tiles: Total Admins | Active Accounts | Organizations Covered
-Filters: search "Search name, School ID, email, or position"; dropdown "Filter by organization": All organizations, "<ACRONYM>: <Name>"; dropdown "Filter by account status": All statuses, Active, Inactive, Disabled
-Table "Administrators" (grouped by row bands "Main organizations" / "Sub organizations"): Administrator | Organization | Position | Status | Action
-  Cell detail: Administrator = full name over "<email> · <school id>"; Organization = acronym; Position = title or "Organization Admin"
-Row actions (menu "Administrator actions"): Add to organization | Manage profiles | Hand over role | Reset access | Edit administrator | Delete administrator
-Status badges: active = green, disabled = red, inactive = grey (plain lowercase text pill)
-Bulk/Toolbar: button "New Admin User"
-Paging: all 100 loaded, no pager   Empty: "No administrator accounts match this view." / "Change the filters or create a new Admin user."
-Mobile: table keeps min width 760 px and scrolls horizontally
-  Modal "Create New Admin User" / "Edit Admin User": School ID * | First name * | Last name * | Email address * | Contact number | Position title (suggestions: Adviser, President, Vice President - Internal, Vice President - External, Secretary) | Assigned organization * | Password * | Confirm password * (create only) | Account status (edit only: Active: can sign in, Inactive: temporarily unavailable, Disabled: access revoked); buttons Cancel | Create Admin User / Save Changes
-  Drawer "Hand over administrator role": toggle (existing member / new account); "Find a member" (search "Name, School ID or email") radio list: name over "<Role> · <position> · <school id>", empty "No matching members. Check the spelling, or create a new account for the successor."; or new account fields School ID | First name | Last name | Email | Contact number | Initial password | Confirm password; buttons Cancel | Hand over
-  Dialogs: "Initiate password reset" (Create reset link), "Delete administrator" (Delete administrator)
-
 ## Organizations > Colleges (/dashboard/super-admin/colleges)
 Filters: search "College name or code" (label "Search colleges")
 No table: cards, 2 columns. Card fields in order: logo | name | "<code or No code> · <n> organization(s) · Active/Inactive" | description | "Department Head": name + status badge + email, or "No Department Head yet"

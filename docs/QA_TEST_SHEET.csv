@@ -15,7 +15,7 @@ SAO,SAO-003,Sign in and menu,The SAO menu shows the right groups and pages and n
 4. Select the group name Files and read the items under it.
 5. Select the group name Updates and read the items under it.
 6. Select the group name Setup and records and read the items under it.
-7. Look for any menu item named Finance, Events, Voting or Store.","The menu reads: Dashboard; University users; Ask AI; Governance (Colleges, Student records, Applications, Organizations, Administrators); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Finance, Events, Voting or Store item.",,Not run,,,,,,
+7. Look for any menu item named Finance, Events, Voting or Store.","The menu reads: Dashboard; University users; Ask AI; Governance (Colleges, Student records, Applications, Organizations); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Finance, Events, Voting or Store item.",,Not run,,,,,,
 SAO,SAO-004,Sign in and menu,On a phone the menu opens from the Open menu button,Usability,Medium,Phone,Any time,,Signed in as SAO 990001. Use a phone or a browser window narrower than 768 pixels.,"1. Look at the top left of the screen for the Open menu button and select it.
 2. Select the group Reviews.
 3. Select Grievances.
@@ -39,10 +39,10 @@ SAO,SAO-007,Access control,Old SAO addresses forward to the Compliance tabs,Func
 5. Note the page and the selected tab.",The first two addresses open Reviews > Compliance with the Financial reports tab selected (address ends with ?tab=financial). The third opens Compliance with the Event requirements tab selected (?tab=events).,,Not run,,,,,,
 SAO,SAO-008,Access control,A visitor who is not signed in cannot open SAO pages,Access,High,Any,Any time,,You are signed out (log out first if needed).,"1. Open the HIUSA address followed by /dashboard/super-admin.
 2. Note which page opens.
-3. Open the address followed by /dashboard/super-admin/admins.
+3. Open the address followed by /dashboard/super-admin/colleges.
 4. Note which page opens.",Both addresses show the sign in page. No SAO data is visible.,,Not run,,,,,,
 SAO,SAO-009,Access control,"Admin, Department Head and Student cannot open SAO pages",Access,High,Laptop,Any time,,"Accounts: Admin 900001, Department Head 940001, Student 2100142. Passwords are given separately.","1. Sign in as Admin 900001.
-2. Replace the address end with /dashboard/super-admin/admins and press Enter, then note the page.
+2. Replace the address end with /dashboard/super-admin/colleges and press Enter, then note the page.
 3. Log out. Sign in as Department Head 940001.
 4. Replace the address end with /dashboard/super-admin/organizations and press Enter, then note the page.
 5. Log out. Sign in as Student 2100142.
@@ -64,9 +64,9 @@ SAO,SAO-012,Dashboard,The University operations numbers and the Organization fil
 6. Read the numbers again, then choose All organizations.","The numbers match the Agency overview. Filter options read ""All organizations"" and then ""ACRONYM: Name"" for each organization. After choosing one organization the numbers describe only that organization (Registered organizations shows 1). Choosing All organizations restores the totals.",,Not run,,,,,,
 SAO,SAO-013,Dashboard,The SAO actions panel and Recent notifications lead to the right pages,Functional,Medium,Any,Any time,,Signed in as SAO 990001.,"1. On the Dashboard find the panel SAO actions.
 2. Select Registrations and organizations, read the page, then go back.
-3. Do the same for Administrators, Colleges and Department Heads, Compliance and financial reports, University announcements and Notifications.
+3. Do the same for Colleges and Department Heads, Compliance and financial reports, University announcements and Notifications.
 4. Scroll to Recent notifications and read it.
-5. Select View all.","The six links open Registrations and organizations, Administrators, Colleges, Compliance, University announcements and Notifications. Recent notifications shows titles and messages, or the sentence ""No new notifications. Organization notices will appear here when they need your attention."" View all opens the Notifications page.",,Not run,,,,,,
+5. Select View all.","The six links open Registrations and organizations, Colleges, Compliance, University announcements and Notifications. Recent notifications shows titles and messages, or the sentence ""No new notifications. Organization notices will appear here when they need your attention."" View all opens the Notifications page.",,Not run,,,,,,
 SAO,SAO-014,Organizations > Agency overview,The Agency overview page is retired (not part of the system),Functional,High,Any,Any time,,Signed in as SAO 990001.,"1. Open the SAO menu and look for Agency overview.
 2. Open the Dashboard and read its counters.
 3. Select a counter.","Not part of the system: there is no Agency overview page with the four tiles Pending reviews, Organizations, Colleges and Archived. The Dashboard counters open the matching tab of Organizations or the Colleges page.",,Not run,,,,,,
@@ -149,59 +149,6 @@ SAO,SAO-030,Organizations > Registrations and organizations > Open (Organization
 SAO,SAO-031,Organizations > Registrations and organizations > Open (Organization overview),An organization that does not exist shows an error with a way back,Negative,Low,Any,Any time,,Signed in as SAO 990001.,"1. Replace the address end with /dashboard/super-admin/organizations/999999 and press Enter.
 2. Read the message.
 3. Select Back to agency overview.","The page shows ""Organization unavailable"" with an error description and a Retry button. The link Back to agency overview returns to the Agency overview.",VERIFY: description wording.,Not run,,,,,,
-SAO,SAO-032,Organizations > Administrators,The administrator list and its summary line,Functional,High,Any,Any time,,Signed in as SAO 990001.,"1. Open Governance > Administrators.
-2. Read the line under the page title (""N administrators, N active, covering N organizations"").
-3. Read the table columns and one row.
-4. Look for the grey group headings between rows.
-5. Find School IDs 900001, 920011, 990002 and 990032 in the table.","The summary line gives the counts (the seed shows 10 administrators, 10 active, covering 5 organizations); there are no summary tiles. The table columns are Administrator (name, then ""email · School ID""), Organization (the code), Position (""Organization Admin"" when none is set), Status and Actions (a menu). The group heading ""Main organizations"" shows, and ""Sub organizations"" shows only once a sub organization has an administrator. The seeded Admins and Advisers appear as active.",,Not run,,,,,,
-SAO,SAO-033,Organizations > Administrators,Search and filter the administrator list,Functional,Medium,Any,Any time,,Signed in as SAO 990001.,"1. Type 920011 in the Search box (placeholder ""Name, email, or position"").
-2. Clear it. Choose one organization in ""Filter by organization"".
-3. Set ""Filter by account status"" to Inactive.
-4. Read the result.
-5. Set the status back to All statuses and choose All organizations.","Each filter narrows the table. When nothing matches the table is replaced by ""No results"" with ""Try a different name or clear the filters."" and a ""Clear filters"" link. Clearing the filters brings the rows back. Status options are All statuses, Active, Inactive and Disabled.",,Not run,,,,,,
-SAO,SAO-034,Organizations > Administrators,Create a new administrator by typing a password (not part of the system); Add administrator picks an existing student,Functional,High,Laptop,Any time,,Signed in as SAO 990001. An Active organization exists (for example one just approved).,"1. Open the Administrators page (/dashboard/super-admin/admins) and look for a New Admin User button.
-2. Select Add administrator.
-3. Choose an organization, an existing student and the role, then confirm.","Not part of the system: there is no New Admin User form with a typed password. The SAO uses Add administrator: it picks an active organization and an existing student and gives the role. The page shows ""Administrator added."" and ""<Organization> now has an administrator."" The student signs in with their own password.",,Not run,,,,,,
-SAO,SAO-035,Organizations > Administrators,The create-administrator form (not part of the system); Add administrator stays off until it is complete,Validation,High,Any,Any time,,Signed in as SAO 990001.,"1. Select Add administrator.
-2. Look at the confirm button before choosing anything.
-3. Choose an organization, then a student.","Not part of the system: there is no form with School ID, Email and Password to validate. The confirm button of Add administrator stays off until an organization and a student are both chosen, so there is no empty or mismatched value to refuse.",,Not run,,,,,,
-SAO,SAO-036,Organizations > Administrators,Only active organizations can be chosen when adding an administrator,Validation,Medium,Laptop,Any time,,Signed in as SAO 990001. A Pending organization and an Active organization with no administrator exist.,"1. Select Add administrator and open the organization list.
-2. Check that Pending, Returned and Archived organizations are not listed.
-3. Choose an organization and open the Student list.","The list offers only active organizations (including sub-organizations). The Student list offers only students of the college of the organization you chose. There is no Provision administrator button on the organization rows, so there is no locked-organization form.",,Not run,,,,,,
-SAO,SAO-037,Organizations > Administrators,Edit an administrator,Functional,High,Any,Any time,,Signed in as SAO 990001. Use Admin 900002 or an administrator you created.,"1. Open the Actions menu of the row and choose Edit administrator.
-2. Check that the panel has no School ID line and no password field.
-3. Change Position title.
-4. Select Save changes.
-5. Read the green message and the row.","The panel is titled Edit administrator and shows First name, Last name, Email address, Contact number, Position title, Assigned organization (read only) and Account status. There is no School ID line and no password field (the SAO cannot set an administrator password). After saving, ""Administrator account updated successfully."" appears and the Position column shows the new title.",,Not run,,,,,,
-SAO,SAO-038,Organizations > Administrators,The last active administrator of an organization cannot be switched off,Negative,High,Any,Any time,,"Signed in as SAO 990001. Organization NSC-CHS has only one Admin, Adviser 990032.","1. Find School ID 990032 and open Edit administrator.
-2. Set Account status to Disabled.
-3. Select Save Changes and read the red message.
-4. Set Account status back to Active, then choose a different Assigned organization.
-5. Select Save Changes and read the message again.","Both attempts show the red message ""Add another active administrator before transferring or deactivating this organization's last active administrator."" The account stays active and in its organization.",,Not run,,,,,,
-SAO,SAO-039,Organizations > Administrators,Send a password reset link to an administrator,Functional,Medium,Any,Any time,,"Signed in as SAO 990001. Mail is switched off on the public copy, so no email arrives there.","1. Open the Actions menu of an active administrator and choose Reset access.
-2. Read the box titled Initiate password reset.
-3. Select Create reset link.
-4. Read the box Reset link ready, then select Done and read the green message.
-5. Open the Actions menu of an inactive administrator and look at Reset access.","The box says it creates a one-time reset link, shown to you once to hand over, and emailed only when email is turned on. The current password is not shown. After Create reset link a Reset link ready box shows the link once. The green message ""Reset link created for <Name>."" appears after you select Done, not while the box is open. On the public copy no email arrives, so copy the link from the box. For an inactive administrator Reset access is greyed out.",,Not run,,,,,,
-SAO,SAO-040,Organizations > Administrators,Hand over the administrator role by adding the successor and removing the old administrator,Functional,High,Laptop,Any time,,Signed in as SAO 990001. Use a throwaway organization with an active Admin and a student who has signed up and belongs to the same college. There is no Hand over action: the administrator hand over drawer was removed on purpose.,"1. Select the checklist link ""Review each organization's administrators after elections: add the new ones, remove the old ones"" (or open Administrator accounts).
-2. Select Add administrator, choose the organization, find the successor in Student and choose the role Organization head.
-3. Select Add administrator and read the green message and the box ""Done: <name> can sign in"".
-4. Open the Actions menu of the old Admin and choose Manage profiles.
-5. Remove the old Admin's profile in that organization (or reassign the old Admin to another organization with Add to organization).
-6. Sign in as the successor, then try to sign in as the old Admin.","On Administrator accounts the successor is added to the organization with the role Organization head and keeps their own login and any other organizations. The successor's row, added through a profile, offers only Manage profiles. The old Admin is removed from the organization in Manage profiles; an old Admin who has no other profile can no longer sign in. The successor lands on the student home first and reaches the Admin menu by choosing the head profile in the Account menu.",VERIFY: whether an organization may hold two administrators before the old one is removed.,Not run,,,,,,
-SAO,SAO-041,Organizations > Administrators,Hand over to a new account (not part of the system),Validation,Medium,Laptop,Any time,,Signed in as SAO 990001.,"1. Open Administrator accounts and open the row menu of an Admin.
-2. Look for a Hand over role item.
-3. Select Add administrator and look for a New account tab or fields for School ID, Initial password and Confirm password.","Not part of the system: there is no Hand over role item, no New account tab and no form that creates an account for the successor. The administrator hand over drawer was removed on purpose; the flow is SAO-040. Add administrator only lets the SAO pick a student who has already signed up with their own school ID, so the successor must create their own account first.",,Not run,,,,,,
-SAO,SAO-042,Organizations > Administrators,Delete an administrator account,Functional,Medium,Any,Any time,,Signed in as SAO 990001. Use an administrator you created with no records.,"1. Open the Actions menu of that administrator and choose Delete administrator. This item exists only for accounts created as administrators.
-2. Read the box.
-3. Select Cancel and check the row is still there.
-4. Repeat and select Delete administrator.
-5. Read the green message.
-6. Try the same on an administrator with records such as 900001 and read the result.","The box says ""This removes the administrator profile. Accounts with linked records cannot be deleted."" Cancel keeps the row. A confirmed delete shows ""Administrator account removed."" and the row disappears. An administrator with linked records is refused with a red message (""This user has linked operational records. Deactivate the account instead of deleting its final profile."") and stays in the list.",,Not run,,,,,,
-SAO,SAO-043,Organizations > Administrators,Administrators of an archived organization cannot be changed,Negative,Medium,Any,Any time,,Signed in as SAO 990001. An archived organization that still has an administrator exists.,"1. On Administrators find the administrator of the archived organization.
-2. Open Edit administrator and change Position title.
-3. Select Save Changes and read the red message.
-4. Select New Admin User and open the Assigned organization list.","The save is refused with a red message such as ""Archived organizations are read only."" (VERIFY wording) and nothing changes. The archived organization is not offered in the Assigned organization list.",,Not run,,,,,,
 SAO,SAO-044,Organizations > Colleges,"The college list, its search and the View organizations link",Functional,High,Any,Any time,,Signed in as SAO 990001.,"1. Open Organizations > Colleges.
 2. Read one card: name, code, organization count, Department Head and buttons.
 3. Type Computer in Search colleges (placeholder ""College name or code"").
@@ -479,10 +426,10 @@ SAO,SAO-094,Updates > Notifications,Other roles create SAO notices that lead to 
 4. Select the registration notice and note where it lands.
 5. Select the compliance notice and note where it lands.",Each action produces a notice for the SAO. The registration notice leads to the Pending review registration or its drawer. The compliance notice leads to the Review queue on Reviews > Compliance.,"VERIFY: the exact destination of each notice. A compliance or financial report notice opens the matching tab of Compliance, not the single file or report.",Not run,,,,,,
 SAO,SAO-095,Setup and records > Academic years,The Academic years page on a fresh seed,Functional,High,Any,Any time,,Signed in as SAO 990001. Fresh seed: one current academic year and no semester.,"1. Open Setup and records > Academic years.
-2. Read the card ""<year> is the current year"" and its three links.
+2. Read the card ""<year> is the current year"" and its two links.
 3. Read the Calendar table.
 4. Read the Semesters card.
-5. Select the first link in the card.","The first card reads ""2026-2027 is the current year"" with the dates and ""At the start of each year"": ""Publish this year's accreditation requirements"" (opens Compliance), ""Review each organization's administrators after elections: add the new ones, remove the old ones"" (opens Administrators), ""Open a clearance period for the semester"" (opens Clearances). The Calendar table shows the year, its dates and the Current badge. Semesters shows ""AY 2026-2027"" with ""No semesters added."" and the button Add semester. With no year the page says ""No academic year set"" and offers Add academic year (VERIFY on an empty database).",,Not run,,,,,,
+5. Select the first link in the card.","The first card reads ""2026-2027 is the current year"" with the dates and ""At the start of each year"": ""Publish this year's accreditation requirements"" (opens Compliance), ""Open a clearance period for the semester"" (opens Clearances). The Calendar table shows the year, its dates and the Current badge. Semesters shows ""AY 2026-2027"" with ""No semesters added."" and the button Add semester. With no year the page says ""No academic year set"" and offers Add academic year (VERIFY on an empty database).",,Not run,,,,,,
 SAO,SAO-096,Setup and records > Academic years,Add the first semester (the first setup step),Functional,High,Any,Any time,,Signed in as SAO 990001. Fresh seed with no semester yet.,"1. In Semesters select Add semester under AY 2026-2027.
 2. Keep 1st Semester selected.
 3. Pick Starts on 2026-08-03 and Ends on 2026-12-18 (or any dates inside the year that cover today).
@@ -978,8 +925,8 @@ Department Head,DH-083,Access limits,"Admin, officer and task pages are refused 
 Department Head,DH-084,Access limits,"SAO pages are refused: no creating colleges, no approving own SAO step",Access,High,Any,Any time,,"Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.","1. Type /dashboard/super-admin and press Enter.
 2. Type /dashboard/super-admin/colleges and press Enter.
 3. Type /dashboard/super-admin/organizations and press Enter.
-4. Type /dashboard/super-admin/admins and press Enter.
-5. Type /dashboard/super-admin/academic-years and press Enter.","Every address sends you back to the Department Head Dashboard. The head cannot add colleges or Department Heads, review registrations, create administrators or open a semester. Only the SAO can.",,Not run,,,,,,
+4. Type /dashboard/super-admin/venues and press Enter.
+5. Type /dashboard/super-admin/academic-years and press Enter.","Every address sends you back to the Department Head Dashboard. The head cannot add colleges or Department Heads, review registrations, manage venues or open a semester. Only the SAO can.",,Not run,,,,,,
 Department Head,DH-085,Access limits,"Records pages (compliance, venues, grievances, audit log) are refused; clearance signing is the head page",Access,Medium,Any,Any time,,"Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.","1. Type /dashboard/compliance and press Enter.
 2. Type /dashboard/venues and press Enter.
 3. Type /dashboard/grievances and press Enter.
@@ -3140,7 +3087,7 @@ General,GEN-033,Access control,SBO Officer opens pages of other roles by address
 3. Open /dashboard/events/manage-events, /dashboard/finance/collections, /dashboard/merchandise/manage-inventory and /dashboard/tasks/task-board.
 4. Open /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance.
 5. Open /dashboard/super-admin/compliance and /dashboard/department-head/approvals.",Every address ends on the officer home (/dashboard/officer).,,Not run,,,,,,
-General,GEN-034,Access control,Admin opens pages of other roles by address,Access,High,Any,Any time,,The test copy is running and you have its link. Signed in as the Admin demo account 900001.,"1. Open /dashboard/super-admin, /dashboard/super-admin/admins and /dashboard/super-admin/academic-years.
+General,GEN-034,Access control,Admin opens pages of other roles by address,Access,High,Any,Any time,,The test copy is running and you have its link. Signed in as the Admin demo account 900001.,"1. Open /dashboard/super-admin, /dashboard/super-admin/colleges and /dashboard/super-admin/academic-years.
 2. Open /dashboard/department-head and /dashboard/department-head/organizations.
 3. Open /dashboard/officer and /dashboard/tasks/assigned-tasks.
 4. Open /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance.

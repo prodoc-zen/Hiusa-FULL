@@ -2,7 +2,7 @@ import {
   Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
-  Target, TicketCheck, User, UserCog, Users, UsersRound, Vote, WalletCards,
+  Target, TicketCheck, User, Users, UsersRound, Vote, WalletCards,
 } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 import { isOfficeStaff } from '../../utils/collegeIdentity';
@@ -175,7 +175,6 @@ const NAV_BY_ROLE = {
       leaf('sao-student-records', 'Student records', '/dashboard/super-admin/student-records', GraduationCap, { aliases: ['Students', 'EDP records'] }),
       leaf('sao-applications', 'Applications', '/dashboard/organization-applications', ClipboardCheck, { aliases: ['Organization applications'] }),
       leaf('sao-organizations', 'Organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Registrations and organizations'] }),
-      leaf('sao-administrators', 'Administrators', '/dashboard/super-admin/admins', UserCog, { aliases: ['Administrator accounts', 'Admins', 'Organization administrators', 'Provision administrator'] }),
     ]),
     group('sao-reviews', 'Reviews', ClipboardCheck, [
       leaf('sao-compliance', 'Compliance', '/dashboard/super-admin/compliance', ClipboardCheck),
