@@ -453,7 +453,7 @@ class OrganizationLifecycleTest extends TestCase
         $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
         Sanctum::actingAs($this->director);
 
-        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        $student->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
 
         $card = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id);
         $this->assertSame(2, $card['administrators_count']);
@@ -497,7 +497,7 @@ class OrganizationLifecycleTest extends TestCase
         $student = User::factory()->student()->create(['organization_id' => $sibling->id, 'account_status' => 'active']);
         config(['performance.api_cache.enabled' => false]);
         Sanctum::actingAs($this->director);
-        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        $student->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
         $counts = function () use ($organization): array {
             $card = collect($this->getJson('/api/system/organizations')->assertOk()->json('data'))->firstWhere('id', $organization->id)['administrators_count'];
             $agency = collect(collect($this->getJson('/api/system/agency')->assertOk()->json('colleges'))->firstWhere('id', $this->ccs->id)['organizations'])->firstWhere('id', $organization->id)['administrators_count'];
@@ -526,7 +526,7 @@ class OrganizationLifecycleTest extends TestCase
         Sanctum::actingAs($this->director);
         $this->assertSame(2, $this->getJson('/api/system/overview')->assertOk()->json('people.admins'));
 
-        $this->postJson('/api/account-profiles/invite', ['school_id' => $student->school_id, 'role' => 'ADMIN', 'organization_id' => $organization->id])->assertCreated();
+        $student->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
 
         $this->assertSame(3, $this->getJson('/api/system/overview')->assertOk()->json('people.admins'));
         $this->assertSame(3, $this->getJson("/api/system/overview?organization_id={$organization->id}")->assertOk()->json('people.admins'));
