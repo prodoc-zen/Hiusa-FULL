@@ -332,7 +332,8 @@ for (const viewport of VIEWPORTS) {
       await page.goto(home);
       await homeReady(page);
       await t.tap(page.getByRole('link', { name: /Propose (an|first) event/ }), 'Propose an event');
-      await t.tap(page.getByRole('button', { name: 'New event' }).first(), 'New event');
+      // The card opens the New event form itself (the Events list with ?new=1), so there is no list button to tap.
+      await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeVisible(LONG);
       const form = page.getByRole('main');
       await form.locator('#event-title').fill(`Journey first event ${width} ${RUN}`);
       await form.locator('#event-start-date').fill(localDate(30));
