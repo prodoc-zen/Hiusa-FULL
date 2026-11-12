@@ -154,15 +154,26 @@ describe('SaoOrganizationOverviewPage', () => {
       expect(view.queryByRole('link')).not.toBeInTheDocument();
     });
 
-    it('asks the SAO to provision an administrator when an active organization has none', async () => {
+    it('tells the SAO a college organization with no Admin waits for its Department Head', async () => {
       mocks.getSystemOrganizationOverview.mockResolvedValue({ ...overview('active'), leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
       renderPage();
       const view = await progress();
 
       expect(within(stage(view)).getByText('Admin account').closest('li')).toHaveAttribute('aria-current', 'step');
-      expect(view.getByText('Add the first Admin account')).toBeInTheDocument();
+      expect(view.getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument();
       expect(view.queryByRole('link', { name: 'Add Admin account' })).not.toBeInTheDocument();
-      expect(screen.getByText(/Add the first Admin account so the organization can sign in/)).toBeInTheDocument();
+      expect(screen.getByText(/The Department Head names the organization head with Give access/)).toBeInTheDocument();
+      expect(screen.queryByText(/Add the first Admin account/)).not.toBeInTheDocument();
+    });
+
+    it('asks the SAO to add the Admin of a university-wide organization, which has no dean', async () => {
+      const base = overview('active');
+      mocks.getSystemOrganizationOverview.mockResolvedValue({ ...base, organization: { ...base.organization, college: null, college_id: null }, leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
+      renderPage();
+      const view = await progress();
+
+      expect(view.getByText('Add the Admin account')).toBeInTheDocument();
+      expect(screen.getByText(/Add the Admin account so the organization can sign in/)).toBeInTheDocument();
     });
 
     it('drops the progress block once an administrator exists, because nothing is left to do', async () => {
