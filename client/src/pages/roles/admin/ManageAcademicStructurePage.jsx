@@ -30,7 +30,6 @@ function SectionCountFields({ form, setForm }) {
   return (
     <fieldset className="space-y-3">
       <legend className="text-[13px] font-medium text-ink">Program duration and block sections</legend>
-      <p className="text-xs text-ink-muted">A Non Block section is included in every year and does not count toward these totals.</p>
       <Field label="Years in this program" className="max-w-48">
         <Input aria-label="Program duration in years" type="number" min="1" max="8" value={form.duration_years} onChange={(event) => updateDuration(Math.min(8, Math.max(1, Number(event.target.value) || 1)))} />
       </Field>
@@ -46,7 +45,7 @@ function SectionCountFields({ form, setForm }) {
 }
 
 export default function ManageAcademicStructurePage() {
-  const [structure, setStructure] = useState({ department: '', programs: [] });
+  const [structure, setStructure] = useState({ programs: [] });
   // One drawer adds and edits: `editing` is the program being edited, or null while adding.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -97,7 +96,6 @@ export default function ManageAcademicStructurePage() {
       <section className="rounded-card border border-line bg-surface" aria-labelledby="configured-programs-title">
         <div className="border-b border-line px-5 py-4">
           <h2 id="configured-programs-title" className="text-base font-semibold text-ink">Programs</h2>
-          <p className="mt-1 text-sm text-ink-muted">Department: <span className="font-medium text-ink">{structure.department || 'Not assigned'}</span>. Block sections use letter labels. Each year keeps its Non Block section.</p>
         </div>
         {loading ? (
           <div role="status" className="space-y-3 p-5"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><span className="sr-only">Loading programs</span></div>
@@ -144,7 +142,7 @@ export default function ManageAcademicStructurePage() {
       <Drawer
         open={drawerOpen}
         title={editing ? 'Edit program' : 'Add program'}
-        description={editing ? 'A section cannot be removed while user accounts are assigned to it. Renaming a program updates assigned user profiles.' : 'Each year also gets a Non Block section.'}
+        description={editing ? 'A section cannot be removed while user accounts are assigned to it. Renaming a program updates assigned user profiles.' : undefined}
         width="max-w-xl"
         onClose={closeDrawer}
         footer={(

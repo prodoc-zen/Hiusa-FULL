@@ -77,6 +77,53 @@ describe('MyOrganizationApplicationPage', () => {
     expect(screen.getByText('OK')).toBeInTheDocument();
   });
 
+  it('sets the returned note apart in the danger tint, and a per-file note that needs changes in the warning tint', async () => {
+    renderPage();
+    await screen.findByText('Sign the last page.');
+
+    const returnedNote = screen.getByText('Note from your Department Head').parentElement;
+    expect(returnedNote).toHaveClass('bg-danger-tint', 'text-danger-strong');
+    const fileNote = screen.getByText('Sign the last page.');
+    expect(fileNote).toHaveClass('bg-warning-tint', 'text-warning-strong');
+  });
+
+  it('colours a per-file note on a missing file as a warning and leaves an accepted note plain', async () => {
+    const mixed = application({ status: 'returned' });
+    mixed.requirements[0].reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'missing', note: 'Upload the signed copy.' }];
+    mixed.requirements[1].reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: 'Clear scan.' }];
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: mixed });
+    renderPage();
+    await screen.findByText('Upload the signed copy.');
+
+    expect(screen.getByText('Upload the signed copy.')).toHaveClass('bg-warning-tint');
+    fireEvent.click(screen.getByRole('button', { name: 'Details Officer list' }));
+    expect(screen.getByText('Clear scan.')).not.toHaveClass('bg-warning-tint');
+  });
+
+  it('does not tint the endorsement note or a note on an application that was not returned', async () => {
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: application({ status: 'pending_sao', remarks: null, endorsement_note: 'Strong constitution.' }) });
+    renderPage();
+    await screen.findByText('Strong constitution.');
+
+    expect(screen.getByText('Note from your Department Head').parentElement).not.toHaveClass('bg-danger-tint');
+  });
+
+  it('labels a file accepted in an earlier round as Accepted earlier, with no note line', async () => {
+    const resent = application({ status: 'pending_dean', round: 2, remarks: null });
+    resent.requirements[0].reviews = [];
+    resent.requirements[0].review_files = [];
+    resent.requirements[1].reviews = [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: null, carried: true }];
+    mocks.getMyOrganizationApplication.mockResolvedValue({ data: resent });
+    renderPage();
+    await screen.findByText('Your Department Head is reviewing it.');
+
+    const row = screen.getAllByRole('listitem').find((item) => within(item).queryByText('Officer list'));
+    expect(within(row).getByText('Accepted earlier')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Not reviewed yet')).toHaveLength(1);
+    expect(screen.queryByText('OK')).not.toBeInTheDocument();
+  });
+
   it('shows a requirement that needs nothing as one row, and the one that needs changes expanded', async () => {
     renderPage();
     await screen.findByText('Sign the last page.');

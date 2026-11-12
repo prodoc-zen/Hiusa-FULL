@@ -30,7 +30,7 @@ class OrganizationApplicationPresenter
     /**
      * @param  string  $prefix  API path the file links hang from, e.g. /my/organization-applications or /organization-applications
      * @param  Collection<int, ComplianceRequirementType>|null  $extraTypes  requirements to list even when no file was uploaded for them yet
-     * @param  string|null  $reviewerStage  the stage of the reviewer reading it; while the application waits for that stage, its earlier accepted marks on files the applicant did not change come back as accepted
+     * @param  string|null  $reviewerStage  the stage of the reviewer reading it; while the application waits for that stage, its earlier accepted marks on files the applicant did not change come back as accepted. The applicant is shown the accepted marks of both stages, with no note, because they saw each when it was returned.
      */
     public function detail(OrganizationApplication $application, string $prefix, bool $forApplicant, ?Collection $extraTypes = null, ?string $reviewerStage = null): array
     {
@@ -38,7 +38,7 @@ class OrganizationApplicationPresenter
         $round = $application->round;
         $reviews = $application->requirementReviews()->where('round', $round)->orderBy('id')->get()
             ->filter(fn ($review) => ! $forApplicant || $this->stageVisible($application, $review->stage))
-            ->concat($forApplicant ? [] : $this->carriedForward($application, $reviewerStage))
+            ->concat($forApplicant ? $this->carriedForApplicant($application) : $this->carriedForward($application, $reviewerStage))
             ->groupBy('requirement_type_id');
         $files = $application->reviewFiles()->where('round', $round)->orderBy('id')->with('uploader:school_id,first_name,last_name')->get()
             ->filter(fn ($file) => ! $forApplicant || $this->stageVisible($application, $file->stage));
@@ -67,14 +67,22 @@ class OrganizationApplicationPresenter
         ];
     }
 
+    /** What the applicant is shown after sending again: every earlier acceptance that still holds, from either stage, as a flag with no note. */
+    private function carriedForApplicant(OrganizationApplication $application): Collection
+    {
+        return collect(array_keys(self::STAGE_WAITING_STATUS))
+            ->flatMap(fn (string $stage) => $this->carriedForward($application, $stage, true))
+            ->values();
+    }
+
     /**
      * The reviewer's accepted marks from earlier rounds that still hold. A document row is never edited: replacing a file deletes the
      * row and stores a new one, so a document created before the mark was made is the very file that was accepted. A requirement
      * that any stage returned in the round just ended, or whose latest mark in this stage is not an acceptance, is never carried.
      */
-    private function carriedForward(OrganizationApplication $application, ?string $stage): Collection
+    private function carriedForward(OrganizationApplication $application, ?string $stage, bool $anyStatus = false): Collection
     {
-        if (! $stage || $application->status !== (self::STAGE_WAITING_STATUS[$stage] ?? null) || $application->round < 2) {
+        if (! $stage || (! $anyStatus && $application->status !== (self::STAGE_WAITING_STATUS[$stage] ?? null)) || $application->round < 2) {
             return collect();
         }
         $current = $application->requirementReviews()->where('round', $application->round)->where('stage', $stage)->pluck('requirement_type_id');
