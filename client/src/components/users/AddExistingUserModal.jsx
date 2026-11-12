@@ -49,6 +49,9 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   const headMode = initialRole === 'ADMIN';
   const target = organizations.find((item) => String(item.id) === organizationId);
   const headOffered = mayNameHead(actorRole, target, organizations);
+  // The chosen role can go stale when the target is picked without the select (a single organization is auto-selected).
+  const effectiveRole = role === 'ADMIN' && !headOffered ? 'STUDENT' : role;
+  const headRefused = headMode && Boolean(target) && !headOffered;
 
   useEffect(() => {
     if (organization) return undefined;
@@ -70,7 +73,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
     setBusy(true);
     setError('');
     try {
-      const response = await inviteAccountProfile({ school_id: selected.school_id, organization_id: target.id, role });
+      const response = await inviteAccountProfile({ school_id: selected.school_id, organization_id: target.id, role: effectiveRole });
       onAdded?.(response.data, selected);
       onClose();
     } catch (cause) {
@@ -121,8 +124,8 @@ export default function AddExistingUserModal({ organization = null, initialUser 
           disabled={busy}
           hint="Students without an account sign up themselves with their school ID."
         />
-        <Field label="Role in this organization">
-          <Select value={role} disabled={busy} onChange={(event) => setRole(event.target.value)}>
+        <Field label="Role in this organization" hint={headRefused ? 'Only the dean or the SAO can name another organization head, so this person can be added only as a member here.' : undefined}>
+          <Select value={effectiveRole} disabled={busy} onChange={(event) => setRole(event.target.value)}>
             {ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN' || headOffered).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </Field>
