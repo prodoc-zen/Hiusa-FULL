@@ -397,13 +397,11 @@ describe('SaoCompliancePage', () => {
       await screen.findAllByText('Officer Roster');
 
       fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
-      fireEvent.change(screen.getByLabelText(/Academic year/), { target: { value: '' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
 
-      expect(screen.getByText('Choose the academic year this requirement applies to.')).toBeInTheDocument();
       expect(screen.getByText('Set the deadline for organizations.')).toBeInTheDocument();
       expect(screen.getByText('Enter a name for this requirement.')).toBeInTheDocument();
-      expect(screen.getByLabelText(/Academic year/)).toHaveFocus();
+      expect(screen.getByLabelText(/Deadline/)).toHaveFocus();
       expect(mocks.createRequirementType).not.toHaveBeenCalled();
 
       fireEvent.change(screen.getByPlaceholderText('e.g. Accomplishment report'), { target: { value: 'Officer list' } });
