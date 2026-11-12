@@ -32,6 +32,33 @@ describe('Organization requirement samples', () => {
     expect(screen.getAllByText('Current semester report').length).toBeGreaterThan(0);
   });
 
+  it('holds back New requirement and says why when no semester is active or selected', async () => {
+    render(<RequirementsTab currentAcademicYear="2026-2027" noSemester onChanged={() => {}} />);
+    const button = (await screen.findAllByRole('button', { name: 'New requirement' }))[0];
+    expect(button).toBeDisabled();
+    const note = screen.getByText('There is no active semester. Activate or select a semester before adding a requirement.');
+    expect(button).toHaveAccessibleDescription(note.textContent);
+    fireEvent.click(button);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps New requirement open and the note away while a semester is selected', async () => {
+    render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} />);
+    expect((await screen.findAllByRole('button', { name: 'New requirement' }))[0]).toBeEnabled();
+    expect(screen.queryByText(/There is no active semester/)).not.toBeInTheDocument();
+  });
+
+  it('leaves edit, activate, delete and sample actions on existing requirements usable without a semester', async () => {
+    mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ id: 5, name: 'Old pledge', is_active: true, template_url: 'https://example.edu/pledge.pdf', deadline_at: '2026-12-01T09:00:00Z', allowed_extensions: ['pdf'] }] } });
+    render(<RequirementsTab currentAcademicYear="2026-2027" noSemester onChanged={() => {}} />);
+    await screen.findAllByText('Old pledge');
+    expect(screen.getAllByRole('switch', { name: 'Deactivate Old pledge' })[0]).toBeEnabled();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Old pledge' })[0]);
+    for (const name of ['View sample', 'Edit requirement', 'Mark inactive', 'Delete requirement']) {
+      expect(await screen.findByRole('menuitem', { name })).not.toBeDisabled();
+    }
+  });
+
   async function openNewRequirement() {
     render(<RequirementsTab currentAcademicYear="2026-2027" onChanged={() => {}} />);
     fireEvent.click((await screen.findAllByRole('button', { name: 'New requirement' }))[0]);

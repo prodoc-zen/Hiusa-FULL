@@ -50,6 +50,35 @@ describe('EventRequirementsTab', () => {
     expect(within(table).getByText('Sample format required')).toBeInTheDocument();
   });
 
+  it('holds back Add requirement and says why when no semester is active or selected', async () => {
+    render(<EventRequirementsTab noSemester />);
+    await screen.findAllByText('Proposal');
+    const button = screen.getByRole('button', { name: 'Add requirement' });
+    expect(button).toBeDisabled();
+    const note = screen.getByText('There is no active semester. Activate or select a semester before adding a requirement.');
+    expect(button).toHaveAccessibleDescription(note.textContent);
+    fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Permit' } });
+    fireEvent.click(button);
+    expect(mocks.createEventRequirement).not.toHaveBeenCalled();
+  });
+
+  it('keeps Add requirement open and the note away while a semester is selected', async () => {
+    render(<EventRequirementsTab />);
+    await screen.findAllByText('Proposal');
+    expect(screen.getByRole('button', { name: 'Add requirement' })).toBeEnabled();
+    expect(screen.queryByText(/There is no active semester/)).not.toBeInTheDocument();
+  });
+
+  it('still lets SAO edit, activate and remove existing event requirements without a semester', async () => {
+    render(<EventRequirementsTab noSemester />);
+    await screen.findAllByText('Proposal');
+    expect(screen.getAllByRole('switch', { name: 'Deactivate Proposal' })[0]).toBeEnabled();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Proposal' })[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit requirement' }));
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+    expect(screen.queryByText(/There is no active semester/)).not.toBeInTheDocument();
+  });
+
   it('sends the description when adding a requirement', async () => {
     mocks.createEventRequirement.mockResolvedValue({ data: { id: 3 } });
     render(<EventRequirementsTab />);

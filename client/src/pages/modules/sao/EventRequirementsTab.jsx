@@ -41,7 +41,9 @@ const OFF_CAMPUS_PRESETS = [
   'Gate Pass From PCO (If Applicable)',
 ];
 
-export default function EventRequirementsTab({ mode = 'settings', organizationId = '' }) {
+const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
+
+export default function EventRequirementsTab({ mode = 'settings', organizationId = '', noSemester = false }) {
   const [reviewSearch, setReviewSearch] = useState('');
   const [venueFilter, setVenueFilter] = useState('all');
   const [togglingId, setTogglingId] = useState(null);
@@ -437,8 +439,9 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 Only if applicable
               </label>
               <ActiveSwitch label="Active requirement" checked={form.is_active} onChange={(isActive) => setForm({ ...form, is_active: isActive })} />
+              {noSemester && !editingId && <p id="add-event-requirement-note" className="text-sm text-ink-muted">{NO_SEMESTER_MESSAGE}</p>}
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" loading={saving} disabled={busy || !form.allowed_extensions.length}>{editingId ? 'Save changes' : 'Add requirement'}</Button>
+                <Button type="submit" loading={saving} disabled={busy || !form.allowed_extensions.length || (noSemester && !editingId)} aria-describedby={noSemester && !editingId ? 'add-event-requirement-note' : undefined}>{editingId ? 'Save changes' : 'Add requirement'}</Button>
                 {editingId && <Button variant="secondary" onClick={resetForm}>Cancel</Button>}
               </div>
             </div>

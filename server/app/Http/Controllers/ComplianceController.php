@@ -406,6 +406,9 @@ class ComplianceController extends Controller
 
         return response()->json([
             'academic_year' => $academicYear,
+            // academic_year falls back to the calendar's current year, so these say whether a semester is really selected (a new requirement needs one).
+            'academic_semester_id' => $selected?->id,
+            'no_semester' => $selected === null,
             'organizations' => $request->user()->isOrganizationAdmin() ? $result->first() : $result->values(),
         ]);
     }
