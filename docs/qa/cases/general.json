@@ -641,7 +641,7 @@
       "3. Open /dashboard/events/check-in, /dashboard/finance/financial-ledger and /dashboard/approvals.",
       "4. Open /dashboard/elections/election-results and /dashboard/announcements/view-announcements."
     ],
-    "expected": "Every address ends on the SAO home (/dashboard/super-admin). Only Study objectives and Profile are shared pages that open for the SAO.",
+    "expected": "Every address ends on the SAO home (/dashboard/super-admin). Only Profile is a shared page that opens for the SAO.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1624,7 +1624,7 @@
       "3. Sign in as the Student and do the same.",
       "4. Look at the bottom of the sidebar."
     ],
-    "expected": "The top bar shows only your avatar and name (the Department Head also has a My College chip). The account menu shows your name, email and a line like \"PSITS-CCS · Organization Admin\"; for the Department Head the college name and \"Department Head\"; for the Student the organization and Student. A Profiles section lists your profiles. The bottom of the sidebar holds Study objectives, Profile and Log out and does not show your name or role.",
+    "expected": "The top bar shows only your avatar and name (the Department Head also has a My College chip). The account menu shows your name, email and a line like \"PSITS-CCS · Organization Admin\"; for the Department Head the college name and \"Department Head\"; for the Student the organization and Student. A Profiles section lists your profiles. The bottom of the sidebar holds Profile and Log out and does not show your name or role.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1751,24 +1751,6 @@
     "priority": "High",
     "device": "Any",
     "type": "Negative",
-    "round": "Any time"
-  },
-  {
-    "id": "GEN-099",
-    "role": "All roles",
-    "module": "Print and export",
-    "title": "Study objectives page prints cleanly",
-    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop and a printer or Save as PDF.",
-    "steps": [
-      "1. Open Study objectives from the bottom of the sidebar.",
-      "2. Choose Print.",
-      "3. Look at the print preview.",
-      "4. Save as PDF."
-    ],
-    "expected": "The preview shows the page content without the sidebar, top bar and buttons. Text is not cut at the edges. The saved PDF is readable.",
-    "priority": "Low",
-    "device": "Laptop",
-    "type": "Functional",
     "round": "Any time"
   },
   {

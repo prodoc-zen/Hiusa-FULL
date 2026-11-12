@@ -10,7 +10,7 @@ Each entry says what the paper says, what the system does, and the change to mak
 
 ## 1. How each objective is visible in the system
 
-The page **Study Objectives in Action** (`/dashboard/objectives`, open to every role) is a live traceability matrix: one row per objective, the mechanism that serves it, and the evidence the system holds for it right now. Every role's home page also opens with a briefing that has one pulse per SO2 area.
+The page **Study Objectives in Action** (`/dashboard/objectives`) was a live traceability matrix open to every role. It was removed in round r15, so the traceability is now carried by this document alone. Every role's home page also opens with a briefing that has one pulse per SO2 area.
 
 | Objective | Where it lives in the system | Evidence shown |
 |---|---|---|

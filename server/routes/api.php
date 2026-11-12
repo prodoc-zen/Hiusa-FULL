@@ -36,7 +36,6 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\MyActivityController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationApplicationReviewController;
@@ -105,7 +104,6 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant', [AskAiController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/ask', [AskAiController::class, 'ask'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::get('/objectives/overview', ObjectivesOverviewController::class)->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);

@@ -23,7 +23,6 @@ const SaoOrganizationOverviewPage = lazy(() => import('./pages/roles/super-admin
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const StudentRecordsPage = lazy(() => import('./pages/roles/super-admin/StudentRecordsPage'));
-const StudyObjectivesPage = lazy(() => import('./pages/modules/objectives/StudyObjectivesPage'));
 const SaoUsersPage = lazy(() => import('./pages/roles/super-admin/SaoUsersPage'));
 const SaoDocumentsPage = lazy(() => import('./pages/modules/sao/DocumentsTab'));
 const RecordsPage = lazy(() => import('./pages/modules/records/RecordsPage'));
@@ -379,7 +378,6 @@ function App() {
           <Route path="my-grievances" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentGrievancesPage /></ProtectedRoute>} />
           <Route path="clearances" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><SignatoryClearancesPage /></ProtectedRoute>} />
           <Route path="my-clearance" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentClearancePage /></ProtectedRoute>} />
-          <Route path="objectives" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><StudyObjectivesPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><SettingsPage /></ProtectedRoute>} />
           <Route path="organization" element={<Navigate to="/dashboard/profile" replace />} />
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />

@@ -2,7 +2,7 @@ import {
   Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
-  Target, TicketCheck, User, Users, UsersRound, Vote, WalletCards,
+  TicketCheck, User, Users, UsersRound, Vote, WalletCards,
 } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 import { isOfficeStaff } from '../../utils/collegeIdentity';
@@ -209,9 +209,8 @@ export function withApplicantAccess(items, canApply) {
   return [...items.slice(0, at + 1), APPLY_ORGANIZATION, ...items.slice(at + 1)];
 }
 
-// Every role shares the same footer: the study objectives page and the account page.
+// Every role shares the same footer: the account page.
 export const footerNav = [
-  { id: 'study-objectives', label: 'Study objectives', path: '/dashboard/objectives', icon: Target, aliases: ['Study Objectives in Action', 'Objectives'] },
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: User },
 ];
 

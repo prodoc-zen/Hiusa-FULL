@@ -426,9 +426,4 @@ No table: profile header (name, role; fields School ID | Organization | Email ad
   Card "Notifications": toggles Announcements | Events and reminders | Elections | Merchandise orders
   Card "Your recent activity": list rows "<action> in <module>" + record label + date time; "Showing <n> of <n>"; Show more; Empty "Nothing recorded yet. Registering for an event or submitting a request will show up here."
 
-## Footer > Study objectives (/dashboard/objectives)
-No table: read-only evidence page. Sections in order: general objective banner | Research foundation (SO1, SO4) | SO2 pillar system (one card per pillar) | Synthesis (SO3). Each objective card: statement, evidence counters (label + value pairs, "No evidence has been counted for this objective yet."), "No activity recorded yet." line.
-Empty: "No objectives are configured yet" / error "Study objectives could not be loaded"
-Mobile: cards stack
-
-COVERAGE: 35 pages, Dashboard, Approvals, People, Officer positions, Programs and sections, Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast, Events, Venue booking, Planning, Tasks, AI delegation, Check-in, Elections, Results, Inventory, Orders, Claim desk, Announcements, Feed, Compliance, Grievances, Clearance signing, Audit log, Vote, Shop, My orders, My receipts, Statement of account, Profile, Study objectives
+COVERAGE: 34 pages, Dashboard, Approvals, People, Officer positions, Programs and sections, Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast, Events, Venue booking, Planning, Tasks, AI delegation, Check-in, Elections, Results, Inventory, Orders, Claim desk, Announcements, Feed, Compliance, Grievances, Clearance signing, Audit log, Vote, Shop, My orders, My receipts, Statement of account, Profile

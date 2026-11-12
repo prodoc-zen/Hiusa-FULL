@@ -377,20 +377,6 @@ class DepartmentHeadCollegeScopeTest extends TestCase
         $this->putJson('/api/announcements/'.$foreign->id.'/reaction')->assertNotFound();
     }
 
-    public function test_head_objectives_evidence_is_college_wide(): void
-    {
-        ['head' => $head, 'first' => $first, 'second' => $second, 'other' => $other] = $this->world();
-        FinancialForecast::factory()->count(2)->create(['organization_id' => $first->id]);
-        FinancialForecast::factory()->count(3)->create(['organization_id' => $second->id]);
-        FinancialForecast::factory()->count(7)->create(['organization_id' => $other->id]);
-
-        Sanctum::actingAs($head);
-        $payload = $this->getJson('/api/objectives/overview')->assertOk()->json();
-
-        $finance = collect($payload['objectives'])->firstWhere('code', 'SO2.1');
-        $this->assertSame(5, collect($finance['evidence'])->firstWhere('label', 'Expense forecasts generated (OLS regression)')['value']);
-    }
-
     public function test_head_cached_lists_refresh_after_a_sibling_organization_writes(): void
     {
         config(['performance.api_cache.enabled' => true, 'performance.api_cache.ttl_seconds' => 20]);

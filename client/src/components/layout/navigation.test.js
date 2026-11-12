@@ -172,16 +172,15 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     }
   });
 
-  it('shares a footer with Study objectives and Profile', () => {
+  it('shares a footer with only Profile', () => {
     expect(footerNav.map((item) => [item.label, item.path])).toEqual([
-      ['Study objectives', '/dashboard/objectives'],
       ['Profile', '/dashboard/profile'],
     ]);
   });
 
-  it.each(ROLES)('lets %s search for Study objectives and open it', (role) => {
-    expect(getFlatPages(role).find((page) => page.path === '/dashboard/objectives')?.label).toBe('Study objectives');
-    expect(opens(role, '/dashboard/objectives')).toBe(true);
+  it.each(ROLES)('gives %s no Study objectives page to search for or open', (role) => {
+    expect(getFlatPages(role).some((page) => page.path === '/dashboard/objectives' || page.label === 'Study objectives')).toBe(false);
+    expect(opens(role, '/dashboard/objectives')).toBe(false);
   });
 
   it('keeps AI delegation to the Organization Admin, who is the only role that can use it', () => {
@@ -263,7 +262,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/objectives' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {

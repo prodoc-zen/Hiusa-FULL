@@ -258,7 +258,4 @@ Tiles: none
 No table: left card (avatar, name, role, School ID, Organization, Email address, "Protected account"); form "Personal information" (First name, Last name, Email address, Mobile number (optional), button "Save profile"); form "Password & security" (Current password, New password, Confirm new password, checks "At least 8 characters" and "New passwords match", button "Update password"); "Notifications" toggles (Announcements, Events and reminders, Elections, Merchandise orders); list "Your recent activity" [action in module, record, time] + "Show more"; empty "Nothing recorded yet. Registering for an event or submitting a request will show up here."
 Mobile: single column.
 
-## Account > Study objectives (/dashboard/objectives)
-No table: read-only sections (general objective banner, research foundation, pillar system, objective details with evidence lists, synthesis); empty "No objectives are configured yet".
-
-COVERAGE: 26 pages, Dashboard, Check-in, Calendar, Venue booking, My tasks, AI delegation, Budgets, Ledger, Financial reports, Forecast, Members and fingerprints, Candidates, Voters, Results, Orders, Claim desk, Announcements, Feed, Clearance signing, Vote, Shop, My orders, My receipts, Statement of account, Profile, Study objectives
+COVERAGE: 25 pages, Dashboard, Check-in, Calendar, Venue booking, My tasks, AI delegation, Budgets, Ledger, Financial reports, Forecast, Members and fingerprints, Candidates, Voters, Results, Orders, Claim desk, Announcements, Feed, Clearance signing, Vote, Shop, My orders, My receipts, Statement of account, Profile

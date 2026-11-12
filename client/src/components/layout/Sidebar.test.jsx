@@ -133,7 +133,7 @@ describe('desktop sidebar rail', () => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={['/dashboard/profile']}><SidebarHarness /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/dashboard/profile');
-    expect(screen.getByRole('link', { name: 'Study objectives' })).toHaveAttribute('href', '/dashboard/objectives');
+    expect(screen.queryByRole('link', { name: 'Study objectives' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
   });
 

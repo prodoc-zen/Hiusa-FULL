@@ -12,7 +12,7 @@
       "4. Select Sign in.",
       "5. Look at the page that opens and at the left menu."
     ],
-    "expected": "You land on the SAO Dashboard (the address ends with /dashboard/super-admin). The left menu shows Dashboard, then the groups Governance, Reviews, Files, Updates and Setup and records, and Profile and Study objectives at the bottom. VERIFY: if a Change password screen appears first, set a new password and tell the demo owner, then continue.",
+    "expected": "You land on the SAO Dashboard (the address ends with /dashboard/super-admin). The left menu shows Dashboard, then the groups Governance, Reviews, Files, Updates and Setup and records, and Profile at the bottom. VERIFY: if a Change password screen appears first, set a new password and tell the demo owner, then continue.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -52,7 +52,7 @@
       "6. Select the group name Setup and records and read the items under it.",
       "7. Look for any menu item named Finance, Events, Voting or Store."
     ],
-    "expected": "The menu reads: Dashboard; University users; Ask AI; Governance (Colleges, Student records, Applications, Organizations); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Finance, Events, Voting or Store item.",
+    "expected": "The menu reads: Dashboard; University users; Ask AI; Governance (Colleges, Student records, Applications, Organizations); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail); Profile. Selecting a group opens its first page. The page you are on is highlighted. There is no Finance, Events, Voting or Store item.",
     "priority": "High",
     "device": "Laptop",
     "type": "Usability",
@@ -1920,43 +1920,6 @@
     "device": "Any",
     "type": "Validation",
     "round": "Any time"
-  },
-  {
-    "id": "SAO-113",
-    "role": "SAO",
-    "module": "Study objectives",
-    "title": "The Study objectives page opens for the SAO",
-    "preconditions": "Signed in as SAO 990001.",
-    "steps": [
-      "1. Select Study objectives at the bottom of the menu.",
-      "2. Read the page.",
-      "3. Use the menu to go back to Dashboard."
-    ],
-    "expected": "The page opens without an error and without redirecting the SAO away. VERIFY: what the page contains (it is shared by all roles).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Functional",
-    "round": "Any time"
-  },
-  {
-    "id": "SAO-114",
-    "role": "SAO",
-    "module": "Study objectives",
-    "title": "Study objectives evidence links open pages the SAO may see",
-    "preconditions": "Signed in as SAO 990001. Some activity exists in the system.",
-    "steps": [
-      "1. Scroll to the bottom of the left menu and select Study objectives.",
-      "2. Find \"Financial reports approved\" and select it, if it has an arrow.",
-      "3. Go back and select \"Announcements published\", if it has an arrow.",
-      "4. Go back and select a tile such as \"Orders placed\" or \"Check-ins recorded manually\".",
-      "5. Write down which tiles are links and which are plain text."
-    ],
-    "expected": "\"Financial reports approved\" opens Reviews > Compliance and \"Announcements published\" opens University announcements. Tiles about events, orders, tasks and elections are plain text with no arrow, because the SAO menu has no page for them. No tile sends the SAO to a \"not allowed\" redirect. VERIFY: these two are the only linked tiles for the SAO (from the server route list).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Access",
-    "round": "Any time",
-    "depends": ""
   },
   {
     "id": "SAO-115",

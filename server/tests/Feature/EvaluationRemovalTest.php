@@ -41,12 +41,6 @@ class EvaluationRemovalTest extends TestCase
             ] as [$method, $path]) {
                 $this->json($method, $path)->assertNotFound();
             }
-            $payload = $this->getJson('/api/objectives/overview')->assertOk()->json();
-            foreach ($payload['objectives'] as $objective) {
-                foreach ($objective['evidence'] as $item) {
-                    $this->assertStringNotContainsString('evaluation', $item['href'] ?? '');
-                }
-            }
         }
     }
 }
