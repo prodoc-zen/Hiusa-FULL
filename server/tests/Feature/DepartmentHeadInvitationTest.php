@@ -7,6 +7,7 @@ use App\Mail\DeanInvitationMail;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -79,6 +80,7 @@ class DepartmentHeadInvitationTest extends TestCase
         return [
             'first_name' => 'Arthur',
             'last_name' => 'Dent',
+            'school_id' => 20265555,
             'email' => 'arthur.dent@example.edu',
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
@@ -222,32 +224,64 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'department_head_invitation_accepted', 'user_id' => 20263333]);
     }
 
-    public function test_dean_without_an_employee_number_gets_an_internal_id_and_signs_in_by_email(): void
+    public function test_dean_types_their_own_school_id_and_signs_in_with_it(): void
     {
         $token = $this->makeLink();
 
-        $response = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details());
+        $response = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => '20263333']));
 
-        $response->assertOk();
-        $this->assertSame(95000000, (int) $response->json('user.school_id'));
+        $response->assertOk()->assertJsonPath('user.school_id', 20263333);
+        $this->postJson('/api/login', ['identifier' => '20263333', 'password' => 'SecurePass123!'])->assertOk();
         $this->postJson('/api/login', ['identifier' => 'arthur.dent@example.edu', 'password' => 'SecurePass123!'])->assertOk();
     }
 
-    public function test_internal_ids_continue_from_the_highest_one_in_use(): void
+    public function test_a_school_id_is_required_and_never_generated(): void
     {
-        User::factory()->create(['school_id' => 95000007, 'organization_id' => $this->home->id]);
         $token = $this->makeLink();
+        $body = $this->details();
+        unset($body['school_id']);
 
-        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details())->assertOk()->assertJsonPath('user.school_id', 95000008);
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $body)->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $this->assertDatabaseMissing('users', ['email' => 'arthur.dent@example.edu']);
+        $this->assertNull(DepartmentHeadInvitation::first()->accepted_at);
     }
 
-    public function test_employee_number_must_be_unique_and_outside_the_internal_range(): void
+    public function test_a_taken_school_id_gets_a_plain_message(): void
     {
         User::factory()->create(['school_id' => 20264444, 'organization_id' => $this->home->id]);
         $token = $this->makeLink();
 
-        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 20264444]))->assertJsonValidationErrors('school_id');
-        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 95000001]))->assertJsonValidationErrors('school_id');
+        $taken = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 20264444]));
+
+        $taken->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $this->assertSame('This school ID already has an account. Sign in, or reset your password.', $taken->json('errors.school_id.0'));
+        $this->assertDatabaseMissing('users', ['email' => 'arthur.dent@example.edu']);
+    }
+
+    /** @dataProvider badSchoolIds */
+    public function test_school_id_must_be_a_number_outside_the_internal_range(string $bad): void
+    {
+        $token = $this->makeLink();
+
+        $response = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => $bad]));
+
+        $response->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $this->assertSame('Enter your school ID using numbers only.', $response->json('errors.school_id.0'));
+        $this->assertDatabaseMissing('users', ['email' => 'arthur.dent@example.edu']);
+    }
+
+    public static function badSchoolIds(): array
+    {
+        return ['internal range' => ['95000001'], 'letters' => ['abc'], 'zero' => ['0'], 'negative' => ['-5'], 'decimal' => ['12.5']];
+    }
+
+    public function test_school_id_of_a_student_record_is_refused(): void
+    {
+        StudentRegistryEntry::create(['school_id' => 20267777, 'first_name' => 'Stu', 'last_name' => 'Dent', 'birth_date' => '2005-01-01', 'record_type' => 'student', 'college_id' => $this->college->id]);
+        $token = $this->makeLink();
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 20267777]))->assertJsonValidationErrors('school_id');
+        $this->assertDatabaseMissing('users', ['school_id' => 20267777]);
     }
 
     public function test_accept_validates_the_form(): void
@@ -255,7 +289,7 @@ class DepartmentHeadInvitationTest extends TestCase
         User::factory()->create(['email' => 'taken@example.edu', 'organization_id' => $this->home->id]);
         $token = $this->makeLink();
 
-        $this->postJson("/api/department-head-invitations/{$token}/accept", [])->assertJsonValidationErrors(['first_name', 'last_name', 'email', 'password']);
+        $this->postJson("/api/department-head-invitations/{$token}/accept", [])->assertJsonValidationErrors(['first_name', 'last_name', 'school_id', 'email', 'password']);
         $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'TAKEN@example.edu']))->assertJsonValidationErrors('email');
         $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['password_confirmation' => 'different']))->assertJsonValidationErrors('password');
         $this->assertNull(DepartmentHeadInvitation::first()->accepted_at);
@@ -326,44 +360,123 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details())->assertStatus(410);
     }
 
-    public function test_dean_makes_an_office_staff_link_and_the_staff_member_registers(): void
+    private function dean(): User
     {
-        $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
+        return User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
+    }
 
-        $response = $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'College Secretary', 'first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'clara@example.edu']);
+    public function test_a_bare_staff_link_needs_nothing_and_works_for_whoever_opens_it_first_once(): void
+    {
+        $head = $this->dean();
+
+        $response = $this->actingAs($head)->postJson('/api/college/staff/invitations', []);
         $response->assertCreated()->assertJsonStructure(['magic_link'])->assertJsonPath('emailed', false);
         $token = $this->linkToken($response->json());
+        Mail::assertNothingQueued();
 
-        $this->assertDatabaseHas('department_head_invitations', ['college_id' => $this->college->id, 'role' => 'COLLEGE_STAFF', 'position_title' => 'College Secretary']);
+        $this->assertDatabaseHas('department_head_invitations', ['college_id' => $this->college->id, 'role' => 'COLLEGE_STAFF', 'email' => null, 'first_name' => null, 'last_name' => null, 'registry_school_id' => null, 'position_title' => null]);
+        $this->assertEqualsWithDelta(48 * 3600, now()->diffInSeconds(DepartmentHeadInvitation::first()->expires_at, false), 5);
         $this->getJson("/api/department-head-invitations/{$token}")->assertOk()
             ->assertJsonPath('invitation.role', 'COLLEGE_STAFF')
-            ->assertJsonPath('invitation.position_title', 'College Secretary');
+            ->assertJsonPath('invitation.prefill', null)
+            ->assertJsonPath('invitation.record', null);
 
-        $accepted = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['first_name' => 'Clara', 'last_name' => 'Cruz', 'email' => 'clara@example.edu']));
-        $accepted->assertOk()->assertJsonPath('user.role', 'ADMIN');
-        $this->assertDatabaseHas('users', ['email' => 'clara@example.edu', 'role' => 'ADMIN', 'organization_id' => $this->home->id, 'position_title' => 'College Secretary']);
-        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $accepted->json('user.school_id'), 'organization_id' => $this->home->id, 'role' => 'ADMIN', 'position_title' => 'College Secretary']);
+        $accepted = $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['first_name' => 'Clara', 'last_name' => 'Cruz', 'school_id' => 20261234, 'email' => 'clara@example.edu']));
+        $accepted->assertOk()->assertJsonPath('user.role', 'ADMIN')->assertJsonPath('user.school_id', 20261234);
+        $this->assertDatabaseHas('users', ['email' => 'clara@example.edu', 'first_name' => 'Clara', 'role' => 'ADMIN', 'organization_id' => $this->home->id, 'position_title' => 'Office staff']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => 20261234, 'organization_id' => $this->home->id, 'role' => 'ADMIN', 'position_title' => 'Office staff']);
+        $this->postJson('/api/login', ['identifier' => '20261234', 'password' => 'SecurePass123!'])->assertOk();
 
-        $this->actingAs($head)->getJson('/api/college/staff')->assertOk()->assertJsonFragment(['email' => 'clara@example.edu', 'position_title' => 'College Secretary']);
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'second@example.edu', 'school_id' => 20261235]))->assertStatus(410);
+        $this->getJson("/api/department-head-invitations/{$token}")->assertStatus(410);
+        $this->assertDatabaseMissing('users', ['email' => 'second@example.edu']);
     }
 
-    public function test_staff_links_do_not_replace_each_other(): void
+    public function test_a_bare_staff_link_expires_after_48_hours(): void
     {
-        $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
+        $token = $this->linkToken($this->actingAs($this->dean())->postJson('/api/college/staff/invitations', [])->assertCreated()->json());
+        DepartmentHeadInvitation::query()->update(['expires_at' => now()->subMinute()]);
 
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Secretary', 'first_name' => 'Ana', 'last_name' => 'Lim', 'email' => 'ana@example.edu'])->assertCreated();
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Ben', 'last_name' => 'Tan', 'email' => 'ben@example.edu'])->assertCreated();
-
-        $this->assertSame(2, DepartmentHeadInvitation::where('role', 'COLLEGE_STAFF')->count());
+        $this->getJson("/api/department-head-invitations/{$token}")->assertStatus(410);
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details())->assertStatus(410);
+        $this->assertDatabaseMissing('users', ['email' => 'arthur.dent@example.edu']);
     }
 
-    public function test_staff_link_needs_a_position_and_a_dean(): void
+    public function test_a_staff_link_with_an_email_is_tied_to_it_and_emailed_when_mail_is_set_up(): void
     {
-        $head = User::factory()->departmentHead()->create(['organization_id' => $this->home->id]);
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertJsonValidationErrors(['position_title', 'first_name', 'last_name', 'email']);
+        $head = $this->dean();
 
+        $response = $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'Clara@Example.edu', 'position_title' => 'College Secretary']);
+        $response->assertCreated()->assertJsonPath('emailed', true)->assertJsonPath('mail_is_off', false)->assertJsonStructure(['magic_link']);
+        $token = $this->linkToken($response->json());
+        Mail::assertQueued(DeanInvitationMail::class, fn ($mail) => $mail->hasTo('clara@example.edu') && str_contains($mail->magicLink, $token));
+
+        $this->assertDatabaseHas('department_head_invitations', ['role' => 'COLLEGE_STAFF', 'email' => 'clara@example.edu', 'first_name' => null, 'position_title' => 'College Secretary']);
+        $this->getJson("/api/department-head-invitations/{$token}")->assertOk()->assertJsonPath('invitation.prefill.email', 'clara@example.edu');
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'someone.else@example.edu']))->assertJsonValidationErrors('email');
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'clara@example.edu']))->assertOk();
+        $this->assertDatabaseHas('users', ['email' => 'clara@example.edu', 'position_title' => 'College Secretary']);
+    }
+
+    public function test_with_mail_off_a_staff_link_with_an_email_says_nothing_was_emailed(): void
+    {
+        config(['mail.default' => 'log']);
+
+        $this->actingAs($this->dean())->postJson('/api/college/staff/invitations', ['email' => 'clara@example.edu'])
+            ->assertCreated()->assertJsonPath('emailed', false)->assertJsonPath('mail_is_off', true)->assertJsonStructure(['magic_link']);
+        Mail::assertNothingSent();
+        Mail::assertNothingQueued();
+    }
+
+    public function test_a_staff_link_refuses_an_email_that_already_has_an_account(): void
+    {
+        User::factory()->student()->create(['email' => 'stu@example.edu', 'organization_id' => $this->home->id]);
+        User::factory()->create(['email' => 'prof@example.edu', 'organization_id' => $this->home->id]);
+        $head = $this->dean();
+
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'stu@example.edu'])->assertJsonValidationErrors('email');
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'prof@example.edu'])->assertJsonValidationErrors('email');
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'not an email'])->assertJsonValidationErrors('email');
+        $this->assertSame(0, DepartmentHeadInvitation::count());
+    }
+
+    public function test_staff_links_do_not_replace_each_other_but_a_second_link_for_the_same_email_does(): void
+    {
+        $head = $this->dean();
+
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'ana@example.edu'])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'ben@example.edu'])->assertCreated();
+        $this->assertSame(4, DepartmentHeadInvitation::where('role', 'COLLEGE_STAFF')->count());
+
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'ana@example.edu'])->assertCreated();
+        $this->assertSame(4, DepartmentHeadInvitation::where('role', 'COLLEGE_STAFF')->count());
+    }
+
+    public function test_the_pending_list_names_an_open_link_by_its_email_or_plainly(): void
+    {
+        $head = $this->dean();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', [])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['email' => 'ana@example.edu'])->assertCreated();
+
+        $names = collect($this->actingAs($head)->getJson('/api/college/staff/invitations')->assertOk()->json('data'))->pluck('name')->all();
+
+        $this->assertEqualsCanonicalizing(['Open link', 'ana@example.edu'], $names);
+    }
+
+    public function test_the_dean_never_supplies_a_name_or_a_school_id(): void
+    {
+        $this->actingAs($this->dean())->postJson('/api/college/staff/invitations', ['first_name' => 'Typed', 'last_name' => 'ByDean', 'school_id' => 20269999])->assertCreated();
+
+        $this->assertDatabaseHas('department_head_invitations', ['role' => 'COLLEGE_STAFF', 'first_name' => null, 'last_name' => null, 'school_id' => null]);
+    }
+
+    public function test_only_a_dean_makes_a_staff_link(): void
+    {
         $admin = User::factory()->admin()->create(['organization_id' => $this->home->id]);
-        $this->actingAs($admin)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk'])->assertForbidden();
+        $this->actingAs($admin)->postJson('/api/college/staff/invitations', [])->assertForbidden();
     }
 
     public function test_staff_link_belongs_to_the_deans_own_college(): void
@@ -372,7 +485,7 @@ class DepartmentHeadInvitationTest extends TestCase
         $otherHome = Organization::create(['name' => 'College of Arts', 'slug' => 'college-of-arts', 'acronym' => 'CAS', 'college' => 'College of Arts', 'college_id' => $other->id, 'organization_type' => 'COLLEGE', 'is_active' => true, 'lifecycle_status' => 'active']);
         $head = User::factory()->departmentHead()->create(['organization_id' => $otherHome->id]);
 
-        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['position_title' => 'Clerk', 'first_name' => 'Ana', 'last_name' => 'Lim', 'email' => 'ana@example.edu', 'college_id' => $this->college->id])->assertCreated();
+        $this->actingAs($head)->postJson('/api/college/staff/invitations', ['college_id' => $this->college->id])->assertCreated();
 
         $this->assertDatabaseHas('department_head_invitations', ['college_id' => $other->id, 'role' => 'COLLEGE_STAFF']);
         $this->assertDatabaseMissing('department_head_invitations', ['college_id' => $this->college->id]);

@@ -51,6 +51,7 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         return $this->postJson("/api/department-head-invitations/{$query['token']}/accept", [
             'first_name' => 'Ramon',
             'last_name' => 'Castillo',
+            'school_id' => 20269500,
             'email' => $email,
             'password' => 'Dean2026!Pass',
             'password_confirmation' => 'Dean2026!Pass',
