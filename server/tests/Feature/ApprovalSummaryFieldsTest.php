@@ -247,6 +247,17 @@ class ApprovalSummaryFieldsTest extends TestCase
         }
     }
 
+    public function test_an_election_row_links_the_informative_letter_only_when_one_was_uploaded(): void
+    {
+        $withLetter = Election::factory()->create(['organization_id' => $this->organization->id, 'status' => 'pending_approval', 'informative_letter_path' => 'elections/letter.pdf']);
+        $withoutLetter = Election::factory()->create(['organization_id' => $this->organization->id, 'status' => 'pending_approval', 'informative_letter_path' => null]);
+        $this->approval('election', $withLetter->id);
+        $this->approval('election', $withoutLetter->id);
+
+        $this->assertSame('/elections/'.$withLetter->id.'/informative-letter', $this->summariesFor('election', $withLetter->id)[0]['informative_letter_url']);
+        $this->assertNull($this->summariesFor('election', $withoutLetter->id)[0]['informative_letter_url']);
+    }
+
     public function test_a_budget_row_carries_its_status_amounts_and_what_was_spent(): void
     {
         config(['approvals.budget_final' => 'SUPER_ADMIN']);

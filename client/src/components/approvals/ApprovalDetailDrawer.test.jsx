@@ -123,6 +123,23 @@ describe('ApprovalDetailDrawer SAO event files', () => {
   });
 });
 
+describe('ApprovalDetailDrawer election letter', () => {
+  const election = (url) => ({ id: 30, entity_type: 'election', entity_id: 3, title: 'SBO Election', status: 'pending', required_role: 'DEPARTMENT_HEAD', requested_by: 'ADM-1', requester: { first_name: 'Ana', last_name: 'Admin' }, summary: { status: 'pending_approval', target_status: 'pending_approval', informative_letter_url: url } });
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('opens the informative letter through the protected url', () => {
+    const { drawer } = renderDrawer({ request: election('/elections/3/informative-letter') });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Informative letter' }));
+    expect(mocks.openProtectedFile).toHaveBeenCalledWith('/elections/3/informative-letter');
+  });
+
+  it('shows no letter link when none was uploaded', () => {
+    const { drawer } = renderDrawer({ request: election(null) });
+    expect(within(drawer).queryByRole('button', { name: 'Informative letter' })).not.toBeInTheDocument();
+  });
+});
+
 describe('ApprovalDetailDrawer step tracker', () => {
   it('wraps the steps into a grid that fits the drawer and stays pinned above the scrolling content', () => {
     const { drawer } = renderDrawer();

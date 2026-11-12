@@ -7,6 +7,7 @@ import { downloadFinancialReportPdf } from '../../services/financeService';
 import { openProtectedFile } from '../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
+import { FileLink } from '../reviews/FileReviewList';
 import ApprovalReceipt from './ApprovalReceipt';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
@@ -190,6 +191,12 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
             onMark={(id, value) => setMarks((current) => ({ ...current, [id]: value }))}
             onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
           />
+        )}
+        {request.entity_type === 'election' && request.summary?.informative_letter_url && (
+          <section aria-label="Informative letter">
+            <h3 className="text-xs font-semibold text-ink-muted-strong">Informative letter</h3>
+            <FileLink url={request.summary.informative_letter_url} name="Informative letter" />
+          </section>
         )}
         {reviewing && !allAccepted(files, marks) && (
           <p className="text-sm text-ink-muted-strong">Accept every file to approve. Return the request to send back a file with a note.</p>
