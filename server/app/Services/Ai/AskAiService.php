@@ -880,8 +880,8 @@ class AskAiService
             if ($orgsWithoutAdmin > 0) {
                 $rows[] = [
                     'id' => 'dh-no-admin',
-                    'primary' => 'Coordinate administrator assignment for active organizations',
-                    'secondary' => "{$orgsWithoutAdmin} active organization(s) in your college do not have an active administrator yet.",
+                    'primary' => 'Name an organization head for active organizations',
+                    'secondary' => "{$orgsWithoutAdmin} active organization(s) in your college do not have an active organization head yet. Use Give access on each one.",
                     'status' => 'Awaiting admin',
                     'status_tone' => 'info',
                     'meta' => "{$orgsWithoutAdmin} org(s)",
@@ -1693,7 +1693,9 @@ class AskAiService
                 [
                     'id' => 'orgs-without-admin',
                     'title' => 'Active Organizations Without an Administrator',
-                    'description' => 'Active organizations that still need an active ADMIN profile provisioned.',
+                    'description' => $role === 'SUPER_ADMIN'
+                        ? 'Active organizations without an active Admin. The Department Head names it for a college organization; you name it for a university-wide one.'
+                        : 'Active organizations without an organization head. Open one and use Give access to name it.',
                     'empty_message' => 'Every active organization in scope has an assigned administrator.',
                     'rows' => $noAdminOrgs->take(self::ROW_LIMIT)->map(fn ($org) => [
                         'id' => 'noadmin-'.$org->id,
@@ -3752,7 +3754,7 @@ class AskAiService
                     'topic' => 'organizations_without_admin',
                     'label' => 'Returned or missing-admin orgs',
                     'question' => 'Which organizations in my college are returned or missing an administrator?',
-                    'description' => 'Organizations needing registration edits or administrator provisioning.',
+                    'description' => 'Organizations needing registration edits or an organization head.',
                 ],
                 [
                     'id' => 'dh-howto-endorse',

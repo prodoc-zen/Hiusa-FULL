@@ -178,7 +178,7 @@ class UserController extends Controller
         }
 
         if ($validatedData['role'] === 'ADMIN' && $actor->role === 'ADMIN') {
-            return response()->json(['message' => 'Only the dean or the SAO can name another organization head.'], 403);
+            return response()->json(['message' => 'Only the '.$this->headNamer($request->user()).' can name another organization head.'], 403);
         }
 
         $this->assertStudentHasProgram($validatedData, AcademicProgram::where('organization_id', $organizationId)->exists());
@@ -399,6 +399,12 @@ class UserController extends Controller
         return $rows;
     }
 
+    /** Who names the head of the actor's organization: the dean of its college, or the SAO for a university-wide one, which has no dean. */
+    private function headNamer(User $actor): string
+    {
+        return $actor->organization?->is_university_wide ? 'SAO' : 'Department Head';
+    }
+
     private function assertStudentHasProgram(array $data, bool $programsConfigured): void
     {
         if ($data['role'] !== 'STUDENT') {
@@ -536,7 +542,7 @@ class UserController extends Controller
         }
 
         if (($validatedData['role'] ?? null) === 'ADMIN' && $user->role !== 'ADMIN' && $request->user()->role === 'ADMIN') {
-            return response()->json(['message' => 'Only the dean or the SAO can name another organization head.'], 403);
+            return response()->json(['message' => 'Only the '.$this->headNamer($request->user()).' can name another organization head.'], 403);
         }
 
         if (($validatedData['role'] ?? $user->role) === 'ADMIN'
@@ -666,7 +672,7 @@ class UserController extends Controller
         }
 
         if ($user->role === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+            return response()->json(['message' => 'Administrator accounts are managed only by the SAO, from University users.'], 403);
         }
 
         if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
@@ -721,7 +727,7 @@ class UserController extends Controller
         }
 
         if ($user->role === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+            return response()->json(['message' => 'Administrator accounts are managed only by the SAO, from University users.'], 403);
         }
 
         if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
@@ -771,7 +777,7 @@ class UserController extends Controller
         }
 
         if ($profile->role === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+            return response()->json(['message' => 'Administrator accounts are managed only by the SAO, from University users.'], 403);
         }
 
         if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
