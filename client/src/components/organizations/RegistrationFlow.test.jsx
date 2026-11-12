@@ -21,7 +21,7 @@ it('adds no explanation under the steps of a college organization', () => {
 const CASES = [
   ['DEPARTMENT_HEAD', { lifecycle_status: 'pending' }, 'Pending review: waiting for SAO review', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'returned', review_remarks: 'Sign the constitution.' }, 'Returned: edit and resubmit', 'action', 'Edit and resubmit'],
-  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Name the organization head', 'action', null],
+  ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0 }, 'Name the organization head', 'action', 'Give access'],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 0, is_university_wide: true }, 'Approved: waiting for SAO to add the Admin account', 'waiting', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: 1 }, 'Active: administrator can sign in', 'done', null],
   ['DEPARTMENT_HEAD', { lifecycle_status: 'active', administrators_count: undefined }, 'Active', 'done', null],

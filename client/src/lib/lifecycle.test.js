@@ -286,12 +286,13 @@ describe('orderLifecycle', () => {
 });
 
 describe('organizationRegistrationLifecycle', () => {
-  it('sends nobody to an administrators page, because that page no longer exists, and never tells the SAO to add a college organization head', () => {
+  it('sends nobody to an administrators page, because that page no longer exists, sends only the Department Head to Give access of a college organization, and never tells the SAO to add a college organization head', () => {
     for (const record of [{ id: 4, lifecycle_status: 'active', administrators_count: 0 }, { id: 4, lifecycle_status: 'active', administrators_count: 0, is_university_wide: true }]) {
       for (const viewer of ['SUPER_ADMIN', 'DEPARTMENT_HEAD']) {
         const result = organizationRegistrationLifecycle(record, viewer);
-        expect(result.nextAction.label).toBeUndefined();
-        expect(result.nextAction.to).toBeUndefined();
+        const gives = viewer === 'DEPARTMENT_HEAD' && !record.is_university_wide;
+        expect(result.nextAction.label).toBe(gives ? 'Give access' : undefined);
+        expect(result.nextAction.to).toBe(gives ? '/dashboard/department-head/org/4?tab=people' : undefined);
         expect(JSON.stringify(result)).not.toContain('super-admin/admins');
       }
     }
@@ -306,7 +307,7 @@ describe('organizationRegistrationLifecycle', () => {
     { name: 'pending, the Department Head waits', record: { id: 4, lifecycle_status: 'pending' }, viewer: 'DEPARTMENT_HEAD', current: 'review', tone: 'waiting', title: 'Waiting for SAO review', actorRole: 'SUPER_ADMIN', body: 'No action needed from you.' },
     { name: 'returned, the Department Head edits', record: { id: 4, lifecycle_status: 'returned', review_remarks: 'Missing constitution' }, viewer: 'DEPARTMENT_HEAD', current: 'review', tone: 'action', title: 'Returned: edit and resubmit', actorRole: 'DEPARTMENT_HEAD', body: 'Missing constitution', label: 'Edit and resubmit', to: '/dashboard/department-head/organizations?status=returned&record=4', states: { registered: 'done', review: 'blocked', administrator: 'upcoming', first_use: 'upcoming' } },
     { name: 'returned, the SAO waits', record: { id: 4, lifecycle_status: 'returned' }, viewer: 'SUPER_ADMIN', current: 'review', tone: 'waiting', title: 'Waiting for the Department Head to resubmit', actorRole: 'DEPARTMENT_HEAD' },
-    { name: 'active college organization with no administrator, the Department Head names one', record: { id: 4, lifecycle_status: 'active', administrators_count: 0 }, viewer: 'DEPARTMENT_HEAD', current: 'administrator', tone: 'action', title: 'Name the organization head', actorRole: 'DEPARTMENT_HEAD', body: 'This organization has no Admin. Open it and use Give access to name its Organization head so they can sign in and manage it.', states: { registered: 'done', review: 'done', administrator: 'current', first_use: 'upcoming' } },
+    { name: 'active college organization with no administrator, the Department Head names one', record: { id: 4, lifecycle_status: 'active', administrators_count: 0 }, viewer: 'DEPARTMENT_HEAD', current: 'administrator', tone: 'action', title: 'Name the organization head', actorRole: 'DEPARTMENT_HEAD', label: 'Give access', to: '/dashboard/department-head/org/4?tab=people', body: 'This organization has no Admin. Open it and use Give access to name its Organization head so they can sign in and manage it.', states: { registered: 'done', review: 'done', administrator: 'current', first_use: 'upcoming' } },
     { name: 'active college organization with no administrator, the SAO waits for the Department Head', record: { id: 4, lifecycle_status: 'active', administrators_count: 0 }, viewer: 'SUPER_ADMIN', current: 'administrator', tone: 'waiting', title: 'Approved: waiting for the Department Head to name the organization head', actorRole: 'DEPARTMENT_HEAD' },
     { name: 'active college organization with administrators_count as a string zero', record: { id: 4, lifecycle_status: 'active', administrators_count: '0' }, viewer: 'DEPARTMENT_HEAD', current: 'administrator', tone: 'action', title: 'Name the organization head', actorRole: 'DEPARTMENT_HEAD' },
     { name: 'active university-wide organization with no administrator, the SAO adds one', record: { id: 4, lifecycle_status: 'active', administrators_count: 0, is_university_wide: true }, viewer: 'SUPER_ADMIN', current: 'administrator', tone: 'action', title: 'Add the Admin account', actorRole: 'SUPER_ADMIN', body: 'This organization is open to every college and has no dean. Add its Admin from the Organizations list so an administrator can sign in and manage it.' },

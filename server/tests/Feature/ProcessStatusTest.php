@@ -261,12 +261,41 @@ class ProcessStatusTest extends TestCase
         $this->assertSame(1, $steps['applications-reviewed']['count']);
         $this->assertSame('current', $steps['organizations-active']['state']);
 
-        $this->studentOrganization($this->computing);
+        $organization = $this->studentOrganization($this->computing);
+        User::factory()->admin()->create(['organization_id' => $organization->id]);
         $payload = $this->statusOf($dean)->json();
         $this->assertTrue($payload['complete']);
 
         AccountProfile::where('user_school_id', $secretary->school_id)->update(['account_status' => 'inactive']);
         $this->assertSame('current', $this->steps($this->statusOf($dean)->json())['staff-added']['state']);
+    }
+
+    public function test_dean_is_asked_to_name_the_head_of_an_active_organization_that_has_no_admin_and_the_step_goes_when_one_exists(): void
+    {
+        $dean = User::factory()->departmentHead()->create(['organization_id' => $this->computingHome->id]);
+        User::factory()->admin()->create(['organization_id' => $this->computingHome->id]);
+        $this->record($this->computing, 2600001);
+        $student = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
+        OrganizationApplicantGrant::create(['college_id' => $this->computing->id, 'user_school_id' => $student->school_id, 'granted_by' => $dean->school_id]);
+        $this->application($this->computing, $student, 'pending_sao');
+        $staffed = $this->studentOrganization($this->computing, 'active', ['name' => 'Drama Club']);
+        User::factory()->admin()->create(['organization_id' => $staffed->id]);
+        $waiting = $this->studentOrganization($this->computing, 'active', ['name' => 'Debate Society']);
+        $this->studentOrganization($this->computing, 'pending', ['name' => 'Pending Society']);
+        $this->studentOrganization($this->arts, 'active', ['name' => 'Other College Org']);
+
+        $payload = $this->statusOf($dean)->assertOk()->json();
+
+        $this->assertSame(['done', 'done', 'done', 'done', 'done', 'current'], array_column($payload['steps'], 'state'));
+        $step = $this->steps($payload)['organization-head'];
+        $this->assertSame('Name the organization head of Debate Society', $step['label']);
+        $this->assertSame(['label' => 'Give access', 'path' => "/dashboard/department-head/org/{$waiting->id}?tab=people"], $step['action']);
+        $this->assertFalse($payload['complete']);
+
+        User::factory()->admin()->create(['organization_id' => $waiting->id]);
+        $payload = $this->statusOf($dean)->json();
+        $this->assertNotContains('organization-head', array_column($payload['steps'], 'key'));
+        $this->assertTrue($payload['complete']);
     }
 
     public function test_dean_counts_a_college_with_a_revoked_grant_as_not_yet_allowing_anyone(): void

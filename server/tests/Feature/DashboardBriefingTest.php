@@ -706,7 +706,9 @@ class DashboardBriefingTest extends TestCase
     {
         [$path, $query] = array_pad(explode('?', $href, 2), 2, null);
 
-        $this->assertContains($path, $allowed, "{$role} received an href outside its live allowlist: {$href}");
+        $matches = collect($allowed)->contains(fn (string $pattern) => $pattern === $path
+            || preg_match('#^'.preg_replace('#:[A-Za-z]+#', '[0-9]+', $pattern).'$#D', $path) === 1);
+        $this->assertTrue($matches, "{$role} received an href outside its live allowlist: {$href}");
         if ($query !== null) {
             foreach (explode('&', $query) as $pair) {
                 $this->assertMatchesRegularExpression('/^(tab|status|view|record|review|event|organization|create|new)=[A-Za-z0-9_-]{1,64}$/D', $pair, "{$role} received an href with a query that is not allowed: {$href}");
@@ -1103,11 +1105,13 @@ class DashboardBriefingTest extends TestCase
         $items = collect($response->json('attention'))->where('type', 'organization_awaiting_admin');
 
         $this->assertCount(2, $items);
-        $this->assertSame('Organization approved: waiting for an administrator', $items->first()['title']);
-        $this->assertSame('/dashboard/department-head/organizations?status=active', $items->first()['href']);
         $this->assertContains('org_no_admin-'.$waiting->id, $items->pluck('id')->all());
-        $this->assertStringContainsString('Brass Band', $items->pluck('detail')->implode(' '));
-        $this->assertSame('Debate Society is active, but it has no organization head yet. Open it and use Give access to name one.', $items->firstWhere('id', 'org_no_admin-'.$waiting->id)['detail']);
+        $this->assertContains('org_no_admin-'.$suspended->id, $items->pluck('id')->all());
+        $step = $items->firstWhere('id', 'org_no_admin-'.$waiting->id);
+        $this->assertSame('Name the organization head of Debate Society', $step['title']);
+        $this->assertSame('Debate Society is approved and active, but nobody can sign in to manage it yet. Open People and access and use Give access.', $step['detail']);
+        $this->assertSame("/dashboard/department-head/org/{$waiting->id}?tab=people", $step['href']);
+        $this->assertSame("/dashboard/department-head/org/{$suspended->id}?tab=people", $items->firstWhere('id', 'org_no_admin-'.$suspended->id)['href']);
         $this->assertStringNotContainsString('SAO', $items->pluck('detail')->implode(' '));
         $this->assertStringNotContainsString('Drama Club', $items->pluck('detail')->implode(' '));
         $this->assertStringNotContainsString('Pending Society', $items->pluck('detail')->implode(' '));

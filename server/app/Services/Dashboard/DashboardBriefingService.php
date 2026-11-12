@@ -164,7 +164,7 @@ class DashboardBriefingService
         $attention = $this->prioritize(array_merge(
             $this->approvalsAttention('DEPARTMENT_HEAD', $collegeIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
             $this->returnedRegistrationsAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations?status=returned')),
-            $this->organizationsAwaitingAdminAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations?status=active')),
+            $this->organizationsAwaitingAdminAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/org/:orgId?tab=people')),
         ));
 
         return [
@@ -697,19 +697,21 @@ class DashboardBriefingService
     {
         $query = DB::table('organizations')->whereIn('id', $organizationIds)->where('lifecycle_status', 'active')
             ->whereNotExists(fn ($admins) => $admins->selectRaw('1')->from('account_profiles')
+                ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
                 ->whereColumn('account_profiles.organization_id', 'organizations.id')
                 ->where('account_profiles.role', 'ADMIN')
-                ->where('account_profiles.account_status', 'active'));
+                ->where('account_profiles.account_status', 'active')
+                ->where('users.account_status', 'active'));
         $rows = (clone $query)->orderBy('name')->limit(self::ATTENTION_LIMIT)->get(['id', 'name']);
 
         return $this->withTotal($rows->map(fn ($row) => [
             'id' => 'org_no_admin-'.$row->id,
             'type' => 'organization_awaiting_admin',
             'severity' => 'low',
-            'title' => 'Organization approved: waiting for an administrator',
-            'detail' => "{$row->name} is active, but it has no organization head yet. Open it and use Give access to name one.",
+            'title' => 'Name the organization head of '.$row->name,
+            'detail' => "{$row->name} is approved and active, but nobody can sign in to manage it yet. Open People and access and use Give access.",
             'due_at' => null,
-            'href' => $href,
+            'href' => $href === null ? null : str_replace(':orgId', (string) $row->id, $href),
         ])->all(), $this->overflowTotal($rows->count(), $query));
     }
 
