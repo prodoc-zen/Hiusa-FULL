@@ -91,6 +91,7 @@ class OfficeStaffParityTest extends TestCase
         'POST api/announcements',
         'POST api/announcements/{id}/view',
         'POST api/department-head-invitations/{token}/claim',
+        'POST api/elections/{id}/positions/{position}/tie-resolution',
         'POST api/events/{id}/registrations',
         'POST api/logout',
         'POST api/my/organization-applications',
@@ -355,6 +356,8 @@ class OfficeStaffParityTest extends TestCase
             'api/events/{event}/submission/files/{file}' => $this->ids['requirementFiles'],
             'api/event-requirements/{requirement}' => $this->ids['requirements'],
             'api/elections/{id}' => $this->ids['elections'],
+            'api/elections/{id}/reports/{type}' => ['results'],
+            'api/officer-transition/handover/{handover}' => [1],
             'api/organization-applications/{application}' => $this->ids['applications'],
             'api/organization-applications/{application}/documents/{document}' => $this->ids['applicationDocuments'],
             'api/organization-applications/{application}/review-files/{file}' => $this->ids['applicationReviewFiles'],
@@ -444,7 +447,8 @@ class OfficeStaffParityTest extends TestCase
 
                         continue;
                     }
-                    if ($deanStatus >= 500 || $staffStatus >= 500) {
+                    // 501 is a full election route that is registered on its stub controller and not built yet; staff and dean must still agree on it.
+                    if (($deanStatus >= 500 && $deanStatus !== 501) || ($staffStatus >= 500 && $staffStatus !== 501)) {
                         $failures[] = "{$target}: server error, dean {$deanStatus}, staff {$staffStatus}";
                     } elseif ($staffStatus !== $deanStatus) {
                         $failures[] = "{$target}: dean {$deanStatus}, staff {$staffStatus}";
