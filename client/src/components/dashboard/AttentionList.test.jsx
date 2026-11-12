@@ -39,13 +39,13 @@ describe('AttentionList', () => {
   it('makes the whole row one link with an Open label and no second link inside it', () => {
     render(
       <MemoryRouter>
-        <AttentionList items={[{ id: 'approval-4', type: 'approval', severity: 'high', title: 'Foundation Week', detail: 'Requested 2 days ago', due_at: null, href: '/dashboard/super-admin/compliance?tab=events' }]} />
+        <AttentionList items={[{ id: 'approval-4', type: 'approval', severity: 'high', title: 'Foundation Week', detail: 'Requested 2 days ago', due_at: null, href: '/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31' }]} />
       </MemoryRouter>
     );
 
     const links = screen.getAllByRole('link');
     expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=events');
+    expect(links[0]).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=event-reviews&organization=7&event=31');
     expect(links[0]).toHaveTextContent('Open');
     expect(links[0]).toHaveTextContent('Foundation Week');
   });

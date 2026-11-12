@@ -64,12 +64,12 @@ function orderDestination(role, id) {
 const DESTINATIONS = {
   // The notification carries the approval id and, on newer rows, the entity type being approved. Older
   // rows have no entity type, and the SAO's reports always reach it where events only sometimes do,
-  // so they land on the Financial reports tab.
+  // so they land on the Financial reports tab. An event lands on Event reviews, which opens that approval's event.
   approval_request: (role, id, _notificationType, entityType) => {
     if (Object.hasOwn(APPROVALS, role)) return record(APPROVALS[role], id);
     if (role !== 'SUPER_ADMIN') return null;
     if (!entityType) return '/dashboard/super-admin/compliance?tab=financial';
-    if (entityType === 'event') return '/dashboard/super-admin/compliance?tab=events';
+    if (entityType === 'event') return `/dashboard/super-admin/compliance?tab=event-reviews${safeId(id) ? `&approval=${id}` : ''}`;
     if (entityType === 'financial_report') return '/dashboard/super-admin/compliance?tab=financial';
     return '/dashboard/super-admin/compliance';
   },

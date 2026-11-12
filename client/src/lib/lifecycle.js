@@ -232,7 +232,7 @@ function eventApprover(event) {
 }
 
 function eventApprovalHref(approverRole, event) {
-  if (approverRole === 'SUPER_ADMIN') return '/dashboard/super-admin/compliance?tab=events';
+  if (approverRole === 'SUPER_ADMIN') return `/dashboard/super-admin/compliance?tab=event-reviews${event.organization_id && event.id ? `&organization=${event.organization_id}&event=${event.id}` : ''}`;
   const base = approvalsHref(approverRole);
   return base && event.approval_id ? `${base}?record=${event.approval_id}` : base;
 }

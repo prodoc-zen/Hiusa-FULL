@@ -11,7 +11,7 @@ export default function OrganizationReviewFolders({ overview, onRetry, title, wa
   const organizationId = params.get('organization') || '';
   const [search, setSearch] = useState('');
   function choose(id) {
-    setParams((current) => { const next = new URLSearchParams(current); if (id) next.set('organization', String(id)); else next.delete('organization'); return next; });
+    setParams((current) => { const next = new URLSearchParams(current); if (id) next.set('organization', String(id)); else next.delete('organization'); next.delete('event'); return next; });
   }
   if (organizationId) {
     const chosen = overview.organizations.find((org) => String(org.organization_id) === organizationId);

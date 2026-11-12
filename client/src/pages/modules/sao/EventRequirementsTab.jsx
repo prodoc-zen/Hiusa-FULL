@@ -43,7 +43,7 @@ const OFF_CAMPUS_PRESETS = [
 
 const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
 
-export default function EventRequirementsTab({ mode = 'settings', organizationId = '', noSemester = false }) {
+export default function EventRequirementsTab({ mode = 'settings', organizationId = '', noSemester = false, initialEventId = '', onEventOpen }) {
   const [reviewSearch, setReviewSearch] = useState('');
   const [venueFilter, setVenueFilter] = useState('all');
   const [togglingId, setTogglingId] = useState(null);
@@ -53,7 +53,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const [nameError, setNameError] = useState(null);
   const nameRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
-  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [selectedEventId, setSelectedEventId] = useState(initialEventId ? Number(initialEventId) : null);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removeTemplateTarget, setRemoveTemplateTarget] = useState(null);
   const [templateFile, setTemplateFile] = useState(null);
@@ -95,6 +95,11 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     load();
     return () => { requests.current++; };
   }, [load]);
+
+  function chooseEvent(eventId) {
+    setSelectedEventId(eventId);
+    onEventOpen?.(eventId);
+  }
 
   function resetForm() {
     setEditingId(null);
@@ -239,7 +244,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setBusy(true);
     try {
       await reviewApprovalRequest(approval.id, { status, remarks: decisionRemarks.trim() || undefined });
-      setSelectedEventId(null);
+      chooseEvent(null);
       notify.success(`Event ${status}.`);
       closeDecision();
       await load();
@@ -463,7 +468,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                     <p className="mt-0.5 text-xs text-ink-muted">Event #{approval.entity_id} · {formatDisplayText(approval.requester?.first_name)} {formatDisplayText(approval.requester?.last_name)}</p>
                   </div>
                   <TableRowActions subject={formatDisplayText(approval.title)} actions={[
-                    { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => setSelectedEventId(selectedEventId === approval.entity_id ? null : approval.entity_id) },
+                    { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => chooseEvent(selectedEventId === approval.entity_id ? null : approval.entity_id) },
                     { label: 'Approve', icon: Check, disabled: busy, onClick: () => openDecision(approval, 'approve') },
                     { label: 'Reject', icon: X, danger: true, disabled: busy, onClick: () => openDecision(approval, 'reject') },
                   ]} />

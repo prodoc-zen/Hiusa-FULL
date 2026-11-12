@@ -228,7 +228,7 @@ class DashboardBriefingService
         $attention = $this->prioritize(array_merge(
             $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance'), [
                 'financial_report' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=financial'),
-                'event' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=events'),
+                'event' => fn (ApprovalRequest $approval) => $this->routeAccess->hrefFor($role, "/dashboard/super-admin/compliance?tab=event-reviews&organization={$approval->organization_id}&event={$approval->entity_id}"),
             ]),
             $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=financial')),
             $this->saoQueuesAttention(),
@@ -408,9 +408,20 @@ class DashboardBriefingService
                 'title' => $this->entityLabels->for($approval),
                 'detail' => Str::headline($approval->entity_type).' requested by '.($requesterName ?: 'a member').' '.$approval->requested_at->diffForHumans(),
                 'due_at' => null,
-                'href' => array_key_exists($approval->entity_type, $hrefByEntityType) ? $hrefByEntityType[$approval->entity_type] : $href,
+                'href' => $this->approvalHref($approval, $href, $hrefByEntityType),
             ];
         })->all(), $this->overflowTotal($approvals->count(), $query));
+    }
+
+    /** @param  array<string, string|null|\Closure(ApprovalRequest): ?string>  $hrefByEntityType */
+    private function approvalHref(ApprovalRequest $approval, ?string $default, array $hrefByEntityType): ?string
+    {
+        if (! array_key_exists($approval->entity_type, $hrefByEntityType)) {
+            return $default;
+        }
+        $href = $hrefByEntityType[$approval->entity_type];
+
+        return $href instanceof \Closure ? $href($approval) : $href;
     }
 
     private function electionsClosingAttention(int $organizationId, ?string $href): array
