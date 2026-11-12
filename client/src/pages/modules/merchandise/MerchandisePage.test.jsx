@@ -986,6 +986,66 @@ describe("MerchandisePage order stages for staff", () => {
     expect((await screen.findAllByText("Approve the verified payment")).length).toBeGreaterThan(0);
   });
 
+  it("refreshes an open order list on its own so Release order appears once the Admin approves, without a spinner", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      orderMocks.getOrders.mockResolvedValueOnce(queue([staffOrder({ id: 3, officer_review_status: "approved" })]));
+      renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+      const table = await screen.findByRole("table");
+      expect(within(table).queryByRole("button", { name: "Release order" })).not.toBeInTheDocument();
+      expect(within(table).getByText("Verified: waiting for Admin approval")).toBeInTheDocument();
+
+      let finish;
+      orderMocks.getOrders.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+      const callsBefore = orderMocks.getOrders.mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+      expect(orderMocks.getOrders.mock.calls.length).toBe(callsBefore + 1);
+      expect(screen.getByRole("table")).toBe(table);
+      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+
+      await act(async () => {
+        finish(queue([paidRow({ id: 3 })]));
+        await Promise.resolve();
+      });
+      expect(await within(screen.getByRole("table")).findByRole("button", { name: "Release order" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks the Admin to approve the verified payment, not to approve it directly, and toasts that", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    const verified = staffOrder({ id: 3, officer_review_status: "approved" });
+    orderMocks.getOrders.mockResolvedValue(queue([verified]));
+    orderMocks.updateOrderStatus.mockResolvedValue({ data: { ...verified, status: "paid", claim_token: "CLAIMTOKEN123456" } });
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    fireEvent.click(within(await screen.findByRole("table")).getByRole("button", { name: "Approve payment" }));
+    const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
+    expect(within(dialog).getByRole("heading", { name: "Approve payment" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("An SBO Officer verified this payment");
+    expect(dialog).not.toHaveTextContent("without waiting");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Approve payment/ }));
+    expect(await screen.findByText("Order ORD-3 payment approved and its receipt is ready.")).toBeInTheDocument();
+    expect(screen.queryByText(/directly approved/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the direct approval wording when no officer verified the order", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    const unverified = staffOrder({ id: 2 });
+    orderMocks.getOrders.mockResolvedValue(queue([unverified]));
+    orderMocks.updateOrderStatus.mockResolvedValue({ data: { ...unverified, status: "paid", claim_token: "CLAIMTOKEN123456" } });
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    fireEvent.click(within(await screen.findByRole("table")).getByRole("button", { name: "Approve payment" }));
+    const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
+    expect(within(dialog).getByRole("heading", { name: "Approve payment directly" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("without waiting for an SBO Officer review");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Approve/ }));
+    expect(await screen.findByText("Order ORD-2 was directly approved and its receipt is ready.")).toBeInTheDocument();
+  });
+
   it("opens an order from ?record= with the stepper and the verify action", async () => {
     orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 2 })]));
     renderAt("/dashboard/merchandise/manage-orders?record=2", "orders");
