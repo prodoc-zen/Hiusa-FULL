@@ -567,14 +567,16 @@ describe('EventsPage walkthrough fixes', () => {
       expect(Boolean(screen.queryByRole('menuitem', { name: 'Edit event' }))).toBe(offered);
     });
 
-    it('says the period is empty rather than that nothing was ever proposed when periods exist', async () => {
+    it('has no academic period picker of its own and asks for the semester the top bar is on', async () => {
       periodMocks.getAcademicPeriods.mockResolvedValue([{ id: 8, status: 'active', number: 1, academic_year: { label: '2026-2027' } }]);
       eventMocks.getEvents.mockResolvedValue(eventPage());
       renderAt('/dashboard/events/manage-events', 'events');
 
-      expect(await screen.findByText('No events in this academic period yet')).toBeInTheDocument();
-      expect(screen.getByText(/Events from other periods are under Academic period/)).toBeInTheDocument();
-      expect(screen.queryByText('No events proposed yet')).not.toBeInTheDocument();
+      expect(await screen.findByText('No events proposed yet')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Academic period')).not.toBeInTheDocument();
+      expect(screen.queryByText('Active period')).not.toBeInTheDocument();
+      expect(periodMocks.getAcademicPeriods).not.toHaveBeenCalled();
+      expect(eventMocks.getEvents.mock.calls.every(([params]) => !('academic_semester_id' in params))).toBe(true);
     });
   });
 

@@ -16,7 +16,6 @@ vi.mock('../../../services/eventService', () => ({
 vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
 vi.mock('../../../services/taskService', () => ({ getTasks: vi.fn(() => Promise.resolve({ data: { data: [] } })), previewTaskRecommendation: vi.fn() }));
 vi.mock('../../../services/venueService', () => ({ getVenues: vi.fn(() => Promise.resolve({ data: { data: [] } })) }));
-vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicPeriods: vi.fn(() => Promise.resolve([])) }));
 vi.mock('../../../services/userService', () => ({ getUsers: vi.fn(), getAcademicStructure: vi.fn() }));
 vi.mock('../../../services/fingerprintService', () => ({ identifyAttendanceFingerprint: vi.fn(), confirmFingerprintAttendance: vi.fn() }));
 vi.mock('../../../hooks/useFingerprintReader', () => ({ useFingerprintReader: () => ({ connected: false, scanning: false, error: '', retry: vi.fn() }) }));
