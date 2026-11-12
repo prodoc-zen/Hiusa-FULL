@@ -136,6 +136,47 @@ describe('ApplicationReview', () => {
     ] })));
   });
 
+  it('starts a file the applicant did not change as Accepted, so endorsing takes one Accept all click for the replaced file', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      round: 2,
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [{ stage: 'dean', stage_label: 'Department Head', status: 'ok', note: null, carried: true }], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 13, name: 'officers-v2.pdf', open_url: '/y' }, reviews: [], review_files: [] },
+      ],
+    }) });
+    mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ round: 2, status: 'pending_sao' }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getByText('1 file is unchanged since you accepted it, so it starts as Accepted.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review Officer list' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+    expect(screen.getByRole('button', { name: 'Endorse' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));
+
+    await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, {
+      action: 'endorse', remarks: null,
+      requirements: [{ requirement_type_id: 1, status: 'ok', note: null }, { requirement_type_id: 2, status: 'ok', note: null }],
+    }));
+  });
+
+  it('does not seed an accepted mark from another stage or when nothing was carried', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      round: 2,
+      requirements: [
+        { id: 1, name: 'Constitution', document: { id: 11, name: 'constitution.pdf', open_url: '/x' }, reviews: [{ stage: 'sao', stage_label: 'SAO', status: 'ok', note: null, carried: true }], review_files: [] },
+        { id: 2, name: 'Officer list', document: { id: 13, name: 'officers-v2.pdf', open_url: '/y' }, reviews: [], review_files: [] },
+      ],
+    }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.queryByText(/unchanged since you accepted/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Not checked', { selector: 'span' })).toHaveLength(2);
+  });
+
   it('offers no Accept all to a reviewer who is not deciding', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderReview();

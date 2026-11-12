@@ -27,6 +27,13 @@ const REVIEW_WORD = { ok: 'Accepted', needs_changes: 'Needs changes', missing: '
 
 // The one word on a collapsed requirement row. A problem outranks an acceptance, so a row that any
 // reviewer flagged never reads as Accepted.
+// A file the applicant did not change since this reviewer accepted it comes back from the server already accepted.
+function carriedMarks(application, stage) {
+  return Object.fromEntries((application?.requirements ?? [])
+    .filter((requirement) => requirement.reviews.some((review) => review.stage === stage && review.carried))
+    .map((requirement) => [requirement.id, 'ok']));
+}
+
 function worstStatus(reviews) {
   if (reviews.some((review) => review.status === 'needs_changes')) return 'needs_changes';
   if (reviews.some((review) => review.status === 'missing')) return 'missing';
@@ -120,9 +127,12 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const load = useCallback((silent = false) => {
     if (!silent) setState({ loading: true, error: null, application: null });
     return getOrganizationApplication(applicationId)
-      .then((res) => setState({ loading: false, error: null, application: res.data }))
+      .then((res) => {
+        if (!silent) setMarks(carriedMarks(res.data, stage));
+        setState({ loading: false, error: null, application: res.data });
+      })
       .catch((err) => setState({ loading: false, error: err?.response?.status === 404 ? 'This application is not in your queue.' : getApiErrorMessage(err, 'Could not load this application.'), application: null }));
-  }, [applicationId]);
+  }, [applicationId, stage]);
 
   useEffect(() => {
     setMarks({});
@@ -141,6 +151,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const flagged = requirements.filter((requirement) => marks[requirement.id] === 'needs_changes');
   const allAccepted = requirements.length > 0 && requirements.every((requirement) => marks[requirement.id] === 'ok');
   const notChecked = requirements.filter((requirement) => requirement.document && !marks[requirement.id]);
+  const carriedCount = Object.keys(carriedMarks(application, stage)).length;
   const hasNote = remarks.trim() !== '' || flagged.some((requirement) => (notes[requirement.id] || '').trim() !== '');
 
   const acceptNotChecked = () => setMarks((current) => ({ ...current, ...Object.fromEntries(notChecked.map((requirement) => [requirement.id, 'ok'])) }));
@@ -258,6 +269,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
               <h2 className="text-base font-semibold text-ink">Requirements</h2>
               {actionable && notChecked.length > 0 && <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={acceptNotChecked}>Accept all not checked</Button>}
             </div>
+            {actionable && carriedCount > 0 && <p className="mt-2 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since you accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
             <ul className="mt-3 divide-y divide-line-soft">
               {requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
