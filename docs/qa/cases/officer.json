@@ -796,7 +796,7 @@
       "3. Look for the buttons \"Propose budget\", \"Edit\" and \"Delete\".",
       "4. Open \"View details\" on a budget if one is listed."
     ],
-    "expected": "The note says \"View only. You can review and export these records; the organization admin records and changes them.\" A box shows \"Ledger net balance\". There are no buttons to propose, edit or delete. If nothing is listed the page says \"No budgets to show yet\" and \"Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one.\"",
+    "expected": "The note says \"View only. You can review and export these records; the organization admin records and changes them.\" A box shows \"Ledger net balance\" for the semester the top bar shows. There are no buttons to propose, edit or delete. If nothing is listed the page says \"No budgets to show yet\" and \"Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one.\"",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -816,7 +816,7 @@
       "5. Set \"Filter from date\" and \"Filter to date\" and click \"Apply\".",
       "6. Look for \"Record transaction\", \"Edit transaction\" and \"Delete transaction\"."
     ],
-    "expected": "Totals and the list follow the filters. When nothing matches the page says \"No matching transactions\" with a clear option. There is no way to record, edit or delete a transaction. With an empty ledger the page says \"No transactions to show yet\". VERIFY: the view-only note mentions export, check whether this page offers an export button.",
+    "expected": "Totals and the list follow the filters and cover only the semester the top bar shows. When nothing matches the page says \"No matching transactions\" with a clear option. There is no way to record, edit or delete a transaction. With an empty ledger the page says \"No transactions to show yet\". VERIFY: the view-only note mentions export, check whether this page offers an export button.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Access",

@@ -2133,7 +2133,7 @@
       "4. Set 'Filter from date' and 'Filter to date'.",
       "5. Use the page buttons 'Previous transaction page' and 'Next transaction page'."
     ],
-    "expected": "Totals and rows follow the filters. Each row shows description, payer / recorder, category, amount, source and receipt. With no match the page says 'No matching transactions'. A new organization sees 'No transactions recorded yet'.",
+    "expected": "Totals and rows follow the filters. Each row shows description, payer / recorder, category, amount, source and receipt. With no match the page says 'No matching transactions'. A new organization sees 'No transactions recorded yet'. The rows, the totals and Ledger net balance cover only the transactions dated inside the semester the top bar shows (choose another semester there and they change). VERIFY: seeded entries dated outside the active semester are not listed.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -2294,7 +2294,7 @@
       "3. Optionally add Expected amount and Notes.",
       "4. Select 'Record collection'."
     ],
-    "expected": "The page says 'Collection recorded. Another admin must verify it before it appears in the ledger.' The row shows pending and your own account sees no Verify button on it.",
+    "expected": "The page says 'Collection recorded. Another admin must verify it before it appears in the ledger.' The row shows pending and your own account sees no Verify button on it. A note on the page says Available funds and Awaiting remittance are running balances across all semesters, while Remitted and the collections list follow the semester selected at the top.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2618,7 +2618,7 @@
       "2. Use 'Filter reports by status', 'by document' and 'by event'.",
       "3. Select 'Export Excel' and 'Print / Save PDF' on 'Full Transaction Log' and 'Category Breakdown'."
     ],
-    "expected": "The list narrows for each filter or says 'No saved reports match these filters'. A new organization sees 'No saved reports yet'. The exports download or open a print view.",
+    "expected": "The list narrows for each filter or says 'No saved reports match these filters'. A new organization sees 'No saved reports yet'. The list shows the reports whose period overlaps the semester selected at the top. The cards Full Transaction Log and Category Breakdown say they cover the semester selected at the top, and the exports download or open a print view of that semester.",
     "priority": "Low",
     "device": "Laptop",
     "type": "Functional",
