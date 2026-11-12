@@ -27,7 +27,6 @@ import {
   X,
 } from 'lucide-react';
 import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventRequirements, submitEventRequirements, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
-import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getVenues } from '../../../services/venueService';
 import { getTasks, previewTaskRecommendation } from '../../../services/taskService';
 import { getAcademicStructure, getUsers } from '../../../services/userService';
@@ -410,12 +409,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
   const [eventReload, setEventReload] = useState(0);
-  const [academicPeriods, setAcademicPeriods] = useState([]);
   const [campusVenues, setCampusVenues] = useState([]);
   const [activeEventRequirements, setActiveEventRequirements] = useState([]);
   const [attachedEventFiles, setAttachedEventFiles] = useState({});
   const [attachedFileErrors, setAttachedFileErrors] = useState({});
-  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 20;
   const eventPageSize = 20;
@@ -465,15 +462,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   const canCreateEvents = currentUserRole === 'ADMIN';
   const canManageAttendance = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
-  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
   const seesEventFlow = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const holdsEventFiles = ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const requirementProgress = useRequirementProgress(selectedEvent?.id, holdsEventFiles && selectedEvent?.requirements_required === true && !detailsLoading, submissionVersion);
   const selectedFlow = selectedEvent && seesEventFlow ? eventFlow(selectedEvent, currentUserRole, requirementProgress) : null;
 
-  useEffect(() => {
-    getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([]));
-  }, []);
   useEffect(() => {
     if (currentUserRole === 'ADMIN') getVenues({ per_page: 100 }).then((response) => setCampusVenues(response.data?.data || [])).catch(() => setCampusVenues([]));
   }, [currentUserRole]);
@@ -485,8 +478,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     // browsable event table is loaded separately with backend pagination.
     const canLoadTasks = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
     const requests = canLoadTasks
-      ? [fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
-      : [fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)), Promise.resolve([])];
+      ? [fetchAllPages((p) => getEvents(p).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
+      : [fetchAllPages((p) => getEvents(p).then((r) => r.data)), Promise.resolve([])];
     Promise.all(requests)
       .then(([eventList, taskList]) => {
         setEvents(eventList);
@@ -497,7 +490,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [currentUserRole, selectedPeriodId]);
+  useEffect(load, [currentUserRole]);
 
   async function confirmDeleteEvent() {
     setDeleteBusy(true);
@@ -533,7 +526,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     let active = true;
     const timer = window.setTimeout(() => {
       setEventListLoading(true);
-      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort, academic_semester_id: selectedPeriodId || undefined })
+      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort })
         .then((response) => {
           if (!active) return;
           setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
@@ -544,7 +537,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }, 250);
 
     return () => { active = false; window.clearTimeout(timer); };
-  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search, selectedPeriodId]);
+  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1064,12 +1057,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   const autoPickedRef = useRef(false);
   useEffect(() => {
-    if (autoPickedRef.current || activeTab !== 'attendance' || !canManageAttendance || viewingHistory || loading || preselectedEventId) return;
+    if (autoPickedRef.current || activeTab !== 'attendance' || !canManageAttendance || loading || preselectedEventId) return;
     if (ongoingAttendanceEvents.length !== 1) return;
     autoPickedRef.current = true;
     handleSelectAttEvent(ongoingAttendanceEvents[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, canManageAttendance, viewingHistory, loading, preselectedEventId, ongoingAttendanceEvents.length]);
+  }, [activeTab, canManageAttendance, loading, preselectedEventId, ongoingAttendanceEvents.length]);
 
   const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
   const attendanceSummary = attendanceData?.summary;
@@ -1081,7 +1074,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const attendanceRate = expectedAttendance > 0 ? Math.min(100, Math.round((attendanceCount / expectedAttendance) * 100)) : null;
   useEffect(() => {
     setEventsPage(1);
-  }, [search, dateFilter, eventStatusFilter, selectedPeriodId]);
+  }, [search, dateFilter, eventStatusFilter]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedAttendanceSearch(attendanceSearch.trim()), 250);
@@ -1138,13 +1131,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       return <EmptyState kind="filtered" title="No events match these filters" description="Change the search, date or status, or clear the filters to see every event in this period." onClearFilters={clearEventFilters} />;
     }
     if (currentUserRole === 'ADMIN') {
-      return viewingHistory ? (
-        <EmptyState icon={CalendarPlus} title="No events in this semester" description="This semester is closed. Switch to the active academic period to propose an event." />
-      ) : (
+      return (
         <EmptyState
           icon={CalendarPlus}
-          title={academicPeriods.length > 0 ? 'No events in this academic period yet' : 'No events proposed yet'}
-          description={`Every event starts as a proposal that the Department Head approves first.${academicPeriods.length > 0 ? ' Events from other periods are under Academic period.' : ''}`}
+          title="No events proposed yet"
+          description="Every event starts as a proposal that the Department Head approves first."
           action={<Button variant="secondary" leftIcon={Plus} onClick={openCreateForm}>Propose your first event</Button>}
         />
       );
@@ -1179,15 +1170,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     // A form opened from the request selector goes back there, not to the events list.
     if (startEventRequest && !editingEventId) navigate(REQUEST_SELECTOR_PATH);
   }
-
-  const periodSelect = academicPeriods.length > 0 && (
-    <Field label="Academic period" className="w-full max-w-xs">
-      <HiusaSelect filter value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-        <option value="">Active period</option>
-        {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
-      </HiusaSelect>
-    </Field>
-  );
 
   if (showForm) {
     return (
@@ -1364,7 +1346,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   return (
     <div className="space-y-6">
       <PageHeader
-        primary={activeTab === 'events' && canCreateEvents && !viewingHistory ? <Button leftIcon={Plus} onClick={openCreateForm}>New event</Button> : undefined}
+        primary={activeTab === 'events' && canCreateEvents ? <Button leftIcon={Plus} onClick={openCreateForm}>New event</Button> : undefined}
       />
 
       {error && <ErrorState title="Events did not load" description={error} onRetry={load} />}
@@ -1372,8 +1354,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       {activeTab === 'events' && (
         <section className="space-y-4">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            {periodSelect || <span />}
+          <div className="flex flex-wrap items-end justify-end gap-3">
             <div role="group" aria-label="Switch events view" className="flex h-11 w-fit shrink-0 items-center rounded-control border border-line bg-subtle p-1">
               <button
                 type="button"
@@ -1395,7 +1376,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </button>
             </div>
           </div>
-          {viewingHistory && <p className="text-sm text-ink-muted">Viewing completed semester records. New events use only the active period.</p>}
 
           {eventsView === 'list' && (
             <div className="flex flex-wrap items-end gap-3">
@@ -1472,9 +1452,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <td className="absolute right-0 top-2 z-10 lg:static lg:table-cell py-0 lg:px-4 lg:py-2.5 lg:text-right">
                           <TableRowActions subject={evt.title} label="Event actions" actions={[
                             { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
-                            canCreateEvents && !viewingHistory && !['completed', 'cancelled'].includes(evt.status) && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
-                            canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
-                            canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
+                            canCreateEvents && !['completed', 'cancelled'].includes(evt.status) && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
+                            canCreateEvents && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                            canCreateEvents && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
                           ]} />
                         </td>
                       </tr>
