@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
@@ -52,6 +53,21 @@ class SubmittedFileManagementTest extends TestCase
         $this->assertDatabaseHas('notifications', ['user_id' => $sao->school_id, 'title' => 'Submitted file replaced']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'submission_document_replaced', 'record_id' => $submission->id]);
         $this->getJson('/api/compliance/documents?family=registration')->assertOk()->assertJsonPath('data.0.file_name', 'corrected.pdf');
+    }
+
+    public function test_a_head_replacing_or_deleting_a_file_notifies_an_admin_who_holds_the_role_only_through_a_profile(): void
+    {
+        extract($this->context());
+        $person = User::factory()->create(['role' => 'STUDENT', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $person->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        Sanctum::actingAs($head);
+        $version = $submission->submitted_at->toIso8601String();
+
+        $this->post('/api/compliance/submissions/'.$submission->id.'/document', ['submitted_at' => $version, 'document' => UploadedFile::fake()->create('replacement.pdf', 12, 'application/pdf')], ['Accept' => 'application/json'])->assertOk();
+        $this->assertDatabaseHas('notifications', ['user_id' => $person->school_id, 'organization_id' => $organization->id, 'title' => 'Submitted file replaced']);
+
+        $this->deleteJson('/api/compliance/submissions/'.$submission->id, ['submitted_at' => $submission->fresh()->submitted_at->toIso8601String()])->assertOk();
+        $this->assertDatabaseHas('notifications', ['user_id' => $person->school_id, 'organization_id' => $organization->id, 'title' => 'Submitted file deleted']);
     }
 
     public function test_head_can_replace_and_delete_own_college_files_and_old_links_are_not_served(): void

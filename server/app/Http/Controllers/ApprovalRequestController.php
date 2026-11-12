@@ -21,6 +21,7 @@ use App\Services\EventApprovalChain;
 use App\Services\EventFileReview;
 use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
+use App\Services\OrganizationRecipients;
 use App\Support\FilterValues;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,6 +41,7 @@ class ApprovalRequestController extends Controller
         private readonly ApprovalEntityLabel $entityLabels,
         private readonly EventApprovalChain $eventChain,
         private readonly EventFileReview $eventFileReview,
+        private readonly OrganizationRecipients $recipients,
     ) {}
 
     public function index(Request $request)
@@ -438,10 +440,7 @@ class ApprovalRequestController extends Controller
             'approved_at' => now(),
         ]);
 
-        $recipientIds = User::where('organization_id', $approval->organization_id)
-            ->where('account_status', 'active')
-            ->where('school_id', '!=', $approval->requested_by)
-            ->pluck('school_id');
+        $recipientIds = $this->recipients->memberIds($approval->organization_id, $approval->requested_by);
         $now = now();
 
         foreach ($recipientIds->chunk(100) as $chunk) {
