@@ -76,7 +76,7 @@ Clicks are counted from the role's home. "Expand" is the group click: groups wit
 | Job | Current path | Clicks |
 |---|---|---|
 | Approve a new organization | SAO Administration expand > Organizations > Review > Approve (`SystemOrganizationsPage.jsx:126-127`). The home briefing never lists pending registrations (see break 22) | 4 |
-| Give it an administrator | Governance > Administrators > Add administrator > fill > submit. The approval toast says only "approved and activated" (`SystemOrganizationsPage.jsx:101`) | 3 more |
+| Give it an administrator | A college organization: the Department Head, Organizations > the organization > People and access > Give access > Organization head (the SAO has no way to add one). A university-wide organization has no dean: the SAO uses Organizations > row menu > Add administrator. The approval toast says only "approved and activated" (`SystemOrganizationsPage.jsx:101`) | 3 more |
 | Review compliance | Compliance > Review queue tab > open > decide. The briefing link lands on the Accreditation tab, not the queue (`DashboardBriefingService.php:1170`, `SaoCompliancePage.jsx:16`) | 4 |
 | Decide a financial report or an event with requirements | Compliance > Financial reports or Event requirements tab (`SaoCompliancePage.jsx:22-23`). There is no SAO Approvals item; `/super-admin/approvals` redirects (`App.jsx:216`) | 4 |
 | Find any file an organization submitted | Compliance > Track documents tab: one row per organization (college, file count, latest submission), expand it for its files grouped by Event requirements, Semestral report, Semester renewal, Financial reports, Financial report supporting documents and Registration documents. Each file shows a status (and the Department Head or SAO stage for events) and View opens it in a new tab. An event file appears only once the Department Head has approved the event, because that is when the SAO can open it. A pending registration document links to "Open organization review" for the decision, and the Review queue marks it the same way | 3 |
@@ -415,12 +415,12 @@ Shown in: the existing `StepTracker` (`MerchandisePage.jsx:226-246`) replaced by
 |---|---|---|---|
 | 1 Registered | `lifecycle_status=pending` | SAO | DH: "Waiting for SAO review"; SAO: "Review the registration" |
 | 1b Returned | `returned` + `review_remarks` | Department Head | "Returned: edit and resubmit" |
-| 2 Approved | `active`, `administrators_count=0` | SAO | SAO: "Provision an administrator"; DH: "Approved: waiting for the SAO to assign an administrator" |
+| 2 Approved | `active`, `administrators_count=0` | DH (college organization) or SAO (university-wide) | College: DH "Name the organization head", SAO "Approved: waiting for the Department Head to name the organization head". University-wide: SAO "Add the Admin account", others "Approved: waiting for the SAO to add the Admin account" |
 | 3 Administrator set | `active`, active ADMIN user exists | Admin | "Administrator can sign in" |
 | 4 First use | Admin setup checklist 0 of N | Admin | "Finish your 3 setup steps" |
 | Branch | `archived` | SAO | "Archived: read only" |
 
-Shown in: DH Organizations rows and drawer, SAO Registrations cards and the review drawer (after Approve, the drawer swaps to a NextStep "Provision administrator"), SAO organization overview.
+Shown in: DH Organizations rows and drawer, SAO Registrations cards and the review drawer (after Approve, the drawer swaps to a NextStep naming the Department Head), SAO organization overview.
 
 ### 4.7 Compliance renewal
 
@@ -558,7 +558,7 @@ One shape for every list-plus-detail page: `<route>?record=<id>` opens the detai
 | Briefing attention item | The exact tab or record (`?tab=review`, `?record=`), generated server side |
 | Approval row | An "Open <event, budget, election, report>" link to the entity page with its stepper |
 | Stepper NextStep button | The page and record where the next action happens (Propose budget opens the budget form with the event preselected: `?event=<id>`) |
-| Active with no Admin yet (SAO) | NextStep text only, with no link: the SAO has no Administrators page, and the first Admin account is added from the Organizations list row menu |
+| Active with no Admin yet (SAO) | NextStep text only, with no link: a college organization waits for its Department Head (Give access), and only a university-wide organization is given its Admin by the SAO from the Organizations list row menu |
 | Event drawer "Prepare event report" | `/dashboard/finance/transaction-history?event=<id>` with the event report type preselected |
 | Event drawer "Book venue" | `/dashboard/venues?event=<id>` |
 | Study objectives | Removed in round r15: no page, no footer link, no endpoint |
@@ -648,7 +648,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 4. Act from a notification (ceiling 2): bell, notification. End: lands on the exact item with its drawer open, for approval, event, organization and report types.
 
 **SUPER_ADMIN**
-1. Approve a registration and give it an administrator (ceiling 5): attention "N registrations awaiting review" lands on Pending review, open, Approve, NextStep "Provision administrator", create. End: organization Active with 1 administrator; DH sees "Administrator can sign in".
+1. Approve a registration and give it an administrator (ceiling 5): attention "N registrations awaiting review" lands on Pending review, open, Approve (the applicant becomes the organization Admin). End: organization Active with 1 administrator; DH sees "Administrator can sign in". If an Admin is later removed, the DH names the next one with Give access.
 2. Review compliance (ceiling 3): attention item lands on the Review queue tab (not Accreditation), open submission, decide. End: submission status changes and accreditation roll up updates.
 3. Decide a financial report (ceiling 3): attention item lands on Financial reports tab, open, approve. End: report shows Approved on both sides.
 4. See who needs attention (ceiling 2): Organizations > Agency overview. End: organizations needing action are listed first.
