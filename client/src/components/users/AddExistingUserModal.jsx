@@ -12,7 +12,6 @@ const ROLE_OPTIONS = [
   { value: 'SBO_OFFICER', label: 'Officer' },
   { value: 'ADMIN', label: 'Organization head' },
 ];
-const ADMIN_GRANTORS = ['DEPARTMENT_HEAD', 'SUPER_ADMIN'];
 
 function personFromUser(user) {
   if (!user) return null;
@@ -25,7 +24,9 @@ function personFromUser(user) {
 }
 
 function mayNameHead(actorRole, target, organizations) {
-  if (ADMIN_GRANTORS.includes(actorRole)) return true;
+  if (actorRole === 'DEPARTMENT_HEAD') return true;
+  // The SAO names only the Admin of a university-wide organization, which has no dean.
+  if (actorRole === 'SUPER_ADMIN') return Boolean(target?.is_university_wide);
   if (actorRole !== 'ADMIN' || !target?.parent_organization_id) return false;
   return organizations.some((item) => String(item.id) === String(target.parent_organization_id));
 }
@@ -134,9 +135,9 @@ export default function AddExistingUserModal({ organization = null, initialUser 
           disabled={busy}
           hint="Students without an account sign up themselves with their school ID."
         />
-        <Field label="Role in this organization" hint={headRefused ? 'Only the dean or the SAO can name another organization head, so this person can be added only as a member here.' : undefined}>
+        <Field label="Role in this organization" hint={headRefused ? `Only the ${target.is_university_wide ? 'SAO' : 'Department Head'} can name another organization head, so this person can be added only as a member here.` : undefined}>
           <Select value={effectiveRole} disabled={busy} onChange={(event) => setRole(event.target.value)}>
-            {ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN' || headOffered).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {ROLE_OPTIONS.filter((option) => actorRole === 'SUPER_ADMIN' ? option.value === 'ADMIN' && headOffered : option.value !== 'ADMIN' || headOffered).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </Field>
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
