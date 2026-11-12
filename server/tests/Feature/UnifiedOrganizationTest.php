@@ -104,10 +104,10 @@ class UnifiedOrganizationTest extends TestCase
         $source = Organization::factory()->create(['college_id' => $college->id, 'college' => $college->name]);
         $student = User::factory()->student()->create(['organization_id' => $source->id]);
         Sanctum::actingAs($this->sao());
-        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $student->school_id, 'role' => 'STUDENT'])
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
             ->assertUnprocessable()->assertJsonValidationErrors('school_id');
         $legacy = User::factory()->student()->create(['organization_id' => Organization::factory()->create(['college_id' => null, 'college' => $college->name])->id]);
-        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $legacy->school_id, 'role' => 'STUDENT'])
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $legacy->school_id, 'role' => 'ADMIN'])
             ->assertUnprocessable()->assertJsonValidationErrors('school_id');
         $college->update(['is_active' => true]);
         $home = Organization::factory()->create(['college_id' => $college->id, 'college' => $college->name, 'organization_type' => 'COLLEGE']);
@@ -117,13 +117,16 @@ class UnifiedOrganizationTest extends TestCase
         $this->getJson('/api/compliance/documents?organization_id='.$organization->id)->assertForbidden();
     }
 
-    public function test_sao_can_add_the_first_admin_after_creating_the_unified_organization(): void
+    public function test_sao_can_name_the_admin_of_a_unified_organization_and_nobody_else_in_it(): void
     {
         $organization = $this->unified();
         $student = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
         Sanctum::actingAs($this->sao());
         $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
             ->assertCreated()->assertJsonPath('role', 'ADMIN');
+        $other = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $organization->id, 'school_id' => $other->school_id, 'role' => 'STUDENT'])
+            ->assertForbidden();
     }
 
     public function test_unified_budget_and_event_requests_go_to_sao_and_are_not_exposed_to_college_heads(): void

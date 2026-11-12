@@ -184,11 +184,15 @@ class AccountProfileController extends Controller
         };
     }
 
-    /** An organization head hands out officer and member access; Admin only into a suborganization of theirs, never beside themselves. */
+    /** The SAO adds nobody below the Department Head; its one grant is the Admin of a university-wide organization, which has no dean. An organization head hands out officer and member access; Admin only into a suborganization of theirs, never beside themselves. */
     private function assertMayGrant(User $actor, string $role, Organization $organization): void
     {
+        if ($actor->role === 'SUPER_ADMIN') {
+            abort_unless($organization->is_university_wide, 403, 'The Department Head gives access in a college organization.');
+            abort_unless($role === 'ADMIN', 403, 'The SAO names only the Admin of a university-wide organization.');
+        }
         if ($role === 'ADMIN' && $actor->role === 'ADMIN' && (int) $organization->id === (int) $actor->organization_id) {
-            throw ValidationException::withMessages(['role' => ['Only the dean or the SAO can name another organization head.']]);
+            throw ValidationException::withMessages(['role' => [$organization->is_university_wide ? 'Only the SAO can name another organization head.' : 'Only the Department Head can name another organization head.']]);
         }
     }
 
