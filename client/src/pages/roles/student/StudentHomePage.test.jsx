@@ -1,10 +1,11 @@
 import { StrictMode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentHomePage from './StudentHomePage';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getBriefing } from '../../../services/dashboardService';
+import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 
 vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 vi.mock('../../../services/studentFeedService', () => ({ getStudentFeed: vi.fn() }));
@@ -182,5 +183,35 @@ describe('StudentHomePage', () => {
     await screen.findByRole('region', { name: 'Organization feed' });
     const tracker = screen.getByTestId('process-tracker');
     expect(tracker.parentElement.firstElementChild).toBe(tracker);
+  });
+
+  describe('in a closed semester', () => {
+    beforeEach(() => localStorage.setItem(PERIOD_KEY, JSON.stringify({ id: 2, status: 'completed', number: 2, academic_year: { label: '2025-2026' } })));
+    afterEach(() => localStorage.removeItem(PERIOD_KEY));
+
+    it('hides the current semester actions and says the dashboard shows the current semester only', async () => {
+      getStudentFeed.mockResolvedValue({
+        organization: null,
+        items: [{ key: 'election-4', type: 'election', sort_at: new Date().toISOString(), is_pinned: false, data: { id: 4, title: 'SBO election', status: 'active', end_time: new Date(Date.now() + 3_600_000).toISOString(), has_voted: false, can_vote: true } }],
+        sidebar: { active_election: { id: 4, title: 'SBO election', has_voted: false }, upcoming_events: [] },
+        pagination: { current_page: 1, has_more: false, next_page: null },
+      });
+      vi.mocked(getBriefing).mockResolvedValueOnce({ data: {
+        user: { first_name: 'Ana', role: 'STUDENT', organization: { id: 1, name: 'Supreme Student Council' } },
+        summary: { attention_count: 1, headline: '1 item needs you today.' },
+        setup: { completed: 0, total: 1, steps: [{ key: 'contact', label: 'Add contact number', detail: 'd', done: false, href: '/dashboard/profile' }] },
+        attention: [{ id: 'vote-4', type: 'election_open', severity: 'normal', title: 'Vote now', detail: 'Cast your ballot', due_at: null, href: '/elections/4/vote' }],
+        pillars: {}, insights: [],
+      } });
+      render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+
+      expect(await screen.findByText(/shows your current semester only/)).toBeInTheDocument();
+      expect(screen.queryByText('Vote now')).not.toBeInTheDocument();
+      expect(screen.queryByText('Voting is open')).not.toBeInTheDocument();
+      expect(screen.queryByText('Add contact number')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('process-tracker')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Activity calendar' })).toHaveAttribute('href', '/dashboard/events/activity-calendar');
+      expect(screen.getByRole('link', { name: 'Election results' })).toHaveAttribute('href', '/dashboard/elections/election-results');
+    });
   });
 });

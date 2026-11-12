@@ -39,3 +39,8 @@ export function closedPeriodParams(role) {
   const period = role === 'STUDENT' ? readSelectedPeriod() : null;
   return period?.status === 'completed' ? { academic_semester_id: period.id } : {};
 }
+
+// A student who picked a closed semester in the top bar reads it, and only reads it: the pages hide every write control.
+export function viewsClosedSemester(role) {
+  return role === 'STUDENT' && readSelectedPeriod()?.status === 'completed';
+}
