@@ -148,7 +148,7 @@ export function InviteDepartmentHeadModal({ colleges, initialCollegeId = '', onC
             {colleges.map((college) => <option key={college.id} value={college.id}>{formatDisplayText(college.name)}</option>)}
           </Select>
         </Field>
-        <Field label="Send it to" optional error={errors.email} hint="We email the link to this address. You can also copy it after.">
+        <Field label="Send it to" optional error={errors.email} hint="The link is shown for you to copy. It is emailed to this address only when email is set up.">
           <Input type="email" autoComplete="off" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((current) => ({ ...current, email: undefined })); }} />
         </Field>
         {formError && <p role="alert" className="rounded-control border border-red-200 bg-red-50 p-3 text-sm font-semibold text-danger-strong">{formError}</p>}

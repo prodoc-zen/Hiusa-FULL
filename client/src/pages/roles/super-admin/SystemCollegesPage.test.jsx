@@ -600,6 +600,14 @@ describe('SystemCollegesPage', () => {
       expect(mocks.inviteDepartmentHead).not.toHaveBeenCalled();
     });
 
+    it('does not promise an email before the link is made, because mail may be off', async () => {
+      withoutHead();
+      const dialog = await openInvite();
+
+      expect(within(dialog).queryByText(/We email the link/)).not.toBeInTheDocument();
+      expect(within(dialog).getByText('The link is shown for you to copy. It is emailed to this address only when email is set up.')).toBeInTheDocument();
+    });
+
     it('makes a link from the college card with the college already chosen, and asks for no identity', async () => {
       withoutHead();
       mocks.inviteDepartmentHead.mockResolvedValue({ magic_link: 'http://localhost:5173/accept-invitation?token=abc', emailed: false });
