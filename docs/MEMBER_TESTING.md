@@ -117,7 +117,7 @@ Menu names as the sidebar shows them today (from the menu configuration, in orde
 
 1. Endorse an organization application (4 clicks). Organization applications, Review on the row under To review, Accept all not checked, Endorse. Needs an active semester (section 3) and an application sent by a student the head allowed to apply. End: the message reads Endorsed. The SAO is next. and the page shows the status With the SAO.
 2. Approve an item (4 clicks). Approvals, open an item, Approve, confirm. End: the item shows Approved and links to the event, budget or report.
-3. Review an application again after it was returned and sent again (4 clicks from home, the same path as journey 1; 3 when the student changed no file, because files you accepted before and that did not change start as Accepted). End: the page shows the status With the SAO again.
+3. Review an application again after it was returned and sent again (4 clicks from home, the same path as journey 1; 3 only when your own stage had already accepted every file and the SAO returned none of them, so the student changed no file and every file starts as Accepted; if even one file is not carried as Accepted you still need Accept all not checked and it stays 4). End: the page shows the status With the SAO again.
 4. Act from a notification (2 clicks). Click the bell, click a notification. End: you land on the exact item.
 
 ### Admin (900001)
@@ -131,7 +131,7 @@ Menu names as the sidebar shows them today (from the menu configuration, in orde
 ### SBO Officer (900004)
 
 1. Check someone in (4 clicks). Events and tasks, Check-in. End: attendance count goes up.
-2. Verify a payment and release an order (6 clicks). Store, Orders, verify, then Store, Claim desk. End: the order shows Claimed.
+2. Verify a payment and release an order (two officer halves of 4 clicks each, with an Admin step between). First half: Store, Orders, Verify payment, Verify and submit. The officer cannot finish alone, because the Admin must approve the payment before the order is Paid; the Admin approves it (Store, Orders, Approve payment). Second half: Store, Orders, Release order, Confirm release. End: the order shows Claimed.
 3. Update my task (3 clicks). End: the card shows the new stage.
 4. Send an announcement for approval (4 clicks). End: the row says Waiting for Admin approval.
 

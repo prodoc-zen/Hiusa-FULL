@@ -2169,7 +2169,7 @@
       "7. Open Store > Inventory and read the stock of size S and size M again.",
       "8. Sign out. Sign in as Student 2300312. Open Store, My orders. Read the status and the 16-character claim token.",
       "9. Open My payments, Receipts and find the receipt for the order.",
-      "10. Sign out. Sign in as Officer 900004. Open Store > Claim desk, type the token in \"16-character claim token\", select \"Claim\", check the student and the items, and select \"Confirm Claim / Release\".",
+      "10. Sign out. Sign in as Officer 900004. Open Store > Claim desk, type the token in \"16-character claim token\", select \"Claim\", check the student and the items, and select \"Confirm release\".",
       "11. Sign out. Sign in as Student 2300312. Open My orders and read the status.",
       "12. Sign out. Sign in as Admin 900001. Open Store > Inventory and compare stock. Open Finance > Ledger and find the entry \"Merchandise order ORD-<number>\"."
     ],
@@ -2312,7 +2312,7 @@
     "steps": [
       "1. Journey 1, endorse an organization application: limit 4 clicks (Organization applications, Review on the row under To review, Accept all not checked, Endorse). Endorse has no confirmation window. Opening each file before accepting it is the review itself: the limit counts the shortest path. End: the message reads \"Endorsed. The SAO is next.\" and the page shows the status With the SAO.",
       "2. Journey 2, approve an item: limit 4 clicks (Approvals, open an item, Approve, confirm). End: the item shows Approved and links to the event, budget or report.",
-      "3. Journey 3, review an application again after it was returned and sent again: limit 4 clicks from home, the same path as journey 1 (3 when the student changed no file, because files you accepted before and that did not change start as Accepted). End: the page shows the status With the SAO again and the History lists the return and the new endorsement.",
+      "3. Journey 3, review an application again after it was returned and sent again: limit 4 clicks from home, the same path as journey 1 (3 only when your own stage had already accepted every file and the SAO returned none of them, so the student changed no file and every file starts as Accepted; if even one file is not carried as Accepted, you still need \"Accept all not checked\" and the limit stays 4). End: the page shows the status With the SAO again and the History lists the return and the new endorsement.",
       "4. Journey 4, act from a notification: limit 2 clicks (the bell, then the notification). End: you land on the exact item.",
       "5. For each journey write the clicks you counted, whether the end state was reached, and any moment the person asked \"where do I go now\"."
     ],
@@ -2352,7 +2352,7 @@
     "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Officer 900004 (password the demo owner gave you). Journeys 1 and 3 use the seeded data (Round 1). Journey 2 needs a student order. Start each journey at the home page after signing in.",
     "steps": [
       "1. Journey 1, check someone in: limit 4 clicks (Events and tasks, Check-in). End: the attendance count goes up.",
-      "2. Journey 2, verify a payment and release an order: limit 6 clicks (Store, Orders, verify, then Store, Claim desk). End: the order shows Claimed.",
+      "2. Journey 2, verify a payment and release an order, in two officer halves with an Admin step between them. First half: limit 4 clicks (Store, Orders, Verify payment, Verify and submit). The officer cannot finish alone, because the Admin must approve the payment before the order is Paid. Admin 900001 approves it (Store, Orders, Approve payment). Second half: limit 4 clicks (Store, Orders, Release order, Confirm release). End: the order shows Claimed.",
       "3. Journey 3, update my task: limit 3 clicks. End: the card shows the new stage.",
       "4. Journey 4, send an announcement for approval: limit 4 clicks. End: the row says \"Waiting for Admin approval\".",
       "5. For each journey write the clicks, whether the end state was reached, and any moment of being lost."
@@ -2362,7 +2362,7 @@
     "device": "Any",
     "type": "Usability",
     "round": "Round 1 (before the SAO opens a semester)",
-    "depends": "Run with SBO-018, SBO-062, SBO-068, SBO-031 and SBO-077"
+    "depends": "Run with SBO-018, SBO-062, SBO-068, SBO-095, SBO-031 and SBO-077"
   },
   {
     "id": "GEN-128",
