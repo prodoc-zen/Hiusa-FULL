@@ -105,6 +105,7 @@ class SystemUsersController extends Controller
         'evaluation_responses.user_id' => 'evaluation responses submitted',
         'evaluation_windows.created_by' => 'evaluation windows created',
         'event_registrations.user_id' => 'event registrations',
+        'event_requirement_file_reviews.reviewed_by' => 'event files reviewed',
         'event_requirement_files.uploaded_by' => 'event requirement files uploaded',
         'events.created_by' => 'events created',
         'financial_forecasts.generated_by' => 'financial forecasts generated',
