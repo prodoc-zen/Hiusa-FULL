@@ -1,7 +1,7 @@
 # SAO (SUPER_ADMIN) screens: table columns
 
 Conventions. Column headers render UPPERCASE via CSS (text shown here in source case). "DataTable" = shared component: table at 768 px and up, under 768 px each row becomes a card (one line per column: header on the left, value on the right; row actions in a footer row under a divider). Actions column header is "Actions" for DataTable, "Action" for the hand-built Admins table. Status badge tones: success = green, warning = amber, danger = red, info = blue, neutral = grey. Default StatusBadge labels: pending Pending (warning), submitted Submitted (info), under_review Under Review (info), approved Approved (success), returned Returned (danger), rejected Rejected (danger), active Active (success), inactive Inactive (neutral), disabled Disabled (danger), archived Archived (neutral), resolved Resolved (success, grievance override), dismissed Dismissed (neutral), held Held (warning), cleared Cleared (success), withdrawn Withdrawn (neutral), draft Draft (neutral), published Published (success).
-Registration stepper (compact, used on registration rows): Registered > SAO review > Administrator > First use. Row line above it: "Review this registration" | "Provision an administrator" | "Active: administrator can sign in" | "Active".
+Registration stepper (compact, used on registration rows): Registered > SAO review > Administrator > First use. Row line above it: "Review this registration" | "Approved: waiting for the Department Head to name the organization head" (college) or "Add the Admin account" (university-wide) | "Active: administrator can sign in" | "Active".
 Sidebar footer (all roles): Profile. Redirects (no screen): /super-admin/event-requirements, /approvals, /financial-reports -> Compliance tabs.
 
 ## Dashboard (/dashboard/super-admin)
@@ -14,10 +14,10 @@ Mobile: tiles 1 col, action list and notification list stack
 ## Organizations > Agency overview (/dashboard/super-admin/agency)
 Tiles (links): Pending reviews | Organizations | Colleges | Archived
 Filters: none
-Table "<College name> (<CODE>)" (one collapsible section per college, header button with chevron; open by default when it has pending, returned or awaiting-administrator organizations; header line: "<n> organization(s) · <n> pending · <n> active · <n> returned · <n> archived · <n> awaiting administrator"): Organization | Status | Members | Needs attention
+Table "<College name> (<CODE>)" (one collapsible section per college, header button with chevron; open by default when it has pending, returned or awaiting-administrator organizations; header line: "<n> organization(s) · <n> pending · <n> active · <n> returned · <n> archived · <n> awaiting organization head"): Organization | Status | Members | Needs attention
   Cell detail: Organization = name over acronym; Status = badge + registration line + compact stepper; Members = right-aligned number; Needs attention = "<n> approval(s), <n> document(s)" or "Nothing waiting"
 Table "Organizations without a college" (shown only if any): same columns (Organization | Status | Members | Needs attention)
-Row actions: Review (pending only) | Provision administrator (active, 0 administrators) | Open
+Row actions: Review (pending only) | Open
 Status badges: pending = amber, active = green, returned = red, archived = grey (read only)
 Paging: none (all colleges listed; rows sorted by action needed)   Empty: "No student organizations yet. The Department Head registers them." (college with none shows this inline); page empty: "No colleges or organizations yet"
 Mobile: DataTable cards
@@ -25,7 +25,7 @@ Mobile: DataTable cards
 ## Organizations > Registrations and organizations (/dashboard/super-admin/organizations?status=pending)
 Filters: tabs "Pending review (n)" | "Active (n)" | "Returned (n)" | "Archived (n)"; search "Name, code, or college" (label "Search organizations")
 No table: cards in 2 columns, grouped under a college heading (color swatch + college name). Card fields in order: logo | name | "<ACRONYM> · <College>" | "Sub organization of <parent>" | status badge | description | registration line + stepper | "Submitted <date>" (pending) or "Returned with remarks" box (returned) | "<n> members · <n> admins"
-Row actions: Open | Review (pending) | Provision administrator (active, 0 admins) | Restore (archived) | menu "Organization actions": Edit organization, Add existing user, Manage user profiles, Archive organization (active only)
+Row actions: Open | Review (pending) | Restore (archived) | menu "Organization actions": Edit organization, Add administrator (university-wide organizations only), Manage user profiles, Archive organization (active only)
 Status badges: pending = amber, active = green, returned = red, archived = grey
 Bulk/Toolbar: none
 Paging: 100 per page, "Previous | Page n of m | Next" only when more than 1 page   Empty: "No organizations are waiting for review." / "No active student organizations match this view." / "No organizations are returned to their Department Head." / "No archived organizations." with hints; searching: "Try a different search term."
@@ -40,7 +40,7 @@ Mobile: cards stack to 1 column (lg:grid-cols-2 below becomes 1)
 ## Organizations > Registrations and organizations > detail (/dashboard/super-admin/organizations/:organizationId)
 Tiles: Members by role: Students | SBO officers | Admins | Total; Approved budgets: Allocated | Spent | Income | Remaining; Compliance: Accreditation (badge) | Documents awaiting review; Pending approvals: count sentence
 No table: header (logo, name, "<ACRONYM> · <College>", status badge, button "Restore organization" when archived), stepper + next-step callout, sections as cards
-Table "Leadership" (list rows): name over "<Position> · <Role>" | status badge. Empty: "No administrators or officers yet. Provision an administrator so the organization can sign in."
+Table "Leadership" (list rows): name over "<Position> · <Role>" | status badge. Empty: "No administrators or officers yet. The Department Head names the organization head with Give access." (university-wide: "Add the Admin account so the organization can sign in.")
 Table "Events" (two lists): "Upcoming" and "Recent": title over "<date time> · <location>" | status badge. Empty: "None."
 Table "Latest documents" (list rows, max 10): item over "<file name> · <date>" | status badge | button Open. Empty: "No documents have been submitted."; links "Open the review queue", "View all documents", "Back to agency overview"
 Status badges: accreditation: Accredited = green, Pending review = blue, Incomplete = amber, Returned = red, Not applicable = grey; event statuses use default map

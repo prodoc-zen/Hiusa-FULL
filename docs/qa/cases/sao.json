@@ -293,7 +293,7 @@
       "2. Read the menu items.",
       "3. Find an Archived row and read its badge."
     ],
-    "expected": "The row menu offers Open, Edit, Add existing student, Add administrator, Manage user profiles, Archive and Delete (items that do not fit the status are left out). There is no Review button and no Provision administrator button on a row. Archived rows show the badge \"Archived, read only\".",
+    "expected": "The row menu of a college organization offers Open, Edit, Manage user profiles, Archive and Delete (items that do not fit the status are left out). A university-wide organization also offers Add administrator, because it has no dean. There is no Add existing student, no Add first administrator, no Review button and no Provision administrator button on a row. Archived rows show the badge \"Archived, read only\".",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
