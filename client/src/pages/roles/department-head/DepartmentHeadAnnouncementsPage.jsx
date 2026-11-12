@@ -145,7 +145,10 @@ export default function DepartmentHeadAnnouncementsPage() {
         {optionPage < optionLastPage && !optionError && <Button variant="secondary" size="sm" disabled={optionsLoading || busy} onClick={() => loadOrganizations(optionPage + 1)}>Load more organizations</Button>}
         {!optionsLoading && !optionError && optionPage > 0 && organizations.length === 0 && <p role="status" className="text-sm text-ink-muted">No active organizations are available in your college.</p>}
         <Field label="Title" required error={errors.title?.[0]}><Input required maxLength={255} value={form.title} disabled={busy} onChange={change('title')} /></Field>
-        <Field label="Message" required error={errors.body?.[0]}><Textarea required rows={6} value={form.body} disabled={busy} onChange={change('body')} /></Field>
+        <div>
+          <Field label="Message" required error={errors.body?.[0]}><Textarea required rows={6} maxLength={10000} value={form.body} disabled={busy} onChange={change('body')} /></Field>
+          <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{form.body.length.toLocaleString()} of 10,000 characters</p>
+        </div>
         <Field label="Audience" required error={errors.target_role?.[0]}><Select value={form.target_role} disabled={busy} onChange={change('target_role')}><option value="all">All organization members</option><option value="STUDENT">Students</option><option value="SBO_OFFICER">Officers</option><option value="ADMIN">Organization Admins</option></Select></Field>
         {error && <p role="alert" className="text-sm text-danger-strong">{error}</p>}
       </form>}
