@@ -278,6 +278,7 @@ Format: group (band): children in order, each `Label  route`.
 - Voting: Vote `/dashboard/elections/cast-vote`; Results
 - Store: Shop `/dashboard/merchandise/order-merchandise`; My orders `/dashboard/merchandise/my-orders`
 - Updates (single link): Announcements `/dashboard/announcements/view-announcements`
+- Past semesters: the top bar semester selector lists the current and the closed semesters, never an upcoming one; choosing a closed one shows that semester's events and election results read only (the Events, Vote and Results lists send `academic_semester_id`), with a "Closed semester" notice and a Back to current semester button. Students get no Records page.
 - Support: My clearance `/dashboard/my-clearance`; My grievances `/dashboard/my-grievances`
 
 **SUPER_ADMIN (SAO)** (8 rows, 19 leaves)

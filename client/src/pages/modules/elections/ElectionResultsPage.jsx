@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { getElectionResults, getElections } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { canViewElectionResults } from '../../../utils/electionAccess';
 import DataTable from '../../../components/ui/DataTable';
 import EmptyState from '../../../components/ui/EmptyState';
@@ -51,7 +52,7 @@ export default function ElectionResultsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getElections().then((list) => {
+    getElections(closedPeriodParams(role)).then((list) => {
       if (!cancelled) setAvailableElections((Array.isArray(list) ? list : list.data || []).filter((item) => canViewElectionResults(item, role)));
     }).catch(() => { if (!cancelled) setAvailableElections([]); });
     return () => { cancelled = true; };

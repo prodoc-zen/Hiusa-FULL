@@ -9,6 +9,7 @@ import { SkeletonTable } from '../../../components/ui/Skeleton';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { resultsLink, studentVoteState } from '../../../components/elections/electionFlow';
 import { getElectionDetails, getElections } from '../../../services/electionService';
+import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 
 const STATE_TONES = { open: 'success', voted: 'info', upcoming: 'warning', closed: 'neutral' };
 const STATE_ORDER = { open: 0, upcoming: 1, voted: 2, closed: 3 };
@@ -86,7 +87,7 @@ export default function CastVoteRedirectPage() {
       setLoading(true);
       setError('');
       try {
-        const list = await getElections();
+        const list = await getElections(closedPeriodParams(role));
         const votable = (Array.isArray(list) ? list : list.data || []).filter((item) => item.status !== 'pending_approval');
         const details = await Promise.allSettled(votable.map((item) => (studentMayOpen(item) ? getElectionDetails(item.id) : null)));
         if (!cancelled) setElections(votable.map((item, index) => (details[index].status === 'fulfilled' ? { ...item, ...details[index].value } : item)));
@@ -98,7 +99,7 @@ export default function CastVoteRedirectPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [retryKey]);
+  }, [retryKey, role]);
 
   const cards = elections
     .map((election) => ({ election, state: studentVoteState(election) }))

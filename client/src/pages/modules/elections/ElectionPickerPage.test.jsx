@@ -2,6 +2,7 @@ import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionPickerPage from './ElectionPickerPage';
+import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 
 const electionMocks = vi.hoisted(() => ({
   getElections: vi.fn(),
@@ -68,7 +69,20 @@ describe('ElectionPickerPage', () => {
     expect(screen.queryByLabelText('Academic period')).not.toBeInTheDocument();
     expect(screen.queryByText('Active period')).not.toBeInTheDocument();
     expect(periodMocks.getAcademicPeriods).not.toHaveBeenCalled();
-    expect(electionMocks.getElections).toHaveBeenCalledWith();
+    expect(electionMocks.getElections).toHaveBeenCalledWith({});
+  });
+
+  it('lists the closed semester a student chose in the top bar, and only for a student', async () => {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify({ id: 1, number: 1, status: 'completed', academic_year: { label: '2025-2026' } }));
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await waitFor(() => expect(electionMocks.getElections).toHaveBeenCalledWith({ academic_semester_id: 1 }));
+
+    electionMocks.getElections.mockClear();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await waitFor(() => expect(electionMocks.getElections).toHaveBeenCalledWith({}));
+    localStorage.removeItem(PERIOD_KEY);
   });
 
   it('opens the creation form when launched from the approval-request selector', async () => {

@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElectionResultsPage from './ElectionResultsPage';
+import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 
 const { getElectionResults, getElections, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), getElections: vi.fn().mockResolvedValue([]), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', finalized_at: '2026-09-01T08:00:00Z', results_visible: true, voters_count: 30 }, role: 'STUDENT' } }));
 
@@ -28,6 +29,16 @@ describe('ElectionResultsPage', () => {
     expect(screen.getByText('Votes cast')).toBeInTheDocument();
     expect(screen.getByText(/votes cast/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'President' })).toBeInTheDocument();
+  });
+
+  it('lists the elections of the closed semester a student chose in the top bar', async () => {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify({ id: 2, number: 2, status: 'completed', academic_year: { label: '2025-2026' } }));
+    getElectionResults.mockResolvedValue([]);
+    getElections.mockClear();
+
+    render(<ElectionResultsPage />);
+    await waitFor(() => expect(getElections).toHaveBeenCalledWith({ academic_semester_id: 2 }));
+    localStorage.removeItem(PERIOD_KEY);
   });
 
   it('says "1 vote cast" for a single vote and "votes cast" otherwise', async () => {

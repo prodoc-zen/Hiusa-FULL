@@ -80,7 +80,9 @@ export default function DashboardLayout() {
     window.dispatchEvent(new CustomEvent(PERIOD_RESET_EVENT));
   }
 
-  const isPlanningMode = Boolean(viewingPeriod && livePeriod && viewingPeriod.id !== livePeriod.id);
+  const isDifferentPeriod = Boolean(viewingPeriod && livePeriod && viewingPeriod.id !== livePeriod.id);
+  const isPlanningMode = isDifferentPeriod && viewingPeriod.status !== 'completed';
+  const isClosedMode = isDifferentPeriod && viewingPeriod.status === 'completed';
 
   function toggleDesktopSidebar() {
     setDesktopCollapsed((current) => {
@@ -109,6 +111,14 @@ export default function DashboardLayout() {
           <aside aria-label="Planning" className="flex flex-wrap items-center justify-between gap-2 border-b border-warning/40 bg-warning-tint px-4 py-2 text-sm text-ink sm:px-6">
             <p className="min-w-0 break-words">
               You're planning <strong className="font-semibold">AY {viewingPeriod.academic_year?.label} · {viewingPeriod.number === 1 ? '1st' : '2nd'} Semester</strong>. New events, tasks and requirements you add are saved to that period.
+            </p>
+            <Button variant="secondary" size="sm" onClick={handleReturnToLive}>Back to current semester</Button>
+          </aside>
+        )}
+        {isClosedMode && (
+          <aside aria-label="Closed semester" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-page px-4 py-2 text-sm text-ink sm:px-6">
+            <p className="min-w-0 break-words">
+              You are viewing <strong className="font-semibold">AY {viewingPeriod.academic_year?.label} · {viewingPeriod.number === 1 ? '1st' : '2nd'} Semester</strong>, a closed semester. Everything here is read only.
             </p>
             <Button variant="secondary" size="sm" onClick={handleReturnToLive}>Back to current semester</Button>
           </aside>

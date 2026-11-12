@@ -29,6 +29,7 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 
@@ -191,7 +192,8 @@ function ElectionFormFields({ form, setForm, editing = false }) {
 export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null, mode = 'manage' }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
-  const canManageElections = currentUser?.role === 'ADMIN';
+  const userRole = currentUser?.role;
+  const canManageElections = userRole === 'ADMIN';
   const managing = mode === 'manage';
   const showingResults = mode === 'results';
   const [elections, setElections] = useState([]);
@@ -216,10 +218,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
 
   const loadElections = useCallback(async () => {
     setLoading(true); setLoadError('');
-    try { const data = await getElections(); setElections(Array.isArray(data) ? data : []); }
+    try { const data = await getElections(closedPeriodParams(userRole)); setElections(Array.isArray(data) ? data : []); }
     catch { setLoadError('Unable to load elections.'); }
     finally { setLoading(false); }
-  }, []);
+  }, [userRole]);
 
   useEffect(() => { loadElections(); }, [loadElections]);
   useEffect(() => {
