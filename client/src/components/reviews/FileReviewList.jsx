@@ -20,10 +20,11 @@ async function open(url) {
   }
 }
 
-// A file name never wraps: it is cut with an ellipsis and the full name is in the title.
-export function FileLink({ url, name, icon: Icon = FileText }) {
+// A file name never wraps: it is cut with an ellipsis and the full name is in the title. A screen that
+// has its own way of opening and reporting a failed open passes onOpen instead of a url.
+export function FileLink({ url, name, icon: Icon = FileText, onOpen, disabled }) {
   return (
-    <button type="button" title={name} onClick={() => open(url)} className="inline-flex min-h-11 max-w-full items-center gap-2 text-left text-sm font-medium text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+    <button type="button" title={name} disabled={disabled} onClick={() => (onOpen ? onOpen() : open(url))} className="inline-flex min-h-11 max-w-full items-center gap-2 text-left text-sm font-medium text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
       <Icon size={16} className="shrink-0" aria-hidden="true" />
       <span className="min-w-0 truncate">{name}</span>
     </button>

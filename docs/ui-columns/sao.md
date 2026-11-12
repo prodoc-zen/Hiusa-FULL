@@ -78,7 +78,7 @@ Table "Requirement catalog" (tab Requirements): Requirement | Academic year | De
   Mobile: DataTable cards
   Modal "New requirement" / "Edit requirement": Academic year (Choose academic year; "<label> · Current") | Deadline | Name (placeholder "e.g. Accomplishment report") | Description | Requirement active switch; buttons Cancel | Add requirement / Save changes
   Dialogs: "Mark this requirement inactive?" (Mark inactive), "Delete this requirement?" (Delete requirement)
-Table "Review queue" (tab Review queue): Organization | Requirement | Submitted | Submitted by | Status
+Table "Review queue" (tab Review queue): Organization | Requirement | File (the submitted file name as a truncating link that opens the file) | Submitted | Submitted by | Status
   Cell detail: Requirement = name over kind ("Registration document" | "Semestral report" | "Renewal document"); Status = badge + stage sentence ("Waiting for SAO review" | "Returned: replace the file" | "Approved"; registration files: "Decided in the organization review" | "Registration returned, waiting for the Department Head")
   Filters: dropdown "Filter by status": Awaiting review (default), Approved, Returned, All statuses; dropdown "Filter by organization": All organizations (+ "<name> (registration)" entries); button "Clear filters"; counter "<n> submission(s)"
   Row actions: Open document (icon) | Open organization review (registration files) | Return | Approve (submitted only)
