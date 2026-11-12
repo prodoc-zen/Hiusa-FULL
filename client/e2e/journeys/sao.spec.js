@@ -308,6 +308,10 @@ for (const { width, height } of WIDTHS) {
         clicks = counter.clicks;
 
         await expect(page.getByText('Financial report approved.')).toBeVisible({ timeout: 20000 });
+        // An organization with reports waiting opens on those reports, so the decided one leaves the list;
+        // the Approved filter shows it with its decision. Filtering is a look, not a step of the journey.
+        await expect(reportRow).toHaveCount(0, { timeout: 20000 });
+        await page.getByRole('combobox', { name: 'Report status' }).selectOption('approved');
         await expect(reportRow).toContainText(/approved/i, { timeout: 20000 });
         expect.soft(clicks, `clicks used (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling);
         await endState(page, width, 'sao-j3');
