@@ -15,6 +15,7 @@ vi.mock('../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn()
 
 const MARITES = { school_id: 7100101, name: 'Marites Dizon', position: 'Department Secretary', has_account: false };
 const PENDING = { id: 5, name: 'Ramon Cruz', position_title: 'Lab Technician', email: 'ramon@example.edu', expires_at: '2026-11-11T08:00:00Z' };
+const OPEN = { id: 6, name: 'Open link', position_title: null, email: null, expires_at: '2026-11-11T08:00:00Z' };
 
 const reply = (data, has_records = true) => Promise.resolve({ data: { data, has_records } });
 
@@ -52,23 +53,39 @@ describe('AddStaffModal', () => {
     const idField = screen.getByLabelText('ID number');
     expect(idField).toHaveValue('7100101');
     expect(idField).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('Position')).toHaveValue('Department Secretary');
-    expect(screen.queryByLabelText(/Send it to/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Position/)).toHaveValue('Department Secretary');
+    expect(screen.queryByLabelText(/^Email/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
     await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Department Secretary' }));
     expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
-    expect(screen.getByText(/Nothing is sent/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was emailed/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
   });
 
-  it('keeps the create button disabled until someone is picked and lets the dean change the position', async () => {
+  it('offers the records and a link with nothing required: no name, no email, no position to fill in', async () => {
     renderModal();
     await screen.findByRole('combobox', { name: /find in the employee records/i });
-    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeDisabled();
 
+    expect(screen.queryByLabelText(/First name/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Last name/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Email/)).not.toBeRequired();
+    expect(screen.getByLabelText(/^Position/)).not.toBeRequired();
+    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
+
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({}));
+    expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was emailed/)).toBeInTheDocument();
+    expect(screen.getByText(/expires in 48 hours. Copy it and share it yourself/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+  });
+
+  it('lets the dean change the position of a picked employee', async () => {
+    renderModal();
     fireEvent.click(await find('mar'));
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: 'Registrar Aide' } });
+    fireEvent.change(screen.getByLabelText(/^Position/), { target: { value: 'Registrar Aide' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
     await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Registrar Aide' }));
@@ -90,39 +107,66 @@ describe('AddStaffModal', () => {
     expect(await screen.findByText('Students cannot be office staff. Pick someone from the employee records.')).toBeInTheDocument();
   });
 
-  it('invites a non-student who is not in the records by name, email and position', async () => {
+  it('ties the link to an optional email and optional position, and says it was emailed only when it was', async () => {
+    college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=abc', emailed: true, mail_is_off: false } });
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /Not in the records\?/ }));
-
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.getByText(/Students cannot be office staff/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/First name/), { target: { value: 'Ramon' } });
-    fireEvent.change(screen.getByLabelText(/Last name/), { target: { value: 'Cruz' } });
-    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ramon@example.edu' } });
+    fireEvent.change(await screen.findByLabelText(/^Email/), { target: { value: ' Ramon@Example.edu ' } });
     fireEvent.change(screen.getByLabelText(/^Position/), { target: { value: 'Lab Technician' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ first_name: 'Ramon', last_name: 'Cruz', email: 'ramon@example.edu', position_title: 'Lab Technician' }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ email: 'ramon@example.edu', position_title: 'Lab Technician' }));
     expect(await screen.findByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
+    expect(screen.getByText('We also emailed it to ramon@example.edu.')).toBeInTheDocument();
   });
 
-  it('can go back from the name and email form to the employee records', async () => {
+  it('says nothing was sent when email is switched off, and still shows the link to copy', async () => {
+    college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=abc', emailed: false, mail_is_off: true } });
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /Not in the records\?/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Back to the employee records' }));
+    fireEvent.change(await screen.findByLabelText(/^Email/), { target: { value: 'ramon@example.edu' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
 
-    expect(await screen.findByRole('combobox', { name: /find in the employee records/i })).toBeInTheDocument();
+    expect(await screen.findByText(/Email is switched off, so nothing was sent to ramon@example.edu/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('http://localhost/accept-invitation?token=abc')).toBeInTheDocument();
+    expect(screen.queryByText(/We also emailed/)).not.toBeInTheDocument();
   });
 
-  it('goes straight to the name and email form when the college has no employee records', async () => {
+  it('says so when the email could not be sent', async () => {
+    college.inviteCollegeStaff.mockResolvedValue({ data: { magic_link: 'http://localhost/accept-invitation?token=abc', emailed: false, mail_is_off: false } });
+    renderModal();
+    fireEvent.change(await screen.findByLabelText(/^Email/), { target: { value: 'ramon@example.edu' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
+
+    expect(await screen.findByText(/The email could not be sent/)).toBeInTheDocument();
+  });
+
+  it('refuses a malformed email before asking the server', async () => {
+    renderModal();
+    fireEvent.change(await screen.findByLabelText(/^Email/), { target: { value: 'not-an-email' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
+
+    expect(await screen.findByText('That email does not look right. Fix it or leave it empty.')).toBeInTheDocument();
+    expect(college.inviteCollegeStaff).not.toHaveBeenCalled();
+  });
+
+  it('drops the email once an employee is picked, because the link is made for that record', async () => {
+    renderModal();
+    fireEvent.change(await screen.findByLabelText(/^Email/), { target: { value: 'ramon@example.edu' } });
+    fireEvent.click(await find('mar'));
+
+    expect(screen.queryByLabelText(/^Email/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({ registry_school_id: 7100101, position_title: 'Department Secretary' }));
+  });
+
+  it('shows only the email and position when the college has no employee records', async () => {
     college.getStaffRecords.mockReturnValue(reply([], false));
     renderModal();
 
     expect(await screen.findByLabelText(/^Email/)).toBeInTheDocument();
-    expect(screen.getByText(/No employee records are loaded/)).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Back to the employee records' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create invite link' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }));
+    await waitFor(() => expect(college.inviteCollegeStaff).toHaveBeenCalledWith({}));
   });
 
   it('shows an error with a retry when the records cannot be loaded', async () => {
@@ -158,6 +202,14 @@ describe('AddStaffModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revoke link for Ramon Cruz' }));
     await waitFor(() => expect(college.revokeStaffInvitation).toHaveBeenCalledWith(5));
     await waitFor(() => expect(screen.queryByText('Ramon Cruz')).not.toBeInTheDocument());
+  });
+
+  it('lists an open link as Open link with the default position', async () => {
+    college.getStaffInvitations.mockResolvedValue({ data: { data: [OPEN] } });
+    renderModal();
+
+    expect(await screen.findByText('Open link')).toBeInTheDocument();
+    expect(screen.getByText(/^Office staff · Expires/)).toBeInTheDocument();
   });
 
   it('still shows the new link to copy by hand when the clipboard refuses it', async () => {
