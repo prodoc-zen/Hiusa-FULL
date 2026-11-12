@@ -4,7 +4,7 @@ const BASE = '/dashboard/elections';
 
 export const ROLE_BANNERS = {
   ADMIN: 'You run this election: build the ballot, finalize it, open voting, and release the results.',
-  SBO_OFFICER: 'Manage the candidates and voters. The Admin finalizes the ballot and runs the vote.',
+  SBO_OFFICER: 'You can follow the candidates, the voters and the results. The Admin runs the election.',
   DEPARTMENT_HEAD: 'You approve elections for your college and read their results.',
   STUDENT: 'Vote while the election is open. Results appear after voting closes and they are released.',
 };
@@ -33,6 +33,15 @@ const WORKSPACE_STEPS = [
     roles: ['ADMIN'],
     path: () => `${BASE}/manage-elections`,
     isActive: (pathname, view) => pathname.endsWith('/manage-elections') && view !== 'voters',
+  },
+  {
+    key: 'applications',
+    label: 'Applications',
+    roles: ['ADMIN', 'SBO_OFFICER'],
+    path: () => `${BASE}/applications`,
+    isActive: (pathname) => pathname.endsWith('/applications'),
+    // Only an election where students file their own candidacy has applications to screen.
+    shown: (election) => Boolean(election?.filing_starts_at),
   },
   {
     key: 'partylists',
@@ -67,12 +76,12 @@ const WORKSPACE_STEPS = [
   },
 ];
 
-// Process order: party lists come before candidates because finalizing needs a candidate in a party
-// list. The strip is only worth showing when a role has more than one place to go.
+// Process order: applications are screened before the official list of candidates is read. The strip is
+// only worth showing when a role has more than one place to go.
 export function workspaceSteps(role, election, pathname = '', view = null) {
   const params = (step) => new URLSearchParams({ record: String(election?.id ?? ''), ...(step.params?.(role) ?? {}) });
   return WORKSPACE_STEPS
-    .filter((step) => step.roles.includes(role))
+    .filter((step) => step.roles.includes(role) && (!step.shown || step.shown(election)))
     .map((step, index) => ({
       key: step.key,
       label: step.label,
@@ -85,11 +94,11 @@ export function workspaceSteps(role, election, pathname = '', view = null) {
 }
 
 // Mirrors what ElectionController::finalize refuses, so the button can say why before the request.
+// A party list is optional, so an all-independent ballot is ready.
 export function finalizeChecklist(election) {
   const positions = election?.positions ?? [];
   const candidates = election?.candidates ?? [];
   const withoutCandidates = positions.filter((position) => !candidates.some((candidate) => candidate.position_id === position.id));
-  const partyListed = candidates.filter((candidate) => candidate.partylist_id != null || candidate.partylist).length;
 
   const items = [
     {
@@ -103,12 +112,6 @@ export function finalizeChecklist(election) {
       ok: positions.length > 0 && withoutCandidates.length === 0,
       label: `Positions without candidates: ${withoutCandidates.length}`,
       fix: `Add a candidate to ${withoutCandidates.length === 1 ? 'the 1 position' : `each of the ${withoutCandidates.length} positions`} that has none first.`,
-    },
-    {
-      key: 'partylist',
-      ok: partyListed > 0,
-      label: partyListed > 0 ? `Party list candidates: ${partyListed}` : 'Party list candidates missing',
-      fix: 'Assign at least one candidate to a party list first.',
     },
   ];
   const blocker = items.find((item) => !item.ok);
@@ -128,7 +131,9 @@ export function electionStatusChip(election) {
 }
 
 export function studentVoteState(election, now = Date.now()) {
-  if ((election?.my_votes ?? []).length > 0) return { key: 'voted', label: 'Voted' };
+  // has_voted is the answer now that a ballot no longer lists the voter's choices; older payloads still send my_votes.
+  const voted = election?.has_voted !== undefined ? election.has_voted === true : (election?.my_votes ?? []).length > 0;
+  if (voted) return { key: 'voted', label: 'Voted' };
   if (isVotingOpen(election)) return { key: 'open', label: 'Open' };
   const end = new Date(election?.end_time).getTime();
   if (election?.status === 'closed' || (Number.isFinite(end) && now > end)) return { key: 'closed', label: 'Closed' };
