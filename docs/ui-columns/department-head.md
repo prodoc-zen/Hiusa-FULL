@@ -1,6 +1,6 @@
 # Department Head: screen columns (HIUSA)
 
-Shell: sidebar groups, top-level rows first, then band "College view (read only)". Footer: Profile, Study objectives. Breakpoints used below: sm 640, md 768, lg 1024, xl 1280 (Tailwind).
+Shell: sidebar groups, top-level rows first, then band "College view (read only)". Footer: Profile. Breakpoints used below: sm 640, md 768, lg 1024, xl 1280 (Tailwind).
 Status tones: success = green, warning = amber, danger = red, info = blue, neutral = grey. Primary blue #0878B7, navy #0F2F62, border #DDE7EF.
 
 ## (top level) > Dashboard (/dashboard/department-head)
@@ -129,9 +129,4 @@ No table: left card (initials, name, role chip "Department Head", position, Scho
   List "Your recent activity": "<action> in <module>" | record label | date time; button "Show more"; "Showing <n> of <total>"; empty "Nothing recorded yet. Registering for an event or submitting a request will show up here."
 Mobile: two columns collapse to one below lg; form fields 1 column below sm.
 
-## (footer) > Study objectives (/dashboard/objectives)
-No table: read-only report of the study objectives with live evidence, button "Print"; scope sentence "Evidence scoped to <organization> only." Sections: general objective banner "GO: <title>", "Research foundation" (SO1, SO4), "SO2: one system, six areas" (SO2.1 to SO2.6), synthesis "SO3: <title>". Cards only, no headers.
-Empty: "No objectives are configured yet" ("The study team sets up the objectives catalog. Once it is in place, every objective appears here next to its live evidence.")
-Mobile: cards stack in one column.
-
-COVERAGE: 12 pages, Dashboard, Approvals, Organizations, Budgets, Ledger, Financial reports, Forecast, Calendar, Election results, Announcements, Profile, Study objectives
+COVERAGE: 11 pages, Dashboard, Approvals, Organizations, Budgets, Ledger, Financial reports, Forecast, Calendar, Election results, Announcements, Profile

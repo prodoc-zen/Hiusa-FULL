@@ -222,7 +222,6 @@ ADM-220 | Profile | Profile form: empty fields, email used by someone else, bad 
 ADM-221 | Profile | Change my password | H | Any
 ADM-222 | Profile | Password change refused: wrong current password, mismatch, too short, same password | H | Any
 ADM-223 | Notifications | Bell shows new notifications and opens the related record | H | Any
-ADM-224 | Study objectives | Study objectives page opens from the menu footer | L | Any
 ADM-225 | Events and tasks > Events | Department Head approval moves the event to Approved and opens funding | H | Any
 ADM-226 | Events and tasks > Events | Propose the event budget straight from the event window | H | Any
 ADM-227 | Events and tasks > Events | SAO returns the event files; the Admin replaces them | M | Any
@@ -241,7 +240,6 @@ ADM-239 | Events and tasks > Tasks | Export from the Tasks board gives a file wi
 ADM-240 | Approvals | After the semester changes, a pending approval for an old event cannot be decided | M | R2
 ADM-241 | Members > People | People page size: exactly 20 users, exactly 21 users, and search goes back to page 1 | M | Any
 ADM-242 | My activity > Statement of account | The Admin has a Statement of account page for the Admin own charges | L | Any
-ADM-243 | Study objectives | Study objectives evidence links open pages an Admin may see | L | Any
 ADM-244 | Records > Submitted files | Admin views and downloads organization compliance submissions in Submitted files | M | Any
 ADM-245 | Events | Admin proposes event with required documents checklist, file validation, and SAO sample format viewer | H | Any
 ADM-246 | Planning and academic terms | Admin prepares event proposals and draft budgets in Advance Planning mode | M | Any
@@ -334,8 +332,6 @@ DH-086 | Access limits | Unknown address, old Approvals address and signed out v
 DH-087 | Profile | Update the mobile number and save | M | Any
 DH-088 | Profile | Profile needs a first name, last name and email | M | Any
 DH-089 | Profile | Password change: empty, short and mismatching entries are refused | M | Any
-DH-090 | Study objectives | Study objectives page opens for the head | L | Any
-DH-091 | Study objectives | Study objectives evidence links open pages the head may see | L | Any
 DH-092 | College view (read only) > Finance > Forecast | A forecast that the Admin generated is shown read only to the head | M | Any
 DH-093 | Organization applications | Department Head reviews pending college organization applications | H | R2
 DH-094 | Organization applications | Department Head endorses an organization application to SAO | H | R2
@@ -444,7 +440,6 @@ GEN-095 | Hierarchy | The SAO sees every college and organization | M | Any
 GEN-096 | Hierarchy | Members of an archived organization cannot sign in | H | Any
 GEN-097 | Hierarchy | Members of a pending or returned organization cannot sign in | M | Any
 GEN-098 | Hierarchy | An archived organization is read only for the SAO | H | Any
-GEN-099 | Print and export | Study objectives page prints cleanly | L | Any
 GEN-100 | Print and export | Financial report downloads (PDF and Excel) | H | Any
 GEN-101 | Print and export | Orders CSV export | M | Any
 GEN-102 | Print and export | Exports contain all matching rows, not just the visible page | M | Any
@@ -571,7 +566,6 @@ SBO-088 | Top bar > Notifications | Notifications bell, reading and opening the 
 SBO-089 | Profile | Edit personal information and notification choices | M | Any
 SBO-090 | Profile | Change my password and the rules it must follow | H | Any
 SBO-091 | Events and tasks > Check-in | Check a member in on an event that was created in the active semester | H | R2
-SBO-092 | Study objectives | Study objectives evidence links open pages an officer may see | L | Any
 SBO-093 | Members and fingerprints | Remove a fingerprint enrollment after the confirm window (needs the reader) | L | Any
 SBO-094 | My activity > My orders | The officer sees only their own orders in My orders and can cancel an unpaid one | M | Any
 SBO-095 | Store > Orders | Release an order from its row in Store > Orders | H | Any
@@ -675,8 +669,6 @@ SAO-109 | Setup and records > Audit trail | Export the audit trail to a CSV file
 SAO-110 | Setup and records > Audit trail | SAO decisions are written to the audit trail | H | Any
 SAO-111 | Profile | The SAO profile page shows the account and saves changes | M | Any
 SAO-112 | Profile | Password change form checks | M | Any
-SAO-113 | Study objectives | The Study objectives page opens for the SAO | L | Any
-SAO-114 | Study objectives | Study objectives evidence links open pages the SAO may see | L | Any
 SAO-115 | Governance > Applications | SAO evaluates department-endorsed organization applications | H | R2
 SAO-116 | Governance > Applications | SAO approves an organization application and the applicant becomes its administrator | H | R2
 SAO-117 | Governance > Colleges | SAO adds a new college and assigns a department head | H | Any
@@ -791,4 +783,3 @@ STU-104 | Events > Events | My attendance summary lists the check-ins the office
 STU-105 | Store > Shop | Order a product with sizes and see the message when no size is chosen | H | Any
 STU-106 | Profile | Mute one kind of notification, trigger it, then turn it back on | M | Any
 STU-107 | Support > My clearance | A debt blocks Cleared; paying it and the signatures give Cleared | H | Any
-STU-108 | Study objectives | Study objectives evidence links open pages a student may see | L | Any

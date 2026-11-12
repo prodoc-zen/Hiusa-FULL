@@ -444,7 +444,7 @@
       "2. Click each group that has an arrow to open it: My payments, Voting, Store, Support.",
       "3. Write down every label you see, including the two links at the bottom."
     ],
-    "expected": "You see: Dashboard; My payments (Statement of account, Receipts); Events; Voting (Vote, Results); Store (Shop, My orders); Announcements (under Updates); Support (My clearance, My grievances); and at the bottom Profile and Study objectives. You do NOT see People, Finance, Ledger, Inventory, Orders, Claim desk, Check-in, Tasks, Approvals, Candidates, Voters, Compliance, Grievances, Clearance signing or Audit log. VERIFY: whether Events and Announcements show as a single link or as a group with one child.",
+    "expected": "You see: Dashboard; My payments (Statement of account, Receipts); Events; Voting (Vote, Results); Store (Shop, My orders); Announcements (under Updates); Support (My clearance, My grievances); and at the bottom Profile. You do NOT see People, Finance, Ledger, Inventory, Orders, Claim desk, Check-in, Tasks, Approvals, Candidates, Voters, Compliance, Grievances, Clearance signing or Audit log. VERIFY: whether Events and Announcements show as a single link or as a group with one child.",
     "priority": "High",
     "device": "Laptop",
     "type": "Access",
@@ -2011,25 +2011,5 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "Run after SAO-079, ADM-211, SBO-087, ADM-133 and ADM-135"
-  },
-  {
-    "id": "STU-108",
-    "role": "Student",
-    "module": "Study objectives",
-    "title": "Study objectives evidence links open pages a student may see",
-    "preconditions": "Signed in as Student 2100142. Some activity exists, so the counts are not all zero.",
-    "steps": [
-      "1. Scroll to the bottom of the menu and tap \"Study objectives\".",
-      "2. Tap an evidence tile with an arrow, for example \"Digital receipts issued\" or \"Events completed\".",
-      "3. Go back and tap a tile with an arrow about votes or orders, for example \"Votes cast\" or \"Orders claimed with a token\".",
-      "4. Go back and tap a tile with no arrow, for example \"Transactions recorded in the ledger\".",
-      "5. Write down each tile and the page it opened."
-    ],
-    "expected": "A tile with an arrow opens a student page: My payments > Receipts, Events, Voting or Results, or My orders. You never land on a \"not allowed\" redirect. A tile with no arrow is plain text and does nothing. Tiles that point to staff pages (\"Check-ins recorded manually\", \"Orders placed\", \"Transactions recorded in the ledger\") have no arrow for a student. VERIFY: the exact tiles with an arrow for a student (from the server route list: Receipts, Events, Elections and Results, Claim tokens).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Access",
-    "round": "Any time",
-    "depends": ""
   }
 ]

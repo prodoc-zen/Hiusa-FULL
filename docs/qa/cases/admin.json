@@ -48,7 +48,7 @@
       "2. Open each group to see its pages.",
       "3. Scroll to the bottom of the menu."
     ],
-    "expected": "In order: Dashboard; Ask AI; Approvals; then under the heading Manage: Members (People, Admins, Officer positions, Programs and sections), Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast), Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); under Community: Voting (Elections, Results), Store (Inventory, Orders, Claim desk), Updates (Announcements, Feed); under Records: Records (Compliance, Submitted files, School year records, Grievances, Clearance signing, Audit log); under Me: My activity (Vote, Shop, My orders, My receipts, Statement of account). Profile and Study objectives sit pinned at the bottom. No SAO, Department Head or student-only pages are listed. Every page in the menu opens.",
+    "expected": "In order: Dashboard; Ask AI; Approvals; then under the heading Manage: Members (People, Admins, Officer positions, Programs and sections), Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast), Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); under Community: Voting (Elections, Results), Store (Inventory, Orders, Claim desk), Updates (Announcements, Feed); under Records: Records (Compliance, Submitted files, School year records, Grievances, Clearance signing, Audit log); under Me: My activity (Vote, Shop, My orders, My receipts, Statement of account). Profile sits pinned at the bottom. No SAO, Department Head or student-only pages are listed. Every page in the menu opens.",
     "priority": "High",
     "device": "Laptop",
     "type": "Usability",
@@ -3997,23 +3997,6 @@
     "round": "Any time"
   },
   {
-    "id": "ADM-224",
-    "role": "Admin / Adviser",
-    "module": "Study objectives",
-    "title": "Study objectives page opens from the menu footer",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
-    "steps": [
-      "1. Scroll to the bottom of the left menu.",
-      "2. Select 'Study objectives'.",
-      "3. Read the page."
-    ],
-    "expected": "The page 'Study Objectives in Action' opens with one row per objective and the evidence the system holds. It is open to every role.",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Functional",
-    "round": "Any time"
-  },
-  {
     "id": "ADM-225",
     "role": "Admin / Adviser",
     "module": "Events and tasks > Events",
@@ -4358,25 +4341,6 @@
     "priority": "Low",
     "device": "Any",
     "type": "Functional",
-    "round": "Any time",
-    "depends": ""
-  },
-  {
-    "id": "ADM-243",
-    "role": "Admin / Adviser",
-    "module": "Study objectives",
-    "title": "Study objectives evidence links open pages an Admin may see",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Some activity exists, so the counts are not all zero.",
-    "steps": [
-      "1. Scroll to the bottom of the left menu and select \"Study objectives\".",
-      "2. Select tiles with an arrow one by one, for example \"Expense forecasts generated (OLS regression)\", \"Events completed\", \"Check-ins recorded manually\", \"Orders placed\" and \"Votes cast\".",
-      "3. After each one, use Back and write down the page it opened.",
-      "4. Select a tile with no arrow, for example \"AI financial summaries\" or \"Notifications delivered\"."
-    ],
-    "expected": "Each arrow tile opens an Admin page: Forecast, Calendar, Check-in, Orders, Elections or Results, Ledger, Receipts, AI delegation, Tasks, Planner, Claim desk or Announcements. None ends on a \"not allowed\" redirect. Tiles with no arrow do nothing when clicked. The tile \"Financial reports approved\" belongs to the SAO and an Admin does not see it. VERIFY: the tile \"AI event plans generated\" opens Events and tasks > Planning.",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Access",
     "round": "Any time",
     "depends": ""
   },

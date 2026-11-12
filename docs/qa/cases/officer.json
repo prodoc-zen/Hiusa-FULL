@@ -65,10 +65,9 @@
       "1. Sign in as 900004 and look at the left menu from top to bottom.",
       "2. Write down every group and page name you see.",
       "3. Click each group name once and note which page opens first.",
-      "4. Look at the bottom of the menu and click \"Study objectives\".",
-      "5. Click \"Profile\" at the bottom of the menu."
+      "4. Click \"Profile\" at the bottom of the menu."
     ],
-    "expected": "The menu shows: Dashboard. Ask AI. Events and tasks (Check-in, Calendar, Venue booking, My tasks). Finance (view only) (Budgets, Ledger, Financial reports, Forecast). Members and fingerprints. Voting (Candidates, Voters, Results). Store (Orders, Claim desk). Updates (Announcements, Feed). Clearance signing. Records. My activity (Vote, Shop, My orders, My receipts, Statement of account). Small headings Manage, Community, Records and Me sit above the groups. A group opens its first page (Events and tasks opens Check-in, Finance (view only) opens Budgets, Voting opens Candidates, Store opens Orders, Updates opens Announcements, My activity opens Vote). Profile and Study objectives both open. There is no AI delegation, Approvals, People, Officer positions, Events, Planning, Tasks, Inventory, Collections and advances, Student accounts, Compliance, Grievances or Audit log.",
+    "expected": "The menu shows: Dashboard. Ask AI. Events and tasks (Check-in, Calendar, Venue booking, My tasks). Finance (view only) (Budgets, Ledger, Financial reports, Forecast). Members and fingerprints. Voting (Candidates, Voters, Results). Store (Orders, Claim desk). Updates (Announcements, Feed). Clearance signing. Records. My activity (Vote, Shop, My orders, My receipts, Statement of account). Small headings Manage, Community, Records and Me sit above the groups. A group opens its first page (Events and tasks opens Check-in, Finance (view only) opens Budgets, Voting opens Candidates, Store opens Orders, Updates opens Announcements, My activity opens Vote). Profile opens. There is no AI delegation, Approvals, People, Officer positions, Events, Planning, Tasks, Inventory, Collections and advances, Student accounts, Compliance, Grievances or Audit log.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -1709,26 +1708,6 @@
     "type": "Functional",
     "round": "Round 2 (after the SAO activates a semester)",
     "depends": "Run after ADM-062 and DH-041 (and after ADM-069 and SAO-059 when SAO files apply)"
-  },
-  {
-    "id": "SBO-092",
-    "role": "SBO Officer",
-    "module": "Study objectives",
-    "title": "Study objectives evidence links open pages an officer may see",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Some activity exists (events, orders, an election), so the counts are not all zero.",
-    "steps": [
-      "1. Scroll to the bottom of the left menu and click \"Study objectives\".",
-      "2. Find an evidence tile that has an arrow on its right (for example \"Check-ins recorded manually\" or \"Orders placed\") and click it.",
-      "3. Go back and click a tile that has no arrow (for example \"Notifications delivered\").",
-      "4. Go back and click a tile about tasks or AI event plans (for example \"AI event plans generated\").",
-      "5. Write down every tile that opened a page and the page it opened."
-    ],
-    "expected": "A tile with an arrow is a link. It opens a page that is in the officer menu, for example Check-in, Orders, Claim desk, Calendar, Results, Ledger, Budgets, Forecast or AI delegation, and it never ends on a \"not allowed\" redirect to the Dashboard. A tile without an arrow is plain text and does nothing when clicked. Tiles whose page an officer may not open (\"AI event plans generated\" and \"Tasks delegated with a recorded ranking\") have no arrow. VERIFY: the exact tiles that carry an arrow for an officer (from the server route list: Check-in, Calendar, AI delegation, Budgets, Ledger, Forecast, My receipts, Elections and Results, Orders, Claim desk, Announcements).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Access",
-    "round": "Any time",
-    "depends": ""
   },
   {
     "id": "SBO-093",

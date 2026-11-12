@@ -2,7 +2,7 @@
 
 Conventions. Column headers render UPPERCASE via CSS (text shown here in source case). "DataTable" = shared component: table at 768 px and up, under 768 px each row becomes a card (one line per column: header on the left, value on the right; row actions in a footer row under a divider). Actions column header is "Actions" for DataTable, "Action" for the hand-built Admins table. Status badge tones: success = green, warning = amber, danger = red, info = blue, neutral = grey. Default StatusBadge labels: pending Pending (warning), submitted Submitted (info), under_review Under Review (info), approved Approved (success), returned Returned (danger), rejected Rejected (danger), active Active (success), inactive Inactive (neutral), disabled Disabled (danger), archived Archived (neutral), resolved Resolved (success, grievance override), dismissed Dismissed (neutral), held Held (warning), cleared Cleared (success), withdrawn Withdrawn (neutral), draft Draft (neutral), published Published (success).
 Registration stepper (compact, used on registration rows): Registered > SAO review > Administrator > First use. Row line above it: "Review this registration" | "Provision an administrator" | "Active: administrator can sign in" | "Active".
-Sidebar footer (all roles): Profile, Study objectives. Redirects (no screen): /super-admin/event-requirements, /approvals, /financial-reports -> Compliance tabs.
+Sidebar footer (all roles): Profile. Redirects (no screen): /super-admin/event-requirements, /approvals, /financial-reports -> Compliance tabs.
 
 ## Dashboard (/dashboard/super-admin)
 Tiles: Registered organizations | Active organizations | Inactive organizations | Financial reports to review | Unread Notifications
@@ -194,9 +194,4 @@ Card "Notifications" (toggle rows): Announcements | Events and reminders | Elect
 Card "Your recent activity" (list rows): "<action> in <module>" over record label | date-time; button "Show more"; footer "Showing <n> of <total>". Empty: "Nothing recorded yet. Registering for an event or submitting a request will show up here."
 Mobile: left card stacks above the forms, fields 1 column
 
-## Study objectives (/dashboard/objectives)
-No table: print button "Print"; scope line "University-wide evidence across every organization, for the Student Affairs Office."; sections as cards: general objective banner (GO), research foundation (SO1, SO4), pillar system (SO2.1 to SO2.6), synthesis (SO3). Each objective: statement, "Mechanism: ...", evidence list (value over label, "No activity yet" when zero)
-Empty: "No objectives are configured yet" / "The study team sets up the objectives catalog. Once it is in place, every objective appears here next to its live evidence."; evidence: "No evidence has been counted for this objective yet."
-Mobile: cards stack
-
-COVERAGE: 16 pages (15 nav leaves + 1 detail route), Dashboard, Agency overview, Registrations and organizations, Administrators, Colleges, Compliance, Venues, Grievances, Clearances, University announcements, Notifications, Academic years, Audit trail, Profile, Study objectives
+COVERAGE: 14 pages (13 nav leaves + 1 detail route), Dashboard, Agency overview, Registrations and organizations, Colleges, Compliance, Venues, Grievances, Clearances, University announcements, Notifications, Academic years, Audit trail, Profile

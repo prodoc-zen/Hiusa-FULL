@@ -48,7 +48,7 @@
       "4. Select Finance and read its sub items.",
       "5. Look at the bottom of the menu."
     ],
-    "expected": "The menu reads: Dashboard, Ask AI, Organization applications, Approvals, Organizations, People, College files, Records, College compliance, Clearance signing, Announcements. Under the heading College view (read only): Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results. At the bottom: Study objectives, Profile and Log out. There is NO Members, Events and tasks, Voting, Store, Updates or My activity group. Selecting Finance opens Budgets.",
+    "expected": "The menu reads: Dashboard, Ask AI, Organization applications, Approvals, Organizations, People, College files, Records, College compliance, Clearance signing, Announcements. Under the heading College view (read only): Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results. At the bottom: Profile and Log out. There is NO Members, Events and tasks, Voting, Store, Updates or My activity group. Selecting Finance opens Budgets.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1635,43 +1635,6 @@
     "device": "Any",
     "type": "Validation",
     "round": "Any time"
-  },
-  {
-    "id": "DH-090",
-    "role": "Department Head",
-    "module": "Study objectives",
-    "title": "Study objectives page opens for the head",
-    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
-    "steps": [
-      "1. Select Study objectives at the bottom of the menu.",
-      "2. Read the page.",
-      "3. Select Dashboard."
-    ],
-    "expected": "The page opens without an error and shows the study objectives with evidence for the head college. VERIFY: what the head sees on this page (it is scoped to the head college).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Functional",
-    "round": "Any time"
-  },
-  {
-    "id": "DH-091",
-    "role": "Department Head",
-    "module": "Study objectives",
-    "title": "Study objectives evidence links open pages the head may see",
-    "preconditions": "Sign in as Department Head 940001. The password is given to you separately. Some activity exists in the college.",
-    "steps": [
-      "1. Scroll to the bottom of the left menu and select Study objectives.",
-      "2. Select a tile with an arrow, for example \"Events completed\" or \"Transactions recorded in the ledger\".",
-      "3. Go back and select \"Expense forecasts generated (OLS regression)\" or \"Votes cast\".",
-      "4. Go back and select a tile such as \"Orders placed\" or \"Check-ins recorded manually\".",
-      "5. Write down which tiles are links and the page each one opened."
-    ],
-    "expected": "Linked tiles open pages of the college view: Calendar, Budgets, Ledger, Forecast, Election results. They never end in a redirect to the Dashboard. Tiles about orders, check-ins, tasks and announcements have no arrow, because the head has no page for them. VERIFY: the exact linked tiles (from the server route list: Forecast, Budgets, Ledger, Calendar, Elections and Election results).",
-    "priority": "Low",
-    "device": "Any",
-    "type": "Access",
-    "round": "Any time",
-    "depends": ""
   },
   {
     "id": "DH-092",

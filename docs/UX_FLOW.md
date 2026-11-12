@@ -247,7 +247,7 @@ Format: group (band): children in order, each `Label  route`.
   - Records: Compliance `/dashboard/compliance`; Submitted files `/dashboard/submitted-files`; Grievances `/dashboard/grievances`; Clearance signing `/dashboard/clearances`; Audit log `/dashboard/audit-logs`; School year records `/dashboard/records`
 - Me band
   - My activity: Vote `/dashboard/elections/cast-vote`; Shop `/dashboard/merchandise/order-merchandise`; My orders `/dashboard/merchandise/my-orders`; My receipts `/dashboard/finance/personal-receipts`; Statement of account `/dashboard/finance/statement-of-account`
-- Footer: Profile `/dashboard/profile`; Study objectives `/dashboard/objectives` (new link, ends the orphan)
+- Footer: Profile `/dashboard/profile` (the Study objectives page was removed in round r15)
 
 **SBO_OFFICER** (9 rows, was 10; 24 leaves, was 26)
 - Dashboard `/dashboard/officer`
@@ -326,7 +326,7 @@ Format: group (band): children in order, each `Label  route`.
 | Student Financial > My Receipts, Statement of Account | My payments > Statement of account, Receipts | Statement first (what I owe), receipts after |
 | Student Elections > Cast Vote | Voting > Vote | Renamed group |
 | SAO: SAO Administration (12 flat) | Organizations / Reviews / Updates / Setup and records | Split by the SAO's job; Academic years and Audit trail move to the last group; Notifications joins Updates |
-| `/dashboard/objectives` (no link) | Footer link "Study objectives" for all roles | Orphan fixed |
+| `/dashboard/objectives` (no link) | Page removed for all roles in round r15 | Removed |
 
 Demoted and kept as routes only: `/dashboard/events/activity-calendar` (Admin), `/dashboard/tasks/create-task`, `/dashboard/tasks/task-progress`, `/dashboard/announcements/create-announcement`, `/dashboard/approval-requests/new/*` forms (still used by the New request button), `/dashboard/admin/sbo-positions`, `/dashboard/events/event-operations`, `/dashboard/merchandise/gcash-payment`. Demoted component, dead: `AnnouncementsPage.jsx` (delete, no importer), Finance `audit` tab (either add a route and a Records link or delete the dead branch; slice D decides).
 
@@ -561,7 +561,7 @@ One shape for every list-plus-detail page: `<route>?record=<id>` opens the detai
 | Active with no Admin yet (SAO) | NextStep text only, with no link: the SAO has no Administrators page, and the first Admin account is added from the Organizations list row menu |
 | Event drawer "Prepare event report" | `/dashboard/finance/transaction-history?event=<id>` with the event report type preselected |
 | Event drawer "Book venue" | `/dashboard/venues?event=<id>` |
-| Study objectives | Footer link, plus the SAO and Admin briefing "see how the system serves the study" is out of scope |
+| Study objectives | Removed in round r15: no page, no footer link, no endpoint |
 
 ## 7. First-use flows
 
@@ -592,7 +592,7 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 | Slice | Owns (exclusive) | Builds | Acceptance check | Depends on |
 |---|---|---|---|---|
 | 0 Foundation | `client/src/components/ui/FlowStepper.jsx`, `NextStep.jsx`, `PageHeader.jsx`, `ui/index.js`, `client/src/lib/lifecycle.js`, `client/src/lib/useRecordParam.js`, their tests | Section 8.1 | Vitest: every lifecycle status maps to a stage and next-action text; axe check: stepper has `aria-current`, state words, keyboard order; renders in `/dev/ui-kit` | none, first |
-| A Shell and IA | `client/src/components/layout/*` (`navigation.js`, `Sidebar.jsx`, `DashboardLayout.jsx`, `TopBar.jsx`, `CommandPalette.jsx`, tests), new `client/src/lib/pageMeta.js` | Section 3 menus with band headings, role order, labels; `pageMeta` (title, purpose, group, breadcrumb parents) as the single source for TopBar and PageHeader; TopBar title and subtitle removed, mobile breadcrumb kept; footer links Profile and Study objectives; Admin, Officer, DH, Student, SAO lists exactly as 3.2 | `navigation.test.js` asserts each role's rows, order, labels and routes; every route in section 3.2 appears in `getFlatPages`; no role sees a link its route forbids; Playwright route sweep still passes; only one `h1` per page | 0 |
+| A Shell and IA | `client/src/components/layout/*` (`navigation.js`, `Sidebar.jsx`, `DashboardLayout.jsx`, `TopBar.jsx`, `CommandPalette.jsx`, tests), new `client/src/lib/pageMeta.js` | Section 3 menus with band headings, role order, labels; `pageMeta` (title, purpose, group, breadcrumb parents) as the single source for TopBar and PageHeader; TopBar title and subtitle removed, mobile breadcrumb kept; footer link Profile; Admin, Officer, DH, Student, SAO lists exactly as 3.2 | `navigation.test.js` asserts each role's rows, order, labels and routes; every route in section 3.2 appears in `getFlatPages`; no role sees a link its route forbids; Playwright route sweep still passes; only one `h1` per page | 0 |
 | B Wayfinding | `client/src/utils/notificationLinks.js` (+test), `client/src/components/dashboard/AttentionList.jsx`, `AgendaList.jsx`, `ActivityFeed.jsx`, `index.js`, `client/src/services/approvalService.js` | Section 6.2 table for every `reference_type`, no title matching; links appended with `?record=`; DH single approvals route | Unit test per reference_type per role (a table test): no null for a type the role can open, no link to a forbidden route (cross-checked against `client_routes.php` in a test fixture); Department Head approvals link is the one route | S1 for server `reference_id` coverage |
 | C Events | `client/src/pages/modules/events/EventsPage.jsx`, `client/src/components/events/*`, `client/src/components/calendar/*` | Event stepper and NextStep in the drawer and compact in rows; requirements step promoted out of the bottom panel; `?record=` and `?view=calendar`; Book venue, Propose budget, Prepare report buttons with the query parameters of 6.2; Planning heading renamed to match the menu; first-run and filtered empty states; remove the stat strip from the Planning view | Vitest: drawer shows the right stage and next-action for each row of 4.1 fixtures; Playwright journey A1 and A2; "No events found." text gone | 0, A, S2 |
 | D Finance | `client/src/pages/modules/finance/FinancePage.jsx`, `FinancialCollectionsPage.jsx`, `StudentFinancialAccountsPage.jsx`, `client/src/components/finance/*` | Tab titles from `pageMeta`; Budgets list with compact budget stepper and detail; Financial reports list with report stepper, `?event=` preselect; first-run empty states; decide the dead `audit` tab (route plus Records link, or delete) | Vitest per 4.2 and 4.3 fixtures; budget empty state names the Propose Budget button; Playwright A2, A5 | 0, A |

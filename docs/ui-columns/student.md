@@ -122,9 +122,6 @@ Tiles: none
 No table: left card (avatar, name, role, School ID, Organization, Email address, "Protected account"); form "Personal information" (First name, Last name, Email address, Mobile number (optional), button "Save profile"); form "Password & security" (Current password, New password, Confirm new password, checks "At least 8 characters" and "New passwords match", button "Update password"); card "Notifications" with toggles (Announcements, Events and reminders, Elections, Merchandise orders); list "Your recent activity" [action in module, record, time] + button "Show more"; empty "Nothing recorded yet. Registering for an event or submitting a request will show up here."
 Mobile: single column.
 
-## Account > Study objectives (/dashboard/objectives)
-No table: read-only sections (general objective banner, research foundation, pillar system, objective details with evidence lists, synthesis); empty "No objectives are configured yet".
-
 ## Top bar > Notifications panel (bell button "Notifications", all pages)
 Tiles: header "Notifications" with "n new" chip
 Table "Notifications": list rows [type icon, title, message (2 lines), time ago]; newest 5 shown; unread rows blue with left bar
@@ -138,4 +135,4 @@ Table "Your Cart": rows [name, "Qty: n - price", line total]; header "n item typ
 Empty: "Cart is empty"
 Mobile: panel spans the screen width.
 
-COVERAGE: 13 pages, Dashboard, Statement of account, Receipts, Events, Vote, Results, Shop, My orders, Announcements, My clearance, My grievances, Profile, Study objectives (plus top-bar Notifications and Cart panels)
+COVERAGE: 12 pages, Dashboard, Statement of account, Receipts, Events, Vote, Results, Shop, My orders, Announcements, My clearance, My grievances, Profile (plus top-bar Notifications and Cart panels)

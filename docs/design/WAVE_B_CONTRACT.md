@@ -65,7 +65,7 @@ Read the controller for exact shapes before building; do not guess.
 - Venues (`VenueController`, `VenueBookingController`): `GET|POST /venues`, `PUT|DELETE /venues/{id}`, `GET /venues/{id}/availability?from=&to=`, `GET /venue-bookings?from=&to=`, `POST /venue-bookings`, `PATCH /venue-bookings/{id}/review`, `PATCH /venue-bookings/{id}/withdraw`.
 - Grievances (`GrievanceController`): `GET /grievances?status=&urgency=&category=&addressed_to=`, `GET /grievances/{id}`, `POST /grievances` (STUDENT), `PATCH /grievances/{id}/status` (SUPER_ADMIN, or ADMIN for grievances addressed to its own org). Anonymous filers are never identified to an org ADMIN; the UI must never try to show an identity the API withholds.
 - Clearances (`ClearanceController`): `GET|POST /clearance-periods`, `GET /clearance-periods/{id}/students?q=&page=`, `GET /clearances/mine`, `GET /clearance-signatures`, `PATCH /clearance-signatures/{id}` (sign, hold with reason, clear a hold).
-- Study objectives: `GET /objectives/overview` (all roles; built in Wave B by the server slice, shape below).
+- Study objectives: `GET /objectives/overview` (all roles; built in Wave B by the server slice, shape below). Removed in round r15: the page, its route and this endpoint no longer exist.
 
 ## `GET /objectives/overview` shape
 
