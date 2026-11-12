@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoUsersPage from './SaoUsersPage';
 
-const service = vi.hoisted(() => ({ getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), resetSystemUserPassword: vi.fn() }));
+const service = vi.hoisted(() => ({
+  getSystemUsers: vi.fn(), getSystemUser: vi.fn(), deleteSystemUser: vi.fn(), resetSystemUserPassword: vi.fn(),
+  createSaoStaffInvitation: vi.fn(), getSaoStaffInvitations: vi.fn(), relinkSaoStaffInvitation: vi.fn(), revokeSaoStaffInvitation: vi.fn(),
+}));
 vi.mock('../../../services/systemAdministrationService', () => service);
 
 const user = { school_id: 20261234, first_name: 'Ana', last_name: 'Cruz', email: 'ana@example.test', role: 'STUDENT', account_status: 'active', organization: { id: 7, name: 'Computing Society' } };
@@ -45,6 +48,20 @@ describe('SAO university users', () => {
     expect(screen.queryByRole('menuitem', { name: 'Add admin profile' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add administrator' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'View user and clearance' })).toBeInTheDocument();
+  });
+
+  it('has one primary Add SAO staff button that opens the invite dialog, and no way to add an administrator', async () => {
+    service.getSaoStaffInvitations.mockResolvedValue({ data: [] });
+    render(<SaoUsersPage />);
+    await screen.findAllByText('Ana Cruz');
+
+    expect(screen.queryByRole('button', { name: 'Add administrator' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add SAO staff' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add SAO staff' });
+    expect(within(dialog).getByRole('button', { name: 'Create link' })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add SAO staff' })).not.toBeInTheDocument());
   });
 
   it('searches across accounts and shows profiles and clearance in a drawer', async () => {

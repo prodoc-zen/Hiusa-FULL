@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, KeyRound, Trash2 } from 'lucide-react';
-import { DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Eye, KeyRound, Trash2, UserPlus } from 'lucide-react';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
+import SaoStaffInviteDialog from './SaoStaffInviteDialog';
 import { getSystemUser, getSystemUsers, deleteSystemUser, resetSystemUserPassword } from '../../../services/systemAdministrationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -46,6 +47,7 @@ export default function SaoUsersPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
+  const [invitingSao, setInvitingSao] = useState(false);
   const loadCounter = useRef(0);
 
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function SaoUsersPage() {
   ];
 
   return <div className="space-y-5 pb-8">
-    <PageHeader title="University users" />
+    <PageHeader title="University users" primary={<Button leftIcon={UserPlus} onClick={() => setInvitingSao(true)}>Add SAO staff</Button>} />
     {notice && <p role="status" className="text-sm font-medium text-success-strong">{notice}</p>}
     <DataTable
       caption="University user accounts"
@@ -173,6 +175,7 @@ export default function SaoUsersPage() {
         <section><h3 className="text-sm font-semibold text-ink">Linked records</h3>{detailRecords.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No linked records. This account can be deleted.</p> : <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{detailRecords.map(({ key, label, count }) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{label}</dt><dd className="text-sm font-semibold tabular-nums text-ink">{count}</dd></div>)}</dl>}</section>
       </div>}
     </Drawer>
+    {invitingSao && <SaoStaffInviteDialog onClose={() => setInvitingSao(false)} />}
     <ConfirmModal open={Boolean(resetting)} title="Create reset link" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Create reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
     {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user?" recordName={fullName(deleting)} message="Only the account and its profiles are removed. An account with any history, such as submissions, finance, event, order, or clearance records, cannot be deleted and should be deactivated instead. This cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
