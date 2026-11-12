@@ -606,18 +606,6 @@ SAO-028 | Organizations > Registrations and organizations | An archived organiza
 SAO-029 | Organizations > Registrations and organizations | On a phone the organization lists turn into cards and nothing is cut off | M | Any
 SAO-030 | Organizations > Registrations and organizations > Open (Organization overview) | The overview page shows one organization at a glance | H | Any
 SAO-031 | Organizations > Registrations and organizations > Open (Organization overview) | An organization that does not exist shows an error with a way back | L | Any
-SAO-032 | Organizations > Administrators | The administrator list and its summary line | H | Any
-SAO-033 | Organizations > Administrators | Search and filter the administrator list | M | Any
-SAO-034 | Organizations > Administrators | Create a new administrator by typing a password (not part of the system); Add administrator picks an existing student | H | Any
-SAO-035 | Organizations > Administrators | The create-administrator form (not part of the system); Add administrator stays off until it is complete | H | Any
-SAO-036 | Organizations > Administrators | Only active organizations can be chosen when adding an administrator | M | Any
-SAO-037 | Organizations > Administrators | Edit an administrator | H | Any
-SAO-038 | Organizations > Administrators | The last active administrator of an organization cannot be switched off | H | Any
-SAO-039 | Organizations > Administrators | Send a password reset link to an administrator | M | Any
-SAO-040 | Organizations > Administrators | Hand over the administrator role by adding the successor and removing the old administrator | H | Any
-SAO-041 | Organizations > Administrators | Hand over to a new account (not part of the system) | M | Any
-SAO-042 | Organizations > Administrators | Delete an administrator account | M | Any
-SAO-043 | Organizations > Administrators | Administrators of an archived organization cannot be changed | M | Any
 SAO-044 | Organizations > Colleges | The college list, its search and the View organizations link | H | Any
 SAO-045 | Organizations > Colleges | Assign a Department Head to a college without an active head by invitation link | H | Any
 SAO-046 | Organizations > Colleges | Invite Department Head needs a college (the typed-credentials form is not part of the system) | H | Any

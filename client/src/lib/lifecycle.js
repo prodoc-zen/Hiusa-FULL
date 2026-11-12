@@ -578,9 +578,7 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
       if (Number(o.administrators_count) === 0) {
         return finish(buildSteps(REGISTRATION_STAGES, 2), turn(viewerRole, ['SUPER_ADMIN'], {
           title: 'Add the first Admin account',
-          body: 'SAO approved this organization. Add its first Admin account so an administrator can sign in and manage it.',
-          label: 'Create administrator',
-          to: o.id === undefined ? '/dashboard/super-admin/admins' : `/dashboard/super-admin/admins?organization=${o.id}&create=1`,
+          body: 'SAO approved this organization. Add its first Admin account from the Organizations list so an administrator can sign in and manage it.',
         }, { title: 'Approved: waiting for the SAO to assign an administrator' }), 'SUPER_ADMIN', href);
       }
       const total = Number(o.setup_steps_total ?? 0);

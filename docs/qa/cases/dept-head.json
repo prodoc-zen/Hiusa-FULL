@@ -1533,10 +1533,10 @@
       "1. Type /dashboard/super-admin and press Enter.",
       "2. Type /dashboard/super-admin/colleges and press Enter.",
       "3. Type /dashboard/super-admin/organizations and press Enter.",
-      "4. Type /dashboard/super-admin/admins and press Enter.",
+      "4. Type /dashboard/super-admin/venues and press Enter.",
       "5. Type /dashboard/super-admin/academic-years and press Enter."
     ],
-    "expected": "Every address sends you back to the Department Head Dashboard. The head cannot add colleges or Department Heads, review registrations, create administrators or open a semester. Only the SAO can.",
+    "expected": "Every address sends you back to the Department Head Dashboard. The head cannot add colleges or Department Heads, review registrations, manage venues or open a semester. Only the SAO can.",
     "priority": "High",
     "device": "Any",
     "type": "Access",

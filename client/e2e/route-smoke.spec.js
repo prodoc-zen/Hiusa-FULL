@@ -27,7 +27,6 @@ const ROUTES = {
     '/dashboard/super-admin/organizations',
     `/dashboard/super-admin/organizations/${PSITS_ORGANIZATION_ID}`,
     '/dashboard/super-admin/colleges',
-    '/dashboard/super-admin/admins',
     '/dashboard/super-admin/announcements',
     '/dashboard/super-admin/notifications',
     '/dashboard/super-admin/compliance',

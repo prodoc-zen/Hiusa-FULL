@@ -23,14 +23,12 @@ export function registrationView(organization, viewerRole) {
   const lifecycle = organizationRegistrationLifecycle(organization, viewerRole);
   const nextStep = toNextStepProps(lifecycle);
   const remarksForSao = viewerRole === 'SUPER_ADMIN' && organization.lifecycle_status === 'returned' && Boolean(organization.review_remarks);
-  const provisioning = viewerRole === 'SUPER_ADMIN' && organization.lifecycle_status === 'active' && hasAdministrators(organization) && Number(organization.administrators_count) === 0;
   return {
     lifecycle,
     nextStep: {
       ...nextStep,
       title: titleFor(organization, viewerRole, nextStep.title),
       body: remarksForSao ? `Your remarks: ${organization.review_remarks}` : nextStep.body,
-      primary: provisioning && nextStep.primary ? { ...nextStep.primary, label: 'Add Admin account' } : nextStep.primary,
     },
   };
 }

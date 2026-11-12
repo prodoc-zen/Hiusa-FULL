@@ -5,7 +5,6 @@ import { organizationOverviewPath } from './agencyStatus';
 
 export const PENDING_REVIEW_PATH = '/dashboard/super-admin/organizations?status=pending';
 const reviewPath = (organizationId) => `${PENDING_REVIEW_PATH}&review=${organizationId}`;
-const provisionPath = (organizationId) => `/dashboard/super-admin/admins?organization=${organizationId}&create=1`;
 export const NO_ORGANIZATIONS = 'No student organizations yet. A student the Department Head allows applies, the Department Head reviews the application, and you approve it.';
 
 export const needsAdministrator = (row) => row.lifecycle_status === 'active' && Number(row.administrators_count ?? 0) === 0;
@@ -74,7 +73,6 @@ function rowActions(row) {
   return (
     <span className="inline-flex flex-wrap items-center justify-end gap-2">
       {row.lifecycle_status === 'pending' && <Button to={reviewPath(row.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Review ${name}`}>Review</Button>}
-      {needsAdministrator(row) && <Button to={provisionPath(row.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Provision administrator for ${name}`}>Provision administrator</Button>}
       <Button to={organizationOverviewPath(row.id)} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`Open ${name}`}>Open</Button>
     </span>
   );

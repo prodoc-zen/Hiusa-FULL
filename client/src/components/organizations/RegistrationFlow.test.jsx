@@ -27,7 +27,7 @@ const CASES = [
   ['DEPARTMENT_HEAD', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
   ['SUPER_ADMIN', { lifecycle_status: 'pending' }, 'Review this registration', 'action', 'Review registration'],
   ['SUPER_ADMIN', { lifecycle_status: 'returned' }, 'Waiting for the Department Head to resubmit', 'waiting', null],
-  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Add the first Admin account', 'action', 'Add Admin account'],
+  ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 0 }, 'Add the first Admin account', 'action', null],
   ['SUPER_ADMIN', { lifecycle_status: 'active', administrators_count: 2 }, 'Active: administrator can sign in', 'done', null],
   ['SUPER_ADMIN', { lifecycle_status: 'archived' }, 'Archived: read only', 'blocked', null],
 ];
@@ -50,10 +50,11 @@ describe('RegistrationNextStep', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('points the SAO at the prefilled administrator form', () => {
+  it('tells the SAO the first Admin account is missing without linking to a removed administrators page', () => {
     renderIn(<RegistrationNextStep organization={record({ lifecycle_status: 'active' })} viewerRole="SUPER_ADMIN" />);
 
-    expect(screen.getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=7&create=1');
+    expect(screen.getByText('Add the first Admin account')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('runs a handler instead of navigating when the page owns the action', () => {

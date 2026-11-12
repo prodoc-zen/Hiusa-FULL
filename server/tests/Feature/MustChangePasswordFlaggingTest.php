@@ -75,27 +75,6 @@ class MustChangePasswordFlaggingTest extends TestCase
         $this->assertFalse((bool) $student->fresh()->must_change_password);
     }
 
-    public function test_sao_created_administrator_must_replace_the_staff_chosen_initial_password(): void
-    {
-        $organization = Organization::factory()->create();
-        Sanctum::actingAs($this->sao());
-
-        $this->postJson('/api/system/admins', $this->accountPayload(88000003, ['organization_id' => $organization->id]))->assertCreated()->assertJsonPath('must_change_password', true);
-
-        $this->assertTrue(User::findOrFail(88000003)->must_change_password);
-    }
-
-    public function test_sao_cannot_create_a_successor_account_at_handover(): void
-    {
-        $organization = Organization::factory()->create();
-        $outgoing = User::factory()->admin()->create(['organization_id' => $organization->id, 'position_title' => 'President']);
-        Sanctum::actingAs($this->sao());
-
-        $this->postJson("/api/system/admins/{$outgoing->school_id}/handover", $this->accountPayload(88000004, ['mode' => 'new']))->assertForbidden();
-
-        $this->assertNull(User::find(88000004));
-    }
-
     public function test_a_department_head_who_registers_through_the_link_keeps_the_password_they_chose(): void
     {
         $college = $this->makeCollege('CCS');

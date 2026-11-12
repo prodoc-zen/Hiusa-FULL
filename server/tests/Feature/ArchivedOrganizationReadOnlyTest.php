@@ -97,18 +97,6 @@ class ArchivedOrganizationReadOnlyTest extends TestCase
         $this->assertSame('pending', $booking->fresh()->status);
     }
 
-    public function test_sao_cannot_delete_or_reset_the_admin_of_an_archived_organization(): void
-    {
-        $admin = User::factory()->admin()->create(['organization_id' => $this->archived->id]);
-        User::factory()->admin()->create(['organization_id' => $this->archived->id]);
-        Sanctum::actingAs($this->sao);
-
-        $this->deleteJson("/api/system/admins/{$admin->school_id}")->assertStatus(409)->assertJsonPath('message', 'Archived organizations are read only.');
-        $this->postJson("/api/system/admins/{$admin->school_id}/password-reset")->assertStatus(409)->assertJsonPath('message', 'Archived organizations are read only.');
-
-        $this->assertDatabaseHas('users', ['school_id' => $admin->school_id]);
-    }
-
     public function test_sao_cannot_delete_a_profile_of_an_archived_organization(): void
     {
         $member = User::factory()->student()->create(['organization_id' => $this->archived->id]);

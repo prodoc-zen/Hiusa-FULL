@@ -130,11 +130,6 @@ Generated from `php artisan route:list --path=api --json` and frontend `api.*` c
 | `services/systemAdministrationService.js:5` `/system/overview` | GET | `/api/system/overview` | `SystemAdministrationController::overview` |
 | `services/systemAdministrationService.js:6` `/system/organizations` | GET | `/api/system/organizations` | `SystemAdministrationController::organizations` |
 | `services/systemAdministrationService.js:8` `/system/organizations/${id}` | PUT | `/api/system/organizations/{organization}` | `SystemAdministrationController::updateOrganization` |
-| `services/systemAdministrationService.js:9` `/system/admins` | GET | `/api/system/admins` | `SystemAdministrationController::admins` |
-| `services/systemAdministrationService.js:10` `/system/admins` | POST | `/api/system/admins` | `SystemAdministrationController::storeAdmin` |
-| `services/systemAdministrationService.js:11` `/system/admins/${id}` | PUT | `/api/system/admins/{user}` | `SystemAdministrationController::updateAdmin` |
-| `services/systemAdministrationService.js:12` `/system/admins/${id}` | DELETE | `/api/system/admins/{user}` | `SystemAdministrationController::destroyAdmin` |
-| `services/systemAdministrationService.js:13` `/system/admins/${id}/password-reset` | POST | `/api/system/admins/{user}/password-reset` | `SystemAdministrationController::initiateAdminPasswordReset` |
 | `services/systemAdministrationService.js:14` `/system/announcements` | GET | `/api/system/announcements` | `GlobalAnnouncementController::index` |
 | `services/systemAdministrationService.js:15` `/system/announcements` | POST | `/api/system/announcements` | `GlobalAnnouncementController::store` |
 | `services/systemAdministrationService.js:16` `/system/announcements/${id}` | PUT | `/api/system/announcements/{announcement}` | `GlobalAnnouncementController::update` |

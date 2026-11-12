@@ -161,7 +161,7 @@ describe('SaoOrganizationOverviewPage', () => {
 
       expect(within(stage(view)).getByText('Admin account').closest('li')).toHaveAttribute('aria-current', 'step');
       expect(view.getByText('Add the first Admin account')).toBeInTheDocument();
-      expect(view.getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=5&create=1');
+      expect(view.queryByRole('link', { name: 'Add Admin account' })).not.toBeInTheDocument();
       expect(screen.getByText(/Add the first Admin account so the organization can sign in/)).toBeInTheDocument();
     });
 

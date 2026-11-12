@@ -599,7 +599,7 @@
     "title": "Admin opens pages of other roles by address",
     "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
     "steps": [
-      "1. Open /dashboard/super-admin, /dashboard/super-admin/admins and /dashboard/super-admin/academic-years.",
+      "1. Open /dashboard/super-admin, /dashboard/super-admin/colleges and /dashboard/super-admin/academic-years.",
       "2. Open /dashboard/department-head and /dashboard/department-head/organizations.",
       "3. Open /dashboard/officer and /dashboard/tasks/assigned-tasks.",
       "4. Open /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance.",

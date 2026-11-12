@@ -78,7 +78,8 @@ describe('desktop sidebar rail', () => {
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole('button', { name: 'Governance' }));
-    expect(screen.getByRole('link', { name: 'Administrators' })).toHaveAttribute('href', '/dashboard/super-admin/admins');
+    expect(screen.getByRole('link', { name: 'Student records' })).toHaveAttribute('href', '/dashboard/super-admin/student-records');
+    expect(screen.queryByRole('link', { name: 'Administrators' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Applications' }));
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/organization-applications');

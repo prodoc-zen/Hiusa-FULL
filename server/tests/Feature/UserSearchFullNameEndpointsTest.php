@@ -61,35 +61,6 @@ class UserSearchFullNameEndpointsTest extends TestCase
         $this->assertSame([], $found('Juan Santos'));
     }
 
-    public function test_sao_administrators_find_a_full_name_and_stay_within_the_organization_filter(): void
-    {
-        $this->person('Juan', 'Dela Cruz', 'ADMIN');
-        $this->person('Juan', 'Dela Cruz', 'ADMIN', $this->other);
-        $this->person('Juan', 'Dela Cruz', 'STUDENT');
-        Sanctum::actingAs($this->director());
-
-        $found = fn (array $query) => $this->getJson('/api/system/admins?'.http_build_query($query))->assertOk()->json('data');
-
-        $this->assertSame(['Juan Dela Cruz', 'Juan Dela Cruz'], $this->names($found(['search' => 'Juan Dela Cruz'])));
-        $this->assertSame(['Juan Dela Cruz', 'Juan Dela Cruz'], $this->names($found(['search' => 'Dela Cruz, Juan'])));
-        $this->assertSame(['Juan Dela Cruz'], $this->names($found(['search' => 'Juan Dela Cruz', 'organization_id' => $this->organization->id])));
-        $this->assertSame([], $found(['search' => 'Juan Santos']));
-    }
-
-    public function test_the_successor_picker_finds_a_full_name_among_the_organizations_active_members_only(): void
-    {
-        $this->person('Juan', 'Dela Cruz', 'STUDENT');
-        $this->person('Juan', 'Dela Cruz', 'STUDENT', $this->other);
-        User::factory()->student()->create(['organization_id' => $this->organization->id, 'account_status' => 'inactive', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz']);
-        Sanctum::actingAs($this->director());
-
-        $found = fn (string $search) => $this->getJson('/api/system/organizations/'.$this->organization->id.'/members?'.http_build_query(['search' => $search]))->assertOk()->json();
-
-        $this->assertSame(['Juan Dela Cruz'], $this->names($found('Juan Dela Cruz')));
-        $this->assertSame(['Juan Dela Cruz'], $this->names($found('Dela Cruz, Juan')));
-        $this->assertSame([], $found('Juan Santos'));
-    }
-
     public function test_the_attendance_log_finds_a_full_name_within_its_own_event_and_a_student_still_sees_only_their_own(): void
     {
         $admin = $this->person('Quill', 'Keeper', 'ADMIN');

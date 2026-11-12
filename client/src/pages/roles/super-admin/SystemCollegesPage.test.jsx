@@ -529,14 +529,13 @@ describe('SystemCollegesPage', () => {
       expect(within(rowOf('Drama Guild')).getByText('Waiting for the Department Head to resubmit')).toBeInTheDocument();
     });
 
-    it('links Provision administrator to the prefilled administrator form', async () => {
+    it('offers no Provision administrator link, only Open, for an organization still waiting for its first Admin', async () => {
       show(agency({ colleges: [college([waiting, quiet], { active: 2 })] }));
       renderPage();
 
       const drawer = await openDetails();
-      const link = within(drawer).getAllByRole('link', { name: 'Provision administrator for Chess Club' })[0];
-      expect(link).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=3&create=1');
-      expect(within(drawer).queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole('link', { name: /Provision administrator/ })).not.toBeInTheDocument();
+      expect(within(drawer).getAllByRole('link', { name: 'Open Chess Club' })[0]).toBeInTheDocument();
     });
   });
 

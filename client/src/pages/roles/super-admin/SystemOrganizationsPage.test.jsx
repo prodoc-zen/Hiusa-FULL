@@ -6,7 +6,7 @@ import SystemOrganizationsPage from './SystemOrganizationsPage';
 const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(), getSystemColleges: vi.fn(), getSystemAgency: vi.fn(), getSystemOrganizationOverview: vi.fn(),
   reviewSystemOrganization: vi.fn(), archiveSystemOrganization: vi.fn(), restoreSystemOrganization: vi.fn(),
-  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(), createSystemAdmin: vi.fn(), createUnifiedOrganization: vi.fn(),
+  deleteSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(), uploadSystemOrganizationLogo: vi.fn(), createUnifiedOrganization: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
@@ -51,7 +51,6 @@ describe('SystemOrganizationsPage', () => {
     profileMocks.getProfileCandidates.mockResolvedValue({ data: { data: [{ school_id: 123, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test' }], current_page: 1, last_page: 1, total: 1 } });
     profileMocks.inviteAccountProfile.mockResolvedValue({ data: { id: 9, organization_id: 3 } });
     profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
-    mocks.createSystemAdmin.mockResolvedValue({ school_id: 78123456, role: 'ADMIN' });
     peopleMocks.searchPeople.mockResolvedValue([{ school_id: 123, name: 'Ana Reyes', email: 'ana@example.test', program: 'BSIT', role: 'STUDENT', organizations: [] }]);
   });
 
@@ -455,7 +454,7 @@ describe('SystemOrganizationsPage', () => {
 
       await waitFor(() => expect(within(drawer).getByText('Add the first Admin account')).toBeInTheDocument());
       expect(screen.getByRole('dialog', { name: 'Review registration' })).toBe(drawer);
-      expect(within(drawer).getByRole('link', { name: 'Add Admin account' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=8&create=1');
+      expect(within(drawer).queryByRole('link', { name: 'Add Admin account' })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
       expect(within(drawer).queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
       expect(within(drawer).queryByLabelText(/Remarks/)).not.toBeInTheDocument();

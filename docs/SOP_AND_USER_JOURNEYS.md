@@ -69,11 +69,10 @@ HIUSA operates on a multi-tiered hierarchy reflecting institutional student affa
    - **Return:** The SAO enters specific feedback remarks. Status updates to `returned`. The Department Head receives a notification to replace deficient documents and resubmit.
    - **Approve:** The SAO approves the registration. Status updates to `active`.
 
-#### Step 4: Initial Administrator Provisioning (SAO)
-1. Immediately following approval, the SAO opens **Organizations > Administrators**.
-2. The SAO selects **Create Admin User**, selects the newly activated organization, enters the student leader school ID, full name, institutional email, and temporary password.
-3. The system flags the account with forced password change on first sign-in.
-4. The organization administrator signs in, sets a new private password, and accesses the organization dashboard.
+#### Step 4: Initial Organization Admin
+1. The SAO has no Administrators page. When the SAO approves the application, the applicant becomes the Organization Admin of the new organization.
+2. Later Admins are given access by the Department Head (People and access > Give access) or by the organization Admin.
+3. The organization administrator signs in and accesses the organization dashboard.
 
 ---
 

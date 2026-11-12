@@ -19,29 +19,13 @@ class SuperAdminFingerprintTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_creation_and_sao_management_preserve_role_and_organization_boundaries(): void
+    public function test_an_organization_admin_cannot_create_another_admin(): void
     {
         $organization = Organization::factory()->create();
-        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
-        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'position_title' => 'SAO Director']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
 
         Sanctum::actingAs($admin);
         $this->postJson('/api/users', $this->adminPayload(880001))->assertForbidden();
-
-        Sanctum::actingAs($superAdmin);
-        $payload = $this->adminPayload(880002);
-        $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])
-            ->assertUnprocessable()->assertJsonValidationErrors('role');
-        $createdId = User::factory()->admin()->create(['organization_id' => $organization->id])->school_id;
-        Sanctum::actingAs($admin);
-        $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Blocked'])->assertForbidden();
-
-        Sanctum::actingAs($superAdmin);
-        $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Managed'])
-            ->assertOk()
-            ->assertJsonPath('first_name', 'Managed');
-        $this->putJson('/api/system/admins/'.$createdId, ['organization_id' => Organization::factory()->create()->id])->assertForbidden();
     }
 
     public function test_one_probe_identifies_an_enrolled_user_in_the_same_organization_and_checks_them_in(): void
