@@ -821,6 +821,72 @@ describe("MerchandisePage order stages for the buyer", () => {
     }
   });
 
+  it("searches every order on the server after a short pause, from page 1, and says so when nothing matches", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+    await screen.findByText("ORD-7");
+
+    orderMocks.getOrders.mockClear();
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    fireEvent.change(screen.getByLabelText("Search orders"), { target: { value: "hoodie" } });
+    expect(orderMocks.getOrders).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenCalledWith({ mine: 1, page: 1, search: "hoodie" }));
+    expect(await screen.findByText("No orders match your search")).toBeInTheDocument();
+    expect(screen.queryByText(/on this page match/)).not.toBeInTheDocument();
+    expect(screen.queryByText("No orders yet")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search orders")).toHaveValue("hoodie");
+
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+    fireEvent.change(screen.getByLabelText("Search orders"), { target: { value: "" } });
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenLastCalledWith({ mine: 1, page: 1 }));
+    expect(await screen.findByText("ORD-7")).toBeInTheDocument();
+  });
+
+  it("keeps the search and the typed text through the refresh that runs on its own", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+      renderAt("/dashboard/merchandise/my-orders", "my-orders");
+      await screen.findByText("ORD-7");
+
+      fireEvent.change(screen.getByLabelText("Search orders"), { target: { value: "ORD-7" } });
+      await waitFor(() => expect(orderMocks.getOrders).toHaveBeenCalledWith({ mine: 1, page: 1, search: "ORD-7" }));
+      await screen.findByText("ORD-7");
+
+      orderMocks.getOrders.mockClear();
+      await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+
+      expect(orderMocks.getOrders).toHaveBeenCalledWith({ mine: 1, page: 1, search: "ORD-7" });
+      expect(screen.getByLabelText("Search orders")).toHaveValue("ORD-7");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never lets a slow answer to earlier search text overwrite the answer to the later text", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+    await screen.findByText("ORD-7");
+
+    let answerEarlier;
+    orderMocks.getOrders.mockImplementation((params) => {
+      if (params.search === "sh") return new Promise((resolve) => { answerEarlier = resolve; });
+      return Promise.resolve({ data: paginatedOrders([buyerOrder({ id: 9, merchandise: products[1] })]) });
+    });
+    fireEvent.change(screen.getByLabelText("Search orders"), { target: { value: "sh" } });
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenCalledWith({ mine: 1, page: 1, search: "sh" }));
+    fireEvent.change(screen.getByLabelText("Search orders"), { target: { value: "lan" } });
+    expect(await screen.findByText("ORD-9")).toBeInTheDocument();
+
+    await act(async () => {
+      answerEarlier({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+      await Promise.resolve();
+    });
+    expect(screen.getByText("ORD-9")).toBeInTheDocument();
+    expect(screen.queryByText("ORD-7")).not.toBeInTheDocument();
+  });
+
   it("tells the buyer at checkout that the claim token appears after the Admin approves", async () => {
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
