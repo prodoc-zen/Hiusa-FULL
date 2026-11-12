@@ -1,7 +1,8 @@
 import { formatDisplayText, signatoryLabel } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Download, ExternalLink, Eye, X } from 'lucide-react';
-import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, StatusBadge, Textarea } from '../../../components/ui';
+import { Check, Download, X } from 'lucide-react';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, Textarea } from '../../../components/ui';
+import FileReviewList, { FileLink } from '../../../components/reviews/FileReviewList';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
@@ -15,8 +16,6 @@ import {
 import { fetchAllPages } from '../../../services/pagination';
 import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { openProtectedFile } from '../../../utils/openProtectedFile';
-import TableRowActions from '../../../components/TableRowActions';
 
 const date = (value) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
@@ -105,14 +104,6 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
     }
   }
 
-  async function openDocument(document) {
-    try {
-      await openProtectedFile(document.open_url);
-    } catch (error) {
-      setFeedback({ open: true, type: 'error', message: getApiErrorMessage(error, 'Unable to open the document.') });
-    }
-  }
-
   async function submitReview() {
     if (!reviewAction) return;
     setReviewing(true);
@@ -137,6 +128,19 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
     setOrganizationId(initialOrganizationId);
     setFilters({ search: '', status: '', document_type: '' });
   };
+
+  const reportRows = reports.map((report) => {
+    const title = formatDisplayText(report.title);
+    const verb = pendingApprovals.has(Number(report.id)) ? 'Review' : 'View';
+    return {
+      id: report.id,
+      name: title,
+      status: { status: report.submission_status || 'pending_sao', label: statusLabel(report.submission_status) },
+      file: null,
+      emptyFile: `${report.organization?.acronym || formatDisplayText(report.organization?.name)} · ${documentLabel(report.document_type)} · ${date(report.submitted_at || report.generated_at)}`,
+      actions: [{ label: verb, ariaLabel: `${verb} ${title}`, onClick: () => openReport(report) }],
+    };
+  });
 
   const detailApproval = detail?.report ? pendingApprovals.get(Number(detail.report.id)) : null;
 
@@ -172,31 +176,8 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         {loading ? (
           <SkeletonTable rows={5} columns={4} />
         ) : reports.length ? (
-          <div className="divide-y divide-line border-y border-line">
-            {reports.map((report) => {
-              const approval = pendingApprovals.get(Number(report.id));
-              const decided = report.submission_status === 'approved' || report.submission_status === 'rejected';
-              return (
-                <article key={report.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-ink">{formatDisplayText(report.title)}</p>
-                    <p className="mt-0.5 text-xs text-ink-muted">{report.organization?.acronym || formatDisplayText(report.organization?.name)} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
-                  </div>
-                  {decided
-                    ? <StatusBadge status={report.submission_status} />
-                    : <span className="text-sm text-ink-muted">{statusLabel(report.submission_status)}</span>}
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" size="sm" className="max-sm:h-[42px]" leftIcon={Eye} onClick={() => openReport(report)}>View</Button>
-                    <TableRowActions subject={formatDisplayText(report.title)} actions={[
-                      { label: 'View report', icon: Eye, onClick: () => openReport(report) },
-                      { label: 'Download PDF', icon: Download, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
-                      approval && { label: 'Approve', icon: Check, onClick: () => setReviewAction({ approval, status: 'approved', report }) },
-                      approval && { label: 'Reject', icon: X, danger: true, onClick: () => setReviewAction({ approval, status: 'rejected', report }) },
-                    ]} />
-                  </div>
-                </article>
-              );
-            })}
+          <div className="overflow-hidden rounded-card border border-line">
+            <FileReviewList rows={reportRows} labels={{ name: 'Report', file: 'Details' }} />
           </div>
         ) : (
           <EmptyState
@@ -231,7 +212,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
           </div>
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-ink">Supporting documents</h3>
-            {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-[42px] items-center gap-2 text-left text-sm font-medium text-brand-700 hover:underline"><ExternalLink size={14} aria-hidden="true" />{document.name}</button>)}
+            {(detail.report.supporting_documents || []).map((document) => <div key={document.index} className="mt-1"><FileLink url={document.open_url} name={document.name} /></div>)}
             {!(detail.report.supporting_documents || []).length && <p className="mt-2 text-sm text-ink-muted">No supporting documents were attached.</p>}
           </div>
         </div>}
