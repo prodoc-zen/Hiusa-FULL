@@ -56,7 +56,8 @@ describe('CreateAnnouncementPage', () => {
     fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
 
     expect(screen.queryByText('Enter a title.')).not.toBeInTheDocument();
-    expect(screen.getByText('24 characters')).toBeInTheDocument();
+    expect(screen.getByText('24 of 10,000 characters')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Content/)).toHaveAttribute('maxlength', '10000');
     fireEvent.click(screen.getByRole('button', { name: 'Publish now' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });

@@ -24,6 +24,8 @@ use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
+    private const BODY_MESSAGES = ['body.max' => 'The announcement text can be at most 10,000 characters.'];
+
     public function __construct(
         private readonly GroqResponsesService $groq,
         private readonly ApprovalEntityLabel $entityLabels,
@@ -342,7 +344,7 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'organization_id' => $user->role === 'DEPARTMENT_HEAD' ? ['required', 'integer'] : ['prohibited'],
             'title' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
+            'body' => ['required', 'string', 'max:10000'],
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
@@ -350,7 +352,7 @@ class AnnouncementController extends Controller
             'is_pinned' => ['boolean'],
             'is_important' => ['boolean'],
             'ai_output_id' => ['nullable', 'integer'],
-        ]);
+        ], self::BODY_MESSAGES);
 
         $organizationId = $user->organization_id;
         if ($user->role === 'DEPARTMENT_HEAD') {
@@ -435,7 +437,7 @@ class AnnouncementController extends Controller
 
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
-            'body' => ['sometimes', 'required', 'string'],
+            'body' => ['sometimes', 'required', 'string', 'max:10000'],
             'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
@@ -443,7 +445,7 @@ class AnnouncementController extends Controller
             'remove_image' => ['sometimes', 'boolean'],
             'is_pinned' => ['sometimes', 'boolean'],
             'is_important' => ['sometimes', 'boolean'],
-        ]);
+        ], self::BODY_MESSAGES);
 
         $oldValues = $this->auditableAnnouncementValues($announcement);
         $hasMaterialChange = count(array_intersect(array_keys($data), [

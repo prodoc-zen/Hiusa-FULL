@@ -74,6 +74,15 @@ describe('ManageAnnouncementsPage', () => {
       fireEvent.change(input, { target: { files: [poster(1024)] } });
       expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeEnabled();
     });
+
+    it('limits the announcement text to 10,000 characters and counts them', async () => {
+      const dialog = await openEditDrawer();
+      const content = within(dialog).getByLabelText('Announcement content');
+      expect(content).toHaveAttribute('maxlength', '10000');
+      expect(within(dialog).getByText('11 of 10,000 characters')).toBeInTheDocument();
+      fireEvent.change(content, { target: { value: 'Moved to room 4' } });
+      expect(within(dialog).getByText('15 of 10,000 characters')).toBeInTheDocument();
+    });
   });
 
   it('keeps a failed delete confirmation open and reports the error', async () => {

@@ -35,6 +35,24 @@ class AnnouncementCrudWorkflowTest extends TestCase
         $this->assertDatabaseMissing('announcements', ['id' => $id]);
     }
 
+    public function test_an_announcement_body_is_limited_to_ten_thousand_characters(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $payload = ['title' => 'Long notice', 'target_role' => 'all'];
+
+        $this->postJson('/api/announcements', $payload + ['body' => str_repeat('a', 10001)])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.body.0', 'The announcement text can be at most 10,000 characters.');
+        $this->assertDatabaseMissing('announcements', ['title' => 'Long notice']);
+
+        $id = $this->postJson('/api/announcements', $payload + ['body' => str_repeat('a', 10000)])->assertCreated()->json('id');
+
+        $this->putJson("/api/announcements/{$id}", ['body' => str_repeat('b', 10001)])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.body.0', 'The announcement text can be at most 10,000 characters.');
+        $this->putJson("/api/announcements/{$id}", ['body' => str_repeat('b', 10000)])->assertOk();
+    }
+
     public function test_student_and_other_organization_cannot_mutate_an_announcement(): void
     {
         $admin = User::factory()->admin()->create();
