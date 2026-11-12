@@ -1107,6 +1107,8 @@ class DashboardBriefingTest extends TestCase
         $this->assertSame('/dashboard/department-head/organizations?status=active', $items->first()['href']);
         $this->assertContains('org_no_admin-'.$waiting->id, $items->pluck('id')->all());
         $this->assertStringContainsString('Brass Band', $items->pluck('detail')->implode(' '));
+        $this->assertSame('Debate Society is active, but it has no organization head yet. Open it and use Give access to name one.', $items->firstWhere('id', 'org_no_admin-'.$waiting->id)['detail']);
+        $this->assertStringNotContainsString('SAO', $items->pluck('detail')->implode(' '));
         $this->assertStringNotContainsString('Drama Club', $items->pluck('detail')->implode(' '));
         $this->assertStringNotContainsString('Pending Society', $items->pluck('detail')->implode(' '));
         $this->assertStringNotContainsString('Other College Org', $items->pluck('detail')->implode(' '));

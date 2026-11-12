@@ -616,6 +616,17 @@ class AskAiAssistantTest extends TestCase
         }
     }
 
+    public function test_the_organization_head_guides_say_who_names_the_head(): void
+    {
+        $guides = collect(app(HowToGuideLibrary::class)->all())->keyBy('id');
+        $sao = json_encode($guides['sao-create-admin']);
+        $this->assertStringContainsString('university-wide', $sao);
+        $this->assertStringNotContainsString('Add first administrator', $sao);
+        $this->assertStringNotContainsString('Add first administrator', json_encode($guides['sao-create-organization']));
+        $this->assertSame(['DEPARTMENT_HEAD'], $guides['dean-name-organization-head']['roles']);
+        $this->assertStringContainsString('Give access', json_encode($guides['dean-name-organization-head']));
+    }
+
     public function test_all_how_to_guide_paths_conform_to_client_route_allowlist(): void
     {
         $guides = app(HowToGuideLibrary::class)->all();

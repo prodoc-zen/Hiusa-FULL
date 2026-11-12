@@ -707,7 +707,7 @@ class DashboardBriefingService
             'type' => 'organization_awaiting_admin',
             'severity' => 'low',
             'title' => 'Organization approved: waiting for an administrator',
-            'detail' => "{$row->name} is active, but the SAO has not set up its administrator yet.",
+            'detail' => "{$row->name} is active, but it has no organization head yet. Open it and use Give access to name one.",
             'due_at' => null,
             'href' => $href,
         ])->all(), $this->overflowTotal($rows->count(), $query));

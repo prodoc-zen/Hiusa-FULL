@@ -29,7 +29,7 @@ class UserManagementSingleHeadTest extends TestCase
         $this->postJson('/api/users', [
             'school_id' => 87654351, 'first_name' => 'Second', 'last_name' => 'Head', 'email' => 'second.head@example.test',
             'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'ADMIN',
-        ])->assertForbidden()->assertJsonPath('message', 'Only the dean or the SAO can name another organization head.');
+        ])->assertForbidden()->assertJsonPath('message', 'Only the Department Head can name another organization head.');
 
         $this->assertDatabaseMissing('users', ['school_id' => 87654351]);
     }
@@ -39,9 +39,19 @@ class UserManagementSingleHeadTest extends TestCase
         $student = User::factory()->student()->create(['organization_id' => $this->organization->id, 'account_status' => 'active']);
 
         $this->putJson('/api/users/'.$student->school_id, ['role' => 'ADMIN'])
-            ->assertForbidden()->assertJsonPath('message', 'Only the dean or the SAO can name another organization head.');
+            ->assertForbidden()->assertJsonPath('message', 'Only the Department Head can name another organization head.');
 
         $this->assertSame('STUDENT', $student->fresh()->role);
+    }
+
+    public function test_a_university_wide_admin_is_told_the_sao_names_another_organization_head(): void
+    {
+        $unified = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null]);
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $unified->id, 'account_status' => 'active']));
+        $student = User::factory()->student()->create(['organization_id' => $unified->id, 'account_status' => 'active']);
+
+        $this->putJson('/api/users/'.$student->school_id, ['role' => 'ADMIN'])
+            ->assertForbidden()->assertJsonPath('message', 'Only the SAO can name another organization head.');
     }
 
     public function test_an_admin_can_still_create_and_edit_students_and_officers(): void
