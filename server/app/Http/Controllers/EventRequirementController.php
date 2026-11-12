@@ -168,7 +168,7 @@ class EventRequirementController extends Controller
         return response()->json([
             'event' => $event->only(['id', 'title', 'organization_id', 'status']),
             'requirements' => EventRequirement::activeForEvent($event)->orderBy('sort_order')->orderBy('id')->get(),
-            'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
+            'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions', 'reviews')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
             'approval_status' => $approval['approval_status'],
             'approval_stage' => $approval['approval_stage'],
