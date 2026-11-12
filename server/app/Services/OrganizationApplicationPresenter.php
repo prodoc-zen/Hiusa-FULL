@@ -30,13 +30,15 @@ class OrganizationApplicationPresenter
     /**
      * @param  string  $prefix  API path the file links hang from, e.g. /my/organization-applications or /organization-applications
      * @param  Collection<int, ComplianceRequirementType>|null  $extraTypes  requirements to list even when no file was uploaded for them yet
+     * @param  string|null  $reviewerStage  the stage of the reviewer reading it; while the application waits for that stage, its earlier accepted marks on files the applicant did not change come back as accepted
      */
-    public function detail(OrganizationApplication $application, string $prefix, bool $forApplicant, ?Collection $extraTypes = null): array
+    public function detail(OrganizationApplication $application, string $prefix, bool $forApplicant, ?Collection $extraTypes = null, ?string $reviewerStage = null): array
     {
         $application->loadMissing(['college', 'documents.requirementType', 'applicant']);
         $round = $application->round;
         $reviews = $application->requirementReviews()->where('round', $round)->orderBy('id')->get()
             ->filter(fn ($review) => ! $forApplicant || $this->stageVisible($application, $review->stage))
+            ->concat($forApplicant ? [] : $this->carriedForward($application, $reviewerStage))
             ->groupBy('requirement_type_id');
         $files = $application->reviewFiles()->where('round', $round)->orderBy('id')->with('uploader:school_id,first_name,last_name')->get()
             ->filter(fn ($file) => ! $forApplicant || $this->stageVisible($application, $file->stage));
@@ -56,12 +58,39 @@ class OrganizationApplicationPresenter
                     'document' => $document ? ['id' => $document->id, 'name' => $document->file_original_name, 'open_url' => "{$prefix}/{$application->id}/documents/{$document->id}"] : null,
                     'reviews' => ($reviews->get($type->id) ?? collect())->map(fn ($review) => [
                         'stage' => $review->stage, 'stage_label' => self::STAGE_LABEL[$review->stage] ?? $review->stage, 'status' => $review->status, 'note' => $review->note,
+                        ...($review->carried ? ['carried' => true] : []),
                     ])->values(),
                     'review_files' => $files->where('requirement_type_id', $type->id)->map(fn ($file) => $this->file($file, $application, $prefix))->values(),
                 ];
             })->values(),
             'review_files' => $files->whereNull('requirement_type_id')->map(fn ($file) => $this->file($file, $application, $prefix))->values(),
         ];
+    }
+
+    /**
+     * The reviewer's accepted marks from earlier rounds that still hold. A document row is never edited: replacing a file deletes the
+     * row and stores a new one, so a document created before the mark was made is the very file that was accepted. A requirement
+     * that was returned, or whose latest mark in this stage is not an acceptance, is never carried.
+     */
+    private function carriedForward(OrganizationApplication $application, ?string $stage): Collection
+    {
+        if (! $stage || $application->status !== (self::STAGE_WAITING_STATUS[$stage] ?? null) || $application->round < 2) {
+            return collect();
+        }
+        $current = $application->requirementReviews()->where('round', $application->round)->where('stage', $stage)->pluck('requirement_type_id');
+        $documents = $application->documents->keyBy('requirement_type_id');
+
+        return $application->requirementReviews()->where('stage', $stage)->where('round', '<', $application->round)
+            ->orderByDesc('round')->orderByDesc('id')->get()
+            ->unique('requirement_type_id')
+            ->reject(fn ($review) => $current->contains($review->requirement_type_id))
+            ->filter(fn ($review) => $review->status === 'ok' && $documents->get($review->requirement_type_id)?->created_at?->lt($review->updated_at))
+            ->map(function ($review) use ($application) {
+                $carried = $review->replicate()->forceFill(['round' => $application->round, 'note' => null]);
+                $carried->setAttribute('carried', true);
+
+                return $carried;
+            })->values();
     }
 
     private function file($file, OrganizationApplication $application, string $prefix): array
