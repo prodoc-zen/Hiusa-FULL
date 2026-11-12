@@ -30,6 +30,18 @@ describe('ElectionResultsPage', () => {
     expect(screen.getByRole('heading', { name: 'President' })).toBeInTheDocument();
   });
 
+  it('says "1 vote cast" for a single vote and "votes cast" otherwise', async () => {
+    getElectionResults.mockResolvedValue([
+      { position: { id: 1, title: 'President', max_winners: 1 }, totalVotes: 1, candidates: [{ id: 10, name: 'Ana Reyes', partylist: 'Forward', votes: 1 }] },
+      { position: { id: 2, title: 'Treasurer', max_winners: 1 }, totalVotes: 0, candidates: [{ id: 20, name: 'Mia Lopez', partylist: 'Forward', votes: 0 }] },
+      { position: { id: 3, title: 'Auditor', max_winners: 1 }, totalVotes: 2, candidates: [{ id: 30, name: 'Rey Tan', partylist: 'Forward', votes: 2 }] },
+    ]);
+
+    render(<ElectionResultsPage />);
+    expect(await screen.findByText(/^vote cast$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^votes cast$/)).toHaveLength(2);
+  });
+
   it('shows that access was handed to the winners and flags a tie', async () => {
     getElectionResults.mockResolvedValue([
       { position: { id: 1, title: 'President', max_winners: 1 }, totalVotes: 40, winner_ids: [10], tie: false, access_handed_over: true, candidates: [{ id: 10, name: 'Ana Reyes', partylist: 'Forward', votes: 25 }, { id: 11, name: 'Luis Cruz', partylist: 'Independent', votes: 15 }] },

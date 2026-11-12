@@ -137,7 +137,7 @@ export default function ElectionResultsPage() {
                 <h2 className="text-base font-semibold text-ink">{formatDisplayText(position.title)}</h2>
                 {isFinal && result.tie && <StatusBadge status="tie" />}
               </div>
-              {isFinal && <p className="text-sm text-ink-muted"><span className="tabular-nums">{totalVotes}</span> votes cast</p>}
+              {isFinal && <p className="text-sm text-ink-muted"><span className="tabular-nums">{totalVotes}</span> {Number(totalVotes) === 1 ? 'vote' : 'votes'} cast</p>}
             </div>
             {(candidates || []).length > 0
               ? <DataTable caption={`Results for ${formatDisplayText(position.title)}`} columns={columns} rows={candidates} stickyHeader={false} />
