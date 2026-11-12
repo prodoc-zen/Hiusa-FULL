@@ -881,12 +881,12 @@
     "steps": [
       "1. Open the Event requirements tab and scroll to Events waiting for SAO.",
       "2. Select View files on the event and read the file list.",
-      "3. Select Hide files.",
+      "3. On each file select Review, open the file by its name, and mark it Accepted.",
       "4. Select Approve.",
       "5. Read the box and select Approve event.",
       "6. Read the message."
     ],
-    "expected": "The card shows the event title and \"Event #id · requester\". View files lists the uploaded files. The box \"Approve this event?\" says the organization will be notified. The message reads \"Event approved.\" and the row leaves the list. With nothing waiting the card says \"No event submissions are waiting for review.\" Before the Department Head approves, the SAO cannot decide: \"The Department Head must approve this event before the SAO can decide it.\" (VERIFY where it shows).",
+    "expected": "The card shows the event title and \"Event #id · requester\". View files lists the uploaded files as Requirement, Status, File and Action, with the sentence \"Accept every file to approve. Reject the event to send back a file with a note.\" while a file is not accepted; Approve in the action menu stays off until every file is Accepted. The box \"Approve this event?\" says the organization will be notified. The message reads \"Event approved.\" and the row leaves the list. With nothing waiting the card says \"No event submissions are waiting for review.\" Before the Department Head approves, the SAO cannot decide: \"The Department Head must approve this event before the SAO can decide it.\" (VERIFY where it shows).",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -899,14 +899,14 @@
     "title": "Reject an event needs remarks",
     "preconditions": "Signed in as SAO 990001. An event waits for the SAO as in the previous case.",
     "steps": [
-      "1. Under Events waiting for SAO select Reject.",
-      "2. Select Reject event with Remarks for rejection empty.",
+      "1. Under Events waiting for SAO select View files, then Review on one file and mark it Needs changes. Leave its note empty and read the Reject action, then type the note.",
+      "2. Select Reject, then Reject event with Remarks for rejection empty.",
       "3. Read the message.",
       "4. Type why the event is rejected.",
       "5. Select Reject event.",
       "6. Read the message."
     ],
-    "expected": "The box is titled Reject this event. The empty box shows \"Write why this event is rejected so the organization can respond.\" A good rejection shows \"Event rejected.\" and the organization sees the remarks on the event.",
+    "expected": "The box is titled Reject this event. The empty box shows \"Write why this event is rejected so the organization can respond.\" A file marked Needs changes asks for \"Note for the organization\" and Reject stays off until it is written. A good rejection shows \"Event rejected.\" and the organization sees the remarks and the file note on the event.",
     "priority": "High",
     "device": "Any",
     "type": "Validation",

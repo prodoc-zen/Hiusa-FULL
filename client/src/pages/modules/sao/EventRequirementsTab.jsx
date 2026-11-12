@@ -7,7 +7,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
-import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
+import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote } from '../../../components/approvals/EventFilesReview';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
@@ -49,6 +49,8 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const [togglingId, setTogglingId] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [approvals, setApprovals] = useState([]);
+  const [marks, setMarks] = useState({});
+  const [notes, setNotes] = useState({});
   const [form, setForm] = useState(empty);
   const [nameError, setNameError] = useState(null);
   const nameRef = useRef(null);
@@ -78,7 +80,11 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     try {
       if (mode === 'reviews') {
         const rows = await fetchAllPages((params) => getApprovalRequests({ ...params, entity_type: 'event', status: 'pending', organization_id: organizationId || undefined }).then((response) => response.data));
-        if (version === loadVersion.current) setApprovals(rows);
+        if (version === loadVersion.current) {
+          setApprovals(rows);
+          setMarks(initialMarks(rows.flatMap(filesOf), 'sao'));
+          setNotes({});
+        }
       } else {
         const response = await (refresh ? getEventRequirements({ cache: false }) : getEventRequirements());
         if (version === loadVersion.current) setRequirements(response.data || []);
@@ -243,7 +249,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     }
     setBusy(true);
     try {
-      await reviewApprovalRequest(approval.id, { status, remarks: decisionRemarks.trim() || undefined });
+      await reviewApprovalRequest(approval.id, { status, remarks: decisionRemarks.trim() || undefined, files: markedFiles(filesOf(approval), marks, notes) });
       chooseEvent(null);
       notify.success(`Event ${status}.`);
       closeDecision();
@@ -469,12 +475,17 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   </div>
                   <TableRowActions subject={formatDisplayText(approval.title)} actions={[
                     { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => chooseEvent(selectedEventId === approval.entity_id ? null : approval.entity_id) },
-                    { label: 'Approve', icon: Check, disabled: busy, onClick: () => openDecision(approval, 'approve') },
-                    { label: 'Reject', icon: X, danger: true, disabled: busy, onClick: () => openDecision(approval, 'reject') },
+                    { label: 'Approve', icon: Check, disabled: busy || !allAccepted(filesOf(approval), marks), onClick: () => openDecision(approval, 'approve') },
+                    { label: 'Reject', icon: X, danger: true, disabled: busy || missingNote(filesOf(approval), marks, notes), onClick: () => openDecision(approval, 'reject') },
                   ]} />
                 </div>
                 {selectedEventId === approval.entity_id && (
-                  <div className="mt-3"><EventSubmissionPanel eventId={approval.entity_id} role="SUPER_ADMIN" /></div>
+                  <div className="mt-3 space-y-2">
+                    {filesOf(approval).length === 0
+                      ? <p className="text-sm text-ink-muted-strong">No files have been submitted for this event.</p>
+                      : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => setMarks((current) => ({ ...current, [id]: value }))} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}
+                    {!allAccepted(filesOf(approval), marks) && <p className="text-sm text-ink-muted-strong">Accept every file to approve. Reject the event to send back a file with a note.</p>}
+                  </div>
                 )}
               </li>
             ))}

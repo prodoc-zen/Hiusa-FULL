@@ -50,14 +50,15 @@ function badge(state) {
 }
 
 // The same per-file check organization applications use: one aligned row per file, and the reviewer of
-// this step marks each one Accepted or Needs changes with a note. Everyone else reads the marks.
-export default function EventFilesReview({ files, actionable, marks, notes, onMark, onNote }) {
+// this step marks each one Accepted or Needs changes with a note. Everyone else reads the marks. A screen
+// that already sits in a card passes framed={false} so the list is not a box inside a box.
+export default function EventFilesReview({ files, actionable, marks, notes, onMark, onNote, framed = true }) {
   const [openId, setOpenId] = useState(null);
 
   return (
     <section aria-label="SAO event files" className="space-y-2">
       <h3 className="text-xs font-semibold text-ink-muted-strong">SAO event files</h3>
-      <div className="overflow-hidden rounded-card border border-line">
+      <div className={framed ? 'overflow-hidden rounded-card border border-line' : 'overflow-hidden'}>
         <FileReviewList rows={files.map((file) => {
           const reviews = file.reviews ?? [];
           const mark = marks[file.id] ?? '';
