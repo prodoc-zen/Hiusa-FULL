@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Bell, Check, Eye, FileText, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
+import FileReviewList from '../../../components/reviews/FileReviewList';
 import ComplianceReminderModal from './ComplianceReminderModal';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 import { manilaDate } from '../../../lib/format';
 import TableRowActions from '../../../components/TableRowActions';
-import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { reviewSubmission } from '../../../services/complianceService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
@@ -53,14 +53,6 @@ export default function AccreditationTab({ title = 'Organization accreditation',
     }
   }
 
-  async function viewFile(requirement) {
-    try {
-      await openProtectedFile(`/compliance/submissions/${requirement.submission_id}/document`);
-    } catch (error) {
-      notify.error(getApiErrorMessage(error, 'Could not open this document.'));
-    }
-  }
-
   const columns = [
     { key: 'organization_name', header: 'Organization', render: (org) => <span className="font-medium text-ink">{org.organization_name}</span> },
     {
@@ -87,6 +79,54 @@ export default function AccreditationTab({ title = 'Organization accreditation',
       ),
     },
   ];
+
+  // One aligned row per requirement. The deadline, the SAO's earlier remarks and the SAO's own decision controls sit under the row.
+  const requirementRows = (selected?.requirements || []).map((requirement) => {
+    const dates = [
+      requirement.deadline_at && `Deadline ${manilaDate(requirement.deadline_at, 'long')}`,
+      requirement.submitted_at && `Submitted ${manilaDate(requirement.submitted_at, 'long')}`,
+    ].filter(Boolean).join(' · ');
+    const returnedRemarks = requirement.status === 'returned' && requirement.remarks;
+    const deciding = role === 'SUPER_ADMIN' && requirement.submission_id && requirement.status === 'submitted';
+    const busy = fileBusyId === requirement.submission_id;
+    return {
+      id: requirement.requirement_type_id,
+      name: requirement.requirement_name,
+      status: requirement.status === 'not_submitted'
+        ? { label: 'Not submitted', tone: 'neutral' }
+        : { label: requirement.status.charAt(0).toUpperCase() + requirement.status.slice(1).replaceAll('_', ' '), tone: requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info' },
+      file: requirement.submission_id ? { name: requirement.file_name || requirement.requirement_name, url: `/compliance/submissions/${requirement.submission_id}/document` } : null,
+      emptyFile: 'No file',
+      actions: requirement.status !== 'approved'
+        ? [{ label: 'Remind', ariaLabel: `Send compliance reminder for ${requirement.requirement_name}`, onClick: () => { setReminder({ organization: selected, requirementId: requirement.requirement_type_id }); setSelectedId(null); } }]
+        : [],
+      expanded: true,
+      note: dates || returnedRemarks ? (
+        <div className="space-y-1">
+          {dates && <p className="text-xs text-ink-muted-strong">{dates}</p>}
+          {returnedRemarks && <p className="text-xs text-danger-strong">SAO: {requirement.remarks}</p>}
+        </div>
+      ) : null,
+      detail: deciding ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input
+            type="text"
+            aria-label={`Comment for ${requirement.requirement_name}`}
+            placeholder="Comment (required to return)"
+            value={fileComments[requirement.submission_id] ?? (requirement.remarks || '')}
+            onChange={(e) => setFileComments((curr) => ({ ...curr, [requirement.submission_id]: e.target.value }))}
+            className="min-w-[200px] flex-1"
+          />
+          <Button size="sm" variant="secondary" leftIcon={Check} loading={busy} onClick={() => decideFile(requirement, 'approved')}>
+            Approve
+          </Button>
+          <Button size="sm" variant="secondary" leftIcon={RotateCcw} loading={busy} onClick={() => decideFile(requirement, 'returned')}>
+            Return
+          </Button>
+        </div>
+      ) : null,
+    };
+  });
 
   return (
     <>
@@ -119,52 +159,13 @@ export default function AccreditationTab({ title = 'Organization accreditation',
       />
     </Card>
     <Drawer open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelectedId(null)} width="max-w-4xl">
-      <DataTable
-        caption={`Requirements for ${selected?.organization_name || 'organization'}`}
-        stickyHeader={false}
-        rowKey={(requirement) => requirement.requirement_type_id}
-        rows={selected?.requirements || []}
-        columns={[
-          {
-            key: 'name',
-            header: 'Requirement',
-            render: (requirement) => (
-              <div className="space-y-1.5">
-                <span className="font-medium text-ink">{requirement.requirement_name}</span>
-                {requirement.status === 'returned' && requirement.remarks && (
-                  <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks}</p>
-                )}
-                {role === 'SUPER_ADMIN' && requirement.submission_id && requirement.status === 'submitted' && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <Input
-                      type="text"
-                      aria-label={`Comment for ${requirement.requirement_name}`}
-                      placeholder="Comment (required to return)"
-                      value={fileComments[requirement.submission_id] ?? (requirement.remarks || '')}
-                      onChange={(e) => setFileComments((curr) => ({ ...curr, [requirement.submission_id]: e.target.value }))}
-                      className="min-w-[200px] flex-1"
-                    />
-                    <Button size="sm" variant="secondary" leftIcon={Check} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'approved')}>
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="secondary" leftIcon={RotateCcw} loading={fileBusyId === requirement.submission_id} onClick={() => decideFile(requirement, 'returned')}>
-                      Return
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ),
-          },
-          { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '' },
-          { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : '' },
-          { key: 'status', header: 'Status', render: (requirement) => requirement.status === 'not_submitted' ? <span className="text-ink-muted">Not submitted</span> : <StatusBadge label={requirement.status.charAt(0).toUpperCase() + requirement.status.slice(1).replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
-          { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs text-ink-muted-strong">{requirement.file_name || 'No file'}</span> },
-        ]}
-        actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
-          requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
-          requirement.status !== 'approved' && { label: 'Send compliance reminder', icon: Bell, onClick: () => { setReminder({ organization: selected, requirementId: requirement.requirement_type_id }); setSelectedId(null); } },
-        ]} />}
-      />
+      {requirementRows.length > 0 ? (
+        <section aria-label={`Requirements for ${selected?.organization_name || 'organization'}`} className="overflow-hidden rounded-card border border-line">
+          <FileReviewList rows={requirementRows} />
+        </section>
+      ) : (
+        <EmptyState kind="first-run" title="No requirements yet" description="Requirements appear here once the SAO publishes them for this academic year." />
+      )}
       {onReviewOrganization && selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
     </Drawer>
     {reminder && <ComplianceReminderModal {...reminder} onClose={() => setReminder(null)} />}

@@ -379,7 +379,7 @@ describe('SaoCompliancePage', () => {
     await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: 'submitted' })));
   });
 
-  it('shows every requirement in a table and opens an existing file from its row action', async () => {
+  it('shows every requirement as a file row and opens an existing file from its name', async () => {
     mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [{
       organization_id: 7, organization_name: 'Computing Society', accreditation_status: 'returned', requirements: [
         { requirement_type_id: 4, requirement_name: 'Constitution', status: 'returned', submission_id: 12, file_name: 'constitution.pdf', submitted_at: '2026-09-10T08:00:00Z', remarks: 'Missing signature.' },
@@ -393,12 +393,11 @@ describe('SaoCompliancePage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Computing Society' });
     // The drawer moves focus to its close button on the next frame; wait for it so it cannot close the row menu.
     await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close panel' })).toHaveFocus());
-    expect(within(dialog).getByRole('table', { name: 'Requirements for Computing Society' })).toBeInTheDocument();
-    expect(within(dialog).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByText('No file').length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByText('SAO: Missing signature.').length).toBeGreaterThan(0);
-    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Actions for Constitution' })[0]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
+    expect(within(dialog).getByRole('region', { name: 'Requirements for Computing Society' })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(dialog).getByText('No file')).toBeInTheDocument();
+    expect(within(dialog).getByText('SAO: Missing signature.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'constitution.pdf' }));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
   });
 
