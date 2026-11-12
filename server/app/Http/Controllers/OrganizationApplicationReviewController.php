@@ -72,7 +72,7 @@ class OrganizationApplicationReviewController extends Controller
     {
         $this->authorizeScope($request->user(), $application);
 
-        return response()->json($this->detail($application));
+        return response()->json($this->detail($application, $request->user()));
     }
 
     public function document(Request $request, OrganizationApplication $application, OrganizationApplicationDocument $document)
@@ -222,7 +222,7 @@ class OrganizationApplicationReviewController extends Controller
 
         $this->notifyAfterDecision($locked, $data['action']);
 
-        return response()->json($this->detail($locked->refresh()));
+        return response()->json($this->detail($locked->refresh(), $actor));
     }
 
     /** A note from a reviewer. It never touches the status, the requirement marks or the applicant's notifications. */
@@ -238,13 +238,13 @@ class OrganizationApplicationReviewController extends Controller
 
         AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => 'comment', 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['note' => $note, 'round' => $application->round], 'created_at' => now(), 'ip_address' => $request->ip()]);
 
-        return response()->json($this->detail($application), 201);
+        return response()->json($this->detail($application, $actor), 201);
     }
 
     /** The shared application detail plus the reviewers' history. */
-    private function detail(OrganizationApplication $application): array
+    private function detail(OrganizationApplication $application, User $actor): array
     {
-        return [...$this->presenter->detail($application, self::PREFIX, false), 'history' => $this->history($application)];
+        return [...$this->presenter->detail($application, self::PREFIX, false, null, $this->stageOf($actor)), 'history' => $this->history($application)];
     }
 
     /** Notes and decisions, oldest first, read from the audit log so no second record of them exists. */
