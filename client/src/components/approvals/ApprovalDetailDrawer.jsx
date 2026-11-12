@@ -8,6 +8,7 @@ import { openProtectedFile } from '../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
 import ApprovalReceipt from './ApprovalReceipt';
+import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
 import { formatDateTime, fullName } from './approvalFormat';
 
@@ -113,19 +114,6 @@ function ReportExtras({ request }) {
   );
 }
 
-function RequirementFiles({ files }) {
-  if (!files?.length) return null;
-
-  return (
-    <section aria-label="SAO event files">
-      <h3 className="text-xs font-semibold text-ink-muted-strong">SAO event files</h3>
-      <ul className="mt-2 space-y-1 text-sm text-ink">
-        {files.map((file) => <li key={file.id}>{file.requirement ? `${file.requirement}: ` : ''}{file.original_name}</li>)}
-      </ul>
-    </section>
-  );
-}
-
 // The detail of one approval request, addressable by ?record=. It shows the entity's stage, what the
 // request says, and what has happened to it. The footer holds the viewer's one decision: Approve is
 // the single primary, Reject is the secondary. After a decision the same drawer stays open on the
@@ -149,6 +137,16 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
     );
   }
 
+  return <RequestDrawer key={request.id} request={request} role={role} canAct={canAct} organizationName={organizationName} onClose={onClose} onApprove={onApprove} onReject={onReject} />;
+}
+
+// Split from the shell above so the per-file marks live in hooks that run only once there is a request.
+function RequestDrawer({ request, role, canAct, organizationName, onClose, onApprove, onReject }) {
+  const files = filesOf(request);
+  const stage = stageOfRequest(request);
+  const reviewing = canAct && files.length > 0;
+  const [marks, setMarks] = useState(() => initialMarks(files, stage));
+  const [notes, setNotes] = useState({});
   const info = describeApproval(request, role);
   const link = entityLink(request, role);
   const nextStep = nextStepFor(request, info, role);
@@ -159,8 +157,8 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
       {link && <Button variant="secondary" to={link.to}>{link.label}</Button>}
       {canAct && (
         <>
-          <Button variant="secondary" leftIcon={X} onClick={() => onReject(request)}>Reject</Button>
-          <Button leftIcon={Check} onClick={() => onApprove(request)}>Approve</Button>
+          <Button variant="secondary" leftIcon={X} disabled={reviewing && missingNote(files, marks, notes)} onClick={() => onReject(request, markedFiles(files, marks, notes))}>Reject</Button>
+          <Button leftIcon={Check} disabled={reviewing && !allAccepted(files, marks)} onClick={() => onApprove(request, markedFiles(files, marks, notes))}>Approve</Button>
         </>
       )}
     </>
@@ -176,10 +174,26 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
       footer={footer}
     >
       <div className="space-y-5">
-        {info.kind === 'lifecycle' && <FlowStepper variant="full" steps={info.steps} ariaLabel={`${typeLabel} progress`} />}
+        {info.kind === 'lifecycle' && (
+          <div className="sticky top-0 z-10 -mx-5 -mt-4 bg-surface px-5 pb-3 pt-4">
+            <FlowStepper variant="full" layout="wrap" steps={info.steps} ariaLabel={`${typeLabel} progress`} />
+          </div>
+        )}
         <NextStep {...nextStep} />
         <ApprovalReceipt request={request} organizationName={organizationName} compact />
-        {request.entity_type === 'event' && <RequirementFiles files={request.summary?.requirement_files} />}
+        {files.length > 0 && (
+          <EventFilesReview
+            files={files}
+            actionable={reviewing}
+            marks={marks}
+            notes={notes}
+            onMark={(id, value) => setMarks((current) => ({ ...current, [id]: value }))}
+            onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
+          />
+        )}
+        {reviewing && !allAccepted(files, marks) && (
+          <p className="text-sm text-ink-muted-strong">Accept every file to approve. Return the request to send back a file with a note.</p>
+        )}
         {request.entity_type === 'financial_report' && <ReportExtras request={request} />}
         <section aria-label="History">
           <h3 className="text-xs font-semibold text-ink-muted-strong">History</h3>

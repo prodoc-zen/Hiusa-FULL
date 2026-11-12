@@ -73,6 +73,31 @@ function FullStepper({ steps, ariaLabel, className }) {
   );
 }
 
+// For a panel narrower than the page, where a row of six labelled columns has no room: the steps wrap
+// into a two or three column grid, each with its icon beside its label, whatever the screen width.
+function WrapStepper({ steps, ariaLabel, className }) {
+  return (
+    <ol aria-label={ariaLabel} className={`grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 ${className}`}>
+      {steps.map((step) => {
+        const state = normalize(step.state);
+        return (
+          <li key={step.key} aria-current={state === 'current' ? 'step' : undefined} className="flex min-w-0 gap-2">
+            <StateIcon state={state} />
+            <div className="min-w-0 text-sm">
+              <p className={`break-words ${LABEL_TONE[state]}`}>
+                <span className="sr-only">{STATE_WORD[state]}: </span>
+                {step.label}
+              </p>
+              {step.actor && <p className="text-xs text-ink-muted-strong">{step.actor}</p>}
+              {step.note && <p className="text-xs font-medium text-ink-muted-strong">{step.note}</p>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function CompactStepper({ steps, ariaLabel, summary, className }) {
   const counted = steps.filter((step) => normalize(step.state) !== 'skipped');
   const total = counted.length;
@@ -120,13 +145,15 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
 const MAX_LISTED_STEPS = 6;
 
 // The default is one line: a step label and a meter, which fits a table row, a drawer or a page
-// header. Pass variant="full" for the labelled step list. Pass `summary` (the next action text) to
+// header. Pass variant="full" for the labelled step list; add layout="wrap" inside a drawer or any
+// panel too narrow for one column per step. Pass `summary` (the next action text) to
 // show it alone below 640px, where a row has no room for a step label and a meter.
-export default function FlowStepper({ steps = [], variant = 'compact', ariaLabel = 'Progress', summary, className = '' }) {
+export default function FlowStepper({ steps = [], variant = 'compact', layout = 'row', ariaLabel = 'Progress', summary, className = '' }) {
   if (steps.length === 0) return null;
   const counted = steps.filter((step) => normalize(step.state) !== 'skipped').length;
   if (variant === 'compact' || counted > MAX_LISTED_STEPS) {
     return <CompactStepper steps={steps} ariaLabel={ariaLabel} summary={summary} className={className} />;
   }
+  if (layout === 'wrap') return <WrapStepper steps={steps} ariaLabel={ariaLabel} className={className} />;
   return <FullStepper steps={steps} ariaLabel={ariaLabel} className={className} />;
 }

@@ -190,4 +190,38 @@ describe('EventSubmissionPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect((await screen.findAllByText('Event Proposal', { exact: false })).length).toBeGreaterThan(0);
   });
+
+  describe('per-file review notes', () => {
+    const flaggedFile = { ...uploadedFile, reviews: [{ stage: 'dean', status: 'needs_changes', note: 'The seal is missing.' }] };
+    const permitFile = { id: 6, requirement_id: 2, original_name: 'permit.pdf', requirement: { name: 'Venue Permit' }, reviews: [{ stage: 'dean', status: 'ok', note: null }] };
+    const returned = { requirements, files: [flaggedFile, permitFile], approval_status: 'rejected', approval_stage: 'rejected', approval_remarks: 'Fix the proposal.' };
+
+    it('shows the note beside the file that needs changes and Accepted on the file that was accepted', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: returned });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      expect((await screen.findAllByText('Department Head: Needs changes. The seal is missing.')).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Needs changes').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Accepted').length).toBeGreaterThan(0);
+    });
+
+    it('asks only for the file that needs changes and keeps Submit off until it is replaced', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: returned });
+      mocks.submitEventRequirements.mockResolvedValue({ data: { ...returned, approval_status: 'pending' } });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+      const send = await screen.findByRole('button', { name: 'Submit event files to SAO' });
+
+      expect(send).toBeDisabled();
+      expect(screen.getByText('1 file still needs to be replaced.')).toBeInTheDocument();
+      const proposalInput = screen.getByText('Event Proposal', { selector: 'label' }).querySelector('input[type="file"]');
+      expect(proposalInput).toBeRequired();
+      expect(screen.getByText('Venue Permit', { selector: 'label' }).querySelector('input[type="file"]')).not.toBeRequired();
+
+      const file = new File(['pdf'], 'proposal-v2.pdf', { type: 'application/pdf' });
+      fireEvent.change(proposalInput, { target: { files: [file] } });
+      expect(send).toBeEnabled();
+      fireEvent.submit(send.closest('form'));
+      await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, { 1: file }));
+    });
+  });
 });
