@@ -297,7 +297,7 @@ Mobile: cards stack to 1 column (2 columns from 640 px)
 Tiles: Pending review ("<amt> awaiting approval") | Ready for pickup ("Approved orders with active tokens") | Claimed ("Orders released to buyers") | Collected ("<n> paid orders")
 Filters: status tabs (All orders | Pending review | Ready for pickup | Claimed | Cancelled); search "Search order, student, item, reference..."; "Merchandise item" (All merchandise | <items>); "Sort orders" (Newest first | Oldest first | Highest amount | Lowest amount | Student name | Merchandise item | Order status); "More filters": "Program or course" (All programs), "Major or specialization" (All majors), "Year level" (All year levels | 1st Year ... 4th Year), "Section" (All sections), "User role" (All user roles), "SBO position" (All SBO positions), "Payment method" (All payment methods), Ordered from, Ordered to, Paid from, Paid to, Claimed from, Claimed to, Clear all filters; view toggle Responsive | Cards; label "10 rows per page"
 Table "Order queue": Order / Reference | Student / User | Role | Item | Amount | Quantity | Total | Mode of payment | Fulfillment | Actions   (Academic Profile, Review Trail and Dates columns exist but are always hidden)
-Row actions (kebab "Order actions"): Review order | Release at claim desk (paid) | Approve directly (Admin) or Verify & submit (Officer) (pending) | Reject order (pending)
+Row buttons: "Release order" (paid, with a claim token) | "Approve payment" (Admin) or "Verify payment" (Officer) (pending; opens the dialog "Approve payment directly" for an Admin, "Verify payment amount" for an Officer, whose confirm button is "Approve payment" or "Verify and submit"). Kebab "Order actions": Review order | Reject order (pending)
 Status badges: Fulfillment pending = blue, paid ("Ready for pickup", shown as Paid) = amber, claimed = green, cancelled = red; Mode of payment cell: CASH|GCASH, reference, Paid (green) / Pending (amber) / Cancelled (red), chips "Officer: <status>" and "Admin: <status>" (approved = green, rejected = red, otherwise amber); claim token box (16 characters) for paid orders
 Bulk/Toolbar: Payment settings (Admin) or View GCash QR, Export CSV; footer "Cohort: <n> of <n> users purchased (<n>%)" with View purchasers | View non-buyers
 Paging: 10 ("Showing a-b of n", page n / n)   Empty: "No orders yet." (+ "Open inventory") / "No orders match these filters."
@@ -315,7 +315,7 @@ Row actions: Review order
 Status badges: Waiting to be claimed = amber, Claimed = green (token shown below in monospace)
 Paging: 10 (label "paid orders")   Empty: "Nothing is waiting at the claim desk." (+ "Open orders") / "No orders have been claimed yet."
 Mobile: table scrolls horizontally (min 1050 px)
-  Modal "Verify purchaser and release": receipt document; Cancel | Confirm Claim / Release
+  Modal "Verify purchaser and release": receipt document; Cancel | Confirm release
 
 ## Updates > Announcements (/dashboard/announcements/manage-announcements)
 Tiles: Matching records | Published | Waiting for approval | Recorded views

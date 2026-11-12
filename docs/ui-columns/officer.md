@@ -157,7 +157,7 @@ Mobile: cards one column; position filter scrolls sideways.
 Tiles: Pending review (<amount> awaiting approval) | Ready for pickup (Approved orders with active tokens) | Claimed (Orders released to buyers) | Collected (<n> paid orders)
 Filters: status tabs All orders | Pending review | Ready for pickup | Claimed | Cancelled; button "More filters"; search "Search order, student, item, reference..."; selects "Merchandise item" (All merchandise), "Sort orders" (Newest first, Oldest first, Highest amount, Lowest amount, Student name, Merchandise item, Order status); advanced: "Program or course" (All programs), "Major or specialization" (All majors), "Year level" (All year levels, 1st to 4th Year), "Section" (All sections), "User role" (All user roles), "SBO position" (All SBO positions), "Payment method" (All payment methods), static "10 rows per page", dates Ordered from/to, Paid from/to, Claimed from/to, link "Clear all filters"; view switch Responsive | Cards
 Table "Order queue" (n orders): Order / Reference | Student / User | Role | Item | Amount | Quantity | Total | Mode of payment | Fulfillment | Actions   (columns Academic Profile, Review Trail, Dates exist in markup but are always hidden)
-Row actions ("Order actions"): Review order | Release at claim desk (paid only) | Verify & submit (pending) | Reject order (pending, red)
+Row buttons: "Release order" (paid, with a claim token) | "Verify payment" (pending; opens the dialog "Verify payment amount" whose confirm button is "Verify and submit"). Kebab "Order actions": Review order | Reject order (pending, red)
 Status badges: Fulfillment: pending = light blue, paid = amber, claimed = green, cancelled = red; Payment mini badge Paid green / Pending amber / Cancelled red; chips "Officer: <status>" and "Admin: <status>" (approved green, rejected red, pending amber); "Claim token" box on paid orders
 Bulk/Toolbar: "View GCash QR", "Export CSV"; footer "Cohort: n of m users purchased (x%)" with links "View purchasers", "View non-buyers"
 Paging: 10 (own prev/next "Showing a-b of n", "page / total")   Empty: "No orders yet." ("Orders appear here when students check out from the Shop.") ; filtered "No orders match these filters."
@@ -173,7 +173,7 @@ No table (above): card "Release an order": field "16-character claim token" (pla
 Table "Claim desk register" (Orders waiting to be claimed and orders already released): Order | Purchaser | Section | Department | Course / program | Payment mode | Number of items | Status / token | Details
 Row actions: Review order
 Status badges: Claimed = green, Waiting to be claimed = amber
-  Dialog "Verify purchaser and release": receipt document, buttons Cancel | "Confirm Claim / Release"
+  Dialog "Verify purchaser and release": receipt document, buttons Cancel | "Confirm release"
 Paging: 10 (label "paid orders")   Empty: "Nothing is waiting at the claim desk." ("Orders appear here once their payment is verified and the buyer has a claim token.") + button "Open orders" ; "No orders have been claimed yet."
 Mobile: table scrolls sideways (min 1050 px), no card layout.
 
