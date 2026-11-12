@@ -221,28 +221,35 @@ export default function TopBar({ onMenuToggle }) {
     };
   }, [showCart, loadCart]);
 
+  // The count and the rows change at once and a read that was in flight before is dropped, so a slow
+  // answer from the server never shows the old number. When the server refuses, it is read again.
   async function handleMarkRead(id) {
     const wasUnread = notifications.some((notification) => notification.id === id && !notification.is_read);
+    notificationRequestRef.current += 1;
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    if (wasUnread) setUnreadCount((count) => Math.max(0, count - 1));
     try {
       await markRead(id);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
-      if (wasUnread) setUnreadCount((count) => Math.max(0, count - 1));
-    } catch {}
+    } catch {
+      loadNotifications();
+    }
   }
 
   async function handleMarkAllRead() {
+    notificationRequestRef.current += 1;
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
     try {
       await markAllRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      setUnreadCount(0);
       notify.success('All notifications marked as read.');
     } catch {
+      loadNotifications();
       notify.error('Could not mark notifications as read. Try again.');
     }
   }
 
-  async function handleNotificationClick(notification) {
-    await handleMarkRead(notification.id);
+  function handleNotificationClick(notification) {
+    handleMarkRead(notification.id);
     const destination = getNotificationDestination(notification, user?.role);
     if (destination) {
       setNotifOpen(false);
