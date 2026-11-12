@@ -48,7 +48,6 @@ import {
   submitFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
-import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getMyClearances } from '../../../services/clearanceService';
 import { humanizeRole } from '../clearances/clearanceLabels';
 import { debtBreakdown, debtRowFrom, owedSentence } from './accountDebt';
@@ -419,8 +418,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const loadTicket = useRef(0);
   const ledgerTicket = useRef(0);
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
-  const [academicPeriods, setAcademicPeriods] = useState([]);
-  const [transactionPeriodId, setTransactionPeriodId] = useState('');
   const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
@@ -481,10 +478,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
   const canGenerateBudgetAdvice = currentUserRole === 'ADMIN';
-
-  useEffect(() => {
-    if (canViewTransactions) getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([]));
-  }, [canViewTransactions]);
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -1140,7 +1133,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   const clearTransactionFilters = () => {
     const cleared = { type: '', event_id: '', from: '', to: '' };
-    setTransactionPeriodId('');
     setTxFilters(cleared);
     setSearch('');
     setAppliedSearch('');
@@ -1283,9 +1275,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             onClear={clearTransactionFilters}
             resultCount={txMeta.total}
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
-            secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+            secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           >
-            <HiusaSelect filter aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; setTransactionPeriodId(id); const next = { ...txFilters, academic_semester_id: id, from: '', to: '' }; setTxFilters(next); load(1, next); }}><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
             <HiusaSelect filter
               value={txFilters.type}
               onChange={(e) => { const next = { ...txFilters, type: e.target.value }; setTxFilters(next); load(1, next); }}
