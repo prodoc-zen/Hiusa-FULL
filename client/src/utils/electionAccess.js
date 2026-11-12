@@ -1,4 +1,6 @@
 export function isVotingOpen(election) {
+  // The server names the open round (1, 2 or null) once it knows the phase; older payloads fall back to the window.
+  if (election?.open_round !== undefined) return election.open_round === 1 || election.open_round === 2;
   const now = Date.now();
   const start = new Date(election?.start_time).getTime();
   const end = new Date(election?.end_time).getTime();

@@ -11,10 +11,39 @@ import { resultsLink, studentVoteState } from '../../../components/elections/ele
 import { getElectionDetails, getElections } from '../../../services/electionService';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 
-const STATE_TONES = { open: 'success', voted: 'info', upcoming: 'warning', closed: 'neutral' };
-const STATE_ORDER = { open: 0, upcoming: 1, voted: 2, closed: 3 };
+const STATE_TONES = { open: 'success', voted: 'info', upcoming: 'warning', filing: 'success', screening: 'info', campaign: 'info', counting: 'neutral', closed: 'neutral', cancelled: 'neutral' };
+const STATE_ORDER = { open: 0, filing: 1, screening: 1, campaign: 1, upcoming: 1, voted: 2, counting: 3, closed: 3, cancelled: 4 };
+
+// Phases of an election run through the full process; an election with no phase keeps the cards it always had.
+const PHASE_STATES = {
+  scheduled: { key: 'upcoming', label: 'Upcoming' },
+  filing: { key: 'filing', label: 'Filing' },
+  screening: { key: 'screening', label: 'Screening' },
+  campaign: { key: 'campaign', label: 'Campaign' },
+  canvassing: { key: 'counting', label: 'Counting' },
+  tie_resolution: { key: 'counting', label: 'Counting' },
+  completed: { key: 'closed', label: 'Closed' },
+  cancelled: { key: 'cancelled', label: 'Cancelled' },
+};
 
 const MANILA = 'Asia/Manila';
+
+const infoLink = (election) => `/dashboard/elections/election-info?record=${election.id}`;
+
+// What the server recorded for this student: the receipt reference and the time, never the choices.
+const receiptOf = (election) => election.my_ballot?.receipt_ref || election.my_votes?.[0]?.vote_hash;
+const receiptTimeOf = (election) => election.my_ballot?.submitted_at || election.my_votes?.[0]?.cast_at;
+const hasVotedIn = (election) => election.has_voted === true || (election.has_voted === undefined && (election.my_votes ?? []).length > 0);
+
+function cardState(election) {
+  if (election.phase === 'voting' || election.phase === 'runoff') {
+    if (hasVotedIn(election)) return { key: 'voted', label: 'Voted' };
+    return election.open_round === 1 || election.open_round === 2 ? { key: 'open', label: election.phase === 'runoff' ? 'Runoff' : 'Open' } : { key: 'upcoming', label: 'Paused' };
+  }
+  if (election.phase && PHASE_STATES[election.phase]) return PHASE_STATES[election.phase];
+  if (hasVotedIn(election)) return { key: 'voted', label: 'Voted' };
+  return studentVoteState(election);
+}
 
 // The server refuses a student the details of an election that is not open, or closed with results released.
 const studentMayOpen = (election) => Boolean(election.finalized_at) && (election.status === 'active' || (election.status === 'closed' && Boolean(election.results_visible)));
@@ -55,16 +84,27 @@ function ElectionResultsLine({ election, role }) {
 
 function WhatNext({ election, state }) {
   if (state.key === 'voted') {
+    const votedAt = receiptTimeOf(election);
     return (
       <div className="mt-3 border-t border-line pt-3">
         <p className="text-xs font-semibold text-ink-muted">Your ballot receipt</p>
-        <p className="mt-1 break-all font-mono text-sm text-ink">{election.my_votes[0].vote_hash}</p>
+        <p className="mt-1 break-all font-mono text-sm text-ink">{receiptOf(election)}</p>
+        {votedAt && !Number.isNaN(new Date(votedAt).getTime()) && <p className="mt-1 text-sm text-ink-muted">{`Submitted ${formatWhen(votedAt)}`}</p>}
       </div>
     );
   }
   if (state.key === 'open') {
     if (election.ballot_refusal) return <p className="mt-3 text-sm text-ink-muted">{election.ballot_refusal}</p>;
     return <Button to={`/elections/${election.id}/vote`} className="mt-3">Vote in this election</Button>;
+  }
+  if (election.phase) {
+    if (election.phase === 'scheduled') return <p className="mt-3 text-sm text-ink-muted">{election.filing_starts_at ? `Filing opens ${formatWhen(election.filing_starts_at)}.` : 'The election dates are not set yet.'}</p>;
+    if (election.phase === 'filing') return <Button to={infoLink(election)} className="mt-3">Read the rules and file candidacy</Button>;
+    if (election.phase === 'screening' || election.phase === 'campaign') return <Button to={infoLink(election)} variant="secondary" className="mt-3">See the election</Button>;
+    if (election.phase === 'voting' || election.phase === 'runoff') return <p className="mt-3 text-sm text-ink-muted">Voting is not open right now.</p>;
+    if (election.phase === 'canvassing' || election.phase === 'tie_resolution') return <p className="mt-3 text-sm text-ink-muted">The votes are being counted.</p>;
+    if (election.phase === 'cancelled') return <p className="mt-3 text-sm text-ink-muted">This election was cancelled.</p>;
+    return null;
   }
   if (state.key === 'upcoming') {
     return <p className="mt-3 text-sm text-ink-muted">{election.finalized_at ? `Voting opens ${formatWhen(election.start_time)}. Come back then to cast your ballot.` : 'The ballot is still being built. Voting opens after the Admin finalizes it.'}</p>;
@@ -102,7 +142,7 @@ export default function CastVoteRedirectPage() {
   }, [retryKey, role]);
 
   const cards = elections
-    .map((election) => ({ election, state: studentVoteState(election) }))
+    .map((election) => ({ election, state: cardState(election) }))
     .sort((a, b) => STATE_ORDER[a.state.key] - STATE_ORDER[b.state.key]);
 
   return (
@@ -128,7 +168,7 @@ export default function CastVoteRedirectPage() {
                   <div className="flex gap-2"><dt className="sr-only">Room</dt><dd>{election.room || 'Online ballot'}</dd></div>
                 </dl>
                 <WhatNext election={election} state={state} />
-                <ElectionResultsLine election={election} role={role} />
+                {(!election.phase || ['voting', 'runoff', 'canvassing', 'tie_resolution', 'completed'].includes(election.phase)) && <ElectionResultsLine election={election} role={role} />}
               </article>
             );
           })}
