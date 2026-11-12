@@ -28,7 +28,6 @@ import { canViewElectionResults } from '../../../utils/electionAccess';
 import FeedbackToast from '../../../components/FeedbackToast';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
-import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
@@ -198,8 +197,6 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const [elections, setElections] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [academicPeriods, setAcademicPeriods] = useState([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -216,21 +213,19 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [now, setNow] = useState(() => Date.now());
   const editRequestHandled = useRef(false);
-  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
 
   const loadElections = useCallback(async () => {
     setLoading(true); setLoadError('');
-    try { const data = await getElections({ academic_semester_id: selectedPeriodId || undefined }); setElections(Array.isArray(data) ? data : []); }
+    try { const data = await getElections(); setElections(Array.isArray(data) ? data : []); }
     catch { setLoadError('Unable to load elections.'); }
     finally { setLoading(false); }
-  }, [selectedPeriodId]);
+  }, []);
 
   useEffect(() => { loadElections(); }, [loadElections]);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
-  useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
   useEffect(() => {
     if (startCreate && canManageElections) {
       setForm(blankElection());
@@ -337,10 +332,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     const returned = isReturned(election);
     return [
       election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
-      canManageElections && !viewingHistory && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
-      canManageElections && !viewingHistory && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
-      canManageElections && !viewingHistory && election.status === 'upcoming' && election.finalized_at && !(Date.parse(election.start_time) > now) && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
-      canManageElections && !viewingHistory && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
+      canManageElections && election.status !== 'closed' && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
+      canManageElections && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
+      canManageElections && election.status === 'upcoming' && election.finalized_at && !(Date.parse(election.start_time) > now) && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
+      canManageElections && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
     ].filter(Boolean);
   };
   const hasRowActions = managing && elections.some((election) => rowActions(election).length > 0);
@@ -391,15 +386,9 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   const shownCounts = { manage: ['positions_count', 'candidates_count', 'votes_count'], candidates: ['candidates_count'], partylists: [], voters: ['votes_count'], results: ['votes_count'] }[mode] || [];
   columns.push(...shownCounts.map((key) => countColumns[key]));
 
-  const filters = (academicPeriods.length > 0 || listedElections.length > 0) && (
+  const filters = listedElections.length > 0 && (
     <div className="mb-4 flex flex-wrap items-center gap-3">
       {listedElections.length > 0 && <Input type="search" className="sm:max-w-xs" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} aria-label="Search elections" placeholder="Search elections" />}
-      {academicPeriods.length > 0 && (
-        <HiusaSelect filter className="w-full sm:w-64" aria-label="Academic period" value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-          <option value="">Active period</option>
-          {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label}, {period.number === 1 ? '1st' : '2nd'} semester, {period.status}</option>)}
-        </HiusaSelect>
-      )}
       {listedElections.length > 0 && (
         <HiusaSelect filter className="w-full sm:w-48" aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
           <option value="all">All statuses</option>
@@ -416,12 +405,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   let firstRunState;
   if (showingResults) {
     firstRunState = <EmptyState icon={Vote} title="No results yet" description="Totals appear once an election is open for voting." />;
-  } else if (!managing && canManageElections && !viewingHistory) {
+  } else if (!managing && canManageElections) {
     firstRunState = <EmptyState icon={Vote} title="No elections yet" description="Create an election first." action={<Button variant="secondary" to="/dashboard/elections/manage-elections">Go to elections</Button>} />;
-  } else if (canManageElections && !viewingHistory) {
-    firstRunState = <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />;
   } else if (canManageElections) {
-    firstRunState = <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />;
+    firstRunState = <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />;
   } else if (currentUser?.role === 'STUDENT') {
     firstRunState = <EmptyState icon={Vote} title="No election is currently open" description="Voting opens after the Admin finalizes and opens an election. Turnout is shown during voting, and results appear when the election closes." />;
   } else {
@@ -450,8 +437,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   return (
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-      <PageHeader {...MODE_HEADERS[mode]} primary={managing && canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
-      {viewingHistory && <p className="text-sm text-ink-muted">Completed semester elections are available for viewing only.</p>}
+      <PageHeader {...MODE_HEADERS[mode]} primary={managing && canManageElections && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
       {actionError && <p role="alert" className={ALERT}>{actionError}</p>}
 
       <DataTable
