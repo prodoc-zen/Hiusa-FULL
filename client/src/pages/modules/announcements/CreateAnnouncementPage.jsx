@@ -206,12 +206,13 @@ export default function CreateAnnouncementPage() {
               id="announcement-content"
               value={body}
               onChange={setBody}
+              maxLength={10000}
               placeholder="Write your announcement here"
               rows={6}
               className="sm:min-h-64"
             />
             {bodyMissing && <p role="alert" className="mt-1.5 text-xs font-semibold text-danger-strong">Write the announcement text.</p>}
-            <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{body.length.toLocaleString()} characters</p>
+            <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{body.length.toLocaleString()} of 10,000 characters</p>
           </div>
 
           <details className="border-t border-line pt-3">

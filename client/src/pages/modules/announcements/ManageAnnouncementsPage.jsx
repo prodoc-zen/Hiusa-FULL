@@ -380,7 +380,10 @@ export default function ManageAnnouncementsPage() {
               {CATEGORY_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </HiusaSelect>
           </Field>
-          <RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} rows={8} placeholder="Announcement content" />
+          <div>
+            <RichTextEditor ariaLabel="Announcement content" value={editForm.body} onChange={(body) => setEditForm({ ...editForm, body })} maxLength={10000} rows={8} placeholder="Announcement content" />
+            <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{editForm.body.length.toLocaleString()} of 10,000 characters</p>
+          </div>
           <div>
             <label htmlFor="edit-announcement-image" className="mb-1.5 block text-[13px] font-medium text-ink">{editing?.image_url ? 'Replace the poster or image' : 'Poster or image'} <span className="font-normal text-ink-muted">(optional)</span></label>
             <label htmlFor="edit-announcement-image" className="flex min-h-16 cursor-pointer items-center gap-3 rounded-control border border-dashed border-line p-3 hover:border-brand-600">
