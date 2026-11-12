@@ -66,7 +66,7 @@ export default function SaoCompliancePage() {
 
   const [semesterId, setSemesterId] = useState('');
   const [periods, setPeriods] = useState([]);
-  const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
+  const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, noSemester: false, organizations: [] });
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : { ...DEFAULT_REVIEW_FILTERS, organizationId: searchParams.get('organization') || '' });
 
@@ -101,6 +101,7 @@ export default function SaoCompliancePage() {
           loading: false,
           error: null,
           academicYear: response.data?.academic_year ?? null,
+          noSemester: response.data?.no_semester === true,
           organizations: Array.isArray(response.data?.organizations) ? response.data.organizations : [],
         });
       })
@@ -178,13 +179,13 @@ export default function SaoCompliancePage() {
             <AccreditationTab title="Annual organization renewal" overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} onChanged={loadOverview} />
           )}
           {activeTab === 'requirements' && (
-            <RequirementsTab currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
+            <RequirementsTab currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semesterId={semesterId} onChanged={loadOverview} />
           )}
           {activeTab === 'renewal-requirements' && (
-            <RequirementsTab key="renewal" category="renewal" currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
+            <RequirementsTab key="renewal" category="renewal" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semesterId={semesterId} onChanged={loadOverview} />
           )}
           {activeTab === 'semestral-requirements' && (
-            <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} semesterId={semesterId} onChanged={loadOverview} />
+            <RequirementsTab key="semestral" category="semestral_report" currentAcademicYear={overview.academicYear} noSemester={overview.noSemester} semesterId={semesterId} onChanged={loadOverview} />
           )}
           {activeTab === 'review' && (
             <ReviewQueueTab
@@ -197,7 +198,7 @@ export default function SaoCompliancePage() {
               onChanged={loadOverview}
             />
           )}
-          {activeTab === 'events' && <EventRequirementsTab />}
+          {activeTab === 'events' && <EventRequirementsTab noSemester={overview.noSemester} />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
           {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>}
         </div>

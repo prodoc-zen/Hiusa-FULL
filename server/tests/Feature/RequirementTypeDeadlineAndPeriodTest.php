@@ -124,6 +124,24 @@ class RequirementTypeDeadlineAndPeriodTest extends TestCase
         $this->assertDatabaseMissing('compliance_requirement_types', ['name' => 'Safety pledge']);
     }
 
+    public function test_the_compliance_status_says_whether_a_semester_is_selected_so_the_form_can_hold_back_new_requirements(): void
+    {
+        $this->getJson('/api/compliance/status')
+            ->assertOk()
+            ->assertJsonPath('academic_year', '2026-2027')
+            ->assertJsonPath('academic_semester_id', $this->semester->id)
+            ->assertJsonPath('no_semester', false);
+
+        // The semester is closed straight in the database, so skip the response cache a real close would have invalidated.
+        $this->semester->update(['status' => 'completed']);
+
+        $this->getJson('/api/compliance/status', ['Cache-Control' => 'no-cache'])
+            ->assertOk()
+            ->assertJsonPath('academic_year', '2026-2027')
+            ->assertJsonPath('academic_semester_id', null)
+            ->assertJsonPath('no_semester', true);
+    }
+
     public function test_an_event_requirement_belongs_to_the_selected_semester_and_is_refused_when_there_is_none(): void
     {
         $payload = ['name' => 'Venue clearance', 'venue_type' => 'all', 'allowed_extensions' => ['pdf'], 'template_url' => 'https://example.edu/clearance.pdf'];

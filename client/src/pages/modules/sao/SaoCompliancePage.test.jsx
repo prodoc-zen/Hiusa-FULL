@@ -22,7 +22,7 @@ vi.mock('../../../services/complianceService', () => mocks);
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
-vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
+vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester }) => <p data-no-semester={String(Boolean(noSemester))}>Event requirements content</p> }));
 vi.mock('./FinancialReportsTab', () => ({ default: ({ initialStatus }) => <p data-status={initialStatus || ''}>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
 
@@ -106,6 +106,23 @@ describe('SaoCompliancePage', () => {
     await waitFor(() => expect(mocks.getRequirementTypes).toHaveBeenCalledWith(expect.objectContaining({ category: 'semestral_report' })));
     fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
     expect(screen.getByRole('dialog', { name: 'New semestral report requirement' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['requirements'],
+    ['renewal-requirements'],
+    ['semestral-requirements'],
+  ])('holds back New requirement on the %s tab when the status says no semester is selected', async (tab) => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', academic_semester_id: null, no_semester: true, organizations: [] } });
+    renderPage(`/dashboard/super-admin/compliance?tab=${tab}`);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'New requirement' })[0]).toBeDisabled());
+    expect(screen.getByText('There is no active semester. Activate or select a semester before adding a requirement.')).toBeInTheDocument();
+  });
+
+  it('tells the event requirements tab when no semester is selected', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', academic_semester_id: null, no_semester: true, organizations: [] } });
+    renderPage('/dashboard/super-admin/compliance?tab=events');
+    await waitFor(() => expect(screen.getByText('Event requirements content')).toHaveAttribute('data-no-semester', 'true'));
   });
 
   it.each([

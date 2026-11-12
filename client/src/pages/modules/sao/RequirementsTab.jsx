@@ -23,8 +23,9 @@ import {
 
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
+const NO_SEMESTER_MESSAGE = 'There is no active semester. Activate or select a semester before adding a requirement.';
 
-export default function RequirementsTab({ currentAcademicYear, semesterId = '', onChanged, category = 'organization' }) {
+export default function RequirementsTab({ currentAcademicYear, noSemester = false, semesterId = '', onChanged, category = 'organization' }) {
   const semestral = category === 'semestral_report';
   const renewal = category === 'renewal';
   const [types, setTypes] = useState({ loading: true, error: null, items: [], total: 0 });
@@ -85,7 +86,7 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
   async function handleTypeSubmit(event) {
     event.preventDefault();
     const errors = {};
-    if (!typeForm.academic_year.trim()) errors.academic_year = 'There is no active semester. Activate or select a semester before adding a requirement.';
+    if (!typeForm.academic_year.trim()) errors.academic_year = NO_SEMESTER_MESSAGE;
     if (!typeForm.deadline_at) errors.deadline_at = 'Set the deadline for organizations.';
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
     if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
@@ -209,7 +210,12 @@ export default function RequirementsTab({ currentAcademicYear, semesterId = '', 
       <Card
         title={semestral ? 'Semestral and financial report requirements' : renewal ? 'Renewal requirements' : 'Organization requirements'}
         description={semestral ? 'Files organizations send the SAO for their semestral and financial report.' : renewal ? 'Files active organizations send each year to renew.' : 'Files for organization registration and accreditation.'}
-        actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
+        actions={(
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {noSemester && <p id={`new-requirement-${category}-note`} className="max-w-sm text-sm text-ink-muted">{NO_SEMESTER_MESSAGE}</p>}
+            <Button leftIcon={Plus} disabled={noSemester} aria-describedby={noSemester ? `new-requirement-${category}-note` : undefined} onClick={() => openTypeModal()}>New requirement</Button>
+          </div>
+        )}
       >
         {!types.loading && types.items.some((type) => !type.template_url && !type.template_original_name) && <p role="status" className="mb-4 rounded-control border border-warning/40 bg-warning-tint p-3 text-sm text-ink">Every requirement needs a sample format. Edit the ones marked “Sample format required” to attach a file or link.</p>}
         {deleteError && (
