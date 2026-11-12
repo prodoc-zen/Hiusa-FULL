@@ -561,7 +561,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
     ]);
-    // The ledger totals follow the search and filters, but the Reports tab and the category export are all time,
+    // The ledger totals follow the search and filters, but the Reports tab and the category export are not narrowed by them,
     // so they read their own summary that carries the organization scope and nothing else.
     const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
     const ledgerSummary = canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve(emptySummary);
@@ -1799,8 +1799,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <h2 id="quick-exports-title" className="text-base font-semibold text-ink">Quick exports</h2>
             <ul className="mt-2 divide-y divide-line-soft">
               {[
-                { key: 'log', title: 'Full transaction log', desc: 'Complete ledger of all recorded transactions, all time' },
-                { key: 'category', title: 'Category breakdown', desc: 'Totals grouped by category and type, all time' },
+                { key: 'log', title: 'Full transaction log', desc: 'Complete ledger of every transaction recorded in the semester selected at the top' },
+                { key: 'category', title: 'Category breakdown', desc: 'Totals grouped by category and type for the semester selected at the top' },
               ].map((report) => (
                 <li key={report.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="min-w-0">

@@ -27,6 +27,13 @@ describe('FinancialCollectionsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Remit' }).length).toBeGreaterThan(0);
   });
 
+  it('says which figures cover every semester and which follow the one selected at the top', async () => {
+    render(<FinancialCollectionsPage />);
+
+    expect(await screen.findByText('Awaiting remittance')).toBeInTheDocument();
+    expect(screen.getByText('Available funds and Awaiting remittance are running balances across all semesters. Remitted and the collections below follow the semester selected at the top.')).toBeInTheDocument();
+  });
+
   it('asks in the app, not the browser, before verifying a collection', async () => {
     const nativeConfirm = vi.spyOn(window, 'confirm');
     mocks.verifyCollection.mockResolvedValue({ data: { id: 1 } });

@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\FilterValues;
+use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -49,12 +50,9 @@ class TransactionController extends Controller
         $query->whereIn('organization_id', $this->readableOrganizationIds($request));
 
         if (! empty($filters['academic_semester_id'])) {
-            $periods = AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get();
-            $query->where(function ($matches) use ($periods) {
-                foreach ($periods as $period) {
-                    $matches->orWhereBetween('transaction_date', [$period->starts_on->startOfDay(), $period->ends_on->endOfDay()]);
-                }
-            });
+            SemesterScope::dated($query, 'transaction_date', AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get());
+        } else {
+            SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected($request));
         }
 
         if (! empty($filters['budget_id'])) {
@@ -121,12 +119,9 @@ class TransactionController extends Controller
         $query = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request));
 
         if (! empty($filters['academic_semester_id'])) {
-            $periods = AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get();
-            $query->where(function ($matches) use ($periods) {
-                foreach ($periods as $period) {
-                    $matches->orWhereBetween('transaction_date', [$period->starts_on->startOfDay(), $period->ends_on->endOfDay()]);
-                }
-            });
+            SemesterScope::dated($query, 'transaction_date', AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get());
+        } else {
+            SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected($request));
         }
 
         if (! empty($filters['budget_id'])) {

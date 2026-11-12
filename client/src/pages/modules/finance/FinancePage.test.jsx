@@ -1217,4 +1217,13 @@ describe('FinancePage all-time category summary', () => {
     expect(await screen.findByText('Membership fees')).toBeInTheDocument();
     expect(screen.getByText(/Ledger net balance/).textContent).toContain('800');
   });
+
+  it('describes the quick exports as the semester selected at the top, not all time', async () => {
+    renderUi(<MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab="reports" /></MemoryRouter>);
+
+    expect(await screen.findByText('Full transaction log')).toBeInTheDocument();
+    expect(screen.getByText(/ledger of every transaction recorded in the semester selected at the top/i)).toBeInTheDocument();
+    expect(screen.getByText(/Totals grouped by category and type for the semester selected at the top/i)).toBeInTheDocument();
+    expect(screen.queryByText(/all time/i)).not.toBeInTheDocument();
+  });
 });

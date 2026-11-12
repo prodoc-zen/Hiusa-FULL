@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
@@ -10,6 +11,7 @@ use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
+use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -32,6 +34,7 @@ class BudgetController extends Controller
 
         $budgets = Budget::with(['event:id,title', 'financialSemester:id,name,starts_on,ends_on'])
             ->whereIn('organization_id', $this->readableOrganizationIds($request))
+            ->tap(fn ($query) => SemesterScope::budgets($query, AcademicSemester::selected($request)))
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')
