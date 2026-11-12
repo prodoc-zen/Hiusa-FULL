@@ -3272,10 +3272,10 @@
     "title": "Approve a cash order directly and issue the claim token",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A pending cash order from a student (Student 2100142 can place one in Store > Shop).",
     "steps": [
-      "1. Open the row menu of the pending order and select 'Approve directly'.",
-      "2. Read the dialog 'Approve Payment Directly'.",
+      "1. On the row of the pending order select 'Approve payment'.",
+      "2. Read the dialog 'Approve payment directly'.",
       "3. Check that the amount equals the order total.",
-      "4. Select 'Approve Payment'."
+      "4. Select 'Approve payment'."
     ],
     "expected": "The order becomes Paid and gets a 16-character claim token. A receipt number appears in the ledger as an income entry and the student sees the token in My orders.",
     "priority": "High",
@@ -3383,7 +3383,7 @@
       "2. Type the buyer's token into '16-character claim token'.",
       "3. Select 'Claim'.",
       "4. Check the buyer and items in 'Verify purchaser and release'.",
-      "5. Select 'Confirm Claim / Release'."
+      "5. Select 'Confirm release'."
     ],
     "expected": "The order becomes Claimed and moves to the Claimed list. The buyer sees Claimed in My orders. The receipt shows who released it.",
     "priority": "High",

@@ -1266,7 +1266,7 @@
       "2. Type or paste the token in \"16-character claim token\".",
       "3. Click \"Claim\".",
       "4. In \"Verify purchaser and release\" check the student ID and the items against the student standing in front of you.",
-      "5. Click \"Confirm Claim / Release\".",
+      "5. Click \"Confirm release\".",
       "6. Check the order in Store > Orders."
     ],
     "expected": "A message says \"Order claimed for <first name>.\" The token box is cleared. The register under \"Claimed\" lists the order and the order shows Claimed with the stage bar complete and \"Released by <your name>\". The student's My orders shows Claimed.",
@@ -1771,5 +1771,27 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "Run after SBO-075"
+  },
+  {
+    "id": "SBO-095",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Release an order from its row in Store > Orders",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A student order is Paid (the Admin has approved its payment) and has not been released. Keep a second browser tab signed in as the same officer on Store > Orders for the last step.",
+    "steps": [
+      "1. Open Store > Orders and find the Paid order.",
+      "2. Check that its row shows the button \"Release order\".",
+      "3. Click \"Release order\".",
+      "4. In \"Verify purchaser and release\" check the student ID and the items against the student standing in front of you.",
+      "5. Click \"Confirm release\".",
+      "6. Read the row of the order again.",
+      "7. In the second tab, which still shows the order as Paid, click \"Release order\" on the same order."
+    ],
+    "expected": "A Paid order shows \"Release order\" on its row and no token has to be typed. The button opens \"Verify purchaser and release\". \"Confirm release\" shows \"Order claimed for <first name>.\" and the order shows Claimed, so the row no longer offers \"Release order\". In the second tab the check fails: the message the server gives (for example \"This token has already been used.\") is shown, \"Verify purchaser and release\" does not open and nothing is released a second time.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after the Admin approves a payment (ADM-184)"
   }
 ]

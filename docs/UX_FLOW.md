@@ -281,11 +281,12 @@ Format: group (band): children in order, each `Label  route`.
 - Updates (single link): Announcements `/dashboard/announcements/view-announcements`
 - Support: My clearance `/dashboard/my-clearance`; My grievances `/dashboard/my-grievances`
 
-**SUPER_ADMIN (SAO)** (7 rows, 18 leaves)
+**SUPER_ADMIN (SAO)** (8 rows, 20 leaves)
 - Dashboard `/dashboard/super-admin` (the inbox: attention list is a queue count per review area, each deep linked)
 - University users `/dashboard/super-admin/users` (university-wide account and clearance directory)
-- Organizations: Organization applications `/dashboard/organization-applications`; Registrations and organizations `/dashboard/super-admin/organizations?status=pending`; Administrators `/dashboard/super-admin/admins` (provision and manage each organization's administrator); Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against)
-- Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
+- Ask AI `/dashboard/ask-ai`
+- Governance: Colleges `/dashboard/super-admin/colleges`; Student records `/dashboard/super-admin/student-records` (the school records students sign up against); Applications `/dashboard/organization-applications`; Organizations `/dashboard/super-admin/organizations?status=pending`; Administrators `/dashboard/super-admin/admins` (provision and manage each organization's administrator)
+- Reviews: Compliance `/dashboard/super-admin/compliance` (organization progress, submission reviews, event reviews, financial reports, requirement settings); Approvals `/dashboard/super-admin/organization-approvals`; Venues `/dashboard/super-admin/venues`; Grievances `/dashboard/super-admin/grievances`; Clearances `/dashboard/super-admin/clearances`
 - Files: Submitted files `/dashboard/super-admin/documents` (organization folders); Storage and limits `/dashboard/super-admin/file-storage`
 - Updates: University announcements `/dashboard/super-admin/announcements`; Notifications `/dashboard/super-admin/notifications`
 - Setup and records: Academic years `/dashboard/super-admin/academic-years`; School year records `/dashboard/records`; Audit trail `/dashboard/super-admin/audit-logs`

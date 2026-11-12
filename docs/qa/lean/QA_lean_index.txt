@@ -574,6 +574,7 @@ SBO-091 | Events and tasks > Check-in | Check a member in on an event that was c
 SBO-092 | Study objectives | Study objectives evidence links open pages an officer may see | L | Any
 SBO-093 | Members and fingerprints | Remove a fingerprint enrollment after the confirm window (needs the reader) | L | Any
 SBO-094 | My activity > My orders | The officer sees only their own orders in My orders and can cancel an unpaid one | M | Any
+SBO-095 | Store > Orders | Release an order from its row in Store > Orders | H | Any
 SAO-001 | Sign in and menu | SAO signs in and reaches the SAO Dashboard | H | Any
 SAO-002 | Sign in and menu | Sign in with a wrong password is refused | M | Any
 SAO-003 | Sign in and menu | The SAO menu shows the right groups and pages and nothing from other roles | H | Any
