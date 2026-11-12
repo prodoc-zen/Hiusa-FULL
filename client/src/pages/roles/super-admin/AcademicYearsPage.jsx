@@ -27,18 +27,28 @@ function semesterLabel(semester, yearLabel) {
 
 function semesterChangeMessage({ semester, action, yearLabel }, years) {
   if (action === 'reopen') return `This makes ${semesterLabel(semester, yearLabel)} the active semester and AY ${yearLabel} the current year again. Members see its data again. Close it again when it is over.`;
-  if (action === 'close') return `Closing this semester ends it. Members stop seeing its data, and the app has no active semester until the next one is activated. ${afterClosingNotice(semester, years)} You can reopen it from this page only while no other semester is active.`;
+  if (action === 'close') return `Closing this semester ends it. Members stop seeing its data, and the app has no active semester until the next one is activated. ${afterClosingNotice(semester, years)} You can reopen it from this page while no other semester is active and its academic year is not completed.`;
   const closing = years
     .flatMap((year) => (year.semesters || []).map((item) => ({ semester: item, yearLabel: year.label })))
     .find((item) => item.semester.status === 'active');
-  if (!closing) return 'This semester becomes the active one. This cannot be undone from the app.';
-  return `This closes the current semester, ${semesterLabel(closing.semester, closing.yearLabel)}. Members stop seeing its data. This cannot be undone from the app.`;
+  // Activating into another year completes the current one for good, whether or not a semester is active now.
+  const currentYear = years.find((year) => year.is_current);
+  const completesYear = currentYear && currentYear.label !== yearLabel ? ` This also completes AY ${currentYear.label}. A completed year cannot be reopened.` : '';
+  if (!closing) return `This semester becomes the active one.${completesYear || ' You can close it from this page when it is over.'}`;
+  const closingLabel = semesterLabel(closing.semester, closing.yearLabel);
+  return `This closes the current semester, ${closingLabel}. Members stop seeing its data.${completesYear || ` You can reopen ${closingLabel} from this page after the new one is closed.`}`;
+}
+
+// The server refuses this while a semester in another year is active.
+function makeCurrentBlocker(target, years) {
+  const active = years.find((year) => (year.semesters || []).some((item) => item.status === 'active'));
+  return active && active.id !== target.id ? active : null;
 }
 
 function makeCurrentMessage(target, years) {
-  const active = years.find((year) => (year.semesters || []).some((item) => item.status === 'active'));
+  const active = makeCurrentBlocker(target, years);
   const base = "Accreditation status will count this year's requirements, and new requirement sets and clearance periods will default to it. This does not start a semester.";
-  if (active && active.id !== target.id) return `${base} A semester in AY ${active.label} is active, so this is refused until you activate a semester in this year.`;
+  if (active) return `${base} A semester in AY ${active.label} is active, so this is refused until you activate a semester in this year.`;
   return base;
 }
 
@@ -396,17 +406,36 @@ export default function AcademicYearsPage() {
         </div>
       </Modal>
 
-      <ConfirmModal
-        open={Boolean(currentTarget)}
-        title="Make this the current year"
-        message={currentTarget ? makeCurrentMessage(currentTarget, years.items) : undefined}
-        recordName={currentTarget?.label}
-        confirmText="Make current"
-        variant="primary"
-        busy={busy}
-        onCancel={() => !busy && setCurrentTarget(null)}
-        onConfirm={confirmCurrent}
-      />
+      {currentTarget && makeCurrentBlocker(currentTarget, years.items) ? (
+        <Modal
+          open
+          title="Make this the current year"
+          description={makeCurrentMessage(currentTarget, years.items)}
+          onClose={busy ? undefined : () => setCurrentTarget(null)}
+          closeOnBackdrop={false}
+          maxWidth="max-w-md"
+          footer={(
+            <>
+              <Button variant="secondary" disabled={busy} onClick={() => setCurrentTarget(null)}>Cancel</Button>
+              <Button disabled>Make current</Button>
+            </>
+          )}
+        >
+          <p className="text-sm font-semibold text-ink">{currentTarget.label}</p>
+        </Modal>
+      ) : (
+        <ConfirmModal
+          open={Boolean(currentTarget)}
+          title="Make this the current year"
+          message={currentTarget ? makeCurrentMessage(currentTarget, years.items) : undefined}
+          recordName={currentTarget?.label}
+          confirmText="Make current"
+          variant="primary"
+          busy={busy}
+          onCancel={() => !busy && setCurrentTarget(null)}
+          onConfirm={confirmCurrent}
+        />
+      )}
       <ConfirmModal
         open={Boolean(closeYearTarget)}
         title="Complete academic year"
