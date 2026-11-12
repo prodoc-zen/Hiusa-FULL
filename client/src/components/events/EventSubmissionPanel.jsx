@@ -7,6 +7,7 @@ import { formatDisplayText } from '../../utils/displayText';
 import { RichTextBody } from '../RichText';
 import { Button, DataTable, StatusBadge } from '../ui';
 import TableRowActions from '../TableRowActions';
+import { describeReview } from '../approvals/EventFilesReview';
 
 export default function EventSubmissionPanel(props) {
   return <EventSubmission key={props.eventId} {...props} />;
@@ -70,6 +71,9 @@ function EventSubmission({ eventId, role, onSubmitted }) {
   const uploaded = submission?.files || [];
   const byRequirement = new Map(uploaded.map((file) => [file.requirement_id, file]));
   const missingFiles = requirements.filter((requirement) => !requirement.is_optional && !byRequirement.has(requirement.id) && !files[requirement.id]).length;
+  const flagged = (file) => file?.reviews?.some((review) => review.status === 'needs_changes') ?? false;
+  const toReplace = requirements.filter((requirement) => flagged(byRequirement.get(requirement.id)) && !files[requirement.id]).length;
+  const accepted = (file) => Boolean(file?.reviews?.length) && file.reviews.every((review) => review.status === 'ok');
   const maySubmit = role === 'ADMIN' && requirements.length > 0 && (
     !submission?.approval_status || submission.approval_status === 'rejected' || submission.approval_stage === 'awaiting_requirements'
   );
@@ -86,9 +90,22 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         rowKey={(item) => item.id}
         columns={[
           { key: 'name', header: 'Requirement', render: (item) => <div><strong>{formatDisplayText(item.name)}</strong>{item.description && <RichTextBody value={item.description} className="mt-1 text-xs text-ink-muted-strong" />}</div> },
-          { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{byRequirement.get(item.id)?.original_name || 'No file'}</span> },
+          { key: 'file', header: 'File', render: (item) => {
+            const file = byRequirement.get(item.id);
+            return (
+              <div className="min-w-0 text-xs">
+                <span className="break-all">{file?.original_name || 'No file'}</span>
+                {file?.reviews?.filter((review) => review.status === 'needs_changes' || review.note).map((review) => <p key={review.stage} className="mt-1 text-ink">{describeReview(review)}</p>)}
+              </div>
+            );
+          } },
           { key: 'sample', header: 'SAO sample', render: (item) => item.template_url ? 'Link' : item.template_original_name ? 'PDF file' : 'No sample' },
-          { key: 'status', header: 'Status', render: (item) => <StatusBadge label={byRequirement.has(item.id) ? 'Submitted' : 'Not submitted'} tone={byRequirement.has(item.id) ? 'info' : 'neutral'} /> },
+          { key: 'status', header: 'Status', render: (item) => {
+            const file = byRequirement.get(item.id);
+            if (flagged(file)) return <StatusBadge status="needs_changes" label="Needs changes" />;
+            if (accepted(file)) return <StatusBadge status="ok" label="Accepted" />;
+            return <StatusBadge label={file ? 'Submitted' : 'Not submitted'} tone={file ? 'info' : 'neutral'} />;
+          } },
         ]}
         actions={(item) => (byRequirement.has(item.id) || item.template_url || item.template_original_name) && <TableRowActions subject={formatDisplayText(item.name)} actions={[
           byRequirement.has(item.id) && { label: 'View submitted file', icon: Eye, onClick: () => view(byRequirement.get(item.id)) },
@@ -101,7 +118,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         {requirements.map((requirement) => <div key={requirement.id}>
           <label className="block text-xs font-semibold text-ink">
             {formatDisplayText(requirement.name)} <span className="font-normal text-ink-muted">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>
-            <input required={!requirement.is_optional && !byRequirement.has(requirement.id)} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-control border border-line bg-surface px-3 py-2 text-xs font-normal" />
+            <input required={(!requirement.is_optional && !byRequirement.has(requirement.id)) || flagged(byRequirement.get(requirement.id))} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-control border border-line bg-surface px-3 py-2 text-xs font-normal" />
           </label>
           {(requirement.template_original_name || requirement.template_url) && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted-strong">
             <span className="break-all">SAO sample: {requirement.template_original_name || requirement.template_url}</span>
@@ -109,7 +126,8 @@ function EventSubmission({ eventId, role, onSubmitted }) {
           </div>}
         </div>)}
         {missingFiles > 0 && <p id="event-files-missing" className="text-xs text-ink-muted-strong">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
-        <Button type="submit" loading={busy} disabled={missingFiles > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : undefined}>Submit event files to SAO</Button>
+        {toReplace > 0 && <p id="event-files-replace" className="text-xs text-ink-muted-strong">{toReplace === 1 ? '1 file still needs to be replaced.' : `${toReplace} files still need to be replaced.`}</p>}
+        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>Submit event files to SAO</Button>
       </form>}
       {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
     </section>

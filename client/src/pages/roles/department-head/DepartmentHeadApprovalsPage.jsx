@@ -319,11 +319,11 @@ export default function DepartmentHeadApprovalsPage() {
   const canAct = (request) => request.status === 'pending' && Boolean(role) && request.required_role === role && request.requested_by !== user.school_id;
 
   async function handleReview(remarks) {
-    const { request, action } = modalState;
+    const { request, action, files } = modalState;
     setSubmitting(true);
     setDecisionError(null);
     try {
-      const { data } = await reviewApprovalRequest(request.id, { status: action, remarks: remarks.trim() || null });
+      const { data } = await reviewApprovalRequest(request.id, { status: action, remarks: remarks.trim() || null, ...(files ? { files } : {}) });
       const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
       setModalState({ open: false, request: null, action: null });
       setOpened({ id: String(request.id), request: updated, state: 'ready' });
@@ -489,8 +489,8 @@ export default function DepartmentHeadApprovalsPage() {
         canAct={Boolean(opened?.request) && canAct(opened.request)}
         organizationName={organizationNames[opened?.request?.organization_id]}
         onClose={() => { if (!modalState.open) setRecordId(null); }}
-        onApprove={(request) => setModalState({ open: true, request, action: 'approved' })}
-        onReject={(request) => setModalState({ open: true, request, action: 'rejected' })}
+        onApprove={(request, files) => setModalState({ open: true, request, action: 'approved', files })}
+        onReject={(request, files) => setModalState({ open: true, request, action: 'rejected', files })}
       />
     </div>
   );

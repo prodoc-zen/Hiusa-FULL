@@ -561,6 +561,29 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     expect(screen.getByText('Pick another date.')).toBeInTheDocument();
   });
 
+  it('sends the files the Department Head marked along with the rejection', async () => {
+    const files = [{ id: 7, requirement: 'Venue form', original_name: 'venue.pdf', open_url: '/events/101/submission/files/7', reviews: [] }];
+    const withFiles = { ...eventRow, summary: { ...eventRow.summary, requirement_files: files } };
+    serve({ review: [withFiles, budgetRow] });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: { ...withFiles, status: 'rejected', remarks: 'Fix the form.' } });
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Review Venue form' }));
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue form'), { target: { value: 'needs_changes' } });
+    fireEvent.change(within(drawer).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Reject request' });
+    fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'Fix the form.' } });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Reject' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, {
+      status: 'rejected',
+      remarks: 'Fix the form.',
+      files: [{ id: 7, status: 'needs_changes', note: 'The seal is missing.' }],
+    }));
+  });
+
   it('uses Back-style closing: Escape on the drawer clears the record', async () => {
     renderPage('/dashboard/department-head/approvals?record=41');
     await screen.findByRole('dialog', { name: 'Foundation Day' });

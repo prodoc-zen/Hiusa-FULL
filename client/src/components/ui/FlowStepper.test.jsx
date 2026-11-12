@@ -179,3 +179,15 @@ describe('FlowStepper compact variant', () => {
     expect(screen.getByRole('progressbar')).toHaveClass('max-sm:hidden');
   });
 });
+
+describe('FlowStepper wrap layout', () => {
+  it('lists every step in a grid with the icon beside the label, never as one column per step', () => {
+    render(<FlowStepper variant="full" layout="wrap" steps={STEPS} ariaLabel="Event stage" />);
+    const list = screen.getByRole('list', { name: 'Event stage' });
+
+    expect(list.className).toContain('grid-cols-2');
+    expect(list.className).not.toContain('md:flex-row');
+    expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(list).getByText('Approval').closest('li')).toHaveAttribute('aria-current', 'step');
+  });
+});
