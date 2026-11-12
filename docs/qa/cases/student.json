@@ -164,7 +164,7 @@
       "5. Read the next screen.",
       "6. Tap or click \"Back to login\"."
     ],
-    "expected": "The page has one field labelled \"Email or school ID\". After Request reset, a screen says \"Ask for a reset\" and that password reset by email is not available and nothing was sent to anyone, with only a \"Back to login\" button. The same screen appears for a value that does not match any account, so nobody can learn which accounts exist. No email arrives, because reset emails are not sent on the public link (known limit). To get a reset, ask your organization Admin or the SAO for a one-time link. \"Back to login\" returns to sign-in.",
+    "expected": "The page has one field labelled \"Email or school ID\". After Request reset, a screen says \"Ask for a reset\" and that password reset by email is not available and nothing was sent to anyone, with only a \"Back to login\" button. The same screen appears for a value that does not match any account, so nobody can learn which accounts exist. No email arrives, because reset emails are not sent on the public link (known limit). To get a reset, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder. \"Back to login\" returns to sign-in.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",

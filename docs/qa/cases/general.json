@@ -1853,7 +1853,7 @@
       "Open Records, choose the closed school year and find \"QA Old Event\" under Events.",
       "Read the row of \"QA Old Event\". Look for Edit, Delete and Cancel."
     ],
-    "expected": "The Events page has no Academic period box and does not list \"QA Old Event\", because it lists only the semester the top bar shows. Records lists the old event with its status, read only, with no Edit, Delete or Cancel. The system itself refuses a forced edit or status change of the old event with \"Historical semester events are read only.\" (409), but a normal user cannot reach that message from the screen: ask a technical teammate to send it. VERIFY: that no screen other than Records lists the old event.",
+    "expected": "The Events page has no Academic period box and does not list \"QA Old Event\", because it lists only the semester the top bar shows. Records lists the old event with its status, read only, with no Edit, Delete or Cancel. The system itself refuses a forced edit or status change of the old event with \"Historical semester events are read only.\" (409), but a normal user cannot reach that message from the screen: ask a technical teammate to send it. The same sentence \"This school year is closed. Its records are read only.\" (409) refuses registering for the old event, cancelling a registration, booking a venue for it and withdrawing its venue booking. A student can still see the old event: choose the closed semester in the top bar (see GEN-107). VERIFY: that no screen other than Records and the student top bar view lists the old event.",
     "priority": "High",
     "device": "Laptop",
     "type": "Negative",
@@ -1888,7 +1888,7 @@
       "Open Records, choose the closed school year and find the old election under Elections.",
       "Sign out. Sign in as Student 2100142. Open Voting > Vote and look for the old election."
     ],
-    "expected": "The Elections page has no Academic period box and does not list the old election. Records lists it with its status and winners, read only, with no Edit, Delete, Open voting or Close button. The student does not see the old election to vote in. A forced change of the old election is refused with \"Historical semester elections are read only.\" and a vote sent to it anyway is refused with the same text, but a normal user cannot reach those messages from the screen: ask a technical teammate to send them. VERIFY: whether the Vote page lists an old open election.",
+    "expected": "The Elections page has no Academic period box and does not list the old election. Records lists it with its status and winners, read only, with no Edit, Delete, Open voting or Close button. The student does not see the old election to vote in. In the top bar the student can choose the closed semester (the list holds the current and the closed semesters, never an upcoming one): the page shows the notice \"You are viewing AY <year> · <semester>, a closed semester. Everything here is read only.\" with Back to current semester, Events lists that semester's events, and Vote and Results list its elections with the results and no Vote button. Back to current semester returns to the live view. A forced change of the old election is refused with \"Historical semester elections are read only.\" and a vote sent to it anyway is refused with the same text, but a normal user cannot reach those messages from the screen: ask a technical teammate to send them. VERIFY: whether the Vote page lists an old open election.",
     "priority": "High",
     "device": "Laptop",
     "type": "Negative",

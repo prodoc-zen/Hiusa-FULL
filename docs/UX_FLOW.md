@@ -237,7 +237,7 @@ Format: group (band): children in order, each `Label  route`.
 - Approvals  `/dashboard/approvals` (tabs inside: To review, Submitted by me; button New request, which opens the old picker `/dashboard/approval-requests/new`)
 - Manage band
   - Members: People `/dashboard/admin/users`; Officer positions `/dashboard/admin/positions`; Programs and sections `/dashboard/admin/programs-sections`
-  - Finance: Budgets `/dashboard/finance/budget-allocation`; Ledger `/dashboard/finance/financial-ledger`; Collections and advances `/dashboard/finance/collections`; Student accounts `/dashboard/finance/student-accounts`; Financial reports `/dashboard/finance/transaction-history`; Forecast `/dashboard/finance/financial-insights`
+  - Finance: Budgets `/dashboard/finance/budget-allocation`; Ledger `/dashboard/finance/financial-ledger`; Collections and advances `/dashboard/finance/collections`; Student accounts `/dashboard/finance/student-accounts`; Financial reports `/dashboard/finance/transaction-history`; Forecast `/dashboard/finance/financial-insights`. Finance follows the top bar semester: the ledger and collections by transaction date, budgets by their event semester (else the month they were created), financial reports by overlap of their period; Available funds and Awaiting remittance on Collections stay all-semester and say so
   - Events and tasks: Events `/dashboard/events/manage-events` (list and calendar toggle); Venue booking `/dashboard/venues`; Planning `/dashboard/events/event-planner`; Tasks `/dashboard/tasks/task-board`; AI delegation `/dashboard/tasks/ai-delegation`; Check-in `/dashboard/events/check-in`
 - Community band
   - Voting: Elections `/dashboard/elections/manage-elections` (hub; Party lists, Candidates, Voters are its in-page steps); Results `/dashboard/elections/election-results`
@@ -253,7 +253,7 @@ Format: group (band): children in order, each `Label  route`.
 - Dashboard `/dashboard/officer`
 - Manage band
   - Events and tasks: Check-in `/dashboard/events/check-in`; Calendar `/dashboard/events/activity-calendar`; Venue booking `/dashboard/venues`; My tasks `/dashboard/tasks/assigned-tasks`; AI delegation `/dashboard/tasks/ai-delegation`
-  - Finance (view only): Budgets; Ledger; Financial reports; Forecast (same routes as Admin, header chip "View only")
+  - Finance (view only): Budgets; Ledger; Financial reports; Forecast (same routes as Admin, header chip "View only", all following the top bar semester)
   - Members and fingerprints `/dashboard/admin/users` (single link, replaces "Organization Setup > Participant Biometrics")
 - Community band
   - Voting: Candidates `/dashboard/elections/manage-candidates`; Voters `/dashboard/elections/manage-voters`; Results
@@ -269,7 +269,7 @@ Format: group (band): children in order, each `Label  route`.
 - People `/dashboard/department-head/people` (students, office staff, organization leaders; works with zero organizations)
 - Submitted files `/dashboard/submitted-files`
 - Records `/dashboard/records` (every organization in the college, past school years, read only)
-- College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
+- College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin, following the top bar semester); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 
 **STUDENT** (7 rows, 11 leaves; same size, renamed and reordered)
 - Dashboard `/dashboard/student`
@@ -421,7 +421,7 @@ Shown in: the existing `StepTracker` (`MerchandisePage.jsx:226-246`) replaced by
 | 4 First use | Admin setup checklist 0 of N | Admin | "Finish your 3 setup steps" |
 | Branch | `archived` | SAO | "Archived: read only" |
 
-Shown in: DH Organizations rows and drawer, SAO Registrations cards and the review drawer (after Approve, the drawer swaps to a NextStep naming the Department Head), SAO organization overview.
+Shown in: DH Organizations rows and drawer, SAO Registrations cards and the review drawer (after Approve, the drawer swaps to a NextStep naming the Department Head), SAO organization overview. While an active college organization has no Admin the Department Head is also told on the dashboard (Needs attention item and the last "Next for you" step "Name the organization head of <organization>" with Give access, so the tracker no longer reads Setup complete) and on the Overview of the organization space.
 
 ### 4.7 Compliance renewal
 

@@ -124,7 +124,7 @@
       "4. If an election is running read the Active election card.",
       "5. Scroll down to Upcoming events and Announcements."
     ],
-    "expected": "The page loads without an error. The step list is titled Setting up your college and has the steps Office staff added, Student records loaded, Students allowed to apply, Applications reviewed and Organizations active. The three tiles are Awaiting your approval, Active organizations and Upcoming events. The Active election card shows only while an election is running. The lower boxes are Upcoming events and Announcements; a box with nothing in it shows a short plain message (No upcoming events. or No announcements yet.), not a blank gap. When the college has no organization yet the tiles are replaced by No student organizations yet with the button Allow a student to apply. There is no Oversight snapshot and no Pending Approvals by Type box.",
+    "expected": "The page loads without an error. The step list is titled Setting up your college and has the steps Office staff added, Student records loaded, Students allowed to apply, Applications reviewed and Organizations active, and last, only while an active organization of the college has no Admin, Name the organization head of <organization> with the button Give access (the dashboard Needs attention list also shows \"Name the organization head of <organization>\"). The three tiles are Awaiting your approval, Active organizations and Upcoming events. The Active election card shows only while an election is running. The lower boxes are Upcoming events and Announcements; a box with nothing in it shows a short plain message (No upcoming events. or No announcements yet.), not a blank gap. When the college has no organization yet the tiles are replaced by No student organizations yet with the button Allow a student to apply. There is no Oversight snapshot and no Pending Approvals by Type box.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -586,7 +586,7 @@
       "2. Look at the buttons on the Active row PSITS-CCS.",
       "3. Look at the buttons on an Archived row if you have one."
     ],
-    "expected": "Every row has View checklist. Active rows also have Open space. An Archived row has View checklist only and says Archived by the SAO. Read only. There is no Withdraw and no Edit and resubmit button: the head cannot change an organization from this list.",
+    "expected": "Every row has View checklist. Active rows also have Open space. An Active row whose organization has no Admin yet also says to name the organization head. An Archived row has View checklist only and says Archived by the SAO. Read only. There is no Withdraw and no Edit and resubmit button: the head cannot change an organization from this list.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -659,7 +659,7 @@
       "4. Pick a student of your college, open Access level and read the choices.",
       "5. Choose Organization head and select Give access."
     ],
-    "expected": "Access level offers Organization head, Officer and Member. After you save, the student appears in the People and access list with the Organization head badge and Everything under modules. A dean can name an organization head; an Admin of the organization cannot name another one beside themselves.",
+    "expected": "Access level offers Organization head, Officer and Member. Before you save, the dashboard, the Organizations row and the Overview tab of the organization space each tell you to name the organization head. After you save, the student appears in the People and access list with the Organization head badge and Everything under modules. A dean can name an organization head; an Admin of the organization cannot name another one beside themselves.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1146,7 +1146,7 @@
       "4. Look for the Organization drop down.",
       "5. Open one budget if the list has one."
     ],
-    "expected": "The note says: View only. You can review and export these records; the organization admin records and changes them. There is NO Propose budget, Edit, Delete or Generate advice button. The Organization drop down starts on All organizations. The budget opens for reading only.",
+    "expected": "The note says: View only. You can review and export these records; the organization admin records and changes them. There is NO Propose budget, Edit, Delete or Generate advice button. The Organization drop down starts on All organizations. The budget opens for reading only. The list and the Ledger net balance follow the semester the top bar shows.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1200,7 +1200,7 @@
       "3. Read the table columns.",
       "4. Look for Record transaction, Edit transaction and Delete transaction."
     ],
-    "expected": "The tiles show money amounts. The columns include Date, Description, Source, Payer / Recorder, Category, Type, Amount. There is NO Record transaction, Edit transaction or Delete transaction button.",
+    "expected": "The tiles show money amounts for the semester the top bar shows. The columns include Date, Description, Source, Payer / Recorder, Category, Type, Amount. There is NO Record transaction, Edit transaction or Delete transaction button.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1256,7 +1256,7 @@
       "4. Use Search report history and Filter reports by status.",
       "5. Select Export Excel on Full Transaction Log."
     ],
-    "expected": "There is NO report generator. The list shows each saved report with its approval stage (waiting for the Department Head, the SAO, approved or returned). The filters narrow the list. Export Excel downloads a file. The two cards Full Transaction Log and Category Breakdown offer Export Excel and Print / Save PDF.",
+    "expected": "There is NO report generator. The list shows each saved report with its approval stage (waiting for the Department Head, the SAO, approved or returned), limited to the reports whose period overlaps the semester the top bar shows. The filters narrow the list. Export Excel downloads a file. The two cards Full Transaction Log and Category Breakdown offer Export Excel and Print / Save PDF.",
     "priority": "Medium",
     "device": "Any",
     "type": "Access",
