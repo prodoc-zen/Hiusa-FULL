@@ -35,6 +35,8 @@ export default function ApplicationForm({ requirements, initial, submitLabel, bu
   const [files, setFiles] = useState({});
   const [fileErrors, setFileErrors] = useState({});
 
+  const missingFiles = requirements.filter((requirement) => !requirement.document && !files[requirement.id]).length;
+
   const change = (key) => (event) => setFields((current) => ({ ...current, [key]: event.target.value }));
 
   function chooseFile(requirement, file) {
@@ -101,7 +103,10 @@ export default function ApplicationForm({ requirements, initial, submitLabel, bu
         })}
       </fieldset>
 
-      <Button type="submit" loading={busy}>{submitLabel}</Button>
+      <div className="space-y-2">
+        {missingFiles > 0 && <p id="application-files-missing" className="text-sm text-ink-muted">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
+        <Button type="submit" loading={busy} disabled={missingFiles > 0} aria-describedby={missingFiles > 0 ? 'application-files-missing' : undefined}>{submitLabel}</Button>
+      </div>
     </form>
   );
 }
