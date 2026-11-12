@@ -80,6 +80,36 @@ describe('CastVotePage', () => {
     expect(screen.getByRole('button', { name: 'Back to Vote' })).toBeInTheDocument();
   });
 
+  it('shows the election title and the submission time on the submitted screen', async () => {
+    castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
+    render(<CastVotePage />);
+    fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
+
+    expect(await screen.findByText('Ballot submitted')).toBeInTheDocument();
+    expect(screen.getByText('Student Council Election')).toBeInTheDocument();
+    expect(screen.getByText(/^Submitted .*\d{4}/)).toBeInTheDocument();
+  });
+
+  it('prefers the time the server recorded once the election is refreshed', async () => {
+    castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
+    const { rerender } = render(<CastVotePage />);
+    fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
+    await screen.findByText('Ballot submitted');
+
+    shown = { ...election, my_votes: [{ position_id: 1, candidate_id: 11, vote_hash: 'SAFE-RECEIPT', cast_at: '2026-11-13T09:30:00.000Z' }] };
+    rerender(<CastVotePage />);
+
+    expect(screen.getByText(/^Submitted November 13, 2026/)).toBeInTheDocument();
+  });
+
   it('says turnout shows during voting and results appear when the election closes when the results are marked visible', async () => {
     shown = { ...election, results_visible: true };
     castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
