@@ -81,7 +81,7 @@ The person doing the test should see a screen that asks for a new password, and 
 A fresh seed has one academic year (2026-2027 when seeded on 11 Oct 2026, marked Current) and no semester. Until the SAO adds a semester and sets it as active, a Department Head has no registration requirements and cannot register an organization: the API refuses with "No registration requirements are open. The SAO must activate a semester first." Adding a semester is not enough, it starts as upcoming. On the development database the semester may already exist; open the Academic years page and check.
 
 1. Sign in as the SAO (990001 on a fresh seed, 930027 on the development database).
-2. Open Academic years under Setup and records. In the Semesters card choose Add semester, pick 1st Semester and dates that cover the whole test period (events must fall inside the active semester's dates), then choose Set as active on the new semester.
+2. Open Academic years under Setup and records. In the Semesters card choose Add semester, pick 1st Semester and dates that cover the whole test period (events must fall inside the active semester's dates), then choose Activate on the new semester and confirm with Activate semester.
 
 Checked on a fresh seed through the API by adding a semester and activating it: before, the Department Head's list of registration requirements was empty; after, it held ten. Adding the semester without activating it changed nothing.
 
@@ -98,26 +98,26 @@ For each journey: start at the home page after signing in, count clicks (typing 
 
 Menu names as the sidebar shows them today (from the menu configuration, in order). Use these when a journey names a page. A group opens its first page when you click it.
 
-- SAO: Dashboard; Organizations (Agency overview, Registrations and organizations, Administrators, Colleges); Reviews (Compliance, Venues, Grievances, Clearances); Updates (University announcements, Notifications); Setup and records (Academic years, Audit trail).
-- Department Head: Dashboard, Approvals, Organizations, then Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results and Announcements under College view (read only).
-- Admin (shown as Organization Admin): Dashboard, Approvals; Members (People, Officer positions, Programs and sections); Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast); Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); Voting (Elections, Results); Store (Inventory, Orders, Claim desk); Updates (Announcements, Feed); Records (Compliance, Grievances, Clearance signing, Audit log); My activity (Vote, Shop, My orders, My receipts, Statement of account).
-- SBO Officer: Dashboard; Events and tasks (Check-in, Calendar, Venue booking, My tasks, AI delegation); Finance (view only); Members and fingerprints; Voting (Candidates, Voters, Results); Store (Orders, Claim desk); Updates (Announcements, Feed); Clearance signing; My activity.
-- Student: Dashboard; My payments (Statement of account, Receipts); Events; Voting (Vote, Results); Store (Shop, My orders); Updates (Announcements); Support (My clearance, My grievances).
+- SAO: Dashboard, University users, Ask AI; Governance (Colleges, Student records, Applications, Organizations, Administrators); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail).
+- Department Head: Dashboard, Ask AI, Organization applications, Approvals, Organizations, People, College files, Records, College compliance, Clearance signing and Announcements, then Finance (Budgets, Ledger, Financial reports, Forecast), Calendar and Election results under College view (read only).
+- Admin (shown as Organization Admin): Dashboard, Ask AI, Approvals; Members (People, Admins, Officer positions, Programs and sections); Finance (Budgets, Ledger, Collections and advances, Student accounts, Financial reports, Forecast); Events and tasks (Events, Venue booking, Planning, Tasks, AI delegation, Check-in); Voting (Elections, Results); Store (Inventory, Orders, Claim desk); Updates (Announcements, Feed); Records (Compliance, Submitted files, School year records, Grievances, Clearance signing, Audit log); My activity (Vote, Shop, My orders, My receipts, Statement of account).
+- SBO Officer: Dashboard, Ask AI; Events and tasks (Check-in, Calendar, Venue booking, My tasks); Finance (view only) (Budgets, Ledger, Financial reports, Forecast); Members and fingerprints; Voting (Candidates, Voters, Results); Store (Orders, Claim desk); Updates (Announcements, Feed); Clearance signing; Records; My activity. An officer sees only the pages of the modules the Admin gave them.
+- Student: Dashboard, Ask AI; My payments (Statement of account, Receipts); Events; Voting (Vote, Results); Store (Shop, My orders); Updates (Announcements); Support (My clearance, My grievances). A student the Department Head allowed to apply, or who has an application, also sees Apply for an organization after Ask AI.
 - Every role also has Profile and Study objectives at the bottom of the menu.
 
 ### SAO
 
-1. Approve a registration and give it an administrator (5 clicks). The home page shows how many registrations wait. Open it (Registrations and organizations), review the documents, approve, then follow the next step (Create administrator) to create the organization's administrator. End: the organization is Active with one administrator. This needs a registration from a Department Head, so open a semester first (section 3). The new administrator must change their password at first sign-in.
-2. Review compliance (3 clicks). From the home page, land on the review queue (Reviews, Compliance), open a submission, decide. End: the submission shows its new status.
-3. Decide a financial report (3 clicks, also under Reviews, Compliance). End: the report shows Approved.
-4. See who needs attention (2 clicks). Open Organizations, Agency overview. End: organizations that need action are listed first.
+1. Approve an organization application (5 clicks). Governance, Applications, Review on the row under To review, Accept all not checked, Approve. Approve has no confirmation window. This needs an application that a Department Head endorsed, so open a semester first (section 3). End: the page reads Approved. Governance, Organizations, Active tab then shows the organization with one administrator: the applicant holds the position they asked for at once, and there is no separate step to create an administrator.
+2. Review compliance (5 clicks, the confirmation counted and kept on purpose). From the home page: Reviews, Compliance, the amber "N waiting" badge in the Awaiting review column (organizations with submissions waiting are listed first), open a submission, decide, confirm. End: the submission shows its new status.
+3. Decide a financial report (5 clicks, the confirmation counted and kept on purpose, also under Reviews, Compliance). Follow the amber "N waiting" badge for reports. End: the report shows Approved.
+4. See what needs attention (1 click). On the Dashboard the Review inbox counts the work waiting for the SAO and each row opens the list that holds it. Select the row with the highest count, or the filled button at the top. End: you land on that list without searching.
 5. Answer a grievance (4 clicks). Reviews, Grievances. End: the student's My grievances shows Resolved.
 
 ### Department Head (940001)
 
-1. Register an organization (3 clicks). Organizations, Register an organization, submit with the ten files. Needs an active semester (section 3). End: the row reads Pending review and its status says Pending review: waiting for SAO review.
+1. Endorse an organization application (4 clicks). Organization applications, Review on the row under To review, Accept all not checked, Endorse. Needs an active semester (section 3) and an application sent by a student the head allowed to apply. End: the message reads Endorsed. The SAO is next. and the page shows the status With the SAO.
 2. Approve an item (4 clicks). Approvals, open an item, Approve, confirm. End: the item shows Approved and links to the event, budget or report.
-3. Follow up a returned registration (3 clicks from home). End: the row reads Waiting for SAO review again.
+3. Review an application again after it was returned and sent again (4 clicks from home, the same path as journey 1; 3 when the student changed no file, because files you accepted before and that did not change start as Accepted). End: the page shows the status With the SAO again.
 4. Act from a notification (2 clicks). Click the bell, click a notification. End: you land on the exact item.
 
 ### Admin (900001)

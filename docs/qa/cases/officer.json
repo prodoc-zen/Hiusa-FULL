@@ -327,7 +327,7 @@
       "3. Write down the number under \"Attendance records\".",
       "4. In the box \"Manual check-in\" type 2100142 into \"Member\".",
       "5. Click the matching result (it shows the name and \"2100142 · Student\").",
-      "6. Leave \"Attendance status\" on Present and click \"Confirm Check-In\"."
+      "6. Leave \"Attendance status\" on Present and click \"Confirm check-in\"."
     ],
     "expected": "A green message says \"Check-in recorded.\" The Member box is emptied. \"Attendance records\" goes up by 1. The student appears in the attendance log with status Present and method Manual. A mistyped ID is never recorded because you must pick the result and then confirm.",
     "priority": "High",
@@ -339,12 +339,12 @@
     "id": "SBO-019",
     "role": "SBO Officer",
     "module": "Events and tasks > Check-in",
-    "title": "Confirm Check-In waits for a chosen member and saves Late and Excused",
+    "title": "Confirm check-in waits for a chosen member and saves Late and Excused",
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Two students who are not yet checked in, for example 2100217 and 2200055.",
     "steps": [
-      "1. Look at the button \"Confirm Check-In\" while the Member box is empty.",
+      "1. Look at the button \"Confirm check-in\" while the Member box is empty.",
       "2. Type 2100217 but do not click the result. Look at the button again.",
-      "3. Click the result, set \"Attendance status\" to Late and click \"Confirm Check-In\".",
+      "3. Click the result, set \"Attendance status\" to Late and click \"Confirm check-in\".",
       "4. Check in 2200055 with the status Excused.",
       "5. Read the cards at the top (\"Late\") and the attendance log."
     ],
@@ -362,7 +362,7 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Student 2100142 is already in the attendance log of that event.",
     "steps": [
       "1. Type 2100142 in \"Member\" and click the result.",
-      "2. Click \"Confirm Check-In\".",
+      "2. Click \"Confirm check-in\".",
       "3. Read the red message.",
       "4. Look at the number under \"Attendance records\" and the attendance log."
     ],
@@ -440,7 +440,7 @@
       "4. Try to click \"Scan Fingerprint\".",
       "5. Then use \"Manual check-in\" for a student to confirm it still works.",
       "6. With a reader: click \"Scan Fingerprint\" and place one finger.",
-      "7. Read the window \"Confirm Fingerprint Check-In\" and click \"Confirm Check-In\".",
+      "7. Read the window \"Confirm fingerprint check-in\" and click \"Confirm check-in\".",
       "8. Try \"No, Scan Again\" on another scan."
     ],
     "expected": "Without a reader the line says \"Reader unavailable\" with \"Connect the reader and make sure HID Authentication Device Client is running.\", and \"Scan Fingerprint\" is greyed out. Manual check-in still works. With a reader the line says \"DigitalPersona reader ready\"; a match opens a window that names the student; confirming adds a record with method Biometric; \"No, Scan Again\" cancels without a record. VERIFY: the reader steps (no hardware seen when this case was written).",
@@ -459,7 +459,7 @@
       "1. Open Events and tasks > Check-in from the menu.",
       "2. Tap the event under \"Event queue\".",
       "3. Type 2200134 in \"Member\" and tap the result.",
-      "4. Tap \"Confirm Check-In\".",
+      "4. Tap \"Confirm check-in\".",
       "5. Scroll to the attendance log and read the first card.",
       "6. Tap \"All Events\" to go back to the list."
     ],
@@ -593,7 +593,7 @@
       "1. Open Events and tasks > My tasks.",
       "2. Click \"Complete\" on the in-progress task.",
       "3. In the window \"Confirm Task Completion\" click \"Cancel\" and check the task did not change.",
-      "4. Click \"Complete\" again, then \"Confirm Completion\".",
+      "4. Click \"Complete\" again, then \"Confirm completion\".",
       "5. Read the task row and the top cards."
     ],
     "expected": "The window says: Mark \"<task title>\" as completed? Progress will be saved at 100% and the Admin will be notified. After confirming, the task shows Completed with 100 percent, \"Completed\" goes up by 1 and the buttons \"Start\" and \"Complete\" are gone. The Admin gets a notification (check this on 900001 if you can).",
@@ -1037,12 +1037,13 @@
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3).",
     "steps": [
       "1. Open Voting > Voters and open the election if asked.",
-      "2. Read the cards Total Voters, Voted, Not Yet Voted and Election Status.",
-      "3. Type a student name in \"Search by name or school ID...\".",
-      "4. Click the buttons \"Voted\", \"Not Yet\" and \"All\".",
-      "5. If there is more than one page use the page buttons at the bottom."
+      "2. Read the line above the table.",
+      "3. Type a student name in \"Search voters\" (Name or school ID).",
+      "4. Open the list \"Vote\" and choose \"Voted\", then \"Not yet voted\", then \"All voters\".",
+      "5. Select Clear.",
+      "6. If there is more than one page use the page buttons at the bottom."
     ],
-    "expected": "The cards show totals and the turnout percent. The table shows Name, School ID, Role, Email and \"Vote Status\" (Voted or Not Yet). It never shows who a person voted for. Search and the buttons only apply to the page on screen. An empty election says \"No eligible voters are registered in this organization yet.\"",
+    "expected": "The line reads \"<n> of <total> eligible voters have voted (<percent>% turnout). <k> still to vote.\" The table shows Name, School ID, Role, Email and Vote (Voted or Not yet). It never shows who a person voted for. Search and the Vote list only apply to the page on screen: with more than one page a search that matches nothing says \"No voters match\" and \"Search and filters apply to the current page only.\" An empty election says \"No voters yet\" and \"No eligible voters are registered in this organization yet.\"",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1700,7 +1701,7 @@
       "2. In the \"Event queue\" click the new event (button \"Open attendance for ...\"). A single ongoing event opens by itself.",
       "3. Write down the number under \"Attendance records\".",
       "4. In the box \"Manual check-in\" type 2100142 into \"Member\" and click the matching result.",
-      "5. Leave \"Attendance status\" on Present and click \"Confirm Check-In\".",
+      "5. Leave \"Attendance status\" on Present and click \"Confirm check-in\".",
       "6. Read the message and the number under \"Attendance records\" again."
     ],
     "expected": "A green message says \"Check-in recorded.\" and the number goes up by 1. The student shows in the log as Present, method Manual. The message \"Historical semester events are read only.\" does NOT appear, because the event belongs to the semester that is active now. This is the branch behind the server check EnsureCurrentEventSemester: an event of the active semester passes, an event of a closed semester is refused (see GEN-108). Only events of the active semester are in the queue in this round.",

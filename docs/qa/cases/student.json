@@ -702,7 +702,7 @@
     "preconditions": "Sequence: the SAO (990001) activates a semester (tester guide section 3). Student 2100142 had 3 events before this.",
     "steps": [
       "1. Before the SAO acts, note the events in Events and in \"Coming up\".",
-      "2. The SAO adds a semester and chooses \"Set as active\".",
+      "2. The SAO adds a semester and chooses \"Activate\".",
       "3. Reload Events as the student.",
       "4. Reload the student home."
     ],
@@ -1018,14 +1018,14 @@
     "title": "Place a cash reservation",
     "preconditions": "Signed in as Student 2300312 (or 2400019). An item in stock.",
     "steps": [
-      "1. Open Store, Shop.",
-      "2. Tap \"Add to Cart\" on \"HIUSA Tote Bag\".",
-      "3. Tap \"My Cart\".",
-      "4. Tap \"Review & Continue\".",
-      "5. Check that Payment Method says \"Cash on pickup\".",
-      "6. Tap \"Place Reservation\"."
+      "1. Select Store in the menu. It opens Shop.",
+      "2. Tap \"Add to cart\" on \"HIUSA Tote Bag\".",
+      "3. Tap the cart icon in the top bar (named \"Cart\"), or tap \"View cart\" under the shop filters.",
+      "4. Tap \"Review and continue\".",
+      "5. Check that Payment method says \"Cash on pickup\".",
+      "6. Tap \"Place reservation\"."
     ],
-    "expected": "A message \"ORD-<number> reserved.\" appears and you land on My orders. The order shows \"Step 1 of 4: Reserved\" and the text \"Pay cash at pickup, or submit GCash proof\". Total clicks to place the order: 5 or 6.",
+    "expected": "A message \"Order ORD-<number> reserved.\" appears and you land on My orders. The order shows \"Step 1 of 4: Reserved\" and the text \"Pay cash at pickup, or submit GCash proof\". Total clicks to place the order from the home page: 5 (Store, Add to cart, the cart icon or View cart, Review and continue, Place reservation). Choosing the payment method is a check, not a click, because Cash on pickup is already selected.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
