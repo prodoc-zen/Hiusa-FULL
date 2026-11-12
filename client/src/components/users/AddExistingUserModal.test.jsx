@@ -40,7 +40,29 @@ describe('AddExistingUserModal', () => {
   it.each([['ADMIN', 'college'], ['SUPER_ADMIN', 'all']])('searches with the right scope for %s', async (actorRole, scope) => {
     render(<AddExistingUserModal organization={organization} actorRole={actorRole} onClose={vi.fn()} />);
     await pickMaria();
-    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope, exclude_organization_id: 8 });
+    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'maria', scope, exclude_organization_id: 8, eligible_for_organization_id: 8 });
+  });
+
+  it('asks only for students the chosen organization would accept, and drops a picked student when the organization changes', async () => {
+    render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '8' } });
+    await pickMaria();
+    expect(mocks.searchPeople).toHaveBeenLastCalledWith({ q: 'maria', scope: 'all', exclude_organization_id: 8, eligible_for_organization_id: 8 });
+    expect(screen.getByRole('button', { name: 'Remove Maria Reyes' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    expect(screen.queryByRole('button', { name: 'Remove Maria Reyes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add administrator' })).toBeDisabled();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Student' }), { target: { value: 'maria' } });
+    await waitFor(() => expect(mocks.searchPeople).toHaveBeenLastCalledWith({ q: 'maria', scope: 'all', exclude_organization_id: 9, eligible_for_organization_id: 9 }));
+  });
+
+  it('keeps the person a row opened the dialog for when the organization changes', async () => {
+    render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialRole="ADMIN" initialUser={{ school_id: 24001001, first_name: 'Maria', last_name: 'Reyes', email: 'maria@example.test' }} onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText(/^Organization/), { target: { value: '9' } });
+    expect(screen.getByRole('button', { name: 'Remove Maria Reyes' })).toBeInTheDocument();
   });
 
   it.each(['DEPARTMENT_HEAD', 'SUPER_ADMIN'])('lets %s assign the organization head role', async (actorRole) => {
