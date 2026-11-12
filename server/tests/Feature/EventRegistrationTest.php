@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\Organization;
@@ -50,6 +52,53 @@ class EventRegistrationTest extends TestCase
             'module' => 'event_registrations',
             'action' => 'registered',
         ]);
+    }
+
+    private function semesterEvent(string $status, Organization $organization, User $admin): Event
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'status' => $status]);
+
+        return $this->makeEvent($organization, $admin, ['academic_semester_id' => $semester->id]);
+    }
+
+    public function test_registration_and_cancellation_are_refused_for_an_event_in_a_closed_semester(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $event = $this->semesterEvent('completed', $organization, $admin);
+
+        Sanctum::actingAs($student);
+        $this->postJson("/api/events/{$event->id}/registrations")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This school year is closed. Its records are read only.');
+        $this->assertDatabaseMissing('event_registrations', ['event_id' => $event->id]);
+
+        EventRegistration::create([
+            'event_id' => $event->id,
+            'organization_id' => $organization->id,
+            'user_id' => $student->school_id,
+            'status' => 'registered',
+            'registered_at' => now(),
+        ]);
+        $this->deleteJson("/api/events/{$event->id}/registrations/mine")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This school year is closed. Its records are read only.');
+
+        $this->assertDatabaseHas('event_registrations', ['event_id' => $event->id, 'user_id' => $student->school_id, 'status' => 'registered']);
+    }
+
+    public function test_the_same_event_in_an_active_semester_still_registers_and_cancels(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $event = $this->semesterEvent('active', $organization, $admin);
+
+        Sanctum::actingAs($student);
+        $this->postJson("/api/events/{$event->id}/registrations")->assertCreated();
+        $this->deleteJson("/api/events/{$event->id}/registrations/mine")->assertOk()->assertJsonPath('status', 'cancelled');
     }
 
     public function test_duplicate_registration_is_rejected(): void

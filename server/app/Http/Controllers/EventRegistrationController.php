@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsurePeriodWritable;
+use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
 use App\Models\AuditLog;
@@ -25,6 +27,10 @@ class EventRegistrationController extends Controller
 
         if (! $this->isVisible($event, $user)) {
             return response()->json(['message' => 'Event not available.'], 403);
+        }
+
+        if (AcademicSemester::isClosed($event->academic_semester_id)) {
+            return response()->json(['message' => EnsurePeriodWritable::CLOSED], 409);
         }
 
         if (! $this->isRegistrable($event)) {
@@ -99,6 +105,10 @@ class EventRegistrationController extends Controller
 
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
+        }
+
+        if (AcademicSemester::isClosed($event->academic_semester_id)) {
+            return response()->json(['message' => EnsurePeriodWritable::CLOSED], 409);
         }
 
         $registration = EventRegistration::where('event_id', $event->id)
