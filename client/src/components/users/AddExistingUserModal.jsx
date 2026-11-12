@@ -54,6 +54,8 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   const headRefused = headMode && Boolean(target) && !headOffered;
   // Head wording only while the head role is the one that will be sent (or no organization is chosen yet to refuse it).
   const headWording = effectiveRole === 'ADMIN' || (role === 'ADMIN' && !target);
+  // In head mode the select offers Member, so the fallback is worded as a member rather than a student.
+  const memberWording = headMode && effectiveRole === 'STUDENT';
 
   useEffect(() => {
     if (organization) return undefined;
@@ -86,13 +88,13 @@ export default function AddExistingUserModal({ organization = null, initialUser 
   return (
     <Drawer
       open
-      title={headWording ? 'Add administrator' : 'Add an existing student'}
+      title={headWording ? 'Add administrator' : memberWording ? 'Add a member' : 'Add an existing student'}
       description="They keep their own login and any other organizations they already belong to."
       onClose={() => !busy && onClose()}
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button type="submit" form={formId} loading={busy} disabled={!selected || !target || optionsLoading}>{headWording ? 'Add administrator' : 'Add student'}</Button>
+          <Button type="submit" form={formId} loading={busy} disabled={!selected || !target || optionsLoading}>{headWording ? 'Add administrator' : memberWording ? 'Add member' : 'Add student'}</Button>
         </>
       )}
     >

@@ -101,7 +101,7 @@ describe('AddExistingUserModal', () => {
     expect(screen.getByRole('option', { name: 'Member' }).selected).toBe(true);
     expect(screen.getByText(/can be added only as a member/i)).toBeInTheDocument();
     await pickMaria();
-    fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
   });
 
@@ -109,9 +109,9 @@ describe('AddExistingUserModal', () => {
     mocks.getProfileOrganizations.mockResolvedValue({ data: [organization] });
     render(<AddExistingUserModal actorRole="ADMIN" initialRole="ADMIN" onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByLabelText(/^Organization/)).toHaveValue('8'));
-    expect(screen.getByText('Add an existing student')).toBeInTheDocument();
+    expect(screen.getByText('Add a member')).toBeInTheDocument();
     expect(screen.queryByText('Add administrator')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add student' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add administrator' })).not.toBeInTheDocument();
   });
 
