@@ -182,22 +182,40 @@ describe('desktop sidebar rail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
     expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
-    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledOnce();
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
   });
 
-  it('closes the phone drawer when a group tap navigates and keeps it open when the tap only folds the group', () => {
+  it('keeps the phone drawer open with the children listed when a group is tapped, and closes it on the child chosen', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const onClose = vi.fn();
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness mobileOpen onClose={onClose} /></MemoryRouter>);
+
+    expect(screen.queryByRole('link', { name: 'Budgets' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Finance' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Budgets' })).toBeVisible();
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/admin');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
+  });
+
+  it('keeps the phone drawer open when a group tap folds it, and closes it on a link with no children', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     const onClose = vi.fn();
     render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness mobileOpen onClose={onClose} /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
-    expect(screen.getByTestId('route')).not.toHaveTextContent('/dashboard/admin');
-    expect(onClose).toHaveBeenCalledOnce();
-
     fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(screen.getByRole('button', { name: 'Finance' })).toHaveAttribute('aria-expanded', 'false');
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
