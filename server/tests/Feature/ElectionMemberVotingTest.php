@@ -135,7 +135,8 @@ class ElectionMemberVotingTest extends TestCase
         Sanctum::actingAs($member);
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
 
-        $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonCount(1, 'my_votes');
+        $mine = $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonCount(1, 'my_votes')->json('my_votes.0');
+        $this->assertNotEmpty($mine['cast_at']);
     }
 
     public function test_a_student_of_the_college_with_no_profile_in_the_organization_cannot_see_or_vote(): void

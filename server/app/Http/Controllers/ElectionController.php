@@ -159,7 +159,7 @@ class ElectionController extends Controller
         // identities are never exposed by this endpoint.
         $myVotes = Vote::where('election_id', $id)
             ->where('voter_id', $user->school_id)
-            ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id']);
+            ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id', 'cast_at']);
 
         [$data] = $this->withApprovalFields($request, [$election->toArray()]);
         $data['my_votes'] = $myVotes;

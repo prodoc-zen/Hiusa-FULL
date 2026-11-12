@@ -9,7 +9,6 @@ use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\Notification;
 use App\Models\Organization;
-use App\Models\SboPosition;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -70,11 +69,11 @@ class ElectionHandoverService
     }
 
     /**
-     * Give each position's winners access to the organization and retire the outgoing holders
-     * of the same position. A tied seat stays open, so its outgoing holders keep access until
+     * Give each position's winners access to the organization and step the outgoing holders
+     * of the same position down to plain students. A tied seat stays open, so its outgoing holders keep access until
      * someone assigns it by hand. Runs once per election, however many times results are released.
      *
-     * @return array{handed_over: bool, granted: int, deactivated: int, ties: int}|null null when nothing ran
+     * @return array{handed_over: bool, granted: int, demoted: int, ties: int}|null null when nothing ran
      */
     public function handOver(Election $election, ?int $actorSchoolId = null, ?string $ipAddress = null): ?array
     {
@@ -96,7 +95,7 @@ class ElectionHandoverService
             $standings = $this->standings($election);
             $granted = [];
             $skipped = [];
-            $deactivated = [];
+            $demoted = [];
             $ties = $standings->where('tie', true)->map(fn (array $row) => $row['position']->title)->values()->all();
             $decided = $standings->reject(fn (array $row) => $row['winners']->isEmpty());
 
@@ -109,16 +108,17 @@ class ElectionHandoverService
                     ->whereNotIn('user_school_id', $winnerIds)
                     ->get();
                 foreach ($outgoing as $profile) {
-                    $profile->update(['account_status' => 'inactive']);
-                    $deactivated[] = (int) $profile->user_school_id;
+                    // A former officer is still a member: they keep the organization, stay on the voter roll and lose only the seat.
+                    $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
+                    $demoted[] = (int) $profile->user_school_id;
                 }
             }
 
             foreach ($decided as $row) {
                 $title = $row['position']->title;
-                $role = $this->roleFor($organization->id, $title);
+                $role = $this->roleFor($title);
                 foreach ($row['winners'] as $candidate) {
-                    $outcome = $this->grant($organization, $election, (int) $candidate->user_id, $role, $title, $deactivated);
+                    $outcome = $this->grant($organization, $election, (int) $candidate->user_id, $role, $title, $demoted);
                     if ($outcome === 'granted') {
                         $granted[] = ['school_id' => (int) $candidate->user_id, 'position_title' => $title, 'role' => $role];
                     } elseif ($outcome === 'skipped') {
@@ -127,7 +127,7 @@ class ElectionHandoverService
                 }
             }
 
-            $deactivated = array_values(array_diff($deactivated, array_column($granted, 'school_id')));
+            $demoted = array_values(array_diff($demoted, array_column($granted, 'school_id')));
 
             AuditLog::create([
                 'organization_id' => $organization->id,
@@ -137,32 +137,28 @@ class ElectionHandoverService
                 'record_type' => Election::class,
                 'record_id' => $election->id,
                 'old_values' => null,
-                'new_values' => ['granted' => $granted, 'skipped' => $skipped, 'deactivated' => $deactivated, 'ties' => $ties],
+                'new_values' => ['granted' => $granted, 'skipped' => $skipped, 'demoted' => $demoted, 'ties' => $ties],
                 'ip_address' => $ipAddress,
                 'created_at' => now(),
             ]);
 
-            return ['handed_over' => true, 'granted' => count($granted), 'deactivated' => count($deactivated), 'ties' => count($ties)];
+            return ['handed_over' => true, 'granted' => count($granted), 'demoted' => count($demoted), 'ties' => count($ties)];
         });
     }
 
-    private function roleFor(int $organizationId, string $title): string
+    /**
+     * The President and every Vice President head the organization; every other seat is an officer.
+     * The organization's position list is not consulted: it carries the standard titles under both roles.
+     */
+    private function roleFor(string $title): string
     {
-        $listed = SboPosition::where('organization_id', $organizationId)
-            ->whereRaw('lower(title) = ?', [Str::lower($title)])
-            ->orderByRaw("case when role = 'ADMIN' then 0 else 1 end")
-            ->first();
+        $normalised = Str::lower(trim(preg_replace('/[\p{Pd}\s]+/u', ' ', $title) ?? $title));
 
-        if ($listed) {
-            return $listed->role === 'ADMIN' ? 'ADMIN' : 'SBO_OFFICER';
-        }
-
-        // Only the president seat itself heads the org; Vice President and the like stay officers.
-        return Str::lower(trim($title)) === 'president' ? 'ADMIN' : 'SBO_OFFICER';
+        return $normalised === 'president' || str_starts_with($normalised, 'vice president') ? 'ADMIN' : 'SBO_OFFICER';
     }
 
     /**
-     * @param  array<int, int>  $retired  holders retired in this run, who may take the seat they won instead
+     * @param  array<int, int>  $retired  holders stepped down in this run, who may take the seat they won instead
      * @return 'granted'|'kept'|'skipped'
      */
     private function grant(Organization $organization, Election $election, int $schoolId, string $role, string $title, array $retired): string
@@ -174,7 +170,7 @@ class ElectionHandoverService
             return 'skipped';
         }
 
-        // A profile or account switched off for cause stays off; only a seat just retired here is taken back.
+        // A profile or account switched off for cause stays off; only a seat just stepped down from here is taken back.
         if ($profile && ! $retiredNow && $profile->account_status !== 'active') {
             return 'skipped';
         }
