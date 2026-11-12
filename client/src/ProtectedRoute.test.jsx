@@ -23,6 +23,39 @@ function signIn(user) {
   localStorage.setItem('user', JSON.stringify(user));
 }
 
+function renderVenues() {
+  return render(
+    <MemoryRouter initialEntries={['/dashboard/venues']}>
+      <Routes>
+        <Route path="/dashboard/venues" element={<ProtectedRoute allowedRoles={['ADMIN', 'SBO_OFFICER']} requireVenueBooking><p>Venue booking page</p></ProtectedRoute>} />
+        <Route path="/dashboard/officer" element={<p>Officer dashboard</p>} />
+        <Route path="/dashboard/admin" element={<p>Admin dashboard</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('ProtectedRoute venue booking guard', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('sends an officer whose position cannot book back to the officer dashboard', () => {
+    signIn({ role: 'SBO_OFFICER', can_book_venues: false });
+    renderVenues();
+    expect(screen.getByText('Officer dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('Venue booking page')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['an officer whose position can book', { role: 'SBO_OFFICER', can_book_venues: true }],
+    ['an officer signed in before the flag existed', { role: 'SBO_OFFICER' }],
+    ['an Admin', { role: 'ADMIN', can_book_venues: false }],
+  ])('opens the page for %s', (_label, user) => {
+    signIn(user);
+    renderVenues();
+    expect(screen.getByText('Venue booking page')).toBeInTheDocument();
+  });
+});
+
 describe('ProtectedRoute password change guard', () => {
   beforeEach(() => localStorage.clear());
 

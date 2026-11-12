@@ -53,6 +53,25 @@ describe('modules narrow an officer menu', () => {
   });
 });
 
+describe('an officer position that cannot book venues', () => {
+  const venueLeaves = (nav) => nav.flatMap((item) => item.children || [item]).filter((item) => item.id === 'gov-venues');
+
+  it('drops Venue booking from the menu and the command palette, and keeps the rest of the group', () => {
+    expect(venueLeaves(getNavForRole('SBO_OFFICER', null, false))).toEqual([]);
+    expect(labels(getNavForRole('SBO_OFFICER', null, false).find((item) => item.id === 'events-tasks').children)).toEqual(['Check-in', 'Calendar', 'My tasks']);
+    expect(getFlatPages('SBO_OFFICER', null, false).map((page) => page.label)).not.toContain('Venue booking');
+    expect(getNavLeaves('SBO_OFFICER', null, false).map((leaf) => leaf.id)).not.toContain('gov-venues');
+  });
+
+  it('keeps it when the position can book, when nothing is said, and for an Admin whatever the flag', () => {
+    expect(venueLeaves(getNavForRole('SBO_OFFICER', null, true))).toHaveLength(1);
+    expect(getNavForRole('SBO_OFFICER', null, true)).toBe(getNavForRole('SBO_OFFICER'));
+    expect(venueLeaves(getNavForRole('SBO_OFFICER'))).toHaveLength(1);
+    expect(getNavForRole('ADMIN', null, false)).toBe(getNavForRole('ADMIN'));
+    expect(venueLeaves(getNavForRole('ADMIN', null, false))).toHaveLength(1);
+  });
+});
+
 describe('the dean organization menu', () => {
   it('has the five pages of one organization, all under its own address', () => {
     const nav = getOrgSpaceNav(12);
