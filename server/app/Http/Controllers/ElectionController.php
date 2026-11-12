@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Vote;
 use App\Services\ElectionHandoverService;
 use App\Support\FilterValues;
+use App\Support\FullNameSearch;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1291,8 +1292,19 @@ class ElectionController extends Controller
         $eligibleTotal = (clone $votersQuery)->count();
         $votedCount = (clone $votersQuery)->whereIn('account_profiles.user_school_id', $voterIds)->count();
 
+        $search = trim((string) $request->query('search', ''));
+        $vote = $request->query('vote');
+
         $paginated = $votersQuery
             ->join('users as voter', 'voter.school_id', '=', 'account_profiles.user_school_id')
+            ->when($search !== '', fn ($query) => $query->where(function ($matches) use ($search) {
+                $matches->where('voter.first_name', 'like', "%{$search}%")
+                    ->orWhere('voter.last_name', 'like', "%{$search}%")
+                    ->orWhere('voter.school_id', 'like', "%{$search}%");
+                FullNameSearch::orWhereMatches($matches, $search, 'voter');
+            }))
+            ->when($vote === 'voted', fn ($query) => $query->whereIn('voter.school_id', $voterIds))
+            ->when($vote === 'not_voted', fn ($query) => $query->whereNotIn('voter.school_id', $voterIds))
             ->orderBy('voter.last_name')
             ->orderBy('voter.first_name')
             ->select(['voter.school_id', 'voter.first_name', 'voter.last_name', 'voter.email', 'account_profiles.role'])
