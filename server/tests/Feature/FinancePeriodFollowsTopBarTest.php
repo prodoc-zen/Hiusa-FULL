@@ -143,6 +143,7 @@ class FinancePeriodFollowsTopBarTest extends TestCase
             'organization_id' => $this->org->id,
             'report_type' => 'custom',
             'title' => $title,
+            'submission_status' => 'approved',
             'period_start' => $start,
             'period_end' => $end,
             'generated_at' => '2027-06-01 08:00:00',
@@ -208,8 +209,13 @@ class FinancePeriodFollowsTopBarTest extends TestCase
 
     public function test_collections_follow_the_top_bar_semester(): void
     {
-        $this->assertSame(['COL-ACTIVE'], $this->column($this->read($this->admin, '/api/collections')->json(), 'reference'));
-        $this->assertSame(['COL-PLANNED'], $this->column($this->read($this->admin, '/api/collections', $this->inPeriod($this->upcoming))->json(), 'reference'));
+        $settled = $this->makeCollection('COL-SETTLED-ACTIVE', '2027-02-22');
+        $this->makeRemittance($settled, 300, '2027-02-26');
+        $this->makeRemittance($this->makeCollection('COL-SETTLED-PLANNED', '2027-09-22'), 300, '2027-09-26');
+
+        // The two unsettled collections still owe a remittance, so both stay in view; a settled one follows its semester.
+        $this->assertSame(['COL-ACTIVE', 'COL-PLANNED', 'COL-SETTLED-ACTIVE'], $this->column($this->read($this->admin, '/api/collections')->json(), 'reference'));
+        $this->assertSame(['COL-ACTIVE', 'COL-PLANNED', 'COL-SETTLED-PLANNED'], $this->column($this->read($this->admin, '/api/collections', $this->inPeriod($this->upcoming))->json(), 'reference'));
     }
 
     public function test_the_collections_remitted_card_follows_the_semester_while_the_running_balances_cover_all_of_them(): void
