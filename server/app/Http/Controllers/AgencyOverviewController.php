@@ -37,7 +37,7 @@ class AgencyOverviewController extends Controller
             ]]);
         }
 
-        $organizations = Organization::student()->orderBy('name')->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'is_active', 'submitted_at']);
+        $organizations = Organization::student()->orderBy('name')->get(['id', 'name', 'acronym', 'college_id', 'is_university_wide', 'lifecycle_status', 'is_active', 'submitted_at']);
         $ids = $organizations->pluck('id');
         $members = $this->profileCounts($ids);
         $approvals = ApprovalRequest::whereIn('organization_id', $ids)->where('status', 'pending')
@@ -50,7 +50,7 @@ class AgencyOverviewController extends Controller
             $counts = $this->memberCounts($members->get($organization->id, collect()));
 
             return [
-                ...$organization->only(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'is_active', 'submitted_at']),
+                ...$organization->only(['id', 'name', 'acronym', 'college_id', 'is_university_wide', 'lifecycle_status', 'is_active', 'submitted_at']),
                 'member_counts' => $counts,
                 'administrators_count' => $counts['ADMIN'],
                 'accreditation_status' => $accreditation[$organization->id] ?? 'not_applicable',
@@ -105,7 +105,7 @@ class AgencyOverviewController extends Controller
 
         return response()->json([
             'organization' => [
-                ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'is_active', 'lifecycle_status']),
+                ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'is_university_wide', 'is_active', 'lifecycle_status']),
                 'admin_payload' => $organization->admin_payload,
             ],
             'lifecycle' => [

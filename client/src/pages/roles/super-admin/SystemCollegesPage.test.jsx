@@ -476,6 +476,15 @@ describe('SystemCollegesPage', () => {
       expect(screen.getAllByText('Loose Club').length).toBeGreaterThan(0);
     });
 
+    it('says the SAO adds the Admin of a university-wide organization without a college, not the Department Head', async () => {
+      show(agency({ unassigned_organizations: [row({ id: 7, name: 'Campus Arts Council', acronym: 'CAC', college_id: null, is_university_wide: true, administrators_count: 0, member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } })] }));
+      renderPage();
+      const section = (await screen.findByRole('heading', { name: 'Organizations without a college' })).closest('section');
+
+      expect(within(section).getAllByText('Add the Admin account').length).toBeGreaterThan(0);
+      expect(within(section).queryAllByText(/Department Head/)).toHaveLength(0);
+    });
+
     it('renders zero counts muted and non-zero counts bold, in the agency summary format', async () => {
       renderPage();
       const counts = within(await openDetails()).getByText(/pending/).closest('p');

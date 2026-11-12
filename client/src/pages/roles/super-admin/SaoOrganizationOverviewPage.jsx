@@ -189,7 +189,7 @@ export default function SaoOrganizationOverviewPage() {
   const { organization, lifecycle, leadership = [], member_counts: members = {}, events = {}, budget = {}, compliance = {}, pending_approvals_count: pendingApprovals = 0 } = overview;
   const accreditation = accreditationBadge(compliance.accreditation_status);
   const name = formatDisplayText(organization.name);
-  const universityWide = !organization.college_id && !organization.college;
+  const universityWide = Boolean(organization.is_university_wide);
   const registration = { id: organization.id, name, lifecycle_status: lifecycle.status, review_remarks: lifecycle.review_remarks, administrators_count: members.ADMIN ?? 0, is_university_wide: universityWide };
   const registrationFinished = lifecycle.status === 'active' && (members.ADMIN ?? 0) > 0;
   const hasEvents = (events.upcoming || []).length + (events.recent || []).length > 0;

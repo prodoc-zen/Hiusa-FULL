@@ -13,7 +13,7 @@ const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
 const overview = (status = 'active', extra = {}) => ({
-  organization: { id: 5, name: 'Computing Society', acronym: 'CS', slug: 'computing-society', description: 'Builds software.', color: '#0B8ED0', logo_url: null, college: 'College of Computing', college_id: 1, is_active: status === 'active', lifecycle_status: status },
+  organization: { id: 5, name: 'Computing Society', acronym: 'CS', slug: 'computing-society', description: 'Builds software.', color: '#0B8ED0', logo_url: null, college: 'College of Computing', college_id: 1, is_university_wide: false, is_active: status === 'active', lifecycle_status: status },
   lifecycle: { status, review_remarks: null, submitted_at: null, submitted_by: null, reviewed_at: null, reviewed_by: null, archived_at: null, archived_by: null, ...extra },
   leadership: [{ school_id: 1, name: 'Ana Reyes', role: 'ADMIN', position_title: 'President', account_status: 'active' }],
   member_counts: { STUDENT: 8, SBO_OFFICER: 3, ADMIN: 1, total: 12 },
@@ -168,12 +168,22 @@ describe('SaoOrganizationOverviewPage', () => {
 
     it('asks the SAO to add the Admin of a university-wide organization, which has no dean', async () => {
       const base = overview('active');
-      mocks.getSystemOrganizationOverview.mockResolvedValue({ ...base, organization: { ...base.organization, college: null, college_id: null }, leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
+      mocks.getSystemOrganizationOverview.mockResolvedValue({ ...base, organization: { ...base.organization, college: null, college_id: null, is_university_wide: true }, leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
       renderPage();
       const view = await progress();
 
       expect(view.getByText('Add the Admin account')).toBeInTheDocument();
       expect(screen.getByText(/Add the Admin account so the organization can sign in/)).toBeInTheDocument();
+    });
+
+    it('reads university-wide from the payload field, so a college organization with no college recorded still waits for its Department Head', async () => {
+      const base = overview('active');
+      mocks.getSystemOrganizationOverview.mockResolvedValue({ ...base, organization: { ...base.organization, college: null, college_id: null, is_university_wide: false }, leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
+      renderPage();
+      const view = await progress();
+
+      expect(view.getByText('Approved: waiting for the Department Head to name the organization head')).toBeInTheDocument();
+      expect(screen.getByText(/The Department Head names the organization head with Give access/)).toBeInTheDocument();
     });
 
     it('drops the progress block once an administrator exists, because nothing is left to do', async () => {
