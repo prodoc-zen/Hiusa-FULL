@@ -155,16 +155,16 @@
     "role": "Student",
     "module": "Sign in",
     "title": "Forgot password page opens and asks for email or School ID",
-    "preconditions": "Signed out. On the public test link, reset emails are not sent, so only check the screens.",
+    "preconditions": "Signed out. Ask the owner whether email is on for the copy you test (the live site has email on; a test copy that uses the log mailer has it off).",
     "steps": [
       "1. On the sign-in page, tap or click \"Forgot password?\".",
       "2. Check that the page says \"Reset your password\".",
       "3. Type 2100142 (or the email shown on that account) in \"Email or school ID\".",
       "4. Tap or click \"Request reset\".",
-      "5. Read the next screen.",
+      "5. Read the next screen. With email on, check the inbox of that account too.",
       "6. Tap or click \"Back to login\"."
     ],
-    "expected": "The page has one field labelled \"Email or school ID\". After Request reset, a screen says \"Ask for a reset\" and that password reset by email is not available and nothing was sent to anyone, with only a \"Back to login\" button. The same screen appears for a value that does not match any account, so nobody can learn which accounts exist. No email arrives, because reset emails are not sent on the public link (known limit). To get a reset, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder. \"Back to login\" returns to sign-in.",
+    "expected": "The page has one field labelled \"Email or school ID\". With email on, after Request reset a screen says \"Check your email\" and \"If an account matches <what you typed>, we sent reset instructions to the email address on it\", with Back to login and Send another email, and an email with a one-time link arrives for an active account. With email off, a screen says \"Ask for a reset\" and that password reset by email is not available and nothing was sent to anyone, with only a \"Back to login\" button, and no email arrives; ask your organization Admin or the SAO for a one-time link (SAO staff ask another SAO account holder). The same screen appears for a value that does not match any account, so nobody can learn which accounts exist. \"Back to login\" returns to sign-in.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -761,7 +761,7 @@
       "5. Check the list on \"Review your ballot\", then tap \"Submit final ballot\".",
       "6. In the window \"Submit your final ballot?\" tap \"Confirm and submit\"."
     ],
-    "expected": "The page \"Ballot submitted\" appears with \"Your choices were securely recorded and cannot be changed.\" and a \"Ballot receipt hash\". \"Your selections\" lists your choices. Total clicks from the home page: 6. Tapping \"Back to Vote\" returns to the Vote page where the card shows Voted.",
+    "expected": "The page \"Ballot submitted\" appears with the election title under it, the line \"Submitted <date and time>\" (for example \"Submitted November 13, 2026, 5:30 PM\"), \"Your choices were recorded and cannot be changed.\" and the \"Ballot receipt\" code. \"Your selections\" lists your choices. After you reload the page or reopen the election the submitted time stays the same (it is the time the server recorded). Total clicks from the home page: 6. Tapping \"Back to Vote\" returns to the Vote page where the card shows Voted.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",

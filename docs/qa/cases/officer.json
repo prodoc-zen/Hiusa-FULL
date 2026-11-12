@@ -67,7 +67,7 @@
       "3. Click each group name once and note which page opens first.",
       "4. Click \"Profile\" at the bottom of the menu."
     ],
-    "expected": "The menu shows: Dashboard. Ask AI. Events and tasks (Check-in, Calendar, Venue booking, My tasks). Finance (view only) (Budgets, Ledger, Financial reports, Forecast). Members and fingerprints. Voting (Candidates, Voters, Results). Store (Orders, Claim desk). Updates (Announcements, Feed). Clearance signing. Records. My activity (Vote, Shop, My orders, My receipts, Statement of account). Small headings Manage, Community, Records and Me sit above the groups. A group opens its first page (Events and tasks opens Check-in, Finance (view only) opens Budgets, Voting opens Candidates, Store opens Orders, Updates opens Announcements, My activity opens Vote). Profile opens. There is no AI delegation, Approvals, People, Officer positions, Events, Planning, Tasks, Inventory, Collections and advances, Student accounts, Compliance, Grievances or Audit log.",
+    "expected": "The menu shows: Dashboard. Ask AI. Events and tasks (Check-in, Calendar, Venue booking, My tasks), where Venue booking is listed only when the Admin has switched on \"Can book venues\" for the officer's position: on a fresh seed 900007 (Business Manager) sees it and 900004, 900005 and 900006 do not, so for them the group reads Check-in, Calendar, My tasks. Finance (view only) (Budgets, Ledger, Financial reports, Forecast). Members and fingerprints. Voting (Candidates, Voters, Results). Store (Orders, Claim desk). Updates (Announcements, Feed). Clearance signing. Records. My activity (Vote, Shop, My orders, My receipts, Statement of account). Small headings Manage, Community, Records and Me sit above the groups. A group opens its first page (Events and tasks opens Check-in, Finance (view only) opens Budgets, Voting opens Candidates, Store opens Orders, Updates opens Announcements, My activity opens Vote). Profile opens. There is no AI delegation, Approvals, People, Officer positions, Events, Planning, Tasks, Inventory, Collections and advances, Student accounts, Compliance, Grievances or Audit log.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -77,7 +77,7 @@
     "id": "SBO-005",
     "role": "SBO Officer",
     "module": "Menu and navigation",
-    "title": "All four officer positions get the same menu and the same powers",
+    "title": "The four officer positions get the same menu, except Venue booking follows the position",
     "preconditions": "Accounts 900004, 900005, 900006 and 900007 are all available. Sign out between accounts. This is a fresh seed (docs/MEMBER_TESTING.md section 2).",
     "steps": [
       "1. Sign in as 900004 (Treasurer) and copy down the side menu.",
@@ -86,7 +86,7 @@
       "4. Log out and sign in as 900007 (Business Manager). Compare the menu.",
       "5. On each account open Store > Orders and Updates > Announcements and look for buttons."
     ],
-    "expected": "The menu and the pages are identical for all four. Every position can verify payments, release orders, check people in, update its own tasks and send announcements for approval. The position changes only the title shown under the name (see the Profile case) and which tasks the system suggests for the officer (see the AI delegation cases). No page is hidden or locked because of the position.",
+    "expected": "The menu and the pages are the same for all four, with one difference: Venue booking under Events and tasks is listed only for a position whose \"Can book venues\" switch is on (fresh seed: 900007 Business Manager yes; 900004 Treasurer, 900005 Auditor and 900006 Public Information Officer no). Every position can verify payments, release orders, check people in, update its own tasks and send announcements for approval. The position otherwise changes only the title shown under the name (see the Profile case) and which tasks the system suggests for the officer (see the AI delegation cases).",
     "priority": "Medium",
     "device": "Any",
     "type": "Access",
@@ -511,7 +511,7 @@
     "role": "SBO Officer",
     "module": "Events and tasks > Venue booking",
     "title": "Request an on-campus venue",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The SAO has added at least one venue (VERIFY: check that the seed has venues; the list says \"No venues available yet\" if not).",
+    "preconditions": "Signed in as an SBO Officer whose position can book venues (fresh seed: 900007 Business Manager; the others are refused, see SBO-096). Use the password the demo owner gave you. The SAO has added at least one venue (VERIFY: check that the seed has venues; the list says \"No venues available yet\" if not).",
     "steps": [
       "1. Open Events and tasks > Venue booking.",
       "2. In \"Find a venue\" choose a \"Venue\" and a \"From\" and \"To\" date and read the availability list.",
@@ -531,7 +531,7 @@
     "role": "SBO Officer",
     "module": "Events and tasks > Venue booking",
     "title": "Venue request rejects missing or impossible times",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The window \"Request a venue booking\" is open.",
+    "preconditions": "Signed in as an SBO Officer whose position can book venues (fresh seed: 900007 Business Manager). Use the password the demo owner gave you. The window \"Request a venue booking\" is open.",
     "steps": [
       "1. Click \"Send request\" with every box empty.",
       "2. Choose a venue, set \"End\" earlier than \"Start\" and click \"Send request\".",
@@ -551,7 +551,7 @@
     "role": "SBO Officer",
     "module": "Events and tasks > Venue booking",
     "title": "Withdraw a pending venue request",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. One request of this organization is Pending.",
+    "preconditions": "Signed in as an SBO Officer whose position can book venues (fresh seed: 900007 Business Manager). Use the password the demo owner gave you. One request of this organization is Pending.",
     "steps": [
       "1. Find the pending request under \"My organization's requests\".",
       "2. Click \"Withdraw\".",
@@ -1097,7 +1097,7 @@
       "4. Confirm the ballot.",
       "5. Return to My activity > Vote and read the election card."
     ],
-    "expected": "A ballot receipt is shown. The Vote page lists the election as Voted with \"Your ballot receipt\" and the receipt code. The card no longer offers \"Vote in this election\". A second vote is not possible.",
+    "expected": "The \"Ballot submitted\" page shows the election title, \"Submitted <date and time>\" and the ballot receipt. The Vote page lists the election as Voted with \"Your ballot receipt\" and the receipt code. The card no longer offers \"Vote in this election\". A second vote is not possible.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1771,5 +1771,24 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "Run after the Admin approves a payment (ADM-184)"
+  },
+  {
+    "id": "SBO-096",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Venue booking",
+    "title": "An officer whose position cannot book venues has no booking page and the server refuses them",
+    "preconditions": "Signed in as 900004 (Treasurer). On a fresh seed Treasurer, Auditor, Public Information Officer, Representative and Assistant Secretary have \"Can book venues\" off. Use the password the demo owner gave you. An approved event of the organization exists.",
+    "steps": [
+      "1. Open the Events and tasks group in the side menu and read its pages.",
+      "2. Click \"Go to page\" (or press Ctrl and K) and type venue.",
+      "3. Replace the page address with /dashboard/venues and press Enter.",
+      "4. Open an approved event with \"View event\" and read its next step and buttons.",
+      "5. Sign out and sign in as 900007 (Business Manager). Open the same group and the same approved event."
+    ],
+    "expected": "Step 1: the group lists Check-in, Calendar and My tasks, with no Venue booking. Step 2: the list says No pages match \"venue\". Step 3: you are sent back to your Dashboard (/dashboard/officer) with no error page. Step 4: the event shows no \"Book venue\" button. Step 5: the group lists Venue booking, /dashboard/venues opens, and the approved event offers \"Book venue\", which opens the booking page for that event. If the Admin switches the position off or on in Members > Officer positions (ADM-248), the officer's menu follows at the next sign-in or reload. The server also refuses a booking or a withdrawal sent by an officer whose position is off, with the message \"Your position cannot book venues. Ask your Admin.\" (only a tool such as a test run can send it; the screens never offer it).",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
   }
 ]

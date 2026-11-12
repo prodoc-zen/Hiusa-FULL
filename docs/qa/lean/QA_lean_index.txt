@@ -135,7 +135,7 @@ ADM-133 | Finance > Student accounts | Add a student charge and see it on the st
 ADM-134 | Finance > Student accounts | A charge for someone outside the organization is refused | M | Any
 ADM-135 | Finance > Student accounts | Record a payment on an invoice (never above the balance) | H | Any
 ADM-136 | Finance > Student accounts | Cancel or waive an invoice (reason required) | M | Any
-ADM-137 | Finance > Financial reports | Add a financial semester | M | Any
+ADM-137 | Finance > Financial reports | The report semester list holds the SAO semesters and has no add form | M | Any
 ADM-138 | Finance > Financial reports | Generate a semester financial report | H | Any
 ADM-139 | Finance > Financial reports | Generate an income statement with a letter | M | Any
 ADM-140 | Finance > Financial reports | Report for one event (after the event is completed) | H | Any
@@ -243,6 +243,10 @@ ADM-242 | My activity > Statement of account | The Admin has a Statement of acco
 ADM-244 | Records > Submitted files | Admin views and downloads organization compliance submissions in Submitted files | M | Any
 ADM-245 | Events | Admin proposes event with required documents checklist, file validation, and SAO sample format viewer | H | Any
 ADM-246 | Planning and academic terms | Admin prepares event proposals and draft budgets in Advance Planning mode | M | Any
+ADM-247 | Voting > Elections | Closing an election gives winners their seats by title, and the replaced officer stays a Student | H | Any
+ADM-248 | Members > Officer positions | Switch "Can book venues" on or off for an officer position | H | Any
+ADM-249 | Events and tasks > Events | Changing the date of an approved event sends it back to the Department Head; a save with no change does not | H | Any
+ADM-250 | Top bar > Notifications | Notices reach an Admin who holds the role through an organization profile | M | Any
 DH-001 | Sign in | Department Head signs in and lands on the Department Head dashboard | H | Any
 DH-002 | Sign in | Wrong password is refused with a clear message | H | Any
 DH-003 | Menu | Sidebar shows exactly the Department Head menu | H | Any
@@ -370,7 +374,7 @@ GEN-025 | Sign-in | Forced password change screen appears after sign-in | H | An
 GEN-026 | Sign-in | Nothing else opens until the new password is set | H | Any
 GEN-027 | Sign-in | New password form checks each field | H | Any
 GEN-028 | Sign-in | Saving a new password works and the old one stops working | H | Any
-GEN-029 | Sign-in | Forgot password request is accepted but no email arrives in the test copy | H | Any
+GEN-029 | Sign-in | Forgot password: the screen after Request reset follows whether email is on | H | Any
 GEN-030 | Sign-in | Forgot password checks an empty or badly typed form | M | Any
 GEN-031 | Sign-in | A reset link that is missing parts or has a bad token | M | Any
 GEN-032 | Access control | Student opens pages of other roles by address | H | Any
@@ -475,11 +479,12 @@ GEN-131 | Public organization registration | Public registration document upload
 GEN-132 | Public organization registration | Public application submit and email verification notice (not part of the system) | H | R2
 GEN-133 | Public organization registration | Track an application and request an edit link (not part of the system) | M | Any
 GEN-134 | End-to-end journeys | Complete student organization lifecycle from the application to active administration | H | R2
+GEN-135 | Dialogs | Delete and other danger confirmations share one centered layout; sign-out keeps the plain one | M | Any
 SBO-001 | Sign in | Officer signs in and lands on the Dashboard | H | Any
 SBO-002 | Sign in | A wrong password is refused with a clear message | M | Any
 SBO-003 | Sign in | Signing in with empty boxes does not sign you in | L | Any
 SBO-004 | Menu and navigation | The officer menu has exactly the pages an officer may use | H | Any
-SBO-005 | Menu and navigation | All four officer positions get the same menu and the same powers | M | Any
+SBO-005 | Menu and navigation | The four officer positions get the same menu, except Venue booking follows the position | M | Any
 SBO-006 | Profile | Each officer position is shown on the Profile page | L | Any
 SBO-007 | Access control | Typing the address of an Admin-only page sends the officer back to the Dashboard | H | Any
 SBO-008 | Access control | Pages of the SAO, Department Head and Student are closed to the officer | H | Any
@@ -569,6 +574,7 @@ SBO-091 | Events and tasks > Check-in | Check a member in on an event that was c
 SBO-093 | Members and fingerprints | Remove a fingerprint enrollment after the confirm window (needs the reader) | L | Any
 SBO-094 | My activity > My orders | The officer sees only their own orders in My orders and can cancel an unpaid one | M | Any
 SBO-095 | Store > Orders | Release an order from its row in Store > Orders | H | Any
+SBO-096 | Events and tasks > Venue booking | An officer whose position cannot book venues has no booking page and the server refuses them | H | Any
 SAO-001 | Sign in and menu | SAO signs in and reaches the SAO Dashboard | H | Any
 SAO-002 | Sign in and menu | Sign in with a wrong password is refused | M | Any
 SAO-003 | Sign in and menu | The SAO menu shows the right groups and pages and nothing from other roles | H | Any

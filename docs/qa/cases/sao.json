@@ -615,7 +615,7 @@
       "4. Select Create link.",
       "5. Select Copy link."
     ],
-    "expected": "The dialog is titled Invite Department Head and says \"Make a link for the dean. They fill in their own name, email and password.\" The SAO does not type the dean's password. After Create link the dialog shows the link with a Copy link button; if an email was given it adds \"We also emailed it to <email>.\" (or \"The email could not be sent. Copy the link and send it yourself.\"). See SAO-120.",
+    "expected": "The dialog is titled Invite Department Head and says \"Make a link for the dean. They fill in their own name, email and password.\" The SAO does not type the dean's password. After Create link the dialog shows the link with a Copy link button; if an email was given it adds \"We also emailed it to <email>.\" (or \"The email could not be sent. Copy the link and send it yourself.\"). With email switched off the dialog says \"Email is switched off, so nothing was sent to <email>. Copy the link and send it yourself.\" See SAO-120.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -651,7 +651,7 @@
       "5. Select Create reset link, then Create reset link again in the box.",
       "6. Read the green message."
     ],
-    "expected": "The dialog is titled Manage Department Head. Save changes is greyed until something changes. A good change shows \"Department Head details updated.\" and the card shows it. Empty or bad values show \"Enter the first name.\" and \"Enter a valid email address.\" A duplicate email is refused under the field. The reset box is titled Create reset link and then shows a Reset link ready box with the link once, ending with \"Reset link created for <Name>.\" (no mail arrives on the public copy, so the link is only shown to you).",
+    "expected": "The dialog is titled Manage Department Head. Save changes is greyed until something changes. A good change shows \"Department Head details updated.\" and the card shows it. Empty or bad values show \"Enter the first name.\" and \"Enter a valid email address.\" A duplicate email is refused under the field. The reset box is titled Create reset link and says the link is \"emailed only when email is turned on\". With email off a Reset link ready box shows the link once and it ends with \"Reset link created for <Name>.\" With email on no link is shown: the message reads \"Password reset instructions were sent to the Department Head email address.\" and the head gets an email with a link that works once.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -2026,7 +2026,7 @@
       "5. Click Send invitation & generate link.",
       "6. Verify the modal displays the copyable 1-click magic link and dispatches the collegiate HTML email."
     ],
-    "expected": "The modal generates a secure single-use 48-hour magic onboarding token, dispatches the branded HTML email, and provides a 1-click Copy Magic Link button.",
+    "expected": "The modal generates a secure single-use 48-hour magic onboarding token and provides a 1-click Copy Magic Link button. With email on it also sends the branded HTML email and says \"We also emailed it to <email>.\"; with email off it says \"Email is switched off, so nothing was sent to <email>. Copy the link and send it yourself.\"",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
