@@ -7,6 +7,7 @@ use App\Models\Grievance;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\HiusaAiService;
+use App\Services\OrganizationRecipients;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,7 +48,10 @@ class GrievanceController extends Controller
         'Academic / Faculty' => ['grades', 'teacher', 'professor', 'exam', 'class', 'schedule'],
     ];
 
-    public function __construct(private readonly HiusaAiService $aiService) {}
+    public function __construct(
+        private readonly HiusaAiService $aiService,
+        private readonly OrganizationRecipients $recipients,
+    ) {}
 
     public function index(Request $request)
     {
@@ -158,11 +162,10 @@ class GrievanceController extends Controller
             ]));
 
         if ($organizationId) {
-            User::where('organization_id', $organizationId)->where('role', 'ADMIN')->where('account_status', 'active')
-                ->get(['school_id', 'organization_id'])
-                ->each(fn (User $admin) => Notification::create([
+            $this->recipients->administrators($organizationId)
+                ->each(fn ($admin) => Notification::create([
                     'organization_id' => $admin->organization_id,
-                    'user_id' => $admin->school_id,
+                    'user_id' => $admin->user_school_id,
                     'notification_type' => 'general',
                     'title' => 'New grievance filed against your organization',
                     'message' => "A grievance was filed (\"{$grievance->category}\"). The filer's identity is confidential.",
