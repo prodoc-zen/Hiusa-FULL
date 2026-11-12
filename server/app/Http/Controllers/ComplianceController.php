@@ -94,6 +94,7 @@ class ComplianceController extends Controller
         if ($semester->academicYear->label !== $data['academic_year']) {
             throw ValidationException::withMessages(['academic_year' => ["New requirements belong to {$semester->academicYear->label}, the year you are working in. Switch the semester to add one for another year."]]);
         }
+        $this->assertDeadlineInSemester($data['deadline_at'], $semester);
         $this->assertUniqueRequirementName($data['name'], $data['academic_year'], $semester->id, $data['category'] ?? ($data['name'] === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT ? 'semestral_report' : 'organization'));
         $requirementType = $samples->save(new ComplianceRequirementType, [
             ...$data,
@@ -160,6 +161,9 @@ class ComplianceController extends Controller
         $previousDeadline = $requirementType->deadline_at;
         if (array_key_exists('deadline_at', $data)) {
             $date = $this->deadlineDate($data['deadline_at']);
+            if (! $date->isSameDay($previousDeadline) && $requirementType->academic_semester_id) {
+                $this->assertDeadlineInSemester($data['deadline_at'], AcademicSemester::find($requirementType->academic_semester_id));
+            }
             $data['deadline_at'] = $date->isSameDay($previousDeadline) ? $previousDeadline : $previousDeadline->copy()->setDateFrom($date);
         }
         $samples = app(RequirementSampleService::class);
@@ -188,6 +192,17 @@ class ComplianceController extends Controller
     private function deadlineDate(string $value): Carbon
     {
         return Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfDay();
+    }
+
+    private function assertDeadlineInSemester(string $deadline, ?AcademicSemester $semester): void
+    {
+        if (! $semester) {
+            return;
+        }
+        $day = $this->deadlineDate($deadline)->toDateString();
+        if ($day < $semester->starts_on->toDateString() || $day > $semester->ends_on->toDateString()) {
+            throw ValidationException::withMessages(['deadline_at' => ["The deadline must fall inside this semester, between {$semester->starts_on->format('F j, Y')} and {$semester->ends_on->format('F j, Y')}."]]);
+        }
     }
 
     private function assertUniqueRequirementName(string $name, string $year, ?int $semesterId, string $category, ?int $except = null): void
@@ -409,6 +424,8 @@ class ComplianceController extends Controller
             // academic_year falls back to the calendar's current year, so these say whether a semester is really selected (a new requirement needs one).
             'academic_semester_id' => $selected?->id,
             'no_semester' => $selected === null,
+            'semester_starts_on' => $selected?->starts_on->toDateString(),
+            'semester_ends_on' => $selected?->ends_on->toDateString(),
             'organizations' => $request->user()->isOrganizationAdmin() ? $result->first() : $result->values(),
         ]);
     }

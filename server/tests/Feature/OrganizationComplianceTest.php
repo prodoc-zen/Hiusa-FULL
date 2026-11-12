@@ -53,7 +53,7 @@ class OrganizationComplianceTest extends TestCase
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertCreated();
 
         $this->assertDatabaseHas('audit_logs', ['module' => 'compliance', 'action' => 'requirement_type_created']);
@@ -71,7 +71,7 @@ class OrganizationComplianceTest extends TestCase
         $this->postJson('/api/compliance/requirement-types', [
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertForbidden();
     }
 
@@ -82,7 +82,7 @@ class OrganizationComplianceTest extends TestCase
         $admin = $this->user('ADMIN');
         Sanctum::actingAs($sao);
         $id = $this->postJson('/api/compliance/requirement-types', [
-            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth()->toISOString(),
+            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => '2026-12-01',
             'template_url' => 'https://example.edu/statement-format',
         ])->assertCreated()->json('id');
 
@@ -127,7 +127,7 @@ class OrganizationComplianceTest extends TestCase
             'academic_year' => '2026-2027',
             'template_url' => 'https://example.edu/portrait-format',
             'name' => 'Officer portraits',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
             'allowed_extensions' => ['png'],
         ])->assertCreated()->assertJsonPath('allowed_extensions.0', 'png')->json('id');
 
@@ -158,7 +158,7 @@ class OrganizationComplianceTest extends TestCase
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($admin);
@@ -199,7 +199,7 @@ class OrganizationComplianceTest extends TestCase
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($admin);
@@ -340,12 +340,12 @@ class OrganizationComplianceTest extends TestCase
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertCreated()->json('id');
 
-        $newDeadline = now()->addMonths(2);
+        $newDeadline = '2026-12-15';
         $this->putJson("/api/compliance/requirement-types/{$requirementTypeId}", [
-            'deadline_at' => $newDeadline->toISOString(),
+            'deadline_at' => $newDeadline,
         ])->assertOk();
 
         $this->assertDatabaseHas('notifications', [
@@ -364,12 +364,12 @@ class OrganizationComplianceTest extends TestCase
         $this->user('ADMIN', $organization->id);
         Sanctum::actingAs($superAdmin);
 
-        $deadline = now()->addMonth();
+        $deadline = '2026-12-01';
         $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => $deadline->toISOString(),
+            'deadline_at' => $deadline,
         ])->assertCreated()->json('id');
 
         $this->putJson("/api/compliance/requirement-types/{$requirementTypeId}", [
@@ -508,7 +508,7 @@ class OrganizationComplianceTest extends TestCase
             'template_url' => 'https://example.edu/statement-format',
             'academic_year' => '2026-2027',
             'name' => 'Financial Statement',
-            'deadline_at' => now()->addMonth()->toISOString(),
+            'deadline_at' => '2026-12-01',
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($admin);
