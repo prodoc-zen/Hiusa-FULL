@@ -18,7 +18,8 @@ function getStoredUser() {
   }
 }
 
-export default function ProtectedRoute({ allowedRoles = null, children = null }) {
+// requireVenueBooking: an SBO officer gets in only while their position can book venues (user.can_book_venues).
+export default function ProtectedRoute({ allowedRoles = null, requireVenueBooking = false, children = null }) {
   const token = localStorage.getItem("auth_token");
   const location = useLocation();
   const user = getStoredUser();
@@ -35,6 +36,10 @@ export default function ProtectedRoute({ allowedRoles = null, children = null })
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     const fallback = ROLE_DASHBOARD_PATHS[role] || "/dashboard";
     return <Navigate to={fallback} replace />;
+  }
+
+  if (requireVenueBooking && role === "SBO_OFFICER" && user?.can_book_venues === false) {
+    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace />;
   }
 
   return children || <Outlet />;
