@@ -11,7 +11,6 @@ use App\Models\Collection;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
-use App\Models\FinancialSemester;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\FinancialReportPdfService;
@@ -112,7 +111,7 @@ class FinancialReportController extends Controller
         $data = $request->validate([
             'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'report_type' => ['required', 'in:monthly,semester,custom,event'],
-            'financial_semester_id' => ['required_if:report_type,semester', 'prohibited_unless:report_type,semester', 'nullable', 'integer'],
+            'academic_semester_id' => ['required_if:report_type,semester', 'prohibited_unless:report_type,semester', 'nullable', 'integer', Rule::exists('academic_semesters', 'id')->whereIn('status', ['active', 'completed'])],
             'period_start' => ['required_if:report_type,custom', 'prohibited_unless:report_type,custom', 'nullable', 'date'],
             'period_end' => ['required_if:report_type,custom', 'prohibited_unless:report_type,custom', 'nullable', 'date', 'after_or_equal:period_start'],
             'event_id' => ['required_if:report_type,event', 'prohibited_unless:report_type,event', 'nullable', 'integer'],
@@ -133,10 +132,7 @@ class FinancialReportController extends Controller
         $organizationId = $request->user()->organization_id;
         $semester = null;
         if ($data['report_type'] === 'semester') {
-            $semester = FinancialSemester::where('organization_id', $organizationId)->find($data['financial_semester_id']);
-            if (! $semester) {
-                return response()->json(['message' => 'Selected semester does not belong to this organization.'], 422);
-            }
+            $semester = AcademicSemester::with('academicYear:id,label')->findOrFail($data['academic_semester_id']);
         }
         $event = null;
         if (! empty($data['event_id'])) {
@@ -164,7 +160,7 @@ class FinancialReportController extends Controller
         $statement = FinancialReportStatement::from($transactions, $openingBalance);
         $title = $this->title($data['document_type'], $data['report_type'], $start, $end, $event);
         if ($semester) {
-            $title = ($data['document_type'] === 'income_statement' ? 'Income Statement' : 'Financial Report').' - '.$semester->name;
+            $title = ($data['document_type'] === 'income_statement' ? 'Income Statement' : 'Financial Report').' - AY '.$semester->academicYear?->label.', '.($semester->number === 1 ? '1st' : '2nd').' Semester';
         }
         $byCategory = FinancialReportStatement::ordinary($transactions)
             ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
@@ -185,9 +181,8 @@ class FinancialReportController extends Controller
             'recorded_remittances' => round((float) $remittanceQuery->sum('amount'), 2),
         ];
         $latestForecast = FinancialForecast::latestFor($organizationId);
-        $budgets = Budget::where('organization_id', $organizationId)
-            ->when($event, fn ($query) => $query->where('event_id', $event->id))
-            ->when($semester, fn ($query) => $query->where('financial_semester_id', $semester->id))
+        $budgets = SemesterScope::budgets(Budget::where('organization_id', $organizationId)
+            ->when($event, fn ($query) => $query->where('event_id', $event->id)), $semester)
             ->whereNotNull('advice_generated_at')
             ->get([
                 'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
@@ -243,7 +238,7 @@ class FinancialReportController extends Controller
         ];
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $openingBalance, $statement, $organizationId, $byCategory, $custody, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
+            $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $openingBalance, $statement, $organizationId, $byCategory, $custody, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
                 $aiOutput = AiOutput::create([
                     'organization_id' => $organizationId,
                     'feature_type' => 'FINANCIAL_SUMMARY',
@@ -267,7 +262,6 @@ class FinancialReportController extends Controller
                 $report = FinancialReport::create([
                     'organization_id' => $organizationId,
                     'event_id' => $event?->id,
-                    'financial_semester_id' => $semester?->id,
                     'report_type' => $data['report_type'],
                     'document_type' => $data['document_type'],
                     'title' => $title,

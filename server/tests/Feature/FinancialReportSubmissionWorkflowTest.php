@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\FinancialReport;
-use App\Models\FinancialSemester;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -23,19 +24,22 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
     use CreatesCollegeFixtures;
     use RefreshDatabase;
 
-    public function test_semester_report_includes_only_budgets_assigned_to_that_semester(): void
+    public function test_semester_report_includes_only_budgets_that_belong_to_that_semester(): void
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $first = FinancialSemester::create(['organization_id' => $organization->id, 'name' => 'First Semester', 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31']);
-        $second = FinancialSemester::create(['organization_id' => $organization->id, 'name' => 'Second Semester', 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31']);
-        Budget::create(['organization_id' => $organization->id, 'financial_semester_id' => $first->id, 'title' => 'First Allocation', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
-        Budget::create(['organization_id' => $organization->id, 'financial_semester_id' => $second->id, 'title' => 'Second Allocation', 'allocated_amount' => 2000, 'remaining_amount' => 2000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'completed']);
+        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'active']);
+        foreach (['2026-09-01' => 'First Allocation', '2027-02-01' => 'Second Allocation'] as $createdOn => $title) {
+            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+            $budget->forceFill(['created_at' => "{$createdOn} 08:00:00"])->save();
+        }
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/financial-reports/generate', [
             'report_type' => 'semester',
-            'financial_semester_id' => $first->id,
+            'academic_semester_id' => $first->id,
             'signatories' => $this->signatories(),
         ])->assertCreated()
             ->assertJsonCount(1, 'budget_advisories')
@@ -160,7 +164,7 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
         Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $organization->id]));
 
         $this->postJson('/api/financial-reports/generate', ['report_type' => 'semester', 'signatories' => $this->signatories()])
-            ->assertUnprocessable()->assertJsonValidationErrors('financial_semester_id');
+            ->assertUnprocessable()->assertJsonValidationErrors('academic_semester_id');
         $this->postJson('/api/financial-reports/generate', ['report_type' => 'custom', 'period_start' => '2026-09-01', 'period_end' => '2026-08-01', 'signatories' => $this->signatories()])
             ->assertUnprocessable()->assertJsonValidationErrors('period_end');
         $this->postJson('/api/financial-reports/generate', ['report_type' => 'monthly', 'event_id' => 1, 'signatories' => $this->signatories()])
