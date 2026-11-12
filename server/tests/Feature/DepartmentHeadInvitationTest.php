@@ -289,6 +289,17 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->assertDatabaseMissing('users', ['school_id' => 20267777]);
     }
 
+    public function test_a_dean_link_accepts_a_number_in_the_unclaimed_employee_records_and_claims_that_record(): void
+    {
+        $record = StudentRegistryEntry::create(['school_id' => 20268888, 'first_name' => 'Arthur', 'last_name' => 'Dent', 'birth_date' => '1980-01-01', 'record_type' => 'employee', 'college_id' => $this->college->id, 'position' => 'Dean']);
+        $token = $this->makeLink();
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 20268888]))->assertOk()->assertJsonPath('user.role', 'DEPARTMENT_HEAD');
+
+        $this->assertDatabaseHas('users', ['school_id' => 20268888, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertNotNull($record->fresh()->claimed_at);
+    }
+
     public function test_accept_validates_the_form(): void
     {
         User::factory()->create(['email' => 'taken@example.edu', 'organization_id' => $this->home->id]);

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Mail\DeanInvitationMail;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -188,6 +189,21 @@ class SaoStaffInvitationTest extends TestCase
         $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['first_name' => '']))
             ->assertUnprocessable()->assertJsonValidationErrors('first_name');
         $this->assertSame(1, User::count());
+    }
+
+    public function test_an_sao_link_accepts_a_number_in_the_unclaimed_employee_records_and_claims_that_record(): void
+    {
+        $record = StudentRegistryEntry::create([
+            'school_id' => 20265560, 'first_name' => 'Ford', 'last_name' => 'Prefect', 'birth_date' => '1980-01-01',
+            'record_type' => 'employee', 'college_id' => $this->makeCollege('SAOEMP')->id, 'position' => 'Registrar',
+        ]);
+        $token = $this->makeLink();
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['school_id' => 20265560]))
+            ->assertOk()->assertJsonPath('user.role', 'SUPER_ADMIN');
+
+        $this->assertDatabaseHas('users', ['school_id' => 20265560, 'role' => 'SUPER_ADMIN']);
+        $this->assertNotNull($record->fresh()->claimed_at);
     }
 
     public function test_nobody_but_the_sao_can_use_the_sao_staff_routes(): void
