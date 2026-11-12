@@ -179,6 +179,10 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/system/colleges/{college}/restore', [CollegeController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/invite-department-head', [DepartmentHeadInvitationController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/sao-staff/invitations', [DepartmentHeadInvitationController::class, 'inviteSao'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/system/sao-staff/invitations', [DepartmentHeadInvitationController::class, 'pendingSao'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/system/sao-staff/invitations/{invitation}/link', [DepartmentHeadInvitationController::class, 'relinkSao'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/system/sao-staff/invitations/{invitation}', [DepartmentHeadInvitationController::class, 'revokeSao'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/department-heads/{user}', [SystemAdministrationController::class, 'updateDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/department-heads/{user}/password-reset', [SystemAdministrationController::class, 'initiateDepartmentHeadPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
