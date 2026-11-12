@@ -115,6 +115,7 @@ const SPEC = {
         ['Student records', '/dashboard/super-admin/student-records'],
         ['Applications', '/dashboard/organization-applications'],
         ['Organizations', '/dashboard/super-admin/organizations?status=pending'],
+        ['Administrators', '/dashboard/super-admin/admins'],
       ],
     },
     {
@@ -158,7 +159,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     ['SBO_OFFICER', 11, 25],
     ['DEPARTMENT_HEAD', 14, 17],
     ['STUDENT', 8, 12],
-    ['SUPER_ADMIN', 8, 19],
+    ['SUPER_ADMIN', 8, 20],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -193,7 +194,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it('opens a group on its first page', () => {
     const group = getNavForRole('SUPER_ADMIN').find((item) => item.label === 'Governance');
     expect(resolveItemPath(group)).toBe('/dashboard/super-admin/colleges');
-    expect(getVisibleChildren(group)).toHaveLength(4);
+    expect(getVisibleChildren(group)).toHaveLength(5);
   });
 
   it('names the SAO and the finance slot the same way everywhere', () => {
