@@ -20,7 +20,9 @@ use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ComplianceReminderController;
 use App\Http\Controllers\DashboardBriefingController;
 use App\Http\Controllers\DepartmentHeadInvitationController;
+use App\Http\Controllers\ElectionBallotController;
 use App\Http\Controllers\ElectionController;
+use App\Http\Controllers\ElectionResultsController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventRequirementController;
 use App\Http\Controllers\FileStorageController;
@@ -342,9 +344,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/elections/{id}', [ElectionController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/informative-letter', [ElectionController::class, 'informativeLetter'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);
+    Route::get('/elections/{id}/results', [ElectionResultsController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/elections/{id}/voters', [ElectionBallotController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/elections/{id}/vote', [ElectionBallotController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable']);
     Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
@@ -354,13 +356,18 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/elections/{id}/positions', [ElectionController::class, 'positionsStore'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
     Route::put('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsUpdate'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
     Route::delete('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsDestroy'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
-    Route::post('/elections/{id}/candidates', [ElectionController::class, 'candidatesStore'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'period.writable:election']);
-    Route::put('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesUpdate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'period.writable:election']);
-    Route::delete('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesDestroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'period.writable:election']);
+    Route::post('/elections/{id}/candidates', [ElectionController::class, 'candidatesStore'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
+    Route::put('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesUpdate'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
+    Route::delete('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesDestroy'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:election']);
     Route::get('/partylists', [ElectionController::class, 'partylistsIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/partylists', [ElectionController::class, 'partylistsStore'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/partylists/{id}', [ElectionController::class, 'partylistsUpdate'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/partylists/{id}', [ElectionController::class, 'partylistsDestroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
+
+    // The full election process lives in routes/elections/*.php so the slices that build it never share a file.
+    foreach (glob(__DIR__.'/elections/*.php') as $electionRoutes) {
+        require $electionRoutes;
+    }
 
     // Approval requests: Department Head handles operational sign-off;
     // Super Admin is the final approver for budget and financial records.
