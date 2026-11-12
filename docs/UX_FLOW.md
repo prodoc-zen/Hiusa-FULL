@@ -252,7 +252,7 @@ Format: group (band): children in order, each `Label  route`.
 **SBO_OFFICER** (9 rows, was 10; 24 leaves, was 26)
 - Dashboard `/dashboard/officer`
 - Manage band
-  - Events and tasks: Check-in `/dashboard/events/check-in`; Calendar `/dashboard/events/activity-calendar`; Venue booking `/dashboard/venues`; My tasks `/dashboard/tasks/assigned-tasks`; AI delegation `/dashboard/tasks/ai-delegation`
+  - Events and tasks: Check-in `/dashboard/events/check-in`; Calendar `/dashboard/events/activity-calendar`; Venue booking `/dashboard/venues` (listed only while the officer's position has "Can book venues" on; the address and the event drawer's "Book venue" follow the same switch); My tasks `/dashboard/tasks/assigned-tasks`; AI delegation `/dashboard/tasks/ai-delegation`
   - Finance (view only): Budgets; Ledger; Financial reports; Forecast (same routes as Admin, header chip "View only", all following the top bar semester)
   - Members and fingerprints `/dashboard/admin/users` (single link, replaces "Organization Setup > Participant Biometrics")
 - Community band
@@ -304,7 +304,7 @@ Format: group (band): children in order, each `Label  route`.
 | Events > Activity Calendar (Admin) | Same page as Events, calendar view | Demoted: sidebar link removed for Admin, route redirects to `manage-events?view=calendar` |
 | Events > Event Planner | Events and tasks > Planning | Renamed; page heading made consistent |
 | Events > Check In | Events and tasks > Check-in | Moved last (it is the "run" step) |
-| Governance > Venues | Events and tasks > Venue booking (Admin, Officer) | Moved into the event process |
+| Governance > Venues | Events and tasks > Venue booking (Admin always; an Officer by position) | Moved into the event process |
 | Task Management > Task Board / Create Task / Monitor Progress | Events and tasks > Tasks | Merged: Create becomes the board's New task button (`task-board?new=1`), Monitor Progress its Progress view (`task-board?view=progress`); old routes redirect |
 | Task Management > Assigned Tasks (Officer) | Events and tasks > My tasks | Renamed |
 | Task Management > AI Delegation | Events and tasks > AI delegation | Kept |
@@ -349,12 +349,14 @@ The Department Head approves every event proposal. If active SAO requirements ap
 | 4b Returned by the SAO | `requirements_returned`: SAO approval `rejected`; a new upload reopens it | Admin | "Returned: read the remarks, replace the files" |
 | 5 Approved | `approved`: `status=approved` (set by the head when no requirements apply, by the SAO otherwise) | n/a | n/a |
 | 4 Funding (if `requires_budget`) | linked budget `approval_status` | Admin, Department Head | "Propose the event budget" or "Budget waiting for Department Head approval" |
-| 5 Prepare | `approved`; venue booking `pending/approved`; tasks | Admin, Officers | "Book a venue", "Plan the tasks", "N of M tasks done" |
+| 5 Prepare | `approved`; venue booking `pending/approved`; tasks | Admin; Officers (the venue step only for a position that can book venues) | "Book a venue", "Plan the tasks", "N of M tasks done" |
 | 6 Run | `ongoing`; attendance | Admin, Officer | "Check people in" |
 | 7 Report | `completed`; financial report `report_type=event` `draft...approved` | Admin | "Prepare the event financial report" |
 | Branch | `cancelled` | Admin | "Cancelled" |
 
 Shown in: the event drawer header (`EventsPage.jsx` selected event modal) and as a compact one-line stepper on each row of the Events list and in Approvals > Submitted by me. Component: `FlowStepper` plus `NextStep`.
+
+Editing an approved event (round r16a, Jade's ruling R5). A save that changes the date or time, or a value the Department Head approved on (title, description, location, budget need, venue type or venue, event type, expected participants, proposed budget amount, warning threshold, budget notes), sets the event back to `planning`, clears `approved_at` and reopens the Department Head approval, so the stage reads `awaiting_department_head` again (`EventController::update`, `hasMaterialEventChange`). A save that changes nothing material must not reopen approval: the same values, the same times to the minute (the form sends no seconds), blank against null, a new poster, logistics, vendor deadlines, resources or requirement notes all keep the event approved. While the event holds a pending or approved venue booking a date change is refused with 422 "Withdraw the venue booking first, then change the date." and nothing is saved; a save that keeps the same date still works. Proved by `EventApprovalChainTest`.
 
 ### 4.2 Budget
 
@@ -381,6 +383,8 @@ Shown in: the Budgets list rows and the budget detail; event funding step links 
 
 Shown in: Finance > Financial reports list and the SAO Compliance > Financial reports tab. SAO deadline (financial report deadline announcement) shows as a due chip.
 
+Semester reports (round r16a). A semester report covers one of the SAO's own academic semesters, never a semester the organization made up: the report form's Semester list loads `getAcademicPeriods` once the form is open, offers only active and completed semesters (an upcoming one has nothing to report), preselects the semester picked in the top bar else the active one, and labels each "AY 2026-2027, 1st Semester (start to end)". The request sends `academic_semester_id`, the server accepts only an active or completed semester, and the report is titled "Financial Report - AY 2026-2027, 1st Semester". The Admin cannot add a semester: the `financial_semesters` routes, controller and the add form ("Need a new semester? Add one here", "End today") are gone, and the budget form has no semester field.
+
 ### 4.4 Election
 
 | Stage | Status values | Who acts | Next-action text |
@@ -390,11 +394,14 @@ Shown in: Finance > Financial reports list and the SAO Compliance > Financial re
 | 3 Ballot finalized | `upcoming`, `finalized_at` set | Admin | "Ballot locked: voting opens on <date>" |
 | 4 Voting | `active` | Students, Officers, Admin vote; Officer monitors | "Voting is open until <time>" / for voters "Cast your ballot" |
 | 5 Results | `closed` (+ `results_visible`) | Admin releases | "Results released" / "Closed: release the results" |
+| 6 Hand over | `access_handed_over_at` set, once per election | none | "Access handed over" on the results page |
 
 Server gaps fixed (the clients read these keys):
 
 - Returned: a rejected approval no longer leaves the election silent. It stays `pending_approval` (no new status value) and `GET /api/elections`, `GET /api/elections/{id}` and the `POST`/`PUT` responses carry `approval_status` (`pending` | `approved` | `rejected`, from the latest approval row, `null` when none), `approval_remarks` (the reviewer's reason) and `approval_id`. The Admin edits the election with the existing `PUT /api/elections/{id}`; that reopens the Department Head approval (`approval_status` back to `pending`, remarks cleared, approvers notified, audit `resubmitted`). Student payloads omit the three approval keys. Client text for stage 1: `approval_status = rejected` shows "Returned: <approval_remarks>. Edit and resubmit".
 - Automatic opening: the scheduled command `elections:sync-statuses` (every minute) moves approved, finalized elections whose `start_time` has passed and `end_time` has not from `upcoming` to `active` (and closes ended ones); `Election::synchronizeScheduledStatuses()` applies the same transition on every read, so a request never sees a stale status. `results_visible` and `finalized_at` are present in every election payload.
+
+Hand over (round r16a, Jade's rulings R2 and R3, `ElectionHandoverService`). When a closed election's results are visible, each position's winners get a profile in the organization. The President and every Vice President (any title starting "Vice President", dash and spacing variants included) become the organization `ADMIN`; every other winner becomes `SBO_OFFICER` with the position title. The organization's `sbo_positions` list is not consulted, because it carries every standard title under both roles. The outgoing holder of the same position, when someone else won it, stays in the organization as a plain `STUDENT` profile: position and modules cleared, account and profile still active, still on the voter roll, never set inactive, and every other profile they hold is kept. A tied seat grants nothing and its holders keep access until someone assigns the seat. A profile or account switched off for another reason is never reactivated. Each winner gets the notice "You now have access to <organization>", the run is audited as `access_handed_over`, and a second release does nothing.
 
 Shown in: the election workspace banner (replace the sentence at `ElectionBreadcrumb.jsx:73`), the picker cards. Steps in the in-page strip follow the same order: Overview, Party lists, Candidates, Voters, Vote, Results.
 
@@ -421,6 +428,10 @@ Shown in: the existing `StepTracker` (`MerchandisePage.jsx:226-246`) replaced by
 | 4 First use | Admin setup checklist 0 of N | Admin | "Finish your 3 setup steps" |
 | Branch | `archived` | SAO | "Archived: read only" |
 
+Applicant view of a returned application (round r16a). After the applicant sends it again, a file accepted in an earlier round that the applicant did not replace is shown as "Accepted earlier", from either review stage and whatever stage the application waits at, as a flag with no note and no Details button (`OrganizationApplicationPresenter::carriedForApplicant`; the reviewers still get their own carried marks only for the stage they read). A replaced or unreviewed file reads "Not reviewed yet". The returned note from the Department Head or the SAO sits in a danger-tinted box and a per-file note marked Needs changes or Missing sits in a warning-tinted box, so the fix list stands apart; the same warning tint marks those notes on the Admin's event file panel and the reviewers' file list.
+
+Recovery and invitation mail (Jade's ruling R1). Production sends mail (`MAIL_MAILER` smtp). Forgot password then ends on "Check your email" with Send another email, member and Department Head reset links are emailed (the SAO or Admin sees "Password reset instructions were sent to the ... email address." instead of a link), and a dean or office-staff invitation says "We also emailed it to <email>." The words "Ask for a reset" ("Password reset by email is not available"), "Email is switched off, so nothing was sent to <email>" and the reset link shown once for hand over appear only while the mailer is `log` (`PasswordResetService::mailIsOff`), as on a local or test copy.
+
 Shown in: DH Organizations rows and drawer, SAO Registrations cards and the review drawer (after Approve, the drawer swaps to a NextStep naming the Department Head), SAO organization overview. While an active college organization has no Admin the Department Head is also told on the dashboard (Needs attention item and the last "Next for you" step "Name the organization head of <organization>" with Give access, so the tracker no longer reads Setup complete) and on the Overview of the organization space.
 
 ### 4.7 Compliance renewal
@@ -434,6 +445,8 @@ Shown in: DH Organizations rows and drawer, SAO Registrations cards and the revi
 | Roll up | accreditation `incomplete`, `returned`, `pending_review`, `accredited` | none | "N of M requirements approved" |
 
 Shown in: Admin Compliance page header (one overall stepper plus per requirement status), SAO Accreditation tab rows.
+
+Who is told (round r16a). Compliance requirements and deadline changes, reviews of a submission, a returned or replaced submitted file, a grievance filed against the organization and an approved event reach people through `OrganizationRecipients`, which reads account profiles, not the home columns of the `users` row. An Admin who holds the role only through a profile gets the notice on that organization (the bell filters by the notice's organization), and an event approval reaches every active profile of the organization whatever its role, except the person who asked for it.
 
 ### 4.8 Task
 
@@ -451,9 +464,11 @@ Shown in: Tasks board cards and the officer My tasks list; event drawer prepare 
 | Lifecycle | Stages and status values | Who acts | Next-action text |
 |---|---|---|---|
 | Grievance | `submitted` then `under_review` then `resolved` or `dismissed`; `addressed_to` organization or sao | Admin (organization) or SAO; Student files | "Waiting for <Admin or SAO> to review" |
-| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by the requesting organization (Admin or Officer) | SAO decides; Admin or Officer requests, books again after a rejection and may withdraw | Pending: "Waiting for SAO approval" (SAO sees "Review the booking: approve it or return it with remarks", recorded as `rejected`); rejected: "Rejected: read the remarks and request again"; withdrawn: "Withdrawn" |
+| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by the requesting organization (Admin, or an Officer whose position can book) | SAO decides; Admin or an allowed Officer requests, books again after a rejection and may withdraw | Pending: "Waiting for SAO approval" (SAO sees "Review the booking: approve it or return it with remarks", recorded as `rejected`); rejected: "Rejected: read the remarks and request again"; withdrawn: "Withdrawn" |
 
 Shown in: Student My grievances rows, Admin and SAO grievance drawers; Venue booking list and the event Prepare step.
+
+Venue booking by position (round r16a, Jade's ruling R4). `sbo_positions.can_book_venues` is a per-position switch on the Admin's Officer positions page (the "Can book venues" column, Yes or No, saved on its own; Admin positions read "Always"). A position created without a choice starts On for President, any Vice President title, Secretary and Business Manager (not Assistant Secretary) and Off for the rest; the migration backfilled existing rows the same way. An Admin can always book. For an officer `User::canBookVenues()` reads the switch of the position on the active profile, in the officer's own organization; an officer with no position, or one the list no longer holds, keeps the page. `GET /api/user` carries `can_book_venues`. The server enforces it on create and withdraw (403 "Your position cannot book venues. Ask your Admin."). The client follows: the menu and the command palette drop Venue booking, `ProtectedRoute requireVenueBooking` sends the officer to the Dashboard from `/dashboard/venues`, and the event drawer offers no "Book venue".
 
 #### SAO venue calendar
 
@@ -536,7 +551,7 @@ Every dashboard page, in this order:
 - Loading: page skeleton of the final layout (`Skeleton`, `SkeletonCard`), never a bare spinner. Header renders immediately so the person still sees where they are.
 - Error: `ErrorState` with a plain sentence, the retry button, and the reason class (offline, forbidden, not found).
 - Disabled buttons always carry a visible reason line beneath or a tooltip reachable by keyboard ("Add a candidate to every position first").
-- Destructive actions use the existing `ConfirmModal`.
+- Destructive actions use the existing `ConfirmModal`. Its danger variant (the default) is one centered stack: red title, one consequence line, the record name in bold, the typed-name box when one is required, then the delete button first and Cancel second (side by side on a laptop, stacked with delete on top at 390 px), with keyboard focus on Cancel, the close X kept, and no illustration. `PermanentDeleteModal` shares it. A primary confirmation such as Log out keeps the plain layout, Cancel then the confirm button.
 
 ## 6. Cross-links and wayfinding
 

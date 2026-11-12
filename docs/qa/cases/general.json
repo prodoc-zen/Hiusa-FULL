@@ -504,15 +504,15 @@
     "id": "GEN-029",
     "role": "All roles",
     "module": "Sign-in",
-    "title": "Forgot password request is accepted but no email arrives in the test copy",
-    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Email is switched off in the test copy, so reset emails are only written to the server log.",
+    "title": "Forgot password: the screen after Request reset follows whether email is on",
+    "preconditions": "You are signed out (no one is signed in on this browser). Ask the owner whether email is on for the copy you test. The live site has email on. A local or test copy that uses the log mailer has email off, and then nothing leaves the server.",
     "steps": [
       "1. On the sign-in page choose Forgot password? and read the page.",
       "2. Type the Student School ID 2100142 (or the email on that account) in Email or school ID, then choose Request reset.",
-      "3. Wait five minutes and check that inbox and its spam folder.",
+      "3. Read the next screen. With email on, check the inbox and the spam folder of that account within five minutes.",
       "4. Go back and try one unknown value, for example 12345678 or nobody@example.com, in Email or school ID."
     ],
-    "expected": "The \"Reset your password\" page has one field labelled \"Email or school ID\", a Request reset button and Back to login. With email off, the page changes to \"Ask for a reset\" and says password reset by email is not available and nothing was sent to anyone, with only a Back to login button. No email arrives. This is expected. An unknown value shows the very same \"Ask for a reset\" screen, so the page never says whether an account exists. Back to login works. To get a password reset, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder. Only when email is on does the page show \"Check your email\" instead.",
+    "expected": "The \"Reset your password\" page has one field labelled \"Email or school ID\", a Request reset button and Back to login. With email on: the page changes to \"Check your email\" and says \"If an account matches <what you typed>, we sent reset instructions to the email address on it. Nothing arrived? Check spam, or send another email.\" with Back to login and Send another email. A real active account gets an email with a link that works once; an unknown value shows the very same \"Check your email\" screen and no email, so the page never says whether an account exists. With email off: the page changes to \"Ask for a reset\" and says password reset by email is not available and nothing was sent to anyone, with only a Back to login button, and an unknown value shows the same screen. To get a reset when email is off, ask your organization Admin or the SAO for a one-time link; SAO staff ask another SAO account holder. The words \"Ask for a reset\" never appear while email is on.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2088,7 +2088,7 @@
       "2. Try one more proposal with dates a year later and read the refusal. Cancel it.",
       "3. Sign out. Sign in as Department Head 940001. Open Approvals, select Review on the event, select Approve and confirm.",
       "4. Sign out. Sign in as Student 2100142. Open Events and check that only the new event shows (the seeded events are gone).",
-      "5. Sign out. Sign in as Admin 900001. Open the event and, in \"SAO event requirements\", choose one PDF per item and select \"Submit event files to SAO\".",
+      "5. Sign out. Sign in as Admin 900001. Open the event and, in \"SAO event requirements\", choose one PDF per item and select \"Submit event files\".",
       "6. Sign out. Sign in as SAO 990001. Open Reviews > Compliance > Event requirements, select Approve on the event and then \"Approve event\".",
       "7. Sign out. Sign in as Student 2100142. Read the bell notification \"Event Approved: QA Semester Event\". Open the event and select \"Register for this event\".",
       "8. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event and check in 2100142 with \"Confirm check-in\". Read the message.",
@@ -2119,11 +2119,11 @@
       "7. Wait until the start time has passed by 1 to 2 minutes. Reload. If the status is still Upcoming after 2 minutes, select \"Open voting\" and write that down.",
       "8. Sign out. Sign in as Student 2100142. Open Voting > Vote. Select \"Vote in this election\", \"Start my ballot\", choose the candidate, \"Review ballot\", \"Submit final ballot\" and \"Confirm and submit\".",
       "9. Sign out. Sign in as Admin 900001. Open the election, open the step \"Voters\" and read Not Yet Voted. Select \"Close\".",
-      "10. Open Voting > Results and read the line under the title and the winner. Closing hands the Admin and officer seats to the winners at once, so if 900001 held a seat the winner takes, you are signed out on the next request: sign in as the new President or as adviser 990002 and carry on.",
+      "10. Open Voting > Results and read the line under the title and the winner. Closing hands the seats to the winners at once: a President or Vice President winner becomes Admin, any other winner becomes an SBO Officer with that position title, and a person replaced in the same position stays in the organization as a Student. The seat here is your own title Chairperson, which nobody holds, so nobody is replaced; the winner becomes an SBO Officer titled Chairperson. Had you voted into the President seat instead, the replaced President would have lost Admin pages: then sign in as the new President or as adviser 990002 and carry on.",
       "11. Sign out. Sign in as Department Head 940001. Open Election results and read the same result. Look for a vote button.",
       "12. Sign out. Sign in as Student 2100142. Open Voting > Results and read the result."
     ],
-    "expected": "The election is Pending Approval after step 2 and Approved after step 3. The page after \"Finalize ballot\" says \"Position setup is locked for this election.\" The election turns Live (Voting open) by itself at its start time. The student gets a \"Ballot submitted\" page with a receipt hash, and the Vote page then shows Voted. The Voters step shows one person fewer under Not Yet Voted. After \"Close\" the toast reads \"Election closed.\" and Results shows \"Final results for every position.\" with the table \"Final winners by position\" (an Election list, when shown, reads \"<title> (final results)\") and the same winner for the Admin, the Department Head and the student. No page shows who voted for whom. The Department Head has no vote button.",
+    "expected": "The election is Pending Approval after step 2 and Approved after step 3. The page after \"Finalize ballot\" says \"Position setup is locked for this election.\" The election turns Live (Voting open) by itself at its start time. The student gets a \"Ballot submitted\" page with a receipt hash, and the Vote page then shows Voted. The Voters step shows one person fewer under Not Yet Voted. After \"Close\" the toast reads \"Election closed.\" and Results shows \"Final results for every position.\" with the table \"Final winners by position\" (an Election list, when shown, reads \"<title> (final results)\") and the same winner for the Admin, the Department Head and the student. The winner has the notice \"You now have access to <organization>\" and signs in as an SBO Officer titled Chairperson (VERIFY with the winner account if you have its password). No page shows who voted for whom. The Department Head has no vote button.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2464,6 +2464,26 @@
     "device": "Laptop",
     "type": "Functional",
     "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "GEN-135",
+    "role": "All roles",
+    "module": "Dialogs",
+    "title": "Delete and other danger confirmations share one centered layout; sign-out keeps the plain one",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A program you created and nobody uses, and an officer position you created.",
+    "steps": [
+      "1. Open Members > Programs and sections and select Delete on your program. Read the dialog from top to bottom. Do not confirm yet.",
+      "2. Without clicking, check which button has the keyboard focus, then press Tab once.",
+      "3. Select Cancel and check nothing was deleted.",
+      "4. Open Members > Officer positions, open the row menu of your position and select 'Delete position'. Read the dialog, type the title and look at the buttons.",
+      "5. Narrow the window to 390 px (or use a phone) and open one of the dialogs again.",
+      "6. Open the account menu and select Log out. Read that dialog, then select Cancel."
+    ],
+    "expected": "The danger dialog is centered: a red title (for example \"Delete program\"), one line that says what will be lost, the name of the record in bold, then the delete button first (red, for example \"Delete program\") and Cancel second. There is no picture or illustration in it. On a laptop the two buttons sit side by side, the delete button on the left and Cancel on the right; at 390 px they stack with the delete button on top. Keyboard focus starts on Cancel, never on the delete button, and Tab moves to the delete button. The close X stays at the top right. Escape closes it. A dialog that asks for the name (such as Delete position) shows the typed box under the name and keeps the delete button off until it matches. The same layout applies to Permanently delete dialogs and to the other delete, remove and withdraw confirmations. The Log out dialog is not a danger dialog: it keeps the plain layout with a left aligned title, a divider, and Cancel before the blue Log out button.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
   }
 ]
 

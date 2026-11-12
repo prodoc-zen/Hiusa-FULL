@@ -517,7 +517,7 @@
       "3. Select Return with comments.",
       "4. Sign in as the student and open the application."
     ],
-    "expected": "The head sees the toast Returned to the applicant. and the status Returned in the list. The student sees \"Your Department Head returned it. Fix what is listed below, then send it again.\", the head's note under Note from the Department Head, and the section Fix and send again. The head does not edit the application: only the applicant changes it.",
+    "expected": "The head sees the toast Returned to the applicant. and the status Returned in the list. The student sees \"Your Department Head returned it. Fix what is listed below, then send it again.\", the head's note under Note from the Department Head in a red-tinted box that stands apart from the requirement text, and the section Fix and send again. A per-file note whose mark is Needs changes or Missing reads in an amber-tinted box; a note on an accepted file stays plain. The head does not edit the application: only the applicant changes it.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -552,7 +552,7 @@
       "3. Leave the other files as they are and send it again.",
       "4. Sign in as the head and open the application on Organization applications."
     ],
-    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round; the replaced requirement shows the new file name and starts as Not checked. A file that this head had marked Accepted before returning the application, and that the student did not change, starts as Accepted and the page says so (\"<n> files are unchanged since the Department Head stage accepted them, so they start as Accepted.\", or \"1 file is unchanged since the Department Head stage accepted it, so it starts as Accepted.\" for a single file). Every other document is Not checked, and Endorse stays off until every requirement is Accepted. There is no Edit and resubmit form for the head.",
+    "expected": "The other documents stay attached and need not be chosen again. The head sees the new round; the replaced requirement shows the new file name and starts as Not checked. A file that this head had marked Accepted before returning the application, and that the student did not change, starts as Accepted and the page says so (\"<n> files are unchanged since the Department Head stage accepted them, so they start as Accepted.\", or \"1 file is unchanged since the Department Head stage accepted it, so it starts as Accepted.\" for a single file). Every other document is Not checked, and Endorse stays off until every requirement is Accepted. There is no Edit and resubmit form for the head. On the student's page of the same application, a file accepted earlier that the student did not change shows the status 'Accepted earlier' (no note line and no Details button), from either review stage and whichever stage the application waits at; the replaced file shows 'Not reviewed yet' and no earlier note of a private reviewer is shown.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",

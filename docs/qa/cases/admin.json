@@ -640,7 +640,7 @@
       "3. Choose your file in 'CSV file' and select 'Check file'.",
       "4. Read the green message, then select 'Import 2 members'."
     ],
-    "expected": "The check says 'All 2 rows are ready to import.' After importing the toast reads '2 member accounts created' with the note that they set a password with Forgot password. Both rows appear in the table.",
+    "expected": "The check says 'All 2 rows are ready to import.' After importing the toast reads '2 member accounts created' with the note that they set a password with Forgot password (the reset email arrives because email is on). With email off the drawer instead shows a Temporary passwords list to hand over, once. Both rows appear in the table.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -798,11 +798,11 @@
     "steps": [
       "1. Open Members > Officer positions.",
       "2. Read the table headings.",
-      "3. Type part of a title in 'Search title or responsibilities...'.",
+      "3. Type part of a title in 'Search title or responsibilities'.",
       "4. Choose 'Admin' in 'Filter positions by account role'.",
       "5. Open page 2 with the page control if it exists."
     ],
-    "expected": "Columns are Position, Account Role, Responsibilities, Status, Actions, with 10 rows per page. The search and role filter narrow the list. A filter with no match shows 'No positions match the current filters.'",
+    "expected": "Columns are Position (the responsibilities and an Inactive badge sit under the title), Account role (only while the list holds both roles), Can book venues (only while it holds officer positions) and the row menu, 20 rows per page. The search and role filter narrow the list. A filter with no match says so and offers Clear.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Functional",
@@ -815,13 +815,13 @@
     "title": "Add an SBO Officer position",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
-      "1. Select 'Add Position'.",
-      "2. Leave 'Assignable account role *' as Admin, then change it to 'SBO Officer'.",
-      "3. Type a 'Position title *', for example Public Relations Officer.",
+      "1. Select 'Add position'.",
+      "2. Leave 'Account role' as Admin, then change it to 'SBO officer'.",
+      "3. Type a 'Position title', for example Public Relations Officer.",
       "4. Type some Responsibilities.",
-      "5. Select 'Save Position'."
+      "5. Select 'Save position'. Then read the 'Can book venues' cell of the new row."
     ],
-    "expected": "The toast reads 'Position created successfully.' and the position appears as Active in the list. It is now offered in New User when the role is SBO Officer.",
+    "expected": "The toast reads 'Position created.' and the position appears in the list. Its Can book venues switch starts Off (a title such as President, Vice President, Secretary or Business Manager would start On). It is now offered in New User when the role is SBO Officer.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -876,7 +876,7 @@
       "4. Select 'Save Position'.",
       "5. Open Members > People > New User with role SBO Officer and read the position list."
     ],
-    "expected": "The toast reads 'Position updated successfully.' and the row shows Inactive. The inactive position is no longer offered in New User.",
+    "expected": "The toast reads 'Position updated.' and the row shows Inactive. The inactive position is no longer offered in New User.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -890,10 +890,10 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a position you created and assigned to a test officer.",
     "steps": [
       "1. Open the row menu of the position and select 'Delete position'.",
-      "2. Read the dialog 'Delete Position'.",
-      "3. Type the position title and select 'Delete Position'."
+      "2. Read the dialog 'Delete position' (see GEN-135 for its layout).",
+      "3. Type the position title in the box and select 'Delete position'."
     ],
-    "expected": "The toast reads '<title> was deleted. Assigned users were safely unassigned.' The row is gone and the officer now has no position.",
+    "expected": "The delete button stays off until the typed title matches. The toast reads '<title> was deleted. Assigned users were unassigned.' The row is gone and the officer now has no position.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -923,13 +923,13 @@
     "title": "Add a program with block sections",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
-      "1. Open Members > Programs and sections.",
-      "2. Read the box 'Department'.",
-      "3. Type a name in 'Course / Program', for example BS Accountancy.",
-      "4. Set 'Years in this program' to 4 and the '1st Year sections' to 2.",
-      "5. Select 'Add Program'."
+      "1. Open Members > Programs and sections and read the page.",
+      "2. Select 'Add program'.",
+      "3. Type a name in 'Program name', for example BS Accountancy.",
+      "4. Set 'Years in this program' to 4 and the '1st Year' sections box to 2.",
+      "5. Select 'Add program' in the drawer."
     ],
-    "expected": "The message reads 'Program and its required Non Block sections were created.' The program appears under 'Configured programs' with block sections A, B and a Non Block section for each year.",
+    "expected": "The page has the heading Programs and no Department line or explanation of Non Block sections, and the 'Add program' drawer has no extra description either. The message reads 'Program and its required Non Block sections were created.' The program appears under Programs with its years, and each year lists the block sections A, B and its Non Block section.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -942,12 +942,12 @@
     "title": "Program form limits: empty name, duplicate name, years and section counts",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
-      "1. Leave 'Course / Program' empty and look at 'Add Program'.",
-      "2. Type a name that already exists and select 'Add Program'.",
+      "1. Leave 'Program name' empty and look at the 'Add program' button in the drawer.",
+      "2. Type a name that already exists and select 'Add program'.",
       "3. Set 'Years in this program' to 9, then to 0.",
-      "4. Type 30 in one 'sections' box and select 'Add Program'."
+      "4. Type 30 in one year's sections box and select 'Add program'."
     ],
-    "expected": "Add Program stays off with an empty name. A duplicate name is refused with a red message. Years are held between 1 and 8. More than 26 sections for a year is refused. VERIFY: exact wording.",
+    "expected": "Add program stays off with an empty name. A duplicate name is refused with a red message. Years are held between 1 and 8. More than 26 sections for a year is refused. VERIFY: exact wording.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",
@@ -962,10 +962,10 @@
     "steps": [
       "1. Select the pencil button 'Edit <program name>'.",
       "2. Change the name and add one section to 1st Year.",
-      "3. Read the amber note in the dialog.",
-      "4. Select 'Save Changes'."
+      "3. Read the description under the drawer title.",
+      "4. Select 'Save changes'."
     ],
-    "expected": "The dialog 'Edit Program' warns that a section cannot be removed while accounts are assigned to it. The message reads 'Program and section settings were updated.' and the list shows the new data.",
+    "expected": "The drawer 'Edit program' says that a section cannot be removed while user accounts are assigned to it. The message reads 'Program and section settings were updated.' and the list shows the new data.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -979,8 +979,8 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Select the trash button 'Delete BS Information Technology' (a program with students).",
-      "2. Read the dialog 'Delete program?'.",
-      "3. Select 'Delete Program'."
+      "2. Read the dialog 'Delete program' (layout in GEN-135).",
+      "3. Select 'Delete program'."
     ],
     "expected": "The program stays. The page shows 'Cannot delete this program while N user account(s) are assigned to it.'",
     "priority": "High",
@@ -996,8 +996,8 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a program you created and did not assign.",
     "steps": [
       "1. Select the trash button for your program.",
-      "2. Read the dialog 'Delete program?'.",
-      "3. Select 'Delete Program'."
+      "2. Read the dialog 'Delete program' (layout in GEN-135).",
+      "3. Select 'Delete program'."
     ],
     "expected": "The message reads 'Program and its sections were deleted.' and it leaves the list.",
     "priority": "Medium",
@@ -1232,7 +1232,7 @@
       "1. Propose an event, or open one that says 'SAO files needed'.",
       "2. In the window find 'SAO event requirements'.",
       "3. Choose one PDF for each listed item.",
-      "4. Select 'Submit event files to SAO'."
+      "4. Select 'Submit event files'."
     ],
     "expected": "The files are listed with a View button and the section shows a review line. The stage moves on to waiting for the SAO (after the Department Head has approved). If the SAO has defined no requirements, the section says 'SAO has not listed any file requirements.'",
     "priority": "High",
@@ -1270,7 +1270,7 @@
       "3. Select 'Save Changes'.",
       "4. Read the list row."
     ],
-    "expected": "The window titled 'Edit event' saves and the new name shows in the list. A material change to an event that was already approved sends it back to planning and asks the Department Head again.",
+    "expected": "The window titled 'Edit event' saves and the new name shows in the list. For an event that was already approved see ADM-248: only a change to the date or time or to another detail the Department Head approved sends it back to planning.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2448,16 +2448,15 @@
     "id": "ADM-137",
     "role": "Admin / Adviser",
     "module": "Finance > Financial reports",
-    "title": "Add a financial semester",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
+    "title": "The report semester list holds the SAO semesters and has no add form",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The SAO has one completed or active semester (SAO: Setup and records > Academic years). If it also has an upcoming semester, that one must not be offered.",
     "steps": [
-      "1. Open Finance > Financial reports.",
-      "2. Open 'Need a new semester? Add one here'.",
-      "3. Type a 'Semester name' and a 'Start date' in the past, then select 'Add'.",
-      "4. Try again with a Start date in the future.",
-      "5. Try the same semester name again."
+      "1. Open Finance > Financial reports and select 'Prepare a report'.",
+      "2. Keep 'Covered period' on Semester and open the 'Semester' list.",
+      "3. Look for any way to add a semester on this page.",
+      "4. Choose a semester in the top bar academic period box first, then open the form again and read which semester is preselected."
     ],
-    "expected": "The semester is added and appears in the 'Semester' list. A future start date and a repeated name are refused with a message. Tick 'End today' to end it today.",
+    "expected": "The 'Semester' list holds one entry per active or completed SAO semester, written like 'AY 2026-2027, 1st Semester (2026-08-01 to 2026-12-31)'; an upcoming semester is not listed. The active semester is preselected, or the one picked in the top bar when it is listed. There is no 'Need a new semester' link, no form to add a semester and no 'End today' tick: the Admin cannot add a semester, only the SAO can. The Budget form has no semester field either. The list asks the server only once the form is open.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",
@@ -2468,15 +2467,15 @@
     "role": "Admin / Adviser",
     "module": "Finance > Financial reports",
     "title": "Generate a semester financial report",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A financial semester exists and the ledger has entries.",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The SAO has an active or completed semester and the ledger has entries.",
     "steps": [
       "1. Under 'Prepare a report' choose the document 'Financial Report'.",
-      "2. Keep 'Covered period' on Semester and choose the semester.",
+      "2. Keep 'Covered period' on Semester and choose a semester such as 'AY 2026-2027, 1st Semester'.",
       "3. Type names in Treasurer, President, Adviser and SBO Adviser.",
       "4. Select 'Generate Financial Report'.",
       "5. Select 'Preview / print', 'Excel' and 'Download PDF'."
     ],
-    "expected": "A result block shows Income, Expenses and Closing balance and the report is saved as a draft in the list below. The three buttons open or download the report.",
+    "expected": "A result block shows Income, Expenses and Closing balance and the report is saved as a draft in the list below, titled 'Financial Report - AY 2026-2027, 1st Semester' for the semester you chose. The budgets listed in it are those of that semester. The three buttons open or download the report.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -3007,7 +3006,7 @@
       "3. Type a name or ID in Search voters and use the Vote list (All voters, Voted, Not yet voted).",
       "4. Go back to Voting > Elections, open the Actions menu of the election row and select Close, then confirm."
     ],
-    "expected": "Before the start time the server refuses with \"Voting period has not started yet. Voting opens <date and time>.\" and nothing changes; once the start time has passed voting opens by itself, so the button is rarely needed. When opened by hand from the list the toast reads \"Election opened for voting.\" and the status shows Voting open. Voters shows a line such as \"N of M eligible voters have voted (P% turnout)\" and a table of Name, School ID, Role, Email and Vote, 10 per page. Close exists only in the Actions menu of the election list row; after confirming, the toast reads \"Election closed.\" and the status is Closed. Closing hands the Admin and officer seats to the winners at once, so the previous President is signed out on the next request; any later Admin step needs the new President or the adviser seat 990002. Opening before the ballot is finalized is refused by the server (\"Finalize the candidate and party list ballot before opening voting.\") and the Open voting action is not offered until the ballot is finalized.",
+    "expected": "Before the start time the server refuses with \"Voting period has not started yet. Voting opens <date and time>.\" and nothing changes; once the start time has passed voting opens by itself, so the button is rarely needed. When opened by hand from the list the toast reads \"Election opened for voting.\" and the status shows Voting open. Voters shows a line such as \"N of M eligible voters have voted (P% turnout)\" and a table of Name, School ID, Role, Email and Vote, 10 per page. Close exists only in the Actions menu of the election list row; after confirming, the toast reads \"Election closed.\" and the status is Closed. Closing hands the seats to the winners at once by position title: the President and every Vice President (any title starting \"Vice President\") become the organization Admin, and every other winner becomes an SBO Officer with that position title, even though the Positions page lists the standard titles under both roles. An officer or Admin a winner replaces stays in the organization as a plain Student (see ADM-247), so if the signed-in Admin held a seat that a winner takes, that account loses its Admin pages and any later Admin step needs the new President or the adviser seat 990002. Opening before the ballot is finalized is refused by the server (\"Finalize the candidate and party list ballot before opening voting.\") and the Open voting action is not offered until the ballot is finalized.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -3025,7 +3024,7 @@
       "3. Review and submit the ballot.",
       "4. Open My activity > Vote again and try to vote in the same election."
     ],
-    "expected": "A receipt is shown after the ballot. The election shows as 'Voted'. A second try is refused with 'You have already voted in this election.'",
+    "expected": "The \"Ballot submitted\" page shows the election title, \"Submitted <date and time>\" and the receipt. The election shows as 'Voted'. A second try is refused with 'You have already voted in this election.'",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -4042,10 +4041,10 @@
     "steps": [
       "1. Open the event and read the stage text and the remarks.",
       "2. Find 'SAO event requirements' and choose new PDFs for the returned items.",
-      "3. Select 'Submit event files to SAO'.",
+      "3. Select 'Submit event files'.",
       "4. Read the stage text again."
     ],
-    "expected": "The stage says 'Returned by SAO' with the remarks before the change. After sending new files it goes back to 'Waiting for SAO'.",
+    "expected": "The stage says 'Returned by SAO' with the remarks before the change. A file whose SAO note says Needs changes or Missing shows that note in an amber box, so it stands apart from the accepted files. After sending new files it goes back to 'Waiting for SAO'.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Functional",
@@ -4403,5 +4402,83 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "ADM-003"
+  },
+  {
+    "id": "ADM-247",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Closing an election gives winners their seats by title, and the replaced officer stays a Student",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a throwaway copy: the replaced President loses Admin pages. An election with a ballot that has a President seat and a Treasurer seat, finalized, with votes cast so that a member other than the current holders wins each seat. Treasurer 900004 is the current Treasurer. Know which members won before you start.",
+    "steps": [
+      "1. Open Voting > Elections, open the Actions menu of the election row, select Close and confirm.",
+      "2. Open Voting > Results and read the \"Access handed over\" line.",
+      "3. Sign in as the member who won President. Read the role badge, the position under the name and the menu.",
+      "4. Sign out. Sign in as the member who won Treasurer and read the same things, then open the bell.",
+      "5. Sign out. Sign in as 900004, the replaced Treasurer, and read the role badge, the menu and Voting > Vote.",
+      "6. Open Members > People as the new President and find 900004 in the list."
+    ],
+    "expected": "Step 2 shows \"Access handed over\" with the line \"Winners now have access to the organization in their positions.\" Step 3: the President winner is an Admin (role badge Organization Admin, position President, the Admin menu), and the same holds for every Vice President winner (any title starting \"Vice President\"). Step 4: the Treasurer winner is an SBO Officer with position Treasurer and the officer menu, and the bell holds \"You now have access to <organization>\" with \"You won Treasurer in <election title>.\" Other winners of other titles are SBO Officers with that title, never Admins. Step 5: 900004 can still sign in. Their role in the organization is now Student (the student menu, no position), the account is still active, and they can vote in the next election of the organization. Step 6: 900004 is listed as an active Student with no position, not as Inactive. Nobody is set inactive by the hand over. Closing again or reloading the results hands over nothing more. A tied seat is not handed over and the results say so.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "ADM-248",
+    "role": "Admin / Adviser",
+    "module": "Members > Officer positions",
+    "title": "Switch \"Can book venues\" on or off for an officer position",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Fresh seed: for officer positions the switch is On for President, both Vice President titles, Secretary and Business Manager, and Off for Assistant Secretary, Treasurer, Auditor, Public Information Officer and Representative. Officer 900004 holds Treasurer.",
+    "steps": [
+      "1. Open Members > Officer positions and read the table headings and the rows.",
+      "2. Choose \"Admin\" in \"Filter positions by account role\" and read the table again, then clear the filter.",
+      "3. On the row Treasurer (SBO officer) switch \"Can book venues\" to Yes.",
+      "4. Sign in as 900004 in another browser and open Events and tasks > Venue booking, then request a venue.",
+      "5. Back as Admin, switch Treasurer to No again and reload Venue booking as 900004.",
+      "6. As Admin open Events and tasks > Venue booking."
+    ],
+    "expected": "Step 1: the table has Position (with its responsibilities under the title), Account role while the list holds both roles, Can book venues while the list holds officer positions, and the row menu. Officer rows show a switch labelled Yes or No. Step 2: Admin positions show \"Always\" and the Can book venues column disappears when only Admin positions are listed. Step 3: the switch saves by itself (no Save button) and moves only after the server accepted it; a failure shows an error toast and the switch stays where it was. Step 4: the officer now sees Venue booking and the request goes through. Step 5: the officer loses the page (the menu entry and the address /dashboard/venues send them to the Dashboard) and a new request is refused. Step 6: the Admin can always book, whatever the switches say. A newly added officer position starts On for President, any Vice President title, Secretary and Business Manager (Assistant Secretary stays Off), and Off for every other title.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "ADM-249",
+    "role": "Admin / Adviser",
+    "module": "Events and tasks > Events",
+    "title": "Changing the date of an approved event sends it back to the Department Head; a save with no change does not",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An approved event that has not started (status Approved) and no venue booking. Do this with the Department Head player (940001).",
+    "steps": [
+      "1. Open the row menu of the approved event and select 'Edit event'.",
+      "2. Change nothing and select 'Save Changes'. Read the status and the stage line.",
+      "3. Open 'Edit event' again, change only the poster, 'Logistics Checklist' or 'Vendor Deadlines', and select 'Save Changes'. Read the stage line.",
+      "4. Open 'Edit event' again, move the start and end by one day and select 'Save Changes'. Read the status and the stage line.",
+      "5. Sign in as Department Head 940001, open Approvals and find the event.",
+      "6. As Admin, open an approved event that has a pending or approved venue booking, change its date and select 'Save Changes'."
+    ],
+    "expected": "Steps 2 and 3: the event stays Approved, the stage line does not change and no new approval is opened (the form sends the same values, with or without seconds, and blank and empty text count as the same). Step 4: the event goes back to Planning, the stage line reads 'Waiting for Department Head approval' and the approval is pending again; changing the title, description, location, venue type or venue, event type, expected participants, proposed budget amount, budget notes or the budget need does the same. Step 5: the Department Head sees the event as a new request to approve; when SAO files apply the files and the SAO step follow again after the head approves. Step 6: the save is refused with 'Withdraw the venue booking first, then change the date.' and the event keeps its date and stays Approved; a save that keeps the same date still works.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "ADM-250",
+    "role": "Admin / Adviser",
+    "module": "Top bar > Notifications",
+    "title": "Notices reach an Admin who holds the role through an organization profile",
+    "preconditions": "A person whose Admin role in PSITS-CCS comes from an organization profile, not from the account itself (for example the department head gave them access, or they won the President seat and their own account lives in another organization). They can switch to the PSITS-CCS profile from the account menu. Do this with the SAO player (990001) and a student of PSITS-CCS.",
+    "steps": [
+      "1. As the SAO, open Reviews > Compliance, the Requirements tab, and select New requirement to add a requirement. Later edit it and change its deadline.",
+      "2. As a student of PSITS-CCS, open Support > My grievances, file a grievance with \"My organization\" selected under \"Who should this go to?\".",
+      "3. As the Admin, sign in, open the account menu and switch to the PSITS-CCS profile, then open the bell.",
+      "4. As the SAO, return a compliance document the organization submitted (the Review queue, see SAO-056), then read the bell of the same person again."
+    ],
+    "expected": "On the PSITS-CCS profile the bell holds \"New compliance requirement\", \"Compliance deadline changed\", \"New grievance filed against your organization\" (it does not name the student), and \"Compliance document returned\". These notices belong to the organization, so they show on that profile and not on the person's own organization. When the Department Head approves an event, every active member of the organization, whatever their role and however they hold the profile, gets \"Event Approved: <event title>\".",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]
