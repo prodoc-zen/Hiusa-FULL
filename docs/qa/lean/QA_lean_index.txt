@@ -169,7 +169,7 @@ ADM-167 | Voting > Elections | A finalized ballot is locked | H | Any
 ADM-168 | Voting > Elections | Open voting, watch turnout in Voters, then close the election | H | Any
 ADM-169 | Voting > Elections | Admin votes in an open election, only once | H | Any
 ADM-170 | Voting > Elections | Voting after the election closes is refused | H | Any
-ADM-171 | Voting > Results | Results page: live totals and final results | H | Any
+ADM-171 | Voting > Results | Results page: turnout while voting is open and final results | H | Any
 ADM-172 | Voting > Results | Results are not available before voting opens | M | Any
 ADM-173 | Store > Inventory | Inventory page: open orders, collected, top sellers, items, search and category filter | M | Any
 ADM-174 | Store > Inventory | Add a product | H | Any
@@ -606,7 +606,7 @@ SAO-028 | Organizations > Registrations and organizations | An archived organiza
 SAO-029 | Organizations > Registrations and organizations | On a phone the organization lists turn into cards and nothing is cut off | M | Any
 SAO-030 | Organizations > Registrations and organizations > Open (Organization overview) | The overview page shows one organization at a glance | H | Any
 SAO-031 | Organizations > Registrations and organizations > Open (Organization overview) | An organization that does not exist shows an error with a way back | L | Any
-SAO-032 | Organizations > Administrators | The administrator list and its three summary tiles | H | Any
+SAO-032 | Organizations > Administrators | The administrator list and its summary line | H | Any
 SAO-033 | Organizations > Administrators | Search and filter the administrator list | M | Any
 SAO-034 | Organizations > Administrators | Create a new administrator by typing a password (not part of the system); Add administrator picks an existing student | H | Any
 SAO-035 | Organizations > Administrators | The create-administrator form (not part of the system); Add administrator stays off until it is complete | H | Any

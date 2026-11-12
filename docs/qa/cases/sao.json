@@ -12,7 +12,7 @@
       "4. Select Sign in.",
       "5. Look at the page that opens and at the left menu."
     ],
-    "expected": "You land on the SAO Dashboard (the address ends with /dashboard/super-admin). The left menu shows Dashboard, then the groups Organizations, Reviews, Updates and Setup and records, and Profile and Study objectives at the bottom. VERIFY: if a Change password screen appears first, set a new password and tell the demo owner, then continue.",
+    "expected": "You land on the SAO Dashboard (the address ends with /dashboard/super-admin). The left menu shows Dashboard, then the groups Governance, Reviews, Files, Updates and Setup and records, and Profile and Study objectives at the bottom. VERIFY: if a Change password screen appears first, set a new password and tell the demo owner, then continue.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -50,9 +50,9 @@
       "4. Select the group name Files and read the items under it.",
       "5. Select the group name Updates and read the items under it.",
       "6. Select the group name Setup and records and read the items under it.",
-      "7. Look for any menu item named Approvals, Finance, Events, Voting or Store."
+      "7. Look for any menu item named Finance, Events, Voting or Store."
     ],
-    "expected": "The menu reads: Dashboard; University users; Governance (Organization applications, Registrations and organizations, Colleges); Reviews (Compliance, Organization approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Approvals, Finance, Events, Voting or Store item.",
+    "expected": "The menu reads: Dashboard; University users; Ask AI; Governance (Colleges, Student records, Applications, Organizations, Administrators); Reviews (Compliance, Approvals, Venues, Grievances, Clearances); Files (Submitted files, Storage and limits); Updates (University announcements, Notifications); Setup and records (Academic years, School year records, Audit trail); Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Finance, Events, Voting or Store item.",
     "priority": "High",
     "device": "Laptop",
     "type": "Usability",
@@ -514,14 +514,14 @@
     "title": "An archived organization is read only everywhere until it is restored",
     "preconditions": "Signed in as SAO 990001. An archived organization with an administrator exists.",
     "steps": [
-      "1. On the Archived tab read the buttons on the card.",
+      "1. On the Archived tab open the Actions menu of the row and read the choices.",
       "2. Try to sign in as the organization administrator in another window.",
       "3. Sign in as Department Head 940001 and look at the row on Organizations.",
-      "4. As SAO select Restore on the card and confirm Restore organization.",
+      "4. As SAO open the Actions menu of the row, select Restore organization and confirm Restore organization.",
       "5. Read the green message and the Active tab.",
       "6. Sign in as the organization administrator again."
     ],
-    "expected": "The card has only Open and Restore (no Review, Edit or Archive). The administrator cannot sign in and sees a clear message (VERIFY wording). The Department Head sees the row as Archived, Read only, with only View checklist. After restoring, \"<Name> restored.\" appears, the organization is back on Active, and the administrator can sign in.",
+    "expected": "The Actions menu has only Open organization, Restore organization and Delete organization (no Review, Edit or Archive). The administrator cannot sign in and sees a clear message (VERIFY wording). The Department Head sees the row as Archived, Read only, with only View checklist. After restoring, \"<Name> restored.\" appears, the organization is back on Active, and the administrator can sign in.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -587,16 +587,16 @@
     "id": "SAO-032",
     "role": "SAO",
     "module": "Organizations > Administrators",
-    "title": "The administrator list and its three summary tiles",
+    "title": "The administrator list and its summary line",
     "preconditions": "Signed in as SAO 990001.",
     "steps": [
-      "1. Open Organizations > Administrators.",
-      "2. Read the three tiles: Total Admins, Active Accounts, Organizations Covered.",
+      "1. Open Governance > Administrators.",
+      "2. Read the line under the page title (\"N administrators, N active, covering N organizations\").",
       "3. Read the table columns and one row.",
       "4. Look for the grey group headings between rows.",
       "5. Find School IDs 900001, 920011, 990002 and 990032 in the table."
     ],
-    "expected": "Tiles show counts. The table columns are Administrator (name, then \"email · School ID\"), Organization (the code), Position (\"Organization Admin\" when none is set), Status and Action (a menu). Group headings read \"Main organizations\" and \"Sub organizations\". The seeded Admins and Advisers appear as active.",
+    "expected": "The summary line gives the counts (the seed shows 10 administrators, 10 active, covering 5 organizations); there are no summary tiles. The table columns are Administrator (name, then \"email · School ID\"), Organization (the code), Position (\"Organization Admin\" when none is set), Status and Actions (a menu). The group heading \"Main organizations\" shows, and \"Sub organizations\" shows only once a sub organization has an administrator. The seeded Admins and Advisers appear as active.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -609,13 +609,13 @@
     "title": "Search and filter the administrator list",
     "preconditions": "Signed in as SAO 990001.",
     "steps": [
-      "1. Type 920011 in the search box (placeholder \"Search name, School ID, email, or position\").",
+      "1. Type 920011 in the Search box (placeholder \"Name, email, or position\").",
       "2. Clear it. Choose one organization in \"Filter by organization\".",
       "3. Set \"Filter by account status\" to Inactive.",
       "4. Read the result.",
       "5. Set the status back to All statuses and choose All organizations."
     ],
-    "expected": "Each filter narrows the table. When nothing matches the table is replaced by \"No administrator accounts match this view.\" with \"Change the filters or create a new Admin user.\" Clearing the filters brings the rows back. Status options are All statuses, Active, Inactive and Disabled.",
+    "expected": "Each filter narrows the table. When nothing matches the table is replaced by \"No results\" with \"Try a different name or clear the filters.\" and a \"Clear filters\" link. Clearing the filters brings the rows back. Status options are All statuses, Active, Inactive and Disabled.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -663,9 +663,10 @@
     "preconditions": "Signed in as SAO 990001. A Pending organization and an Active organization with no administrator exist.",
     "steps": [
       "1. Select Add administrator and open the organization list.",
-      "2. Check that Pending, Returned and Archived organizations are not listed."
+      "2. Check that Pending, Returned and Archived organizations are not listed.",
+      "3. Choose an organization and open the Student list."
     ],
-    "expected": "The list offers only active organizations (including sub-organizations). There is no Provision administrator button on the organization rows, so there is no locked-organization form.",
+    "expected": "The list offers only active organizations (including sub-organizations). The Student list offers only students of the college of the organization you chose. There is no Provision administrator button on the organization rows, so there is no locked-organization form.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Validation",
@@ -678,13 +679,13 @@
     "title": "Edit an administrator",
     "preconditions": "Signed in as SAO 990001. Use Admin 900002 or an administrator you created.",
     "steps": [
-      "1. Open the Action menu of the row and choose Edit administrator.",
-      "2. Check that School ID cannot be changed and that there is no password field.",
+      "1. Open the Actions menu of the row and choose Edit administrator.",
+      "2. Check that the panel has no School ID line and no password field.",
       "3. Change Position title.",
-      "4. Select Save Changes.",
+      "4. Select Save changes.",
       "5. Read the green message and the row."
     ],
-    "expected": "The dialog is titled Edit Admin User and shows the School ID as plain text. There is no password field (the SAO cannot set an administrator password). After saving, \"Administrator account updated successfully.\" appears and the Position column shows the new title.",
+    "expected": "The panel is titled Edit administrator and shows First name, Last name, Email address, Contact number, Position title, Assigned organization (read only) and Account status. There is no School ID line and no password field (the SAO cannot set an administrator password). After saving, \"Administrator account updated successfully.\" appears and the Position column shows the new title.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -716,13 +717,13 @@
     "title": "Send a password reset link to an administrator",
     "preconditions": "Signed in as SAO 990001. Mail is switched off on the public copy, so no email arrives there.",
     "steps": [
-      "1. Open the Action menu of an active administrator and choose Reset access.",
+      "1. Open the Actions menu of an active administrator and choose Reset access.",
       "2. Read the box titled Initiate password reset.",
       "3. Select Create reset link.",
-      "4. Read the green message.",
-      "5. Open the Action menu of an inactive administrator and look at Reset access."
+      "4. Read the box Reset link ready, then select Done and read the green message.",
+      "5. Open the Actions menu of an inactive administrator and look at Reset access."
     ],
-    "expected": "The box says it creates a one-time reset link, shown to you once to hand over, and emailed only when email is turned on. The current password is not shown. After Create reset link a Reset link ready box shows the link once and the green message reads \"Reset link created for <Name>.\" On the public copy no email arrives, so copy the link from the box. For an inactive administrator Reset access is greyed out.",
+    "expected": "The box says it creates a one-time reset link, shown to you once to hand over, and emailed only when email is turned on. The current password is not shown. After Create reset link a Reset link ready box shows the link once. The green message \"Reset link created for <Name>.\" appears after you select Done, not while the box is open. On the public copy no email arrives, so copy the link from the box. For an inactive administrator Reset access is greyed out.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -737,12 +738,12 @@
     "steps": [
       "1. Select the checklist link \"Review each organization's administrators after elections: add the new ones, remove the old ones\" (or open Administrator accounts).",
       "2. Select Add administrator, choose the organization, find the successor in Student and choose the role Organization head.",
-      "3. Select Add administrator and read the message.",
-      "4. Open the row menu of the old Admin and choose Manage profiles.",
+      "3. Select Add administrator and read the green message and the box \"Done: <name> can sign in\".",
+      "4. Open the Actions menu of the old Admin and choose Manage profiles.",
       "5. Remove the old Admin's profile in that organization (or reassign the old Admin to another organization with Add to organization).",
       "6. Sign in as the successor, then try to sign in as the old Admin."
     ],
-    "expected": "On Administrator accounts the successor is added to the organization with the role Organization head and keeps their own login and any other organizations. The old Admin is removed from the organization in Manage profiles; an old Admin who has no other profile can no longer sign in. The successor now sees the Admin menu. VERIFY: whether an organization may hold two administrators before the old one is removed.",
+    "expected": "On Administrator accounts the successor is added to the organization with the role Organization head and keeps their own login and any other organizations. The successor's row, added through a profile, offers only Manage profiles. The old Admin is removed from the organization in Manage profiles; an old Admin who has no other profile can no longer sign in. The successor lands on the student home first and reaches the Admin menu by choosing the head profile in the Account menu. VERIFY: whether an organization may hold two administrators before the old one is removed.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -772,14 +773,14 @@
     "title": "Delete an administrator account",
     "preconditions": "Signed in as SAO 990001. Use an administrator you created with no records.",
     "steps": [
-      "1. Open the Action menu of that administrator and choose Delete administrator.",
+      "1. Open the Actions menu of that administrator and choose Delete administrator. This item exists only for accounts created as administrators.",
       "2. Read the box.",
       "3. Select Cancel and check the row is still there.",
       "4. Repeat and select Delete administrator.",
       "5. Read the green message.",
       "6. Try the same on an administrator with records such as 900001 and read the result."
     ],
-    "expected": "The box says \"This removes the administrator profile. Accounts with linked records cannot be deleted.\" Cancel keeps the row. A confirmed delete shows \"Administrator account removed.\" and the row disappears. An administrator with linked records is refused with a red message (VERIFY wording) and stays in the list.",
+    "expected": "The box says \"This removes the administrator profile. Accounts with linked records cannot be deleted.\" Cancel keeps the row. A confirmed delete shows \"Administrator account removed.\" and the row disappears. An administrator with linked records is refused with a red message (\"This user has linked operational records. Deactivate the account instead of deleting its final profile.\") and stays in the list.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1768,7 +1769,7 @@
       "4. Select Open related record.",
       "5. Select the bell again and choose Mark all as read."
     ],
-    "expected": "The badge shows the unread count (9+ when more than nine). The panel says \"Notifications\" with \"N new\". A notice shows its full text with Back to notifications and Open related record. Mark all as read shows \"All notifications marked as read.\" and the badge disappears. An empty panel says \"No notifications yet\".",
+    "expected": "The badge shows the unread count (9+ when more than nine). The panel says \"Notifications\" with \"N new\". A notice shows its full text with Back to notifications and Open related record. Open related record opens the page for the notice; a financial report notice opens the Financial tab of Reviews > Compliance, not the report itself. Mark all as read shows \"All notifications marked as read.\" and the badge disappears. An empty panel says \"No notifications yet\".",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1787,7 +1788,7 @@
       "4. Select the registration notice and note where it lands.",
       "5. Select the compliance notice and note where it lands."
     ],
-    "expected": "Each action produces a notice for the SAO. The registration notice leads to the Pending review registration or its drawer. The compliance notice leads to the Review queue on Reviews > Compliance. VERIFY: the exact destination of each notice and that it lands on the exact item.",
+    "expected": "Each action produces a notice for the SAO. The registration notice leads to the Pending review registration or its drawer. The compliance notice leads to the Review queue on Reviews > Compliance. VERIFY: the exact destination of each notice. A compliance or financial report notice opens the matching tab of Compliance, not the single file or report.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -2188,9 +2189,10 @@
       "1. Open Governance, then Applications, in the left menu (address ends with /dashboard/organization-applications).",
       "2. Read the tabs: To review, With the Department Head, Returned, Approved and Not approved.",
       "3. On the To review tab select Review on an endorsed application row.",
-      "4. Read the applicant, the position, the note from the Department Head and each requirement with its file."
+      "4. Read the applicant, the position, the note from the Department Head and each requirement with its file.",
+      "5. Select Review on one requirement row."
     ],
-    "expected": "The application opens as its own page (the address ends with ?record=<id>), not in a window. It shows the applicant and position, the Department Head's comments under Note from the Department Head when there are any, each requirement with a protected link to its file and the Department Head's mark, the History, and the Decision area with Approve, Return with comments and Reject application.",
+    "expected": "The application opens as its own page (the address ends with ?record=<id>), not in a window. It shows the applicant and position, the Department Head's comments under Note from the Department Head when there are any, and each requirement with a protected link to its file and its own state (Not checked until the SAO accepts it). Opening a requirement with Review shows the Department Head's earlier mark and note for that file. The page also has the History and the Decision area with Approve, Return with comments and Reject application.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",

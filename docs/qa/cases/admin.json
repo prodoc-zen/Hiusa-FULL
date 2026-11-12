@@ -245,7 +245,7 @@
       "3. Read the table headings.",
       "4. Count the rows on the first page."
     ],
-    "expected": "The page shows a \"N users\" count with Export and Import beside it, then the table. Columns are Name (with the School ID under it), Role, and Program (year level and section under it; the Program column appears only when someone on the page has one). Row actions are in the row menu. At most 20 rows show and a page control sits under the table. There are no summary cards and no distribution chart.",
+    "expected": "The page shows a \"N users\" count with Export and Import beside it, then the table. Columns are Name (with the School ID under it), Role, and Program (year level and section under it; the Program column appears only when someone on the page has one). Row actions are in the row menu. At most 20 rows show and a page control sits under the table; the seed shows 22 users for PSITS-CCS, so page 1 has 20 rows and page 2 has 2. There are no summary cards and no distribution chart.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -259,12 +259,12 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Open Members > People.",
-      "2. In 'Search name, school ID, program, or email' type 2100142.",
+      "2. In the search box (placeholder \"Search name, ID or program\") type 2100142.",
       "3. Wait a moment and read the table.",
-      "4. Clear the box and type part of a last name.",
+      "4. Clear the box and type part of a last name, then clear it and type a full name (first and last name together).",
       "5. Type zzzzzz in the search box."
     ],
-    "expected": "The list narrows to matching users and the result count updates (for example 1 user). Clearing the box shows everyone again. A search with no match shows 'No users found.' and 0 users, with no error.",
+    "expected": "The list narrows to matching users and the result count updates (for example 1 user). A full name finds the member. An email address also matches. Clearing the box shows everyone again. A search with no match shows \"No results. Try a different search term or clear your filters.\" and 0 users, with no error.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -312,14 +312,14 @@
     "role": "Admin / Adviser",
     "module": "Members > People",
     "title": "Change pages and search from page 2 (there is no sort control)",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. More than 20 users exist (the seed shows about 24 users for PSITS-CCS).",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. More than 20 users exist (the seed shows 22 users for PSITS-CCS).",
     "steps": [
-      "1. Open Members > People and read the line under the table, for example \"Showing 1-20 of 24 users\".",
+      "1. Open Members > People and read the line under the table, for example \"Showing 1-20 of 22 users\".",
       "2. Look for a Sort control above the table.",
       "3. Select the next page in the page control.",
       "4. Type a name in the search box."
     ],
-    "expected": "There is no Sort control; users appear in the order the page gives them. Page 1 shows 20 rows and page 2 shows the rest (\"Showing 21-24 of 24 users\"). After a search from page 2 the list goes back to page 1 and the line shows the new count.",
+    "expected": "There is no Sort control; users appear in the order the page gives them. Page 1 shows 20 rows and page 2 shows the rest (\"Showing 21-22 of 22 users\"). After a search from page 2 the list goes back to page 1 and the line shows the new count.",
     "priority": "Low",
     "device": "Any",
     "type": "Functional",
@@ -545,13 +545,13 @@
     "title": "Deactivate a student (sign-in is refused), then reactivate",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a test student you created, not a shared demo student.",
     "steps": [
-      "1. Open the row menu of the test student and select 'Deactivate account', then 'Deactivate' in 'Deactivate User'.",
+      "1. Open the row menu of the test student and select 'Deactivate account', then 'Deactivate' in 'Deactivate user'.",
       "2. Read the message and the Status column.",
       "3. In a private window try to sign in as that student.",
-      "4. Back in People open the row menu and select 'Reactivate account', then 'Reactivate' in 'Reactivate User'.",
+      "4. Back in People open the row menu and select 'Reactivate account', then 'Reactivate' in 'Reactivate user'.",
       "5. Read the message and the Status column."
     ],
-    "expected": "After deactivating the message reads '<name> was deactivated.', Status shows Inactive and the student sees 'This account cannot sign in right now. Contact your organization admin for help.' After reactivating the message reads '<name> was reactivated.' and Status shows Active. The dialog warns the student may still need to reset a password.",
+    "expected": "After deactivating the message reads '<name> was deactivated.', Status shows Disabled and the student sees 'This account is not active. Please contact an administrator.' After reactivating the message reads '<name> was reactivated.' and Status shows Active. The dialog warns the student may still need to reset a password.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -705,14 +705,14 @@
     "role": "Admin / Adviser",
     "module": "Members > People",
     "title": "Add an existing user to the organization",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The seed has few eligible users in one college, so this may show the empty message. Use a copy you can reset.",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The seed has no eligible student in one college, so this may show the empty message. Use a copy you can reset.",
     "steps": [
-      "1. Open Members > People and select 'Add existing user'.",
-      "2. Read the dialog 'Add existing user' and choose the destination organization.",
-      "3. Search a name, school ID or email.",
-      "4. Choose a user and a role, then select 'Add user'."
+      "1. Open Members > People and select 'Add existing student'.",
+      "2. Read the panel 'Add an existing student'. If it shows an Organization box, choose the destination organization.",
+      "3. In Student type a name or email.",
+      "4. Choose a student and a role (Member, Officer), then select 'Add student'."
     ],
-    "expected": "Only eligible users of the same college who are not yet members are listed, or the dialog says 'No eligible users found in this college.' After adding, the toast reads 'User added to the organization.' The role list does not offer Admin to an Admin. VERIFY: result on the seed data.",
+    "expected": "Only eligible students of the same college who are not yet members are listed, or the panel says 'No one matches \"<text>\". People who already belong are not listed.' After adding, the toast reads 'User added to the organization.' The role list does not offer Organization head to an Admin. VERIFY: result on the seed data.",
     "priority": "Low",
     "device": "Laptop",
     "type": "Functional",
@@ -763,9 +763,9 @@
       "1. Open Members > People.",
       "2. Search 2100142 (a PSITS-CCS student).",
       "3. Search 2400118 (a FES-CTE student).",
-      "4. Read the total on the cards."
+      "4. Read the \"N users\" count."
     ],
-    "expected": "Both searches show 'No users found.' The list holds only JPIA-CBE members.",
+    "expected": "Both searches show \"No results. Try a different search term or clear your filters.\" and 0 users. The list holds only JPIA-CBE members.",
     "priority": "High",
     "device": "Any",
     "type": "Access",
@@ -1685,7 +1685,7 @@
       "4. Leave 'Attendance status' on Present.",
       "5. Select 'Confirm check-in'."
     ],
-    "expected": "The ongoing event is already selected with a 'Live now' tag. The page says 'Check-in recorded.' and the member appears in the attendance log with Method Manual and the counts go up.",
+    "expected": "The ongoing event is selected for you when it is the only one, and shows the Ongoing badge. With two ongoing events nothing is selected and the pane reads \"Choose an event to begin\". The page says 'Check-in recorded.' and the member appears in the attendance log with Method Manual and the counts go up.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1716,11 +1716,12 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An ongoing event with a few arrivals.",
     "steps": [
       "1. Check in one member as Late and another as Excused.",
-      "2. In the log, type a name in 'Search attendee or academic profile'.",
-      "3. Choose 'Late' in 'Filter attendance status'.",
-      "4. Select 'Export CSV'."
+      "2. Read the tiles Inside now, Arrivals and Late above the log.",
+      "3. In the log, type a name in 'Search attendee or academic profile'.",
+      "4. Choose 'Late' in 'Filter attendance status'.",
+      "5. Select 'Export CSV'."
     ],
-    "expected": "The four choices are Present, Late, Excused and Absent. The log filters by name and status, shows Check In / Out and Recorded By, and the CSV downloads with only the matching rows.",
+    "expected": "The four choices are Present, Late, Excused and Absent. The Arrivals tile counts only Present and Late members, so a member marked Absent is not counted. The log filters by name and status, shows Check In / Out and Recorded By, and the CSV downloads with only the matching rows.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Functional",
@@ -3006,7 +3007,7 @@
       "3. Type a name or ID in Search voters and use the Vote list (All voters, Voted, Not yet voted).",
       "4. Go back to Voting > Elections, open the Actions menu of the election row and select Close, then confirm."
     ],
-    "expected": "Before the start time the server refuses with \"Voting period has not started yet. Voting opens <date and time>.\" and nothing changes; once the start time has passed voting opens by itself, so the button is rarely needed. When opened by hand from the list the toast reads \"Election opened for voting.\" and the status shows Voting open. Voters shows a line such as \"N of M eligible voters have voted (P% turnout)\" and a table of Name, School ID, Role, Email and Vote, 10 per page. Close exists only in the Actions menu of the election list row; after confirming, the toast reads \"Election closed.\" and the status is Closed. Opening before the ballot is finalized is refused by the server (\"Finalize the candidate and party list ballot before opening voting.\") and the Open voting action is not offered until the ballot is finalized.",
+    "expected": "Before the start time the server refuses with \"Voting period has not started yet. Voting opens <date and time>.\" and nothing changes; once the start time has passed voting opens by itself, so the button is rarely needed. When opened by hand from the list the toast reads \"Election opened for voting.\" and the status shows Voting open. Voters shows a line such as \"N of M eligible voters have voted (P% turnout)\" and a table of Name, School ID, Role, Email and Vote, 10 per page. Close exists only in the Actions menu of the election list row; after confirming, the toast reads \"Election closed.\" and the status is Closed. Closing hands the Admin and officer seats to the winners at once, so the previous President is signed out on the next request; any later Admin step needs the new President or the adviser seat 990002. Opening before the ballot is finalized is refused by the server (\"Finalize the candidate and party list ballot before opening voting.\") and the Open voting action is not offered until the ballot is finalized.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -3052,15 +3053,15 @@
     "id": "ADM-171",
     "role": "Admin / Adviser",
     "module": "Voting > Results",
-    "title": "Results page: live totals and final results",
+    "title": "Results page: turnout while voting is open and final results",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An open or closed election with some votes.",
     "steps": [
       "1. Open Voting > Results.",
-      "2. Read the title ('Live vote totals' or 'Official final results').",
-      "3. Read the Winner spotlight.",
-      "4. Use 'Filter by position' and pick one position."
+      "2. Read the line under the page title (for a closed election \"Final results for every position.\"; while voting is open \"Voting is open. Only turnout shows now. Results appear when the election closes.\"). If several elections exist, the Election list reads \"<title> (voting open)\" or \"<title> (final results)\".",
+      "3. Read the table \"Final winners by position\" under Winners.",
+      "4. Read the table of one position (Candidate, Party list, Votes, Share) and its \"N votes cast\" line."
     ],
-    "expected": "Vote totals and percentages show for each candidate and position. A closed election shows declared winners. With no votes yet the page shows zero totals without an error.",
+    "expected": "While voting is open only the Ballots count shows, with no totals. A closed election shows Ballots and Votes cast, the winners, and for each position the votes and percentage of every candidate, with \"1 vote cast\" for a single vote and \"N votes cast\" otherwise. With no votes the page shows zero totals without an error.",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -3255,11 +3256,11 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Open Store > Orders.",
-      "2. Read the order summary numbers.",
-      "3. Type an order number or student name in 'Search order, student, item, reference...'.",
-      "4. Use 'Filter orders by status', 'Payment method', 'Year level' and 'Sort orders'."
+      "2. Read the line \"N orders\" and the line under it (\"N pending review, N ready for pickup, N claimed, the amount collected\").",
+      "3. Type an order number or student name in \"Search order, student, item, reference\".",
+      "4. Use the tabs under \"Filter orders by status\", \"Sort orders\" and, after \"More filters\", \"Payment method\" and \"Year level\" (Year level stays off until a program is chosen)."
     ],
-    "expected": "The order queue follows every filter and shows Order / Reference, Student / User, Academic Profile, Mode of payment, Review Trail and Fulfillment. With no match it says 'No orders match these filters.'",
+    "expected": "There are no summary cards. The order queue follows every filter. On a laptop the table columns are Order, Student / User, Item, Total, Mode of payment, Fulfillment and Actions; on a smaller screen each order is a card. With no match it says \"No orders match these filters\" with \"Clear filters\".",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -3326,8 +3327,8 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. A pending order.",
     "steps": [
       "1. Open the row menu of the order and select 'Reject order'.",
-      "2. In 'Reject Payment' leave 'Rejection reason' empty and try to confirm.",
-      "3. Type a reason and select 'Reject Payment'."
+      "2. In 'Reject payment' leave 'Rejection reason' empty and try to confirm.",
+      "3. Type a reason and select 'Reject payment'."
     ],
     "expected": "The reason is required. The order becomes Cancelled with the reason and the student is told. VERIFY: whether the reserved stock goes back to the product.",
     "priority": "High",
@@ -3433,11 +3434,11 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
     "steps": [
       "1. Open Store > Claim desk.",
-      "2. Read the list under 'Claim desk register' with 'Waiting to be claimed'.",
-      "3. Choose 'Claimed' in 'Filter claim tokens by status'.",
-      "4. Open a row's menu and select 'Review order'."
+      "2. Read the list under \"Claim desk register\" (filter \"All claim tokens\").",
+      "3. Choose \"Pending claim\" and then \"Claimed\" in \"Filter claim tokens by status\".",
+      "4. Open a row's menu \"Actions for Order n\" and select \"Review order\"."
     ],
-    "expected": "The waiting list shows paid orders and their tokens; the claimed list shows released ones. With nothing to show the page says 'Nothing is waiting at the claim desk.' or 'No orders have been claimed yet.' Review order opens the full receipt.",
+    "expected": "The pending list shows paid orders and their tokens with \"Waiting to be claimed\"; the claimed list shows released ones with \"Claimed\". With nothing to show the page says \"No claim tokens yet\", \"Nothing is waiting at the claim desk\" or \"No orders have been claimed yet\". Review order opens the full receipt.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Functional",
@@ -3472,8 +3473,8 @@
       "1. Select 'New announcement'.",
       "2. Type a Title and the Content.",
       "3. Leave Audience on 'All Members' and Category on 'General'.",
-      "4. Select 'Publish Now'.",
-      "5. In the dialog 'Publish Announcement' confirm."
+      "4. Select 'Publish now'.",
+      "5. In the dialog 'Publish announcement' confirm 'Publish now'."
     ],
     "expected": "The announcement is published straight away (an Admin needs no approval). It shows in Updates > Feed and in the Student's Announcements page, and members get a notification.",
     "priority": "High",
@@ -3489,7 +3490,7 @@
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Student 2100142 can sign in.",
     "steps": [
       "1. Select 'New announcement' and fill Title and Content.",
-      "2. Select 'Save Draft' and confirm 'Save Draft'.",
+      "2. Select 'Save draft' and confirm 'Save draft'.",
       "3. Sign in as Student 2100142 and open Updates > Announcements.",
       "4. As the Admin open the draft's row menu and select 'Publish announcement'."
     ],
@@ -4325,7 +4326,7 @@
     "role": "Admin / Adviser",
     "module": "Members > People",
     "title": "People page size: exactly 20 users, exactly 21 users, and search goes back to page 1",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The seed shows about 24 users for PSITS-CCS. VERIFY the number on your copy. To reach exactly 20 and 21 users you need to add or remove people, so run this case only on a copy you may change.",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. The seed shows 22 users for PSITS-CCS. VERIFY the number on your copy. To reach exactly 20 and 21 users you need to add or remove people, so run this case only on a copy you may change.",
     "steps": [
       "1. Open Members > People. Read the line under the table: \"Showing 1-20 of N users\".",
       "2. Use the role and program filters (and Add existing student or Deactivate where you may) until the count reads exactly 21.",
@@ -4333,7 +4334,7 @@
       "4. Get the count to exactly 20. Read the table and look for page buttons.",
       "5. Clear the filters. Select page 2. Then type a name in the search box."
     ],
-    "expected": "With 21 users page 1 shows 20 rows (\"Showing 1-20 of 21 users\") and page 2 shows 1 row (\"Showing 21-21 of 21 users\"). With exactly 20 users there is one page of 20 rows and no page buttons at all. With the seed of about 24 users the pages show 20 and 4 rows. After a search from page 2 the list goes back to page 1 and the line shows the new count. There are no summary cards on this page; the \"N users\" count above the table follows the filters.",
+    "expected": "With 21 users page 1 shows 20 rows (\"Showing 1-20 of 21 users\") and page 2 shows 1 row (\"Showing 21-21 of 21 users\"). With exactly 20 users there is one page of 20 rows and no page buttons at all. With the seed of 22 users the pages show 20 and 2 rows. After a search from page 2 the list goes back to page 1 and the line shows the new count. There are no summary cards on this page; the \"N users\" count above the table follows the filters.",
     "priority": "Medium",
     "device": "Laptop",
     "type": "Functional",

@@ -1025,7 +1025,7 @@
       "5. Check that Payment method says \"Cash on pickup\".",
       "6. Tap \"Place reservation\"."
     ],
-    "expected": "A message \"Order ORD-<number> reserved.\" appears and you land on My orders. The order shows \"Step 1 of 4: Reserved\" and the text \"Pay cash at pickup, or submit GCash proof\". Total clicks to place the order from the home page: 5 (Store, Add to cart, the cart icon or View cart, Review and continue, Place reservation). Choosing the payment method is a check, not a click, because Cash on pickup is already selected.",
+    "expected": "A banner \"ORD-<number> reserved\" and a message \"Order ORD-<number> reserved.\" appear and you land on My orders. The order shows \"Step 1 of 4: Reserved\" and the text \"Pay cash at pickup, or submit GCash proof\". Total clicks to place the order from the home page: 5 (Store, Add to cart, the cart icon or View cart, Review and continue, Place reservation). Choosing the payment method is a check, not a click, because Cash on pickup is already selected.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -1141,7 +1141,7 @@
       "5. The Admin approves the payment.",
       "6. Reload My orders and look at the order again."
     ],
-    "expected": "After the officer step the order says \"Payment verified: waiting for Admin approval\" and shows NO claim code. After the Admin approves, the order is Paid, shows a 16-character claim token and the text \"Payment confirmed! Show your token again to collect your item.\"",
+    "expected": "After the officer step the order says \"Payment verified: waiting for Admin approval\" and shows NO claim code. After the Admin approves, the order is Paid at \"Step 3 of 4: Paid\", shows a \"Ready for pickup\" ticket with the 16-character claim token and the text \"Show token <token> at the claim desk\".",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
