@@ -269,11 +269,11 @@ class SystemUsersController extends Controller
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
 
-    /** The SAO's way to reset a student or officer, since the organization Admin cannot while voting is open. */
+    /** The SAO's way to reset a student, officer or organization Admin (head, adviser, office staff). A Department Head has its own reset. */
     public function initiatePasswordReset(Request $request, User $user)
     {
-        if (! in_array($user->role, ['STUDENT', 'SBO_OFFICER'], true)) {
-            return response()->json(['message' => 'Only student and officer accounts are reset here.'], 422);
+        if (! in_array($user->role, ['STUDENT', 'SBO_OFFICER', 'ADMIN'], true)) {
+            return response()->json(['message' => 'Only student, officer and administrator accounts are reset here. A Department Head has a separate reset.'], 422);
         }
         if ($user->account_status !== 'active') {
             return response()->json(['message' => 'Activate this account before initiating a password reset.'], 422);
@@ -288,13 +288,13 @@ class SystemUsersController extends Controller
             'action' => 'user_password_reset_initiated',
             'record_type' => User::class,
             'record_id' => $user->school_id,
-            'description' => 'SAO initiated a secure password reset for a student or officer.',
+            'description' => 'SAO initiated a secure password reset for a user account.',
             'new_values' => ['email' => $user->email],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
 
-        return SystemAdministrationController::resetResponse($resetLink, 'Password reset instructions were sent to the member email address.');
+        return SystemAdministrationController::resetResponse($resetLink, 'Password reset instructions were sent to the account email address.');
     }
 
     private function summary(User $user): array
