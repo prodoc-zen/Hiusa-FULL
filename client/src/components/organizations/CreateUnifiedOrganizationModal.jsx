@@ -23,7 +23,7 @@ export default function CreateUnifiedOrganizationModal({ onClose, onCreated }) {
       setErrors(cause.response?.data?.errors || {});
     } finally { setBusy(false); }
   }
-  return <Drawer open title="Add unified organization" description="Open to students from every college. You can add its first Admin account next." onClose={busy ? undefined : onClose} footer={<><Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" form={formId} loading={busy}>Create organization</Button></>}>
+  return <Drawer open title="Add unified organization" description="Open to students from every college. It has no dean, so you name its Admin next." onClose={busy ? undefined : onClose} footer={<><Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" form={formId} loading={busy}>Create organization</Button></>}>
     <form id={formId} onSubmit={save} className="space-y-4">
       <Field label="Organization name" required error={errors.name?.[0]}><Input required data-autofocus maxLength={255} value={form.name} onChange={change('name')} disabled={busy} /></Field>
       <Field label="Acronym" required error={errors.acronym?.[0]}><Input required maxLength={50} value={form.acronym} onChange={change('acronym')} disabled={busy} /></Field>

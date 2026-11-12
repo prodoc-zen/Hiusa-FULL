@@ -18,6 +18,10 @@ describe('Create unified organization', () => {
     await waitFor(() => expect(api.createUnifiedOrganization).toHaveBeenCalledWith({ name: 'University Council', acronym: 'UC', description: null }));
     expect(onCreated).toHaveBeenCalledWith({ id: 7, is_university_wide: true });
   });
+  it('says the organization has no dean, so the SAO names its Admin next', () => {
+    render(<CreateUnifiedOrganizationModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    expect(screen.getByText('Open to students from every college. It has no dean, so you name its Admin next.')).toBeInTheDocument();
+  });
   it('keeps input after a server validation error', async () => {
     api.createUnifiedOrganization.mockRejectedValue({ response: { data: { message: 'Correct the form.', errors: { name: ['Name already exists.'] } } } });
     render(<CreateUnifiedOrganizationModal onClose={vi.fn()} onCreated={vi.fn()} />);
