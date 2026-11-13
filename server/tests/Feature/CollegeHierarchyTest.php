@@ -240,7 +240,7 @@ class CollegeHierarchyTest extends TestCase
         $college = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS']);
         Sanctum::actingAs($director);
 
-        $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertCreated();
+        $this->postJson('/api/system/colleges', ['name' => 'New College', 'code' => 'NEW'])->assertCreated();
         $this->deleteJson('/api/system/colleges/'.College::where('name', 'New College')->value('id'))->assertNoContent();
         $this->postJson('/api/system/organizations', ['name' => 'New Org', 'acronym' => 'NEW', 'college' => $college->name])->assertStatus(405);
 

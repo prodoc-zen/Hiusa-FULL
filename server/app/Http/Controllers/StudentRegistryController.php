@@ -229,7 +229,7 @@ class StudentRegistryController extends Controller
             throw ValidationException::withMessages(['file' => ['The CSV has no rows.']]);
         }
 
-        $colleges = College::where('is_active', true)->get()->keyBy(fn ($college) => strtoupper($college->code));
+        $colleges = College::where('is_active', true)->whereNotNull('code')->where('code', '<>', '')->get()->keyBy(fn ($college) => strtoupper($college->code));
         $ownCode = $actorCollegeId ? strtoupper((string) College::whereKey($actorCollegeId)->value('code')) : null;
         $ids = collect($rows)->pluck('school_id')->filter(fn ($id) => ctype_digit((string) $id))->map(fn ($id) => (int) $id)->all();
         $existing = StudentRegistryEntry::whereIn('school_id', $ids)->get()->keyBy('school_id');
