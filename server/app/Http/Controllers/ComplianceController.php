@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
 use App\Models\FinancialReport;
 use App\Models\Notification;
+use App\Models\OfficerAppointment;
 use App\Models\Organization;
 use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
@@ -328,9 +329,31 @@ class ComplianceController extends Controller
         return $response;
     }
 
+    /** Once the incoming officers are active, an outgoing officer (who is not also incoming) may no longer submit a renewal. */
+    private function renewalBelongsToIncomingOfficers(User $user, int $organizationId): bool
+    {
+        $appointments = OfficerAppointment::where('organization_id', $organizationId)->where('status', 'active');
+
+        return (clone $appointments)->where('user_school_id', $user->school_id)->where('kind', 'outgoing')->exists()
+            && (clone $appointments)->where('user_school_id', $user->school_id)->where('kind', 'incoming')->doesntExist()
+            && (clone $appointments)->where('kind', 'incoming')->exists();
+    }
+
     private function notifyAdminsOfDeadlineChange(ComplianceRequirementType $requirementType): void
     {
-        Notification::insert($this->recipients->studentOrganizationAdministrators()->map(fn ($admin) => [
+        $admins = $this->recipients->studentOrganizationAdministrators();
+        $notified = $admins->map(fn ($admin) => $admin->organization_id.'-'.$admin->user_school_id)->flip();
+
+        // A renewal deadline also reaches the officers who hold, or are about to hold, an appointment.
+        $officers = $requirementType->category === 'renewal'
+            ? OfficerAppointment::whereIn('status', ['active', 'upcoming'])
+                ->get(['organization_id', 'user_school_id'])
+                ->unique(fn ($appointment) => $appointment->organization_id.'-'.$appointment->user_school_id)
+                ->reject(fn ($appointment) => $notified->has($appointment->organization_id.'-'.$appointment->user_school_id))
+                ->values()
+            : collect();
+
+        Notification::insert($admins->concat($officers)->map(fn ($admin) => [
             'organization_id' => $admin->organization_id,
             'user_id' => $admin->user_school_id,
             'notification_type' => 'general',
@@ -486,6 +509,10 @@ class ComplianceController extends Controller
         $organizationId = $request->user()->organization_id;
         if (Organization::whereKey($organizationId)->value('lifecycle_status') === 'archived') {
             return response()->json(['message' => 'This organization is archived and its documents are read only.'], 409);
+        }
+
+        if ($requirement->category === 'renewal' && $this->renewalBelongsToIncomingOfficers($request->user(), (int) $organizationId)) {
+            return response()->json(['message' => 'Renewal belongs to the incoming officers. You can view it and help them prepare.'], 403);
         }
 
         // The already-approved check and the create-or-update must happen
