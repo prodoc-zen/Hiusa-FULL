@@ -103,7 +103,6 @@ const ROUTES = {
     '/dashboard/merchandise/order-merchandise',
     '/dashboard/merchandise/my-orders',
     '/dashboard/tasks/assigned-tasks',
-    '/dashboard/venues',
     '/dashboard/clearances',
     '/dashboard/profile',
     '/dashboard/elections/manage-candidates',
@@ -233,6 +232,10 @@ test('removed and redirected routes resolve where they should', async ({ page })
       '/dashboard/admin/sbo-positions': /\/dashboard\/admin\/positions$/,
       '/dashboard/events/event-operations': /\/dashboard\/events\/check-in$/,
       '/dashboard/merchandise/gcash-payment': /\/dashboard\/merchandise\/manage-orders$/,
+    },
+    // The seeded Officer is the Treasurer, whose position cannot book venues, so the booking page sends them home.
+    SBO_OFFICER: {
+      '/dashboard/venues': /\/dashboard\/officer$/,
     },
     // A Department Head has one Approvals route.
     DEPARTMENT_HEAD: {

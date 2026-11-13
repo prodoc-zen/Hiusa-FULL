@@ -92,7 +92,7 @@ test('section choices keep the letter case they are stored with', async ({ page 
 test('programs and sections is available as an admin setup screen', async ({ page }) => {
   await page.goto('/dashboard/admin/programs-sections');
   await expect(page.getByRole('heading', { name: 'Programs and sections', level: 1 })).toBeVisible();
-  await expect(page.getByText('College of Computer Studies').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs', exact: true, level: 2 })).toBeVisible();
   await expect(page.getByText('1 - Non Block, 1-A, 1-B')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'BS Information Technology', level: 3 })).toBeVisible();
   await expect(page.getByText('4 - Non Block')).toBeVisible();
