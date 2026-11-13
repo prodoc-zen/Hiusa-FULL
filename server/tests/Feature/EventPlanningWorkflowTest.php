@@ -270,7 +270,7 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertDatabaseCount('tasks', 0);
     }
 
-    public function test_an_invalid_groq_workflow_is_still_rejected_without_fake_tasks(): void
+    public function test_an_invalid_groq_workflow_falls_back_to_the_template_plan_without_fake_tasks(): void
     {
         config(['services.groq.key' => 'test-groq-key']);
         Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode(['overview' => 'Thin plan.'])])]);
@@ -286,9 +286,17 @@ class EventPlanningWorkflowTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->postJson("/api/events/{$event->id}/generate-plan", [])->assertUnprocessable();
+        $response = $this->postJson("/api/events/{$event->id}/generate-plan", [])
+            ->assertCreated()
+            ->assertJsonPath('is_template', true)
+            ->assertJsonPath('ai_output.model_name', 'template-draft')
+            ->assertJsonPath('ai_output.status', 'completed')
+            ->assertJsonPath('ai_output.decision_status', 'pending');
+
+        $this->assertStringContainsString('Template draft', $response->json('workflow.overview'));
+        $this->assertNotEmpty($response->json('workflow.tasks'));
         $this->assertDatabaseCount('tasks', 0);
-        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'EVENT_WORKFLOW', 'status' => 'failed']);
+        $this->assertDatabaseMissing('ai_outputs', ['feature_type' => 'EVENT_WORKFLOW', 'status' => 'failed']);
     }
 
     public function test_integrated_event_workflow_continues_through_attendance_budget_forecast_and_report(): void

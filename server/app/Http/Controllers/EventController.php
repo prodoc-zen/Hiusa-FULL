@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -795,6 +796,18 @@ class EventController extends Controller
         $generated ??= ['data' => $this->templateWorkflow($event, $context), 'text' => '', 'model' => 'template-draft'];
 
         $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
+        if ($workflow === null && ! $isTemplate) {
+            // A plan the model got wrong should not leave the admin with an error: log the miss (ids only) and
+            // fall back to the template, which goes through the same validation.
+            Log::warning('Generated event plan failed validation; using the template plan.', [
+                'event_id' => $event->id,
+                'organization_id' => $event->organization_id,
+                'model' => $generated['model'],
+            ]);
+            $isTemplate = true;
+            $generated = ['data' => $this->templateWorkflow($event, $context), 'text' => '', 'model' => 'template-draft'];
+            $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
+        }
         if ($workflow === null) {
             AiOutput::create([
                 'organization_id' => $event->organization_id,

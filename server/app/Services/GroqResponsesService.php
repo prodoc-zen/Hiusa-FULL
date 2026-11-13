@@ -38,6 +38,16 @@ class GroqResponsesService implements TextGenerator
             return null;
         }
 
+        // A response cut off at the token cap carries partial text; treat it as a failure so the fallback chain moves on.
+        if (data_get($payload, 'status') === 'incomplete') {
+            Log::warning('Groq Responses API returned an incomplete response.', [
+                'response_id' => data_get($payload, 'id'),
+                'reason' => data_get($payload, 'incomplete_details.reason'),
+            ]);
+
+            return null;
+        }
+
         $text = $this->extractOutputText($payload);
 
         if ($text === '') {
