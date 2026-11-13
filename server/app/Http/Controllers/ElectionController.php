@@ -8,6 +8,8 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionApplication;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Partylist;
 use App\Models\User;
@@ -17,6 +19,8 @@ use App\Support\FilterValues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -27,7 +31,34 @@ class ElectionController extends Controller
 {
     private const ELECTION_GONE = 'election_gone';
 
+    private const CANDIDATES_FROM_APPLICATIONS = 'Candidates of this election come from approved applications.';
+
     private const JOINED_AFTER_ROLL = 'You joined after the voter list was finalized, so you cannot vote in this election.';
+
+    /** A draft may be saved with only a title, but the voting window columns are required, so these stand in until the dates are given. */
+    private const DRAFT_START = '2000-01-01 00:00:00';
+
+    private const DRAFT_END = '2000-01-01 00:00:01';
+
+    /** The seven schedule steps of a filing election, in order, with the message when a step breaks the order. */
+    private const SCHEDULE_ORDER = [
+        'filing_ends_at' => ['filing_starts_at', true, 'Filing must close after it opens.'],
+        'screening_starts_at' => ['filing_ends_at', false, 'Screening cannot start before filing closes.'],
+        'screening_ends_at' => ['screening_starts_at', true, 'Screening must end after it starts.'],
+        'campaign_starts_at' => ['screening_ends_at', false, 'The campaign cannot start before screening ends.'],
+        'campaign_ends_at' => ['campaign_starts_at', true, 'The campaign must end after it starts.'],
+        'start_time' => ['campaign_ends_at', false, 'Voting cannot start before the campaign ends.'],
+        'end_time' => ['start_time', true, 'Voting must end after it starts.'],
+        'results_publish_at' => ['end_time', false, 'Results cannot be published before voting ends.'],
+    ];
+
+    /** Fields that, once changed on an approved filing election, send it back for approval. */
+    private const MATERIAL_ELECTION_FIELDS = [
+        'filing_starts_at', 'filing_ends_at', 'screening_starts_at', 'screening_ends_at', 'campaign_starts_at',
+        'campaign_ends_at', 'start_time', 'end_time', 'results_publish_at', 'rules', 'tie_break_rule', 'min_units', 'min_gpa',
+    ];
+
+    private const MATERIAL_POSITION_FIELDS = ['title', 'max_winners', 'description', 'is_executive', 'vote_limit', 'eligible_year_levels', 'other_qualifications', 'is_active'];
 
     private function storeElectionImage(Request $request): string
     {
@@ -88,6 +119,103 @@ class ElectionController extends Controller
         return $profile !== null && ! $profile->allowsModule('elections');
     }
 
+    /** A draft was saved but never submitted: pending approval, no submission time and no approval row. */
+    private function isDraft(Election $election): bool
+    {
+        return $election->status === 'pending_approval'
+            && $election->submitted_at === null
+            && ! ApprovalRequest::where('entity_type', 'election')->where('entity_id', $election->id)->exists();
+    }
+
+    /** Drafts belong to the Admin who is writing them, so the reviewer and members never list them. */
+    private function withoutDrafts($query)
+    {
+        return $query->where(fn ($election) => $election
+            ->where('status', '!=', 'pending_approval')
+            ->orWhereNotNull('submitted_at')
+            ->orWhereExists(fn ($approval) => $approval->select(DB::raw(1))
+                ->from('approval_requests')
+                ->whereColumn('approval_requests.entity_id', 'elections.id')
+                ->where('approval_requests.entity_type', 'election')));
+    }
+
+    /** A filing election is shown to members from approval onward, as long as it has a phase and is not cancelled. */
+    private function filingVisibleToMembers(Election $election): bool
+    {
+        return $election->usesFiling()
+            && $election->approved_at !== null
+            && $election->cancelled_at === null
+            && $election->phase !== null
+            && $election->status !== 'pending_approval';
+    }
+
+    /** A draft keeps stand-in voting dates in the table; the payload reports them as not yet set. */
+    private function electionPayload(Election $election): array
+    {
+        $payload = $election->toArray();
+        if ($election->start_time?->format('Y-m-d H:i:s') === self::DRAFT_START) {
+            $payload['start_time'] = null;
+            $payload['end_time'] = null;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Every viewer's own ballot state for the round that is open (round 2 only inside a runoff), and the
+     * application counts the Admin and officers follow. Only the viewer's own participation is read.
+     *
+     * @param  Collection<int, Election>  $elections
+     * @param  array<int, array>  $payloads
+     */
+    private function withParticipationFields(Request $request, Collection $elections, array $payloads): array
+    {
+        $user = $request->user();
+        $ballots = ElectionBallot::whereIn('election_id', $elections->pluck('id'))
+            ->where('voter_id', $user->school_id)
+            ->get()
+            ->groupBy('election_id');
+        $counts = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) ? $this->applicationCounts($elections->pluck('id')->all()) : null;
+        $byId = $elections->keyBy('id');
+
+        return array_map(function (array $payload) use ($byId, $ballots, $counts) {
+            $election = $byId[$payload['id']];
+            $openRound = $election->openRound();
+            $round = $openRound === 2 ? 2 : 1;
+            $ballot = ($ballots[$election->id] ?? collect())->firstWhere('round', $round);
+
+            $payload['open_round'] = $openRound;
+            $payload['has_voted'] = $ballot !== null;
+            $payload['my_ballot'] = $ballot ? [
+                'receipt_ref' => $ballot->receipt_ref,
+                'submitted_at' => $ballot->submitted_at?->toISOString(),
+                'round' => $round,
+            ] : null;
+            if ($counts !== null) {
+                $payload['application_counts'] = $counts[$election->id];
+            }
+
+            return $payload;
+        }, $payloads);
+    }
+
+    /** @return array<int, array<string, int>> */
+    private function applicationCounts(array $electionIds): array
+    {
+        $empty = ['pending_review' => 0, 'for_revision' => 0, 'approved' => 0, 'rejected' => 0, 'withdrawn' => 0];
+        $counts = array_fill_keys($electionIds, $empty);
+        $rows = ElectionApplication::whereIn('election_id', $electionIds)
+            ->whereIn('status', array_keys($empty))
+            ->selectRaw('election_id, status, COUNT(*) as total')
+            ->groupBy('election_id', 'status')
+            ->get();
+        foreach ($rows as $row) {
+            $counts[$row->election_id][$row->status] = (int) $row->total;
+        }
+
+        return $counts;
+    }
+
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
@@ -96,7 +224,7 @@ class ElectionController extends Controller
         $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
-            ->withCount(['votes as voters_count' => fn ($votes) => $votes->select(DB::raw('COUNT(DISTINCT voter_id)'))])
+            ->withCount(['ballots as voters_count' => fn ($ballots) => $ballots->where('round', 1)])
             ->with('organization:id,name,acronym')
             ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
@@ -104,8 +232,12 @@ class ElectionController extends Controller
             $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD') {
+            $this->withoutDrafts($query);
+        }
+
         if ($this->memberViewOnly($request->user())) {
-            $query->where(function ($studentQuery) {
+            $query->whereNull('cancelled_at')->where(function ($studentQuery) {
                 $studentQuery
                     ->where(function ($openQuery) {
                         $openQuery->whereIn('status', ['upcoming', 'active'])->whereNotNull('finalized_at');
@@ -115,6 +247,13 @@ class ElectionController extends Controller
                             ->whereIn('status', ['active', 'closed'])
                             ->whereNotNull('finalized_at')
                             ->where('results_visible', true);
+                    })
+                    ->orWhere(function ($filingQuery) {
+                        $filingQuery
+                            ->whereNotNull('filing_starts_at')
+                            ->whereNotNull('approved_at')
+                            ->whereNotNull('phase')
+                            ->where('status', '!=', 'pending_approval');
                     });
             });
         }
@@ -123,7 +262,9 @@ class ElectionController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json($this->withApprovalFields($request, $elections->toArray()));
+        $payloads = $elections->map(fn (Election $election) => $this->electionPayload($election))->all();
+
+        return response()->json($this->withApprovalFields($request, $this->withParticipationFields($request, $elections, $payloads)));
     }
 
     public function show(Request $request, $id)
@@ -144,23 +285,24 @@ class ElectionController extends Controller
             ->whereIn('organization_id', $organizationIds)
             ->find($id);
 
-        if (! $election) {
+        if (! $election || ($user->role === 'DEPARTMENT_HEAD' && $this->isDraft($election))) {
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($this->memberViewOnly($user)) {
-            if (! $election->finalized_at || ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible))) {
+        if ($this->memberViewOnly($user) && ! $this->filingVisibleToMembers($election)) {
+            if ($election->cancelled_at || ! $election->finalized_at || ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible))) {
                 return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }
         }
 
-        // Every eligible role receives only its own ballot records. Other voter
-        // identities are never exposed by this endpoint.
+        // Every eligible role receives only its own ballot records. Other voter identities are never exposed by
+        // this endpoint. Votes cast under the secret ballot carry no voter id, so only legacy rows can match.
         $myVotes = Vote::where('election_id', $id)
             ->where('voter_id', $user->school_id)
             ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id', 'cast_at']);
 
-        [$data] = $this->withApprovalFields($request, [$election->toArray()]);
+        [$data] = $this->withParticipationFields($request, collect([$election]), [$this->electionPayload($election)]);
+        [$data] = $this->withApprovalFields($request, [$data]);
         $data['my_votes'] = $myVotes;
         if ($election->status === 'closed' && ($election->results_visible || $user->role === 'ADMIN')) {
             $data['vote_counts'] = Vote::where('election_id', $id)
@@ -168,12 +310,236 @@ class ElectionController extends Controller
                 ->groupBy('candidate_id')
                 ->pluck('vote_count', 'candidate_id');
         }
-        $data['voters_count'] = Vote::where('election_id', $id)
-            ->distinct('voter_id')
-            ->count('voter_id');
+        $data['voters_count'] = ElectionBallot::where('election_id', $id)->where('round', 1)->count();
         $data['ballot_refusal'] = $this->onVoterRoll($election, $user) ? null : self::JOINED_AFTER_ROLL;
 
         return response()->json($data);
+    }
+
+    /** @return array<int, string> the schedule fields in the order they must happen */
+    private function scheduleFields(): array
+    {
+        return ['filing_starts_at', 'filing_ends_at', 'screening_starts_at', 'screening_ends_at', 'campaign_starts_at', 'campaign_ends_at', 'start_time', 'end_time', 'results_publish_at'];
+    }
+
+    /** The checks the Admin form and the API share for the new setup fields. */
+    private function setupRules(bool $complete, bool $filing): array
+    {
+        $scheduleRule = $filing && $complete ? ['required', 'date'] : ['nullable', 'date'];
+
+        return [
+            'description' => ['nullable', 'string', 'max:5000'],
+            'filing_starts_at' => $scheduleRule,
+            'filing_ends_at' => $scheduleRule,
+            'screening_starts_at' => $scheduleRule,
+            'screening_ends_at' => $scheduleRule,
+            'campaign_starts_at' => $scheduleRule,
+            'campaign_ends_at' => $scheduleRule,
+            'results_publish_at' => $scheduleRule,
+            'rules' => [$filing && $complete ? 'required' : 'nullable', 'string', 'max:20000'],
+            'tie_break_rule' => [$filing && $complete ? 'required' : 'nullable', 'string', 'max:500'],
+            'min_units' => ['nullable', 'integer', 'between:0,60'],
+            'min_gpa' => ['nullable', 'numeric', 'between:0,5'],
+        ];
+    }
+
+    /** The checks for the ballot position fields, under a prefix such as `positions.*.` or none. */
+    private function positionRules(string $prefix = ''): array
+    {
+        return [
+            $prefix.'description' => ['nullable', 'string', 'max:255'],
+            $prefix.'is_executive' => ['sometimes', 'boolean'],
+            $prefix.'vote_limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+            $prefix.'eligible_year_levels' => ['nullable', 'array', 'max:6'],
+            $prefix.'eligible_year_levels.*' => ['integer', 'between:1,6'],
+            $prefix.'other_qualifications' => ['nullable', 'string', 'max:500'],
+            $prefix.'is_active' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /** The position columns a request may set, in the form they are stored. */
+    private function positionAttributes(array $position): array
+    {
+        $attributes = [];
+        foreach (['description', 'vote_limit', 'other_qualifications'] as $field) {
+            if (array_key_exists($field, $position)) {
+                $attributes[$field] = $position[$field];
+            }
+        }
+        foreach (['is_executive', 'is_active'] as $field) {
+            if (array_key_exists($field, $position)) {
+                $attributes[$field] = (bool) $position[$field];
+            }
+        }
+        if (array_key_exists('eligible_year_levels', $position)) {
+            $levels = collect($position['eligible_year_levels'] ?? [])->map(fn ($level) => (int) $level)->unique()->sort()->values()->all();
+            $attributes['eligible_year_levels'] = $levels === [] ? null : $levels;
+        }
+
+        return $attributes;
+    }
+
+    /** A position may let a voter choose up to its seats and no more. */
+    private function assertVoteLimit(?int $voteLimit, int $seats, string $key): void
+    {
+        if ($voteLimit !== null && $voteLimit > $seats) {
+            throw ValidationException::withMessages([$key => ['A voter cannot choose more candidates than there are seats ('.$seats.').']]);
+        }
+    }
+
+    /** Dates arrive as UTC instants; they are kept as Manila wall-clock time like the voting window. */
+    private function localSchedule(array $data): array
+    {
+        foreach ($this->scheduleFields() as $field) {
+            if (! empty($data[$field])) {
+                $data[$field] = $this->localTime($data[$field]);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Each step of the schedule must come after the one before it. A step that is not set is skipped, so a draft
+     * is only checked where both neighbours are filled in.
+     *
+     * @param  array<string, ?Carbon>  $values
+     */
+    private function assertScheduleOrder(array $values): void
+    {
+        foreach (self::SCHEDULE_ORDER as $field => [$previous, $strict, $message]) {
+            $current = $values[$field] ?? null;
+            $before = $values[$previous] ?? null;
+            if ($current === null || $before === null) {
+                continue;
+            }
+            if ($strict ? $current->lte($before) : $current->lt($before)) {
+                throw ValidationException::withMessages([$field => [$message]]);
+            }
+        }
+    }
+
+    /** @param  array<string, ?Carbon>  $values */
+    private function assertScheduleInsideSemester(array $values, ?AcademicSemester $semester): void
+    {
+        if (! $semester) {
+            return;
+        }
+
+        foreach ($this->scheduleFields() as $field) {
+            $value = $values[$field] ?? null;
+            if ($value === null) {
+                continue;
+            }
+            if ($value->toDateString() < $semester->starts_on->toDateString() || $value->toDateString() > $semester->ends_on->toDateString()) {
+                throw ValidationException::withMessages([$field => ['The election schedule must fall within the semester you are working in ('.$semester->starts_on->format('M j, Y').' to '.$semester->ends_on->format('M j, Y').').']]);
+            }
+        }
+    }
+
+    /** One approval request to the reviewer, routed as every election proposal is. */
+    private function requestApproval(Election $election, Request $request): ApprovalRequest
+    {
+        return ApprovalRequest::create([
+            'organization_id' => $election->organization_id,
+            'entity_type' => 'election',
+            'entity_id' => $election->id,
+            'requested_by' => $request->user()->id,
+            'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.election')),
+        ]);
+    }
+
+    /** An approved election whose material terms changed goes back to the reviewer and its ballot unlocks. */
+    private function reopenApproval(Request $request, Election $election): void
+    {
+        DB::transaction(function () use ($election, $request) {
+            $election->update(['status' => 'pending_approval', 'approved_at' => null, 'finalized_at' => null]);
+            $this->requestApproval($election, $request);
+        });
+        $this->recordElectionAudit($request, 'approval_reopened', Election::class, $election->id, null, $this->auditableElectionValues($election->fresh()));
+    }
+
+    /** Voting has opened once the election is open or closed, or its approved window has started. */
+    private function votingHasOpened(Election $election): bool
+    {
+        return in_array($election->status, ['active', 'closed'], true)
+            || ($election->approved_at !== null && $election->start_time !== null && $election->start_time->lte(now()));
+    }
+
+    /** True when the request really changes a schedule date, the rules, the tie-break rule or a qualification. */
+    private function materialChange(Election $election, array $data): bool
+    {
+        foreach (self::MATERIAL_ELECTION_FIELDS as $field) {
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+            $new = $data[$field];
+            $old = $election->{$field};
+            if ($new instanceof Carbon || $old instanceof Carbon) {
+                if ($new === null || $old === null || ! Carbon::parse($new)->eq($old)) {
+                    return true;
+                }
+            } elseif ($field === 'min_gpa') {
+                if (($new === null) !== ($old === null) || ($new !== null && (float) $new !== (float) $old)) {
+                    return true;
+                }
+            } elseif ((string) ($new ?? '') !== (string) ($old ?? '')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * What stops an election from being sent to the reviewer, keyed by the field it belongs to.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function submissionProblems(Election $election): array
+    {
+        $problems = [];
+        $placeholder = $election->start_time?->format('Y-m-d H:i:s') === self::DRAFT_START;
+
+        if ($election->usesFiling()) {
+            $values = [];
+            foreach ($this->scheduleFields() as $field) {
+                $values[$field] = ($field === 'start_time' || $field === 'end_time') && $placeholder ? null : $election->{$field};
+                if ($values[$field] === null) {
+                    $problems[$field] = ['This date is required.'];
+                }
+            }
+            foreach (['rules' => 'The official rules are required.', 'tie_break_rule' => 'The tie-break rule is required.'] as $field => $message) {
+                if (blank($election->{$field})) {
+                    $problems[$field] = [$message];
+                }
+            }
+            if ($problems === []) {
+                try {
+                    $this->assertScheduleOrder($values);
+                    $this->assertScheduleInsideSemester($values, $election->academic_semester_id ? AcademicSemester::find($election->academic_semester_id) : null);
+                } catch (ValidationException $exception) {
+                    $problems += $exception->errors();
+                }
+            }
+        } elseif ($placeholder) {
+            $problems['start_time'] = ['Set when voting starts and ends.'];
+        } else {
+            try {
+                $this->assertScheduleInsideSemester(['start_time' => $election->start_time, 'end_time' => $election->end_time], $election->academic_semester_id ? AcademicSemester::find($election->academic_semester_id) : null);
+            } catch (ValidationException $exception) {
+                $problems += $exception->errors();
+            }
+        }
+
+        if ($election->academic_semester_id && blank($election->informative_letter_path)) {
+            $problems['informative_letter'] = ['The informative letter (PDF) is required.'];
+        }
+        if (! $election->positions()->where('is_active', true)->exists()) {
+            $problems['positions'] = ['Add at least one active position.'];
+        }
+
+        return $problems;
     }
 
     public function store(Request $request)
@@ -182,24 +548,38 @@ class ElectionController extends Controller
         if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new elections can be created.'], 409);
         }
+        $draft = $request->boolean('draft');
+        $filing = $request->filled('filing_starts_at');
+        $complete = ! $draft;
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'room' => ['nullable', 'string', 'max:120'],
-            'start_time' => ['required', 'date'],
-            'end_time' => ['required', 'date', 'after:start_time'],
+            'start_time' => $complete ? ['required', 'date'] : ['nullable', 'date'],
+            'end_time' => $complete ? ['required', 'date', 'after:start_time'] : ['nullable', 'date'],
             'status' => ['nullable', 'in:upcoming,active,closed,pending_approval'],
             'results_visible' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
-            'informative_letter' => [$semester ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
-            'positions' => ['sometimes', 'array', 'min:1', 'max:30'],
+            'informative_letter' => [$semester && $complete ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'positions' => $filing && $complete ? ['required', 'array', 'min:1', 'max:30'] : ($complete ? ['sometimes', 'array', 'min:1', 'max:30'] : ['sometimes', 'nullable', 'array', 'max:30']),
             'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
+            ...$this->positionRules('positions.*.'),
+            ...$this->setupRules($complete, $filing),
         ]);
+        foreach ($data['positions'] ?? [] as $index => $position) {
+            $this->assertVoteLimit(isset($position['vote_limit']) ? (int) $position['vote_limit'] : null, (int) $position['max_winners'], "positions.{$index}.vote_limit");
+        }
+        if ($filing && $complete && ! collect($data['positions'] ?? [])->contains(fn ($position) => (bool) ($position['is_active'] ?? true))) {
+            throw ValidationException::withMessages(['positions' => ['Add at least one active position.']]);
+        }
         // The client sends UTC instants. Stored and compared as Manila wall-clock time, or every
         // window lands 8 hours early and a 9 AM vote opens at 1 AM.
-        $data['start_time'] = $this->localTime($data['start_time']);
-        $data['end_time'] = $this->localTime($data['end_time']);
-        if ($semester && ($data['start_time']->toDateString() < $semester->starts_on->toDateString()
+        $data = $this->localSchedule($data);
+        if ($filing) {
+            $this->assertScheduleOrder($data);
+            $this->assertScheduleInsideSemester($data, $semester);
+        } elseif (isset($data['start_time'], $data['end_time'])
+            && $semester && ($data['start_time']->toDateString() < $semester->starts_on->toDateString()
             || $data['end_time']->toDateString() > $semester->ends_on->toDateString())) {
             throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in ('.$semester->starts_on->format('M j, Y').' to '.$semester->ends_on->format('M j, Y').').']]);
         }
@@ -210,17 +590,30 @@ class ElectionController extends Controller
             : null;
 
         try {
-            $election = DB::transaction(function () use ($data, $request, $imageUrl, $letterPath, $semester) {
+            $election = DB::transaction(function () use ($data, $request, $imageUrl, $letterPath, $semester, $draft, $filing) {
                 $election = Election::create([
                     'title' => trim($data['title']),
                     'room' => $data['room'] ?? null,
+                    'description' => $data['description'] ?? null,
                     'image_url' => $imageUrl,
                     'informative_letter_path' => $letterPath,
                     'academic_semester_id' => $semester?->id,
-                    'start_time' => $data['start_time'],
-                    'end_time' => $data['end_time'],
+                    'start_time' => $data['start_time'] ?? self::DRAFT_START,
+                    'end_time' => $data['end_time'] ?? self::DRAFT_END,
+                    'filing_starts_at' => $data['filing_starts_at'] ?? null,
+                    'filing_ends_at' => $data['filing_ends_at'] ?? null,
+                    'screening_starts_at' => $data['screening_starts_at'] ?? null,
+                    'screening_ends_at' => $data['screening_ends_at'] ?? null,
+                    'campaign_starts_at' => $data['campaign_starts_at'] ?? null,
+                    'campaign_ends_at' => $data['campaign_ends_at'] ?? null,
+                    'results_publish_at' => $data['results_publish_at'] ?? null,
+                    'rules' => isset($data['rules']) ? trim($data['rules']) : null,
+                    'tie_break_rule' => isset($data['tie_break_rule']) ? trim($data['tie_break_rule']) : null,
+                    'min_units' => $data['min_units'] ?? ($filing ? 10 : null),
+                    'min_gpa' => $data['min_gpa'] ?? null,
                     'status' => 'pending_approval',
-                    'results_visible' => $data['results_visible'] ?? true,
+                    'submitted_at' => $draft ? null : now(),
+                    'results_visible' => $filing ? false : ($data['results_visible'] ?? true),
                     'organization_id' => $request->user()->organization_id,
                 ]);
 
@@ -228,16 +621,13 @@ class ElectionController extends Controller
                     $election->positions()->create([
                         'title' => trim($position['title']),
                         'max_winners' => $position['max_winners'],
+                        ...$this->positionAttributes($position),
                     ]);
                 }
 
-                ApprovalRequest::create([
-                    'organization_id' => $request->user()->organization_id,
-                    'entity_type' => 'election',
-                    'entity_id' => $election->id,
-                    'requested_by' => $request->user()->id,
-                    'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.election')),
-                ]);
+                if (! $draft) {
+                    $this->requestApproval($election, $request);
+                }
 
                 return $election;
             });
@@ -260,7 +650,7 @@ class ElectionController extends Controller
             $this->auditableElectionValues($election)
         );
 
-        return response()->json($this->withApprovalFields($request, [$election->toArray()])[0], 201);
+        return response()->json($this->withApprovalFields($request, [$this->electionPayload($election)])[0], 201);
     }
 
     public function informativeLetter(Request $request, $id)
@@ -291,6 +681,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
+        if ($election->usesFiling()) {
+            return response()->json(['message' => 'The ballot locks by itself when voting opens.'], 409);
+        }
+
         if (! $election->approved_at || $election->status !== 'upcoming') {
             return response()->json(['message' => 'Only an approved election awaiting voting can be finalized.'], 422);
         }
@@ -302,10 +696,6 @@ class ElectionController extends Controller
         $positions = $election->positions()->withCount('candidates')->get();
         if ($positions->isEmpty() || $positions->contains(fn ($position) => $position->candidates_count === 0)) {
             return response()->json(['message' => 'Add at least one candidate to every ballot position before finalizing.'], 422);
-        }
-
-        if (! $election->candidates()->whereNotNull('partylist_id')->exists()) {
-            return response()->json(['message' => 'Assign at least one candidate to a party list before finalizing.'], 422);
         }
 
         $election->update(['finalized_at' => now()]);
@@ -322,10 +712,11 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($election->status === 'closed' && $request->hasAny(['title', 'room', 'start_time', 'end_time', 'image', 'remove_image'])) {
+        if ($election->status === 'closed' && $request->hasAny(['title', 'room', 'start_time', 'end_time', 'image', 'remove_image', ...self::MATERIAL_ELECTION_FIELDS, 'description', 'informative_letter'])) {
             return response()->json(['message' => 'Closed election details cannot be changed.'], 409);
         }
 
+        $draft = $this->isDraft($election);
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'room' => ['nullable', 'string', 'max:120'],
@@ -335,22 +726,71 @@ class ElectionController extends Controller
             'results_visible' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
+            'informative_letter' => ['sometimes', 'file', 'mimes:pdf', 'max:10240'],
+            ...array_map(fn (array $rules) => ['sometimes', ...$rules], $this->setupRules(false, false)),
         ]);
         $requestedFields = array_keys($data);
         $oldValues = $this->auditableElectionValues($election);
+        $data = $this->localSchedule($data);
 
-        foreach (['start_time', 'end_time'] as $field) {
+        if ($election->cancelled_at && ! empty($data['results_visible'])) {
+            return response()->json(['message' => 'A cancelled election never publishes results.'], 409);
+        }
+        if (($election->cancelled_at || $election->declined_at) && $this->materialChange($election, $data)) {
+            return response()->json(['message' => $election->declined_at ? 'The Department Head rejected this election, so it cannot be changed.' : 'A cancelled election cannot be changed.'], 409);
+        }
+        if (array_key_exists('filing_starts_at', $data) && ! $draft && ($data['filing_starts_at'] !== null) !== $election->usesFiling()) {
+            throw ValidationException::withMessages(['filing_starts_at' => ['The kind of election cannot change after it was submitted.']]);
+        }
+        if (isset($data['informative_letter']) && $election->status !== 'pending_approval') {
+            return response()->json(['message' => 'The informative letter cannot be changed after approval.'], 409);
+        }
+
+        $wantsFiling = array_key_exists('filing_starts_at', $data) ? $data['filing_starts_at'] !== null : $election->usesFiling();
+        $materialChanged = $this->materialChange($election, $data);
+        if ($wantsFiling && $materialChanged && $election->usesFiling() && $this->votingHasOpened($election)) {
+            return response()->json(['message' => 'The schedule, rules and qualifications cannot change after voting has opened.'], 409);
+        }
+        foreach (['rules', 'tie_break_rule'] as $field) {
             if (isset($data[$field])) {
-                $data[$field] = $this->localTime($data[$field]);
+                $data[$field] = trim($data[$field]);
             }
         }
+
         $endTime = $data['end_time'] ?? $election->end_time;
         $startTime = $data['start_time'] ?? $election->start_time;
-        if ($endTime->lte($startTime)) {
+        // A draft saved before its voting dates were chosen holds stand-in dates that are never compared.
+        $datesAreSet = $startTime->format('Y-m-d H:i:s') !== self::DRAFT_START && $endTime->format('Y-m-d H:i:s') !== self::DRAFT_END;
+        if ($wantsFiling) {
+            // A draft's stand-in voting dates are not real dates, so they never take part in the checks.
+            $standIn = $election->start_time?->format('Y-m-d H:i:s') === self::DRAFT_START;
+            $merged = [];
+            foreach ($this->scheduleFields() as $field) {
+                $merged[$field] = array_key_exists($field, $data)
+                    ? $data[$field]
+                    : (($field === 'start_time' || $field === 'end_time') && $standIn ? null : $election->{$field});
+            }
+            if (! $draft) {
+                foreach ($this->scheduleFields() as $field) {
+                    if (array_key_exists($field, $data) && $data[$field] === null) {
+                        throw ValidationException::withMessages([$field => ['This date is required.']]);
+                    }
+                }
+                foreach (['rules', 'tie_break_rule'] as $field) {
+                    if (array_key_exists($field, $data) && blank($data[$field])) {
+                        throw ValidationException::withMessages([$field => ['This field is required.']]);
+                    }
+                }
+            }
+            if (array_intersect($this->scheduleFields(), $requestedFields) !== []) {
+                $this->assertScheduleOrder($merged);
+                $this->assertScheduleInsideSemester($merged, AcademicSemester::find($election->academic_semester_id));
+            }
+        } elseif ($datesAreSet && $endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
 
-        $semester = isset($data['start_time']) || isset($data['end_time']) ? AcademicSemester::find($election->academic_semester_id) : null;
+        $semester = ! $wantsFiling && $datesAreSet && (isset($data['start_time']) || isset($data['end_time'])) ? AcademicSemester::find($election->academic_semester_id) : null;
         if ($semester && ($startTime->toDateString() < $semester->starts_on->toDateString()
             || $endTime->toDateString() > $semester->ends_on->toDateString())) {
             throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the semester you are working in ('.$semester->starts_on->format('M j, Y').' to '.$semester->ends_on->format('M j, Y').').']]);
@@ -391,11 +831,14 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election details cannot be changed after votes have been cast.'], 409);
         }
 
+        // A filing election goes back for approval when a material term really changed; the short form only when
+        // its voting window moved.
         $windowMoved = $election->approved_at && (
             (isset($data['start_time']) && $data['start_time']->ne($election->start_time))
             || (isset($data['end_time']) && $data['end_time']->ne($election->end_time))
         );
-        if ($windowMoved) {
+        $reopen = $election->approved_at && ($election->usesFiling() ? $materialChanged : $windowMoved);
+        if ($reopen) {
             $data['status'] = 'pending_approval';
             $data['approved_at'] = null;
             $data['finalized_at'] = null;
@@ -409,23 +852,26 @@ class ElectionController extends Controller
         } elseif ($request->boolean('remove_image')) {
             $data['image_url'] = null;
         }
-        unset($data['image'], $data['remove_image']);
+        $oldLetterPath = $election->informative_letter_path;
+        $newLetterPath = null;
+        if ($request->hasFile('informative_letter')) {
+            $newLetterPath = $request->file('informative_letter')->store('election-letters/'.$election->organization_id, 'local');
+            $data['informative_letter_path'] = $newLetterPath;
+        }
+        unset($data['image'], $data['remove_image'], $data['informative_letter']);
 
         try {
-            DB::transaction(function () use ($election, &$data, $windowMoved, $request) {
+            DB::transaction(function () use ($election, &$data, $reopen, $request) {
                 $election->update($data);
-                if ($windowMoved) {
-                    ApprovalRequest::create([
-                        'organization_id' => $election->organization_id,
-                        'entity_type' => 'election',
-                        'entity_id' => $election->id,
-                        'requested_by' => $request->user()->id,
-                        'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.election')),
-                    ]);
+                if ($reopen) {
+                    $this->requestApproval($election, $request);
                 }
             });
         } catch (\Throwable $exception) {
             $this->deleteElectionImage($newImageUrl);
+            if ($newLetterPath) {
+                Storage::disk('local')->delete($newLetterPath);
+            }
 
             throw $exception;
         }
@@ -433,15 +879,22 @@ class ElectionController extends Controller
         if (array_key_exists('image_url', $data) && $oldImageUrl !== $data['image_url']) {
             $this->deleteElectionImage($oldImageUrl);
         }
-
-        ApprovalRequest::where('entity_type', 'election')
-            ->where('entity_id', $election->id)
-            ->where('status', 'rejected')
-            ->where('organization_id', $election->organization_id)
-            ->get()
-            ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
+        if ($newLetterPath && $oldLetterPath) {
+            Storage::disk('local')->delete($oldLetterPath);
+        }
 
         $freshElection = $election->fresh();
+        // A returned election goes back to the reviewer once its edits are saved; a returned filing election
+        // only when it is complete, and a rejected-for-good one never.
+        if (! $freshElection->declined_at && ($freshElection->usesFiling() ? $this->submissionProblems($freshElection) === [] : true)) {
+            ApprovalRequest::where('entity_type', 'election')
+                ->where('entity_id', $election->id)
+                ->where('status', 'rejected')
+                ->where('organization_id', $election->organization_id)
+                ->get()
+                ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
+        }
+
         $this->recordElectionAudit(
             $request,
             $requestedFields === ['status'] ? 'status_changed' : 'updated',
@@ -450,17 +903,49 @@ class ElectionController extends Controller
             $oldValues,
             $this->auditableElectionValues($freshElection)
         );
+        if ($reopen) {
+            $this->recordElectionAudit($request, 'approval_reopened', Election::class, $election->id, $oldValues, $this->auditableElectionValues($freshElection));
+        }
 
         if (app(ElectionHandoverService::class)->handOver($freshElection, $request->user()->school_id, $request->ip())) {
             $freshElection = $election->fresh();
         }
 
-        return response()->json($this->withApprovalFields($request, [$freshElection->toArray()])[0]);
+        return response()->json($this->withApprovalFields($request, [$this->electionPayload($freshElection)])[0]);
     }
 
+    /** Sends a finished draft, or a returned election, to the reviewer. */
     public function submit(Request $request, $id)
     {
-        abort(501);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        if (! $election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        if ($election->declined_at) {
+            return response()->json(['message' => 'The Department Head rejected this election. Create a new one.'], 409);
+        }
+
+        $latest = ApprovalRequest::where('entity_type', 'election')->where('entity_id', $election->id)->latest('id')->first();
+        if ($election->status !== 'pending_approval' || ($latest && $latest->status !== 'rejected')) {
+            return response()->json(['message' => $election->approved_at ? 'This election is already approved.' : 'This election is already waiting for approval.'], 409);
+        }
+
+        if ($problems = $this->submissionProblems($election)) {
+            throw ValidationException::withMessages($problems);
+        }
+
+        DB::transaction(function () use ($election, $latest, $request) {
+            $election->update(['submitted_at' => now()]);
+            if ($latest) {
+                $latest->resubmit();
+            } else {
+                $this->requestApproval($election, $request);
+            }
+        });
+        $this->recordElectionAudit($request, $latest ? 'resubmitted' : 'submitted', Election::class, $election->id, null, $this->auditableElectionValues($election->fresh()));
+
+        return response()->json($this->withApprovalFields($request, [$this->electionPayload($election->fresh())])[0]);
     }
 
     private function validElectionStatusTransition(string $currentStatus, string $nextStatus): bool
@@ -494,6 +979,10 @@ class ElectionController extends Controller
 
         if ($election->finalized_at) {
             return response()->json(['message' => 'The ballot has been finalized and cannot be changed.'], 409);
+        }
+
+        if ($election->usesFiling() && $this->votingHasOpened($election)) {
+            return response()->json(['message' => 'Voting has opened, so the ballot cannot be changed.'], 409);
         }
 
         if (! $election->votes()->exists()) {
@@ -661,10 +1150,12 @@ class ElectionController extends Controller
                 Rule::unique('election_positions', 'title')->where(fn ($query) => $query->where('election_id', $election->id)),
             ],
             'max_winners' => ['nullable', 'integer', 'min:1', 'max:20'],
+            ...$this->positionRules(),
         ]);
+        $this->assertVoteLimit(isset($data['vote_limit']) ? (int) $data['vote_limit'] : null, (int) ($data['max_winners'] ?? 1), 'vote_limit');
 
         try {
-            $position = DB::transaction(function () use ($election, $data) {
+            $position = DB::transaction(function () use ($election, $data, $request) {
                 $locked = Election::whereKey($election->id)->lockForUpdate()->first();
                 if (! $locked) {
                     return self::ELECTION_GONE;
@@ -673,10 +1164,16 @@ class ElectionController extends Controller
                     return $response;
                 }
 
-                return $locked->positions()->create([
+                $created = $locked->positions()->create([
                     'title' => trim($data['title']),
                     'max_winners' => $data['max_winners'] ?? 1,
+                    ...$this->positionAttributes($data),
                 ]);
+                if ($locked->usesFiling() && $locked->approved_at) {
+                    $this->reopenApproval($request, $locked);
+                }
+
+                return $created;
             });
         } catch (UniqueConstraintViolationException) {
             return response()->json(['message' => 'This position already exists in the election.'], 422);
@@ -731,13 +1228,21 @@ class ElectionController extends Controller
                     ->ignore($position->id),
             ],
             'max_winners' => ['sometimes', 'required', 'integer', 'min:1', 'max:20'],
+            ...$this->positionRules(),
         ]);
 
         if (isset($data['title'])) {
             $data['title'] = trim($data['title']);
         }
+        $voteLimit = array_key_exists('vote_limit', $data) ? $data['vote_limit'] : $position->vote_limit;
+        $this->assertVoteLimit($voteLimit === null ? null : (int) $voteLimit, (int) ($data['max_winners'] ?? $position->max_winners), 'vote_limit');
 
-        $position->update($data);
+        $position->fill([...array_intersect_key($data, array_flip(['title', 'max_winners'])), ...$this->positionAttributes($data)]);
+        $changed = $position->isDirty(self::MATERIAL_POSITION_FIELDS);
+        $position->save();
+        if ($changed && $election->usesFiling() && $election->approved_at) {
+            $this->reopenApproval($request, $election);
+        }
 
         $freshPosition = $position->fresh();
         $this->recordElectionAudit(
@@ -777,6 +1282,9 @@ class ElectionController extends Controller
         $oldValues = $this->auditablePositionValues($position);
         $position->delete();
         $this->recordElectionAudit($request, 'position_removed', ElectionPosition::class, $position->id, $oldValues, null);
+        if ($election->usesFiling() && $election->approved_at) {
+            $this->reopenApproval($request, $election);
+        }
 
         return response()->json(['message' => 'Position deleted successfully']);
     }
@@ -803,6 +1311,10 @@ class ElectionController extends Controller
 
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        if ($election->usesFiling()) {
+            return response()->json(['message' => self::CANDIDATES_FROM_APPLICATIONS], 409);
         }
 
         if ($locked = $this->ballotIsLockedResponse($election)) {
@@ -908,6 +1420,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Candidate not found'], 404);
         }
 
+        if ($election->usesFiling()) {
+            return response()->json(['message' => self::CANDIDATES_FROM_APPLICATIONS], 409);
+        }
+
         if ($locked = $this->ballotIsLockedResponse($election)) {
             return $locked;
         }
@@ -997,6 +1513,10 @@ class ElectionController extends Controller
 
         if (! $candidate) {
             return response()->json(['message' => 'Candidate not found'], 404);
+        }
+
+        if ($election->usesFiling()) {
+            return response()->json(['message' => self::CANDIDATES_FROM_APPLICATIONS], 409);
         }
 
         if ($locked = $this->ballotIsLockedResponse($election)) {
@@ -1189,6 +1709,20 @@ class ElectionController extends Controller
             'status' => $election->status,
             'results_visible' => (bool) $election->results_visible,
             'approved_at' => $election->approved_at?->toISOString(),
+            'description' => $election->description,
+            'filing_starts_at' => $election->filing_starts_at?->toISOString(),
+            'filing_ends_at' => $election->filing_ends_at?->toISOString(),
+            'screening_starts_at' => $election->screening_starts_at?->toISOString(),
+            'screening_ends_at' => $election->screening_ends_at?->toISOString(),
+            'campaign_starts_at' => $election->campaign_starts_at?->toISOString(),
+            'campaign_ends_at' => $election->campaign_ends_at?->toISOString(),
+            'results_publish_at' => $election->results_publish_at?->toISOString(),
+            'rules' => $election->rules,
+            'rules_version' => $election->rules_version,
+            'tie_break_rule' => $election->tie_break_rule,
+            'min_units' => $election->min_units,
+            'min_gpa' => $election->min_gpa,
+            'submitted_at' => $election->submitted_at?->toISOString(),
         ];
     }
 
@@ -1199,6 +1733,12 @@ class ElectionController extends Controller
             'election_id' => $position->election_id,
             'title' => $position->title,
             'max_winners' => $position->max_winners,
+            'description' => $position->description,
+            'is_executive' => (bool) $position->is_executive,
+            'vote_limit' => $position->vote_limit,
+            'eligible_year_levels' => $position->eligible_year_levels,
+            'other_qualifications' => $position->other_qualifications,
+            'is_active' => (bool) $position->is_active,
         ];
     }
 
