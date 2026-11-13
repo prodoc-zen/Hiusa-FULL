@@ -112,7 +112,7 @@ Old text: Admin > row Actions > "Close" > in the "Close election" dialog ("The w
 
 New expected screen:
 
-- The dialog title is still "Close election" with the button "Close election". The built client still says "The winners become the new officers and the outgoing officers lose their officer access." That sentence is no longer true (access is staged). It is in `ElectionPickerPage.jsx` and must be reworded by the owner of that file before Saturday. Until then, do not read the dialog sentence aloud.
+- The dialog title is still "Close election" with the button "Close election". The sentence now reads "Closing ends voting and cannot be undone. Voters can no longer submit ballots. Winners become upcoming officers; their access starts on the officer start date and the outgoing officers keep access until the school year ends." (reworded in fix round 1, because access is staged).
 - The row reads Closed. Results show one status line per position: "Winner: <name> (N votes)" for a decided position. A 1 to 1 vote now reads "Runoff required: <names>" and the Admin sees "Runoff schedule" (not "Tie, assign manually").
 - The winner does not get officer access in the same step. Results and Records > Officer transition show the winner as an Upcoming officer: "Upcoming officer, access starts <date>", with the start one calendar month before the official renewal deadline set in Compliance. If Compliance has no renewal deadline ahead, the winner stays Upcoming and the row says "No renewal deadline in Compliance yet". If the calculated start has already passed, access starts at once and the row says "Start date had already passed when the results became final". CHECK AFTER MERGE (slices 4A, 4C, 4D).
 
