@@ -616,10 +616,16 @@ class OfficerAppointmentService
         $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
     }
 
+    /** The semester the election belongs to; one made before any semester existed belongs to the school year now running. */
+    private function semesterOf(Election $election): ?AcademicSemester
+    {
+        return $election->academic_semester_id ? AcademicSemester::with('academicYear')->find($election->academic_semester_id) : AcademicSemester::active();
+    }
+
     /** The end of the school year the election was held in: the latest semester end of its academic year. */
     private function schoolYearEnd(Election $election): ?Carbon
     {
-        $semester = $election->academic_semester_id ? AcademicSemester::find($election->academic_semester_id) : null;
+        $semester = $this->semesterOf($election);
         if (! $semester) {
             return null;
         }
@@ -636,9 +642,7 @@ class OfficerAppointmentService
 
     private function academicYear(Election $election): ?string
     {
-        return $election->academic_semester_id
-            ? AcademicSemester::with('academicYear')->find($election->academic_semester_id)?->academicYear?->label
-            : null;
+        return $this->semesterOf($election)?->academicYear?->label;
     }
 
     private function scoped($query, ?int $electionId, ?array $organizationIds)

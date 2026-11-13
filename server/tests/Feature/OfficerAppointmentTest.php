@@ -441,9 +441,28 @@ class OfficerAppointmentTest extends TestCase
         $this->assertTrue(AccountProfile::votingMembers()->where('organization_id', $this->organization->id)->where('user_school_id', $outgoing->school_id)->exists());
     }
 
-    public function test_an_outgoing_officer_with_no_semester_ends_when_the_incoming_term_starts(): void
+    public function test_an_outgoing_officer_of_an_election_without_a_semester_keeps_access_to_the_end_of_the_active_school_year(): void
     {
         $this->deadline('2027-01-20');
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->election(['academic_semester_id' => null]);
+        [$winner] = $this->position($election, 'Secretary', [5, 2]);
+
+        $this->sync($election);
+
+        $row = $this->appointmentOf($outgoing);
+        $this->assertSame('2027-05-31', $row->term_ends_on->format('Y-m-d'));
+        $this->assertSame('2026-2027', $this->appointmentOf($winner, 'incoming')->academic_year);
+        Carbon::setTestNow('2026-12-21 09:00:00');
+        $this->sync($election);
+        $this->assertSame('SBO_OFFICER', $this->profile($winner)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($outgoing)->role);
+    }
+
+    public function test_an_outgoing_officer_with_no_semester_at_all_ends_when_the_incoming_term_starts(): void
+    {
+        $this->deadline('2027-01-20');
+        $this->semester->update(['status' => 'completed']);
         $outgoing = $this->member('SBO_OFFICER', 'Secretary');
         $election = $this->election(['academic_semester_id' => null]);
         $this->position($election, 'Secretary', [5, 2]);
