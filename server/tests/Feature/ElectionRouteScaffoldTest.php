@@ -117,8 +117,8 @@ class ElectionRouteScaffoldTest extends TestCase
             $response = $this->json($method, $path);
 
             if (in_array($role, $roles, true)) {
-                // The governance, filing, runoff, tie and officer transition routes are built; their behaviour is pinned in ElectionGovernanceTest, ElectionCandidacyFilingTest, ElectionScreeningTest, ElectionRunoffTest, ElectionTieResolutionTest and OfficerTransitionRecordsTest.
-                if (in_array($action[0], [ElectionGovernanceController::class, ElectionApplicationController::class, ElectionResultsController::class, OfficerTransitionController::class], true)) {
+                // The governance, filing, runoff, tie and officer transition routes are built; their behaviour is pinned in ElectionGovernanceTest, ElectionCandidacyFilingTest, ElectionScreeningTest, ElectionRunoffTest, ElectionTieResolutionTest, OfficerTransitionRecordsTest and ElectionReportsTest.
+                if (in_array($action[0], [ElectionGovernanceController::class, ElectionApplicationController::class, ElectionResultsController::class, OfficerTransitionController::class, ElectionReportController::class], true)) {
                     continue;
                 }
                 $response->assertStatus(501);
