@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
@@ -13,9 +14,9 @@ use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
 use App\Models\Remittance;
 use App\Models\Transaction;
+use App\Services\Ai\AiInstructions;
 use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
-use App\Services\GroqResponsesService;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
 use App\Support\SemesterScope;
@@ -29,7 +30,7 @@ use Illuminate\Validation\Rule;
 class FinancialReportController extends Controller
 {
     public function __construct(
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
         private readonly FinancialReportPdfService $pdf,
     ) {}
 
@@ -199,6 +200,7 @@ class FinancialReportController extends Controller
         $reportContext = [
             'report_title' => $title,
             'document_type' => $data['document_type'],
+            'period' => ['start' => $start, 'end' => $end],
             'income_statement' => [
                 'record_count' => $transactions->count(),
                 'total_income' => $statement['totals']['income'],
@@ -251,7 +253,7 @@ class FinancialReportController extends Controller
                     'structured_input' => $reportContext,
                     'structured_output' => ['deterministic_summary' => $summary['text']],
                     'status' => $summary['ai_generated'] ? 'completed' : 'failed',
-                    'error_message' => $summary['ai_generated'] ? null : 'Groq summary was unavailable; the calculated financial report was still saved.',
+                    'error_message' => $summary['ai_generated'] ? null : 'The AI summary was unavailable; the calculated financial report was still saved.',
                     'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
                     'decided_by' => $summary['ai_generated'] ? $request->user()->school_id : null,
                     'decided_at' => $summary['ai_generated'] ? now() : null,
@@ -598,19 +600,19 @@ class FinancialReportController extends Controller
             : '';
         $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is ₱".number_format($statement['total_income'], 2).', total expenses are ₱'.number_format($statement['total_expense'], 2).', and net activity is ₱'.number_format($statement['net_balance'], 2).'. Opening balance is ₱'.number_format($statement['opening_balance'], 2).' and closing balance is ₱'.number_format($statement['closing_balance'], 2).'. Verified collections are ₱'.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are ₱'.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.'.$advanceNote;
 
-        $generated = $this->groq->generate(
-            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, custody movements, latest OLS forecast when available, budget-advisory results, and audit-log summary. Distinguish period net activity from opening and closing balance. Remittances are custody movements and must never be added to income. Cash advances are money lent out and returned, never income or expense: report them separately when they are not zero. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
+        $generated = $this->ai->generate(
+            AiInstructions::financialReportSummary(),
             json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             650,
             0.2,
         );
         if ($generated) {
-            $generated['text'] = $this->groq->plainText($generated['text']);
+            $generated['text'] = $this->ai->plainText($generated['text']);
             if ($generated['text'] === '') {
                 $generated = null;
             }
         }
-        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $context)) {
+        if ($generated && ! $this->ai->preservesNumericFacts($generated['text'], $context)) {
             $generated = null;
         }
 

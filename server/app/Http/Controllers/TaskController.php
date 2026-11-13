@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\AuditLog;
@@ -10,7 +11,7 @@ use App\Models\Notification;
 use App\Models\Task;
 use App\Models\TaskProgressUpdate;
 use App\Models\User;
-use App\Services\GroqResponsesService;
+use App\Services\Ai\AiInstructions;
 use App\Services\HiusaAiService;
 use App\Services\TaskDelegationService;
 use App\Support\FilterValues;
@@ -31,7 +32,7 @@ class TaskController extends Controller
 
     public function __construct(
         private readonly HiusaAiService $aiService,
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
         private readonly TaskDelegationService $delegation,
     ) {}
 
@@ -173,24 +174,24 @@ class TaskController extends Controller
             'organization_id' => $request->user()->organization_id,
         ]);
         $this->persistRecommendations($task, $this->lastDelegation);
-        $hasGroqExplanation = $this->lastExplanationModel !== null;
+        $hasAiExplanation = $this->lastExplanationModel !== null;
         AiOutput::create([
             'organization_id' => $task->organization_id,
             'feature_type' => 'TASK_EXPLANATION',
             'reference_type' => Task::class,
             'reference_id' => $task->id,
             'prompt_text' => 'Explain the deterministic task-delegation result without changing its facts.',
-            'output_text' => $hasGroqExplanation ? (string) $task->ai_recommendation_note : '',
+            'output_text' => $hasAiExplanation ? (string) $task->ai_recommendation_note : '',
             'model_name' => $this->lastExplanationModel,
             'context_version' => 'task-delegation-v2',
             'structured_input' => $this->lastDelegation,
             'structured_output' => ['deterministic_explanation' => $task->ai_recommendation_note],
-            'status' => $hasGroqExplanation ? 'completed' : 'failed',
-            'error_message' => $hasGroqExplanation ? null : 'Groq explanation was unavailable; deterministic assignment facts were retained.',
-            'decision_status' => $hasGroqExplanation ? 'accepted' : 'rejected',
+            'status' => $hasAiExplanation ? 'completed' : 'failed',
+            'error_message' => $hasAiExplanation ? null : 'The AI explanation was unavailable; deterministic assignment facts were retained.',
+            'decision_status' => $hasAiExplanation ? 'accepted' : 'rejected',
             'requested_by' => $request->user()->school_id,
-            'decided_by' => $hasGroqExplanation ? $request->user()->school_id : null,
-            'decided_at' => $hasGroqExplanation ? now() : null,
+            'decided_by' => $hasAiExplanation ? $request->user()->school_id : null,
+            'decided_at' => $hasAiExplanation ? now() : null,
             'created_at' => now(),
         ]);
         AuditLog::create([
@@ -817,13 +818,13 @@ class TaskController extends Controller
             'recency_score' => $scores['recency_score'],
             'final_score' => $scores['final_score'],
         ];
-        $generated = $this->groq->generate(
-            'Explain a student-organization task assignment in one concise sentence. Preserve every supplied score, the inferred task area, and the position match tier exactly as given.',
+        $generated = $this->ai->generate(
+            AiInstructions::taskAssignmentNote(),
             json_encode($facts, JSON_THROW_ON_ERROR),
             120,
             0.2,
         );
-        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $facts)) {
+        if ($generated && ! $this->ai->preservesNumericFacts($generated['text'], $facts)) {
             $generated = null;
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\Announcement;
@@ -11,8 +12,8 @@ use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Ai\AiInstructions;
 use App\Services\ApprovalEntityLabel;
-use App\Services\GroqResponsesService;
 use App\Support\FilterValues;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -27,7 +28,7 @@ class AnnouncementController extends Controller
     private const BODY_MESSAGES = ['body.max' => 'The announcement text can be at most 10,000 characters.'];
 
     public function __construct(
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
         private readonly ApprovalEntityLabel $entityLabels,
     ) {}
 
@@ -56,21 +57,28 @@ class AnnouncementController extends Controller
             ], 429);
         }
 
+        $audience = [
+            'all' => 'Everyone in the organization',
+            'STUDENT' => 'Students',
+            'SBO_OFFICER' => 'SBO officers',
+            'ADMIN' => 'Organization admins',
+            'DEPARTMENT_HEAD' => 'Department heads',
+        ][$data['target_role']];
         $prompt = "Write a concise school organization announcement.\n"
             ."Title: {$data['title']}\n"
-            ."Audience: {$data['target_role']}\n"
+            ."Audience: {$audience}\n"
             .'Category: '.($data['category'] ?? 'general')."\n"
             .'Details: '.($data['details'] ?? 'Use a clear, formal, student-friendly tone.')."\n";
 
         $model = (string) config('services.groq.model');
-        $generated = $this->groq->generate(
-            'Draft a polished, concise school-organization announcement using only supplied facts. Never invent dates, venues, fees, requirements, contacts, or names. Clearly mark important missing information as not yet specified. Return only the editable announcement body as plain text. Do not use Markdown, asterisks, backticks, or heading markers.',
+        $generated = $this->ai->generate(
+            AiInstructions::announcementDraft(),
             $prompt,
             450,
             0.4,
         );
         if ($generated) {
-            $generated['text'] = $this->groq->plainText($generated['text']);
+            $generated['text'] = $this->ai->plainText($generated['text']);
             if ($generated['text'] === '') {
                 $generated = null;
             }
