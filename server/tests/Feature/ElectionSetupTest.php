@@ -315,7 +315,7 @@ class ElectionSetupTest extends TestCase
         $this->assertSame(0, ApprovalRequest::where('entity_id', $id)->count());
 
         $this->put("/api/elections/{$id}", $this->filingPayload(['informative_letter' => $this->letter()]), ['Accept' => 'application/json'])->assertOk();
-        $this->postJson("/api/elections/{$id}/positions", ['title' => 'President', 'max_winners' => 1])->assertCreated();
+        $this->assertSame(['President', 'Representative'], ElectionPosition::where('election_id', $id)->orderBy('id')->pluck('title')->all());
         $this->postJson("/api/elections/{$id}/submit")->assertOk();
 
         $election = Election::findOrFail($id);
@@ -388,7 +388,7 @@ class ElectionSetupTest extends TestCase
         Sanctum::actingAs($this->admin);
         $election = $this->approvedFilingElection();
 
-        $this->putJson("/api/elections/{$election->id}", $this->filingPayload(['title' => 'General election']))->assertOk();
+        $this->putJson("/api/elections/{$election->id}", $this->filingPayload(['title' => 'General election', 'positions' => [['title' => 'President', 'max_winners' => 1]]]))->assertOk();
         $this->putJson("/api/elections/{$election->id}", ['title' => 'Renamed election', 'description' => 'New words'])->assertOk();
 
         $fresh = $election->fresh();
@@ -659,5 +659,55 @@ class ElectionSetupTest extends TestCase
         $added = AuditLog::where('action', 'position_added')->firstOrFail();
         $this->assertTrue($added->new_values['is_executive']);
         $this->assertArrayHasKey('vote_limit', $added->new_values);
+    }
+
+    public function test_editing_a_draft_saves_its_positions_without_duplicating_them(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true, 'positions' => [['title' => 'President', 'max_winners' => 1]]])->assertCreated()->json('id');
+        $president = ElectionPosition::where('election_id', $id)->sole();
+
+        $this->putJson("/api/elections/{$id}", ['positions' => [
+            ['title' => 'President', 'max_winners' => 2, 'vote_limit' => 2, 'is_executive' => true, 'eligible_year_levels' => [1, 2]],
+            ['title' => 'Secretary', 'max_winners' => 1],
+        ]])->assertOk();
+
+        $positions = ElectionPosition::where('election_id', $id)->orderBy('id')->get();
+        $this->assertSame(['President', 'Secretary'], $positions->pluck('title')->all());
+        $this->assertSame($president->id, $positions[0]->id);
+        $this->assertSame(2, (int) $positions[0]->max_winners);
+        $this->assertTrue((bool) $positions[0]->is_executive);
+        $this->assertSame([1, 2], $positions[0]->eligible_year_levels);
+
+        $this->putJson("/api/elections/{$id}", ['positions' => [['title' => 'Secretary', 'max_winners' => 1]]])->assertOk();
+        $this->assertSame(['Secretary'], ElectionPosition::where('election_id', $id)->pluck('title')->all());
+    }
+
+    public function test_the_show_payload_of_a_draft_carries_its_positions(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true, 'positions' => [['title' => 'President', 'max_winners' => 1]]])->assertCreated()->json('id');
+
+        $this->assertSame(['President'], collect($this->getJson("/api/elections/{$id}")->assertOk()->json('positions'))->pluck('title')->all());
+    }
+
+    public function test_an_approved_election_refuses_a_position_list_on_the_edit_form(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $election = $this->approvedFilingElection();
+
+        $this->putJson("/api/elections/{$election->id}", ['positions' => [['title' => 'Treasurer', 'max_winners' => 1]]])->assertStatus(409);
+        $this->assertSame(['President'], ElectionPosition::where('election_id', $election->id)->pluck('title')->all());
+    }
+
+    public function test_a_position_that_has_a_candidate_is_never_dropped_by_the_edit_form(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true, 'positions' => [['title' => 'President', 'max_winners' => 1]]])->assertCreated()->json('id');
+        $position = ElectionPosition::where('election_id', $id)->sole();
+        Candidate::factory()->create(['election_id' => $id, 'position_id' => $position->id, 'user_id' => User::factory()->student()->create(['organization_id' => $this->organization->id])->school_id]);
+
+        $this->putJson("/api/elections/{$id}", ['positions' => [['title' => 'Secretary', 'max_winners' => 1]]])->assertUnprocessable()->assertJsonValidationErrors('positions');
+        $this->assertSame(['President'], ElectionPosition::where('election_id', $id)->pluck('title')->all());
     }
 }
