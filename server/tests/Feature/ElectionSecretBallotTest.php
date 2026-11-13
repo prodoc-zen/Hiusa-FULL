@@ -329,6 +329,8 @@ class ElectionSecretBallotTest extends TestCase
             'start_time' => now()->subDays(3),
             'end_time' => now()->subDays(2),
             'phase' => 'runoff',
+            // These ballots carry no counted votes, so the resolution service is kept out of the fixture.
+            'tally_version' => 1,
             'runoff_starts_at' => now()->subHour(),
             'runoff_ends_at' => now()->addHour(),
         ]);

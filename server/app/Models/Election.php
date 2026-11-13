@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\ElectionHandoverService;
 use App\Services\ElectionPhaseService;
+use App\Services\ElectionResolutionService;
 use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -102,7 +103,8 @@ class Election extends Model
      * finalized ballots open, and only inside their voting window. A suspended
      * or cancelled election neither opens nor closes. Elections with a filing
      * window first move through their phases (ElectionPhaseService), which locks
-     * the ballot when voting is due; a closed election then enters canvassing.
+     * the ballot when voting is due; a closed election then enters canvassing, where the resolution
+     * service publishes, runs the runoff and the tie decision and completes it.
      *
      * @param  array<int>|null  $organizationIds  null covers every organization
      * @return array{opened: int, closed: int}
@@ -140,6 +142,27 @@ class Election extends Model
             ->whereNull('cancelled_at')
             ->where(fn ($query) => $query->whereNull('phase')->orWhereIn('phase', ['scheduled', 'filing', 'screening', 'campaign', 'voting']))
             ->get());
+
+        // Counting, publication, the runoff and the tie decision follow the closed election whatever semester is active.
+        $resolution = app(ElectionResolutionService::class);
+        static::query()
+            ->where('status', 'closed')
+            ->where('tally_version', 2)
+            ->whereNotNull('approved_at')
+            ->whereNull('cancelled_at')
+            ->whereNull('suspended_at')
+            ->whereNull('completed_at')
+            ->when($organizationIds !== null, fn ($query) => $query->whereIn('organization_id', $organizationIds))
+            ->when($electionId, fn ($query) => $query->whereKey($electionId))
+            ->get()
+            ->each(function (Election $election) use ($resolution) {
+                try {
+                    $resolution->advance($election);
+                } catch (\Throwable $exception) {
+                    // One election that cannot advance must not stop the others or break the request that triggered the sync.
+                    report($exception);
+                }
+            });
 
         $service = app(ElectionHandoverService::class);
         $baseQuery()

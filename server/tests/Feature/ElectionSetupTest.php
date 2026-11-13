@@ -613,7 +613,7 @@ class ElectionSetupTest extends TestCase
     public function test_in_a_runoff_the_payload_reads_the_second_round_ballot(): void
     {
         $student = User::factory()->student()->create(['organization_id' => $this->organization->id]);
-        $election = $this->approvedFilingElection(['status' => 'closed', 'phase' => 'runoff', 'finalized_at' => now()->subDay(), 'runoff_starts_at' => now()->subHour(), 'runoff_ends_at' => now()->addHour()]);
+        $election = $this->approvedFilingElection(['status' => 'closed', 'phase' => 'runoff', 'tally_version' => 1, 'finalized_at' => now()->subDay(), 'runoff_starts_at' => now()->subHour(), 'runoff_ends_at' => now()->addHour()]);
         ElectionBallot::create(['election_id' => $election->id, 'round' => 1, 'voter_id' => $student->school_id, 'receipt_ref' => 'RC0001', 'submitted_at' => '2026-11-13 09:00:00']);
 
         Sanctum::actingAs($student);
