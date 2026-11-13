@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\ElectionHandoverService;
 use App\Services\ElectionPhaseService;
 use App\Services\ElectionResolutionService;
+use App\Services\OfficerAppointmentService;
 use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -104,7 +105,8 @@ class Election extends Model
      * or cancelled election neither opens nor closes. Elections with a filing
      * window first move through their phases (ElectionPhaseService), which locks
      * the ballot when voting is due; a closed election then enters canvassing, where the resolution
-     * service publishes, runs the runoff and the tie decision and completes it.
+     * service publishes, runs the runoff and the tie decision and completes it. Released winners then become officer
+     * appointments, which start, and expire, on their own dates.
      *
      * @param  array<int>|null  $organizationIds  null covers every organization
      * @return array{opened: int, closed: int}
@@ -164,14 +166,34 @@ class Election extends Model
                 }
             });
 
+        // Appointments, activation and expiry follow the closed election whatever semester is active (D-25).
         $service = app(ElectionHandoverService::class);
-        $baseQuery()
+        static::query()
             ->where('status', 'closed')
             ->where('results_visible', true)
+            ->whereNotNull('approved_at')
             ->whereNotNull('finalized_at')
             ->whereNull('access_handed_over_at')
+            ->whereNull('cancelled_at')
+            ->when($organizationIds !== null, fn ($query) => $query->whereIn('organization_id', $organizationIds))
+            ->when($electionId, fn ($query) => $query->whereKey($electionId))
             ->get()
-            ->each(fn (Election $election) => $service->handOver($election));
+            ->each(function (Election $election) use ($service) {
+                try {
+                    $service->handOver($election);
+                } catch (\Throwable $exception) {
+                    report($exception);
+                }
+            });
+
+        $appointments = app(OfficerAppointmentService::class);
+        foreach (['schedule', 'activateDue', 'expireDue'] as $step) {
+            try {
+                $appointments->{$step}($electionId, $organizationIds);
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
 
         return ['opened' => $opened, 'closed' => $closed];
     }
