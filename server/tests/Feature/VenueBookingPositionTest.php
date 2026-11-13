@@ -109,6 +109,23 @@ class VenueBookingPositionTest extends TestCase
         $this->patchJson("/api/venue-bookings/{$bookingId}/withdraw")->assertOk();
     }
 
+    public function test_an_unlisted_title_follows_the_position_default_and_an_officer_with_no_title_cannot_book(): void
+    {
+        $organization = Organization::factory()->create();
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+
+        Sanctum::actingAs($this->officer($organization, 'Demo Representative'));
+        $this->postJson('/api/venue-bookings', $this->payload($venue))
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Your position cannot book venues. Ask your Admin.');
+
+        Sanctum::actingAs($this->officer($organization, null));
+        $this->postJson('/api/venue-bookings', $this->payload($venue))->assertForbidden();
+
+        Sanctum::actingAs($this->officer($organization, 'Business Manager'));
+        $this->postJson('/api/venue-bookings', $this->payload($venue))->assertCreated();
+    }
+
     public function test_the_switch_is_read_from_the_officers_own_organization_only(): void
     {
         $organization = Organization::factory()->create();

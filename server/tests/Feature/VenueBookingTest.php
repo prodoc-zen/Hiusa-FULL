@@ -389,6 +389,7 @@ class VenueBookingTest extends TestCase
     {
         $organization = Organization::factory()->create();
         $admin = $this->user('SBO_OFFICER', $organization->id);
+        $admin->update(['position_title' => 'Secretary']);
         $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
         $event = $this->semesterEvent('active', $organization, $admin);
 
@@ -441,6 +442,7 @@ class VenueBookingTest extends TestCase
         $superAdmin = $this->user('SUPER_ADMIN');
         $organization = Organization::factory()->create();
         $officer = $this->user('SBO_OFFICER', $organization->id);
+        $officer->update(['position_title' => 'Secretary']);
         $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
 
         Sanctum::actingAs($officer);
