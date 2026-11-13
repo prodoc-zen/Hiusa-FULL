@@ -44,7 +44,7 @@ class CollegeController extends Controller
         ]);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')],
-            'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')],
+            'code' => ['required', 'string', 'max:50', Rule::unique('colleges', 'code')],
             'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'description' => ['nullable', 'string', 'max:3000'],
         ]);
@@ -146,7 +146,7 @@ class CollegeController extends Controller
         ]);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')->ignore($college->id)],
-            'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')->ignore($college->id)],
+            'code' => [Rule::requiredIf(filled($college->code)), 'nullable', 'string', 'max:50', Rule::unique('colleges', 'code')->ignore($college->id)],
             'description' => ['nullable', 'string', 'max:3000'],
         ]);
 

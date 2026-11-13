@@ -82,10 +82,12 @@ describe('SystemCollegesPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add college' }));
     const dialog = screen.getByRole('dialog', { name: 'Add college' });
     fireEvent.change(within(dialog).getByLabelText(/College name/), { target: { value: 'College of Arts' } });
+    expect(within(dialog).getByLabelText(/^Code/)).toBeRequired();
+    fireEvent.change(within(dialog).getByLabelText(/^Code/), { target: { value: 'CA' } });
     fireEvent.change(within(dialog).getByLabelText(/^Color/), { target: { value: '#123abc' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add college' }));
     expect(await within(dialog).findByText('The name has already been taken.')).toBeInTheDocument();
-    expect(mocks.createSystemCollege).toHaveBeenCalledWith({ name: 'College of Arts', code: null, color: '#123ABC' });
+    expect(mocks.createSystemCollege).toHaveBeenCalledWith({ name: 'College of Arts', code: 'CA', color: '#123ABC' });
     expect(screen.getByRole('dialog', { name: 'Add college' })).toBeInTheDocument();
   });
 
