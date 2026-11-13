@@ -1,6 +1,6 @@
 # Data dictionary
 
-Generated from the staging database schema on 2026-10-13 (MySQL 8, 65 tables, 745 columns). Grouped by module. `?` after a type means the column can be empty. PK is the primary key, UQ is unique, FK points to the table it references.
+Generated from the staging database schema on 2026-10-13 (MySQL 8, 65 tables, 745 columns); the Elections group and the Officer transition group were updated by hand on 2026-11-13 from the migrations of the full election process (files named 2026_11_13_1000NN). Grouped by module. `?` after a type means the column can be empty. PK is the primary key, UQ is unique, FK points to the table it references.
 
 ## Identity and access
 
@@ -816,7 +816,7 @@ Student orders with payment verification and claim token.
 
 ### elections
 
-Elections with approval, finalization and voting window.
+Elections with approval, finalization, voting window and (for an election where students file their own candidacy) the full schedule, rules, phase and halt state. An election with `filing_starts_at` set follows the full process; one without it follows the short form where the Admin adds candidates. Dates are stored as Manila wall-clock time.
 
 | Column | Type | Null | Key | References | Default |
 |---|---|---|---|---|---|
@@ -835,10 +835,46 @@ Elections with approval, finalization and voting window.
 | finalized_at | timestamp | yes |  |  |  |
 | academic_semester_id | bigint unsigned | yes | FK | academic_semesters.id |  |
 | informative_letter_path | varchar(255) | yes |  |  |  |
+| access_handed_over_at | timestamp | yes |  |  |  |
+| description | text | yes |  |  |  |
+| filing_starts_at | datetime | yes |  |  |  |
+| filing_ends_at | datetime | yes |  |  |  |
+| screening_starts_at | datetime | yes |  |  |  |
+| screening_ends_at | datetime | yes |  |  |  |
+| campaign_starts_at | datetime | yes |  |  |  |
+| campaign_ends_at | datetime | yes |  |  |  |
+| results_publish_at | datetime | yes |  |  |  |
+| runoff_starts_at | datetime | yes |  |  |  |
+| runoff_ends_at | datetime | yes |  |  |  |
+| runoff_publish_at | datetime | yes |  |  |  |
+| rules | longtext | yes |  |  |  |
+| rules_version | smallint unsigned | no |  |  | `0` |
+| tie_break_rule | varchar(500) | yes |  |  |  |
+| min_gpa | decimal(3,2) | yes |  |  |  |
+| min_units | tinyint unsigned | yes |  |  |  |
+| phase | varchar(24) | yes | IDX |  |  |
+| phase_alert | varchar(255) | yes |  |  |  |
+| notices_sent | json | yes |  |  |  |
+| submitted_at | timestamp | yes |  |  |  |
+| declined_at | timestamp | yes |  |  |  |
+| suspended_at | timestamp | yes |  |  |  |
+| cancelled_at | timestamp | yes |  |  |  |
+| completed_at | timestamp | yes |  |  |  |
+| halt_reason | varchar(500) | yes |  |  |  |
+| tally_version | tinyint unsigned | no |  |  | `2` |
+
+Notes on the full-process columns:
+
+- `phase` is one of scheduled, filing, screening, campaign, voting, canvassing, runoff, tie_resolution, completed, cancelled. It stays empty for a short form election until it closes.
+- `submitted_at` empty on a pending election means a draft (no approval request exists yet). Existing rows were set to their `created_at`.
+- `declined_at` is set when the Department Head rejects the election for good; it cannot be resubmitted.
+- `suspended_at` and `cancelled_at` hold phases and voting; `halt_reason` is the written reason.
+- `phase_alert` holds the reason a phase could not start; `notices_sent` records the one-time notices (filing closing, voting closing) so the every-minute sync never repeats them.
+- `tally_version` 1 marks elections that were already closed before the full process; they keep the old reading of their results, including "Access handed over".
 
 ### election_positions
 
-Positions to be voted on.
+Positions to be voted on. Position setup columns apply to the full process; the result columns are written by counting, the runoff and the tie resolution.
 
 | Column | Type | Null | Key | References | Default |
 |---|---|---|---|---|---|
@@ -848,6 +884,65 @@ Positions to be voted on.
 | max_winners | int | no |  |  | `1` |
 | created_at | timestamp | yes |  |  |  |
 | updated_at | timestamp | yes |  |  |  |
+| description | varchar(255) | yes |  |  |  |
+| is_executive | tinyint(1) | no |  |  | `0` |
+| vote_limit | tinyint unsigned | yes |  |  |  |
+| eligible_year_levels | json | yes |  |  |  |
+| other_qualifications | varchar(500) | yes |  |  |  |
+| is_active | tinyint(1) | no |  |  | `1` |
+| runoff_candidate_ids | json | yes |  |  |  |
+| runoff_seats | tinyint unsigned | yes |  |  |  |
+| result_status | varchar(24) | yes |  |  |  |
+| resolved_winner_ids | json | yes |  |  |  |
+| tie_rule_used | varchar(500) | yes |  |  |  |
+| tie_explanation | text | yes |  |  |  |
+| tie_resolved_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| tie_resolved_at | timestamp | yes |  |  |  |
+
+Notes: an empty `vote_limit` means the voter may choose up to `max_winners`; it is never above `max_winners`. An empty `eligible_year_levels` means every year level may run. `is_executive` drives the fourth year rule at filing. `resolved_winner_ids`, `tie_rule_used`, `tie_explanation`, `tie_resolved_by` and `tie_resolved_at` record the reviewer's decision after a runoff that ended tied; vote totals are never edited.
+
+### election_rule_versions
+
+The rules of an election as the reviewer approved them. Each approval writes the next version; students accept a version before filing.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| election_id | bigint unsigned | no | FK | elections.id (cascade) |  |
+| version | smallint unsigned | no | UQ with election_id |  |  |
+| rules | longtext | yes |  |  |  |
+| tie_break_rule | varchar(500) | yes |  |  |  |
+| approved_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| approved_at | timestamp | yes |  |  |  |
+
+### election_applications
+
+Candidacy applications of an election where students file. One row per student per election. Approving an application creates the `candidates` row and stores it in `candidate_id`.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| election_id | bigint unsigned | no | FK | elections.id (cascade) |  |
+| position_id | bigint unsigned | no | FK | election_positions.id (cascade) |  |
+| user_school_id | int unsigned | no | UQ with election_id | users.school_id (not enforced) |  |
+| partylist_id | bigint unsigned | yes | FK | partylists.id (set null) |  |
+| submitted_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| status | varchar(16) | no |  |  | `draft` |
+| platform | text | yes |  |  |  |
+| photo_url | varchar(255) | yes |  |  |  |
+| coc_path | varchar(255) | yes |  |  |  |
+| credentials_path | varchar(255) | yes |  |  |  |
+| rules_version | smallint unsigned | yes |  |  |  |
+| rules_accepted_at | timestamp | yes |  |  |  |
+| submitted_at | timestamp | yes |  |  |  |
+| review_notes | text | yes |  |  |  |
+| reviewed_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| reviewed_at | timestamp | yes |  |  |  |
+| candidate_id | bigint unsigned | yes | FK | candidates.id (set null) |  |
+| created_at | timestamp | yes |  |  |  |
+| updated_at | timestamp | yes |  |  |  |
+
+`status` is draft, pending_review, for_revision, approved, rejected or withdrawn. `photo_url` is a public file under the candidates folder. `coc_path` and `credentials_path` are private files on the local disk, opened only through the API by the applicant, the representative or the Admin.
 
 ### candidates
 
@@ -867,7 +962,7 @@ Candidates per position.
 
 ### partylists
 
-Party lists.
+Party lists. A party list filed by a student carries the election, the representative, a motto and a color; a party list the Admin registers leaves those empty.
 
 | Column | Type | Null | Key | References | Default |
 |---|---|---|---|---|---|
@@ -879,10 +974,29 @@ Party lists.
 | banner_url | varchar(255) | yes |  |  |  |
 | created_at | timestamp | yes |  |  |  |
 | updated_at | timestamp | yes |  |  |  |
+| motto | varchar(255) | yes |  |  |  |
+| color | varchar(7) | yes |  |  |  |
+| election_id | bigint unsigned | yes | FK | elections.id (set null) |  |
+| representative_school_id | int unsigned | yes |  | users.school_id (not enforced) |  |
+
+### election_ballots
+
+Who voted, apart from what they chose. One row per voter per election per round; round 2 is the runoff. The receipt reference is what the voter keeps.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| election_id | bigint unsigned | no | FK | elections.id (cascade) |  |
+| round | tinyint unsigned | no | UQ with election_id, voter_id |  | `1` |
+| voter_id | int unsigned | no | UQ with election_id, round | users.school_id (not enforced) |  |
+| receipt_ref | varchar(16) | no | UQ |  |  |
+| submitted_at | timestamp | no |  |  | `CURRENT_TIMESTAMP` |
+
+Existing votes were backfilled with one round 1 row per election and voter (receipt from the smallest vote hash, time from the earliest cast time).
 
 ### votes
 
-Cast votes (one per voter per position).
+Cast votes. A ballot cast from the full-process release on stores one row per chosen candidate with no voter id and a time at day precision, so a choice cannot be linked to a voter; who voted is in `election_ballots`. Rows cast before that release keep the voter id they were stored with.
 
 | Column | Type | Null | Key | References | Default |
 |---|---|---|---|---|---|
@@ -890,9 +1004,71 @@ Cast votes (one per voter per position).
 | election_id | bigint unsigned | no | FK | elections.id |  |
 | position_id | bigint unsigned | no | FK | election_positions.id |  |
 | candidate_id | bigint unsigned | no | FK | candidates.id |  |
-| voter_id | int unsigned | no | FK | users.school_id |  |
+| voter_id | int unsigned | yes | FK | users.school_id |  |
 | vote_hash | varchar(255) | no | UQ |  |  |
 | cast_at | timestamp | no |  |  | `CURRENT_TIMESTAMP` |
+| round | tinyint unsigned | no |  |  | `1` |
+
+## Officer transition
+
+### officer_appointments
+
+One row per winner (kind incoming) or replaced officer (kind outgoing) of an election. The winner's term starts one calendar month before the official renewal deadline, which is read from the active renewal requirements in Compliance and never edited by hand. On the start date the winner's profile receives the role; at the end of the school year the outgoing officer's profile becomes a plain student profile in the same organization.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| organization_id | bigint unsigned | no | FK | organizations.id (cascade) |  |
+| election_id | bigint unsigned | yes | UQ with election_position_id, user_school_id | elections.id (set null) |  |
+| election_position_id | bigint unsigned | yes |  | election_positions.id (not enforced) |  |
+| user_school_id | int unsigned | no |  | users.school_id (not enforced) |  |
+| position_title | varchar(100) | no |  |  |  |
+| is_executive | tinyint(1) | no |  |  | `0` |
+| role | varchar(20) | no |  |  |  |
+| kind | varchar(10) | no |  |  | `incoming` |
+| academic_year | varchar(20) | yes |  |  |  |
+| academic_semester_id | bigint unsigned | yes |  |  |  |
+| deadline_at | datetime | yes |  |  |  |
+| term_starts_on | date | yes |  |  |  |
+| term_ends_on | date | yes |  |  |  |
+| status | varchar(12) | no | IDX with organization_id |  | `upcoming` |
+| activation_status | varchar(12) | no |  |  | `scheduled` |
+| flag | varchar(40) | yes |  |  |  |
+| result_final_at | timestamp | yes |  |  |  |
+| last_recalculated_at | timestamp | yes |  |  |  |
+| activated_at | timestamp | yes |  |  |  |
+| ended_at | timestamp | yes |  |  |  |
+| start_notice_at | timestamp | yes |  |  |  |
+| end_notice_at | timestamp | yes |  |  |  |
+| created_at | timestamp | yes |  |  |  |
+| updated_at | timestamp | yes |  |  |  |
+
+Notes: `role` is ADMIN for President and any title starting with Vice President, otherwise SBO_OFFICER. `status` is upcoming, active or ended (shown as Former). `activation_status` is scheduled, active or failed. `flag` is missing_deadline (Compliance has no renewal deadline ahead; the appointment stays upcoming and is recalculated on every sync) or start_passed (the calculated start had already passed when the results became final, so access started at once). `start_notice_at` and `end_notice_at` record the 7 day notices so they are sent once.
+
+### officer_handovers
+
+The six handover items of one election's transition. The outgoing officers prepare them and the incoming officers acknowledge receipt. Acknowledging does not certify that the information is correct or audited.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| organization_id | bigint unsigned | no | FK | organizations.id (cascade) |  |
+| election_id | bigint unsigned | no | UQ with category | elections.id (cascade) |  |
+| academic_year | varchar(20) | yes |  |  |  |
+| category | varchar(20) | no |  |  |  |
+| reference_url | varchar(255) | yes |  |  |  |
+| remarks | text | yes |  |  |  |
+| attachment_path | varchar(255) | yes |  |  |  |
+| attachment_name | varchar(255) | yes |  |  |  |
+| status | varchar(16) | no |  |  | `pending` |
+| prepared_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| prepared_at | timestamp | yes |  |  |  |
+| acknowledged_by | int unsigned | yes |  | users.school_id (not enforced) |  |
+| acknowledged_at | timestamp | yes |  |  |  |
+| created_at | timestamp | yes |  |  |  |
+| updated_at | timestamp | yes |  |  |  |
+
+`category` is finance, events, tasks, organization, election or compliance. `status` is pending, prepared, under_review (once the incoming officers have access) or acknowledged. The attachment is a private file on the local disk.
 
 ## Announcements and notifications
 

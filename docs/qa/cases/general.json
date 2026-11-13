@@ -2117,13 +2117,13 @@
       "5. In the step \"Candidates\" select \"Add Candidate\", search a different student (for example 2100217), choose the position and the party list, and add the candidate.",
       "6. Select \"Finalize ballot\". Read the page.",
       "7. Wait until the start time has passed by 1 to 2 minutes. Reload. If the status is still Upcoming after 2 minutes, select \"Open voting\" and write that down.",
-      "8. Sign out. Sign in as Student 2100142. Open Voting > Vote. Select \"Vote in this election\", \"Start my ballot\", choose the candidate, \"Review ballot\", \"Submit final ballot\" and \"Confirm and submit\".",
+      "8. Sign out. Sign in as Student 2100142. Open Voting > Vote. Select \"Vote in this election\", \"Start my ballot\", choose the candidate, \"Review ballot\" and \"Confirm and submit\".",
       "9. Sign out. Sign in as Admin 900001. Open the election, open the step \"Voters\" and read Not Yet Voted. Select \"Close\".",
-      "10. Open Voting > Results and read the line under the title and the winner. Closing hands the seats to the winners at once: a President or Vice President winner becomes Admin, any other winner becomes an SBO Officer with that position title, and a person replaced in the same position stays in the organization as a Student. The seat here is your own title Chairperson, which nobody holds, so nobody is replaced; the winner becomes an SBO Officer titled Chairperson. Had you voted into the President seat instead, the replaced President would have lost Admin pages: then sign in as the new President or as adviser 990002 and carry on.",
+      "10. Open Voting > Results and read the line under the title and the winner. Closing stages the winners as Upcoming officers: a President or Vice President winner will become Admin at the start date, any other winner an SBO Officer with that position title, and a person replaced in the same position stays an officer until the end of the school year and then becomes a Student (GEN-136, ADM-247). The seat here is your own title Chairperson, which nobody holds, so nobody is replaced; the winner appears as an Upcoming officer titled Chairperson. Nobody loses access when the election closes.",
       "11. Sign out. Sign in as Department Head 940001. Open Election results and read the same result. Look for a vote button.",
       "12. Sign out. Sign in as Student 2100142. Open Voting > Results and read the result."
     ],
-    "expected": "The election is Pending Approval after step 2 and Approved after step 3. The page after \"Finalize ballot\" says \"Position setup is locked for this election.\" The election turns Live (Voting open) by itself at its start time. The student gets a \"Ballot submitted\" page with a receipt hash, and the Vote page then shows Voted. The Voters step shows one person fewer under Not Yet Voted. After \"Close\" the toast reads \"Election closed.\" and Results shows \"Final results for every position.\" with the table \"Final winners by position\" (an Election list, when shown, reads \"<title> (final results)\") and the same winner for the Admin, the Department Head and the student. The winner has the notice \"You now have access to <organization>\" and signs in as an SBO Officer titled Chairperson (VERIFY with the winner account if you have its password). No page shows who voted for whom. The Department Head has no vote button.",
+    "expected": "The election is Pending Approval after step 2 and Approved after step 3. The page after \"Finalize ballot\" says \"Position setup is locked for this election.\" The election turns Live (Voting open) by itself at its start time. The student gets a \"Ballot submitted\" page with a receipt reference and the submission time, and the Vote page then shows Voted. The Voters step shows one person fewer under Not Yet Voted. After \"Close\" the toast reads \"Election closed.\" and Results shows \"Final results for every position.\" with the table \"Final winners by position\" (an Election list, when shown, reads \"<title> (final results)\") and the same winner for the Admin, the Department Head and the student. The winner has the notice \"You won Chairperson\" with the date the officer access starts, and appears as Upcoming in Records > Officer transition (access itself starts on the start date, VERIFY with the winner account on a throwaway copy). No page shows who voted for whom. The Department Head has no vote button.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2483,6 +2483,122 @@
     "priority": "Medium",
     "device": "Any",
     "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-136",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Full election from proposal to appointed officers, in the process students file",
+    "preconditions": "The test copy is running. Round 2: the SAO has activated a semester that covers the test dates (a fresh seed has no semester and accepts any dates). Accounts: Admin 900001, Department Head 940001, Students 2100142 and 2100217, and a member who is currently Treasurer (900004). In Compliance a renewal requirement with a deadline more than a month ahead exists, and the clock can be moved (use a throwaway copy).",
+    "steps": [
+      "1. As Admin create a full election with near dates (filing already open, filing closing in a few minutes, screening, campaign and voting right after), a Treasurer position and a one seat Representative position. Submit it.",
+      "2. As Department Head 940001 approve it.",
+      "3. As Students 2100142 and 2100217 file for Treasurer and Representative.",
+      "4. After filing closes, as Admin approve both applications in Applications.",
+      "5. When voting opens, vote as both students and as a third member, skipping one position for one of them.",
+      "6. After voting ends read Voting > Results. If a position is tied schedule and vote in the runoff, and if it is still tied resolve it as Department Head.",
+      "7. Read Records > Officer transition, then Voting > Results again.",
+      "8. Move the clock to the start date of the new term and read Officer transition and the winners' menus.",
+      "9. Move the clock to the end of the school year and read the outgoing Treasurer's menu."
+    ],
+    "expected": "Step 1 and 2: Pending approval, then Scheduled and Filing open by themselves. Step 4: the election waits in Screening until every application is decided. Step 6: results publish at \"Results published\", with each position reading its status line. Step 7: the winners appear as Upcoming in Officer transition with a start date, one calendar month before the official renewal deadline, and Results shows \"Upcoming officer, access starts <date>\". Nobody gets access yet, and the current Treasurer keeps access. Step 8: the winners sign in with the new roles (see GEN-139) and the notice \"You now have access to <organization>\" arrives. During the overlap both administrations show. Step 9: the outgoing officer becomes a plain Student in the same organization, active, still on the voter roll. The audit trail holds each step with the actor, never a ballot choice.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-254, DH-102, STU-109, ADM-257, STU-114 and DH-106"
+  },
+  {
+    "id": "GEN-137",
+    "role": "All roles",
+    "module": "Notices",
+    "title": "Each notice of the election process is sent once",
+    "preconditions": "The test copy is running and the scheduler runs every minute (see GEN-110). A full election with near dates and Students 2100142 and 2100217. Use a throwaway copy.",
+    "steps": [
+      "1. As Student 2100142 note the bell before filing opens.",
+      "2. Let each phase come: filing opens, the 24 hour notice (use dates that put the close less than a day away), screening, campaign, voting opens, the voting 24 hour notice, results.",
+      "3. After each phase wait three minutes and count the notices with the same title in the bell of a student and of the Admin.",
+      "4. Make a phase unable to start (leave an application pending) and wait five minutes."
+    ],
+    "expected": "Each notice shows exactly once per person: \"Candidacy filing is open\", \"Candidacy filing closes soon\", \"Voting is open\", \"Voting closes soon\" (only to members who have not voted), the application and decision notices, and \"Election needs attention\" for a phase that cannot start (once per cause, to the Admins). The every-minute job never repeats a notice. Notices are in the bell only.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254 and DH-102"
+  },
+  {
+    "id": "GEN-138",
+    "role": "All roles",
+    "module": "Secret ballot",
+    "title": "No page shows a voter beside a choice",
+    "preconditions": "A completed election of this release where several students voted. Admin 900001, Department Head 940001, an officer and a student. Access to the database copy is not needed.",
+    "steps": [
+      "1. As the Admin, open Voters and read the columns.",
+      "2. Open Results and the report \"Voter participation\" and \"Audit trail\".",
+      "3. As an officer and as the Department Head repeat step 2.",
+      "4. As a voter, open the Vote page afterwards."
+    ],
+    "expected": "Voters shows who voted and when, never what they chose. Results shows totals only. The participation report shows counts and turnout per round with no voter names. The audit trail has no ballot choice. The voter sees only Voted, the receipt reference and the time. In the database the new votes carry no voter id and a time at day precision, and who voted is stored apart in the ballots table. Votes cast before this release keep their voter id.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-139",
+    "role": "All roles",
+    "module": "Roles of winners",
+    "title": "President and Vice Presidents become Admin, every other winner an Officer",
+    "preconditions": "Use a throwaway copy of an election of this release where the winners are President, Vice President Internal, Vice President External and Treasurer, all start dates have passed, and the seats are held by other members before.",
+    "steps": [
+      "1. After the start date sign in as the President winner and read the role badge and the menu.",
+      "2. Repeat for each Vice President winner (any title starting \"Vice President\").",
+      "3. Repeat for the Treasurer winner and for any other winner.",
+      "4. Read Officer transition > Officers."
+    ],
+    "expected": "The President and each Vice President are Admin (role badge Organization Admin, the Admin menu). Every other winner is an SBO Officer with the position title. This holds even when the organization positions list a title under both roles. Officer transition shows each winner with Type Executive or Non-executive. A winner who already holds a dean-granted Admin role keeps Admin.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
+  },
+  {
+    "id": "GEN-140",
+    "role": "All roles",
+    "module": "Roles of outgoing officers",
+    "title": "Outgoing officers become a plain Student at the end of the school year",
+    "preconditions": "Use a throwaway copy where the new term has started (GEN-136) and the clock can be moved. The outgoing Treasurer is 900004.",
+    "steps": [
+      "1. Before the end of the school year sign in as 900004 and read the role badge and the menu.",
+      "2. Move the clock past the last day of the school year and wait one minute.",
+      "3. Sign in as 900004 again. Read the role badge, the menu and Voting > Vote.",
+      "4. As the new President open Members > People and find 900004."
+    ],
+    "expected": "Before the end, 900004 still has officer access. After it the profile is a Student in the same organization with no position and no modules, the account is still active, and 900004 can vote in the next election. People lists 900004 as an active Student, never Inactive. A person who holds another active officer seat in the organization is left alone. The notice \"Officer term ended\" says they remain a member of the organization.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
+  },
+  {
+    "id": "GEN-141",
+    "role": "All roles",
+    "module": "Past elections",
+    "title": "Elections closed before this release read as before",
+    "preconditions": "A database copy that holds an election closed before this release, with its seats handed over the old way (for example a production backup).",
+    "steps": [
+      "1. Open Voting > Results on the old election as the Admin.",
+      "2. Read the status lines and the \"Access handed over\" line.",
+      "3. Open the same election as a student and as the Department Head."
+    ],
+    "expected": "The old election reads exactly as before: totals, winners, and \"Access handed over\" with \"Winners now have access to the organization in their positions. Officers they replaced no longer do.\" Its old votes keep their ballots and receipts, and no appointment rows were made for it. A tie in an old election keeps its old wording. Only elections closed after this release use the new status lines.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
     "round": "Any time"
   }
 ]

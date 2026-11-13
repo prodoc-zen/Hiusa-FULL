@@ -974,17 +974,14 @@
     "id": "SBO-053",
     "role": "SBO Officer",
     "module": "Voting > Candidates",
-    "title": "Add a candidate",
+    "title": "The officer has no Add candidate button",
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). The election is not closed and no vote has been cast yet. The ballot has at least one position.",
     "steps": [
       "1. Open Voting > Candidates and open the election.",
-      "2. Click \"Add Candidate\".",
-      "3. Type a student name in \"Student *\" and choose the student.",
-      "4. Choose a position in \"Position *\" and keep \"Party List\" on Independent.",
-      "5. Type a short text in \"Platform Statement\".",
-      "6. Click \"Add Candidate\" in the window."
+      "2. Look for \"Add candidate\" and for an Actions menu on a candidate card.",
+      "3. Open an election where students file their own candidacy and look again."
     ],
-    "expected": "The window closes and a new card appears with the student, the position and the party \"Independent\". The count \"candidates registered\" goes up by 1. The same student is no longer offered in the list for this election.",
+    "expected": "There is no \"Add candidate\", \"Edit\" or \"Remove\" on any election: creating, editing and removing a candidate is Admin only. The officer can read every candidate and \"Read platform\". On an election where students file the page says \"Candidates of this election come from approved applications.\" with a link to \"Applications\". SBO-098 covers the server side.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -994,16 +991,15 @@
     "id": "SBO-054",
     "role": "SBO Officer",
     "module": "Voting > Candidates",
-    "title": "Candidate form checks the required fields and the photo",
-    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The window \"Add Candidate\" is open. Have one PDF and one picture larger than 2 MB ready.",
+    "title": "The officer sees the Applications table without documents or decisions",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An election where students file their own candidacy has applications.",
     "steps": [
-      "1. Look at the button \"Add Candidate\" with nothing chosen.",
-      "2. Choose only a student and look at the button again.",
-      "3. Choose a position too.",
-      "4. Under \"Candidate Photo\" choose the PDF file.",
-      "5. Choose the picture larger than 2 MB."
+      "1. Open Voting > Candidates, open the election and select \"Applications\".",
+      "2. Read the table headers and the line above it.",
+      "3. Use the \"Status\" filter.",
+      "4. Look for an Actions menu on a Pending review row."
     ],
-    "expected": "The button is greyed out until both \"Student *\" and \"Position *\" are chosen. The PDF is refused with \"Candidate photo must be a JPEG, PNG, or WebP image.\" The big picture is refused with \"Candidate photo must be 2 MB or smaller.\" A student who is already a candidate cannot be picked again.",
+    "expected": "The table shows Candidate, Position, Party list and Status with no Documents column and no Actions menu. The line reads \"The Admin screens the applications.\" The filter lists All, Pending review, For revision, Approved, Rejected and Withdrawn.",
     "priority": "Medium",
     "device": "Any",
     "type": "Validation",
@@ -1013,16 +1009,14 @@
     "id": "SBO-055",
     "role": "SBO Officer",
     "module": "Voting > Candidates",
-    "title": "Edit and remove a candidate, and what happens when the ballot is locked",
+    "title": "The officer cannot edit or remove a candidate, whatever the election state",
     "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). An election with one candidate. Later, an election that is closed or already has votes.",
     "steps": [
-      "1. On a candidate card click \"Edit\".",
-      "2. Change the party list or platform and click \"Save Changes\".",
-      "3. Click \"Remove\" on a candidate.",
-      "4. In \"Remove Candidate\" read the question and click \"Remove\".",
-      "5. Open an election that is closed or has votes and look at the cards."
+      "1. Open a candidate list of an open election and of a closed election.",
+      "2. Look for \"Edit\" and \"Remove\" on the cards.",
+      "3. Read the notes on the page."
     ],
-    "expected": "Saving shows the new details. Removal asks \"Are you sure you want to remove this candidate from the election?\" and then the card disappears. In a closed election or one with votes there is no \"Add Candidate\", \"Edit\" or \"Remove\", and a yellow note says \"Candidate setup is locked because votes have already been cast.\"",
+    "expected": "There is no \"Edit\" and no \"Remove\" in any state: candidate changes are Admin only. In a closed election or one with votes the page may show the note \"Candidate setup is locked because votes have already been cast.\" (Admin view). The officer sees the lists read only.",
     "priority": "Medium",
     "device": "Any",
     "type": "Functional",
@@ -1790,5 +1784,98 @@
     "device": "Laptop",
     "type": "Access",
     "round": "Any time"
+  },
+  {
+    "id": "SBO-097",
+    "role": "SBO Officer",
+    "module": "Voting > Elections",
+    "title": "The officer reads Applications, Candidates, Voters and Results and cannot change them",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) has applications.",
+    "steps": [
+      "1. Open Voting > Candidates and open the election. Read the step strip.",
+      "2. Select \"Applications\". Read the line above the table and open an Actions menu if there is one.",
+      "3. Select \"Candidates\", then \"Voters\", then \"Results\".",
+      "4. Look for \"Add candidate\", \"Edit\", \"Remove\", \"Approve\" and \"Reject\" on every one."
+    ],
+    "expected": "The strip reads Applications, Candidates, Voters, Results. Applications shows the same table as the Admin without the Documents column and with the line \"The Admin screens the applications.\" and no Actions menu. Candidates shows the list with no \"Add candidate\", \"Edit\" or \"Remove\". Voters shows turnout and no choices. Results follow the publication rules. Officers only oversee the election.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time",
+    "depends": "Run after ADM-257"
+  },
+  {
+    "id": "SBO-098",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "An officer cannot add a candidate, by the page or by address",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A short form election and a full election both exist.",
+    "steps": [
+      "1. Open Voting > Candidates and open the short form election.",
+      "2. Look for \"Add candidate\" and an Actions menu on a candidate.",
+      "3. Open the full election and look again.",
+      "4. Ask the host to send a create candidate request with the sign-in of this officer, using the API tool the host uses."
+    ],
+    "expected": "There is no \"Add candidate\", \"Edit\" or \"Remove\" on either election: creating, editing and removing a candidate is Admin only. The server refuses the request as an officer with a not allowed answer. The officer can still read every list. This replaces the officer steps of SBO-053 to SBO-055.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-099",
+    "role": "SBO Officer",
+    "module": "Records > Officer transition",
+    "title": "An outgoing officer prepares a handover item",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. You hold a seat that was won by someone else in an election of this release, so you are an outgoing officer, and the incoming officers are Upcoming or Active (GEN-136).",
+    "steps": [
+      "1. Open Records > Officer transition and select \"Handover\".",
+      "2. Find \"Finance\" and select \"Prepare\".",
+      "3. Type remarks, optionally choose a file, and select \"Save as prepared\".",
+      "4. Read the row."
+    ],
+    "expected": "The window reads \"Prepare Finance\" with \"Remarks\" (hint: tell the incoming officers what to know) and \"Attachment (optional)\". After \"Save as prepared\" the row shows Prepared, your remarks and the attachment link, and the incoming appointees get a notice. Only an outgoing officer sees \"Prepare\" and an incoming officer does not. The Department Head and the SAO do not see it. VERIFY against the built page.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
+  },
+  {
+    "id": "SBO-100",
+    "role": "SBO Officer",
+    "module": "Records > Officer transition",
+    "title": "An incoming officer acknowledges receipt",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. You are an incoming officer whose access is Active and an outgoing officer prepared a handover item (SBO-099).",
+    "steps": [
+      "1. Open Records > Officer transition and select \"Handover\".",
+      "2. Select \"Acknowledge receipt\" on a Prepared or Under review row.",
+      "3. Read the window and confirm.",
+      "4. Read the row."
+    ],
+    "expected": "The confirm reads \"This confirms you received it. It does not certify that the information is correct or audited.\" After confirming the row shows Acknowledged with who and when, and is read only. The preparer gets a notice. An incoming officer whose access has not started yet does not see \"Acknowledge receipt\". An outgoing officer never does.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SBO-099"
+  },
+  {
+    "id": "SBO-101",
+    "role": "SBO Officer",
+    "module": "Records > Compliance",
+    "title": "A renewal submission by an outgoing officer is refused once the incoming officers are active",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. You are an outgoing officer and the incoming officers of your organization are Active. A renewal requirement exists in Compliance.",
+    "steps": [
+      "1. Open Records > Compliance and open the renewal requirement.",
+      "2. Try to submit the requirement.",
+      "3. Open Officer transition > Renewal and read the requirement list."
+    ],
+    "expected": "The submission is refused with \"Renewal belongs to the incoming officers. You can view it and help them prepare.\" The outgoing officer can still view the requirement and the Renewal tab. The incoming officers can submit it. Before the incoming officers are active the outgoing officers can still submit.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
   }
 ]
