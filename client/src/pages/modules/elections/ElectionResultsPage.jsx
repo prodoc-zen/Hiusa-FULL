@@ -6,12 +6,17 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { canViewElectionResults } from '../../../utils/electionAccess';
 import DataTable from '../../../components/ui/DataTable';
+import ElectionReportsMenu from '../../../components/elections/ElectionReportsMenu';
+import RunoffScheduleForm from '../../../components/elections/RunoffScheduleForm';
+import TieResolutionForm from '../../../components/elections/TieResolutionForm';
 import EmptyState from '../../../components/ui/EmptyState';
 import ErrorState from '../../../components/ui/ErrorState';
 import Field from '../../../components/ui/Field';
 import HiusaSelect from '../../../components/ui/Select';
 import { SkeletonTable } from '../../../components/ui/Skeleton';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { manilaDate } from '../../../lib/format';
+import { formatDateTime } from '../../../utils/dateTime';
 
 function CandidatePortrait({ candidate, name, className = 'h-10 w-10' }) {
   if (candidate.image_url) return <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className={`${className} shrink-0 rounded-lg border border-line object-cover`} />;
@@ -22,6 +27,36 @@ function CandidatePortrait({ candidate, name, className = 'h-10 w-10' }) {
 function isWinnerOf(result, candidate) {
   if (Array.isArray(result.winner_ids)) return result.winner_ids.includes(candidate.id);
   return (result.candidates || []).indexOf(candidate) < Number(result.position.max_winners || 1) && candidate.votes > 0;
+}
+
+const REPORT_ROLES = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'];
+
+const votesText = (count) => `${count} ${Number(count) === 1 ? 'vote' : 'votes'}`;
+
+// The one status line of a position in a counted election (tally version 2).
+function statusLine(result, election) {
+  const candidates = result.candidates || [];
+  const named = (ids) => candidates.filter((candidate) => (ids || []).includes(candidate.id)).map((candidate) => formatDisplayText(candidate.name));
+  switch (result.status) {
+    case 'decided': {
+      const winners = candidates.filter((candidate) => (result.winner_ids || []).includes(candidate.id));
+      return `${winners.length === 1 ? 'Winner' : 'Winners'}: ${winners.map((candidate) => `${formatDisplayText(candidate.name)} (${votesText(candidate.votes)})`).join(', ')}`;
+    }
+    case 'unopposed': return 'Elected unopposed';
+    case 'vacant': return 'Vacant: no candidates';
+    case 'runoff_required': return `Runoff required: ${named(result.runoff?.candidate_ids).join(', ')}`;
+    case 'runoff_scheduled': return `Runoff scheduled for ${formatDateTime(result.runoff?.starts_at ?? election?.runoff_starts_at)} to ${formatDateTime(result.runoff?.ends_at ?? election?.runoff_ends_at)}`;
+    case 'runoff_voting': return 'Runoff voting is open';
+    case 'tie_pending': return 'Pending tie resolution by the Department Head';
+    case 'resolved': return `Tie resolved by ${formatDisplayText(result.resolution?.resolved_by) || 'the Department Head'}`;
+    default: return null;
+  }
+}
+
+function officerAccessLine(result) {
+  if (result.officer_access === 'active') return 'Officer access active';
+  if (result.officer_access === 'upcoming') return result.term_starts_on ? `Upcoming officer, access starts ${manilaDate(result.term_starts_on)}` : 'Upcoming officer';
+  return null;
 }
 
 function CandidateCell({ candidate, bold }) {
@@ -41,14 +76,18 @@ const winnerColumns = [
 ];
 
 export default function ElectionResultsPage() {
-  const { election, role, selectElection } = useOutletContext();
+  const { election, role, selectElection, refreshElection } = useOutletContext();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const [availableElections, setAvailableElections] = useState([]);
-  const resultsAvailable = canViewElectionResults(election, role);
   const isFinal = election?.status === 'closed';
+  const counted = Number(election?.tally_version) >= 2;
+  // The reviewer reads a tie that waits for a decision even before the results are published.
+  const tieReviewer = ['DEPARTMENT_HEAD', 'SUPER_ADMIN'].includes(role) && isFinal && election?.phase === 'tie_resolution';
+  const resultsAvailable = canViewElectionResults(election, role) || tieReviewer;
+  const canResolveTie = counted && (role === 'DEPARTMENT_HEAD' || (role === 'SUPER_ADMIN' && election?.approval_required_role === 'SUPER_ADMIN'));
 
   useEffect(() => {
     let cancelled = false;
@@ -77,8 +116,18 @@ export default function ElectionResultsPage() {
     voters: Number(election?.voters_count || 0),
     winners: isFinal ? results.flatMap((result) => (result.candidates || []).filter((candidate) => isWinnerOf(result, candidate)).map((candidate) => ({ ...candidate, position: result.position.title }))) : [],
     handedOver: results.some((result) => result.access_handed_over),
-    ties: results.filter((result) => result.tie),
-  }), [results, isFinal, election?.voters_count]);
+    ties: counted ? [] : results.filter((result) => result.tie),
+  }), [results, isFinal, counted, election?.voters_count]);
+
+  const refresh = () => { setRetryKey((key) => key + 1); refreshElection?.(); };
+  const runoffRows = counted ? results.filter((result) => ['runoff_required', 'runoff_scheduled'].includes(result.status)) : [];
+  const runoffSchedule = {
+    starts_at: election?.runoff_starts_at ?? runoffRows.find((result) => result.runoff?.starts_at)?.runoff.starts_at ?? null,
+    ends_at: election?.runoff_ends_at ?? runoffRows.find((result) => result.runoff?.ends_at)?.runoff.ends_at ?? null,
+    publish_at: election?.runoff_publish_at ?? runoffRows.find((result) => result.runoff?.publish_at)?.runoff.publish_at ?? null,
+  };
+  // The server reads a runoff as scheduled only until it starts, so a row in these statuses means it can still be set.
+  const showRunoffForm = role === 'ADMIN' && runoffRows.length > 0;
 
   if (!election) return <EmptyState title="Election not found" description="Go back and choose an election." />;
   if (!resultsAvailable) return <EmptyState title="Election results are not available yet." description="Turnout appears once the finalized ballot opens. Results appear when the election closes." />;
@@ -99,11 +148,22 @@ export default function ElectionResultsPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Voting is open. Only turnout shows now. Results appear when the election closes.'}</p>
-        <dl className="flex gap-8">
-          <div><dt className="text-xs text-ink-muted">Ballots</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.voters}</dd></div>
-          {isFinal && <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>}
-        </dl>
+        <div className="flex flex-wrap items-end gap-6">
+          {REPORT_ROLES.includes(role) && <ElectionReportsMenu election={election} role={role} />}
+          <dl className="flex gap-8">
+            <div><dt className="text-xs text-ink-muted">Ballots</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.voters}</dd></div>
+            {isFinal && <div><dt className="text-xs text-ink-muted">Votes cast</dt><dd className="text-xl font-semibold tabular-nums text-ink">{summary.selections}</dd></div>}
+          </dl>
+        </div>
       </div>
+
+      {showRunoffForm && (
+        <section aria-label="Runoff schedule" className="space-y-3 border-t border-line pt-4">
+          <h2 className="text-base font-semibold text-ink">Runoff schedule</h2>
+          <p className="text-sm text-ink-muted-strong">Runoff for {runoffRows.map((result) => formatDisplayText(result.position.title)).join(', ')}. Only the tied candidates are on the runoff ballot.</p>
+          <RunoffScheduleForm key={runoffSchedule.starts_at ?? 'new'} electionId={election.id} initial={runoffSchedule.starts_at ? runoffSchedule : null} onScheduled={refresh} />
+        </section>
+      )}
 
       {isFinal && (summary.handedOver || summary.ties.length > 0) && (
         <section aria-label="Officer access" className="space-y-2 border-t border-line pt-4">
@@ -123,12 +183,16 @@ export default function ElectionResultsPage() {
 
       {results.map((result) => {
         const { position, candidates, totalVotes } = result;
+        const showRunoff = counted && (candidates || []).some((candidate) => candidate.runoff_votes !== null && candidate.runoff_votes !== undefined);
+        const line = isFinal && counted ? statusLine(result, election) : null;
+        const access = isFinal && counted ? officerAccessLine(result) : null;
         const columns = [
           { key: 'name', header: 'Candidate', render: (candidate) => <CandidateCell candidate={candidate} bold={isFinal && isWinnerOf(result, candidate)} /> },
           { key: 'partylist', header: 'Party list', render: (candidate) => candidate.partylist },
           ...(isFinal ? [
             { key: 'votes', header: 'Votes', align: 'right', render: (candidate) => candidate.votes },
             { key: 'share', header: 'Share', align: 'right', render: (candidate) => `${totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0}%` },
+            ...(showRunoff ? [{ key: 'runoff_votes', header: 'Runoff votes', align: 'right', render: (candidate) => candidate.runoff_votes ?? '' }] : []),
           ] : []),
         ];
         return (
@@ -136,13 +200,24 @@ export default function ElectionResultsPage() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold text-ink">{formatDisplayText(position.title)}</h2>
-                {isFinal && result.tie && <StatusBadge status="tie" />}
+                {isFinal && !counted && result.tie && <StatusBadge status="tie" />}
               </div>
               {isFinal && <p className="text-sm text-ink-muted"><span className="tabular-nums">{totalVotes}</span> {Number(totalVotes) === 1 ? 'vote' : 'votes'} cast</p>}
             </div>
+            {line && <p className="mb-3 text-sm font-medium text-ink">{line}</p>}
+            {result.status === 'resolved' && result.resolution && (
+              <div className="mb-3 space-y-1 text-sm text-ink-muted-strong">
+                {result.resolution.rule_used && <p>Rule used: {result.resolution.rule_used}</p>}
+                {result.resolution.explanation && <p>{result.resolution.explanation}</p>}
+              </div>
+            )}
+            {access && <p className="mb-3 text-sm text-ink-muted-strong">{access}</p>}
+            {isFinal && canResolveTie && result.status === 'tie_pending' && (
+              <div className="mb-4"><TieResolutionForm electionId={election.id} election={election} result={result} onResolved={refresh} /></div>
+            )}
             {(candidates || []).length > 0
               ? <DataTable caption={`Results for ${formatDisplayText(position.title)}`} columns={columns} rows={candidates} stickyHeader={false} />
-              : <p className="text-sm text-ink-muted">No candidate result data is available.</p>}
+              : (!(counted && result.status === 'vacant') && <p className="text-sm text-ink-muted">No candidate result data is available.</p>)}
           </section>
         );
       })}

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ManageVotersPage from './ManageVotersPage';
 
 const electionMocks = vi.hoisted(() => ({
@@ -142,5 +142,35 @@ describe('ManageVotersPage', () => {
     fireEvent.change(screen.getByLabelText('Vote'), { target: { value: 'Voted' } });
 
     await waitFor(() => expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1, vote: 'voted' }));
+  });
+
+  describe('round switch', () => {
+    const original = outletContext.election;
+    const page = { current_page: 1, per_page: 10, total: 1, data: [{ school_id: '2022-00055', first_name: 'Pia', last_name: 'Torres', email: 'pia@hiusa.local', has_voted: true }], summary: { eligible_total: 26, voted_count: 6, turnout_percent: 23.1 } };
+
+    afterEach(() => { outletContext.election = original; });
+
+    it('is absent when the election has no runoff', async () => {
+      electionMocks.getElectionVoters.mockResolvedValue(page);
+      render(<ManageVotersPage />);
+      await screen.findAllByText('Pia Torres');
+      expect(screen.queryByRole('radio', { name: 'Runoff' })).not.toBeInTheDocument();
+    });
+
+    it('asks for the first round by default and for round 2 when Runoff is chosen', async () => {
+      outletContext.election = { ...original, runoff_starts_at: '2026-11-20T00:00:00Z' };
+      electionMocks.getElectionVoters.mockResolvedValue(page);
+      render(<ManageVotersPage />);
+      await screen.findAllByText('Pia Torres');
+      expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1 });
+      expect(screen.getByRole('radio', { name: 'First round' })).toBeChecked();
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Runoff' }));
+      await waitFor(() => expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1, round: 2 }));
+      expect(screen.getByRole('radio', { name: 'Runoff' })).toBeChecked();
+
+      fireEvent.click(screen.getByRole('radio', { name: 'First round' }));
+      await waitFor(() => expect(electionMocks.getElectionVoters).toHaveBeenLastCalledWith(7, { page: 1 }));
+    });
   });
 });
