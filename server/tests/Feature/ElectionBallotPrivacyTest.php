@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\User;
@@ -74,14 +75,33 @@ class ElectionBallotPrivacyTest extends TestCase
             'position_id' => $position->id,
             'user_id' => $this->candidateUser->school_id,
         ]);
+        // A secret ballot: who took part is one row, the choice is another that carries no voter.
+        ElectionBallot::factory()->create(['election_id' => $election->id, 'voter_id' => $this->voter->school_id]);
         Vote::factory()->create([
             'election_id' => $election->id,
             'position_id' => $position->id,
             'candidate_id' => $candidate->id,
-            'voter_id' => $this->voter->school_id,
+            'voter_id' => null,
         ]);
 
         return $candidate;
+    }
+
+    public function test_no_vote_row_has_a_voter_id_and_no_endpoint_returns_one(): void
+    {
+        $this->assertSame(0, Vote::whereNotNull('voter_id')->count());
+
+        $this->election->update(['status' => 'closed']);
+        foreach ([$this->student, $this->admin, $this->voter] as $caller) {
+            Sanctum::actingAs($caller);
+
+            foreach (['', '/results', '/candidates'] as $path) {
+                $body = $this->getJson("/api/elections/{$this->election->id}{$path}")->assertOk()->getContent();
+                $this->assertStringNotContainsString('voter_id', $body);
+                $this->assertStringNotContainsString('vote_hash', $body);
+            }
+            $this->assertSame([], $this->getJson("/api/elections/{$this->election->id}")->json('my_votes'));
+        }
     }
 
     public function test_show_hides_per_candidate_counts_from_a_student_while_results_are_hidden(): void

@@ -72,7 +72,7 @@ class VoterRollFreezeTest extends TestCase
 
     private function ballot(): array
     {
-        return ['votes' => [['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id]]];
+        return ['selections' => [['position_id' => $this->position->id, 'candidate_ids' => [$this->candidate->id]]]];
     }
 
     private function registry(int $schoolId): void
@@ -127,9 +127,9 @@ class VoterRollFreezeTest extends TestCase
         $secondCandidate = Candidate::create(['election_id' => $this->election->id, 'position_id' => $second->id, 'user_id' => User::factory()->student()->create(['organization_id' => $this->organization->id])->school_id]);
         $early = $this->member(true);
         Sanctum::actingAs($early);
-        $this->postJson("/api/elections/{$this->election->id}/vote", ['votes' => [
-            ['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id],
-            ['position_id' => $second->id, 'candidate_id' => $secondCandidate->id],
+        $this->postJson("/api/elections/{$this->election->id}/vote", ['selections' => [
+            ['position_id' => $this->position->id, 'candidate_ids' => [$this->candidate->id]],
+            ['position_id' => $second->id, 'candidate_ids' => [$secondCandidate->id]],
         ]])->assertOk();
         Sanctum::actingAs($this->admin);
 
@@ -146,7 +146,8 @@ class VoterRollFreezeTest extends TestCase
         Sanctum::actingAs($early);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk()->assertJsonPath('success', true);
-        $this->assertDatabaseHas('votes', ['election_id' => $this->election->id, 'voter_id' => $early->school_id]);
+        $this->assertDatabaseHas('election_ballots', ['election_id' => $this->election->id, 'voter_id' => $early->school_id]);
+        $this->assertDatabaseMissing('votes', ['election_id' => $this->election->id, 'voter_id' => $early->school_id]);
     }
 
     public function test_the_voter_list_and_turnout_leave_out_members_who_joined_after_finalization(): void

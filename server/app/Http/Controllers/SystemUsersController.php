@@ -329,7 +329,11 @@ class SystemUsersController extends Controller
             if (in_array($reference, self::DISPOSABLE_REFERENCES, true)) {
                 continue;
             }
-            $rows = DB::table($table)->where($column, $schoolId);
+            // A person's votes no longer carry their id; what they took part in is the ballot row, one per election round
+            // (older votes were backfilled into ballots), so the votes entry counts ballots.
+            $rows = $reference === 'votes.voter_id'
+                ? DB::table('election_ballots')->where('voter_id', $schoolId)
+                : DB::table($table)->where($column, $schoolId);
             if ($reference === 'audit_logs.user_id') {
                 // Signing up writes one audit row with the new person as actor; that alone is not history.
                 $rows->where(fn ($other) => $other->where('module', '!=', 'users')

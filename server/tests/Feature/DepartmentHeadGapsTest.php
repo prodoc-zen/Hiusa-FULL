@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\SboPosition;
@@ -55,11 +56,12 @@ class DepartmentHeadGapsTest extends TestCase
             'position_id' => $position->id,
             'user_id' => $votedStudent->school_id,
         ]);
+        ElectionBallot::factory()->create(['election_id' => $election->id, 'voter_id' => $votedStudent->school_id]);
         Vote::create([
             'election_id' => $election->id,
             'position_id' => $position->id,
             'candidate_id' => $candidate->id,
-            'voter_id' => $votedStudent->school_id,
+            'voter_id' => null,
             'vote_hash' => 'test-hash-1',
         ]);
 

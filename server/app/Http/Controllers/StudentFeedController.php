@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\AcademicSemester;
 use App\Models\Announcement;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\Event;
-use App\Models\Vote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -72,7 +72,7 @@ class StudentFeedController extends Controller
             ->whereIn('id', $rows->where('item_type', 'election')->pluck('item_id'))
             ->get()->keyBy('id');
 
-        $votedElectionIds = Vote::where('voter_id', $user->id)
+        $votedElectionIds = ElectionBallot::where('voter_id', $user->school_id)->where('round', 1)
             ->whereIn('election_id', $electionModels->keys())
             ->distinct()->pluck('election_id')->map(fn ($id) => (int) $id)->all();
 
@@ -143,7 +143,7 @@ class StudentFeedController extends Controller
             ->where('end_time', '>=', now())
             ->orderBy('end_time');
         $open = $openElections()->get();
-        $votedOpenIds = Vote::where('voter_id', $user->id)->whereIn('election_id', $open->modelKeys())
+        $votedOpenIds = ElectionBallot::where('voter_id', $user->school_id)->where('round', 1)->whereIn('election_id', $open->modelKeys())
             ->distinct()->pluck('election_id')->map(fn ($id) => (int) $id)->all();
         $activeElection = $open->first(fn ($election) => ! in_array($election->id, $votedOpenIds, true) && $election->listsVoter($user->school_id))
             ?? $open->first(fn ($election) => in_array($election->id, $votedOpenIds, true));
