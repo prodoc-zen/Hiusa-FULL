@@ -705,6 +705,22 @@ describe('ElectionPickerPage editing a filing election', () => {
     expect(payload).toMatchObject({ filing_starts_at: '', start_time: iso('2026-12-04T08:00'), end_time: iso('2026-12-04T17:00'), positions: [{ title: 'Representative', max_winners: 2 }] });
   });
 
+  it('does not submit a draft switched to the short form before its positions were read', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.getElectionPositions.mockRejectedValue(new Error('offline'));
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    await waitFor(() => expect(electionMocks.getElectionPositions).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('switch', { name: 'Students file their own candidacy' }));
+    setValue('Voting starts', '2026-12-04T08:00');
+    setValue('Voting ends', '2026-12-04T17:00');
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeDisabled();
+    // Nothing is sent, so the draft keeps every position it has on the server.
+    fireEvent.submit(document.getElementById('edit-election-form'));
+    expect(electionMocks.updateElection).not.toHaveBeenCalled();
+    expect(electionMocks.submitElection).not.toHaveBeenCalled();
+  });
+
   it('shows the positions a draft already has instead of an empty section', async () => {
     electionMocks.getElections.mockResolvedValue([draft]);
     electionMocks.getElectionPositions.mockResolvedValue([
