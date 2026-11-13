@@ -237,6 +237,9 @@ class ElectionHandoverTest extends TestCase
         $this->assertNull($profile->modules);
         $this->assertSame('active', $profile->account_status);
         $this->assertSame($this->organization->id, $profile->organization_id);
+        // The account row of a member whose home is this organization carries the title too; it must not show it again.
+        $this->assertDatabaseHas('users', ['school_id' => $outgoing->school_id, 'position_title' => null]);
+        $this->assertNull($outgoing->fresh()->position_title);
 
         Sanctum::actingAs($outgoing);
         $this->getJson('/api/elections')->assertOk();
