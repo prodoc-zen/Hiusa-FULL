@@ -68,7 +68,7 @@ class AccountProfileDeletionService
                 $isPrimary = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
                 if ($remaining->isEmpty()) {
                     abort_if($actor->role === 'DEPARTMENT_HEAD', 422, 'This is the only profile on that account. Ask the SAO to remove the account.');
-                    foreach (['events' => 'created_by', 'tasks' => 'created_by', 'orders' => 'student_id', 'approval_requests' => 'requested_by', 'candidates' => 'user_id', 'votes' => 'voter_id', 'venue_bookings' => 'requested_by', 'compliance_requirement_types' => 'created_by', 'organization_compliance_submissions' => 'submitted_by'] as $table => $column) {
+                    foreach (['events' => 'created_by', 'tasks' => 'created_by', 'orders' => 'student_id', 'approval_requests' => 'requested_by', 'candidates' => 'user_id', 'votes' => 'voter_id', 'election_ballots' => 'voter_id', 'venue_bookings' => 'requested_by', 'compliance_requirement_types' => 'created_by', 'organization_compliance_submissions' => 'submitted_by'] as $table => $column) {
                         abort_if(DB::table($table)->where($column, $user->school_id)->exists(), 409,
                             'This user has linked operational records. Deactivate the account instead of deleting its final profile.');
                     }

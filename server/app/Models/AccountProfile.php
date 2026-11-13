@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AdviserPosition;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,12 +31,14 @@ class AccountProfile extends Model
 
     /**
      * The one rule for who votes in an organization: an active student, officer or administrator profile there on an
-     * active account, wherever the account itself lives. The voter list counts it and the ballot enforces it.
+     * active account, wherever the account itself lives, other than the faculty adviser, who oversees and does not
+     * vote. The voter list counts it and the ballot enforces it.
      */
     public function scopeVotingMembers(Builder $query): Builder
     {
         return $query->where('account_profiles.account_status', 'active')
             ->whereIn('account_profiles.role', self::VOTER_ROLES)
+            ->where(fn (Builder $title) => AdviserPosition::whereNot($title, 'account_profiles.position_title'))
             ->whereHas('user', fn ($user) => $user->where('users.account_status', 'active'));
     }
 

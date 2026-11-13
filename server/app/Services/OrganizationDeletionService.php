@@ -136,7 +136,7 @@ class OrganizationDeletionService
                 'event_registrations' => 'user_id'] as $table => $column) {
                 abort_if(DB::table($table)->whereIn($column, $orphanIds)->exists(), 409, 'A college user has records in another organization. Reassign those records or give the user a surviving profile before deleting.');
             }
-            foreach (['votes' => 'voter_id', 'candidates' => 'user_id', 'attendance' => 'user_id'] as $table => $column) {
+            foreach (['votes' => 'voter_id', 'election_ballots' => 'voter_id', 'candidates' => 'user_id', 'attendance' => 'user_id'] as $table => $column) {
                 abort_if(DB::table($table)->whereIn($column, $orphanIds)->exists(), 409, 'A college user has participation records in another organization. Give the user a surviving profile before deleting.');
             }
             DB::table('sessions')->whereIn('user_id', $orphanIds)->delete();

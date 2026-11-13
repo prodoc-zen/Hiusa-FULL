@@ -402,9 +402,16 @@ class User extends Authenticatable
         return $this->hasMany(Candidate::class, 'user_id', 'school_id');
     }
 
+    /** Votes cast before ballots became secret; newer votes carry no voter id. */
     public function votes(): HasMany
     {
         return $this->hasMany(Vote::class, 'voter_id', 'school_id');
+    }
+
+    /** The rounds of elections this person took part in. The choices live apart and are not linked to the person. */
+    public function ballots(): HasMany
+    {
+        return $this->hasMany(ElectionBallot::class, 'voter_id', 'school_id');
     }
 
     public function systemNotifications(): HasMany

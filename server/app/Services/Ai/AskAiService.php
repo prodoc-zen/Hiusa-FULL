@@ -8,6 +8,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
@@ -946,7 +947,7 @@ class AskAiService
                 ->get(['id', 'organization_id', 'title', 'end_time', 'finalized_at'])
                 ->first(fn ($open) => $open->listsVoter($user->school_id));
             $needsToVote = $activeElection
-                ? ! DB::table('votes')->where('election_id', $activeElection->id)->where('voter_id', $user->school_id)->exists()
+                ? ! ElectionBallot::hasVoted($activeElection->id, $user->school_id, 1)
                 : false;
 
             $rows = [];
