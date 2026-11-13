@@ -6,6 +6,7 @@ import DataTable from '../../../components/ui/DataTable';
 import EmptyState from '../../../components/ui/EmptyState';
 import Field from '../../../components/ui/Field';
 import Input from '../../../components/ui/Input';
+import SegmentedControl from '../../../components/ui/SegmentedControl';
 import HiusaSelect from '../../../components/ui/Select';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import PaginationControls from '../../../components/PaginationControls';
@@ -23,8 +24,14 @@ export default function ManageVotersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [round, setRound] = useState(1);
   const [total, setTotal] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    setPage(1);
+    setRound(1);
+  }, [election?.id]);
 
   useEffect(() => {
     setPage(1);
@@ -37,7 +44,7 @@ export default function ManageVotersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterStatus]);
+  }, [debouncedSearch, filterStatus, round]);
 
   useEffect(() => {
     if (!election) return;
@@ -55,6 +62,7 @@ export default function ManageVotersPage() {
         // filtered count while `summary` stays the whole election's.
         const payload = await getElectionVoters(election.id, {
           page,
+          ...(round === 2 ? { round: 2 } : {}),
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
           ...(filterStatus !== 'All' ? { vote: filterStatus === 'Voted' ? 'voted' : 'not_voted' } : {}),
         });
@@ -77,7 +85,7 @@ export default function ManageVotersPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [election, page, debouncedSearch, filterStatus, retryKey]);
+  }, [election, page, round, debouncedSearch, filterStatus, retryKey]);
 
   if (!election) {
     return (
@@ -85,6 +93,7 @@ export default function ManageVotersPage() {
     );
   }
 
+  const hasRunoff = Boolean(election.runoff_starts_at);
   const eligibleTotal = summary.eligible_total;
   const votedCount = summary.voted_count;
   const notVotedCount = Math.max(0, eligibleTotal - votedCount);
@@ -128,6 +137,14 @@ export default function ManageVotersPage() {
 
   return (
     <div className="space-y-4">
+      {hasRunoff && (
+        <SegmentedControl
+          options={[{ value: 1, label: 'First round' }, { value: 2, label: 'Runoff' }]}
+          value={round}
+          onChange={setRound}
+        />
+      )}
+
       {!loading && !error && (
         <p className="text-sm text-ink-muted-strong">
           <span className="tabular-nums">{votedCount}</span> of <span className="tabular-nums">{eligibleTotal}</span> eligible {eligibleTotal === 1 ? 'voter has' : 'voters have'} voted ({summary.turnout_percent}% turnout). <span className="tabular-nums">{notVotedCount}</span> still to vote.
