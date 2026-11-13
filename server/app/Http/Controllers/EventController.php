@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Http\Middleware\EnsurePeriodWritable;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
@@ -19,9 +20,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
+use App\Services\Ai\AiInstructions;
 use App\Services\EventApprovalChain;
 use App\Services\EventVenueRelease;
-use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use App\Support\FilterValues;
 use App\Support\FullNameSearch;
@@ -40,7 +41,7 @@ class EventController extends Controller
     private const EVENT_GONE = 'event_gone';
 
     public function __construct(
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
         private readonly TaskDelegationService $delegation,
         private readonly EventApprovalChain $approvalChain,
         private readonly EventVenueRelease $venueRelease,
@@ -761,6 +762,8 @@ class EventController extends Controller
             ->get(['id', 'title', 'start_time', 'end_time', 'location'])
             ->toArray();
         $context = [
+            // The model cannot know the time, and the server rejects any deadline that is already past.
+            'current_time' => now()->toISOString(),
             'event' => $event->only(['id', 'title', 'description', 'start_time', 'end_time', 'location', 'requires_budget']),
             'requirements' => trim($data['requirements'] ?? ''),
             'existing_planning_details' => $event->planning_details ?? [],
@@ -774,8 +777,8 @@ class EventController extends Controller
                 ->values()
                 ->all(),
         ];
-        $generated = $this->groq->generateStructured(
-            'Create a practical student-organization event plan using the supplied facts as constraints. Independently identify sensible preparation, operations, safety, accessibility, contingency, and closeout tasks even when they were not explicitly requested; every recommendation remains editable before it is saved. Do not invent fees, names, vendors, venues, dates, or approvals. Use null or identify an item as unresolved when information is missing. Produce realistic, editable workflow tasks in dependency order. Pre-event deadlines must be before the event, event-day deadlines must fall during the event, and post-event deadlines must be after it ends but within 30 days.',
+        $generated = $this->ai->generateStructured(
+            AiInstructions::eventPlan(),
             $context,
             'hiusa_event_workflow',
             $this->eventWorkflowSchema(),
@@ -1047,8 +1050,8 @@ class EventController extends Controller
             ];
         })->values();
 
-        $generated = $this->groq->generateStructured(
-            'Explain each deterministic task recommendation in one concise sentence. Use only the supplied facts. Do not change scores, ranks, officer assignments, eligibility, or weights, and do not invent qualifications.',
+        $generated = $this->ai->generateStructured(
+            AiInstructions::workflowAssignmentExplanations(),
             ['event_id' => $event->id, 'event_title' => $event->title, 'recommendations' => $facts->all()],
             'hiusa_task_recommendation_explanations',
             [
@@ -1083,7 +1086,7 @@ class EventController extends Controller
                 return is_string($row['explanation'] ?? null)
                     && trim($row['explanation']) !== ''
                     && $fact
-                    && $this->groq->preservesNumericFacts($row['explanation'], $fact);
+                    && $this->ai->preservesNumericFacts($row['explanation'], $fact);
             });
 
         foreach ($tasks as $task) {
@@ -1104,7 +1107,7 @@ class EventController extends Controller
                 'structured_input' => $fact,
                 'structured_output' => $explanation ? ['explanation' => $explanation] : ['deterministic_explanation' => $task->ai_recommendation_note],
                 'status' => $explanation ? 'completed' : 'failed',
-                'error_message' => $explanation ? null : 'Groq explanation was unavailable or invalid; deterministic assignment facts were retained.',
+                'error_message' => $explanation ? null : 'The AI explanation was unavailable or invalid; deterministic assignment facts were retained.',
                 'version' => 1,
                 'decision_status' => $explanation ? 'accepted' : 'rejected',
                 'requested_by' => $request->user()->school_id,
@@ -1362,7 +1365,7 @@ class EventController extends Controller
     }
 
     /**
-     * A standard checklist used when Groq cannot answer. It only restates the event's own dates
+     * A standard checklist used when no AI writer can answer. It only restates the event's own dates
      * and active positions, so it passes through normalizeWorkflow like a generated plan.
      */
     private function templateWorkflow(Event $event, array $context): array

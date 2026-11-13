@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Transaction;
-use App\Services\GroqResponsesService;
+use App\Services\Ai\AiInstructions;
 use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -23,7 +24,7 @@ class FinancialForecastController extends Controller
 
     public function __construct(
         private readonly HiusaAiService $aiService,
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
     ) {}
 
     public function index(Request $request)
@@ -163,7 +164,7 @@ class FinancialForecastController extends Controller
             'structured_input' => ['monthly_records' => $monthly->all(), 'budget_advice_input' => $budgetAdvicePayload],
             'structured_output' => ['forecast' => $analysis, 'budget_advice' => $advice, 'deterministic_summary' => $summary['text']],
             'status' => $summary['ai_generated'] ? 'completed' : 'failed',
-            'error_message' => $summary['ai_generated'] ? null : 'Groq explanation was unavailable; the deterministic forecast was still completed.',
+            'error_message' => $summary['ai_generated'] ? null : 'The AI explanation was unavailable; the deterministic forecast was still completed.',
             'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
             'decided_by' => $summary['ai_generated'] ? $request->user()->id : null,
             'decided_at' => $summary['ai_generated'] ? now() : null,
@@ -473,6 +474,10 @@ class FinancialForecastController extends Controller
     private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk, ?string $reliabilityNote = null, bool $isReliable = true): array
     {
         $facts = compact('period', 'income', 'expense', 'balance', 'safeLimit', 'risk');
+        if (! $isReliable && $reliabilityNote) {
+            // The warning is part of what the model is shown, so the numbers in it are allowed in the answer.
+            $facts['reliability_warning'] = $reliabilityNote;
+        }
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
             : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
@@ -480,13 +485,13 @@ class FinancialForecastController extends Controller
             $fallback .= " {$reliabilityNote}";
         }
 
-        $generated = $this->groq->generate(
-            'Provide a concise, practical budget summary for a student organization in Philippine Pesos (PHP). Always format currency amounts with PHP (never use $ or USD). Do not alter any supplied figures.',
-            "Period: {$period}; income: PHP {$income}; expense: PHP {$expense}; balance: PHP {$balance}; safe limit: PHP {$safeLimit}; risk: {$risk}.".(! $isReliable && $reliabilityNote ? " Reliability warning: {$reliabilityNote}" : ''),
+        $generated = $this->ai->generate(
+            AiInstructions::forecastSummary(),
+            "Period: {$period}\nExpected income: PHP ".number_format($income, 2)."\nExpected expenses: PHP ".number_format($expense, 2)."\nBalance: PHP ".number_format($balance, 2)."\nSafe spending limit: PHP ".number_format($safeLimit, 2)."\nRisk: {$risk}".(! $isReliable && $reliabilityNote ? "\nReliability warning: {$reliabilityNote}" : ''),
             220,
             0.2,
         );
-        if ($generated && (! $this->groq->preservesNumericFacts($generated['text'], $facts) || str_contains($generated['text'], '$') || stripos($generated['text'], 'USD') !== false || stripos($generated['text'], 'dollar') !== false)) {
+        if ($generated && (! $this->ai->preservesNumericFacts($generated['text'], $facts) || str_contains($generated['text'], '$') || stripos($generated['text'], 'USD') !== false || stripos($generated['text'], 'dollar') !== false)) {
             $generated = null;
         }
         if ($generated && ! $isReliable && $reliabilityNote && stripos($generated['text'], 'weak') === false && stripos($generated['text'], 'caution') === false && stripos($generated['text'], 'unreliable') === false) {
