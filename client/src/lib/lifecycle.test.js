@@ -51,7 +51,7 @@ function runTable(fn, rows) {
     expect(result.current?.key ?? null).toBe(current);
     expect(result.nextAction.tone).toBe(tone);
     expect(result.nextAction.title).toBe(title);
-    expect(result.actorRole).toBe(actorRole);
+    if (actorRole !== undefined) expect(result.actorRole).toBe(actorRole);
     if (states) expect(stateMap(result)).toEqual(states);
     if (label !== undefined) expect(result.nextAction.label).toBe(label);
     if (to !== undefined) expect(result.nextAction.to).toBe(to);
@@ -264,6 +264,101 @@ describe('electionLifecycle', () => {
     expect(result.nextAction.label).toBeUndefined();
     expect(result.nextAction.to).toBeUndefined();
     expect(JSON.stringify(result.nextAction)).not.toMatch(/Open it from the election page|open voting when it starts/);
+  });
+});
+
+describe('electionLifecycle for an election where students file their own candidacy', () => {
+  const base = {
+    id: 7,
+    title: 'SBO Election',
+    status: 'upcoming',
+    phase: 'scheduled',
+    submitted_at: '2026-10-01T08:00:00+08:00',
+    filing_starts_at: '2026-12-01T08:00:00+08:00',
+    filing_ends_at: '2026-12-05T17:00:00+08:00',
+    screening_starts_at: '2026-12-06T08:00:00+08:00',
+    screening_ends_at: '2026-12-08T17:00:00+08:00',
+    campaign_starts_at: '2026-12-09T08:00:00+08:00',
+    campaign_ends_at: '2026-12-14T17:00:00+08:00',
+    start_time: '2026-12-15T08:00:00+08:00',
+    end_time: '2026-12-16T17:00:00+08:00',
+    results_publish_at: '2026-12-18T09:00:00+08:00',
+    finalized_at: null,
+  };
+  const info = '/dashboard/elections/election-info?record=7';
+  const applications = '/dashboard/elections/applications?record=7';
+  const results = '/dashboard/elections/election-results?record=7';
+  const stepKeys = ['proposal', 'filing', 'screening', 'campaign', 'voting', 'results'];
+  const states = (...values) => Object.fromEntries(stepKeys.map((key, index) => [key, values[index]]));
+  const closed = { ...base, status: 'closed', finalized_at: 'x' };
+
+  runTable(electionLifecycle, [
+    { name: 'draft: the Admin finishes it and submits', record: { ...base, status: 'pending_approval', phase: null, submitted_at: null }, viewer: 'ADMIN', current: 'proposal', tone: 'action', title: 'Finish the draft and submit it', actorRole: 'ADMIN', label: 'Edit election', to: '/dashboard/elections/manage-elections?edit=7' },
+    { name: 'draft: others see it is still being written', record: { ...base, status: 'pending_approval', phase: null, submitted_at: null }, viewer: 'STUDENT', current: 'proposal', tone: 'waiting', title: 'Waiting for the Admin to submit the election', actorRole: 'ADMIN' },
+    { name: 'pending approval: the Department Head decides', record: { ...base, status: 'pending_approval', phase: null }, viewer: 'DEPARTMENT_HEAD', current: 'proposal', tone: 'action', title: 'Review this election', actorRole: 'DEPARTMENT_HEAD', label: 'Open approvals', to: '/dashboard/department-head/approvals' },
+    { name: 'pending approval: the Admin waits', record: { ...base, status: 'pending_approval', phase: null }, viewer: 'ADMIN', current: 'proposal', tone: 'waiting', title: 'Awaiting Department Head review', actorRole: 'DEPARTMENT_HEAD' },
+    { name: 'returned for changes: the Admin edits', record: { ...base, status: 'pending_approval', phase: null, approval_status: 'rejected', approval_remarks: 'Move voting later' }, viewer: 'ADMIN', current: 'proposal', tone: 'action', title: 'Returned: edit and resubmit', actorRole: 'ADMIN', body: 'Move voting later', label: 'Edit election', states: states('blocked', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming') },
+    { name: 'rejected for good: no action, with the remarks', record: { ...base, status: 'pending_approval', phase: null, approval_status: 'rejected', declined_at: '2026-10-02T08:00:00+08:00', approval_remarks: 'Not within the semester' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Rejected by the Department Head', actorRole: null, body: 'Not within the semester', states: states('stopped', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming') },
+    { name: 'scheduled: filing opens on a date', record: base, viewer: 'STUDENT', current: 'filing', tone: 'waiting', title: 'Filing opens on Dec 1, 2026', actorRole: null },
+    { name: 'scheduled: the Admin waits too', record: base, viewer: 'ADMIN', current: 'filing', tone: 'waiting', title: 'Filing opens on Dec 1, 2026' },
+    { name: 'filing: the Admin waits for students', record: { ...base, phase: 'filing' }, viewer: 'ADMIN', current: 'filing', tone: 'waiting', title: 'Students are filing until Dec 5, 2026', states: states('done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming') },
+    { name: 'filing: a student files', record: { ...base, phase: 'filing' }, viewer: 'STUDENT', current: 'filing', tone: 'action', title: 'File your candidacy', actorRole: 'STUDENT', label: 'File your candidacy', to: info },
+    { name: 'filing: the Department Head waits', record: { ...base, phase: 'filing' }, viewer: 'DEPARTMENT_HEAD', current: 'filing', tone: 'waiting', title: 'Students are filing until Dec 5, 2026' },
+    { name: 'screening: the Admin screens the pending applications', record: { ...base, phase: 'screening', application_counts: { pending_review: 4, for_revision: 1, approved: 2, rejected: 0, withdrawn: 0 } }, viewer: 'ADMIN', current: 'screening', tone: 'action', title: 'Screen 4 applications', actorRole: 'ADMIN', label: 'Screen 4 applications', to: applications, states: states('done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming') },
+    { name: 'screening: one application reads in the singular', record: { ...base, phase: 'screening', application_counts: { pending_review: 1 } }, viewer: 'ADMIN', current: 'screening', tone: 'action', title: 'Screen 1 application', label: 'Screen 1 application', to: applications },
+    { name: 'screening: nothing pending, the Admin waits', record: { ...base, phase: 'screening', application_counts: { pending_review: 0 } }, viewer: 'ADMIN', current: 'screening', tone: 'waiting', title: 'No applications are waiting for review' },
+    { name: 'screening: a student waits', record: { ...base, phase: 'screening' }, viewer: 'STUDENT', current: 'screening', tone: 'waiting', title: 'The Admin is screening applications' },
+    { name: 'campaign: voting opens on a date', record: { ...base, phase: 'campaign' }, viewer: 'STUDENT', current: 'campaign', tone: 'waiting', title: 'Voting opens on Dec 15, 2026', states: states('done', 'done', 'done', 'current', 'upcoming', 'upcoming') },
+    { name: 'voting: a student who has not voted', record: { ...base, status: 'active', phase: 'voting', finalized_at: 'x' }, viewer: 'STUDENT', current: 'voting', tone: 'action', title: 'Cast your ballot', label: 'Vote now', to: '/elections/7/vote' },
+    { name: 'voting: a student who has voted', record: { ...base, status: 'active', phase: 'voting', finalized_at: 'x', has_voted: true }, viewer: 'STUDENT', current: 'voting', tone: 'done', title: 'You have voted', actorRole: null },
+    { name: 'voting: the Admin monitors', record: { ...base, status: 'active', phase: 'voting', finalized_at: 'x' }, viewer: 'ADMIN', current: 'voting', tone: 'waiting', title: 'Voting is open until Dec 16, 2026' },
+    { name: 'canvassing: results publish on a date', record: { ...closed, phase: 'canvassing' }, viewer: 'ADMIN', current: 'results', tone: 'waiting', title: 'Results publish on Dec 18, 2026', states: states('done', 'done', 'done', 'done', 'done', 'current') },
+    { name: 'canvassing: a runoff is required, the Admin schedules it', record: { ...closed, phase: 'canvassing', positions: [{ id: 1, result_status: 'decided' }, { id: 2, result_status: 'runoff_required' }] }, viewer: 'ADMIN', current: 'results', tone: 'action', title: 'Set the runoff schedule', actorRole: 'ADMIN', label: 'Set the runoff schedule', to: results },
+    { name: 'canvassing: a runoff is required, a student waits', record: { ...closed, phase: 'canvassing', positions: [{ id: 2, result_status: 'runoff_required' }] }, viewer: 'STUDENT', current: 'results', tone: 'waiting', title: 'Waiting for the Admin to set the runoff schedule' },
+    { name: 'canvassing: a runoff is scheduled', record: { ...closed, phase: 'canvassing', runoff_starts_at: '2026-12-20T08:00:00+08:00', positions: [{ id: 2, result_status: 'runoff_scheduled' }] }, viewer: 'ADMIN', current: 'results', tone: 'waiting', title: 'Runoff voting opens on Dec 20, 2026' },
+    { name: 'runoff: a student votes in the runoff', record: { ...closed, phase: 'runoff', open_round: 2, runoff_ends_at: '2026-12-21T17:00:00+08:00' }, viewer: 'STUDENT', current: 'results', tone: 'action', title: 'Vote in the runoff', actorRole: 'STUDENT', label: 'Vote in the runoff', to: '/elections/7/vote' },
+    { name: 'runoff: a student who has voted waits', record: { ...closed, phase: 'runoff', open_round: 2, has_voted: true, runoff_ends_at: '2026-12-21T17:00:00+08:00' }, viewer: 'STUDENT', current: 'results', tone: 'done', title: 'You have voted in the runoff' },
+    { name: 'runoff: the Admin waits for the runoff to end', record: { ...closed, phase: 'runoff', open_round: 2, runoff_ends_at: '2026-12-21T17:00:00+08:00' }, viewer: 'ADMIN', current: 'results', tone: 'waiting', title: 'Runoff voting is open until Dec 21, 2026' },
+    { name: 'tie resolution: the Department Head resolves', record: { ...closed, phase: 'tie_resolution' }, viewer: 'DEPARTMENT_HEAD', current: 'results', tone: 'action', title: 'Resolve the tie', actorRole: 'DEPARTMENT_HEAD', label: 'Resolve the tie', to: results },
+    { name: 'tie resolution: the Admin waits for the Department Head', record: { ...closed, phase: 'tie_resolution' }, viewer: 'ADMIN', current: 'results', tone: 'waiting', title: 'Waiting for the Department Head', actorRole: 'DEPARTMENT_HEAD' },
+    { name: 'tie resolution: the SAO resolves for a university-wide organization', record: { ...closed, phase: 'tie_resolution', approval_required_role: 'SUPER_ADMIN' }, viewer: 'SUPER_ADMIN', current: 'results', tone: 'action', title: 'Resolve the tie', label: 'Resolve the tie' },
+    { name: 'completed: results released', record: { ...closed, phase: 'completed', results_visible: true }, viewer: 'STUDENT', current: null, tone: 'done', title: 'Results released', label: 'View results', to: results, states: states('done', 'done', 'done', 'done', 'done', 'done') },
+    { name: 'suspended: the Admin resumes', record: { ...base, phase: 'filing', suspended_at: '2026-12-02T08:00:00+08:00', halt_reason: 'Venue fire drill' }, viewer: 'ADMIN', current: 'filing', tone: 'action', title: 'Suspended: Venue fire drill', actorRole: 'ADMIN', label: 'Resume election', states: states('done', 'blocked', 'upcoming', 'upcoming', 'upcoming', 'upcoming') },
+    { name: 'suspended: a student waits', record: { ...base, phase: 'filing', suspended_at: '2026-12-02T08:00:00+08:00', halt_reason: 'Venue fire drill' }, viewer: 'STUDENT', current: 'filing', tone: 'waiting', title: 'Suspended: Venue fire drill' },
+    { name: 'cancelled: no action', record: { ...base, phase: 'cancelled', cancelled_at: '2026-12-02T08:00:00+08:00', halt_reason: 'Not enough candidates' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Cancelled: Not enough candidates', actorRole: null },
+  ]);
+
+  it('puts the alert text in the body, in the blocked tone, and keeps the step and the action', () => {
+    const result = electionLifecycle({ ...base, phase: 'screening', phase_alert: 'Voting could not start: a position has no candidates.', application_counts: { pending_review: 2 } }, 'ADMIN');
+    assertShape(result);
+    expect(result.nextAction.tone).toBe('blocked');
+    expect(result.nextAction.body).toBe('Voting could not start: a position has no candidates.');
+    expect(result.nextAction.label).toBe('Screen 2 applications');
+    expect(result.current.key).toBe('screening');
+    expect(result.current.state).toBe('blocked');
+  });
+
+  it('shows the alert to every role, even one that only waits', () => {
+    const result = electionLifecycle({ ...base, phase: 'campaign', phase_alert: 'Voting could not start.' }, 'STUDENT');
+    assertShape(result);
+    expect(result.nextAction.tone).toBe('blocked');
+    expect(result.nextAction.body).toBe('Voting could not start.');
+  });
+
+  it('ignores an alert on a cancelled election', () => {
+    const result = electionLifecycle({ ...base, phase: 'cancelled', cancelled_at: 'x', halt_reason: 'Stopped', phase_alert: 'Old alert' }, 'ADMIN');
+    expect(result.nextAction.title).toBe('Cancelled: Stopped');
+    expect(result.nextAction.body).not.toBe('Old alert');
+  });
+
+  it('falls back to the status when a filing election has no phase yet', () => {
+    expect(electionLifecycle({ ...base, status: 'active', phase: null, finalized_at: 'x' }, 'STUDENT').nextAction.title).toBe('Cast your ballot');
+    expect(electionLifecycle({ ...base, status: 'something_new', phase: null }, 'ADMIN').nextAction.title).toBe('Status: Something New');
+  });
+
+  it('leaves an election without filing dates on the existing steps', () => {
+    const result = electionLifecycle({ id: 2, status: 'upcoming', finalized_at: null, phase: null }, 'ADMIN');
+    expect(result.steps.map((step) => step.key)).toEqual(['submitted', 'ballot', 'locked', 'voting', 'results']);
   });
 });
 

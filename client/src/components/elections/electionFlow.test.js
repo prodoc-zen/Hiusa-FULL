@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { electionStatusChip, finalizeChecklist, isReturned, resultsLink, roleBanner, studentVoteState, withApprovalState, workspaceSteps } from './electionFlow';
+import { electionStatusChip, finalizeChecklist, isReturned, nextDeadline, resultsLink, roleBanner, studentVoteState, withApprovalState, workspaceSteps } from './electionFlow';
 
 const FUTURE = new Date(Date.now() + 3_600_000).toISOString();
 const PAST = new Date(Date.now() - 3_600_000).toISOString();
@@ -145,5 +145,70 @@ describe('role banners and status', () => {
     expect(isReturned({ status: 'upcoming', approval_status: 'rejected' })).toBe(false);
     expect(electionStatusChip({ status: 'pending_approval', returned: true })).toEqual({ label: 'Returned', tone: 'danger' });
     expect(electionStatusChip({ status: 'pending_approval' }).label).toBe('Pending approval');
+  });
+});
+
+describe('electionStatusChip by phase', () => {
+  const withPhase = (phase, extra = {}) => ({ status: 'upcoming', filing_starts_at: FUTURE, submitted_at: PAST, phase, ...extra });
+
+  it.each([
+    ['scheduled', 'Scheduled'],
+    ['filing', 'Filing open'],
+    ['screening', 'Screening'],
+    ['campaign', 'Campaign'],
+    ['voting', 'Voting open'],
+    ['canvassing', 'Canvassing'],
+    ['runoff', 'Runoff voting'],
+    ['tie_resolution', 'Pending tie resolution'],
+    ['completed', 'Completed'],
+  ])('labels the %s phase %s', (phase, label) => {
+    expect(electionStatusChip(withPhase(phase)).label).toBe(label);
+  });
+
+  it('reads a draft, a final rejection, a suspension and a cancellation before the phase', () => {
+    expect(electionStatusChip({ status: 'pending_approval', filing_starts_at: FUTURE, submitted_at: null, phase: null }).label).toBe('Draft');
+    expect(electionStatusChip({ status: 'pending_approval', filing_starts_at: FUTURE, submitted_at: PAST, phase: null, approval_status: 'rejected', declined_at: PAST })).toEqual({ label: 'Rejected', tone: 'danger' });
+    expect(electionStatusChip(withPhase('filing', { suspended_at: PAST })).label).toBe('Suspended');
+    expect(electionStatusChip(withPhase('cancelled', { cancelled_at: PAST })).label).toBe('Cancelled');
+    expect(electionStatusChip(withPhase('filing', { cancelled_at: PAST, suspended_at: PAST })).label).toBe('Cancelled');
+  });
+
+  it('keeps a returned filing election Returned, and a submitted one Pending approval', () => {
+    expect(electionStatusChip({ status: 'pending_approval', filing_starts_at: FUTURE, submitted_at: PAST, phase: null, approval_status: 'rejected' }).label).toBe('Returned');
+    expect(electionStatusChip({ status: 'pending_approval', filing_starts_at: FUTURE, submitted_at: PAST, phase: null }).label).toBe('Pending approval');
+  });
+
+  it('keeps today labels for an election with no phase', () => {
+    expect(electionStatusChip({ status: 'upcoming', phase: null, submitted_at: PAST }).label).toBe('Upcoming');
+    expect(electionStatusChip({ status: 'active', phase: null }).label).toBe('Voting open');
+    expect(electionStatusChip({ status: 'closed', phase: null })).toEqual({ label: 'Closed', tone: 'neutral' });
+    expect(electionStatusChip({ status: 'pending_approval', submitted_at: null }).label).toBe('Pending approval');
+  });
+
+  it('does not call a final rejection a return', () => {
+    expect(isReturned({ status: 'pending_approval', approval_status: 'rejected', declined_at: PAST })).toBe(false);
+  });
+});
+
+describe('nextDeadline', () => {
+  const day = (offset) => new Date(Date.now() + offset * 86_400_000).toISOString();
+  const schedule = { filing_starts_at: day(1), filing_ends_at: day(3), screening_starts_at: day(4), screening_ends_at: day(6), campaign_starts_at: day(7), campaign_ends_at: day(9), start_time: day(10), end_time: day(11), results_publish_at: day(12) };
+
+  it('names the first date still ahead, in schedule order', () => {
+    expect(nextDeadline(schedule).name).toBe('Filing opens');
+    expect(nextDeadline({ ...schedule, filing_starts_at: day(-3) }).name).toBe('Filing closes');
+    expect(nextDeadline({ ...schedule, filing_starts_at: day(-3), filing_ends_at: day(-2), screening_starts_at: day(-1) }).name).toBe('Screening closes');
+    expect(nextDeadline({ ...schedule, end_time: day(-1), start_time: day(-2), campaign_ends_at: day(-3), campaign_starts_at: day(-4), screening_ends_at: day(-5), screening_starts_at: day(-6), filing_ends_at: day(-7), filing_starts_at: day(-8) }).name).toBe('Results publish');
+  });
+
+  it('includes the runoff dates only when they are set', () => {
+    const past = { filing_starts_at: day(-9), filing_ends_at: day(-8), screening_starts_at: day(-7), screening_ends_at: day(-6), campaign_starts_at: day(-5), campaign_ends_at: day(-4), start_time: day(-3), end_time: day(-2), results_publish_at: day(-1) };
+    expect(nextDeadline(past)).toBeNull();
+    expect(nextDeadline({ ...past, runoff_starts_at: day(2), runoff_ends_at: day(3), runoff_publish_at: day(4) })).toEqual({ name: 'Runoff opens', at: expect.any(String) });
+  });
+
+  it('returns nothing for an election with no dates', () => {
+    expect(nextDeadline({})).toBeNull();
+    expect(nextDeadline(null)).toBeNull();
   });
 });
