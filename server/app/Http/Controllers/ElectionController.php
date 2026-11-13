@@ -11,6 +11,7 @@ use App\Models\Election;
 use App\Models\ElectionApplication;
 use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
+use App\Models\OfficerAppointment;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
@@ -617,7 +618,8 @@ class ElectionController extends Controller
                     'min_gpa' => $data['min_gpa'] ?? null,
                     'status' => 'pending_approval',
                     'submitted_at' => $draft ? null : now(),
-                    'results_visible' => $filing ? false : ($data['results_visible'] ?? true),
+                    // A draft holds its results back until it is submitted; a filing election's schedule publishes them.
+                    'results_visible' => $draft || $filing ? false : ($data['results_visible'] ?? true),
                     'organization_id' => $request->user()->organization_id,
                 ]);
 
@@ -779,6 +781,16 @@ class ElectionController extends Controller
         }
 
         $wantsFiling = array_key_exists('filing_starts_at', $data) ? $data['filing_starts_at'] !== null : $election->usesFiling();
+        if ($draft && $wantsFiling !== $election->usesFiling()) {
+            // A draft that changes kind takes the results setting of its new kind: a filing election is published by
+            // its schedule, the short form shows its results as a legacy election does. The filing-only terms go with the filing form.
+            $data['results_visible'] = ! $wantsFiling;
+            if (! $wantsFiling) {
+                foreach (['filing_ends_at', 'screening_starts_at', 'screening_ends_at', 'campaign_starts_at', 'campaign_ends_at', 'results_publish_at', 'rules', 'tie_break_rule', 'min_units', 'min_gpa'] as $field) {
+                    $data[$field] = null;
+                }
+            }
+        }
         $materialChanged = $this->materialChange($election, $data);
         if ($wantsFiling && $materialChanged && $election->usesFiling() && $this->votingHasOpened($election)) {
             return response()->json(['message' => 'The schedule, rules and qualifications cannot change after voting has opened.'], 409);
@@ -830,6 +842,12 @@ class ElectionController extends Controller
 
         if ($election->status === 'closed' && ($data['status'] ?? null) === 'active' && $election->access_handed_over_at) {
             return response()->json(['message' => 'Access was already handed over to the winners, so this election cannot be reopened.'], 422);
+        }
+
+        // Counting under the new tally starts the moment voting closes, so a tie, a runoff or an appointment may already stand.
+        if ($election->status === 'closed' && ($data['status'] ?? null) === 'active' && (int) $election->tally_version === 2
+            && ($election->phase !== null || OfficerAppointment::where('election_id', $election->id)->exists())) {
+            return response()->json(['message' => 'The votes were already counted, so this election cannot be reopened.'], 422);
         }
 
         if (($data['status'] ?? null) === 'active' && ! $election->approved_at) {
@@ -1003,7 +1021,15 @@ class ElectionController extends Controller
         }
 
         DB::transaction(function () use ($election, $latest, $request) {
-            $election->update(['submitted_at' => now()]);
+            $changes = ['submitted_at' => now()];
+            if (! $election->submitted_at) {
+                // A draft is saved with its results held back. The schedule publishes a filing election's results;
+                // the short form shows them as a legacy election does.
+                $changes['results_visible'] = ! $election->usesFiling();
+            } elseif ($election->usesFiling() && $election->results_visible && ! in_array($election->phase, ['canvassing', 'runoff', 'tie_resolution', 'completed'], true)) {
+                $changes['results_visible'] = false;
+            }
+            $election->update($changes);
             if ($latest) {
                 $latest->resubmit();
             } else {

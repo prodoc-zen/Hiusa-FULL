@@ -449,6 +449,73 @@ class ElectionSetupTest extends TestCase
         $this->putJson("/api/elections/{$submitted->id}", ['filing_starts_at' => null])->assertUnprocessable();
     }
 
+    public function test_a_draft_that_changes_kind_resets_the_publication_flag_and_the_filing_only_dates(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true])->assertCreated()->json('id');
+        $this->assertFalse((bool) Election::findOrFail($id)->results_visible);
+
+        // On: the full schedule, and results wait for the schedule to publish them.
+        $this->putJson("/api/elections/{$id}", $this->filingPayload())->assertOk();
+        $election = Election::findOrFail($id);
+        $this->assertTrue($election->usesFiling());
+        $this->assertFalse((bool) $election->results_visible);
+        $this->assertNotNull($election->filing_ends_at);
+
+        // Off: the short form shows its results as a legacy election does, and the filing-only terms are gone.
+        $this->putJson("/api/elections/{$id}", $this->filingPayload(['filing_starts_at' => '']))->assertOk();
+        $election = Election::findOrFail($id);
+        $this->assertFalse($election->usesFiling());
+        $this->assertTrue((bool) $election->results_visible);
+        foreach (['filing_ends_at', 'screening_starts_at', 'screening_ends_at', 'campaign_starts_at', 'campaign_ends_at', 'results_publish_at', 'rules', 'tie_break_rule', 'min_units', 'min_gpa'] as $field) {
+            $this->assertNull($election->{$field}, $field);
+        }
+
+        // Back on: results are held again.
+        $this->putJson("/api/elections/{$id}", $this->filingPayload())->assertOk();
+        $election = Election::findOrFail($id);
+        $this->assertTrue($election->usesFiling());
+        $this->assertFalse((bool) $election->results_visible);
+    }
+
+    public function test_a_draft_first_saved_without_a_date_publishes_only_at_the_scheduled_time(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true])->assertCreated()->json('id');
+        $this->put("/api/elections/{$id}", $this->filingPayload(['informative_letter' => $this->letter()]), ['Accept' => 'application/json'])->assertOk();
+        $this->postJson("/api/elections/{$id}/submit")->assertOk();
+
+        $election = Election::findOrFail($id);
+        $this->assertTrue($election->usesFiling());
+        $this->assertFalse((bool) $election->results_visible);
+
+        // Approved, voting held and closed, then counted: the results stay hidden until results_publish_at.
+        $election->forceFill(['status' => 'closed', 'approved_at' => '2026-11-15 09:00:00', 'finalized_at' => '2026-12-04 08:00:00', 'phase' => 'canvassing'])->save();
+        $this->travelTo('2026-12-05 20:00:00');
+        Election::synchronizeScheduledStatuses();
+        $this->assertFalse((bool) $election->fresh()->results_visible);
+        $this->assertSame(0, AuditLog::where('action', 'results_published')->where('record_id', $id)->count());
+
+        $this->travelTo('2026-12-06 08:30:00');
+        Election::synchronizeScheduledStatuses();
+        $this->assertTrue((bool) $election->fresh()->results_visible);
+        $this->assertSame(1, AuditLog::where('action', 'results_published')->where('record_id', $id)->count());
+    }
+
+    public function test_a_short_form_draft_shows_its_results_once_submitted(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $id = $this->postJson('/api/elections', ['title' => 'Draft election', 'draft' => true])->assertCreated()->json('id');
+        $this->assertFalse((bool) Election::findOrFail($id)->results_visible);
+
+        $this->put("/api/elections/{$id}", $this->legacyPayload(['title' => 'Draft election', 'informative_letter' => $this->letter()]), ['Accept' => 'application/json'])->assertOk();
+        $this->postJson("/api/elections/{$id}/submit")->assertOk();
+
+        $election = Election::findOrFail($id);
+        $this->assertFalse($election->usesFiling());
+        $this->assertTrue((bool) $election->results_visible);
+    }
+
     public function test_an_update_out_of_order_is_refused_with_the_field_message(): void
     {
         Sanctum::actingAs($this->admin);
