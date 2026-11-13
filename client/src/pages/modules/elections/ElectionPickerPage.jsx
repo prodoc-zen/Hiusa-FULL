@@ -625,6 +625,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     }
     if (editForm.draft) {
       // A draft that was switched to the short form: the voting window and ballot are saved, then it is submitted.
+      // The ballot is sent only once it was read, or saving would drop positions that were never loaded.
+      if (!editForm.positionsReady) return;
       const draftError = validateForm(editForm, true);
       if (draftError) { setFormError(draftError); notify.error(draftError); return; }
       setSubmitting(true); setFormError('');
@@ -800,7 +802,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       </>
     );
   } else {
-    editFooter = <><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>{editForm.draft ? 'Submit for approval' : 'Save changes'}</Button></>;
+    editFooter = <><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time || (editForm.draft && !editForm.positionsReady)}>{editForm.draft ? 'Submit for approval' : 'Save changes'}</Button></>;
   }
 
   return (
