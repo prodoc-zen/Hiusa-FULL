@@ -6,6 +6,7 @@ use App\Models\AccountProfile;
 use App\Models\Candidate;
 use App\Models\College;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\User;
@@ -86,7 +87,7 @@ class ElectionMemberVotingTest extends TestCase
 
     private function ballot(): array
     {
-        return ['votes' => [['position_id' => $this->position->id, 'candidate_id' => $this->candidate->id]]];
+        return ['selections' => [['position_id' => $this->position->id, 'candidate_ids' => [$this->candidate->id]]]];
     }
 
     public function test_a_member_sees_the_organizations_open_election_from_their_own_workspace(): void
@@ -120,23 +121,27 @@ class ElectionMemberVotingTest extends TestCase
         Sanctum::actingAs($member);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk()->assertJsonPath('success', true);
-        $this->assertDatabaseHas('votes', ['election_id' => $this->election->id, 'voter_id' => $member->school_id]);
+        $this->assertDatabaseHas('election_ballots', ['election_id' => $this->election->id, 'round' => 1, 'voter_id' => $member->school_id]);
+        $this->assertDatabaseHas('votes', ['election_id' => $this->election->id, 'candidate_id' => $this->candidate->id, 'voter_id' => null]);
 
         $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())
             ->assertUnprocessable()
             ->assertJsonPath('message', 'You have already voted in this election.');
-        $this->assertSame(1, Vote::where('election_id', $this->election->id)->where('voter_id', $member->school_id)->count());
+        $this->assertSame(1, ElectionBallot::where('election_id', $this->election->id)->where('voter_id', $member->school_id)->count());
+        $this->assertSame(1, Vote::where('election_id', $this->election->id)->count());
     }
 
-    public function test_after_voting_the_member_sees_their_receipt_on_the_election(): void
+    public function test_the_member_gets_a_receipt_when_voting_and_the_election_shows_no_choice_afterwards(): void
     {
         $member = $this->collegeMember();
         $this->finalizeAfterMembersJoined();
         Sanctum::actingAs($member);
-        $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk();
+        $receipt = $this->postJson("/api/elections/{$this->election->id}/vote", $this->ballot())->assertOk()->json();
 
-        $mine = $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonCount(1, 'my_votes')->json('my_votes.0');
-        $this->assertNotEmpty($mine['cast_at']);
+        $this->assertNotEmpty($receipt['receipt']);
+        $this->assertNotEmpty($receipt['submitted_at']);
+        $this->assertSame($receipt['receipt'], ElectionBallot::where('voter_id', $member->school_id)->value('receipt_ref'));
+        $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonPath('my_votes', []);
     }
 
     public function test_a_student_of_the_college_with_no_profile_in_the_organization_cannot_see_or_vote(): void

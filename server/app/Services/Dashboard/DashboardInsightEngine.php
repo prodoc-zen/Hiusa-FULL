@@ -293,7 +293,7 @@ class DashboardInsightEngine
             ->where('account_status', 'active')
             ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
             ->count();
-        $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
+        $votedCount = DB::table('election_ballots')->where('election_id', $election->id)->where('round', 1)->count();
         $turnoutPercent = $eligibleTotal > 0 ? ($votedCount / $eligibleTotal) * 100 : 0;
 
         if ($turnoutPercent >= $elapsedPercent - 15) {

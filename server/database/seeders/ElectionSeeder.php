@@ -6,6 +6,7 @@ use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\Partylist;
@@ -164,6 +165,14 @@ class ElectionSeeder extends Seeder
         foreach ($votingStudents as $index => $student) {
             $presidentPick = $index % 2 === 0 ? $presidentUnity : $presidentProgress;
             $vpPick = $index % 2 === 0 ? $vpUnity : $vpProgress;
+
+            ElectionBallot::create([
+                'election_id' => $election->id,
+                'round' => 1,
+                'voter_id' => $student->school_id,
+                'receipt_ref' => strtoupper(Str::random(12)),
+                'submitted_at' => now(),
+            ]);
 
             Vote::create([
                 'election_id' => $election->id,

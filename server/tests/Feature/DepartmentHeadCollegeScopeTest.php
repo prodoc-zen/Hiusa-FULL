@@ -341,7 +341,7 @@ class DepartmentHeadCollegeScopeTest extends TestCase
 
         Sanctum::actingAs($head);
         $this->postJson('/api/elections/'.$election->id.'/vote', [
-            'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+            'selections' => [['position_id' => $position->id, 'candidate_ids' => [$candidate->id]]],
         ])->assertForbidden();
         $this->assertDatabaseCount('votes', 0);
 
