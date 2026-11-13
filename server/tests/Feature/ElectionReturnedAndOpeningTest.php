@@ -8,6 +8,7 @@ use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Election;
+use App\Models\OfficerAppointment;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Console\Scheduling\Schedule;
@@ -357,6 +358,32 @@ class ElectionReturnedAndOpeningTest extends TestCase
             ->assertJsonPath('message', 'Access was already handed over to the winners, so this election cannot be reopened.');
 
         $this->assertSame('closed', $election->fresh()->status);
+    }
+
+    public function test_a_counted_closed_election_on_the_new_tally_cannot_be_reopened_but_the_legacy_close_can(): void
+    {
+        ['organization' => $organization, 'admin' => $admin, 'student' => $student] = $this->world();
+        Sanctum::actingAs($admin);
+
+        // Canvassing has started, so a tie or runoff may already stand and the winners are already appointed.
+        $counted = $this->openable($organization, ['status' => 'closed', 'end_time' => now()->addHour(), 'tally_version' => 2, 'phase' => 'canvassing', 'results_visible' => false]);
+        $this->putJson('/api/elections/'.$counted->id, ['status' => 'active'])->assertUnprocessable();
+        $this->assertSame('closed', $counted->fresh()->status);
+
+        $appointed = $this->openable($organization, ['status' => 'closed', 'end_time' => now()->addHour(), 'tally_version' => 2, 'phase' => null, 'results_visible' => false]);
+        OfficerAppointment::create([
+            'organization_id' => $organization->id,
+            'election_id' => $appointed->id,
+            'user_school_id' => $student->school_id,
+            'position_title' => 'Representative',
+            'is_executive' => false,
+            'role' => 'SBO_OFFICER',
+        ]);
+        $this->putJson('/api/elections/'.$appointed->id, ['status' => 'active'])->assertUnprocessable();
+        $this->assertSame('closed', $appointed->fresh()->status);
+
+        $legacyClose = $this->openable($organization, ['status' => 'closed', 'end_time' => now()->addHour(), 'tally_version' => 2, 'phase' => null, 'results_visible' => false]);
+        $this->putJson('/api/elections/'.$legacyClose->id, ['status' => 'active'])->assertOk()->assertJsonPath('status', 'active');
     }
 
     public function test_a_closed_election_before_any_hand_over_can_still_be_reopened(): void
