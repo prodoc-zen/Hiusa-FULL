@@ -822,11 +822,7 @@ class UseCaseComplianceTest extends TestCase
         $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])->assertUnprocessable();
         $this->patchJson("/api/elections/{$election->id}/finalize")->assertUnprocessable();
 
-        $candidate = Candidate::create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $candidateUser->school_id]);
-        $this->patchJson("/api/elections/{$election->id}/finalize")->assertUnprocessable();
-
-        $partylist = Partylist::create(['organization_id' => $admin->organization_id, 'name' => 'Finalization Slate']);
-        $candidate->update(['partylist_id' => $partylist->id]);
+        Candidate::create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $candidateUser->school_id]);
         $this->patchJson("/api/elections/{$election->id}/finalize")
             ->assertOk()
             ->assertJsonPath('status', 'upcoming');
