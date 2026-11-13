@@ -22,6 +22,9 @@ function HubStub() {
 }
 
 vi.mock('./pages/modules/elections/ElectionsHub', () => ({ default: () => <HubStub /> }));
+// The real pages read the hub's outlet context and the API; this file only checks which role reaches them.
+vi.mock('./pages/modules/elections/ElectionApplicationsPage', () => ({ default: () => <h1>Applications</h1> }));
+vi.mock('./pages/modules/elections/ElectionInfoPage', () => ({ default: () => <h1>Election information</h1> }));
 vi.mock('./pages/roles/student/StudentHomePage', () => ({ default: () => <Where name="home" /> }));
 vi.mock('./pages/roles/officer/DashboardPage', () => ({ default: () => <Where name="home" /> }));
 vi.mock('./pages/roles/department-head/DepartmentHeadHomePage', () => ({ default: () => <Where name="home" /> }));
