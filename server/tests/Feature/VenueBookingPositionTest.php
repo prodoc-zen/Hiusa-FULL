@@ -53,6 +53,16 @@ class VenueBookingPositionTest extends TestCase
         }
     }
 
+    public function test_the_booking_default_matches_vice_president_seats_exactly(): void
+    {
+        $this->assertTrue(SboPosition::bookingDefaultFor('Vice-President'));
+        $this->assertTrue(SboPosition::bookingDefaultFor('Vice President for Academic Affairs'));
+        $this->assertTrue(SboPosition::bookingDefaultFor('Secretary'));
+        $this->assertFalse(SboPosition::bookingDefaultFor('Vice Presidential Aide'));
+        $this->assertFalse(SboPosition::bookingDefaultFor("Vice President's Assistant"));
+        $this->assertFalse(SboPosition::bookingDefaultFor('Assistant Secretary'));
+    }
+
     public function test_the_positions_endpoint_creates_with_the_title_default_and_an_admin_can_switch_it(): void
     {
         $organization = Organization::factory()->create();
