@@ -9,6 +9,7 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Election;
+use App\Models\ElectionRuleVersion;
 use App\Models\Event;
 use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
@@ -207,8 +208,15 @@ class ApprovalRequestController extends Controller
         $data = $request->validate([
             'status' => ['required', 'in:approved,rejected'],
             'remarks' => ['nullable', 'string', 'required_if:status,rejected'],
+            'final' => ['nullable', 'boolean'],
             ...EventFileReview::rules(),
         ]);
+
+        // A final rejection declines an election for good; on any other request it has no meaning.
+        $final = (bool) ($data['final'] ?? false);
+        if ($final && ($approval->entity_type !== 'election' || $data['status'] !== 'rejected')) {
+            return response()->json(['message' => 'Only an election rejection can be final.', 'errors' => ['final' => ['Only an election rejection can be final.']]], 422);
+        }
 
         if (! empty($data['files']) && $approval->entity_type !== 'event') {
             return response()->json(['message' => 'Only event requests have files to mark.'], 422);
@@ -228,10 +236,13 @@ class ApprovalRequestController extends Controller
             if (AcademicSemester::isClosed($election?->academic_semester_id)) {
                 return response()->json(['message' => 'Historical semester election approvals are read only.'], 409);
             }
+            if ($election?->cancelled_at) {
+                return response()->json(['message' => 'This election was cancelled.'], 409);
+            }
         }
 
         try {
-            $freshApproval = DB::transaction(function () use ($approval, $data, $request) {
+            $freshApproval = DB::transaction(function () use ($approval, $data, $request, $final) {
                 $lockedQuery = ApprovalRequest::query();
                 if ($request->user()->role !== 'SUPER_ADMIN') {
                     $lockedQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
@@ -262,12 +273,12 @@ class ApprovalRequestController extends Controller
                 if ($data['status'] === 'approved') {
                     $this->applyApproval($approval, $request);
                 } else {
-                    $this->applyRejection($approval, $request);
+                    $this->applyRejection($approval, $request, $final);
                 }
 
                 $fresh = $approval->fresh();
-                $this->notifyRequester($fresh, $data['status']);
-                $this->recordApprovalAudit($request, $fresh, $data['status']);
+                $this->notifyRequester($fresh, $data['status'], $final);
+                $this->recordApprovalAudit($request, $fresh, $data['status'], $final);
 
                 return $fresh;
             });
@@ -312,7 +323,7 @@ class ApprovalRequestController extends Controller
         match ($approval->entity_type) {
             'event' => $this->approveEvent($approval),
             'budget' => $this->approveBudget($approval, $request),
-            'election' => $this->approveElection($approval),
+            'election' => $this->approveElection($approval, $request),
             'announcement' => $this->approveAnnouncement($approval, $request),
             'payment' => $this->fulfillmentService->approvePayment(
                 Order::where('organization_id', $approval->organization_id)->findOrFail($approval->entity_id),
@@ -393,7 +404,7 @@ class ApprovalRequestController extends Controller
         ]);
     }
 
-    private function approveElection(ApprovalRequest $approval): void
+    private function approveElection(ApprovalRequest $approval, Request $request): void
     {
         $election = Election::where('organization_id', $approval->organization_id)
             ->where('id', $approval->entity_id)
@@ -407,6 +418,73 @@ class ApprovalRequestController extends Controller
             'status' => 'upcoming',
             'approved_at' => now(),
             'finalized_at' => null,
+        ]);
+
+        $this->snapshotRules($election, $request);
+    }
+
+    /** Approval freezes the rules as the next version, but only when the rules or the tie-break text changed since the last one. */
+    private function snapshotRules(Election $election, Request $request): void
+    {
+        if (blank($election->rules) && blank($election->tie_break_rule)) {
+            return;
+        }
+
+        $latest = ElectionRuleVersion::where('election_id', $election->id)->orderByDesc('version')->first();
+        if ($latest && (string) $latest->rules === (string) $election->rules && (string) $latest->tie_break_rule === (string) $election->tie_break_rule) {
+            return;
+        }
+
+        $version = max((int) $election->rules_version, (int) $latest?->version) + 1;
+        ElectionRuleVersion::create([
+            'election_id' => $election->id,
+            'version' => $version,
+            'rules' => $election->rules,
+            'tie_break_rule' => $election->tie_break_rule,
+            'approved_by' => $request->user()->school_id,
+            'approved_at' => now(),
+        ]);
+        $election->update(['rules_version' => $version]);
+
+        AuditLog::create([
+            'organization_id' => $election->organization_id,
+            'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role,
+            'module' => 'elections',
+            'action' => 'rules_version_created',
+            'description' => 'Election rules version '.$version.' approved.',
+            'record_type' => Election::class,
+            'record_id' => $election->id,
+            'old_values' => null,
+            'new_values' => ['rules_version' => $version],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+    }
+
+    /** A final rejection: the proposal is declined for good and can no longer be edited or resubmitted. */
+    private function declineElection(ApprovalRequest $approval, Request $request): void
+    {
+        $election = Election::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->first();
+        if (! $election) {
+            return;
+        }
+
+        $election->update(['declined_at' => now()]);
+
+        AuditLog::create([
+            'organization_id' => $election->organization_id,
+            'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role,
+            'module' => 'elections',
+            'action' => 'declined',
+            'description' => 'Election proposal declined by the reviewer.',
+            'record_type' => Election::class,
+            'record_id' => $election->id,
+            'old_values' => null,
+            'new_values' => ['reason' => $approval->remarks, 'approval_id' => $approval->id],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
         ]);
     }
 
@@ -460,7 +538,7 @@ class ApprovalRequestController extends Controller
         }
     }
 
-    private function applyRejection(ApprovalRequest $approval, Request $request): void
+    private function applyRejection(ApprovalRequest $approval, Request $request, bool $final = false): void
     {
         match ($approval->entity_type) {
             'announcement' => Announcement::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
@@ -480,6 +558,7 @@ class ApprovalRequestController extends Controller
             'financial_report' => FinancialReport::where('organization_id', $approval->organization_id)
                 ->where('id', $approval->entity_id)
                 ->update(['submission_status' => 'rejected']),
+            'election' => $final ? $this->declineElection($approval, $request) : null,
             default => null,
         };
     }
@@ -511,7 +590,7 @@ class ApprovalRequestController extends Controller
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ]),
             'budget' => Budget::with('event:id,title'),
-            'election' => Election::query(),
+            'election' => Election::with(['organization:id,name,acronym', 'positions' => fn ($positions) => $positions->orderBy('id')]),
             'announcement' => Announcement::query(),
             'payment' => Order::with(['merchandise:id,name', 'student:school_id,first_name,last_name']),
             'financial_report' => FinancialReport::with(['organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name']),
@@ -539,13 +618,28 @@ class ApprovalRequestController extends Controller
         return match ($type) {
             'event' => $this->eventExtras($entities),
             'budget' => collect(Budget::spentAmounts($ids))->map(fn (string $spent) => ['spent_amount' => $spent])->all(),
-            'election' => ApprovalRequest::whereIn('id', ApprovalRequest::where('entity_type', 'election')->whereIn('entity_id', $ids)->selectRaw('MAX(id)')->groupBy('entity_id'))
-                ->get(['entity_id', 'status'])
-                ->mapWithKeys(fn (ApprovalRequest $latest) => [$latest->entity_id => ['approval_status' => $latest->status]])
-                ->all(),
+            'election' => $this->electionExtras($entities),
             'financial_report' => $this->financialReportExtras($entities),
             default => [],
         };
+    }
+
+    /** The latest approval status and the school year and semester each election belongs to. */
+    private function electionExtras(Collection $elections): array
+    {
+        $statuses = ApprovalRequest::whereIn('id', ApprovalRequest::where('entity_type', 'election')->whereIn('entity_id', $elections->keys())->selectRaw('MAX(id)')->groupBy('entity_id'))
+            ->get(['entity_id', 'status'])
+            ->mapWithKeys(fn (ApprovalRequest $latest) => [$latest->entity_id => $latest->status]);
+        $semesters = AcademicSemester::with('academicYear:id,label')
+            ->whereIn('id', $elections->pluck('academic_semester_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        return $elections->mapWithKeys(fn (Election $election) => [$election->id => [
+            'approval_status' => $statuses->get($election->id),
+            'academic_year' => $semesters->get($election->academic_semester_id)?->academicYear?->label,
+            'academic_semester' => $semesters->get($election->academic_semester_id)?->number,
+        ]])->all();
     }
 
     private function financialReportExtras(Collection $reports): array
@@ -626,6 +720,34 @@ class ApprovalRequestController extends Controller
                 'results_visible' => $entity->results_visible,
                 'informative_letter_url' => $entity->has_informative_letter ? '/elections/'.$entity->id.'/informative-letter' : null,
                 'approval_status' => null,
+                'academic_year' => null,
+                'academic_semester' => null,
+                'description' => $entity->description,
+                'organization' => $entity->organization?->name,
+                'filing_starts_at' => $entity->filing_starts_at,
+                'filing_ends_at' => $entity->filing_ends_at,
+                'screening_starts_at' => $entity->screening_starts_at,
+                'screening_ends_at' => $entity->screening_ends_at,
+                'campaign_starts_at' => $entity->campaign_starts_at,
+                'campaign_ends_at' => $entity->campaign_ends_at,
+                'results_publish_at' => $entity->results_publish_at,
+                'min_units' => $entity->min_units,
+                'min_gpa' => $entity->min_gpa,
+                'rules' => $entity->rules,
+                'tie_break_rule' => $entity->tie_break_rule,
+                'rules_version' => $entity->rules_version,
+                'uses_filing' => $entity->usesFiling(),
+                'declined_at' => $entity->declined_at,
+                'positions' => $entity->positions->map(fn ($position) => [
+                    'title' => $position->title,
+                    'description' => $position->description,
+                    'is_executive' => (bool) $position->is_executive,
+                    'max_winners' => $position->max_winners,
+                    'vote_limit' => $position->vote_limit,
+                    'eligible_year_levels' => $position->eligible_year_levels,
+                    'other_qualifications' => $position->other_qualifications,
+                    'is_active' => (bool) $position->is_active,
+                ])->all(),
                 ...$extra,
             ],
             'announcement' => [
@@ -726,10 +848,13 @@ class ApprovalRequestController extends Controller
         }
     }
 
-    private function notifyRequester(ApprovalRequest $approval, string $status): void
+    private function notifyRequester(ApprovalRequest $approval, string $status, bool $final = false): void
     {
         $label = $this->entityLabels->for($approval);
         $message = Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.';
+        if ($final) {
+            $message = 'Your election "'.$label.'" was rejected: '.$approval->remarks;
+        }
         $event = $approval->entity_type === 'event' && $status === 'approved' ? Event::find($approval->entity_id) : null;
         if ($event && ! $event->approved_at) {
             $message = 'Event "'.$label.'" was approved by the Department Head. '.($this->eventChain->saoRow($event)
@@ -766,7 +891,7 @@ class ApprovalRequestController extends Controller
             : false;
     }
 
-    private function recordApprovalAudit(Request $request, ApprovalRequest $approval, string $status): void
+    private function recordApprovalAudit(Request $request, ApprovalRequest $approval, string $status, bool $final = false): void
     {
         AuditLog::create([
             'organization_id' => $approval->organization_id,
@@ -783,6 +908,10 @@ class ApprovalRequestController extends Controller
                 'entity_id' => $approval->entity_id,
                 'status' => $status,
                 'remarks' => $approval->remarks,
+                ...($final ? ['final' => true] : []),
+                ...($approval->entity_type === 'election' && $status === 'approved'
+                    ? ['rules_version' => (int) Election::whereKey($approval->entity_id)->value('rules_version')]
+                    : []),
             ],
             'ip_address' => $request->ip(),
             'created_at' => now(),
