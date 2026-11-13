@@ -8,6 +8,7 @@ const { getUsers, getPartylists, createElectionCandidate, outlet } = vi.hoisted(
   getPartylists: vi.fn(),
   createElectionCandidate: vi.fn(),
   outlet: {
+    role: 'ADMIN',
     election: {
       id: 5,
       title: 'Council Election',
@@ -39,6 +40,8 @@ describe('ManageCandidatesPage', () => {
     vi.clearAllMocks();
     getUsers.mockResolvedValue(students);
     getPartylists.mockResolvedValue([]);
+    outlet.role = 'ADMIN';
+    delete outlet.election.filing_starts_at;
   });
 
   it('lists each candidate with a position and offers one Add candidate button', async () => {
@@ -144,5 +147,32 @@ describe('ManageCandidatesPage', () => {
     await screen.findAllByText('Ana Reyes');
     expect(screen.getByText('Candidate setup is locked because votes have already been cast.')).toBeInTheDocument();
     outlet.election.votes = [];
+  });
+
+  it('keeps the Admin able to add and edit on an election without filing, the path the demo uses', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    expect(screen.getAllByRole('button', { name: 'Add candidate' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Actions for Ana Reyes' }).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Candidates of this election come from approved applications.')).not.toBeInTheDocument();
+  });
+
+  it('is read only for a filing election, and points to the Applications step', async () => {
+    outlet.election.filing_starts_at = '2026-11-01T00:00:00Z';
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    expect(screen.getByText('Candidates of this election come from approved applications.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Applications' })).toHaveAttribute('href', '/dashboard/elections/applications?record=5');
+    expect(screen.queryByRole('button', { name: 'Add candidate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the list but hides every write action from an officer, even on an election without filing', async () => {
+    outlet.role = 'SBO_OFFICER';
+    renderPage();
+    expect((await screen.findAllByText('Ana Reyes')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Add candidate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Candidates of this election come from approved applications.')).not.toBeInTheDocument();
   });
 });
