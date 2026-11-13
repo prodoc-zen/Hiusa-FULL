@@ -8,12 +8,13 @@ import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLife
 import DepartmentHeadApprovalsPage from './DepartmentHeadApprovalsPage';
 import notify from '../../../lib/notify';
 
-const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), getAcademicPeriods: vi.fn().mockResolvedValue([]), openProtectedFile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), getSystemOrganizations: vi.fn(), getAcademicPeriods: vi.fn().mockResolvedValue([]), openProtectedFile: vi.fn(), getApprovalHistory: vi.fn() }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getSystemOrganizations: mocks.getSystemOrganizations, getAcademicPeriods: mocks.getAcademicPeriods }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
 vi.mock('../../../services/financeService', () => ({ downloadFinancialReportPdf: mocks.downloadFinancialReportPdf }));
+vi.mock('../../../services/electionService', () => ({ getApprovalHistory: mocks.getApprovalHistory }));
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
@@ -582,6 +583,24 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
       remarks: 'Fix the form.',
       files: [{ id: 7, status: 'needs_changes', note: 'The seal is missing.' }],
     }));
+  });
+
+  it('decides an election from the drawer: reject for good sends final, with no remarks dialog', async () => {
+    const election = { ...eventRow, id: 51, entity_type: 'election', entity_id: 103, title: 'SBO Election 2026', summary: { start_time: '2026-12-15T08:00:00+08:00', end_time: '2026-12-16T17:00:00+08:00', status: 'pending_approval', positions: [] } };
+    serve({ review: [election] });
+    mocks.getApprovalHistory.mockResolvedValue([]);
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: { ...election, status: 'rejected', remarks: 'Outside the semester.' } });
+    renderPage('/dashboard/department-head/approvals?record=51');
+    const drawer = await screen.findByRole('dialog', { name: 'SBO Election 2026' });
+
+    fireEvent.change(await within(drawer).findByLabelText('Remarks for the Admin'), { target: { value: 'Outside the semester.' } });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject for good' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Reject election for good' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Reject for good' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(51, { status: 'rejected', remarks: 'Outside the semester.', final: true }));
+    expect(screen.queryByRole('dialog', { name: 'Reject request' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'SBO Election 2026' })).toBeInTheDocument();
   });
 
   it('uses Back-style closing: Escape on the drawer clears the record', async () => {

@@ -11,6 +11,8 @@ import EmptyState from '../../../components/ui/EmptyState';
 import Field from '../../../components/ui/Field';
 import Input from '../../../components/ui/Input';
 import { createElectionPosition, deleteElectionPosition } from '../../../services/electionService';
+import { manilaDate } from '../../../lib/format';
+import { nextDeadline, unresolvedTies } from '../../../components/elections/electionFlow';
 import ManageVotersPage from './ManageVotersPage';
 
 const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
@@ -43,6 +45,18 @@ export default function ElectionDetailPage() {
   const ballots = Number(election.voters_count || 0);
   const countsShown = election.status === 'closed' && Boolean(election.vote_counts);
   const ballotLocked = election.status === 'closed' || Boolean(election.finalized_at) || ballots > 0;
+
+  // Only an election where students file their own candidacy has applications and ties to count.
+  const filing = Boolean(election.filing_starts_at);
+  const counts = election.application_counts ?? {};
+  const overviewCounts = [
+    ['Pending review', Number(counts.pending_review ?? 0)],
+    ['Needs correction', Number(counts.for_revision ?? 0)],
+    ['Approved candidates', candidates.length],
+    ['Turnout', ballots],
+    ['Unresolved ties', unresolvedTies(election)],
+  ];
+  const upcoming = filing ? nextDeadline(election) : null;
 
   const groupedCandidates = positions.map((position) => ({
     position,
@@ -121,6 +135,20 @@ export default function ElectionDetailPage() {
         </p>
         {!ballotLocked && <Button leftIcon={Plus} onClick={openAddPosition}>Add position</Button>}
       </div>
+
+      {filing && (
+        <div className="space-y-2">
+          <dl role="group" aria-label="Election counts" className="flex flex-wrap gap-x-8 gap-y-2">
+            {overviewCounts.map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs font-semibold text-ink-muted-strong">{label}</dt>
+                <dd className="text-lg font-semibold tabular-nums text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {upcoming && <p className="text-sm text-ink-muted-strong">Next: {upcoming.name} on {manilaDate(upcoming.at)}</p>}
+        </div>
+      )}
 
       {election.status === 'active' && (
         <p className="text-sm text-ink-muted">Counts appear when voting closes.</p>
