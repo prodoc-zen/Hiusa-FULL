@@ -3,10 +3,14 @@
 namespace App\Providers;
 
 use App\Contracts\FingerprintMatcher;
+use App\Contracts\TextGenerator;
 use App\Models\User;
+use App\Services\Ai\ClaudeMessagesService;
+use App\Services\Ai\FallbackTextGenerator;
 use App\Services\Edp\HttpStudentRegistry;
 use App\Services\Edp\LocalStudentRegistry;
 use App\Services\Edp\StudentRegistry;
+use App\Services\GroqResponsesService;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
 use App\Support\DatabaseStatementTimeout;
@@ -35,6 +39,17 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new UnavailableFingerprintMatcher;
+        });
+
+        // Not a singleton: the choice follows config, which tests and a key rotation change at runtime.
+        $this->app->bind(TextGenerator::class, function ($app) {
+            $hasClaudeKey = trim((string) config('services.anthropic.key')) !== '';
+            $provider = strtolower(trim((string) config('services.ai.provider'))) ?: ($hasClaudeKey ? 'anthropic' : 'groq');
+
+            // Without a key Claude can only fail, so production behaves exactly as before until one is set.
+            return $provider === 'anthropic' && $hasClaudeKey
+                ? new FallbackTextGenerator($app->make(ClaudeMessagesService::class), $app->make(GroqResponsesService::class))
+                : $app->make(GroqResponsesService::class);
         });
 
         $this->app->singleton(StudentRegistry::class, fn () => config('services.edp.driver') === 'local'
