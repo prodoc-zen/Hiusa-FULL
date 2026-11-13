@@ -179,6 +179,29 @@ describe('TopBar school year picker', () => {
       expect(screen.getByRole('button', { name: /Academic Period: AY 2025-2026 · 2nd Semester/ })).toBeInTheDocument();
     });
 
+    it('still reaches a closed semester while none is active and the next one is upcoming', async () => {
+      mocks.getActiveAcademicPeriod.mockResolvedValue(null);
+      mocks.getAcademicPeriods.mockResolvedValue([closed, upcoming]);
+      renderTopBar('/dashboard/student');
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Academic Period: No active semester' }));
+      const list = screen.getByRole('listbox', { name: 'Academic Periods' });
+      expect(within(list).queryByRole('button', { name: /AY 2026-2027 · 2nd Semester/ })).not.toBeInTheDocument();
+      fireEvent.click(within(list).getByRole('button', { name: /AY 2025-2026 · 2nd Semester/ }));
+
+      expect(JSON.parse(localStorage.getItem(PERIOD_KEY)).id).toBe(2);
+      expect(await screen.findByRole('button', { name: /Academic Period: AY 2025-2026 · 2nd Semester/ })).toBeInTheDocument();
+    });
+
+    it('shows no selector while none is active and no semester has closed', async () => {
+      mocks.getActiveAcademicPeriod.mockResolvedValue(null);
+      mocks.getAcademicPeriods.mockResolvedValue([upcoming]);
+      renderTopBar('/dashboard/student');
+
+      await waitFor(() => expect(mocks.getAcademicPeriods).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: /Academic Period/ })).not.toBeInTheDocument();
+    });
+
     it('keeps a saved closed semester across a reload', async () => {
       localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
       renderTopBar('/dashboard/student');

@@ -9,6 +9,7 @@ import { PhoneFold, RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
 import { Button, EmptyState, ErrorState, Skeleton } from '../../../components/ui';
 import { peso } from '../../../lib/format';
+import { viewsClosedSemester } from '../../../utils/academicPeriodStore';
 
 // A phone opens on the newest post; the rest of the loaded feed waits behind one tap.
 const PHONE_POSTS = 1;
@@ -52,7 +53,7 @@ function owedLine(owedTotal) {
   return amount > 0 ? `You owe ${peso(amount)}` : 'Nothing owed';
 }
 
-export default function StudentHomePage() {
+function CurrentSemesterHome() {
   const [account, setAccount] = useState(null);
   const [items, setItems] = useState([]);
   const [organization, setOrganization] = useState(null);
@@ -190,4 +191,25 @@ export default function StudentHomePage() {
       </div>
     </div>
   );
+}
+
+// The briefing, the feed and the voting card are all about the current semester, so a closed semester gets a plain
+// notice and the read-only pages instead of actions the student can no longer take.
+function ClosedSemesterHome() {
+  return (
+    <div className="w-full space-y-4">
+      <section aria-labelledby="student-closed-title" className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <h2 id="student-closed-title" className="text-base font-semibold text-ink">You are viewing a closed semester</h2>
+        <p className="mt-1 max-w-prose text-sm text-ink-muted-strong">This dashboard shows your current semester only. Use Back to current semester above to see what needs you now, or read what happened in the closed semester, read only.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button to="/dashboard/events/activity-calendar" variant="secondary">Activity calendar</Button>
+          <Button to="/dashboard/elections/election-results" variant="secondary">Election results</Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function StudentHomePage() {
+  return viewsClosedSemester('STUDENT') ? <ClosedSemesterHome /> : <CurrentSemesterHome />;
 }
