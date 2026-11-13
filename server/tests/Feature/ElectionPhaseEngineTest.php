@@ -388,7 +388,7 @@ class ElectionPhaseEngineTest extends TestCase
             ->get()->filter(fn ($row) => ($row->new_values['to'] ?? null) === 'canvassing')->count());
     }
 
-    public function test_a_legacy_election_opens_and_closes_as_before_and_reads_canvassing_at_close(): void
+    public function test_a_legacy_election_opens_and_closes_as_before_and_completes_when_nothing_is_contested(): void
     {
         $legacy = Election::factory()->create([
             'organization_id' => $this->organization->id,
@@ -411,7 +411,8 @@ class ElectionPhaseEngineTest extends TestCase
         $result = $this->syncAt('2026-12-03 17:01:00');
         $this->assertSame('closed', $legacy->fresh()->status);
         $this->assertSame(1, $result['closed']);
-        $this->assertSame('canvassing', $this->phase($legacy));
+        // Nothing is contested and the results are already visible, so canvassing finishes in the same sync.
+        $this->assertSame('completed', $this->phase($legacy));
     }
 
     public function test_a_legacy_election_is_not_locked_by_the_engine(): void
