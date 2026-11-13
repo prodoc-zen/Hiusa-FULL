@@ -16,12 +16,18 @@ import { createPartylist, deletePartylist, getPartylists, updatePartylist } from
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
+const DEFAULT_COLOR = '#1d4ed8';
 const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 
 function partylistImageError(file) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Party banner must be a JPEG, PNG, or WebP image.';
   if (file.size > 5 * 1024 * 1024) return 'Party banner must be 5 MB or smaller.';
   return '';
+}
+
+// A party list filed by a student carries its representative; the Admin's own register has none.
+function representativeName(partylist) {
+  return partylist.representative?.name || partylist.representative_name || '';
 }
 
 function PartylistFields({ values, onChange, bannerPreview, onBannerChange }) {
@@ -33,8 +39,14 @@ function PartylistFields({ values, onChange, bannerPreview, onBannerChange }) {
       <Field label="Acronym" optional>
         <Input value={values.acronym || ''} maxLength={30} onChange={(event) => onChange({ ...values, acronym: event.target.value.toUpperCase() })} placeholder="e.g. ALAB" />
       </Field>
+      <Field label="Motto" optional>
+        <Input value={values.motto || ''} maxLength={255} onChange={(event) => onChange({ ...values, motto: event.target.value })} placeholder="e.g. Open books for all" />
+      </Field>
       <Field label="Description" optional hint="Shown on candidate pages and election records.">
         <RichTextEditor value={values.description || ''} maxLength={2000} onChange={(description) => onChange({ ...values, description })} rows={3} placeholder="Mission or tagline" />
+      </Field>
+      <Field label="Color" optional hint="Marks the party list on the ballot and the candidate pages.">
+        <input type="color" value={values.color || DEFAULT_COLOR} onChange={(event) => onChange({ ...values, color: event.target.value })} className="h-10 w-16 cursor-pointer rounded-control border border-line bg-surface p-1" />
       </Field>
       <div className="space-y-2">
         {bannerPreview && <img src={bannerPreview} alt="Banner preview" className="h-16 w-32 rounded-control border border-line object-cover" />}
@@ -53,7 +65,7 @@ export default function ManagePartylistsPage() {
   const [loadError, setLoadError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', acronym: '', description: '' });
+  const [form, setForm] = useState({ name: '', acronym: '', motto: '', color: '', description: '' });
   const [bannerFile, setBannerFile] = useState(null);
   const [bannerPreview, setBannerPreview] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -128,7 +140,7 @@ export default function ManagePartylistsPage() {
   const candidateName = (candidate) => `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() || 'Unknown candidate';
 
   const resetAdd = () => {
-    setForm({ name: '', acronym: '', description: '' });
+    setForm({ name: '', acronym: '', motto: '', color: '', description: '' });
     setBannerFile(null);
     setBannerPreview(null);
     setShowAdd(false);
@@ -152,7 +164,7 @@ export default function ManagePartylistsPage() {
     setWorkingId('add');
 
     try {
-      const created = await createPartylist({ ...form, bannerFile: bannerFile || null });
+      const created = await createPartylist({ ...form, motto: form.motto.trim() || undefined, color: form.color || undefined, bannerFile: bannerFile || null });
       setPartylistRows((current) => [...current, created]);
       resetAdd();
       setFeedback({ open: true, type: 'success', message: 'Party list registered.' });
@@ -174,6 +186,8 @@ export default function ManagePartylistsPage() {
       const updated = await updatePartylist(editing.id, {
         name: editing.name,
         acronym: editing.acronym || null,
+        motto: (editing.motto || '').trim(),
+        color: editing.color || undefined,
         description: editing.description || null,
         bannerFile: editBannerFile || null,
       });
@@ -225,7 +239,7 @@ export default function ManagePartylistsPage() {
     setError('');
     setEditBannerFile(null);
     setEditBannerPreview(partylist.banner_url ? resolveAssetUrl(partylist.banner_url) : null);
-    setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' });
+    setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', motto: partylist.motto || '', color: partylist.color || '', description: partylist.description || '' });
   };
 
   const columns = [
@@ -240,6 +254,13 @@ export default function ManagePartylistsPage() {
               {formatDisplayText(partylist.name)}
               {partylist.acronym && <span className="ml-2 text-xs font-normal text-ink-muted">{partylist.acronym}</span>}
             </p>
+            {(partylist.motto || partylist.color) && (
+              <p className="flex items-center gap-2 text-sm text-ink-muted-strong">
+                {partylist.color && <span data-testid={`party-color-${partylist.id}`} aria-hidden="true" className="inline-block size-2.5 shrink-0 rounded-full" style={{ backgroundColor: partylist.color }} />}
+                {partylist.motto}
+              </p>
+            )}
+            {representativeName(partylist) && <p className="text-xs text-ink-muted">Filed by {formatDisplayText(representativeName(partylist))}</p>}
             {members.length > 0 && (
               <details>
                 <summary className="min-h-10 cursor-pointer text-sm font-medium leading-10 text-brand-700 hover:text-brand-800">View candidates</summary>
