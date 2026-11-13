@@ -177,8 +177,7 @@ for (const viewport of WIDTHS) {
       await tap(c, page.getByRole('button', { name: /Start my ballot/ }), 'Start my ballot');
       await tap(c, page.getByRole('button', { name: new RegExp(who.candidate.name) }), 'choose candidate');
       await tap(c, page.getByRole('button', { name: /Review ballot/ }), 'Review ballot');
-      await tap(c, page.getByRole('button', { name: /Submit final ballot/ }), 'Submit final ballot');
-      await tap(c, page.getByRole('dialog').getByRole('button', { name: 'Confirm and submit' }), 'Confirm and submit');
+      await tap(c, page.getByRole('button', { name: 'Confirm and submit' }), 'Confirm and submit');
 
       await expect(page.getByRole('heading', { name: 'Ballot submitted' })).toBeVisible();
       await expect(page.getByText('Ballot receipt', { exact: true })).toBeVisible();
