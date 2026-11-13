@@ -156,6 +156,20 @@ describe('CollegeOrganizationsPage', () => {
     expect(within(brass).queryByText(/organization head/)).not.toBeInTheDocument();
   });
 
+  it('makes the row line that names the organization head a link to the same Give access target as the Overview callout, with no word breaking', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([
+      organization({ id: 5, name: 'Debate Society', acronym: 'DEBATE', administrators_count: 0, role_counts: { admin: 0, sbo_officer: 0, student: 0 } }),
+    ]));
+    renderPage();
+
+    const debate = (await screen.findAllByRole('row')).find((row) => within(row).queryByText('Debate Society'));
+    const link = within(debate).getByRole('link', { name: 'Name the organization head' });
+    expect(link).toHaveAttribute('href', '/dashboard/department-head/org/5?tab=people');
+    expect(link.className).not.toMatch(/break-all/);
+    // The line gets the whole width of the row, not the narrow column beside the organization mark, so a word never splits at 390px.
+    expect(within(debate).getByText('Debate Society').closest('.text-left')).not.toContainElement(link);
+  });
+
   it('says so when an organization has no Admin or SBO Officer yet', async () => {
     renderPage();
     await screen.findAllByText('Chess Club');

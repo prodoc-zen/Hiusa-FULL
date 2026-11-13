@@ -547,13 +547,11 @@ class EventController extends Controller
         return false;
     }
 
-    /** Null and blank text are the same, numbers compare as numbers, and text compares trimmed with one line ending. */
+    /** Null, blank text and zero are the same, numbers compare as numbers, and text compares trimmed with one line ending. */
     private function comparable(mixed $value, bool $text = false): mixed
     {
         if (is_string($value)) {
-            $value = trim(str_replace('
-', '
-', $value));
+            $value = trim(str_replace(["\r\n", "\r"], "\n", $value));
             if ($value === '') {
                 return null;
             }
@@ -562,7 +560,12 @@ class EventController extends Controller
             return null;
         }
 
-        return ! $text && is_numeric($value) ? (float) $value : (string) $value;
+        if (! $text && is_numeric($value)) {
+            // The edit form sends a stored 0 as a blank field, so a zero and an empty value are the same.
+            return (float) $value === 0.0 ? null : (float) $value;
+        }
+
+        return (string) $value;
     }
 
     private function validStatusTransition(string $currentStatus, string $nextStatus): bool

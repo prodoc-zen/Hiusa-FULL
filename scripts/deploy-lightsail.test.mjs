@@ -21,15 +21,16 @@ function guard(mail, edp) {
     return run([], { HIUSA_DEPLOY_GUARD_ONLY: '1', GUARD_MAIL: mail, GUARD_EDP: edp });
 }
 
-test('the guard passes only when mail is log and EDP is local', () => {
+test('the guard passes when mail is log or smtp and EDP is local', () => {
     assert.equal(guard('log', 'local').status, 0);
+    assert.equal(guard('smtp', 'local').status, 0);
 });
 
-test('the guard refuses a mailer that could send email', () => {
-    for (const mail of ['smtp', 'ses', 'mailgun', 'resend', 'sendmail', 'null', '']) {
+test('the guard refuses any other mailer', () => {
+    for (const mail of ['ses', 'mailgun', 'resend', 'sendmail', 'null', '']) {
         const result = guard(mail, 'local');
         assert.notEqual(result.status, 0, `mail.default=${mail} must be refused`);
-        assert.match(result.stderr, /must be 'log'/);
+        assert.match(result.stderr, /must be 'log' or 'smtp'/);
     }
 });
 
@@ -72,10 +73,15 @@ test('code from before the EDP setting existed (no services.edp key) passes the 
     assert.equal(result.status, 0, result.stderr);
 });
 
-test('a missing services.edp key does not excuse a mailer that could send email', () => {
-    const result = checkWithConfig({ mail: show('smtp'), edp: missingKey });
+test('a missing services.edp key does not excuse a mailer outside log and smtp', () => {
+    const result = checkWithConfig({ mail: show('ses'), edp: missingKey });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /must be 'log'/);
+    assert.match(result.stderr, /must be 'log' or 'smtp'/);
+});
+
+test('the check passes the smtp mailer the server reports', () => {
+    const result = checkWithConfig({ mail: show('smtp'), edp: show('local') });
+    assert.equal(result.status, 0, result.stderr);
 });
 
 test('the check reads the values the server reports and refuses an EDP driver that is not local', () => {

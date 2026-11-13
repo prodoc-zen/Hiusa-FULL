@@ -55,12 +55,13 @@ export default function DashboardLayout() {
   const role = getStoredRole();
   const pageMeta = getPageMeta(location.pathname, role);
   const [viewingPeriod, setViewingPeriod] = useState(readSelectedPeriod);
-  const [livePeriod, setLivePeriod] = useState(null);
+  // undefined until the lookup answers; null once it says no semester is active.
+  const [livePeriod, setLivePeriod] = useState(undefined);
   const { subAccount: activeSubAccount } = useActiveSubAccount();
 
   useEffect(() => {
     if (typeof getActiveAcademicPeriod === 'function') {
-      getActiveAcademicPeriod().then(setLivePeriod).catch(() => setLivePeriod(null));
+      getActiveAcademicPeriod().then((period) => setLivePeriod(period ?? null)).catch(() => setLivePeriod(null));
     }
     function handleSwitched(e) {
       setViewingPeriod(e.detail);
@@ -82,7 +83,8 @@ export default function DashboardLayout() {
 
   const isDifferentPeriod = Boolean(viewingPeriod && livePeriod && viewingPeriod.id !== livePeriod.id);
   const isPlanningMode = isDifferentPeriod && viewingPeriod.status !== 'completed';
-  const isClosedMode = isDifferentPeriod && viewingPeriod.status === 'completed';
+  // Between semesters nothing is active, and a student can still be reading a closed one.
+  const isClosedMode = Boolean(viewingPeriod?.status === 'completed' && livePeriod !== undefined && viewingPeriod.id !== livePeriod?.id);
 
   function toggleDesktopSidebar() {
     setDesktopCollapsed((current) => {
