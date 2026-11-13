@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\ElectionApplicationController;
 use App\Http\Controllers\ElectionBallotController;
-use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\ElectionGovernanceController;
 use App\Http\Controllers\ElectionReportController;
 use App\Http\Controllers\ElectionResultsController;
@@ -38,7 +37,6 @@ class ElectionRouteScaffoldTest extends TestCase
 
         return [
             // method, uri, [controller, action], roles, throttle, period.writable argument or null
-            ['POST', 'api/elections/{id}/submit', [ElectionController::class, 'submit'], ['ADMIN'], 'api-write', 'election'],
 
             ['POST', 'api/elections/{id}/suspend', [ElectionGovernanceController::class, 'suspend'], ['ADMIN'], 'api-write', 'election'],
             ['POST', 'api/elections/{id}/resume', [ElectionGovernanceController::class, 'resume'], ['ADMIN'], 'api-write', 'election'],
