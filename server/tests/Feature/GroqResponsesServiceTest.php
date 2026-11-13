@@ -61,6 +61,25 @@ class GroqResponsesServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_an_incomplete_response_is_a_failure_so_the_fallback_chain_moves_on(): void
+    {
+        config()->set('services.groq', [
+            'key' => 'test-groq-key',
+            'url' => 'https://api.groq.com/openai/v1/responses',
+            'model' => 'openai/gpt-oss-20b',
+            'timeout' => 25,
+        ]);
+        Http::fake(['api.groq.com/*' => Http::response([
+            'id' => 'resp_cut_off',
+            'model' => 'openai/gpt-oss-20b',
+            'status' => 'incomplete',
+            'incomplete_details' => ['reason' => 'max_output_tokens'],
+            'output_text' => 'A summary that was cut off mid-sen',
+        ])]);
+
+        $this->assertNull(app(GroqResponsesService::class)->generate('Instructions', 'Input'));
+    }
+
     public function test_a_failing_or_slow_groq_is_tried_once_and_capped_at_twelve_seconds(): void
     {
         config()->set('services.groq', [
