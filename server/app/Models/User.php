@@ -173,10 +173,25 @@ class User extends Authenticatable
     {
         return match ($this->profileRole()) {
             'ADMIN' => true,
-            'SBO_OFFICER' => SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->where('title', $this->position_title)->value('can_book_venues')
-                ?? SboPosition::bookingDefaultFor((string) $this->position_title),
+            'SBO_OFFICER' => $this->officerCanBookVenues(),
             default => false,
         };
+    }
+
+    /** The listed position is found by normalised title, so "Business-Manager" meets the "Business Manager" row; an inactive row never books. */
+    private function officerCanBookVenues(): bool
+    {
+        $title = trim((string) $this->position_title);
+        if ($title === '') {
+            return false;
+        }
+
+        $wanted = SboPosition::normaliseTitle($title);
+        $position = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')
+            ->get(['title', 'can_book_venues', 'is_active'])
+            ->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
+
+        return $position ? $position->is_active && $position->can_book_venues : SboPosition::bookingDefaultFor($title);
     }
 
     public function activeProfile(): ?AccountProfile

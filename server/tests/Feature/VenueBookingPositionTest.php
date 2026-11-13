@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountProfile;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
@@ -61,6 +62,69 @@ class VenueBookingPositionTest extends TestCase
         $this->assertFalse(SboPosition::bookingDefaultFor('Vice Presidential Aide'));
         $this->assertFalse(SboPosition::bookingDefaultFor("Vice President's Assistant"));
         $this->assertFalse(SboPosition::bookingDefaultFor('Assistant Secretary'));
+    }
+
+    public function test_a_switched_off_position_stays_off_for_every_spelling_of_its_title_and_an_inactive_row_cannot_book(): void
+    {
+        $organization = Organization::factory()->create();
+        $this->position($organization, 'Business Manager')->update(['can_book_venues' => false]);
+
+        foreach (['Business Manager', 'Business-Manager', 'business manager', "Business\u{00A0}Manager", '  Business   Manager '] as $title) {
+            $this->assertFalse($this->officer($organization, $title)->canBookVenues(), "'{$title}' should not book");
+        }
+
+        $this->position($organization, 'Auditor')->update(['can_book_venues' => true, 'is_active' => false]);
+        $this->assertFalse($this->officer($organization, 'Auditor')->canBookVenues());
+
+        $this->assertFalse($this->officer($organization, null)->canBookVenues());
+        $this->assertFalse($this->officer($organization, '   ')->canBookVenues());
+        $this->assertTrue($this->officer($organization, 'Secretary')->canBookVenues());
+    }
+
+    public function test_renaming_deactivating_or_deleting_a_position_moves_the_officers_profile_title_and_booking_follows(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['role' => 'ADMIN', 'organization_id' => $organization->id, 'account_status' => 'active']);
+        $position = $this->position($organization, 'Business Manager');
+        $held = function (string $title) use ($organization) {
+            $officer = $this->officer($organization, $title);
+            AccountProfile::updateOrCreate(
+                ['user_school_id' => $officer->school_id, 'organization_id' => $organization->id],
+                ['role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => $title],
+            );
+
+            return $officer;
+        };
+        $title = fn (User $officer) => AccountProfile::where('user_school_id', $officer->school_id)->where('organization_id', $organization->id)->value('position_title');
+        $canBook = function (User $officer) {
+            Sanctum::actingAs(User::find($officer->school_id));
+
+            return $this->getJson('/api/user')->assertOk()->json('can_book_venues');
+        };
+
+        $exact = $held('Business Manager');
+        $spelled = $held('Business-Manager');
+        Sanctum::actingAs($admin);
+        $this->putJson("/api/sbo-positions/{$position->id}", ['title' => 'Finance Head'])->assertOk();
+        $this->assertSame('Finance Head', $title($exact));
+        $this->assertSame('Finance Head', $title($spelled));
+        $this->assertSame('Finance Head', User::find($spelled->school_id)->getAttributes()['position_title']);
+        $this->assertTrue($canBook($exact));
+
+        $this->position($organization, 'Business Manager');
+        $deactivated = $held('Business Manager');
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/sbo-positions/'.SboPosition::where('title', 'Business Manager')->value('id'), ['is_active' => false])->assertOk();
+        $this->assertNull($title($deactivated));
+        $this->assertFalse($canBook($deactivated));
+
+        $deletedPosition = $this->position($organization, 'Secretary');
+        $deleted = $held('Secretary');
+        $this->assertTrue($canBook($deleted));
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/sbo-positions/{$deletedPosition->id}")->assertOk();
+        $this->assertNull($title($deleted));
+        $this->assertFalse($canBook($deleted));
     }
 
     public function test_the_positions_endpoint_creates_with_the_title_default_and_an_admin_can_switch_it(): void

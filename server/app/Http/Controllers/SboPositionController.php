@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
@@ -76,10 +77,7 @@ class SboPositionController extends Controller
             $position->update($data);
 
             if ($oldRole !== $position->role || $oldTitle !== $position->title || ! $position->is_active) {
-                User::where('organization_id', $position->organization_id)
-                    ->where('role', $oldRole)
-                    ->where('position_title', $oldTitle)
-                    ->update(['position_title' => $oldRole === $position->role && $position->is_active ? $position->title : null]);
+                $this->retitleHolders($position->organization_id, $oldRole, $oldTitle, $oldRole === $position->role && $position->is_active ? $position->title : null);
             }
         });
         $this->audit($request, 'updated', $position, $old, $position->fresh()->getAttributes());
@@ -94,16 +92,35 @@ class SboPositionController extends Controller
         $old = $position->getAttributes();
 
         DB::transaction(function () use ($position) {
-            User::where('organization_id', $position->organization_id)
-                ->where('role', $position->role)
-                ->where('position_title', $position->title)
-                ->update(['position_title' => null]);
+            $this->retitleHolders($position->organization_id, $position->role, $position->title, null);
             $position->delete();
         });
 
         $this->audit($request, 'deleted', $position, $old, null);
 
         return response()->json(['message' => 'Position deleted successfully.']);
+    }
+
+    /**
+     * Everyone holding the old title under the old role takes the new one (or none), on the account row and on the organization's profile.
+     * Holders are found by normalised title, the way the booking switch and the election hand-over read it.
+     * The profile is what the signed-in user reads first, so leaving its title behind would keep an officer on a position that no longer exists.
+     */
+    private function retitleHolders(int $organizationId, string $role, string $oldTitle, ?string $newTitle): void
+    {
+        $wanted = SboPosition::normaliseTitle($oldTitle);
+        // The raw column: a User's position_title attribute reads the active profile first.
+        $holds = fn ($row) => $row->getRawOriginal('position_title') !== null && SboPosition::normaliseTitle($row->getRawOriginal('position_title')) === $wanted;
+
+        $userIds = User::where('organization_id', $organizationId)->where('role', $role)->whereNotNull('position_title')->get(['school_id', 'position_title'])->filter($holds)->pluck('school_id');
+        if ($userIds->isNotEmpty()) {
+            User::whereIn('school_id', $userIds->all())->update(['position_title' => $newTitle]);
+        }
+
+        $profileIds = AccountProfile::where('organization_id', $organizationId)->where('role', $role)->whereNotNull('position_title')->get(['id', 'position_title'])->filter($holds)->pluck('id');
+        if ($profileIds->isNotEmpty()) {
+            AccountProfile::whereIn('id', $profileIds->all())->update(['position_title' => $newTitle]);
+        }
     }
 
     private function audit(Request $request, string $action, SboPosition $position, ?array $oldValues, ?array $newValues): void
