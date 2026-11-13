@@ -9,10 +9,10 @@ use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class ElectionHandoverService
 {
@@ -89,16 +89,23 @@ class ElectionHandoverService
             $decided = $standings->reject(fn (array $row) => $row['winners']->isEmpty());
 
             foreach ($decided->reject(fn (array $row) => $row['tie']) as $row) {
+                // A seat titled only with dashes normalises to nothing and names no incumbent.
+                $seat = SboPosition::normaliseTitle($row['position']->title);
+                if ($seat === '') {
+                    continue;
+                }
                 $winnerIds = $row['winners']->pluck('user_id')->map(fn ($id) => (int) $id)->all();
                 $outgoing = AccountProfile::where('organization_id', $organization->id)
                     ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
                     ->where('account_status', 'active')
-                    ->whereRaw('lower(position_title) = ?', [Str::lower($row['position']->title)])
                     ->whereNotIn('user_school_id', $winnerIds)
-                    ->get();
+                    ->get()
+                    ->filter(fn (AccountProfile $profile) => $profile->position_title !== null && SboPosition::normaliseTitle($profile->position_title) === $seat);
                 foreach ($outgoing as $profile) {
                     // A former officer is still a member: they keep the organization, stay on the voter roll and lose only the seat.
                     $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
+                    // The account row of a member whose home is this organization holds the title as well, and reads back when the profile has none.
+                    User::where('school_id', $profile->user_school_id)->where('organization_id', $organization->id)->update(['position_title' => null]);
                     $demoted[] = (int) $profile->user_school_id;
                 }
             }
@@ -166,9 +173,7 @@ class ElectionHandoverService
      */
     private function roleFor(string $title): string
     {
-        $normalised = Str::lower(trim(preg_replace('/[\p{Pd}\s]+/u', ' ', $title) ?? $title));
-
-        return $normalised === 'president' || str_starts_with($normalised, 'vice president') ? 'ADMIN' : 'SBO_OFFICER';
+        return SboPosition::normaliseTitle($title) === 'president' || SboPosition::isVicePresidentTitle($title) ? 'ADMIN' : 'SBO_OFFICER';
     }
 
     /**
