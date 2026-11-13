@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\Budget;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Event;
 use App\Models\FinancialReport;
@@ -648,7 +649,7 @@ class UseCaseComplianceTest extends TestCase
             'position_id' => $position->id,
             'user_id' => $candidateUser->school_id,
         ]);
-        $ballot = ['votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]]];
+        $ballot = ['selections' => [['position_id' => $position->id, 'candidate_ids' => [$candidate->id]]]];
 
         $this->authenticate($student);
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)
@@ -685,16 +686,17 @@ class UseCaseComplianceTest extends TestCase
         foreach ($voters as $voter) {
             $this->authenticate($voter);
             $this->postJson("/api/elections/{$election->id}/vote", [
-                'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+                'selections' => [['position_id' => $position->id, 'candidate_ids' => [$candidate->id]]],
             ])->assertOk();
         }
 
         $this->authenticate($this->user('DEPARTMENT_HEAD', $organization->id));
         $this->postJson("/api/elections/{$election->id}/vote", [
-            'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+            'selections' => [['position_id' => $position->id, 'candidate_ids' => [$candidate->id]]],
         ])->assertForbidden();
 
-        $this->assertSame(3, Vote::where('election_id', $election->id)->distinct('voter_id')->count('voter_id'));
+        $this->assertSame(3, ElectionBallot::where('election_id', $election->id)->count());
+        $this->assertSame(3, Vote::where('election_id', $election->id)->count());
     }
 
     public function test_approved_elections_wait_for_admin_opening_and_close_at_the_scheduled_end(): void
@@ -874,7 +876,7 @@ class UseCaseComplianceTest extends TestCase
 
         $this->authenticate($student);
         $this->postJson("/api/elections/{$election->id}/vote", [
-            'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+            'selections' => [['position_id' => $position->id, 'candidate_ids' => [$candidate->id]]],
         ])->assertOk();
 
         $this->authenticate($admin);
@@ -972,7 +974,7 @@ class UseCaseComplianceTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_ballot_submission_requires_every_official_position(): void
+    public function test_ballot_submission_may_skip_an_official_position(): void
     {
         $student = $this->user('STUDENT');
         $firstCandidateUser = $this->user('STUDENT', $student->organization_id);
@@ -993,11 +995,10 @@ class UseCaseComplianceTest extends TestCase
 
         $this->authenticate($student);
         $this->postJson("/api/elections/{$election->id}/vote", [
-            'votes' => [['position_id' => $president->id, 'candidate_id' => $presidentCandidate->id]],
-        ])->assertUnprocessable()
-            ->assertJsonPath('message', 'Please select one candidate for every position on the official ballot.');
+            'selections' => [['position_id' => $president->id, 'candidate_ids' => [$presidentCandidate->id]]],
+        ])->assertOk();
 
-        $this->assertDatabaseCount('votes', 0);
+        $this->assertDatabaseCount('votes', 1);
     }
 
     public function test_manual_attendance_records_status_and_legacy_biometric_submission_is_rejected(): void

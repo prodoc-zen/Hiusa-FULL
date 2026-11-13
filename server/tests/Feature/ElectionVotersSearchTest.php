@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\User;
@@ -56,7 +57,8 @@ class ElectionVotersSearchTest extends TestCase
                 'last_name' => sprintf('Voter%02d', $i),
             ]);
             if ($i % 4 === 0) {
-                Vote::factory()->create(['election_id' => $this->election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => $student->school_id]);
+                ElectionBallot::factory()->create(['election_id' => $this->election->id, 'voter_id' => $student->school_id]);
+                Vote::factory()->create(['election_id' => $this->election->id, 'position_id' => $position->id, 'candidate_id' => $candidate->id, 'voter_id' => null]);
                 $this->voted[] = $student->school_id;
             }
         }

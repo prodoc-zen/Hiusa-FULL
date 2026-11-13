@@ -8,6 +8,7 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Partylist;
 use App\Models\User;
@@ -96,7 +97,7 @@ class ElectionController extends Controller
         $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
-            ->withCount(['votes as voters_count' => fn ($votes) => $votes->select(DB::raw('COUNT(DISTINCT voter_id)'))])
+            ->withCount(['ballots as voters_count' => fn ($ballots) => $ballots->where('round', 1)])
             ->with('organization:id,name,acronym')
             ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
@@ -168,9 +169,7 @@ class ElectionController extends Controller
                 ->groupBy('candidate_id')
                 ->pluck('vote_count', 'candidate_id');
         }
-        $data['voters_count'] = Vote::where('election_id', $id)
-            ->distinct('voter_id')
-            ->count('voter_id');
+        $data['voters_count'] = ElectionBallot::where('election_id', $id)->where('round', 1)->count();
         $data['ballot_refusal'] = $this->onVoterRoll($election, $user) ? null : self::JOINED_AFTER_ROLL;
 
         return response()->json($data);

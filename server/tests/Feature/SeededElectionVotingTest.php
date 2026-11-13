@@ -3,10 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Election;
+use App\Models\ElectionBallot;
 use App\Models\ElectionPosition;
 use App\Models\Notification;
 use App\Models\User;
-use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -34,7 +34,7 @@ class SeededElectionVotingTest extends TestCase
 
     private function unvotedStudent(): User
     {
-        $voted = Vote::where('election_id', $this->election->id)->pluck('voter_id');
+        $voted = ElectionBallot::where('election_id', $this->election->id)->pluck('voter_id');
 
         return User::where('role', 'STUDENT')
             ->where('organization_id', $this->election->organization_id)
@@ -50,11 +50,12 @@ class SeededElectionVotingTest extends TestCase
 
         $this->getJson("/api/elections/{$this->election->id}")->assertOk()->assertJsonPath('ballot_refusal', null);
 
-        $votes = ElectionPosition::where('election_id', $this->election->id)->with('candidates')->get()
-            ->map(fn ($position) => ['position_id' => $position->id, 'candidate_id' => $position->candidates->first()->id])
+        $selections = ElectionPosition::where('election_id', $this->election->id)->with('candidates')->get()
+            ->map(fn ($position) => ['position_id' => $position->id, 'candidate_ids' => [$position->candidates->first()->id]])
             ->all();
 
-        $this->postJson("/api/elections/{$this->election->id}/vote", ['votes' => $votes])->assertOk();
+        $this->postJson("/api/elections/{$this->election->id}/vote", ['selections' => $selections])->assertOk();
+        $this->assertTrue(ElectionBallot::hasVoted($this->election->id, $student->school_id));
     }
 
     public function test_the_seeded_voter_page_counts_the_people_who_already_voted(): void
@@ -64,7 +65,7 @@ class SeededElectionVotingTest extends TestCase
 
         $response = $this->getJson("/api/elections/{$this->election->id}/voters")->assertOk();
 
-        $ballots = Vote::where('election_id', $this->election->id)->distinct()->count('voter_id');
+        $ballots = ElectionBallot::where('election_id', $this->election->id)->where('round', 1)->count();
         $this->assertGreaterThan(0, $ballots);
         $response->assertJsonPath('summary.voted_count', $ballots);
         $this->assertGreaterThan($ballots, $response->json('summary.eligible_total'));

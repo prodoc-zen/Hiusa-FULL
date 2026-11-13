@@ -638,8 +638,8 @@ class DashboardBriefingService
     {
         $election = Election::whereIn('organization_id', $organizationIds)
             ->where('status', 'active')
-            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('votes')
-                ->whereColumn('votes.election_id', 'elections.id')->where('votes.voter_id', $studentId))
+            ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('election_ballots')
+                ->whereColumn('election_ballots.election_id', 'elections.id')->where('election_ballots.round', 1)->where('election_ballots.voter_id', $studentId))
             ->orderBy('end_time')->get(['id', 'organization_id', 'title', 'end_time', 'finalized_at'])
             ->first(fn ($open) => $open->listsVoter($studentId));
 
@@ -898,7 +898,7 @@ class DashboardBriefingService
         }
 
         $eligibleTotal = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $election->organization_id)->count();
-        $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
+        $votedCount = DB::table('election_ballots')->where('election_id', $election->id)->where('round', 1)->count();
         $turnout = $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0;
 
         return [
