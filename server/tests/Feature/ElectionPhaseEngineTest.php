@@ -500,4 +500,55 @@ class ElectionPhaseEngineTest extends TestCase
         $this->assertSame('filing', $this->phase());
         $this->assertNull($this->phase($other));
     }
+
+    public function test_a_screening_decision_while_held_does_not_alert_the_admin_again(): void
+    {
+        $this->syncAt('2026-12-07 10:00:00');
+        $first = $this->application('pending_review');
+        $this->application('pending_review');
+        $this->syncAt('2026-12-08 08:00:00');
+        $this->assertSame(1, $this->noticesFor($this->admin, 'Election needs attention'));
+
+        $first->forceFill(['status' => 'approved'])->save();
+        $this->syncAt('2026-12-08 08:01:00');
+
+        $election = $this->election->fresh();
+        $this->assertSame('Screening is not finished: 1 application still needs a decision.', $election->phase_alert);
+        $this->assertSame(1, $this->noticesFor($this->admin, 'Election needs attention'));
+        $this->assertSame(1, AuditLog::where('action', 'phase_alert')->where('record_id', $this->election->id)->count());
+    }
+
+    public function test_a_filing_election_that_never_opened_voting_is_not_closed_at_its_end_time(): void
+    {
+        $this->election->forceFill(['results_visible' => false])->save();
+        $this->syncAt('2026-12-07 10:00:00');
+        $this->application('pending_review');
+        $this->syncAt('2026-12-10 08:00:00');
+        $this->assertNull($this->election->fresh()->finalized_at);
+
+        $this->syncAt('2026-12-12 09:00:00');
+
+        $election = $this->election->fresh();
+        $this->assertSame('upcoming', $election->status);
+        $this->assertNotSame('canvassing', $election->phase);
+        $this->assertFalse((bool) $election->results_visible);
+        $this->assertSame(0, Notification::where('reference_type', 'election')->where('reference_id', $election->id)->where('title', 'like', '%unoff%')->count());
+        $this->assertSame(0, AuditLog::where('action', 'results_published')->where('record_id', $election->id)->count());
+    }
+
+    public function test_a_legacy_election_is_still_closed_at_its_end_time_without_a_finalized_ballot(): void
+    {
+        $legacy = Election::factory()->create([
+            'organization_id' => $this->organization->id,
+            'status' => 'upcoming',
+            'approved_at' => '2026-11-20 09:00:00',
+            'finalized_at' => null,
+            'start_time' => '2026-12-10 08:00:00',
+            'end_time' => '2026-12-11 17:00:00',
+        ]);
+
+        $this->syncAt('2026-12-12 09:00:00');
+
+        $this->assertSame('closed', $legacy->fresh()->status);
+    }
 }
