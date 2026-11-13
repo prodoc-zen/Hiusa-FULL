@@ -58,7 +58,8 @@ class ElectionResultsController extends Controller
         $closed = $election->status === 'closed';
         $legacy = (int) $election->tally_version === 1;
 
-        $handedOver = $election->access_handed_over_at !== null;
+        // Only an election counted under the earlier reading hands access over in one step; a current one reads officer_access.
+        $handedOver = $legacy && $election->access_handed_over_at !== null;
         $skippedTitles = $handedOver ? app(ElectionHandoverService::class)->skippedTitles($election) : [];
         $appointments = ! $legacy && $closed
             ? OfficerAppointment::where('election_id', $election->id)->where('kind', 'incoming')->get(['election_position_id', 'status', 'term_starts_on'])

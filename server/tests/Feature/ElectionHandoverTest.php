@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Candidate;
+use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\Notification;
+use App\Models\OfficerAppointment;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
@@ -59,9 +61,15 @@ class ElectionHandoverTest extends TestCase
         return $profile && $profile->role !== 'STUDENT' ? $profile : null;
     }
 
-    private function closedElection(bool $visible = false): Election
+    /**
+     * An election counted under the earlier reading (tally version 1), which hands the office over in one step as it
+     * always did. The staged hand over of a current election is covered at the end of this file and in
+     * OfficerAppointmentTest.
+     */
+    private function closedElection(bool $visible = false, int $tallyVersion = 1): Election
     {
         return Election::factory()->create([
+            'tally_version' => $tallyVersion,
             'organization_id' => $this->organization->id,
             'status' => 'closed',
             'start_time' => now()->subDays(3),
@@ -800,5 +808,64 @@ class ElectionHandoverTest extends TestCase
         $this->profile($outgoing)->update(['account_status' => 'inactive']);
 
         $this->signIn($outgoing)->assertForbidden()->assertJsonPath('message', 'This account profile is unavailable.');
+    }
+
+    private function renewalDeadline(string $date): void
+    {
+        ComplianceRequirementType::create([
+            'category' => 'renewal', 'academic_year' => '2026-2027', 'name' => 'Renewal', 'deadline_at' => $date.' 23:59:59',
+            'is_active' => true, 'created_by' => $this->admin->school_id,
+        ]);
+    }
+
+    public function test_releasing_a_current_election_creates_an_upcoming_appointment_and_changes_no_access(): void
+    {
+        $this->renewalDeadline(now()->addMonths(3)->toDateString());
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection(false, 2);
+        [$winner] = $this->position($election, 'Secretary', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($outgoing)->role);
+        $appointment = OfficerAppointment::where('user_school_id', $winner->school_id)->firstOrFail();
+        $this->assertSame('upcoming', $appointment->status);
+        $this->assertSame('incoming', $appointment->kind);
+        $this->assertSame('outgoing', OfficerAppointment::where('user_school_id', $outgoing->school_id)->value('kind'));
+        $this->assertDatabaseHas('notifications', ['user_id' => $winner->school_id, 'title' => 'You won Secretary']);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $winner->school_id, 'title' => 'You now have access to '.$this->organization->name]);
+        $this->assertNull($election->fresh()->access_handed_over_at);
+    }
+
+    public function test_a_current_election_with_a_start_date_already_passed_hands_over_when_released(): void
+    {
+        $this->renewalDeadline(now()->addDays(10)->toDateString());
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->closedElection(false, 2);
+        [$winner] = $this->position($election, 'Secretary', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('SBO_OFFICER', $this->profile($winner)->role);
+        $this->assertSame('Secretary', $this->profile($winner)->position_title);
+        $this->assertSame('start_passed', OfficerAppointment::where('user_school_id', $winner->school_id)->value('flag'));
+        $this->assertDatabaseHas('notifications', ['user_id' => $winner->school_id, 'title' => 'You now have access to '.$this->organization->name]);
+        // With no school year on record the outgoing term ends the day the incoming one starts, which has passed.
+        $this->assertSame('STUDENT', $this->profile($outgoing)->role);
+        $this->assertSame('active', $this->profile($outgoing)->account_status);
+    }
+
+    public function test_a_current_election_without_a_renewal_deadline_waits_and_is_flagged(): void
+    {
+        $election = $this->closedElection(false, 2);
+        [$winner] = $this->position($election, 'President', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $appointment = OfficerAppointment::where('user_school_id', $winner->school_id)->firstOrFail();
+        $this->assertSame('missing_deadline', $appointment->flag);
+        $this->assertSame('upcoming', $appointment->status);
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
     }
 }
