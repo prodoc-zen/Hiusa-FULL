@@ -11,12 +11,12 @@ use App\Models\Notification;
 use App\Models\OfficerAppointment;
 use App\Models\OfficerHandover;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\User;
 use App\Support\RenewalDeadline;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * Turns a released election into staged officer appointments. A winner is Upcoming until the term start, which is the
@@ -277,9 +277,7 @@ class OfficerAppointmentService
     /** The President and every Vice President head the organization; every other seat is an officer. */
     private function roleFor(string $title): string
     {
-        $normalised = Str::lower(trim(preg_replace('/[\p{Pd}\s]+/u', ' ', $title) ?? $title));
-
-        return $normalised === 'president' || str_starts_with($normalised, 'vice president') ? 'ADMIN' : 'SBO_OFFICER';
+        return SboPosition::normaliseTitle($title) === 'president' || SboPosition::isVicePresidentTitle($title) ? 'ADMIN' : 'SBO_OFFICER';
     }
 
     /** Why a winner cannot be given the seat, or null. A profile or account switched off for cause stays off. */
@@ -307,12 +305,18 @@ class OfficerAppointmentService
      */
     private function prepareOutgoing(Election $election, Organization $organization, ElectionPosition $position, string $title, array $winnerIds, ?Carbon $schoolYearEnd, ?string $academicYear, ?int $actor, ?string $ip): void
     {
+        // A seat titled only with dashes normalises to nothing and names no incumbent.
+        $seat = SboPosition::normaliseTitle($title);
+        if ($seat === '') {
+            return;
+        }
+
         $holders = AccountProfile::where('organization_id', $organization->id)
             ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
             ->where('account_status', 'active')
-            ->whereRaw('lower(trim(position_title)) = ?', [Str::lower($title)])
             ->whereNotIn('user_school_id', $winnerIds)
-            ->get();
+            ->get()
+            ->filter(fn (AccountProfile $profile) => $profile->position_title !== null && SboPosition::normaliseTitle($profile->position_title) === $seat);
 
         foreach ($holders as $profile) {
             $known = OfficerAppointment::where('election_id', $election->id)
@@ -561,11 +565,13 @@ class OfficerAppointmentService
             return;
         }
 
-        if (Str::lower(trim((string) $profile->position_title)) !== Str::lower(trim($ended->position_title))) {
+        if ($profile->position_title === null || SboPosition::normaliseTitle($profile->position_title) !== SboPosition::normaliseTitle($ended->position_title)) {
             return;
         }
 
         $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
+        // The account row of a member whose home is this organization holds the title as well, and reads back when the profile has none.
+        User::where('school_id', $ended->user_school_id)->where('organization_id', $ended->organization_id)->update(['position_title' => null]);
     }
 
     /** The end of the school year the election was held in: the latest semester end of its academic year. */
