@@ -1674,16 +1674,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </fieldset>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Covered period">
-                  <HiusaSelect value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })}>
+                <Field label="Covered period" className="min-w-0">
+                  <HiusaSelect className="min-w-0 w-full" value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })}>
                     <option value="semester">Semester</option>
                     <option value="event">One event</option>
                     <option value="monthly">This month</option>
                     <option value="custom">Custom dates</option>
                   </HiusaSelect>
                 </Field>
-                {reportForm.report_type === 'semester' ? <Field label="Semester" required>
-                  <HiusaSelect value={reportForm.academic_semester_id} onChange={(event) => setReportForm({ ...reportForm, academic_semester_id: event.target.value })}><option value="">Select semester</option>{(reportSemesters || []).map((semester) => <option key={semester.id} value={semester.id}>AY {semester.academic_year?.label}, {semester.number === 1 ? '1st' : '2nd'} Semester ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
+                {reportForm.report_type === 'semester' ? <Field label="Semester" required className="min-w-0">
+                  <HiusaSelect className="min-w-0 w-full" value={reportForm.academic_semester_id} onChange={(event) => setReportForm({ ...reportForm, academic_semester_id: event.target.value })}><option value="">Select semester</option>{(reportSemesters || []).map((semester) => <option key={semester.id} value={semester.id}>AY {semester.academic_year?.label}, {semester.number === 1 ? '1st' : '2nd'} Semester ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
                 </Field> : null}
                 {reportForm.report_type === 'event' && <Field label="Event" required>
                   <HiusaSelect value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })}>

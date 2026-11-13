@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\SboPosition;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -14,11 +15,12 @@ return new class extends Migration
         });
 
         // The positions that book venues today keep doing so; Assistant Secretary and the rest start off.
-        DB::table('sbo_positions')
-            ->where(fn ($query) => $query
-                ->whereIn(DB::raw('LOWER(TRIM(title))'), ['president', 'secretary', 'business manager'])
-                ->orWhere(DB::raw('LOWER(TRIM(title))'), 'like', 'vice president%'))
-            ->update(['can_book_venues' => true]);
+        $ids = DB::table('sbo_positions')->select('id', 'title')->get()
+            ->filter(fn ($position) => SboPosition::bookingDefaultFor((string) $position->title))
+            ->pluck('id');
+        foreach ($ids->chunk(500) as $chunk) {
+            DB::table('sbo_positions')->whereIn('id', $chunk->all())->update(['can_book_venues' => true]);
+        }
     }
 
     public function down(): void

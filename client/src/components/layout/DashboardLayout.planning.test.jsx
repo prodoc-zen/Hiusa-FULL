@@ -79,6 +79,17 @@ describe('DashboardLayout planning and workspace banners', () => {
     expect(screen.queryByRole('complementary', { name: 'Closed semester' })).not.toBeInTheDocument();
   });
 
+  it('tells a student the closed semester is read only while no semester is active', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    localStorage.setItem(PERIOD_KEY, JSON.stringify(closed));
+    mocks.getActiveAcademicPeriod.mockResolvedValue(null);
+    renderLayout('/dashboard/student');
+
+    expect(await screen.findByRole('complementary', { name: 'Closed semester' })).toHaveTextContent('a closed semester. Everything here is read only.');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to current semester' }));
+    expect(screen.queryByRole('complementary', { name: 'Closed semester' })).not.toBeInTheDocument();
+  });
+
   it('shows the viewing banner for a dean inside an organization space, not the old oversight copy', async () => {
     sessionStorage.setItem(SUB_ACCOUNT_KEY, JSON.stringify({ id: 12, name: 'Computing Society', acronym: 'CS' }));
     renderLayout();

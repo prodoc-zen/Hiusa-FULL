@@ -168,6 +168,67 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame('Vice President – Internal', $this->profile($vpInternal)->position_title);
     }
 
+    public function test_only_a_title_that_is_a_vice_president_seat_becomes_admin(): void
+    {
+        $election = $this->closedElection();
+        [$aide] = $this->position($election, 'Vice Presidential Aide', [3]);
+        [$assistant] = $this->position($election, "Vice President's Assistant", [3]);
+        [$hyphen] = $this->position($election, 'Vice-President', [3]);
+        [$academic] = $this->position($election, 'Vice President for Academic Affairs', [3]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('SBO_OFFICER', $this->profile($aide)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($assistant)->role);
+        $this->assertSame('ADMIN', $this->profile($hyphen)->role);
+        $this->assertSame('ADMIN', $this->profile($academic)->role);
+    }
+
+    public function test_a_seat_spelled_with_a_dash_demotes_the_incumbent_spelled_with_a_space(): void
+    {
+        $incumbent = $this->member('ADMIN', 'Vice President');
+        $election = $this->closedElection();
+        [$winner] = $this->position($election, 'Vice-President', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame(['STUDENT', 'active', null], $this->held($incumbent));
+        $this->assertSame('ADMIN', $this->profile($winner)->role);
+    }
+
+    public function test_a_seat_titled_only_with_dashes_demotes_nobody_and_untitled_officers_keep_their_roles(): void
+    {
+        $untitledAdmin = $this->member('ADMIN', null);
+        $untitledOfficer = $this->member('SBO_OFFICER', null);
+        $election = $this->closedElection();
+        $this->position($election, '-', [3]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('ADMIN', $this->profile($untitledAdmin)->fresh()->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($untitledOfficer)->fresh()->role);
+    }
+
+    public function test_a_position_title_needs_a_letter_or_a_number(): void
+    {
+        $election = Election::factory()->create(['organization_id' => $this->organization->id, 'status' => 'upcoming', 'start_time' => now()->addDays(2), 'end_time' => now()->addDays(3)]);
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Treasurer']);
+        Sanctum::actingAs($this->admin);
+
+        foreach (['-', "\u{2014}", "\u{2013} \u{2013}"] as $title) {
+            $this->postJson("/api/elections/{$election->id}/positions", ['title' => $title, 'max_winners' => 1])
+                ->assertStatus(422)->assertJsonValidationErrors(['title'])
+                ->assertJsonPath('errors.title.0', 'A position title needs at least one letter or number.');
+            $this->putJson("/api/elections/{$election->id}/positions/{$position->id}", ['title' => $title])
+                ->assertStatus(422)->assertJsonValidationErrors(['title']);
+            $this->postJson('/api/elections', ['title' => 'Election', 'start_time' => now()->addDay()->toISOString(), 'end_time' => now()->addDays(2)->toISOString(), 'positions' => [['title' => $title, 'max_winners' => 1]]])
+                ->assertStatus(422)->assertJsonValidationErrors(['positions.0.title']);
+        }
+
+        $this->postJson("/api/elections/{$election->id}/positions", ['title' => 'Auditor 2', 'max_winners' => 1])->assertSuccessful();
+        $this->assertSame('Treasurer', $position->fresh()->title);
+    }
+
     public function test_the_standard_titles_listed_under_both_roles_still_split_admin_from_officer(): void
     {
         $titles = ['President', 'Vice President – Internal', 'Vice President – External', 'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Business Manager'];
@@ -245,6 +306,9 @@ class ElectionHandoverTest extends TestCase
         $this->assertNull($profile->modules);
         $this->assertSame('active', $profile->account_status);
         $this->assertSame($this->organization->id, $profile->organization_id);
+        // The account row of a member whose home is this organization carries the title too; it must not show it again.
+        $this->assertDatabaseHas('users', ['school_id' => $outgoing->school_id, 'position_title' => null]);
+        $this->assertNull($outgoing->fresh()->position_title);
 
         Sanctum::actingAs($outgoing);
         $this->getJson('/api/elections')->assertOk();

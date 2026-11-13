@@ -561,11 +561,11 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'informative_letter' => [$semester && $complete ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
             'positions' => $filing && $complete ? ['required', 'array', 'min:1', 'max:30'] : ($complete ? ['sometimes', 'array', 'min:1', 'max:30'] : ['sometimes', 'nullable', 'array', 'max:30']),
-            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
+            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case', 'regex:/[\p{L}\p{N}]/u'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
             ...$this->positionRules('positions.*.'),
             ...$this->setupRules($complete, $filing),
-        ]);
+        ], ['positions.*.title.regex' => 'A position title needs at least one letter or number.']);
         foreach ($data['positions'] ?? [] as $index => $position) {
             $this->assertVoteLimit(isset($position['vote_limit']) ? (int) $position['vote_limit'] : null, (int) $position['max_winners'], "positions.{$index}.vote_limit");
         }
@@ -1147,11 +1147,12 @@ class ElectionController extends Controller
                 'required',
                 'string',
                 'max:100',
+                'regex:/[\p{L}\p{N}]/u',
                 Rule::unique('election_positions', 'title')->where(fn ($query) => $query->where('election_id', $election->id)),
             ],
             'max_winners' => ['nullable', 'integer', 'min:1', 'max:20'],
             ...$this->positionRules(),
-        ]);
+        ], ['title.regex' => 'A position title needs at least one letter or number.']);
         $this->assertVoteLimit(isset($data['vote_limit']) ? (int) $data['vote_limit'] : null, (int) ($data['max_winners'] ?? 1), 'vote_limit');
 
         try {
@@ -1223,13 +1224,14 @@ class ElectionController extends Controller
                 'required',
                 'string',
                 'max:100',
+                'regex:/[\p{L}\p{N}]/u',
                 Rule::unique('election_positions', 'title')
                     ->where(fn ($query) => $query->where('election_id', $election->id))
                     ->ignore($position->id),
             ],
             'max_winners' => ['sometimes', 'required', 'integer', 'min:1', 'max:20'],
             ...$this->positionRules(),
-        ]);
+        ], ['title.regex' => 'A position title needs at least one letter or number.']);
 
         if (isset($data['title'])) {
             $data['title'] = trim($data['title']);

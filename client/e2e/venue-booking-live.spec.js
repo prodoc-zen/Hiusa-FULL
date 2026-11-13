@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { OFFICER, PSITS_ADMIN, SAO, apiAs, collect, liveEnabled, newSink, uiLogin } from './support/live.js';
+import { OFFICER_BOOKER, PSITS_ADMIN, SAO, apiAs, collect, liveEnabled, newSink, uiLogin } from './support/live.js';
 
 // The Admin and the Officer book venues from /dashboard/venues. This checks, against a real API, that the
 // availability timeline still shows who holds a slot, that a clashing request is refused with the server's
@@ -24,7 +24,7 @@ async function releaseDay(api, venueId, day) {
   for (const row of held) await api.patch(`/venue-bookings/${row.id}/withdraw`);
 }
 
-for (const [index, account] of [[1, PSITS_ADMIN], [3, OFFICER]]) {
+for (const [index, account] of [[1, PSITS_ADMIN], [3, OFFICER_BOOKER]]) {
   test(`${account.role} sees availability, is told about a conflict and books a free slot`, async ({ page }) => {
     test.setTimeout(150_000);
     collect(page, account.role, sink);

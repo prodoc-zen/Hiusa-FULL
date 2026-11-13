@@ -26,10 +26,14 @@ class SboPositionSeeder extends Seeder
         Organization::student()->get(['id'])->each(function (Organization $organization) use ($positions) {
             foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
                 foreach ($positions as $title) {
-                    SboPosition::updateOrCreate(
-                        ['organization_id' => $organization->id, 'role' => $role, 'title' => $title],
-                        ['is_active' => true]
-                    );
+                    // DatabaseSeeder runs without model events, so the creating hook cannot set the switch here.
+                    // Only a new row gets the default, so a reseed never overwrites an Admin's choice.
+                    $position = SboPosition::firstOrNew(['organization_id' => $organization->id, 'role' => $role, 'title' => $title]);
+                    if (! $position->exists) {
+                        $position->can_book_venues = SboPosition::bookingDefaultFor($title);
+                    }
+                    $position->is_active = true;
+                    $position->save();
                 }
             }
         });

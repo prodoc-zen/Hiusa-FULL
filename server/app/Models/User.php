@@ -162,21 +162,42 @@ class User extends Authenticatable
 
     public function getPositionTitleAttribute($value): ?string
     {
-        return $this->activeAccountProfile?->position_title ?? $value;
+        $profile = $this->activeAccountProfile;
+
+        // A profile in another organization never borrows the title the account row holds for the home organization.
+        if (! $profile || (int) $profile->organization_id === (int) $this->getRawOriginal('organization_id')) {
+            return $profile?->position_title ?? $value;
+        }
+
+        return $profile->position_title;
     }
 
     /**
      * Admins always book venues. An officer books when the position on the active profile has its "Can book venues"
-     * switch on; an officer with no position, or one the list no longer holds, has no switch to turn off.
+     * switch on; a title the list does not hold (or no title) follows the position default.
      */
     public function canBookVenues(): bool
     {
         return match ($this->profileRole()) {
             'ADMIN' => true,
-            'SBO_OFFICER' => $this->position_title === null
-                || SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->where('title', $this->position_title)->value('can_book_venues') !== false,
+            'SBO_OFFICER' => $this->officerCanBookVenues(),
             default => false,
         };
+    }
+
+    /** The listed position is found by exact title, then by normalised title, so "Business-Manager" meets the "Business Manager" row; an inactive row never books. */
+    private function officerCanBookVenues(): bool
+    {
+        $title = trim((string) $this->position_title);
+        if ($title === '') {
+            return false;
+        }
+
+        $wanted = SboPosition::normaliseTitle($title);
+        $rows = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->get(['title', 'can_book_venues', 'is_active']);
+        $position = $rows->firstWhere('title', $title) ?? $rows->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
+
+        return $position ? $position->is_active && $position->can_book_venues : SboPosition::bookingDefaultFor($title);
     }
 
     public function activeProfile(): ?AccountProfile

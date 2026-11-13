@@ -7,6 +7,7 @@ import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import { RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
 import { Button, Card, EmptyState, ErrorState, Skeleton, SkeletonStat, Stat } from '../../../components/ui';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
@@ -109,6 +110,7 @@ export default function DepartmentHeadHomePage() {
   return (
     <div className="w-full space-y-6">
       <ProcessTracker />
+      <RoleBriefing />
       {loadError && <ErrorState title="Could not load your college overview" description={loadError} onRetry={() => setReloadKey((value) => value + 1)} />}
 
       <section aria-labelledby="college-overview">
