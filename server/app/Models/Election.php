@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ElectionHandoverService;
+use App\Services\ElectionPhaseService;
 use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -98,13 +99,19 @@ class Election extends Model
      * Keep the persisted workflow status aligned with the approved voting
      * schedule. Closed elections stay closed so an administrator can still end
      * voting early without the scheduler reopening them. Only approved,
-     * finalized ballots open, and only inside their voting window.
+     * finalized ballots open, and only inside their voting window. A suspended
+     * or cancelled election neither opens nor closes. Elections with a filing
+     * window first move through their phases (ElectionPhaseService), which locks
+     * the ballot when voting is due; a closed election then enters canvassing.
      *
      * @param  array<int>|null  $organizationIds  null covers every organization
      * @return array{opened: int, closed: int}
      */
     public static function synchronizeScheduledStatuses(?array $organizationIds = null, ?int $electionId = null): array
     {
+        $phases = app(ElectionPhaseService::class);
+        $phases->sync($organizationIds, $electionId);
+
         $now = now();
         $semesterId = AcademicSemester::active()?->id;
         $baseQuery = fn () => static::query()
@@ -112,18 +119,27 @@ class Election extends Model
             ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
             ->when($organizationIds !== null, fn ($query) => $query->whereIn('organization_id', $organizationIds))
             ->when($electionId, fn ($query) => $query->whereKey($electionId));
+        $running = fn () => $baseQuery()->whereNull('suspended_at')->whereNull('cancelled_at');
 
-        $closed = $baseQuery()
+        $closed = $running()
             ->whereIn('status', ['upcoming', 'active'])
             ->where('end_time', '<', $now)
             ->update(['status' => 'closed']);
 
-        $opened = $baseQuery()
+        $opened = $running()
             ->where('status', 'upcoming')
             ->whereNotNull('finalized_at')
             ->where('start_time', '<=', $now)
             ->where('end_time', '>=', $now)
             ->update(['status' => 'active']);
+
+        // Elections already counted under the earlier reading (tally version 1) keep no phase.
+        $phases->enterCanvassing($baseQuery()
+            ->where('status', 'closed')
+            ->where('tally_version', 2)
+            ->whereNull('cancelled_at')
+            ->where(fn ($query) => $query->whereNull('phase')->orWhereIn('phase', ['scheduled', 'filing', 'screening', 'campaign', 'voting']))
+            ->get());
 
         $service = app(ElectionHandoverService::class);
         $baseQuery()
