@@ -42,7 +42,7 @@ class SboPositionController extends Controller
         $organizationId = $request->user()->organization_id;
         $data = $request->validate([
             'role' => ['required', 'in:ADMIN,SBO_OFFICER'],
-            'title' => ['required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $request->input('role')))],
+            'title' => ['required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $request->input('role'))), $this->notASpellingOfAnotherTitle($organizationId, $request->input('role'))],
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
             'can_book_venues' => ['sometimes', 'boolean'],
@@ -66,7 +66,7 @@ class SboPositionController extends Controller
         $role = $request->input('role', $position->role);
         $data = $request->validate([
             'role' => ['sometimes', 'required', 'in:ADMIN,SBO_OFFICER'],
-            'title' => ['sometimes', 'required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $role))->ignore($position->id)],
+            'title' => ['sometimes', 'required', 'string', 'min:2', 'max:100', Rule::unique('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $organizationId)->where('role', $role))->ignore($position->id), $this->notASpellingOfAnotherTitle($organizationId, $role, $position->id)],
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
             'can_book_venues' => ['sometimes', 'boolean'],
@@ -77,7 +77,7 @@ class SboPositionController extends Controller
             $position->update($data);
 
             if ($oldRole !== $position->role || $oldTitle !== $position->title || ! $position->is_active) {
-                $this->retitleHolders($position->organization_id, $oldRole, $oldTitle, $oldRole === $position->role && $position->is_active ? $position->title : null);
+                $this->retitleHolders($position, $oldRole, $oldTitle, $oldRole === $position->role && $position->is_active ? $position->title : null);
             }
         });
         $this->audit($request, 'updated', $position, $old, $position->fresh()->getAttributes());
@@ -92,7 +92,7 @@ class SboPositionController extends Controller
         $old = $position->getAttributes();
 
         DB::transaction(function () use ($position) {
-            $this->retitleHolders($position->organization_id, $position->role, $position->title, null);
+            $this->retitleHolders($position, $position->role, $position->title, null);
             $position->delete();
         });
 
@@ -101,16 +101,34 @@ class SboPositionController extends Controller
         return response()->json(['message' => 'Position deleted successfully.']);
     }
 
+    /** "Business-Manager" and "business manager" are the one position: refuse a title that normalises to another row's. */
+    private function notASpellingOfAnotherTitle(int $organizationId, mixed $role, ?int $exceptId = null): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($organizationId, $role, $exceptId) {
+            $wanted = SboPosition::normaliseTitle((string) $value);
+            $taken = SboPosition::where('organization_id', $organizationId)->where('role', $role)->when($exceptId, fn ($query) => $query->whereKeyNot($exceptId))->pluck('title')
+                ->contains(fn ($title) => SboPosition::normaliseTitle($title) === $wanted);
+            if ($taken) {
+                $fail('A position with this title already exists.');
+            }
+        };
+    }
+
     /**
      * Everyone holding the old title under the old role takes the new one (or none), on the account row and on the organization's profile.
-     * Holders are found by normalised title, the way the booking switch and the election hand-over read it.
+     * Holders are found by normalised title, the way the booking switch and the election hand-over read it,
+     * except those whose exact title belongs to another row of the organization: a twin keeps its own holders.
      * The profile is what the signed-in user reads first, so leaving its title behind would keep an officer on a position that no longer exists.
      */
-    private function retitleHolders(int $organizationId, string $role, string $oldTitle, ?string $newTitle): void
+    private function retitleHolders(SboPosition $position, string $role, string $oldTitle, ?string $newTitle): void
     {
+        $organizationId = $position->organization_id;
         $wanted = SboPosition::normaliseTitle($oldTitle);
+        $twinTitles = SboPosition::where('organization_id', $organizationId)->where('role', $role)->whereKeyNot($position->id)->pluck('title')->all();
         // The raw column: a User's position_title attribute reads the active profile first.
-        $holds = fn ($row) => $row->getRawOriginal('position_title') !== null && SboPosition::normaliseTitle($row->getRawOriginal('position_title')) === $wanted;
+        $holds = fn ($row) => $row->getRawOriginal('position_title') !== null
+            && SboPosition::normaliseTitle($row->getRawOriginal('position_title')) === $wanted
+            && ! in_array($row->getRawOriginal('position_title'), $twinTitles, true);
 
         $userIds = User::where('organization_id', $organizationId)->where('role', $role)->whereNotNull('position_title')->get(['school_id', 'position_title'])->filter($holds)->pluck('school_id');
         if ($userIds->isNotEmpty()) {

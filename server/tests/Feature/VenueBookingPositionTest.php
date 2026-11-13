@@ -127,6 +127,62 @@ class VenueBookingPositionTest extends TestCase
         $this->assertFalse($canBook($deleted));
     }
 
+    public function test_titles_that_differ_only_by_spelling_cannot_be_added_and_stored_twins_each_keep_their_own_switch(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['role' => 'ADMIN', 'organization_id' => $organization->id, 'account_status' => 'active']);
+        $this->position($organization, 'Business Manager')->update(['can_book_venues' => false]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/sbo-positions', ['role' => 'SBO_OFFICER', 'title' => 'Business-Manager'])
+            ->assertStatus(422)->assertJsonPath('errors.title.0', 'A position with this title already exists.');
+        $this->postJson('/api/sbo-positions', ['role' => 'ADMIN', 'title' => 'business  manager'])->assertCreated();
+        $other = $this->position($organization, 'Treasurer');
+        $this->putJson("/api/sbo-positions/{$other->id}", ['title' => 'Business-Manager'])
+            ->assertStatus(422)->assertJsonPath('errors.title.0', 'A position with this title already exists.');
+        $this->putJson("/api/sbo-positions/{$other->id}", ['title' => 'Treasurer', 'description' => 'Keeps its own title'])->assertOk();
+
+        // Twins stored before the rule existed: the exact title decides, whichever row was stored first.
+        $this->position($organization, 'Business-Manager')->update(['can_book_venues' => true]);
+        $this->assertFalse($this->officer($organization, 'Business Manager')->canBookVenues());
+        $this->assertTrue($this->officer($organization, 'Business-Manager')->canBookVenues());
+    }
+
+    public function test_deleting_one_stored_twin_moves_only_its_exact_holders(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['role' => 'ADMIN', 'organization_id' => $organization->id, 'account_status' => 'active']);
+        $plain = $this->position($organization, 'Business Manager');
+        $this->position($organization, 'Business-Manager');
+        $plainHolder = $this->officer($organization, 'Business Manager');
+        $dashHolder = $this->officer($organization, 'Business-Manager');
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson("/api/sbo-positions/{$plain->id}")->assertOk();
+
+        $this->assertNull(User::find($plainHolder->school_id)->getRawOriginal('position_title'));
+        $this->assertSame('Business-Manager', User::find($dashHolder->school_id)->getRawOriginal('position_title'));
+    }
+
+    public function test_a_profile_without_a_title_does_not_borrow_the_title_on_the_home_organization(): void
+    {
+        $home = Organization::factory()->create();
+        $other = Organization::factory()->create();
+        $this->position($other, 'Secretary')->update(['can_book_venues' => true]);
+        $officer = $this->officer($home, 'Secretary');
+        $profile = AccountProfile::updateOrCreate(
+            ['user_school_id' => $officer->school_id, 'organization_id' => $other->id],
+            ['role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => null],
+        );
+
+        $this->app['auth']->forgetGuards();
+        $token = $officer->createToken('other-profile');
+        $token->accessToken->forceFill(['account_profile_id' => $profile->id])->save();
+
+        $this->withToken($token->plainTextToken)->getJson('/api/user')->assertOk()
+            ->assertJsonPath('can_book_venues', false)->assertJsonPath('position_title', null);
+    }
+
     public function test_the_positions_endpoint_creates_with_the_title_default_and_an_admin_can_switch_it(): void
     {
         $organization = Organization::factory()->create();

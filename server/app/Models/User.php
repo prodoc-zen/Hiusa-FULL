@@ -162,7 +162,14 @@ class User extends Authenticatable
 
     public function getPositionTitleAttribute($value): ?string
     {
-        return $this->activeAccountProfile?->position_title ?? $value;
+        $profile = $this->activeAccountProfile;
+
+        // A profile in another organization never borrows the title the account row holds for the home organization.
+        if (! $profile || (int) $profile->organization_id === (int) $this->getRawOriginal('organization_id')) {
+            return $profile?->position_title ?? $value;
+        }
+
+        return $profile->position_title;
     }
 
     /**
@@ -178,7 +185,7 @@ class User extends Authenticatable
         };
     }
 
-    /** The listed position is found by normalised title, so "Business-Manager" meets the "Business Manager" row; an inactive row never books. */
+    /** The listed position is found by exact title, then by normalised title, so "Business-Manager" meets the "Business Manager" row; an inactive row never books. */
     private function officerCanBookVenues(): bool
     {
         $title = trim((string) $this->position_title);
@@ -187,9 +194,8 @@ class User extends Authenticatable
         }
 
         $wanted = SboPosition::normaliseTitle($title);
-        $position = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')
-            ->get(['title', 'can_book_venues', 'is_active'])
-            ->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
+        $rows = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->get(['title', 'can_book_venues', 'is_active']);
+        $position = $rows->firstWhere('title', $title) ?? $rows->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
 
         return $position ? $position->is_active && $position->can_book_venues : SboPosition::bookingDefaultFor($title);
     }
