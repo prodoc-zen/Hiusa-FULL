@@ -119,6 +119,10 @@ class ElectionRouteScaffoldTest extends TestCase
             $response = $this->json($method, $path);
 
             if (in_array($role, $roles, true)) {
+                // The governance routes are built; their behaviour is pinned in ElectionGovernanceTest.
+                if ($action[0] === ElectionGovernanceController::class) {
+                    continue;
+                }
                 $response->assertStatus(501);
             } else {
                 $response->assertForbidden();
