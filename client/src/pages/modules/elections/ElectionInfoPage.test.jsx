@@ -333,6 +333,7 @@ describe('ElectionInfoPage', () => {
     render(<MemoryRouter initialEntries={['/dashboard/elections/election-info?record=5']}><ElectionInfoPage /></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: 'Council Election' })).toBeInTheDocument();
     expect(services.getElectionDetails).toHaveBeenCalledWith('5');
-    expect(services.getMyApplications).toHaveBeenCalledWith(5);
+    // The applications are read in the effect that follows the election arriving, which can lag under load.
+    await waitFor(() => expect(services.getMyApplications).toHaveBeenCalledWith(5));
   });
 });
