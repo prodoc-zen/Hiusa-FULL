@@ -9,10 +9,10 @@ use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class ElectionHandoverService
 {
@@ -104,9 +104,9 @@ class ElectionHandoverService
                 $outgoing = AccountProfile::where('organization_id', $organization->id)
                     ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
                     ->where('account_status', 'active')
-                    ->whereRaw('lower(position_title) = ?', [Str::lower($row['position']->title)])
                     ->whereNotIn('user_school_id', $winnerIds)
-                    ->get();
+                    ->get()
+                    ->filter(fn (AccountProfile $profile) => SboPosition::normaliseTitle((string) $profile->position_title) === SboPosition::normaliseTitle($row['position']->title));
                 foreach ($outgoing as $profile) {
                     // A former officer is still a member: they keep the organization, stay on the voter roll and lose only the seat.
                     $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
@@ -154,9 +154,7 @@ class ElectionHandoverService
      */
     private function roleFor(string $title): string
     {
-        $normalised = Str::lower(trim(preg_replace('/[\p{Pd}\s]+/u', ' ', $title) ?? $title));
-
-        return $normalised === 'president' || str_starts_with($normalised, 'vice president') ? 'ADMIN' : 'SBO_OFFICER';
+        return SboPosition::normaliseTitle($title) === 'president' || SboPosition::isVicePresidentTitle($title) ? 'ADMIN' : 'SBO_OFFICER';
     }
 
     /**

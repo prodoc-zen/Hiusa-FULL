@@ -160,6 +160,34 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame('Vice President – Internal', $this->profile($vpInternal)->position_title);
     }
 
+    public function test_only_a_title_that_is_a_vice_president_seat_becomes_admin(): void
+    {
+        $election = $this->closedElection();
+        [$aide] = $this->position($election, 'Vice Presidential Aide', [3]);
+        [$assistant] = $this->position($election, "Vice President's Assistant", [3]);
+        [$hyphen] = $this->position($election, 'Vice-President', [3]);
+        [$academic] = $this->position($election, 'Vice President for Academic Affairs', [3]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame('SBO_OFFICER', $this->profile($aide)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($assistant)->role);
+        $this->assertSame('ADMIN', $this->profile($hyphen)->role);
+        $this->assertSame('ADMIN', $this->profile($academic)->role);
+    }
+
+    public function test_a_seat_spelled_with_a_dash_demotes_the_incumbent_spelled_with_a_space(): void
+    {
+        $incumbent = $this->member('ADMIN', 'Vice President');
+        $election = $this->closedElection();
+        [$winner] = $this->position($election, 'Vice-President', [4, 1]);
+
+        $this->release($election)->assertOk();
+
+        $this->assertSame(['STUDENT', 'active', null], $this->held($incumbent));
+        $this->assertSame('ADMIN', $this->profile($winner)->role);
+    }
+
     public function test_the_standard_titles_listed_under_both_roles_still_split_admin_from_officer(): void
     {
         $titles = ['President', 'Vice President – Internal', 'Vice President – External', 'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Business Manager'];
