@@ -336,17 +336,22 @@ export default function TopBar({ onMenuToggle }) {
         const currentDisplayPeriod = ((canPlanAhead || viewsClosedInPlace) && viewingPeriod) || activeAcademicPeriod;
         const isAdvanceMode = Boolean(activeAcademicPeriod && currentDisplayPeriod && currentDisplayPeriod.id !== activeAcademicPeriod.id && currentDisplayPeriod.status !== 'completed');
         const isArchiveMode = Boolean(currentDisplayPeriod && currentDisplayPeriod.status === 'completed');
+        // Between semesters nothing is active, yet a student can still read a closed one, so the selector stays while one exists.
+        const hasPeriodLabel = Boolean(currentDisplayPeriod?.academic_year?.label);
+        const noActiveSemester = !hasPeriodLabel && viewsClosedInPlace && availablePeriods.some((p) => p.status === 'completed');
+        const periodName = hasPeriodLabel ? `AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester` : 'No active semester';
+        const periodShortName = hasPeriodLabel ? `AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'}` : 'No active semester';
         return (
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2" ref={periodRef}>
-            {currentDisplayPeriod?.academic_year?.label && (
+            {(hasPeriodLabel || noActiveSemester) && (
               <div className={`relative min-w-0 ${hasSwitcher ? 'max-xl:shrink-0' : ''}`}>
                 <button
                   type="button"
                   onClick={() => setPeriodDropdownOpen((open) => !open)}
                   aria-expanded={periodDropdownOpen}
                   aria-haspopup="listbox"
-                  aria-label={`Academic Period: AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
-                  title={`AY ${currentDisplayPeriod.academic_year.label} · ${currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester`}
+                  aria-label={`Academic Period: ${periodName}`}
+                  title={periodName}
                   className={`inline-flex h-11 max-w-full items-center gap-1.5 rounded-control border px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:h-10 ${hasSwitcher ? 'max-xl:w-11 max-xl:justify-center max-xl:px-0 sm:max-xl:w-10' : ''} ${
                     isAdvanceMode
                       ? 'border-warning/40 bg-warning-tint text-ink hover:bg-warning-tint'
@@ -356,8 +361,8 @@ export default function TopBar({ onMenuToggle }) {
                   }`}
                 >
                   <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-ink-muted" />
-                  <span className={`truncate sm:hidden ${hasSwitcher ? 'max-xl:hidden' : ''}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'}</span>
-                  <span className={`hidden truncate ${hasSwitcher ? 'xl:inline' : 'sm:inline'}`}>AY {currentDisplayPeriod.academic_year.label} · {currentDisplayPeriod.number === 1 ? '1st' : '2nd'} Semester</span>
+                  <span className={`truncate sm:hidden ${hasSwitcher ? 'max-xl:hidden' : ''}`}>{periodShortName}</span>
+                  <span className={`hidden truncate ${hasSwitcher ? 'xl:inline' : 'sm:inline'}`}>{periodName}</span>
                   {isAdvanceMode && <span className={`hidden text-xs font-semibold text-warning-strong ${hasSwitcher ? 'xl:inline' : 'min-[480px]:inline'}`}>Planning</span>}
                   {isArchiveMode && <span className={`hidden text-xs font-semibold text-ink-muted-strong ${hasSwitcher ? 'xl:inline' : 'min-[480px]:inline'}`}>Archive</span>}
                   <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${hasSwitcher ? 'max-xl:hidden' : ''} ${periodDropdownOpen ? 'rotate-180' : ''}`} />
@@ -377,7 +382,7 @@ export default function TopBar({ onMenuToggle }) {
                       {(availablePeriods.length > 0 ? availablePeriods : (activeAcademicPeriod ? [activeAcademicPeriod] : []))
                         .filter((p) => p.id === activeAcademicPeriod?.id || (p.status === 'completed' ? hasRecords || viewsClosedInPlace : canPlanAhead))
                         .map((p) => {
-                        const isSelected = p.id === currentDisplayPeriod.id;
+                        const isSelected = p.id === currentDisplayPeriod?.id;
                         const isLive = p.id === activeAcademicPeriod?.id;
                         const isUpcoming = p.status === 'upcoming';
                         return (

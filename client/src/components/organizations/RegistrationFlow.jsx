@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { FlowStepper, NextStep } from '../ui';
 import { organizationRegistrationLifecycle, toNextStepProps } from '../../lib/lifecycle';
 
@@ -48,12 +49,16 @@ const LINE_TONE = {
 };
 
 // What a list row says about a registration: who owns the next move in words, then the compact
-// stepper. The text is always present so the stage never rests on color alone.
-export function RegistrationRowStatus({ organization, viewerRole, className = '' }) {
+// stepper. The text is always present so the stage never rests on color alone. linkToAction makes the sentence a link to the
+// target the callout's button opens, for a viewer who owns the next move.
+export function RegistrationRowStatus({ organization, viewerRole, linkToAction = false, className = '' }) {
   const { nextStep } = registrationView(organization, viewerRole);
+  const toneClass = `text-xs font-medium ${LINE_TONE[nextStep.tone] ?? 'text-ink'}`;
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <p className={`text-xs font-medium ${LINE_TONE[nextStep.tone] ?? 'text-ink'}`}>{nextStep.title}</p>
+      {linkToAction && nextStep.tone === 'action' && nextStep.primary?.to
+        ? <p className={toneClass}><Link to={nextStep.primary.to} className="inline-flex min-h-11 items-center rounded-control underline underline-offset-2 hover:text-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{nextStep.title}</Link></p>
+        : <p className={toneClass}>{nextStep.title}</p>}
       <RegistrationStepper organization={organization} viewerRole={viewerRole} variant="compact" />
     </div>
   );

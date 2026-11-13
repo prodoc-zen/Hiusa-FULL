@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations, registerForEvent } from '../../services/eventService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
+import { viewsClosedSemester } from '../../utils/academicPeriodStore';
 import notify from '../../lib/notify';
 import { Button, FlowStepper, ProgressMeter, Skeleton, StatusBadge } from '../ui';
 
@@ -72,13 +73,15 @@ function ParticipantRegistration({ event }) {
   }
 
   const status = registration?.status;
-  const open = event.status === 'approved' && isUpcoming(event);
+  // A closed semester is read only: no write control shows, whatever the event's own status says.
+  const readOnly = viewsClosedSemester('STUDENT');
+  const open = !readOnly && event.status === 'approved' && isUpcoming(event);
 
   let message;
   let action = null;
   if (status === 'registered') {
     message = `You registered on ${formatDateTime(registration.registered_at)}. Organizers will expect you at check-in.`;
-    if (isUpcoming(event)) {
+    if (!readOnly && isUpcoming(event)) {
       action = <Button variant="secondary" size="sm" loading={busy} onClick={() => run(cancelEventRegistration, 'Registration cancelled')}>Cancel registration</Button>;
     }
   } else if (status === 'attended') {
@@ -90,6 +93,8 @@ function ParticipantRegistration({ event }) {
       ? 'You cancelled earlier. You can register again while spots remain.'
       : 'Reserve your spot so organizers can plan seats, materials, and check-in.';
     action = <Button size="sm" loading={busy} onClick={() => run(registerForEvent, 'You are registered')}>Register for this event</Button>;
+  } else if (readOnly) {
+    message = 'This semester is closed. You can look, but not register.';
   } else {
     message = event.status === 'cancelled'
       ? 'This event was cancelled, so registration is closed.'

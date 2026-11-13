@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import EventRegistrationPanel from './EventRegistrationPanel';
+import { PERIOD_KEY } from '../../utils/academicPeriodStore';
 import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations, registerForEvent } from '../../services/eventService';
 
 vi.mock('../../services/eventService', () => ({
@@ -107,6 +108,38 @@ describe('EventRegistrationPanel', () => {
     const register = within(steps).getByText('Register').closest('li');
     expect(register).toHaveTextContent('Closed');
     expect(register).not.toHaveTextContent('Opens once approved');
+  });
+
+  describe('in a closed semester', () => {
+    beforeEach(() => localStorage.setItem(PERIOD_KEY, JSON.stringify({ id: 2, status: 'completed' })));
+    afterEach(() => localStorage.removeItem(PERIOD_KEY));
+
+    it('offers no Register button for an approved future event and says the view is read only', async () => {
+      vi.mocked(getMyEventRegistrations).mockResolvedValue(mine(null));
+      render(<EventRegistrationPanel event={event()} role="STUDENT" />);
+
+      expect(await screen.findByText('This semester is closed. You can look, but not register.')).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      expect(screen.queryByText('Reserve your spot so organizers can plan seats, materials, and check-in.')).not.toBeInTheDocument();
+      const register = within(screen.getByRole('list', { name: 'Your registration progress' })).getByText('Register').closest('li');
+      expect(register).toHaveTextContent('Closed');
+      expect(register).not.toHaveAttribute('aria-current');
+    });
+
+    it('keeps a registered student on record but takes the Cancel registration button away', async () => {
+      vi.mocked(getMyEventRegistrations).mockResolvedValue(mine({ id: 1, event_id: 7, status: 'registered', registered_at: past }));
+      render(<EventRegistrationPanel event={event()} role="STUDENT" />);
+
+      expect(await screen.findByText('You are registered')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cancel registration' })).not.toBeInTheDocument();
+    });
+
+    it('still lets an organizer see the roster', async () => {
+      vi.mocked(getEventRegistrations).mockResolvedValue({ data: { summary: { capacity: 0, registered: 0, attended: 0, cancelled: 0, no_show: 0, remaining: 0 }, registrations: [], pagination: { current_page: 1, last_page: 1, per_page: 10, total: 0 } } });
+      render(<EventRegistrationPanel event={event()} role="ADMIN" />);
+
+      expect(await screen.findByText('Registrations')).toBeInTheDocument();
+    });
   });
 
   it('surfaces the server reason when registration is refused', async () => {

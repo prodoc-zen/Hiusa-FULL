@@ -10,6 +10,8 @@ export const SAO = { schoolId: 990001, password: 'Admin@123456', role: 'SUPER_AD
 export const PSITS_ADMIN = { schoolId: 900001, password: 'Demo@12345', role: 'ADMIN', home: '/dashboard/admin' };
 export const PSITS_ADVISER = { schoolId: 990002, password: 'Admin@123456', role: 'ADMIN', home: '/dashboard/admin' };
 export const OFFICER = { schoolId: 900004, password: 'Demo@12345', role: 'SBO_OFFICER', home: '/dashboard/officer' };
+// The Treasurer cannot book venues; the Business Manager can, by the position's "Can book venues" switch.
+export const OFFICER_BOOKER = { schoolId: 900007, password: 'Demo@12345', role: 'SBO_OFFICER', home: '/dashboard/officer' };
 export const OFFICER_AUDITOR = { schoolId: 900005, password: 'Demo@12345', role: 'SBO_OFFICER', home: '/dashboard/officer' };
 
 export const HEAD_CCS = { schoolId: 940001, password: 'Demo@12345', role: 'DEPARTMENT_HEAD', home: '/dashboard/department-head' };

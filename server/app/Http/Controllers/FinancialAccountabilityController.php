@@ -97,7 +97,7 @@ class FinancialAccountabilityController extends Controller
             ->whereIn('organization_id', $this->readableOrganizationIds($request))
             ->when(! empty($filters['status']), fn ($query) => $query->whereIn('status', FilterValues::values($filters['status'])))
             ->latest('collected_at');
-        SemesterScope::selected($query, 'collected_at', AcademicSemester::selected($request));
+        SemesterScope::collections($query, AcademicSemester::selected($request));
         if ($request->filled('search')) {
             $query->where(fn ($q) => $q->where('reference', 'like', '%'.$request->search.'%')->orWhere('source', 'like', '%'.$request->search.'%'));
         }

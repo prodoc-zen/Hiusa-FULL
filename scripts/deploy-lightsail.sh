@@ -15,12 +15,12 @@ read -r -a ARTISAN <<< "${HIUSA_ARTISAN:-sudo -u www-data /usr/local/bin/hiusa-a
 BACKGROUND_UNITS=(hiusa-queue hiusa-scheduler)
 ALL_UNITS=(nginx mysql php8.3-fpm hiusa-ai hiusa-fingerprint hiusa-queue hiusa-scheduler)
 
-# "Nothing goes out": the server must keep mail on the log driver and the EDP integration on its local
-# driver. A deploy that finds anything else stops before it changes a file.
+# Mail goes out only through the configured SMTP account (turned on 13 Nov 2026) or stays on the log driver,
+# and the EDP integration stays on its local driver. A deploy that finds anything else stops before it changes a file.
 assert_quiet_mode() {
     local mail="$1" edp="$2"
-    if [[ "$mail" != log ]]; then
-        echo "Refusing to deploy: mail.default is '$mail', it must be 'log' so no email leaves the server." >&2
+    if [[ "$mail" != log && "$mail" != smtp ]]; then
+        echo "Refusing to deploy: mail.default is '$mail', it must be 'log' or 'smtp'." >&2
         return 1
     fi
     if [[ "$edp" != local ]]; then

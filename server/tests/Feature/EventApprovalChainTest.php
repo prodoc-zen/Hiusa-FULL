@@ -419,6 +419,57 @@ class EventApprovalChainTest extends TestCase
         $this->assertSame('approved', $this->headRow($eventId)->status);
     }
 
+    public function test_adding_a_poster_does_not_reopen_approval_when_the_browser_turns_line_feeds_into_crlf(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs($this->admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'General Assembly',
+            'description' => "Yearly meeting\nBring your ID",
+            'start_time' => now()->addWeek()->setTime(9, 0)->toDateTimeString(),
+            'end_time' => now()->addWeek()->setTime(11, 0)->toDateTimeString(),
+            'planning_details' => ['budget_notes' => "Venue\nSnacks"],
+        ])->assertCreated()->json('id');
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $event = Event::findOrFail($eventId);
+
+        Sanctum::actingAs($this->admin);
+        $this->post('/api/events/'.$eventId, [
+            '_method' => 'PUT',
+            'title' => 'General Assembly',
+            'description' => "Yearly meeting\r\nBring your ID",
+            'start_time' => $event->start_time->format('Y-m-d\TH:i'),
+            'end_time' => $event->end_time->format('Y-m-d\TH:i'),
+            'planning_details' => ['budget_notes' => "Venue\r\nSnacks"],
+            'image' => UploadedFile::fake()->image('poster.png'),
+        ])->assertOk()->assertJsonPath('status', 'approved');
+
+        $this->assertNotNull($event->fresh()->approved_at);
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+    }
+
+    public function test_adding_a_poster_does_not_reopen_approval_when_a_stored_zero_threshold_is_sent_blank(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs($this->admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'General Assembly',
+            'start_time' => now()->addWeek()->setTime(9, 0)->toDateTimeString(),
+            'end_time' => now()->addWeek()->setTime(11, 0)->toDateTimeString(),
+            'planning_details' => ['budget_warning_threshold' => 0],
+        ])->assertCreated()->json('id');
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+
+        Sanctum::actingAs($this->admin);
+        $this->post('/api/events/'.$eventId, [
+            '_method' => 'PUT',
+            'planning_details' => ['budget_warning_threshold' => ''],
+            'image' => UploadedFile::fake()->image('poster.png'),
+        ])->assertOk()->assertJsonPath('status', 'approved');
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+    }
+
     public function test_changing_only_logistics_keeps_an_approved_event_approved(): void
     {
         $eventId = $this->approvedEvent();
