@@ -345,6 +345,16 @@ export default function DepartmentHeadApprovalsPage() {
     }
   }
 
+  // An election is decided from the drawer itself (approve, ask for changes, reject for good), so it skips the remarks
+  // dialog. A failure goes back to the drawer, which shows it beside the buttons.
+  async function decideElection(request, payload) {
+    const { data } = await reviewApprovalRequest(request.id, payload);
+    const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
+    setOpened({ id: String(request.id), request: updated, state: 'ready' });
+    notify.success(payload.final ? 'Election rejected for good.' : `Request ${payload.status}.`);
+    load();
+  }
+
   function renderEmpty() {
     if (forbidden) {
       return <EmptyState kind="restricted" title="Approvals are for the Admin and the Department Head" description="Only they can decide requests." />;
@@ -491,6 +501,7 @@ export default function DepartmentHeadApprovalsPage() {
         onClose={() => { if (!modalState.open) setRecordId(null); }}
         onApprove={(request, files) => setModalState({ open: true, request, action: 'approved', files })}
         onReject={(request, files) => setModalState({ open: true, request, action: 'rejected', files })}
+        onDecide={decideElection}
       />
     </div>
   );
