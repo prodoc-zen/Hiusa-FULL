@@ -1395,8 +1395,7 @@ await step('election_handover', 'In the org: an election for President with cand
     await shot(who, 'ballot-picked', rec);
     await page.getByRole('button', { name: /Review ballot/ }).click();
     await shot(who, 'ballot-review', rec);
-    await page.getByRole('button', { name: 'Submit final ballot' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /Confirm|Submit/ }).last().click();
+    await page.getByRole('button', { name: 'Confirm and submit' }).click();
     await page.getByText(/Vote recorded|Your ballot was submitted|submitted/i).first().waitFor({ state: 'visible', timeout: 20000 });
     await shot(who, 'ballot-submitted', rec);
   };

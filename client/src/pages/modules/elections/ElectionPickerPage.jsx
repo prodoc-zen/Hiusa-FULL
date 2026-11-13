@@ -28,7 +28,7 @@ import { isReturned, withApprovalState } from '../../../components/elections/ele
 import { electionLifecycle } from '../../../lib/lifecycle';
 import { canViewElectionResults } from '../../../utils/electionAccess';
 import FeedbackToast from '../../../components/FeedbackToast';
-import { createElection, deleteElection, getElections, submitElection, updateElection } from '../../../services/electionService';
+import { createElection, deleteElection, getElectionPositions, getElections, submitElection, updateElection } from '../../../services/electionService';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
@@ -72,6 +72,11 @@ const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 
 // vote_limit null means the voter may choose up to the seats.
 const blankPosition = (patch = {}) => ({
   title: '', max_winners: 1, description: '', is_executive: false, vote_limit: null, eligible_year_levels: [], other_qualifications: '', is_active: true, ...patch,
+});
+
+// A position as the server holds it, in the shape the form edits.
+const positionToForm = (position) => blankPosition({
+  title: position.title || '', max_winners: position.max_winners ?? 1, description: position.description || '', is_executive: Boolean(position.is_executive), vote_limit: position.vote_limit ?? null, eligible_year_levels: Array.isArray(position.eligible_year_levels) ? position.eligible_year_levels.map(Number) : [], other_qualifications: position.other_qualifications || '', is_active: position.is_active !== false,
 });
 
 const blankElection = () => ({
@@ -292,8 +297,10 @@ function ElectionFormFields({ form, setForm, editing = false, errors = {} }) {
   const update = (patch) => setForm((current) => ({ ...current, ...patch }));
   const updatePosition = (index, patch) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }));
   const filing = Boolean(form.filing);
-  const showLetter = !editing || (filing && form.draft);
-  const showPositions = !editing || (filing && form.draft);
+  // Before submission an election can still change kind and gets its letter and ballot from this form; the ballot of one
+  // that is waiting for approval or was returned is edited here too, once its positions have loaded.
+  const showLetter = !editing || form.draft;
+  const showPositions = !editing || (form.positionsEditable && form.positionsReady);
   const dateField = (key, label, extra = {}) => (
     <Field key={key} label={label} required={key === 'start_time' || key === 'end_time'} error={errors[key]} {...extra}>
       <Input type="datetime-local" value={form[key]} onChange={(event) => update({ [key]: event.target.value })} />
@@ -303,7 +310,7 @@ function ElectionFormFields({ form, setForm, editing = false, errors = {} }) {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
-        <StatusToggleSwitch checked={filing} disabled={editing} onChange={(checked) => update({ filing: checked })} label="Students file their own candidacy" showText={false} />
+        <StatusToggleSwitch checked={filing} disabled={editing && !form.draft} onChange={(checked) => update({ filing: checked })} label="Students file their own candidacy" showText={false} />
         <div className="min-w-0 pt-1">
           <p className="text-[13px] font-medium text-ink">Students file their own candidacy</p>
           <p className="text-xs text-ink-muted">{filing ? 'Members file candidacies and you screen them.' : 'Off: you add the candidates yourself.'}</p>
@@ -496,7 +503,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   // already exists is saved and then submitted. Resolves with the saved election, or null when it
   // stopped on a validation message or a request error.
   const saveFiling = async (values, { draft, existingId = null }) => {
-    const includePositions = !existingId || values.draft;
+    const includePositions = !existingId || Boolean(values.positionsEditable && values.positionsReady);
     if (!draft) {
       setAttempted(true);
       const firstError = Object.values(filingSubmitErrors(values, includePositions))[0];
@@ -557,6 +564,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     const draft = isDraftElection(election);
     // A draft only ever came from the filing form, even before it has a single filing date.
     const filing = Boolean(election.filing_starts_at) || draft;
+    const positionsEditable = filing && election.status === 'pending_approval' && !election.approved_at;
     const local = (value) => isoToLocalDateTimeInput(value);
     setEditForm({
       id: election.id, title: election.title, room: election.room || '', image_url: election.image_url || '', imageFile: null, informativeLetterFile: null, remove_image: false, start_time: local(election.start_time), end_time: local(election.end_time), status: election.status, approved_at: election.approved_at,
@@ -565,13 +573,20 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       description: election.description || '',
       filing_starts_at: local(election.filing_starts_at), filing_ends_at: local(election.filing_ends_at), screening_starts_at: local(election.screening_starts_at), screening_ends_at: local(election.screening_ends_at), campaign_starts_at: local(election.campaign_starts_at), campaign_ends_at: local(election.campaign_ends_at), results_publish_at: local(election.results_publish_at),
       rules: election.rules || '', tie_break_rule: election.tie_break_rule || '', min_units: String(election.min_units ?? 10), min_gpa: election.min_gpa == null ? '' : String(election.min_gpa),
-      positions: draft && Array.isArray(election.positions) && election.positions.length
-        ? election.positions.map((position) => blankPosition({
-          title: position.title || '', max_winners: position.max_winners ?? 1, description: position.description || '', is_executive: Boolean(position.is_executive), vote_limit: position.vote_limit ?? null, eligible_year_levels: Array.isArray(position.eligible_year_levels) ? position.eligible_year_levels.map(Number) : [], other_qualifications: position.other_qualifications || '', is_active: position.is_active !== false,
-        }))
+      positionsEditable,
+      positionsReady: positionsEditable && Array.isArray(election.positions),
+      positions: positionsEditable && Array.isArray(election.positions) && election.positions.length
+        ? election.positions.map(positionToForm)
         : [blankPosition()],
     });
     setShowEdit(true);
+    // The list rows carry only a count, so the ballot comes on its own request. Until it has loaded the positions are
+    // neither shown nor sent, so saving can never drop a position that was not read.
+    if (positionsEditable && !Array.isArray(election.positions)) {
+      getElectionPositions(election.id)
+        .then((rows) => setEditForm((current) => (current.id === election.id ? { ...current, positionsReady: true, positions: Array.isArray(rows) && rows.length ? rows.map(positionToForm) : current.positions } : current)))
+        .catch((error) => notify.error(getApiErrorMessage(error, 'Unable to load the positions.')));
+    }
   };
 
   const closeEdit = (updated = null) => {
@@ -606,6 +621,21 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       if (!updated) return;
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); closeEdit(updated);
       setFeedback({ open: true, type: 'success', message: wasDraft ? 'Election submitted for approval.' : wasReturned ? 'Election updated and sent back for approval.' : wasApproved && !updated.approved_at ? 'Election updated and sent back for approval. Finalize the ballot again once it is approved.' : 'Election updated.' });
+      return;
+    }
+    if (editForm.draft) {
+      // A draft that was switched to the short form: the voting window and ballot are saved, then it is submitted.
+      const draftError = validateForm(editForm, true);
+      if (draftError) { setFormError(draftError); notify.error(draftError); return; }
+      setSubmitting(true); setFormError('');
+      try {
+        const saved = await updateElection(editForm.id, { title: editForm.title.trim(), room: editForm.room.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), filing_starts_at: '', imageFile: editForm.imageFile, informativeLetterFile: editForm.informativeLetterFile, positions: editForm.positions.filter((item) => item.title.trim()).map((item) => ({ title: item.title.trim(), max_winners: Number(item.max_winners) })) });
+        const submittedElection = await submitElection(editForm.id);
+        const updated = { ...saved, ...(submittedElection && typeof submittedElection === 'object' ? submittedElection : {}) };
+        setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); closeEdit(updated);
+        setFeedback({ open: true, type: 'success', message: 'Election submitted for approval.' });
+      } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election.'); setFormError(message); notify.error(message); }
+      finally { setSubmitting(false); }
       return;
     }
     const validationError = validateForm(editForm, false);
@@ -654,7 +684,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       canManageElections && election.status !== 'closed' && !election.declined_at && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
       canManageElections && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
       canManageElections && election.status === 'upcoming' && election.finalized_at && !(Date.parse(election.start_time) > now) && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
-      canManageElections && election.status === 'active' && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
+      canManageElections && election.status === 'active' && !election.filing_starts_at && { label: 'Close', icon: PowerOff, disabled: Boolean(statusBusy.id), onClick: () => setCloseTarget(election) },
     ].filter(Boolean);
   };
   const hasRowActions = managing && elections.some((election) => rowActions(election).length > 0);
@@ -770,7 +800,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       </>
     );
   } else {
-    editFooter = <><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>Save changes</Button></>;
+    editFooter = <><Button variant="secondary" onClick={() => closeEdit()} disabled={submitting}>Cancel</Button><Button type="submit" form="edit-election-form" loading={submitting} disabled={!editForm.title || !editForm.start_time || !editForm.end_time}>{editForm.draft ? 'Submit for approval' : 'Save changes'}</Button></>;
   }
 
   return (
@@ -803,10 +833,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
             {editForm.remarks && <p className="text-sm text-ink">{editForm.remarks}</p>}
           </div>
         ) : (
-          <form id="edit-election-form" onSubmit={handleEdit} noValidate={Boolean(editForm.filing)}><ElectionFormFields form={editForm} setForm={setEditForm} editing errors={formErrors(editForm, Boolean(editForm.draft))} />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
+          <form id="edit-election-form" onSubmit={handleEdit} noValidate={Boolean(editForm.filing)}><ElectionFormFields form={editForm} setForm={setEditForm} editing errors={formErrors(editForm, Boolean(editForm.positionsEditable && editForm.positionsReady))} />{formError && <p role="alert" className={`mt-4 ${ALERT}`}>{formError}</p>}</form>
         )}
       </Drawer>
-      <ConfirmModal open={Boolean(closeTarget)} title="Close election" message="Closing ends voting and cannot be undone. Voters can no longer submit ballots. The winners become the new officers and the outgoing officers lose their officer access." recordName={closeTarget?.title || ''} confirmText="Close election" variant="danger" onCancel={() => setCloseTarget(null)} onConfirm={handleClose} />
+      <ConfirmModal open={Boolean(closeTarget)} title="Close election" message="Closing ends voting and cannot be undone. Voters can no longer submit ballots. Winners become upcoming officers; their access starts on the officer start date and the outgoing officers keep access until the school year ends." recordName={closeTarget?.title || ''} confirmText="Close election" variant="danger" onCancel={() => setCloseTarget(null)} onConfirm={handleClose} />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete election" message="This permanently removes the election setup, candidates, and approval request." recordName={deleteTarget?.title || ''} confirmText="Delete" variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />
     </div>
   );

@@ -11,6 +11,7 @@ const electionMocks = vi.hoisted(() => ({
   updateElection: vi.fn(),
   deleteElection: vi.fn(),
   submitElection: vi.fn(),
+  getElectionPositions: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../../services/electionService', () => electionMocks);
@@ -333,7 +334,8 @@ describe('ElectionPickerPage delete rules', () => {
     fireEvent.click(await findRowAction(/Close/));
     const dialog = await screen.findByRole('dialog', { name: 'Close election' });
     expect(within(dialog).getByText(/Closing ends voting and cannot be undone/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/The winners become the new officers and the outgoing officers lose their officer access/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Winners become upcoming officers; their access starts on the officer start date and the outgoing officers keep access until the school year ends/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/lose their officer access/)).not.toBeInTheDocument();
     expect(electionMocks.updateElection).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -672,6 +674,90 @@ describe('ElectionPickerPage editing a filing election', () => {
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
 
+  it('lets a draft that was never submitted change kind and still locks it after submission', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    const toggle = screen.getByRole('switch', { name: 'Students file their own candidacy' });
+    expect(toggle).toBeEnabled();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByLabelText('Official rules')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Voting starts')).toBeInTheDocument();
+  });
+
+  it('turns a draft into the short form and submits it with its dates and positions', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.getElectionPositions.mockResolvedValue([{ id: 1, title: 'Representative', max_winners: 2 }]);
+    electionMocks.updateElection.mockResolvedValue({ ...draft });
+    electionMocks.submitElection.mockResolvedValue({ ...draft, submitted_at: '2026-11-13T00:00:00Z' });
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    await waitFor(() => expect(electionMocks.getElectionPositions).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('switch', { name: 'Students file their own candidacy' }));
+    expect(await screen.findByLabelText('Position 1 title')).toHaveValue('Representative');
+    setValue('Voting starts', '2026-12-04T08:00');
+    setValue('Voting ends', '2026-12-04T17:00');
+    // jsdom cannot attach a file to the required letter input, so submit the form directly.
+    fireEvent.submit(document.getElementById('edit-election-form'));
+    await waitFor(() => expect(electionMocks.submitElection).toHaveBeenCalledWith(12));
+    const payload = electionMocks.updateElection.mock.calls[0][1];
+    expect(payload).toMatchObject({ filing_starts_at: '', start_time: iso('2026-12-04T08:00'), end_time: iso('2026-12-04T17:00'), positions: [{ title: 'Representative', max_winners: 2 }] });
+  });
+
+  it('shows the positions a draft already has instead of an empty section', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.getElectionPositions.mockResolvedValue([
+      { id: 1, title: 'President', max_winners: 1, is_executive: true, vote_limit: null, eligible_year_levels: [1, 2], is_active: true },
+      { id: 2, title: 'Representative', max_winners: 3, vote_limit: 2 },
+    ]);
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(await screen.findByLabelText('Position 1 title')).toHaveValue('President');
+    expect(screen.getByLabelText('Position 2 title')).toHaveValue('Representative');
+    expect(screen.getByLabelText('Position 1 executive')).toBeChecked();
+    expect(electionMocks.getElectionPositions).toHaveBeenCalledWith(12);
+  });
+
+  it('submits a draft with the positions it already has without typing them again', async () => {
+    electionMocks.getElections.mockResolvedValue([draft]);
+    electionMocks.getElectionPositions.mockResolvedValue([{ id: 1, title: 'President', max_winners: 1 }]);
+    electionMocks.updateElection.mockResolvedValue({ ...draft });
+    electionMocks.submitElection.mockResolvedValue({ ...draft, submitted_at: '2026-11-13T00:00:00Z' });
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="12" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    await screen.findByLabelText('Position 1 title');
+    setValue('Election title', 'HIUSA General Elections 2026');
+    fillSchedule();
+    setValue('Official rules', 'Only enrolled members may vote.');
+    setValue('Tie-break rule', 'Coin toss witnessed by the adviser.');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(electionMocks.submitElection).toHaveBeenCalledWith(12));
+    expect(electionMocks.updateElection.mock.calls[0][1].positions).toEqual([expect.objectContaining({ title: 'President' })]);
+  });
+
+  it('shows the positions of a returned election and saves them with the rest', async () => {
+    const returned = { ...submitted, id: 14, title: 'Returned election', approval_status: 'rejected', approval_remarks: 'Fix the dates.', approved_at: null };
+    electionMocks.getElections.mockResolvedValue([returned]);
+    electionMocks.getElectionPositions.mockResolvedValue([{ id: 1, title: 'President', max_winners: 1 }]);
+    electionMocks.updateElection.mockResolvedValue({ ...returned });
+    render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="14" onEditClosed={vi.fn()} />);
+    await screen.findByRole('heading', { name: 'Edit election' });
+    expect(await screen.findByLabelText('Position 1 title')).toHaveValue('President');
+    setValue('Position 1 title', 'Chairperson');
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(electionMocks.updateElection).toHaveBeenCalledWith(14, expect.objectContaining({ positions: [expect.objectContaining({ title: 'Chairperson' })] })));
+  });
+
+  it('never offers Close for an election the schedule runs', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...submitted, id: 15, title: 'Running filing election', status: 'active', approved_at: '2026-11-01T00:00:00Z' }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await rowFor('Running filing election');
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Actions for / }))[0]);
+    expect(await screen.findByRole('menuitem', { name: /Edit/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Close/ })).not.toBeInTheDocument();
+  });
+
   it('reads the switch OFF for an election with no filing dates and a recorded submission', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, submitted_at: '2026-09-01T00:00:00Z', filing_starts_at: null }]);
     render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="7" onEditClosed={vi.fn()} />);
@@ -685,15 +771,18 @@ describe('ElectionPickerPage editing a filing election', () => {
 
   it('saves a submitted filing election through updateElection only', async () => {
     electionMocks.getElections.mockResolvedValue([submitted]);
+    electionMocks.getElectionPositions.mockResolvedValue([{ id: 1, title: 'President', max_winners: 1 }]);
     electionMocks.updateElection.mockResolvedValue({ ...submitted, rules: 'New rules' });
     const onEditClosed = vi.fn();
     render(<ElectionPickerPage onSelect={vi.fn()} editElectionId="13" onEditClosed={onEditClosed} />);
     await screen.findByRole('heading', { name: 'Edit election' });
+    await screen.findByLabelText('Position 1 title');
     setValue('Official rules', 'New rules');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(electionMocks.updateElection).toHaveBeenCalledWith(13, expect.objectContaining({ rules: 'New rules', tie_break_rule: 'Coin toss', min_units: 12 })));
     expect(electionMocks.updateElection.mock.calls[0][1]).not.toHaveProperty('draft');
-    expect(electionMocks.updateElection.mock.calls[0][1]).not.toHaveProperty('positions');
+    // Not yet approved, so its ballot is edited with the form and sent back as it was read.
+    expect(electionMocks.updateElection.mock.calls[0][1].positions).toEqual([expect.objectContaining({ title: 'President', max_winners: 1 })]);
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
     await waitFor(() => expect(onEditClosed).toHaveBeenCalled());
   });
