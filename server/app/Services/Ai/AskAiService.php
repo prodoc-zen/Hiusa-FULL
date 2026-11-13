@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
@@ -18,7 +19,6 @@ use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
-use App\Services\GroqResponsesService;
 use App\Services\StudentAccountBalances;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -55,7 +55,7 @@ class AskAiService
         private readonly ApprovalEntityLabel $entityLabels,
         private readonly ClientRouteAccess $routeAccess,
         private readonly StudentAccountBalances $balances,
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
         private readonly HowToGuideLibrary $guides,
     ) {}
 
@@ -133,7 +133,7 @@ class AskAiService
             'sections' => $response['sections'],
             'follow_ups' => $response['follow_ups'],
             'generated_at' => now()->toIso8601String(),
-            'engine' => $response['model_name'] ? 'groq+semantic_rag' : 'semantic_rag+deterministic',
+            'engine' => $response['model_name'] ? (str_starts_with($response['model_name'], 'claude') ? 'claude' : 'groq').'+semantic_rag' : 'semantic_rag+deterministic',
         ];
     }
 
@@ -306,7 +306,7 @@ class AskAiService
         return 'semantic_rag';
     }
 
-    private function answer(User $user, string $question, string $intent, bool $allowGroq): array
+    private function answer(User $user, string $question, string $intent, bool $allowModel): array
     {
         if ($intent === 'how_to_guide') {
             return $this->answerHowTo($user, $question);
@@ -344,14 +344,14 @@ class AskAiService
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
-            if ($allowGroq) {
+            if ($allowModel) {
                 $payload = $this->augmentWithRagMatches($payload, $rag);
             }
         }
 
         $modelName = null;
-        if ($allowGroq) {
-            $enhanced = $this->enhanceWithGroq($user, $question, $payload, $rag);
+        if ($allowModel) {
+            $enhanced = $this->enhanceWithModel($user, $question, $payload, $rag);
             if ($enhanced !== null) {
                 $payload['answer'] = $enhanced['text'];
                 $modelName = $enhanced['model'];
@@ -360,7 +360,7 @@ class AskAiService
 
         $payload['model_name'] = $modelName;
         $payload['rag_metadata'] = [
-            'engine' => $modelName ? 'Hybrid Semantic RAG + Groq LLM' : 'Hybrid Semantic RAG (BM25 + 12D Concept Vector + Trigram)',
+            'engine' => $modelName ? 'Hybrid Semantic RAG + '.(str_starts_with($modelName, 'claude') ? 'Claude' : 'Groq').' LLM' : 'Hybrid Semantic RAG (BM25 + 12D Concept Vector + Trigram)',
             'corpus_size' => $rag['corpus_size'],
             'retrieved_count' => count($rag['chunks']),
             'domains_searched' => $rag['domains_searched'],
@@ -2553,7 +2553,7 @@ class AskAiService
         ];
     }
 
-    private function enhanceWithGroq(User $user, string $question, array $payload, array $rag = []): ?array
+    private function enhanceWithModel(User $user, string $question, array $payload, array $rag = []): ?array
     {
         $topChunks = array_map(fn (array $chunk) => [
             'domain' => $chunk['domain'],
@@ -2575,8 +2575,8 @@ class AskAiService
             ], $payload['sections'] ?? []),
         ];
 
-        $result = $this->groq->generate(
-            instructions: 'You are the HIUSA Operations AI Assistant powered by Retrieval-Augmented Generation (RAG). Using the retrieved_rag_chunks, sections, and deterministic_answer, write a clear, authoritative 2-to-3 sentence executive response that directly answers the user question using ONLY the exact numbers, names, statuses, and facts provided. Never invent numbers, dates, or organization names.',
+        $result = $this->ai->generate(
+            instructions: AiInstructions::askAi(),
             input: json_encode($facts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             maxOutputTokens: 280,
             temperature: 0.1,
@@ -2586,8 +2586,8 @@ class AskAiService
             return null;
         }
 
-        $plain = $this->groq->plainText($result['text']);
-        if ($plain === '' || ! $this->groq->preservesNumericFacts($plain, $facts)) {
+        $plain = $this->ai->plainText($result['text']);
+        if ($plain === '' || ! $this->ai->preservesNumericFacts($plain, $facts)) {
             return null;
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
@@ -9,7 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
-use App\Services\GroqResponsesService;
+use App\Services\Ai\AiInstructions;
 use App\Services\HiusaAiService;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class BudgetController extends Controller
 
     public function __construct(
         private readonly HiusaAiService $aiService,
-        private readonly GroqResponsesService $groq,
+        private readonly TextGenerator $ai,
     ) {}
 
     public function index(Request $request)
@@ -241,15 +242,17 @@ class BudgetController extends Controller
         $xaiFacts = [
             'budget' => $budget->title,
             'event_or_project' => $budget->event?->title,
+            // The forecast and balance the rules used, so the explanation can name the figures behind the risk.
+            'inputs' => $payload,
             'computed_advice' => $advice,
         ];
-        $xai = $this->groq->generate(
-            'Explain this computed budget-advisory result in two concise sentences for a student-organization officer in Philippine Pesos (PHP). Format all currency values with PHP (never use $ or USD). Preserve all supplied figures and risk labels. Do not recalculate or invent values.',
+        $xai = $this->ai->generate(
+            AiInstructions::budgetAdvice(),
             json_encode($xaiFacts, JSON_THROW_ON_ERROR),
             220,
             0.2,
         );
-        if ($xai && (! $this->groq->preservesNumericFacts($xai['text'], $xaiFacts) || str_contains($xai['text'], '$') || stripos($xai['text'], 'USD') !== false || stripos($xai['text'], 'dollar') !== false)) {
+        if ($xai && (! $this->ai->preservesNumericFacts($xai['text'], $xaiFacts) || str_contains($xai['text'], '$') || stripos($xai['text'], 'USD') !== false || stripos($xai['text'], 'dollar') !== false)) {
             $xai = null;
         }
 
@@ -282,7 +285,7 @@ class BudgetController extends Controller
             'structured_input' => $payload,
             'structured_output' => ['engine' => $engine, 'computed_advice' => $advice],
             'status' => $xai ? 'completed' : 'failed',
-            'error_message' => $xai ? null : 'Groq explanation was unavailable; deterministic budget advice was still calculated.',
+            'error_message' => $xai ? null : 'The AI explanation was unavailable; deterministic budget advice was still calculated.',
             'decision_status' => $xai ? 'accepted' : 'rejected',
             'requested_by' => $request->user()->school_id,
             'decided_by' => $xai ? $request->user()->school_id : null,
