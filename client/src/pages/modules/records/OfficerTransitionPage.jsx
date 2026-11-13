@@ -27,6 +27,8 @@ const OFFICER_STATUS = {
   ended: { label: 'Former', tone: 'neutral' },
 };
 
+const SIDE_LABELS = { incoming: 'Incoming', outgoing: 'Outgoing' };
+
 const FLAG_LINES = {
   missing_deadline: 'No renewal deadline in Compliance yet',
   start_passed: 'Start date had already passed when the results became final',
@@ -128,7 +130,16 @@ function OfficersTab() {
   const columns = [
     { key: 'name', header: 'Name', render: (officer) => <span className="font-medium">{officer.name}</span> },
     { key: 'school_id', header: 'School ID', render: (officer) => officer.school_id },
-    { key: 'position_title', header: 'Position', render: (officer) => officer.position_title },
+    {
+      key: 'position_title',
+      header: 'Position',
+      render: (officer) => (
+        <div className="text-left">
+          <span>{officer.position_title}</span>
+          {SIDE_LABELS[officer.kind] && <span className="block text-xs text-ink-muted">{SIDE_LABELS[officer.kind]}</span>}
+        </div>
+      ),
+    },
     { key: 'type', header: 'Type', render: (officer) => (officer.is_executive ? 'Executive' : 'Non-executive') },
     { key: 'academic_year', header: 'Academic year', render: (officer) => officer.academic_year || 'Not set' },
     { key: 'term_starts_on', header: 'Term start', render: (officer) => dayText(officer.term_starts_on) },

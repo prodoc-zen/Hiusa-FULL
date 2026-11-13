@@ -109,6 +109,15 @@ describe('OfficerTransitionPage', () => {
     expect(within(second).getByText('Non-executive')).toBeInTheDocument();
   });
 
+  it('labels each row incoming or outgoing under the position', async () => {
+    service.getOfficers.mockResolvedValue({ data: [officers[0], officers[3]], last_page: 1 });
+    renderPage();
+    await screen.findAllByText('Ana Reyes');
+    const table = within(screen.getByRole('table'));
+    expect(within(table.getByText('Ana Reyes').closest('tr')).getByText('Incoming')).toBeInTheDocument();
+    expect(within(table.getByText('Old President').closest('tr')).getByText('Outgoing')).toBeInTheDocument();
+  });
+
   it('names an outgoing officer as Former once the term ended and tells overlapping years apart by the academic year', async () => {
     service.getOfficers.mockResolvedValue({ data: [officers[0], officers[3], { ...officers[3], id: 5, name: 'Past Officer', status: 'ended' }], last_page: 1 });
     renderPage();
