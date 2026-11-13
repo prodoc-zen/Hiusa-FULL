@@ -193,9 +193,9 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'informative_letter' => [$semester ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
             'positions' => ['sometimes', 'array', 'min:1', 'max:30'],
-            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
+            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case', 'regex:/[\p{L}\p{N}]/u'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
-        ]);
+        ], ['positions.*.title.regex' => 'A position title needs at least one letter or number.']);
         // The client sends UTC instants. Stored and compared as Manila wall-clock time, or every
         // window lands 8 hours early and a 9 AM vote opens at 1 AM.
         $data['start_time'] = $this->localTime($data['start_time']);
@@ -654,10 +654,11 @@ class ElectionController extends Controller
                 'required',
                 'string',
                 'max:100',
+                'regex:/[\p{L}\p{N}]/u',
                 Rule::unique('election_positions', 'title')->where(fn ($query) => $query->where('election_id', $election->id)),
             ],
             'max_winners' => ['nullable', 'integer', 'min:1', 'max:20'],
-        ]);
+        ], ['title.regex' => 'A position title needs at least one letter or number.']);
 
         try {
             $position = DB::transaction(function () use ($election, $data) {
@@ -722,12 +723,13 @@ class ElectionController extends Controller
                 'required',
                 'string',
                 'max:100',
+                'regex:/[\p{L}\p{N}]/u',
                 Rule::unique('election_positions', 'title')
                     ->where(fn ($query) => $query->where('election_id', $election->id))
                     ->ignore($position->id),
             ],
             'max_winners' => ['sometimes', 'required', 'integer', 'min:1', 'max:20'],
-        ]);
+        ], ['title.regex' => 'A position title needs at least one letter or number.']);
 
         if (isset($data['title'])) {
             $data['title'] = trim($data['title']);
