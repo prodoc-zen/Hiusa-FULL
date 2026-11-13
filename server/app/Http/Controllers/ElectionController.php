@@ -561,7 +561,7 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'informative_letter' => [$semester && $complete ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
             'positions' => $filing && $complete ? ['required', 'array', 'min:1', 'max:30'] : ($complete ? ['sometimes', 'array', 'min:1', 'max:30'] : ['sometimes', 'nullable', 'array', 'max:30']),
-            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case', 'regex:/[\p{L}\p{N}]/u'],
+            'positions.*.title' => ['bail', 'required', 'string', 'max:100', 'distinct:ignore_case', 'regex:/[\p{L}\p{N}]/u'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
             ...$this->positionRules('positions.*.'),
             ...$this->setupRules($complete, $filing),
@@ -1144,6 +1144,7 @@ class ElectionController extends Controller
 
         $data = $request->validate([
             'title' => [
+                'bail',
                 'required',
                 'string',
                 'max:100',
@@ -1220,6 +1221,7 @@ class ElectionController extends Controller
 
         $data = $request->validate([
             'title' => [
+                'bail',
                 'sometimes',
                 'required',
                 'string',

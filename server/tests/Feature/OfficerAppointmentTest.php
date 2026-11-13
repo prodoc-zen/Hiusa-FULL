@@ -212,6 +212,52 @@ class OfficerAppointmentTest extends TestCase
         $this->assertSame('SBO_OFFICER', $this->appointmentOf($secretary)->role);
     }
 
+    public function test_only_a_title_that_is_a_vice_president_seat_becomes_admin(): void
+    {
+        $this->deadline('2027-01-20');
+        $election = $this->election();
+        [$aide] = $this->position($election, 'Vice Presidential Aide', [3]);
+        [$assistant] = $this->position($election, "Vice President's Assistant", [3]);
+        [$vice] = $this->position($election, 'Vice-President  External', [3]);
+
+        $this->sync($election);
+
+        $this->assertSame('SBO_OFFICER', $this->appointmentOf($aide)->role);
+        $this->assertSame('SBO_OFFICER', $this->appointmentOf($assistant)->role);
+        $this->assertSame('ADMIN', $this->appointmentOf($vice)->role);
+    }
+
+    public function test_a_seat_spelled_with_a_dash_replaces_the_incumbent_spelled_with_a_space_and_clears_the_account_row_when_the_term_ends(): void
+    {
+        $this->deadline('2027-01-20');
+        $incumbent = $this->member('SBO_OFFICER', 'Vice President Internal');
+        $election = $this->election();
+        $this->position($election, 'Vice President - Internal', [5, 2]);
+        $this->sync($election);
+
+        $this->assertSame('outgoing', $this->appointmentOf($incumbent)->kind);
+
+        Carbon::setTestNow('2027-06-02 09:00:00');
+        $this->service()->expireDue();
+
+        $profile = $this->profile($incumbent);
+        $this->assertSame('STUDENT', $profile->role);
+        $this->assertNull($profile->position_title);
+        $this->assertNull($incumbent->fresh()->position_title);
+    }
+
+    public function test_a_seat_titled_only_with_dashes_replaces_nobody(): void
+    {
+        $this->deadline('2027-01-20');
+        $untitled = $this->member('SBO_OFFICER', '-');
+        $election = $this->election();
+        $this->position($election, '-', [5, 2]);
+        $this->sync($election);
+
+        $this->assertNull($this->appointmentOf($untitled));
+        $this->assertSame('SBO_OFFICER', $this->profile($untitled)->role);
+    }
+
     public function test_preparing_twice_creates_nothing_more(): void
     {
         $this->deadline('2027-01-20');

@@ -229,6 +229,24 @@ class ElectionHandoverTest extends TestCase
         $this->assertSame('Treasurer', $position->fresh()->title);
     }
 
+    public function test_a_position_title_that_is_not_text_is_a_validation_error_on_every_setup_route(): void
+    {
+        $election = Election::factory()->create(['organization_id' => $this->organization->id, 'status' => 'upcoming', 'start_time' => now()->addDays(2), 'end_time' => now()->addDays(3)]);
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id, 'title' => 'Treasurer']);
+        Sanctum::actingAs($this->admin);
+
+        foreach ([['President'], ['a' => 1], 12] as $title) {
+            $this->postJson("/api/elections/{$election->id}/positions", ['title' => $title, 'max_winners' => 1])
+                ->assertStatus(422)->assertJsonValidationErrors(['title']);
+            $this->putJson("/api/elections/{$election->id}/positions/{$position->id}", ['title' => $title])
+                ->assertStatus(422)->assertJsonValidationErrors(['title']);
+            $this->postJson('/api/elections', ['title' => 'Election', 'start_time' => now()->addDay()->toISOString(), 'end_time' => now()->addDays(2)->toISOString(), 'positions' => [['title' => $title, 'max_winners' => 1]]])
+                ->assertStatus(422)->assertJsonValidationErrors(['positions.0.title']);
+        }
+
+        $this->assertSame('Treasurer', $position->fresh()->title);
+    }
+
     public function test_the_standard_titles_listed_under_both_roles_still_split_admin_from_officer(): void
     {
         $titles = ['President', 'Vice President – Internal', 'Vice President – External', 'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Business Manager'];
