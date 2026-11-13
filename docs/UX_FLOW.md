@@ -240,7 +240,7 @@ Format: group (band): children in order, each `Label  route`.
   - Finance: Budgets `/dashboard/finance/budget-allocation`; Ledger `/dashboard/finance/financial-ledger`; Collections and advances `/dashboard/finance/collections`; Student accounts `/dashboard/finance/student-accounts`; Financial reports `/dashboard/finance/transaction-history`; Forecast `/dashboard/finance/financial-insights`. Finance follows the top bar semester: the ledger and collections by transaction date, budgets by their event semester (else the month they were created), financial reports by overlap of their period; Available funds and Awaiting remittance on Collections stay all-semester and say so
   - Events and tasks: Events `/dashboard/events/manage-events` (list and calendar toggle); Venue booking `/dashboard/venues`; Planning `/dashboard/events/event-planner`; Tasks `/dashboard/tasks/task-board`; AI delegation `/dashboard/tasks/ai-delegation`; Check-in `/dashboard/events/check-in`
 - Community band
-  - Voting: Elections `/dashboard/elections/manage-elections` (hub; Party lists, Candidates, Voters are its in-page steps); Results `/dashboard/elections/election-results`
+  - Voting: Elections `/dashboard/elections/manage-elections` (hub; Applications, Party lists, Candidates, Voters are its in-page steps, Applications only for an election where students file); Results `/dashboard/elections/election-results`
   - Store: Inventory `/dashboard/merchandise/manage-inventory`; Orders `/dashboard/merchandise/manage-orders`; Claim desk `/dashboard/merchandise/claim-tokens`
   - Updates: Announcements `/dashboard/announcements/manage-announcements` (New announcement is its primary button); Feed `/dashboard/announcements/view-announcements`
 - Records band
@@ -256,7 +256,7 @@ Format: group (band): children in order, each `Label  route`.
   - Finance (view only): Budgets; Ledger; Financial reports; Forecast (same routes as Admin, header chip "View only", all following the top bar semester)
   - Members and fingerprints `/dashboard/admin/users` (single link, replaces "Organization Setup > Participant Biometrics")
 - Community band
-  - Voting: Candidates `/dashboard/elections/manage-candidates`; Voters `/dashboard/elections/manage-voters`; Results
+  - Voting: Candidates `/dashboard/elections/manage-candidates` (read only; Applications is a step inside the workspace); Voters `/dashboard/elections/manage-voters`; Results
   - Store: Orders `/dashboard/merchandise/manage-orders`; Claim desk `/dashboard/merchandise/claim-tokens`
   - Updates: Announcements `/dashboard/announcements/manage-announcements` (New announcement; the page header says it goes to the Admin for approval); Feed
 - Records band: Clearance signing `/dashboard/clearances` (single link); Records `/dashboard/records` (single link, the organization's past school years, read only)
@@ -387,6 +387,35 @@ Semester reports (round r16a). A semester report covers one of the SAO's own aca
 
 ### 4.4 Election
 
+Two ways to run an election, chosen by the switch **Students file their own candidacy** on the create form and kept for the life of the election. An election with `filing_starts_at` follows the full process (4.4.1). An election without it is the short form (4.4.2) where the Admin adds candidates; the exhibit demo uses it.
+
+#### 4.4.1 Full process (students file)
+
+| Stage | Phase and status | Who acts | Next-action text |
+|---|---|---|---|
+| 0 Draft | `pending_approval`, `submitted_at` empty | Admin | "Finish the draft and submit it" (Save draft keeps it; the reviewer sees it only after Submit for approval) |
+| 1 Approval | `pending_approval` | Department Head, or the SAO for a university-wide organization | "Awaiting Department Head review"; Returned reads "Returned: edit and resubmit"; Rejected reads "Rejected by the Department Head" and cannot be resubmitted |
+| 2 Filing | `filing` | Students | "File your candidacy" (student) / "Students are filing until <date>" |
+| 3 Screening | `screening` | Admin | "Screen N applications" / "No applications are waiting for review" |
+| 4 Campaign | `campaign` | none | "Voting opens on <date>" |
+| 5 Voting | `voting` | Students vote; officers and the Admin vote as members | "Cast your ballot" / "You have voted" |
+| 6 Counting | `canvassing`, then `runoff` and `tie_resolution` when needed | Admin schedules the one runoff; the reviewer resolves a remaining tie | "Set the runoff schedule", "Runoff voting opens on <date>", "Resolve the tie" |
+| 7 Completed | `completed` | none | "Results released" |
+| Halted | `suspended_at` or `cancelled_at` set | Admin | "Suspended: <reason>" with Resume election; "Cancelled: <reason>" |
+
+How it moves:
+
+- An approved election moves by itself. `SyncElectionStatuses` (every minute) and the request-time sync read the schedule and set the phase; phases only move forward and a halted election does not move. Approval snapshots the rules as a numbered version in `election_rule_versions`.
+- A phase that cannot safely start leaves the election where it is and alerts the Admins once per cause: applications still pending review when screening is due to end ("Screening is not finished: N applications still need a decision."), or no approved candidate when voting is due ("Voting cannot open: no approved candidate on any active position."). The cause is stored in `phase_alert`.
+- Filing: a voting member reads and accepts the rules, then files alone or as the representative of a party list. Drafts never submitted are withdrawn when filing closes. Screening: the Admin approves, asks for a correction or rejects, one application at a time; an approved application becomes a `candidates` row. Corrections still open when screening ends are rejected automatically.
+- Voting opens at `start_time`: the ballot locks (`finalized_at`) and the voter roll freezes. A voter may skip any position and chooses up to the position's limit. The ballot is secret (D-06): participation is in `election_ballots`, choices in `votes` with no voter id.
+- Counting (tally version 2): no candidate is vacant; candidates not more than seats are elected unopposed; otherwise the highest totals win; a tie at the last seat needs the one runoff among the tied candidates for the remaining seats; if the runoff is still tied the reviewer picks among them under the approved tie-break rule and writes an explanation. Totals are never editable. Results publish at `results_publish_at` (a runoff outcome at `runoff_publish_at`).
+- A material change after approval (any schedule date, the rules, the tie-break rule, minimum units or GPA, a position) sends the election back for approval and pauses its phases; a save that changes none of these never reopens approval. Nothing material can change once voting has opened.
+- Suspend pauses phases, filing and voting until Resume. Cancel needs a written reason, closes the election for good, publishes nothing and appoints no one. Both notify the reviewer and the Admins.
+- Notices (in-app, once each): filing opens and 24 hours before it closes; voting opens and 24 hours before it closes for those who have not voted; results published; runoff needed and scheduled; still tied after the runoff; tie resolved; application submitted and each screening decision; a phase alert.
+
+#### 4.4.2 Short form (the Admin adds candidates)
+
 | Stage | Status values | Who acts | Next-action text |
 |---|---|---|---|
 | 1 Submitted | `pending_approval` | Department Head | "Awaiting Department Head review" (exists: `ElectionPickerPage.jsx:61`) |
@@ -396,14 +425,26 @@ Semester reports (round r16a). A semester report covers one of the SAO's own aca
 | 5 Results | `closed` (+ `results_visible`) | Admin releases | "Results released" / "Closed: release the results" |
 | 6 Hand over | `access_handed_over_at` set, once per election | none | "Access handed over" on the results page |
 
+A party list is optional, so an all-independent ballot can be finalized. Officers and the adviser only oversee: only the Admin adds, edits or removes a candidate, and a profile with an adviser position title is not on the voter roll. The ballot follows the same secret, skippable, multi-choice rules as the full process, and a 1 to 1 vote now reads "Runoff required" instead of "Tie, assign manually".
+
 Server gaps fixed (the clients read these keys):
 
 - Returned: a rejected approval no longer leaves the election silent. It stays `pending_approval` (no new status value) and `GET /api/elections`, `GET /api/elections/{id}` and the `POST`/`PUT` responses carry `approval_status` (`pending` | `approved` | `rejected`, from the latest approval row, `null` when none), `approval_remarks` (the reviewer's reason) and `approval_id`. The Admin edits the election with the existing `PUT /api/elections/{id}`; that reopens the Department Head approval (`approval_status` back to `pending`, remarks cleared, approvers notified, audit `resubmitted`). Student payloads omit the three approval keys. Client text for stage 1: `approval_status = rejected` shows "Returned: <approval_remarks>. Edit and resubmit".
 - Automatic opening: the scheduled command `elections:sync-statuses` (every minute) moves approved, finalized elections whose `start_time` has passed and `end_time` has not from `upcoming` to `active` (and closes ended ones); `Election::synchronizeScheduledStatuses()` applies the same transition on every read, so a request never sees a stale status. `results_visible` and `finalized_at` are present in every election payload.
 
-Hand over (round r16a, Jade's rulings R2 and R3, `ElectionHandoverService`). When a closed election's results are visible, each position's winners get a profile in the organization. The President and every Vice President (any title starting "Vice President", dash and spacing variants included) become the organization `ADMIN`; every other winner becomes `SBO_OFFICER` with the position title. The organization's `sbo_positions` list is not consulted, because it carries every standard title under both roles. The outgoing holder of the same position, when someone else won it, stays in the organization as a plain `STUDENT` profile: position and modules cleared, account and profile still active, still on the voter roll, never set inactive, and every other profile they hold is kept. A tied seat grants nothing and its holders keep access until someone assigns the seat. A profile or account switched off for another reason is never reactivated. Each winner gets the notice "You now have access to <organization>", the run is audited as `access_handed_over`, and a second release does nothing.
+Winners and the officer transition. Jade's rulings R2 and R3 decide the roles: the President and every Vice President (any title starting "Vice President", dash and spacing variants included) become the organization `ADMIN`; every other winner becomes `SBO_OFFICER` with the position title, whatever `sbo_positions` lists. An outgoing officer becomes a plain `STUDENT` profile in the same organization: position and modules cleared, account and profile still active, still on the voter roll, never removed.
 
-Shown in: the election workspace banner (replace the sentence at `ElectionBreadcrumb.jsx:73`), the picker cards. Steps in the in-page strip follow the same order: Overview, Party lists, Candidates, Voters, Vote, Results.
+- Elections already closed before the full process (`tally_version` 1) and the older hand over keep today's behaviour: when a closed election's results are visible, each position's winners get a profile in the organization. The President and every Vice President (any title starting "Vice President", dash and spacing variants included) become the organization `ADMIN`; every other winner becomes `SBO_OFFICER` with the position title. The organization's `sbo_positions` list is not consulted, because it carries every standard title under both roles. The outgoing holder of the same position, when someone else won it, stays in the organization as a plain `STUDENT` profile: position and modules cleared, account and profile still active, still on the voter roll, never set inactive, and every other profile they hold is kept. A tied seat grants nothing and its holders keep access until someone assigns the seat. A profile or account switched off for another reason is never reactivated. Each winner gets the notice "You now have access to <organization>", the run is audited as `access_handed_over`, and a second release does nothing.
+- Every election of tally version 2 stages the change instead (4.11): closing no longer changes anyone's access in the same minute. The winner gets an Upcoming officer appointment with a start date, and the outgoing officers keep access until the end of the school year.
+
+Shown in: the election workspace banner (replace the sentence at `ElectionBreadcrumb.jsx:73`), the picker cards, the Vote list (each card shows its phase and one action). Steps in the in-page strip follow the process order: Overview, Applications (filing elections only), Party lists, Candidates, Voters, Results; the student's Vote list leads to Election information (`/dashboard/elections/election-info`) for the schedule, qualifications, rules, own application or party list, and official candidates.
+
+### Per role, in the full process
+
+- Admin: Voting > Elections. Create (switch on by default), Save draft, Submit for approval, edit; the Overview shows the phase, the one next step, counts (Pending review, Needs correction, Approved candidates), the next deadline, Suspend and Cancel election. Applications to screen; Party lists; Candidates (read only for a filing election); Voters (turnout); Results with the runoff schedule form and the Reports button.
+- Department Head (or SAO for a university-wide organization): Approvals drawer shows the whole proposal (organization, academic year, schedule, positions, qualifications, official rules, tie-break rule) with Approve, Ask for changes (notes), Reject for good (reason) and the decision history. Election results shows the tie resolution form when a position is Pending tie resolution. Officer transition is read only.
+- Officer: the same workspace read only (Applications, Candidates, Voters, Results). Cannot add or edit candidates. In Officer transition the outgoing officers prepare the handover and the incoming officers acknowledge it.
+- Student (and any voting member): Vote list, then Election information to read the rules, accept them, and file as an individual or as a party list; Withdraw until voting opens; official candidates from the campaign; the ballot with skip, review and a receipt with the submission time; the runoff ballot when one is open.
 
 ### 4.5 Merchandise order
 
@@ -524,10 +565,34 @@ flowchart LR
   B1[Budget proposed] --> B2[Dept Head] --> B3[Approved] --> B4[Spending in ledger] --> B5[Financial report] --> B6[Dept Head] --> B7[SAO] --> B8[Approved]
   B2 -- rejected --> B1
   C1[Election submitted] --> C2[Dept Head approves] --> C3[Party lists, candidates] --> C4[Finalize ballot] --> C5[Voting] --> C6[Closed, release results]
+  F1[Draft or submitted] --> F2[Dept Head approves] --> F3[Filing] --> F4[Screening] --> F5[Campaign] --> F6[Voting] --> F7[Counting] --> F8[Results] --> F9[Upcoming officers]
+  F7 -- tie --> F10[Runoff] --> F11[Dept Head resolves a remaining tie] --> F8
   D1[Order reserved] --> D2[Payment proof] --> D3[Officer verifies, token] --> D4[Claimed at desk]
   G1[Registration pending] --> G2[SAO decision] --> G3[Active] --> G4[Head named: Department Head, or SAO for a university-wide organization] --> G5[First use checklist]
   G2 -- returned --> G6[Dept Head edits] --> G1
 ```
+
+### 4.11 Officer transition
+
+Records > Officer transition (`/dashboard/records/officer-transition`; the SAO finds it under Setup and records, the Department Head and officers in their menus). One page with the heading "Officer transition" and three tabs: Officers, Handover, Renewal. Open to ADMIN, SBO_OFFICER, DEPARTMENT_HEAD and SUPER_ADMIN. Nothing about it can be edited as a date: the start of a term follows Compliance.
+
+| Stage | Appointment status | Who acts | What shows |
+|---|---|---|---|
+| 1 Prepared | `upcoming`, `activation_status` scheduled | none | The winner appears as Upcoming with a start date; the winner is told "You won <position>. Your officer access starts on <date>." The six handover items are created Pending |
+| 2 Started | `active` | none | On the start date the winner's profile gets the role (ADMIN for President and Vice Presidents, else SBO_OFFICER with the title) and the notice "You now have access to <organization>". Handover items move to Under review |
+| 3 Overlap | outgoing `active`, incoming `active` | Outgoing officers prepare, incoming officers acknowledge | Both administrations show in the Officers tab, told apart by the academic year column. Renewal submissions belong to the incoming officers: an outgoing officer's submission is refused with "Renewal belongs to the incoming officers. You can view it and help them prepare." |
+| 4 Ended | outgoing `ended` (shown Former) | none | At the end of the school year the outgoing officer's profile becomes a plain STUDENT profile (position and modules cleared, account untouched) unless they hold another active appointment in the organization |
+
+Rules:
+
+- Term start = the official renewal deadline minus one calendar month. The official renewal deadline is the earliest deadline still ahead among the active renewal requirements in Compliance. It is read, never stored as an editable field.
+- If Compliance has no deadline, the appointment stays Upcoming, is flagged and recalculated on every sync; the Officers tab shows "No renewal deadline in Compliance yet" and the Admins and the college's Department Head are told once. If the calculated start had already passed when the results became final, access starts at once, the row shows "Start date had already passed when the results became final" and the Admins and the dean are told once.
+- A deadline moved before the start recalculates the start and notifies the appointee; a deadline moved after the start changes nothing and never revokes access. Officers with an active or upcoming appointment are also told when a renewal deadline changes and 7 days before one.
+- Only confirmed winners are ever assigned: a tied or unresolved position creates nothing until the runoff or the reviewer resolves it, and a later run adds only the missing appointments.
+- Handover tab: six items (Finance, Events, Tasks, Organization, Election, Compliance), each with status Pending, Prepared, Under review or Acknowledged, an Open records link, remarks and an attachment link. An outgoing officer sees **Prepare** (remarks, optional file, **Save as prepared**). An incoming officer whose access is active sees **Acknowledge receipt** behind a confirm that reads "This confirms you received it. It does not certify that the information is correct or audited." The Department Head and the SAO see the tabs read only.
+- Renewal tab: the official deadline (read only, with **Set in Compliance**), a progress line "N of M requirements submitted", the requirement list with Pending or Overdue marks, the assigned incoming officers, and **Open in Compliance** per requirement.
+- Closed semesters stay read only for everyone. Records of earlier elections remain visible through the Records page; the Officers tab starts from appointments created by this release.
+- Audit (module `records`): appointment_created, appointment_recalculated, appointment_activated, appointment_activation_failed, appointment_expired, handover_prepared, handover_acknowledged, each with the actor's school ID.
 
 ## 5. Page anatomy standard
 

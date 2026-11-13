@@ -1819,5 +1819,134 @@
     "device": "Any",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "DH-102",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Review the whole election proposal in the approval drawer",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Admin 900001 has submitted a full election (ADM-254). Round 2: the SAO has activated a semester that covers the test dates (a fresh seed has no semester and accepts any dates).",
+    "steps": [
+      "1. Open Approvals, set Request type to Election and select Review on the row.",
+      "2. Read the drawer \"Approval request\" from top to bottom.",
+      "3. Select \"Approve\" (the remarks box may stay empty)."
+    ],
+    "expected": "The drawer shows the whole proposal under \"Election proposal\": Organization, Academic year, \"Schedule\" (every date), \"Positions\" (seats, executive, year levels), \"Qualifications\", \"Official rules\" and \"Tie-break rule\", then the \"Decision history\". The footer has \"Reject for good\", \"Ask for changes\" and \"Approve\". \"Approve\" needs no text. The Admin is told. Approval snapshots the rules as version 1, which students read and accept before filing.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254"
+  },
+  {
+    "id": "DH-103",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Ask for changes on an election proposal",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A submitted full election waits for your decision.",
+    "steps": [
+      "1. Open the election in Approvals.",
+      "2. Leave the remarks empty and look at \"Ask for changes\" and \"Reject for good\".",
+      "3. Type the notes \"Move the voting start after the campaign\" and select \"Ask for changes\".",
+      "4. Sign in as the Admin and read the row, the box under the step strip and the bell."
+    ],
+    "expected": "Both written decisions stay off until text is typed. After \"Ask for changes\" the Decision history shows the notes. The Admin sees the election as Returned with \"Reason: <notes>\", the next step \"Returned: edit and resubmit\" with \"Edit election\", and a notice. The Admin edits it and the success toast reads \"Election updated and sent back for approval.\" It returns to the Department Head.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after DH-102"
+  },
+  {
+    "id": "DH-104",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Reject an election for good",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A submitted full election waits for your decision.",
+    "steps": [
+      "1. Open the election in Approvals and type a reason in the remarks box.",
+      "2. Select \"Reject for good\". Read the window \"Reject election for good\".",
+      "3. Select \"Reject for good\" in the window.",
+      "4. Sign in as the Admin and open the election row, then its Actions menu."
+    ],
+    "expected": "The window says \"This rejects the election for good. It cannot be resubmitted. To let the Admin fix it, ask for changes instead.\" The Admin sees the status Rejected and the reason. The next step reads \"Rejected by the Department Head\". \"Edit\" shows \"The Department Head rejected this election\" with the reason and nothing can be edited or resubmitted. The Admin is told with the wording for a final rejection.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after DH-102"
+  },
+  {
+    "id": "DH-105",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "The decision history of an election lists every decision",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An election that was returned once and approved later (DH-103).",
+    "steps": [
+      "1. Open the election in Approvals and scroll to \"Decision history\".",
+      "2. Read each entry."
+    ],
+    "expected": "Each entry shows the decision title, the time and the \"Remarks\" the reviewer wrote: the change request and the approval.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after DH-103"
+  },
+  {
+    "id": "DH-106",
+    "role": "Department Head",
+    "module": "Election results > Tie resolution",
+    "title": "Resolve a tie with the rule and a written explanation",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A runoff ended with the same number of votes for the tied candidates, so a position reads \"Pending tie resolution by the Department Head\".",
+    "steps": [
+      "1. Open Election results and find the position.",
+      "2. Read the form: the tied candidates, the tie-break rule and the note about vote totals.",
+      "3. Tick more candidates than the remaining seats.",
+      "4. Leave the explanation empty and look at \"Record decision\".",
+      "5. Tick exactly the remaining seats, type \"Written explanation\" and select \"Record decision\". Read the window and select \"Confirm decision\"."
+    ],
+    "expected": "The form lists only the candidates still tied, as checkboxes limited to the remaining seats, and shows the \"Approved tie-break rule\" read only (an election without one asks for a required \"Rule used\"). It says \"Vote totals cannot be changed.\" \"Record decision\" stays off without an explanation. After the confirmation the position reads \"Tie resolved by <your name>\" with the rule used and the explanation, and the Admin is told. The vote totals did not change. VERIFY against the built form.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-114"
+  },
+  {
+    "id": "DH-107",
+    "role": "Department Head",
+    "module": "Election results > Tie resolution",
+    "title": "The Department Head cannot change vote totals",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A resolved or published election.",
+    "steps": [
+      "1. Open Election results and read the totals of every position.",
+      "2. Look for any field that edits a vote total, and look at a position that is already decided.",
+      "3. Open the address /dashboard/elections/manage-elections."
+    ],
+    "expected": "Totals are read only. A tie form appears only on a position that is Pending tie resolution, never on a decided position. The Department Head is sent back to the Dashboard from the Admin workspace. After a tie decision the totals are exactly what the ballots counted.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time",
+    "depends": "Run after DH-106"
+  },
+  {
+    "id": "DH-108",
+    "role": "Department Head",
+    "module": "Records > Officer transition",
+    "title": "Officer transition is read only for the Department Head",
+    "preconditions": "Signed in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An election of this release has been completed (GEN-136).",
+    "steps": [
+      "1. Open Officer transition in the menu.",
+      "2. Open Officers, Handover and Renewal.",
+      "3. Look for \"Prepare\" and \"Acknowledge receipt\" on the Handover rows."
+    ],
+    "expected": "The page shows all three tabs for the officers of your college organizations. There is no \"Prepare\" and no \"Acknowledge receipt\", and no date field on Renewal. The Department Head is told when a start date cannot be set because Compliance has no renewal deadline, or when the start had already passed. VERIFY against the built page.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
   }
 ]
