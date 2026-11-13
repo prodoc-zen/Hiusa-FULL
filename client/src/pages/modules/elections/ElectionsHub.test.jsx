@@ -163,6 +163,25 @@ describe('ElectionsHub', () => {
     expect(screen.queryByRole('navigation', { name: 'Election workspace steps' })).not.toBeInTheDocument();
   });
 
+  it('shows the phase in the header chip and the step for it, and the Applications step, for a filing election', async () => {
+    const filing = {
+      phase: 'screening',
+      submitted_at: '2026-10-01T08:00:00+08:00',
+      filing_starts_at: '2026-12-01T08:00:00+08:00',
+      filing_ends_at: '2026-12-05T17:00:00+08:00',
+      screening_ends_at: '2026-12-08T17:00:00+08:00',
+      application_counts: { pending_review: 3, for_revision: 0, approved: 0, rejected: 0, withdrawn: 0 },
+    };
+    getElectionDetails.mockImplementation(async (id) => election({ id: Number(id), ...filing }));
+    renderHub('/dashboard/elections/manage-elections?record=5');
+
+    expect(await screen.findByText('Overview content')).toBeInTheDocument();
+    expect(screen.getByText('Screening', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByText('Screen 3 applications', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Applications/ })).toHaveAttribute('href', '/dashboard/elections/applications?record=5');
+    expect(screen.queryByRole('button', { name: 'Finalize ballot' })).not.toBeInTheDocument();
+  });
+
   it('sends a Department Head asking for the voting route to the results page instead of the ballot list', async () => {
     renderHub('/dashboard/elections/cast-vote', { role: 'DEPARTMENT_HEAD' });
     expect(await screen.findByText('Results destination')).toBeInTheDocument();

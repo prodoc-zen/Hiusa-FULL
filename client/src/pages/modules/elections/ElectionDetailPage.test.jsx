@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionDetailPage from './ElectionDetailPage';
 
 const { getElectionVoters, createElectionPosition, outlet } = vi.hoisted(() => ({
@@ -66,5 +66,63 @@ describe('ElectionDetailPage', () => {
     expect(await screen.findByText(/25% turnout/)).toBeInTheDocument();
     expect(getElectionVoters).toHaveBeenCalledWith(5, { page: 1 });
     expect(screen.queryByRole('button', { name: 'Add position' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ElectionDetailPage counts for an election where students file their own candidacy', () => {
+  const day = (offset) => new Date(Date.now() + offset * 86_400_000).toISOString();
+  const filingElection = () => ({
+    ...outlet.election,
+    status: 'upcoming',
+    phase: 'screening',
+    finalized_at: null,
+    filing_starts_at: day(-5),
+    filing_ends_at: day(-2),
+    screening_starts_at: day(-1),
+    screening_ends_at: day(2),
+    campaign_starts_at: day(3),
+    campaign_ends_at: day(6),
+    start_time: day(7),
+    end_time: day(8),
+    results_publish_at: day(9),
+    voters_count: 12,
+    application_counts: { pending_review: 4, for_revision: 1, approved: 2, rejected: 1, withdrawn: 0 },
+    positions: [{ id: 1, title: 'President', max_winners: 1, result_status: 'tie_pending' }, { id: 2, title: 'Treasurer', max_winners: 1, result_status: 'decided' }, { id: 3, title: 'Auditor', max_winners: 1, result_status: 'runoff_required' }],
+    candidates: [{ id: 3, position_id: 1, user: { first_name: 'Ana', last_name: 'Reyes' } }, { id: 4, position_id: 2, user: { first_name: 'Ben', last_name: 'Cruz' } }],
+  });
+
+  const original = outlet.election;
+  afterEach(() => { outlet.election = original; });
+  const renderPage = (election) => {
+    outlet.election = election;
+    render(<MemoryRouter initialEntries={['/dashboard/elections/manage-elections?record=5']}><ElectionDetailPage /></MemoryRouter>);
+  };
+  const countOf = (label) => within(screen.getByRole('group', { name: 'Election counts' })).getByText(label).closest('div');
+
+  it('shows one row of plain counts', () => {
+    renderPage(filingElection());
+    expect(countOf('Pending review')).toHaveTextContent('Pending review4');
+    expect(countOf('Needs correction')).toHaveTextContent('Needs correction1');
+    expect(countOf('Approved candidates')).toHaveTextContent('Approved candidates2');
+    expect(countOf('Turnout')).toHaveTextContent('Turnout12');
+    expect(countOf('Unresolved ties')).toHaveTextContent('Unresolved ties2');
+  });
+
+  it('names the next deadline and its date on one line', () => {
+    renderPage(filingElection());
+    expect(screen.getByText(/^Next: Screening closes on /)).toBeInTheDocument();
+  });
+
+  it('shows no counts row and no next line for an election where the Admin adds the candidates', () => {
+    renderPage({ ...outlet.election });
+    expect(screen.queryByRole('group', { name: 'Election counts' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Next:/)).not.toBeInTheDocument();
+  });
+
+  it('shows zero counts when the server sent none yet, and no next line once every date has passed', () => {
+    renderPage({ ...filingElection(), application_counts: undefined, voters_count: undefined, positions: [], candidates: [], filing_starts_at: day(-20), filing_ends_at: day(-19), screening_starts_at: day(-18), screening_ends_at: day(-17), campaign_starts_at: day(-16), campaign_ends_at: day(-15), start_time: day(-14), end_time: day(-13), results_publish_at: day(-12) });
+    expect(countOf('Pending review')).toHaveTextContent('Pending review0');
+    expect(countOf('Unresolved ties')).toHaveTextContent('Unresolved ties0');
+    expect(screen.queryByText(/^Next:/)).not.toBeInTheDocument();
   });
 });

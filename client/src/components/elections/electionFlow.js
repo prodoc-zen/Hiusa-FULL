@@ -20,8 +20,9 @@ export function withApprovalState(election) {
   return { ...election, approval_status: 'rejected' };
 }
 
+// A final rejection (declined_at) is not a return: nothing can be edited and resubmitted.
 export function isReturned(election) {
-  return election?.status === 'pending_approval' && withApprovalState(election)?.approval_status === 'rejected';
+  return election?.status === 'pending_approval' && !election?.declined_at && withApprovalState(election)?.approval_status === 'rejected';
 }
 
 // The Admin reaches the voter turnout through the Overview route because the voters route is
@@ -119,8 +120,25 @@ export function finalizeChecklist(election) {
   return { items, ready: !blocker, disabledReason: blocker?.fix };
 }
 
+const PHASE_CHIPS = {
+  scheduled: { label: 'Scheduled', tone: 'info' },
+  filing: { label: 'Filing open', tone: 'success' },
+  screening: { label: 'Screening', tone: 'info' },
+  campaign: { label: 'Campaign', tone: 'info' },
+  voting: { label: 'Voting open', tone: 'success' },
+  canvassing: { label: 'Canvassing', tone: 'neutral' },
+  runoff: { label: 'Runoff voting', tone: 'success' },
+  tie_resolution: { label: 'Pending tie resolution', tone: 'warning' },
+  completed: { label: 'Completed', tone: 'neutral' },
+};
+
 export function electionStatusChip(election) {
+  if (election?.cancelled_at || election?.phase === 'cancelled') return { label: 'Cancelled', tone: 'neutral' };
+  if (election?.declined_at) return { label: 'Rejected', tone: 'danger' };
+  if (election?.suspended_at) return { label: 'Suspended', tone: 'warning' };
   if (isReturned(election)) return { label: 'Returned', tone: 'danger' };
+  if (election?.filing_starts_at && election.status === 'pending_approval' && election.submitted_at === null) return { label: 'Draft', tone: 'neutral' };
+  if (PHASE_CHIPS[election?.phase]) return PHASE_CHIPS[election.phase];
   switch (election?.status) {
     case 'pending_approval': return { label: 'Pending approval', tone: 'warning' };
     case 'upcoming': return { label: 'Upcoming', tone: 'info' };
@@ -146,4 +164,35 @@ export function resultsLink(election, role) {
   }
   if (election?.status === 'closed') return { available: false, text: 'Available when the Admin releases the results' };
   return { available: false, text: 'Available when voting closes' };
+}
+
+const DEADLINES = [
+  ['filing_starts_at', 'Filing opens'],
+  ['filing_ends_at', 'Filing closes'],
+  ['screening_starts_at', 'Screening opens'],
+  ['screening_ends_at', 'Screening closes'],
+  ['campaign_starts_at', 'Campaign opens'],
+  ['campaign_ends_at', 'Campaign closes'],
+  ['start_time', 'Voting opens'],
+  ['end_time', 'Voting closes'],
+  ['results_publish_at', 'Results publish'],
+  ['runoff_starts_at', 'Runoff opens'],
+  ['runoff_ends_at', 'Runoff closes'],
+  ['runoff_publish_at', 'Runoff results publish'],
+];
+
+// The first scheduled date that is still ahead, so the Admin sees what is coming next without reading the whole schedule.
+export function nextDeadline(election, now = Date.now()) {
+  const ahead = DEADLINES
+    .map(([field, name]) => ({ name, at: election?.[field] }))
+    .filter(({ at }) => at && Date.parse(at) > now)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  return ahead[0] ?? null;
+}
+
+const UNRESOLVED_RESULTS = ['runoff_required', 'runoff_scheduled', 'runoff_voting', 'tie_pending'];
+
+// Positions the count could not settle yet: a runoff is still to come or the tie waits for the reviewer.
+export function unresolvedTies(election) {
+  return (election?.positions ?? []).filter((position) => UNRESOLVED_RESULTS.includes(position.result_status)).length;
 }

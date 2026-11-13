@@ -411,8 +411,162 @@ const ELECTION_STAGES = [
   { key: 'results', label: 'Results', actor: 'Admin' },
 ];
 
+// An election where students file their own candidacy (filing_starts_at set) moves through phases by
+// itself. phase: scheduled, filing, screening, campaign, voting, canvassing, runoff, tie_resolution,
+// completed, cancelled. A payload without a phase yet is read from its status.
+const FILING_STAGES = [
+  { key: 'proposal', label: 'Approval', actor: 'Department Head' },
+  { key: 'filing', label: 'Filing', actor: 'Students' },
+  { key: 'screening', label: 'Screening', actor: 'Admin' },
+  { key: 'campaign', label: 'Campaign' },
+  { key: 'voting', label: 'Voting', actor: 'Students' },
+  { key: 'results', label: 'Results', actor: 'Admin' },
+];
+const FILING_STAGE_OF_PHASE = { scheduled: 1, filing: 1, screening: 2, campaign: 3, voting: 4, canvassing: 5, runoff: 5, tie_resolution: 5, completed: 6 };
+const PHASE_OF_STATUS = { upcoming: 'scheduled', active: 'voting', closed: 'canvassing' };
+
+// Where a cancelled election had got to: the last stage whose start date has passed.
+function filingStageByDates(el) {
+  const reached = (value) => Boolean(value) && Date.parse(value) <= Date.now();
+  if (reached(el.end_time)) return 5;
+  if (reached(el.start_time)) return 4;
+  if (reached(el.campaign_starts_at)) return 3;
+  if (reached(el.screening_starts_at)) return 2;
+  return reached(el.filing_starts_at) ? 1 : 0;
+}
+
+function filingLifecycle(el, viewerRole) {
+  const href = recordHref('/dashboard/elections/manage-elections', el.id);
+  const reviewer = el.approval_required_role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD';
+  const stages = FILING_STAGES.map((stage) => stage.key === 'proposal' ? { ...stage, actor: roleLabel(reviewer) } : stage);
+  const resultsHref = recordHref('/dashboard/elections/election-results', el.id);
+  const phase = el.phase ?? PHASE_OF_STATUS[el.status] ?? null;
+  const positions = el.positions ?? [];
+  const resultOf = (status) => positions.some((position) => position.result_status === status);
+  const reason = el.halt_reason ? `: ${el.halt_reason}` : '';
+  const on = (value) => manilaDate(value);
+
+  if (el.cancelled_at || el.phase === 'cancelled') {
+    const stage = filingStageByDates(el);
+    return finish(buildSteps(stages, stage, { stopped: 'Cancelled' }), terminal('blocked', `Cancelled${reason}`, 'This election will not be completed.'), null, href);
+  }
+  if (el.declined_at) {
+    return finish(buildSteps(stages, 0, { stopped: 'Rejected' }), terminal('blocked', `Rejected by the ${roleLabel(reviewer)}`, el.approval_remarks || 'It cannot be resubmitted.'), null, href);
+  }
+  if (el.phase === 'completed') {
+    return finish(buildSteps(stages, stages.length), terminal('done', 'Results released', 'Voting is closed and the results are public.', { label: 'View results', to: resultsHref }), null, href);
+  }
+
+  const withAlert = (result) => {
+    if (!el.phase_alert) return result;
+    const steps = result.steps.map((step) => step.state === 'current' ? { ...step, state: 'blocked' } : step);
+    return finish(steps, { ...result.nextAction, tone: 'blocked', body: el.phase_alert }, result.actorRole, result.href);
+  };
+
+  if (el.status === 'pending_approval') {
+    if (el.approval_status === 'rejected') {
+      return withAlert(finish(buildSteps(stages, 0, { blocked: true, notes: { proposal: 'Returned' } }), turn(viewerRole, ['ADMIN'], {
+        title: 'Returned: edit and resubmit',
+        body: el.approval_remarks || 'Read the reviewer remarks, change the election, and send it again.',
+        label: 'Edit election',
+        to: href,
+      }, { title: 'Returned to the Admin for changes' }), 'ADMIN', href));
+    }
+    if (el.submitted_at === null) {
+      return finish(buildSteps(stages, 0), turn(viewerRole, ['ADMIN'], {
+        title: 'Finish the draft and submit it',
+        body: 'The Department Head sees the election only after you submit it.',
+        label: 'Edit election',
+        to: `/dashboard/elections/manage-elections?edit=${el.id}`,
+      }, { title: 'Waiting for the Admin to submit the election' }), 'ADMIN', href);
+    }
+    return finish(buildSteps(stages, 0), turn(viewerRole, [reviewer], {
+      title: 'Review this election',
+      body: 'It is waiting for your decision.',
+      label: 'Open approvals',
+      to: approvalsHref(reviewer),
+    }, { title: `Awaiting ${roleLabel(reviewer)} review` }), reviewer, href);
+  }
+
+  if (!(phase in FILING_STAGE_OF_PHASE)) return unknown(stages, el.status, href);
+  const stage = FILING_STAGE_OF_PHASE[phase];
+
+  if (el.suspended_at) {
+    const steps = buildSteps(stages, stage, { blocked: true, notes: { [stages[stage]?.key]: 'Suspended' } });
+    return finish(steps, turn(viewerRole, ['ADMIN'], {
+      title: `Suspended${reason}`,
+      body: 'Phases, filing and voting are paused until you resume the election.',
+      label: 'Resume election',
+    }, { title: `Suspended${reason}`, body: 'Phases, filing and voting are paused until the Admin resumes the election.' }), 'ADMIN', href);
+  }
+
+  const steps = buildSteps(stages, stage);
+  const student = viewerRole === 'STUDENT';
+  const waiting = (title, body) => terminal('waiting', title, body ?? NO_ACTION);
+
+  switch (phase) {
+    case 'scheduled':
+      return withAlert(finish(steps, waiting(`Filing opens on ${on(el.filing_starts_at)}`), null, href));
+    case 'filing': {
+      const until = `Students are filing until ${on(el.filing_ends_at)}`;
+      if (student) {
+        return withAlert(finish(steps, terminal('action', 'File your candidacy', `Filing is open until ${on(el.filing_ends_at)}.`, { label: 'File your candidacy', to: recordHref('/dashboard/elections/election-info', el.id) }), 'STUDENT', href));
+      }
+      return withAlert(finish(steps, waiting(until), 'STUDENT', href));
+    }
+    case 'screening': {
+      const pending = Number(el.application_counts?.pending_review ?? 0);
+      if (viewerRole === 'ADMIN' && pending > 0) {
+        const label = `Screen ${pending} ${pending === 1 ? 'application' : 'applications'}`;
+        return withAlert(finish(steps, terminal('action', label, `Screening ends on ${on(el.screening_ends_at)}.`, { label, to: recordHref('/dashboard/elections/applications', el.id) }), 'ADMIN', href));
+      }
+      if (viewerRole === 'ADMIN') return withAlert(finish(steps, waiting('No applications are waiting for review', `Screening ends on ${on(el.screening_ends_at)}.`), 'ADMIN', href));
+      return withAlert(finish(steps, waiting('The Admin is screening applications', `Screening ends on ${on(el.screening_ends_at)}.`), 'ADMIN', href));
+    }
+    case 'campaign':
+      return withAlert(finish(steps, waiting(`Voting opens on ${on(el.start_time)}`), null, href));
+    case 'voting': {
+      const until = el.end_time ? ` until ${on(el.end_time)}` : '';
+      if (student) {
+        if (el.has_voted === true) return withAlert(finish(steps, terminal('done', 'You have voted', 'Results appear when voting closes.'), null, href));
+        return withAlert(finish(steps, terminal('action', 'Cast your ballot', `Voting is open${until}.`, { label: 'Vote now', to: el.id === undefined ? undefined : `/elections/${el.id}/vote` }), 'STUDENT', href));
+      }
+      return withAlert(finish(steps, waiting(`Voting is open${until}`, 'Students are voting. No action needed from you.'), 'STUDENT', href));
+    }
+    case 'canvassing':
+      if (resultOf('runoff_required')) {
+        return withAlert(finish(steps, turn(viewerRole, ['ADMIN'], {
+          title: 'Set the runoff schedule',
+          body: 'A tie at the last seat needs one runoff among the tied candidates.',
+          label: 'Set the runoff schedule',
+          to: resultsHref,
+        }, { title: 'Waiting for the Admin to set the runoff schedule' }), 'ADMIN', href));
+      }
+      if (resultOf('runoff_scheduled') && el.runoff_starts_at) {
+        return withAlert(finish(steps, waiting(`Runoff voting opens on ${on(el.runoff_starts_at)}`), null, href));
+      }
+      return withAlert(finish(steps, waiting(el.results_publish_at ? `Results publish on ${on(el.results_publish_at)}` : 'The votes are being counted'), null, href));
+    case 'runoff': {
+      if (student) {
+        if (el.has_voted === true) return withAlert(finish(steps, terminal('done', 'You have voted in the runoff', 'The result is published after the runoff.'), null, href));
+        return withAlert(finish(steps, terminal('action', 'Vote in the runoff', 'Only the tied candidates are on this ballot.', { label: 'Vote in the runoff', to: el.id === undefined ? undefined : `/elections/${el.id}/vote` }), 'STUDENT', href));
+      }
+      return withAlert(finish(steps, waiting(`Runoff voting is open until ${on(el.runoff_ends_at)}`, 'Students are voting. No action needed from you.'), 'STUDENT', href));
+    }
+    default:
+      // tie_resolution: the reviewer picks among the candidates still tied.
+      return withAlert(finish(steps, turn(viewerRole, [reviewer], {
+        title: 'Resolve the tie',
+        body: 'The runoff ended in a tie. Choose the winner under the approved tie-break rule and write an explanation.',
+        label: 'Resolve the tie',
+        to: resultsHref,
+      }, { title: `Waiting for the ${roleLabel(reviewer)}` }), reviewer, href));
+  }
+}
+
 export function electionLifecycle(election, viewerRole) {
   const el = election ?? {};
+  if (el.filing_starts_at) return filingLifecycle(el, viewerRole);
   const href = recordHref('/dashboard/elections/manage-elections', el.id);
   const reviewer = el.approval_required_role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD';
   const stages = ELECTION_STAGES.map((stage) => stage.key === 'submitted' ? { ...stage, actor: roleLabel(reviewer) } : stage);
