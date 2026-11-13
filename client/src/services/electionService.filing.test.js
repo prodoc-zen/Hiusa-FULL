@@ -103,6 +103,29 @@ describe('filing and screening calls', () => {
     expect(get).toHaveBeenNthCalledWith(2, '/elections/2/applications/mine');
   });
 
+  it('hands the screening page the rows the server sends, with the nested shape it reads', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        applications: [{
+          id: 7, school_id: 2100142, user_name: 'Juan Dela Vega', year_level: '1st Year', position_id: 4, position_title: 'Representative', partylist_id: 3, partylist_name: 'Unity', status: 'pending_review',
+          open_urls: { coc: '/elections/2/applications/7/files/coc', credentials: null },
+        }],
+        counts: { pending_review: 1 },
+      },
+    });
+    const result = await elections.getApplications(2);
+    expect(result.counts).toEqual({ pending_review: 1 });
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      id: 7,
+      user: { name: 'Juan Dela Vega', school_id: 2100142, year_level: '1st Year' },
+      position: { id: 4, title: 'Representative' },
+      partylist: { id: 3, name: 'Unity' },
+      coc_open_url: '/elections/2/applications/7/files/coc',
+      credentials_open_url: null,
+    });
+  });
+
   it('maps file keys to the server field names', async () => {
     const photo = new File(['p'], 'p.png');
     const coc = new File(['c'], 'c.pdf');

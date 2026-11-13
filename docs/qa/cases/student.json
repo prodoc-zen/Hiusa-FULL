@@ -758,10 +758,10 @@
       "2. Read the overview page \"Official ballot\" and tap \"Start my ballot\".",
       "3. On each position, tap one candidate card, then tap \"Next position\".",
       "4. On the last position tap \"Review ballot\".",
-      "5. Check the list on \"Review your ballot\", then tap \"Submit final ballot\".",
-      "6. In the window \"Submit your final ballot?\" tap \"Confirm and submit\"."
+      "5. Check the list on \"Review your ballot\".",
+      "6. Tap \"Confirm and submit\"."
     ],
-    "expected": "The page \"Ballot submitted\" appears with the election title under it, the line \"Submitted <date and time>\" (for example \"Submitted November 13, 2026, 5:30 PM\"), \"Your choices were recorded and cannot be changed.\" and the \"Ballot receipt\" code. \"Your selections\" lists your choices. After you reload the page or reopen the election the submitted time stays the same (it is the time the server recorded). Total clicks from the home page: 6. Tapping \"Back to Vote\" returns to the Vote page where the card shows Voted.",
+    "expected": "The page \"Ballot submitted\" appears with the election title under it, the line \"Submitted <date and time>\" (for example \"Submitted November 13, 2026, 5:30 PM\"), \"Your choices were recorded and cannot be changed.\" and the \"Ballot receipt\" code. \"Your selections\" lists your choices. After you reload the page or reopen the election the submitted time stays the same (it is the time the server recorded). The receipt is a reference with the submission time. Total clicks from the home page: 6. Tapping \"Back to Vote\" returns to the Vote page where the card shows Voted.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -771,16 +771,16 @@
     "id": "STU-042",
     "role": "Student",
     "module": "Voting > Vote",
-    "title": "A choice is required for every position",
+    "title": "A position can be skipped and a blank ballot can be submitted",
     "preconditions": "An election is open and the student has not voted.",
     "steps": [
       "1. Start the ballot with \"Start my ballot\".",
       "2. On the first position, tap \"Next position\" without choosing a candidate.",
-      "3. Read the message.",
-      "4. Choose a candidate and move on. Skip choosing on the next position and use the position list to jump to the review step if possible.",
-      "5. On the review page, read the warning."
+      "3. Read the page.",
+      "4. Choose a candidate on the next position and move on. Use the position list to jump to the review step.",
+      "5. On the review page, read the rows and the lines under the title."
     ],
-    "expected": "Step 3: \"Select a candidate before continuing.\" appears and you cannot move on. On the review page a position with no choice shows \"Not selected\" and the warning \"Complete all positions before final submission.\" The \"Submit final ballot\" button stays disabled until every position has a choice.",
+    "expected": "Step 2 moves on: any position may be skipped. The line under the title reads \"Choose one candidate, or skip this position.\" On the review page a position with no choice shows \"No selection (abstain)\". If nobody was chosen at all the page says \"You have not chosen anyone. Submitting records a blank ballot.\" The button \"Confirm and submit\" is always on. There is no message \"Select a candidate before continuing.\" and no warning \"Complete all positions before final submission.\"",
     "priority": "High",
     "device": "Any",
     "type": "Validation",
@@ -1878,10 +1878,10 @@
       "2. Find the election card. Read the badge and the button.",
       "3. Tap \"Vote in this election\", then \"Start my ballot\".",
       "4. On each position tap one candidate and tap \"Next position\". On the last one tap \"Review ballot\".",
-      "5. Tap \"Submit final ballot\" and then \"Confirm and submit\".",
+      "5. Tap \"Confirm and submit\" on \"Review your ballot\".",
       "6. Tap \"Back to Vote\" and read the card. Then open Voting, Results."
     ],
-    "expected": "The card shows an \"Open\" badge and the button \"Vote in this election\". The page \"Ballot submitted\" shows a \"Ballot receipt hash\". The Vote page then shows the election as Voted. Results shows \"Live vote totals\" without any voter names. No message about a closed semester appears. VERIFY: nobody has run this path before. If the card is missing, the button is greyed or the vote is refused, write down the exact words and the time, and report it as Blocked.",
+    "expected": "The card shows an \"Open\" badge and the button \"Vote in this election\". The page \"Ballot submitted\" shows a \"Ballot receipt\" reference and the submission time. The Vote page then shows the election as Voted. Results shows \"Live vote totals\" without any voter names. No message about a closed semester appears. VERIFY: nobody has run this path before. If the card is missing, the button is greyed or the vote is refused, write down the exact words and the time, and report it as Blocked.",
     "priority": "High",
     "device": "Any",
     "type": "Functional",
@@ -2011,5 +2011,179 @@
     "type": "Functional",
     "round": "Any time",
     "depends": "Run after SAO-079, ADM-211, SBO-087, ADM-133 and ADM-135"
+  },
+  {
+    "id": "STU-108",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "See an election that has not opened filing yet, then read and accept the rules",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) has been approved and its filing opens soon.",
+    "steps": [
+      "1. Open Voting, then Vote. Find the election card.",
+      "2. Read the badge and the line under the dates.",
+      "3. When filing has opened, reload and select \"Read the rules and file candidacy\".",
+      "4. Read the page \"Election information\": the dates, \"Qualifications\" and \"Official rules\".",
+      "5. Look at \"File as an individual\" before the box is ticked, then tick \"I have read and accept the official rules\"."
+    ],
+    "expected": "Before filing opens the card says Upcoming with \"Filing opens <date>.\" and no button. When filing opens the badge reads Filing and the button \"Read the rules and file candidacy\". The page shows Filing, Screening, Campaign, Voting and Results dates, the qualifications (member of this organization, minimum units, minimum GPA when set, good moral standing, \"Fourth year students cannot run for executive positions.\", the required documents) and each position with its seats, whether it is Executive and its year levels. \"Official rules\" shows its version. \"File as an individual\" and \"File a party list\" stay off until the box \"I have read and accept the official rules\" is ticked.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254 and DH-102"
+  },
+  {
+    "id": "STU-109",
+    "role": "Student",
+    "module": "Voting > Election information",
+    "title": "File a candidacy as an individual",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. Filing is open and the rules box is ticked (STU-108). Have a picture (JPEG, PNG or WebP up to 2 MB) and two PDFs ready.",
+    "steps": [
+      "1. Select \"File as an individual\".",
+      "2. Select a \"Position\". Choose the picture for \"Formal photo\", a PDF for \"Certificate of Candidacy\" and a PDF for \"Credentials\". Leave \"Campaign platform\" empty at first.",
+      "3. Select \"Save draft\". Read the toast and the section \"My candidacy\".",
+      "4. Select \"Submit\".",
+      "5. Read \"My candidacy\"."
+    ],
+    "expected": "\"Submit\" stays off until a position and all three documents are chosen. \"Save draft\" gives \"Draft saved.\" and the status Draft. \"Submit\" gives \"Candidacy submitted for screening.\" and the status Pending review. \"My candidacy\" shows the position, the status, and \"Open Certificate of Candidacy\" and \"Open Credentials\" (private files only you and the Admin can open). A student can file for one position only, and only one candidacy per election. A draft that is never submitted is withdrawn when filing closes.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-108"
+  },
+  {
+    "id": "STU-110",
+    "role": "Student",
+    "module": "Voting > Election information",
+    "title": "File a party list with one vacant seat",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. Filing is open and the rules box is ticked (STU-108). The election has at least three positions. Have a picture and two PDFs ready for each member.",
+    "steps": [
+      "1. Select \"File a party list\".",
+      "2. Type a \"Party list name\" and a \"Motto\", pick a \"Color\" and optionally a \"Banner\". Select \"Create party list\".",
+      "3. For two positions select \"Add member\", type the member School ID, add the photo, the Certificate of Candidacy and the Credentials, and select \"Add member\".",
+      "4. Leave the third position without a member. Read it.",
+      "5. Select \"Submit party list\"."
+    ],
+    "expected": "The toast reads \"Party list created. Add a member to each position you want to fill.\" Each position row shows the member or \"Vacant\". \"Member added.\" appears for each member and each member is a student who is a voting member of the organization (a fourth year student for an executive position is refused, STU-111). \"Submit party list\" needs at least one member. A vacant seat is allowed. \"My candidacy\" shows one row per member with their own status, and each is screened separately. The listed members get a notice. Official candidates later show the party list name, motto and color.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-108"
+  },
+  {
+    "id": "STU-111",
+    "role": "Student",
+    "module": "Voting > Election information",
+    "title": "A fourth year student cannot file for an executive position",
+    "preconditions": "Signed in as Student 2200451 (Rafael Aquino, 4th Year, a member of PSITS-CCS). Use the password from the tester sheet. Filing is open in an election whose President position is marked Executive.",
+    "steps": [
+      "1. Open Voting, Vote, and \"Read the rules and file candidacy\". Tick the rules box.",
+      "2. Select \"File as an individual\", choose the executive position (for example President) and add the three documents.",
+      "3. Select \"Submit\".",
+      "4. Choose a non-executive position instead and submit again."
+    ],
+    "expected": "Step 3 is refused with \"Fourth year students cannot run for an executive position.\" and nothing is saved. A representative who adds this student to a party list for an executive position sees \"<name> is a fourth year student. Fourth year students cannot run for an executive position.\" A non-executive position is accepted. A student with no year level on record may file; the Admin then sees \"Year level not on record\". A position limited to some year levels refuses a student of another year with the year levels it is open to.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time",
+    "depends": "Run after STU-108"
+  },
+  {
+    "id": "STU-112",
+    "role": "Student",
+    "module": "Voting > Election information",
+    "title": "Replace documents when the Admin asks for a correction, and withdraw",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. Your application was returned with \"Ask for correction\" and notes (ADM-257). Screening is still open.",
+    "steps": [
+      "1. Open Voting, Vote, and the election (the button reads \"See the election\"). Read \"My candidacy\".",
+      "2. Choose a new file for any of the three documents and select \"Replace documents\".",
+      "3. Read the status.",
+      "4. Select \"Withdraw\", read the window \"Withdraw candidacy\" and select \"Withdraw\"."
+    ],
+    "expected": "The status is For revision and the Admin notes show under it. Only the three document fields are offered; the position and the platform cannot change. \"Replace documents\" gives \"Documents replaced. The application is back in screening.\" and the status Pending review. \"Withdraw\" asks \"Withdraw <name> from the election? It leaves the official list.\" and the toast reads \"Candidacy withdrawn.\" Withdrawing is possible until voting opens; after that the server says \"A candidacy cannot be withdrawn once voting has opened.\" A withdrawn application can be filed again while filing is open; a rejected one cannot.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-257"
+  },
+  {
+    "id": "STU-113",
+    "role": "Student",
+    "module": "Voting > Election information",
+    "title": "See the official candidates during the campaign",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. The election is in the Campaign phase with approved candidates.",
+    "steps": [
+      "1. Open Voting, Vote, and \"See the election\".",
+      "2. Scroll to \"Official candidates\"."
+    ],
+    "expected": "Candidates are grouped by position, each with the photo, the name, the party list name or \"Independent\", the party list color dot and motto, the banner, and the platform. Before the campaign the section is not shown. With no approved candidate it says \"No candidates have been approved yet.\"",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-257"
+  },
+  {
+    "id": "STU-114",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Vote with a skipped position and with two choices on a two seat position",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. Voting is open in a full election with a one seat position and a two seat position (voter may choose up to 2), each with at least three candidates, and a third position you will skip.",
+    "steps": [
+      "1. Open Voting, then Vote. Tap \"Vote in this election\" and \"Start my ballot\".",
+      "2. On the one seat position tap one candidate. Tap \"Next position\".",
+      "3. On the two seat position read the line under the title, tap two candidates, then try a third.",
+      "4. Tap \"Next position\" and do not choose anyone on the third position.",
+      "5. Tap \"Review ballot\". Read the page.",
+      "6. Tap \"Confirm and submit\"."
+    ],
+    "expected": "The ballot shows \"Position 1 of N.\" and the line \"Choose one candidate, or skip this position.\" for one seat and \"Choose up to 2\" for two. A third candidate cannot be chosen: the line \"You have chosen the most you can here. Unselect one to change your choice.\" shows. Any position may be skipped. \"Review your ballot\" shows each choice and \"No selection (abstain)\" for the skipped position, with \"Change\" on every row. A fully blank ballot shows \"You have not chosen anyone. Submitting records a blank ballot.\" and can be submitted. After \"Confirm and submit\" the page reads \"Ballot submitted\".",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254, DH-102 and ADM-257"
+  },
+  {
+    "id": "STU-115",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "The receipt shows the submission time, and the choices cannot be seen again",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. You have just submitted a ballot (STU-114).",
+    "steps": [
+      "1. On the page \"Ballot submitted\" read the title, the line starting \"Submitted\" and \"Ballot receipt\".",
+      "2. Tap \"Back to Vote\" and read the election card.",
+      "3. Open the election again from the card.",
+      "4. Reload the page and look for your choices anywhere."
+    ],
+    "expected": "The page shows \"Submitted <date and time>\" and the \"Ballot receipt\" reference. The table \"Your selections\" is shown only now, from the page itself. The Vote card reads Voted with \"Your ballot receipt\", the same reference and \"Submitted <date and time>\". Opening the ballot again shows \"Vote already recorded\" with the receipt and the time and never your choices. No page, report or export lists who voted for whom. A second attempt is refused: each voter can submit one ballot per round.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-114"
+  },
+  {
+    "id": "STU-116",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Vote in the runoff",
+    "preconditions": "Signed in as Student 2100142 (Juan Dela Vega, a member of PSITS-CCS). Use the password from the tester sheet. A runoff for a tied position is open (ADM-260) and you voted in the first round.",
+    "steps": [
+      "1. Open Voting, then Vote. Read the badge on the election card.",
+      "2. Tap \"Vote in this election\" and read the page title.",
+      "3. Start the ballot and read the candidates and the line under the position.",
+      "4. Choose a candidate, review and confirm."
+    ],
+    "expected": "The card badge reads Runoff and the button is the same as for a first ballot. The page reads \"Runoff vote\" with \"These candidates tied in the first count. Choose up to the seats still open, or skip a position, then check your choices and submit. A submitted ballot cannot be changed.\" Only the tied candidates of the affected positions appear. After submitting you get a new receipt reference for round 2. A voter who skipped the first round may still vote in the runoff.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-260"
   }
 ]

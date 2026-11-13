@@ -2067,5 +2067,40 @@
     "device": "Any",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "SAO-123",
+    "role": "SAO",
+    "module": "Approvals",
+    "title": "The SAO approves, declines and resolves ties for a university-wide organization",
+    "preconditions": "Signed in as SAO 990001. A university-wide organization has a full election in each state: submitted, approved with a tie waiting.",
+    "steps": [
+      "1. Open Approvals and set Request type to Election.",
+      "2. Open a submitted election and select \"Ask for changes\", then (on another) \"Reject for good\".",
+      "3. Approve a third one.",
+      "4. Open Election results for an election of the organization whose position is \"Pending tie resolution\" and record a decision."
+    ],
+    "expected": "For a university-wide organization the SAO is the reviewer instead of the Department Head: the same drawer, the same three decisions and the same decision history. The SAO sees the tie form on a pending position and records a decision with the tie-break rule and an explanation. A college organization still goes to its Department Head, and the SAO does not decide it.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-124",
+    "role": "SAO",
+    "module": "Setup and records > Officer transition",
+    "title": "The SAO opens Officer transition for any organization",
+    "preconditions": "Signed in as SAO 990001. Elections of this release have been completed in more than one organization.",
+    "steps": [
+      "1. Open Setup and records > Officer transition.",
+      "2. Open Officers and change the filters.",
+      "3. Open Handover and Renewal."
+    ],
+    "expected": "The page shows the officers of every organization (the Officers table names the election and the academic year) and the handover and renewal of each. The SAO sees the tabs read only, with no Prepare, no Acknowledge receipt and no date field. VERIFY how the page chooses which organization the Handover and Renewal tabs show for the SAO.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
   }
 ]

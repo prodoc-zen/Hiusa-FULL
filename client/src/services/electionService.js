@@ -144,7 +144,20 @@ function toFilingFormData(payload, method = null) {
   return fd;
 }
 
-export const getApplications = async (id, params = {}) => unwrap(await api.get(`/elections/${id}/applications`, { params }));
+// The server lists flat rows as {applications, counts}; the screening page reads {data, counts} with the person,
+// position and party list nested and the two private documents as open URLs.
+const nestApplication = (row) => ({
+  ...row,
+  user: row.user ?? { name: row.user_name, school_id: row.school_id, year_level: row.year_level },
+  position: row.position ?? { id: row.position_id, title: row.position_title },
+  partylist: row.partylist ?? (row.partylist_id ? { id: row.partylist_id, name: row.partylist_name } : null),
+  coc_open_url: row.coc_open_url ?? row.open_urls?.coc ?? null,
+  credentials_open_url: row.credentials_open_url ?? row.open_urls?.credentials ?? null,
+});
+export const getApplications = async (id, params = {}) => {
+  const result = unwrap(await api.get(`/elections/${id}/applications`, { params }));
+  return Array.isArray(result?.applications) ? { ...result, data: result.applications.map(nestApplication) } : result;
+};
 export const getMyApplications = async (id) => unwrap(await api.get(`/elections/${id}/applications/mine`));
 export const fileApplication = async (id, payload) => unwrap(await api.post(`/elections/${id}/applications`, toFilingFormData(payload)));
 export const updateApplication = async (id, applicationId, payload) =>

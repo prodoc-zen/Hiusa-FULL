@@ -2963,15 +2963,15 @@
     "id": "ADM-166",
     "role": "Admin / Adviser",
     "module": "Voting > Elections",
-    "title": "Finalize needs a candidate for every position and one party list candidate",
+    "title": "Finalize needs a candidate for every position (short form election)",
     "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An approved election with at least one position without a candidate.",
     "steps": [
       "1. On the election Overview read the box 'Before the ballot can be finalized'.",
       "2. Look at the button 'Finalize ballot'.",
-      "3. Add candidates to every position and put one in a party list.",
+      "3. Add candidates to every position (a party list is not needed).",
       "4. Select 'Finalize ballot'."
     ],
-    "expected": "The list shows Positions on the ballot, 'Positions without candidates: N' and 'Party list candidates'. The Finalize button is off with the reason shown until all three are met. After finalizing the page says 'Position setup is locked for this election.' If forced early the system says 'Add at least one candidate to every ballot position before finalizing.' or 'Assign at least one candidate to a party list before finalizing.'",
+    "expected": "The list shows Positions on the ballot and 'Positions without candidates: N'. The Finalize button is off with the reason shown until both are met. A party list is optional: an all-independent ballot can be finalized. After finalizing the page says 'Position setup is locked for this election.' If forced early the system says 'Add at least one candidate to every ballot position before finalizing.' An election where students file their own candidacy has no Finalize ballot: it locks by itself when voting opens.",
     "priority": "High",
     "device": "Laptop",
     "type": "Validation",
@@ -4407,17 +4407,17 @@
     "id": "ADM-247",
     "role": "Admin / Adviser",
     "module": "Voting > Elections",
-    "title": "Closing an election gives winners their seats by title, and the replaced officer stays a Student",
-    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a throwaway copy: the replaced President loses Admin pages. An election with a ballot that has a President seat and a Treasurer seat, finalized, with votes cast so that a member other than the current holders wins each seat. Treasurer 900004 is the current Treasurer. Know which members won before you start.",
+    "title": "Closing an election stages the winners as upcoming officers, and the replaced officer stays a Student",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Use a throwaway copy. A short form election with a President seat and a Treasurer seat, finalized, with votes cast so that a member other than the current holders wins each seat. Treasurer 900004 is the current Treasurer. In Compliance a renewal requirement with a deadline more than a month ahead exists (without one the winners are flagged \"No renewal deadline in Compliance yet\" and stay Upcoming). Know which members won before you start.",
     "steps": [
       "1. Open Voting > Elections, open the Actions menu of the election row, select Close and confirm.",
-      "2. Open Voting > Results and read the \"Access handed over\" line.",
-      "3. Sign in as the member who won President. Read the role badge, the position under the name and the menu.",
-      "4. Sign out. Sign in as the member who won Treasurer and read the same things, then open the bell.",
-      "5. Sign out. Sign in as 900004, the replaced Treasurer, and read the role badge, the menu and Voting > Vote.",
-      "6. Open Members > People as the new President and find 900004 in the list."
+      "2. Open Voting > Results and read the line for each winner.",
+      "3. Open Records > Officer transition and read the Officers tab.",
+      "4. When the start date has come (move the clock on the throwaway copy), sign in as the member who won President and read the role badge, the position under the name and the menu.",
+      "5. Sign in as the member who won Treasurer and read the same things, then open the bell.",
+      "6. After the end of the school year sign in as 900004, the replaced Treasurer, and read the role badge, the menu and Voting > Vote."
     ],
-    "expected": "Step 2 shows \"Access handed over\" with the line \"Winners now have access to the organization in their positions.\" Step 3: the President winner is an Admin (role badge Organization Admin, position President, the Admin menu), and the same holds for every Vice President winner (any title starting \"Vice President\"). Step 4: the Treasurer winner is an SBO Officer with position Treasurer and the officer menu, and the bell holds \"You now have access to <organization>\" with \"You won Treasurer in <election title>.\" Other winners of other titles are SBO Officers with that title, never Admins. Step 5: 900004 can still sign in. Their role in the organization is now Student (the student menu, no position), the account is still active, and they can vote in the next election of the organization. Step 6: 900004 is listed as an active Student with no position, not as Inactive. Nobody is set inactive by the hand over. Closing again or reloading the results hands over nothing more. A tied seat is not handed over and the results say so.",
+    "expected": "Closing no longer gives access in the same minute. Step 2: each winner reads \"Upcoming officer, access starts <date>\" (the start date is one calendar month before the official renewal deadline). Step 3: the winners are Upcoming with that date, and a winner flagged \"No renewal deadline in Compliance yet\" or \"Start date had already passed when the results became final\" shows that line. Step 4: the President winner is an Admin (role badge Organization Admin, position President), and the same holds for every Vice President winner (any title starting \"Vice President\"). Step 5: the Treasurer winner is an SBO Officer with position Treasurer, and the bell holds \"You now have access to <organization>\". Other winners of other titles are SBO Officers with that title, never Admins. Step 6: 900004 keeps officer access until the end of the school year, then is a Student in the organization (no position, account active, can vote in the next election), never Inactive. A tied seat creates nothing until a runoff or the reviewer resolves it. Elections closed before this release still read \"Access handed over\" (GEN-141).",
     "priority": "High",
     "device": "Laptop",
     "type": "Functional",
@@ -4480,5 +4480,243 @@
     "device": "Laptop",
     "type": "Functional",
     "round": "Any time"
+  },
+  {
+    "id": "ADM-251",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Create an election with the switch off: the short form is unchanged",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. This is the path the exhibit demo uses.",
+    "steps": [
+      "1. Select \"Create election\".",
+      "2. Switch \"Students file their own candidacy\" off. Read the line under it.",
+      "3. Choose the PDF in \"Informative letter (PDF)\" when the field is shown, type an \"Election title\", and set \"Voting starts\" and \"Voting ends\".",
+      "4. Select \"Add executive positions\" and read the line under the buttons.",
+      "5. Look at the buttons at the bottom, then select \"Submit for approval\"."
+    ],
+    "expected": "With the switch off the line reads \"Off: you add the candidates yourself.\" The form has only the title, \"Voting room\", \"Voting starts\", \"Voting ends\" and the positions: no schedule, qualifications, rules or tie-break fields. There is no \"Save draft\" button. \"Add executive positions\" adds President, Vice President Internal, Vice President External, Secretary, Treasurer, Auditor and Public Information Officer (the line under the buttons lists them). The toast reads \"Election submitted for approval.\" The card shows Pending approval. After the Department Head approves, the Admin adds candidates and finalizes the ballot as in ADM-163 and ADM-166, and there is no Applications step in the election workspace.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "ADM-252",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Full election form: every date, the rules and the tie-break rule are required, and the order is checked",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Round 2: the SAO has activated a semester that covers the test dates (a fresh seed has no semester and accepts any dates).",
+    "steps": [
+      "1. Select \"Create election\". Leave \"Students file their own candidacy\" on. Type an \"Election title\" and select \"Submit for approval\" with nothing else filled.",
+      "2. Read the messages under \"Schedule\", \"Official rules\" and \"Tie-break rule\".",
+      "3. Fill every date of the schedule but make \"Filing closes\" earlier than \"Filing opens\". Read the message under it.",
+      "4. Make \"Voting ends\" earlier than \"Voting starts\". Read the message.",
+      "5. Type 300 in \"Minimum enrolled units\". Type the same position title twice, in different capitals. Read the messages.",
+      "6. Fix everything and look at the order of the schedule fields: Filing opens, Filing closes, Screening starts, Screening ends, Campaign starts, Campaign ends, Voting starts, Voting ends, Results published."
+    ],
+    "expected": "Nothing is submitted while a message shows. Messages: \"Set every date in the schedule.\"; \"Enter the official rules.\"; \"Enter the tie-break rule.\"; \"Filing closes must be at or after filing opens.\"; \"Voting end time must be after the start time.\"; \"Minimum enrolled units must be a whole number from 0 to 255.\"; \"Election position titles must be unique.\" \"Minimum enrolled units\" starts at 10 and \"Minimum GPA\" is optional. Each date must be at or after the one before it. VERIFY: the server refuses minimum units above 60 even though the form allows up to 255; write down the message the server gives.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "ADM-253",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Save a draft and finish it later",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet.",
+    "steps": [
+      "1. Select \"Create election\". Leave \"Students file their own candidacy\" on.",
+      "2. Type only an \"Election title\" and select \"Save draft\".",
+      "3. Read the new row: its status and the line starting \"Next:\".",
+      "4. Sign out and sign in as Department Head 940001. Open Approvals and set Request type to Election.",
+      "5. Sign back in as the Admin, open the Actions menu of the draft row, select \"Edit\", fill the rest of the form and select \"Submit for approval\"."
+    ],
+    "expected": "The toast reads \"Draft saved.\" A draft needs only a title. The row shows the status Draft and \"Next: Finish the setup and submit for approval\". The Department Head does not see the draft in Approvals. After step 5 the toast reads \"Election submitted for approval.\" and the row shows Pending approval; only now does the Department Head see it.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-252"
+  },
+  {
+    "id": "ADM-254",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Submit the full election for approval, and watch it start by itself after approval",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. Round 2: the SAO has activated a semester that covers the test dates (a fresh seed has no semester and accepts any dates). Prepare a small PDF for the informative letter.",
+    "steps": [
+      "1. Select \"Create election\" and fill the whole form: title, description, all nine dates (filing opens a few minutes from now is fine), \"Minimum enrolled units\", \"Official rules\", \"Tie-break rule\", at least two positions, and the PDF.",
+      "2. Select \"Submit for approval\".",
+      "3. Sign in as Department Head 940001 and approve it (DH-102).",
+      "4. As the Admin, open the election and read the status chip, the step strip and the box under it."
+    ],
+    "expected": "The toast reads \"Election submitted for approval.\" and the card shows Pending approval with \"Awaiting Department Head review\". After approval the election is Scheduled until \"Filing opens\", then Filing open, with no button pressed by the Admin: phases move by themselves. The workspace strip reads Overview, Applications, Party lists, Candidates, Voters, Results and the six step bar reads Approval, Filing, Screening, Campaign, Voting, Results. The box under it names the one next step and the date it happens.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-252 and DH-102"
+  },
+  {
+    "id": "ADM-255",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "An edit that changes nothing material does not reopen approval; a rules change does",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) is approved and its voting has not opened.",
+    "steps": [
+      "1. Open the Actions menu of the election row, select \"Edit\", change only the \"Description\" and select \"Save changes\".",
+      "2. Read the toast and the status.",
+      "3. Edit again and change the text of \"Official rules\". Select \"Save changes\".",
+      "4. Read the toast, the status and the box under the step strip.",
+      "5. Sign in as Department Head 940001 and open Approvals."
+    ],
+    "expected": "Step 2: the toast reads \"Election updated.\" and the election stays approved, with its phase unchanged. Step 4: the toast reads \"Election updated and sent back for approval. Finalize the ballot again once it is approved.\" and the status is Pending approval; phases pause. Step 5: the election waits for the Department Head again. The same happens for a change of any schedule date, the tie-break rule, the minimum units or GPA, or a position. Once voting has opened none of these can change and the server says \"The schedule, rules and qualifications cannot change after voting has opened.\"",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254 and DH-102"
+  },
+  {
+    "id": "ADM-256",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "Suspend, resume and cancel an election",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) is approved and not completed.",
+    "steps": [
+      "1. Open the election workspace. Under the next step box select \"Suspend\".",
+      "2. Leave \"Reason\" empty and look at the button, then type a reason and select \"Suspend election\".",
+      "3. Read the status chip and the next step box. As a student try to file or vote.",
+      "4. Select \"Resume election\".",
+      "5. Select \"Cancel election\", type a reason and select \"Cancel election\" again.",
+      "6. Read the status chip. Sign in as Department Head 940001 and open the bell."
+    ],
+    "expected": "The dialog \"Suspend election\" says \"Phases, filing and voting pause until you resume the election. The reviewer and the other Admins are told.\" The confirm button stays off until a reason is typed. A suspended election shows Suspended, the next step reads \"Suspended: <reason>\" with the button \"Resume election\", and filing and voting are refused (the server says the election is suspended). \"Resume election\" returns it to its phase. The dialog \"Cancel election\" says \"Cancelling closes the election for good. It cannot be undone, no results are published and no officers are appointed.\" A cancelled election shows Cancelled with the reason, has no Suspend or Cancel buttons, and publishes nothing. The Department Head and the other Admins get a notice for the suspension and for the cancellation.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254 and DH-102"
+  },
+  {
+    "id": "ADM-257",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections > Applications",
+    "title": "Screen an application: approve, ask for a correction, reject",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) is in the Screening phase with three Pending review applications (see STU-108 and STU-109).",
+    "steps": [
+      "1. Open the election workspace and select the step \"Applications\". Read the table headers.",
+      "2. Open the Actions menu on the first row and select \"Approve\". In the window \"Approve application\" select \"Approve\".",
+      "3. On the second row select \"Ask for correction\", leave \"Notes for the candidate\" empty and look at the button, then type notes and select \"Ask for correction\".",
+      "4. On the third row select \"Reject\", type a reason in \"Reason for rejecting\" and select \"Reject\".",
+      "5. Use the \"Status\" filter to show only \"For revision\". Select \"Clear\".",
+      "6. Select the step \"Candidates\"."
+    ],
+    "expected": "The headers are Candidate (name, school ID, year level or \"Year level not on record\"), Position, Party list (or Independent), Documents (Photo, COC, Credentials), Status. Only Pending review rows have the Actions menu (Approve, Ask for correction, Reject), and only while the election is in Screening. Both written decisions need text before their button turns on. The statuses become Approved, For revision (with the notes shown under it) and Rejected (with the reason). The candidate and, for a party list member, the representative get a notice. The \"Candidates\" step now lists the approved candidate. Corrections still open when screening ends are rejected by the system with \"Corrections were not completed before screening closed\".",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254, DH-102, STU-108 and STU-109"
+  },
+  {
+    "id": "ADM-258",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections > Candidates",
+    "title": "The Candidates step is read only for an election where students file",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) has at least one approved candidate.",
+    "steps": [
+      "1. Open the election workspace and select the step \"Candidates\".",
+      "2. Look for \"Add candidate\" and for \"Edit\" or \"Remove\" on a candidate.",
+      "3. Read the line near the top and select its link \"Applications\".",
+      "4. Open an election that was created with the switch off and look at the same step."
+    ],
+    "expected": "For the filing election there is no \"Add candidate\", \"Edit\" or \"Remove\". The page says \"Candidates of this election come from approved applications.\" with a link to \"Applications\". The election created with the switch off still has \"Add candidate\", \"Edit\" and \"Remove\" for the Admin (the demo path).",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-257"
+  },
+  {
+    "id": "ADM-259",
+    "role": "Admin / Adviser",
+    "module": "Voting > Elections",
+    "title": "A phase that cannot start alerts the Admin and waits",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) is approved with short dates so that the filing has closed, applications are Pending review, and the Campaign start has passed. Nobody has decided them.",
+    "steps": [
+      "1. Open the election workspace and read the box under the step strip.",
+      "2. Open the bell and read the newest notices.",
+      "3. Wait one minute and read the box again.",
+      "4. Select the link \"Screen N applications\" and decide every application.",
+      "5. Wait one minute and read the box again."
+    ],
+    "expected": "The step bar shows Screening as blocked and the box says \"Screen N applications\" with \"Screening is not finished: N applications still need a decision.\" (or \"Voting cannot open: N applications still need a decision.\" when the voting start has passed). The Admins get the notice \"Election needs attention\" once, not every minute. The election does not move on while applications are pending. After the last decision it moves to Campaign, and to Voting when the voting start has passed and a candidate is approved. With no approved candidate the box says \"Voting cannot open: no approved candidate on any active position.\"",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-254 and DH-102"
+  },
+  {
+    "id": "ADM-260",
+    "role": "Admin / Adviser",
+    "module": "Voting > Results",
+    "title": "Schedule the one runoff for a tie",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election where students file their own candidacy (the switch \"Students file their own candidacy\" was on when it was created) has closed voting with a tie at the last seat of a position (for example one seat, two candidates, one vote each).",
+    "steps": [
+      "1. Open Voting > Results and read the line for the tied position.",
+      "2. Read the section \"Runoff schedule\".",
+      "3. Set \"Runoff voting ends\" earlier than \"Runoff voting starts\" and read the message.",
+      "4. Set a valid \"Runoff voting starts\", \"Runoff voting ends\" and \"Results published\", then select \"Schedule runoff\".",
+      "5. Read the position line again. Change the schedule before it starts and select \"Update schedule\"."
+    ],
+    "expected": "The position reads \"Runoff required: <tied names>\" and the Admin sees \"Runoff schedule\" with three date fields. An end before the start shows \"Runoff voting must end after it starts.\" and a publication before the end shows \"Results cannot be published before voting ends.\" After scheduling the line reads \"Runoff scheduled for <dates>\" and the button becomes \"Update schedule\" until the runoff starts. Only the tied candidates will be on the runoff ballot. Students and officers do not see the form. There is no new approval. VERIFY the exact wording against the built results page.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-114"
+  },
+  {
+    "id": "ADM-261",
+    "role": "Admin / Adviser",
+    "module": "Voting > Results > Reports",
+    "title": "Open an election report as PDF and as Excel",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election with applications and votes.",
+    "steps": [
+      "1. Open Voting > Results and select \"Reports\".",
+      "2. Read the list.",
+      "3. Select \"PDF\" on \"Official candidates\".",
+      "4. Select \"Excel\" on \"Voter participation\".",
+      "5. Open the \"Election results\" PDF and the \"Audit trail\" PDF."
+    ],
+    "expected": "The menu lists Official candidates, Candidacy screening, Party lists, Voter participation, Canvassing of votes, Election results and Audit trail, each with PDF and Excel. PDF opens in a new tab as a plain table with the title, the organization and the date. Excel downloads \"<election title> - <report>.xlsx\" with one sheet. The participation report shows eligible voters, ballots submitted and turnout per round with no voter names. The audit trail never shows who voted for whom. Each export adds a \"report_exported\" row to the audit trail. Canvassing and results show nothing to an officer or the Department Head until the results are published, as on the results page. VERIFY against the built menu.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-113"
+  },
+  {
+    "id": "ADM-262",
+    "role": "Admin / Adviser",
+    "module": "Records > Officer transition",
+    "title": "Officer transition: the three tabs for an Admin",
+    "preconditions": "Signed in as Admin 900001 (President of PSITS-CCS). Use the password from the tester sheet. An election of this release has been completed (see GEN-136).",
+    "steps": [
+      "1. Open Records > Officer transition. Read the page title and the tabs.",
+      "2. On Officers read the table headers and use the filters \"Academic year\", \"Position\" and \"Status\".",
+      "3. Open Handover and read the six rows.",
+      "4. Open Renewal and read the deadline, the progress line and the list."
+    ],
+    "expected": "The title is \"Officer transition\" with the tabs Officers, Handover and Renewal. Officers: Name, School ID, Position, Type (Executive or Non-executive), Academic year, Term start, Term end, Status (Upcoming, Active or Former) and Election. During an overlap both administrations show, told apart by the Academic year column. A flagged row has one line under its status: \"No renewal deadline in Compliance yet\" or \"Start date had already passed when the results became final\". Handover: Finance, Events, Tasks, Organization, Election and Compliance, each with a status (Pending, Prepared, Under review, Acknowledged), \"Open records\", remarks and an attachment link. Renewal: \"Official renewal deadline\" (read only, with \"Set in Compliance\"), \"N of M requirements submitted\", each requirement with Pending or Overdue and \"Open in Compliance\", and \"Assigned officers\". There is no date field to type in anywhere on this page. VERIFY against the built page.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after GEN-136"
   }
 ]
