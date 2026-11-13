@@ -2,7 +2,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   createElectionCandidate,
@@ -216,11 +216,14 @@ function CandidateForm({
 }
 
 export default function ManageCandidatesPage() {
-  const { election, refreshElection } = useOutletContext();
+  const { election, role, refreshElection } = useOutletContext();
+  // Only the Admin writes, and only on an election without filing; a filing election takes its candidates from approved applications.
+  const filing = Boolean(election?.filing_starts_at);
+  const canManage = role === 'ADMIN' && !filing;
 
   const [users, setUsers] = useState([]);
   const [partylists, setPartylists] = useState([]);
-  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [resourcesLoading, setResourcesLoading] = useState(canManage);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -240,6 +243,11 @@ export default function ManageCandidatesPage() {
     let cancelled = false;
 
     async function load() {
+      // The student list and party list options feed only the add and edit forms.
+      if (!canManage) {
+        setResourcesLoading(false);
+        return;
+      }
       setResourcesLoading(true);
       try {
         // /users is paginated - the candidate-assignment dropdown needs the full
@@ -268,7 +276,7 @@ export default function ManageCandidatesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canManage]);
 
   const positions = useMemo(() => election?.positions || [], [election?.positions]);
   const candidates = useMemo(() => election?.candidates || [], [election?.candidates]);
@@ -287,7 +295,7 @@ export default function ManageCandidatesPage() {
     return <EmptyState title="Election not found" description="Go back and choose an election." />;
   }
 
-  const canEdit = election.status !== 'closed' && !ballotLocked;
+  const canEdit = canManage && election.status !== 'closed' && !ballotLocked;
   const drawerOpen = showAdd || Boolean(editId);
 
   const resetAddForm = () => {
@@ -466,7 +474,7 @@ export default function ManageCandidatesPage() {
     : (
       <EmptyState
         title="No candidates yet"
-        description={canEdit ? 'Add a candidate for each position on the ballot.' : 'Nobody is registered for this election.'}
+        description={canEdit ? 'Add a candidate for each position on the ballot.' : (filing ? 'No application has been approved yet.' : 'Nobody is registered for this election.')}
         action={canEdit ? addButton : undefined}
       />
     );
@@ -478,6 +486,13 @@ export default function ManageCandidatesPage() {
 
   return (
     <div className="space-y-4">
+      {filing && (
+        <p className="text-sm text-ink-muted-strong">
+          Candidates of this election come from approved applications.{' '}
+          <Link to={`/dashboard/elections/applications?record=${election.id}`} className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Applications</Link>
+        </p>
+      )}
+
       {ballotLocked && (
         <p className="rounded-control bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {(election.votes || []).length > 0 ? 'Candidate setup is locked because votes have already been cast.' : 'Candidate setup is locked because the ballot has been finalized.'}
