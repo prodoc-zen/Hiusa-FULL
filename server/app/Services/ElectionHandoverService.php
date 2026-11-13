@@ -110,6 +110,8 @@ class ElectionHandoverService
                 foreach ($outgoing as $profile) {
                     // A former officer is still a member: they keep the organization, stay on the voter roll and lose only the seat.
                     $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);
+                    // The account row of a member whose home is this organization holds the title as well, and reads back when the profile has none.
+                    User::where('school_id', $profile->user_school_id)->where('organization_id', $organization->id)->update(['position_title' => null]);
                     $demoted[] = (int) $profile->user_school_id;
                 }
             }
