@@ -219,8 +219,8 @@ class OfficeStaffParityTest extends TestCase
                 'organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 900,
                 'warning_threshold' => 100, 'submission_status' => 'pending_department_head',
             ]);
-            Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => $budget->id, 'recorded_by' => $author->school_id, 'type' => 'expense', 'amount' => 100]);
-            Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => null, 'recorded_by' => $author->school_id, 'type' => 'income', 'amount' => 250]);
+            Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => $budget->id, 'recorded_by' => $author->school_id, 'type' => 'expense', 'amount' => 100, 'transaction_date' => now()->subDay()]);
+            Transaction::factory()->create(['organization_id' => $organization->id, 'budget_id' => null, 'recorded_by' => $author->school_id, 'type' => 'income', 'amount' => 250, 'transaction_date' => now()->subDay()]);
             Collection::create(['organization_id' => $organization->id, 'reference' => 'COL-'.$organization->id, 'amount_collected' => 500, 'source' => 'Ticket sales', 'collected_by' => $author->school_id, 'collected_at' => now()]);
             CashAdvance::create(['organization_id' => $organization->id, 'reference' => 'ADV-'.$organization->id, 'borrower_id' => $author->school_id, 'amount' => 300, 'purpose' => 'Venue deposit']);
             FinancialForecast::factory()->create(['organization_id' => $organization->id, 'generated_by' => $author->school_id]);
