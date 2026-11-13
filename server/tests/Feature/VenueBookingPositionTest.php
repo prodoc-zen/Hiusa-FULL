@@ -127,6 +127,17 @@ class VenueBookingPositionTest extends TestCase
         $this->assertFalse($canBook($deleted));
     }
 
+    public function test_a_title_that_is_not_text_is_a_validation_error_not_a_server_error(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['role' => 'ADMIN', 'organization_id' => $organization->id, 'account_status' => 'active']);
+        $position = $this->position($organization, 'Treasurer');
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/sbo-positions', ['role' => 'SBO_OFFICER', 'title' => ['x']])->assertStatus(422)->assertJsonValidationErrors(['title']);
+        $this->putJson("/api/sbo-positions/{$position->id}", ['title' => ['x']])->assertStatus(422)->assertJsonValidationErrors(['title']);
+    }
+
     public function test_titles_that_differ_only_by_spelling_cannot_be_added_and_stored_twins_each_keep_their_own_switch(): void
     {
         $organization = Organization::factory()->create();

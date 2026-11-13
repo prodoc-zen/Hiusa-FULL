@@ -37,7 +37,7 @@ class SboPositionController extends Controller
 
     public function store(Request $request)
     {
-        $request->merge(['title' => trim((string) $request->input('title'))]);
+        $request->merge(['title' => is_string($request->input('title')) ? trim($request->input('title')) : $request->input('title')]);
         $this->rejectSaoReservedAdviserTitle($request->input('title'));
         $organizationId = $request->user()->organization_id;
         $data = $request->validate([
@@ -58,7 +58,7 @@ class SboPositionController extends Controller
         abort_unless($position->organization_id === $request->user()->organization_id, 404);
         abort_if($position->role === 'ADMIN' && $this->isSaoAdviserTitle($position->title), 403, 'This position is managed by SAO.');
         if ($request->has('title')) {
-            $request->merge(['title' => trim((string) $request->input('title'))]);
+            $request->merge(['title' => is_string($request->input('title')) ? trim($request->input('title')) : $request->input('title')]);
             $this->rejectSaoReservedAdviserTitle($request->input('title'));
         }
         $old = $position->getAttributes();
@@ -105,7 +105,11 @@ class SboPositionController extends Controller
     private function notASpellingOfAnotherTitle(int $organizationId, mixed $role, ?int $exceptId = null): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) use ($organizationId, $role, $exceptId) {
-            $wanted = SboPosition::normaliseTitle((string) $value);
+            if (! is_string($value)) {
+                return;
+            }
+
+            $wanted = SboPosition::normaliseTitle($value);
             $taken = SboPosition::where('organization_id', $organizationId)->where('role', $role)->when($exceptId, fn ($query) => $query->whereKeyNot($exceptId))->pluck('title')
                 ->contains(fn ($title) => SboPosition::normaliseTitle($title) === $wanted);
             if ($taken) {
@@ -157,6 +161,6 @@ class SboPositionController extends Controller
 
     private function isSaoAdviserTitle(mixed $title): bool
     {
-        return in_array(strtolower(trim((string) $title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
+        return is_string($title) && in_array(strtolower(trim($title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
     }
 }
