@@ -100,13 +100,18 @@ class ElectionHandoverService
             $decided = $standings->reject(fn (array $row) => $row['winners']->isEmpty());
 
             foreach ($decided->reject(fn (array $row) => $row['tie']) as $row) {
+                // A seat titled only with dashes normalises to nothing and names no incumbent.
+                $seat = SboPosition::normaliseTitle($row['position']->title);
+                if ($seat === '') {
+                    continue;
+                }
                 $winnerIds = $row['winners']->pluck('user_id')->map(fn ($id) => (int) $id)->all();
                 $outgoing = AccountProfile::where('organization_id', $organization->id)
                     ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
                     ->where('account_status', 'active')
                     ->whereNotIn('user_school_id', $winnerIds)
                     ->get()
-                    ->filter(fn (AccountProfile $profile) => SboPosition::normaliseTitle((string) $profile->position_title) === SboPosition::normaliseTitle($row['position']->title));
+                    ->filter(fn (AccountProfile $profile) => $profile->position_title !== null && SboPosition::normaliseTitle($profile->position_title) === $seat);
                 foreach ($outgoing as $profile) {
                     // A former officer is still a member: they keep the organization, stay on the voter roll and lose only the seat.
                     $profile->update(['role' => 'STUDENT', 'position_title' => null, 'modules' => null]);

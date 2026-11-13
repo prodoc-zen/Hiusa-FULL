@@ -154,7 +154,7 @@ class VenueBookingPositionTest extends TestCase
         $migration = require database_path('migrations/2026_11_13_100002_add_can_book_venues_to_sbo_positions.php');
         $migration->down();
 
-        $titles = ['President', "Vice President \u{2013} Internal", 'Secretary', 'Business Manager', 'Assistant Secretary', 'Treasurer', 'Auditor'];
+        $titles = ['President', "Vice President \u{2013} Internal", 'Secretary', 'Business Manager', 'Assistant Secretary', 'Treasurer', 'Auditor', 'Vice Presidential Aide', "Vice President's Assistant", 'Vice-President'];
         foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
             foreach ($titles as $title) {
                 DB::table('sbo_positions')->insert(['organization_id' => $organization->id, 'role' => $role, 'title' => $title, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
@@ -163,7 +163,8 @@ class VenueBookingPositionTest extends TestCase
         $migration->up();
 
         $on = DB::table('sbo_positions')->where('can_book_venues', true)->pluck('title')->unique()->sort()->values()->all();
-        $this->assertSame(['Business Manager', 'President', 'Secretary', "Vice President \u{2013} Internal"], $on);
+        $this->assertSame(['Business Manager', 'President', 'Secretary', "Vice President \u{2013} Internal", 'Vice-President'], $on);
+        $this->assertSame(0, DB::table('sbo_positions')->whereIn('title', ['Vice Presidential Aide', "Vice President's Assistant"])->where('can_book_venues', true)->count());
         $this->assertSame(0, DB::table('sbo_positions')->where('title', 'Assistant Secretary')->where('can_book_venues', true)->count());
     }
 
