@@ -61,6 +61,20 @@ return [
         'announcement_daily_limit' => env('ANNOUNCEMENT_AI_DAILY_LIMIT', 20),
     ],
 
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5-5'),
+        'effort' => env('ANTHROPIC_EFFORT', 'low'),
+        // Seconds for the whole call. The SDK enforces no timeout itself, so the HTTP transport carries it.
+        'timeout' => env('ANTHROPIC_TIMEOUT', 8),
+        'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
+    ],
+
+    'ai' => [
+        // anthropic = Claude first, Groq as fallback. groq = Groq only. Blank follows the key: Claude only when a key exists.
+        'provider' => env('AI_PROVIDER'),
+    ],
+
     'edp' => [
         'driver' => env('EDP_DRIVER', 'local'),
         'url' => env('EDP_URL'),
