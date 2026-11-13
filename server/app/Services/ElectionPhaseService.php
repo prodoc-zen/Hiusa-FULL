@@ -179,14 +179,24 @@ class ElectionPhaseService
         }
     }
 
-    /** The alert text is stored, so a cause is announced once and only a different cause announces again. */
+    /**
+     * The alert text is stored, so a cause is announced once and only a different cause announces again. The live count
+     * is not part of the cause: a screening decision while the election is held refreshes the stored text and tells nobody.
+     */
     private function recordAlert(Election $election, ?string $alert): void
     {
         if ($alert === $election->phase_alert) {
             return;
         }
 
+        $sameCause = $alert !== null && $election->phase_alert !== null
+            && $this->alertCause($alert) === $this->alertCause($election->phase_alert);
+
         $election->forceFill(['phase_alert' => $alert])->save();
+
+        if ($sameCause) {
+            return;
+        }
 
         if ($alert === null) {
             return;
@@ -194,6 +204,12 @@ class ElectionPhaseService
 
         $this->audit($election, 'phase_alert', null, ['alert' => $alert]);
         $this->notifyMembers($election, $this->recipients->administrators($election->organization_id)->pluck('user_school_id'), 'Election needs attention', $alert);
+    }
+
+    /** The alert with its count of waiting applications removed, so '2 applications' and '1 application' are one cause. */
+    private function alertCause(string $alert): string
+    {
+        return preg_replace('/\d{1,6} applications? still needs? a decision\./', 'applications still need a decision.', $alert) ?? $alert;
     }
 
     private function sendDeadlineNotices(Election $election, Carbon $now): void

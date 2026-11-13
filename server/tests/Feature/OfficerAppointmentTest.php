@@ -727,4 +727,68 @@ class OfficerAppointmentTest extends TestCase
         $this->assertSame(1, Notification::where('user_id', $outgoing->school_id)->where('title', 'Compliance deadline changed')->count());
         $this->assertSame(1, Notification::where('user_id', $this->admin->school_id)->where('title', 'Compliance deadline changed')->count());
     }
+
+    public function test_cancelling_a_released_election_ends_its_upcoming_and_outgoing_appointments_and_changes_no_role(): void
+    {
+        $this->deadline('2027-01-20');
+        $outgoing = $this->member('SBO_OFFICER', 'Secretary');
+        $election = $this->election(['phase' => 'canvassing', 'completed_at' => null]);
+        [$winner] = $this->position($election, 'Secretary', [5, 2]);
+        $this->sync($election);
+        $this->assertSame('upcoming', $this->appointmentOf($winner, 'incoming')->status);
+        $this->assertSame('active', $this->appointmentOf($outgoing, 'outgoing')->status);
+
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/elections/'.$election->id.'/cancel', ['reason' => 'The vote was challenged.'])->assertOk();
+
+        $this->assertSame('ended', $this->appointmentOf($winner, 'incoming')->status);
+        $this->assertSame('ended', $this->appointmentOf($outgoing, 'outgoing')->status);
+        $voided = AuditLog::where('module', 'records')->where('action', 'appointment_voided')->where('record_id', $election->id)->get();
+        $this->assertCount(2, $voided);
+        $this->assertSame($this->admin->school_id, $voided->first()->user_id);
+
+        foreach (['2026-12-21 09:00:00', '2027-06-01 09:00:00'] as $day) {
+            Carbon::setTestNow($day);
+            $this->sync($election);
+        }
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
+        $this->assertSame('SBO_OFFICER', $this->profile($outgoing)->role);
+        $this->assertSame('Secretary', $this->profile($outgoing)->position_title);
+    }
+
+    public function test_an_appointment_left_upcoming_on_a_cancelled_election_is_ended_and_never_activated(): void
+    {
+        $this->deadline('2027-01-20');
+        $election = $this->election(['phase' => 'canvassing', 'completed_at' => null]);
+        [$winner] = $this->position($election, 'Secretary', [5, 2]);
+        $this->sync($election);
+        $election->forceFill(['cancelled_at' => '2026-11-21 09:00:00', 'phase' => 'cancelled'])->save();
+
+        Carbon::setTestNow('2026-12-21 09:00:00');
+        $this->assertSame(0, $this->service()->activateDue());
+
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
+        $row = $this->appointmentOf($winner, 'incoming');
+        $this->assertSame('ended', $row->status);
+        $this->assertNotNull($row->ended_at);
+        $this->assertSame(1, AuditLog::where('module', 'records')->where('action', 'appointment_voided')->where('record_id', $election->id)->count());
+    }
+
+    public function test_a_suspended_election_activates_nothing_until_it_is_resumed(): void
+    {
+        $this->deadline('2027-01-20');
+        $election = $this->election(['phase' => 'canvassing', 'completed_at' => null]);
+        [$winner] = $this->position($election, 'Secretary', [5, 2]);
+        $this->sync($election);
+        $election->forceFill(['suspended_at' => '2026-11-21 09:00:00', 'halt_reason' => 'Under review.'])->save();
+
+        Carbon::setTestNow('2026-12-21 09:00:00');
+        $this->assertSame(0, $this->service()->activateDue());
+        $this->assertSame('upcoming', $this->appointmentOf($winner, 'incoming')->status);
+        $this->assertSame('STUDENT', $this->profile($winner)->role);
+
+        $election->forceFill(['suspended_at' => null, 'halt_reason' => null])->save();
+        $this->assertSame(1, $this->service()->activateDue());
+        $this->assertSame('SBO_OFFICER', $this->profile($winner)->role);
+    }
 }

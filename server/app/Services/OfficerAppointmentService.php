@@ -198,6 +198,9 @@ class OfficerAppointmentService
             ->where('status', 'upcoming')
             ->whereNotNull('term_starts_on')
             ->where('term_starts_on', '<=', now()->toDateString())
+            // A suspended election grants nothing until it is resumed. A cancelled one is let through so activate() ends the row.
+            ->where(fn ($query) => $query->whereNull('election_id')
+                ->orWhereHas('election', fn ($election) => $election->whereNull('suspended_at')))
             ->orderBy('id')
             ->get()
             ->each(function (OfficerAppointment $appointment) use (&$activated) {
@@ -263,6 +266,41 @@ class OfficerAppointmentService
             });
 
         return $ended;
+    }
+
+    /**
+     * A cancelled election never gives or takes a seat: every appointment it still holds is ended, the incoming ones before
+     * they start and the outgoing ones before they step down. Roles already granted are left as they are.
+     *
+     * @return int appointments ended
+     */
+    public function voidForCancelled(Election $election, ?int $actorSchoolId = null, ?string $ipAddress = null): int
+    {
+        $ended = 0;
+
+        OfficerAppointment::where('election_id', $election->id)
+            ->where(fn ($query) => $query->where(fn ($incoming) => $incoming->where('kind', 'incoming')->where('status', 'upcoming'))
+                ->orWhere(fn ($outgoing) => $outgoing->where('kind', 'outgoing')->where('status', 'active')))
+            ->orderBy('id')
+            ->get()
+            ->each(function (OfficerAppointment $appointment) use (&$ended, $actorSchoolId, $ipAddress) {
+                $this->void($appointment, $actorSchoolId, $ipAddress);
+                $ended++;
+            });
+
+        return $ended;
+    }
+
+    private function void(OfficerAppointment $appointment, ?int $actorSchoolId, ?string $ipAddress): void
+    {
+        $appointment->forceFill(['status' => 'ended', 'ended_at' => now()])->save();
+        $this->audit($appointment, 'appointment_voided', $actorSchoolId, $ipAddress, [
+            'appointment_id' => $appointment->id,
+            'user_school_id' => (int) $appointment->user_school_id,
+            'position_title' => $appointment->position_title,
+            'kind' => $appointment->kind,
+            'reason' => 'The election was cancelled.',
+        ]);
     }
 
     /** Closed, released, finalized and not cancelled: the only election whose winners may be appointed. */
@@ -481,6 +519,16 @@ class OfficerAppointmentService
         return DB::transaction(function () use ($appointment) {
             $locked = OfficerAppointment::query()->lockForUpdate()->find($appointment->id);
             if (! $locked || $locked->status !== 'upcoming') {
+                return false;
+            }
+
+            $parent = $locked->election_id ? Election::find($locked->election_id) : null;
+            if ($parent?->cancelled_at !== null) {
+                $this->void($locked, null, null);
+
+                return false;
+            }
+            if ($parent?->suspended_at !== null) {
                 return false;
             }
 

@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Election;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\OfficerAppointmentService;
 use App\Services\OrganizationRecipients;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -21,7 +22,10 @@ class ElectionGovernanceController extends Controller
 {
     private const HISTORY_APPROVAL_ACTIONS = ['submitted', 'resubmitted', 'reviewed_approved', 'reviewed_rejected'];
 
-    public function __construct(private readonly OrganizationRecipients $recipients) {}
+    public function __construct(
+        private readonly OrganizationRecipients $recipients,
+        private readonly OfficerAppointmentService $appointments,
+    ) {}
 
     public function suspend(Request $request, $id)
     {
@@ -59,13 +63,17 @@ class ElectionGovernanceController extends Controller
                 $this->isFinished($election) => 'A completed election cannot be cancelled.',
                 default => null,
             };
-        }, fn (Election $election) => $election->update([
-            'cancelled_at' => now(),
-            'halt_reason' => $data['reason'],
-            'status' => 'closed',
-            'results_visible' => false,
-            'phase' => 'cancelled',
-        ]), $data['reason']);
+        }, function (Election $election) use ($data, $request) {
+            $election->update([
+                'cancelled_at' => now(),
+                'halt_reason' => $data['reason'],
+                'status' => 'closed',
+                'results_visible' => false,
+                'phase' => 'cancelled',
+            ]);
+            // Winners already prepared from a released result must never receive the role, nor the officers they replace lose it.
+            $this->appointments->voidForCancelled($election, $request->user()->school_id, $request->ip());
+        }, $data['reason']);
     }
 
     /** Oldest first: what the Admin submitted, what the reviewer decided and when approval was reopened. */

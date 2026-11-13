@@ -125,8 +125,11 @@ class Election extends Model
             ->when($electionId, fn ($query) => $query->whereKey($electionId));
         $running = fn () => $baseQuery()->whereNull('suspended_at')->whereNull('cancelled_at');
 
+        // A filing election whose ballot was never locked never opened voting (pending reviews or no candidate held it),
+        // so its end time closes nothing: there are no ballots to count and no results to publish.
         $closed = $running()
             ->whereIn('status', ['upcoming', 'active'])
+            ->where(fn ($query) => $query->whereNull('filing_starts_at')->orWhereNotNull('finalized_at'))
             ->where('end_time', '<', $now)
             ->update(['status' => 'closed']);
 
