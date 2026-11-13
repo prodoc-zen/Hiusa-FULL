@@ -229,7 +229,9 @@ class ElectionController extends Controller
             ->whereIn('organization_id', $readableOrgIds);
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::selected($request)?->id;
         if ($selectedSemesterId) {
-            $query->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId));
+            // An election made before any semester existed belongs to no period, so no period hides it.
+            $query->where(fn ($period) => $period->whereIn('academic_semester_id', FilterValues::values($selectedSemesterId))
+                ->orWhereNull('academic_semester_id'));
         }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
@@ -305,7 +307,9 @@ class ElectionController extends Controller
         [$data] = $this->withApprovalFields($request, [$data]);
         $data['my_votes'] = $myVotes;
         if ($election->status === 'closed' && ($election->results_visible || $user->role === 'ADMIN')) {
+            // Round 1 only: runoff totals are read through the results endpoint, which holds them back until they are published.
             $data['vote_counts'] = Vote::where('election_id', $id)
+                ->where('round', 1)
                 ->selectRaw('candidate_id, COUNT(*) as vote_count')
                 ->groupBy('candidate_id')
                 ->pluck('vote_count', 'candidate_id');
@@ -727,14 +731,42 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
             'informative_letter' => ['sometimes', 'file', 'mimes:pdf', 'max:10240'],
+            'positions' => ['sometimes', 'array', 'max:30'],
+            'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
+            'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
+            ...$this->positionRules('positions.*.'),
             ...array_map(fn (array $rules) => ['sometimes', ...$rules], $this->setupRules(false, false)),
         ]);
+        $positions = $data['positions'] ?? null;
+        unset($data['positions']);
+        foreach ($positions ?? [] as $index => $position) {
+            $this->assertVoteLimit(isset($position['vote_limit']) ? (int) $position['vote_limit'] : null, (int) $position['max_winners'], "positions.{$index}.vote_limit");
+        }
+        // The ballot of an approved election changes only through the positions list, where the ballot locks are checked.
+        // A form that sends back the ballot it already has changes nothing and is accepted.
+        if ($positions !== null && ($election->approved_at || $election->status !== 'pending_approval')) {
+            $ballot = fn ($rows) => collect($rows)->map(fn ($row) => mb_strtolower(trim((string) (is_array($row) ? $row['title'] : $row->title))).'|'.(int) (is_array($row) ? $row['max_winners'] : $row->max_winners))->sort()->values()->all();
+            if ($ballot($positions) !== $ballot($election->positions()->get(['title', 'max_winners']))) {
+                return response()->json(['message' => 'The positions of an approved election are changed from its positions list.'], 409);
+            }
+            $positions = null;
+        }
         $requestedFields = array_keys($data);
         $oldValues = $this->auditableElectionValues($election);
         $data = $this->localSchedule($data);
 
         if ($election->cancelled_at && ! empty($data['results_visible'])) {
             return response()->json(['message' => 'A cancelled election never publishes results.'], 409);
+        }
+        if ($election->usesFiling()) {
+            // The phase engine alone publishes, closes and completes a filing election, so the schedule and the
+            // audit trail stay true and nobody reads or changes a tally outside them.
+            $publishes = array_key_exists('results_visible', $data) && (bool) $data['results_visible'] !== (bool) $election->results_visible;
+            $closes = ($data['status'] ?? null) === 'closed' && $election->status !== 'closed';
+            $reopens = ($data['status'] ?? null) === 'active' && $election->status === 'closed';
+            if ($publishes || $closes || $reopens) {
+                return response()->json(['message' => 'The schedule publishes, closes and completes this election, so that cannot be changed by hand.'], 409);
+            }
         }
         if (($election->cancelled_at || $election->declined_at) && $this->materialChange($election, $data)) {
             return response()->json(['message' => $election->declined_at ? 'The Department Head rejected this election, so it cannot be changed.' : 'A cancelled election cannot be changed.'], 409);
@@ -861,8 +893,11 @@ class ElectionController extends Controller
         unset($data['image'], $data['remove_image'], $data['informative_letter']);
 
         try {
-            DB::transaction(function () use ($election, &$data, $reopen, $request) {
+            DB::transaction(function () use ($election, &$data, $reopen, $request, $positions) {
                 $election->update($data);
+                if ($positions !== null) {
+                    $this->syncDraftPositions($election, $positions);
+                }
                 if ($reopen) {
                     $this->requestApproval($election, $request);
                 }
@@ -912,6 +947,38 @@ class ElectionController extends Controller
         }
 
         return response()->json($this->withApprovalFields($request, [$this->electionPayload($freshElection)])[0]);
+    }
+
+    /**
+     * Makes the ballot of an election that is not approved yet match the list the form sent: a title already on the
+     * ballot is updated in place, a new title is added, and a title left out is removed unless it already has candidates.
+     *
+     * @param  array<int, array<string, mixed>>  $positions
+     */
+    private function syncDraftPositions(Election $election, array $positions): void
+    {
+        $existing = $election->positions()->get()->keyBy(fn (ElectionPosition $position) => mb_strtolower(trim($position->title)));
+        $kept = [];
+
+        foreach ($positions as $position) {
+            $title = trim($position['title']);
+            $key = mb_strtolower($title);
+            $attributes = ['title' => $title, 'max_winners' => $position['max_winners'], ...$this->positionAttributes($position)];
+
+            if ($current = $existing->get($key)) {
+                $current->update($attributes);
+                $kept[] = $current->id;
+            } else {
+                $kept[] = $election->positions()->create($attributes)->id;
+            }
+        }
+
+        foreach ($existing->reject(fn (ElectionPosition $position) => in_array($position->id, $kept, true)) as $dropped) {
+            if ($dropped->candidates()->exists()) {
+                throw ValidationException::withMessages(['positions' => ['The position '.$dropped->title.' already has candidates, so it cannot be removed.']]);
+            }
+            $dropped->delete();
+        }
     }
 
     /** Sends a finished draft, or a returned election, to the reviewer. */

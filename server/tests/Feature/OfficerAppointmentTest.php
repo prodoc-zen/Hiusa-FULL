@@ -669,7 +669,8 @@ class OfficerAppointmentTest extends TestCase
     {
         $this->deadline('2027-01-20');
         $legacy = $this->election(['tally_version' => 1, 'completed_at' => null, 'phase' => null, 'results_visible' => false, 'filing_starts_at' => null]);
-        $current = $this->election(['completed_at' => null, 'phase' => 'canvassing', 'results_visible' => false]);
+        // The short form (no filing window) is still released by the Admin; a filing election is published by the schedule only.
+        $current = $this->election(['completed_at' => null, 'phase' => 'canvassing', 'results_visible' => false, 'filing_starts_at' => null]);
         $this->position($current, 'Secretary', [5, 2]);
 
         Sanctum::actingAs($this->admin);
