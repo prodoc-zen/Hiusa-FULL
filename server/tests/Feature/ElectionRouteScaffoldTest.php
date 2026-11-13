@@ -117,8 +117,8 @@ class ElectionRouteScaffoldTest extends TestCase
             $response = $this->json($method, $path);
 
             if (in_array($role, $roles, true)) {
-                // The governance routes are built; their behaviour is pinned in ElectionGovernanceTest.
-                if ($action[0] === ElectionGovernanceController::class) {
+                // The governance and filing routes are built; their behaviour is pinned in ElectionGovernanceTest, ElectionCandidacyFilingTest and ElectionScreeningTest.
+                if (in_array($action[0], [ElectionGovernanceController::class, ElectionApplicationController::class], true)) {
                     continue;
                 }
                 $response->assertStatus(501);
@@ -176,7 +176,8 @@ class ElectionRouteScaffoldTest extends TestCase
             ['POST', "/api/elections/{$election->id}/slates/1/members"],
             ['POST', "/api/elections/{$election->id}/slates/1/submit"],
         ] as [$method, $path]) {
-            $this->json($method, $path)->assertStatus(501);
+            // The routes are built: the officer's module limit must not refuse them (the filing tests pin what they answer).
+            $this->assertNotSame(403, $this->json($method, $path)->getStatusCode(), "$method $path");
         }
 
         // The oversight reads still need the elections module the officer was not given.

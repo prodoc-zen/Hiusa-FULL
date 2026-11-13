@@ -211,7 +211,8 @@ class ElectionCandidacyFilingTest extends TestCase
         $this->file($outsider)->assertNotFound();
 
         $adviser = User::factory()->adviser()->create(['organization_id' => $this->organization->id]);
-        $this->file($adviser)->assertUnprocessable();
+        // The adviser is off the voter roll, so the election is not theirs to see.
+        $this->file($adviser)->assertNotFound();
 
         $this->assertSame(0, ElectionApplication::count());
     }
