@@ -5,6 +5,7 @@ use App\Console\Commands\MarkOverdueTasks;
 use App\Console\Commands\OpsCheck;
 use App\Console\Commands\PruneExpiredCache;
 use App\Console\Commands\SendEventReminders;
+use App\Console\Commands\SendRenewalReminders;
 use App\Console\Commands\SyncElectionStatuses;
 use App\Http\Controllers\GlobalAnnouncementController;
 use App\Services\OrganizationDeletionService;
@@ -19,6 +20,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
 Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping(70);
+Schedule::command(SendRenewalReminders::class)->dailyAt('07:00')->withoutOverlapping(120);
 Schedule::command(MarkEventNoShows::class)->hourly()->withoutOverlapping(70);
 Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlapping(5);
 Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping(120);
