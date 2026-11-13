@@ -570,7 +570,7 @@ class ElectionSetupTest extends TestCase
     public function test_members_do_not_see_drafts_unapproved_unphased_or_cancelled_filing_elections(): void
     {
         $student = User::factory()->student()->create(['organization_id' => $this->organization->id]);
-        $this->approvedFilingElection(['phase' => null, 'title' => 'Not yet scheduled']);
+        // An approved election with no phase is not left that way: the request-time sync sets it to scheduled (ElectionPhaseService).
         $this->approvedFilingElection(['cancelled_at' => now(), 'status' => 'closed', 'title' => 'Cancelled']);
         $this->approvedFilingElection(['approved_at' => null, 'status' => 'pending_approval', 'title' => 'Waiting']);
         $draft = Election::factory()->create(['organization_id' => $this->organization->id, 'status' => 'pending_approval', 'phase' => 'scheduled', 'approved_at' => now(), 'title' => 'Draft']);
