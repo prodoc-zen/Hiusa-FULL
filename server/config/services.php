@@ -66,7 +66,7 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5-5'),
         'effort' => env('ANTHROPIC_EFFORT', 'low'),
         // Seconds for the whole call. The SDK enforces no timeout itself, so the HTTP transport carries it.
-        'timeout' => env('ANTHROPIC_TIMEOUT', 8),
+        'timeout' => env('ANTHROPIC_TIMEOUT', 12),
         'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
     ],
 

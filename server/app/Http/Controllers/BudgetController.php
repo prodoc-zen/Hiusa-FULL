@@ -242,6 +242,8 @@ class BudgetController extends Controller
         $xaiFacts = [
             'budget' => $budget->title,
             'event_or_project' => $budget->event?->title,
+            // The forecast and balance the rules used, so the explanation can name the figures behind the risk.
+            'inputs' => $payload,
             'computed_advice' => $advice,
         ];
         $xai = $this->ai->generate(
