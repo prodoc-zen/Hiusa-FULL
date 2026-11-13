@@ -43,7 +43,10 @@ final class SemesterScope
             )));
     }
 
-    /** A report belongs to every semester its period overlaps; one saved without a period belongs to where it was generated. */
+    /**
+     * A report belongs to every semester its period overlaps; one saved without a period belongs to where it was generated.
+     * Only an approved (finished) report is filtered by it: a draft, rejected or pending one is still somebody's work.
+     */
     public static function reports(Builder $query, ?AcademicSemester $semester): Builder
     {
         if (! $semester) {
@@ -51,13 +54,31 @@ final class SemesterScope
         }
 
         return $query->where(fn ($reports) => $reports
-            ->where(fn ($dated) => $dated
-                ->whereDate('period_start', '<=', $semester->ends_on)
-                ->whereDate('period_end', '>=', $semester->starts_on))
-            ->orWhere(fn ($undated) => self::dated(
-                $undated->where(fn ($missing) => $missing->whereNull('period_start')->orWhereNull('period_end')),
-                'generated_at',
-                [$semester],
-            )));
+            ->where('submission_status', '!=', 'approved')
+            ->orWhere(fn ($approved) => $approved
+                ->where(fn ($dated) => $dated
+                    ->whereDate('period_start', '<=', $semester->ends_on)
+                    ->whereDate('period_end', '>=', $semester->starts_on))
+                ->orWhere(fn ($undated) => self::dated(
+                    $undated->where(fn ($missing) => $missing->whereNull('period_start')->orWhereNull('period_end')),
+                    'generated_at',
+                    [$semester],
+                ))));
+    }
+
+    /**
+     * A collection still waiting on someone (pending verification, or verified with a balance left to remit) is shown
+     * whatever the semester; only a verified, fully remitted one belongs to the semester it was collected in.
+     */
+    public static function collections(Builder $query, ?AcademicSemester $semester): Builder
+    {
+        if (! $semester) {
+            return $query;
+        }
+
+        return $query->where(fn ($collections) => $collections
+            ->where('status', '!=', 'verified')
+            ->orWhereRaw('amount_collected > COALESCE((SELECT SUM(remittances.amount) FROM remittances WHERE remittances.collection_id = collections.id AND remittances.status = ?), 0)', ['recorded'])
+            ->orWhere(fn ($settled) => self::selected($settled, 'collected_at', $semester)));
     }
 }
