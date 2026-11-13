@@ -17,40 +17,24 @@ use Illuminate\Support\Str;
 class ElectionHandoverService
 {
     /**
-     * Per position: candidates by votes, who won, and whether a tie stops an automatic grant.
-     * A tie that straddles the last open seat leaves every tied candidate out; only those
-     * strictly ahead of the tie win.
+     * Per position: candidates by votes, who won, and whether a tie stops an automatic grant. The count itself is
+     * ElectionTallyService's; this keeps the shape the Records page reads. A tie leaves the tied candidates out of the
+     * winners, and for a current election a position still waiting on a runoff or a tie decision reads as a tie.
      *
      * @return Collection<int, array{position: ElectionPosition, candidates: Collection, winners: Collection, tie: bool}>
      */
     public function standings(Election $election): Collection
     {
-        $positions = ElectionPosition::where('election_id', $election->id)->orderBy('id')->get();
-        $candidates = Candidate::withCount('votes')
-            ->whereIn('position_id', $positions->pluck('id'))
-            ->get()
-            ->groupBy('position_id');
+        $earlier = (int) $election->tally_version === 1;
 
-        return $positions->map(function (ElectionPosition $position) use ($candidates) {
-            $ranked = $candidates->get($position->id, collect())
-                ->filter(fn (Candidate $candidate) => $candidate->votes_count > 0)
-                ->sortByDesc('votes_count')
-                ->values();
-            $seats = max(1, (int) $position->max_winners);
-            $cutoff = $ranked->get($seats - 1)?->votes_count;
-
-            if ($cutoff === null) {
-                return ['position' => $position, 'candidates' => $ranked, 'winners' => $ranked, 'tie' => false];
-            }
-
-            $beyond = $ranked->get($seats)?->votes_count;
-            $tie = $beyond !== null && $beyond === $cutoff;
+        return app(ElectionTallyService::class)->standings($election)->map(function (array $row) use ($earlier) {
+            $row['candidates']->each(fn (Candidate $candidate) => $candidate->setAttribute('votes_count', $candidate->votes));
 
             return [
-                'position' => $position,
-                'candidates' => $ranked,
-                'winners' => $tie ? $ranked->filter(fn (Candidate $candidate) => $candidate->votes_count > $cutoff)->values() : $ranked->take($seats)->values(),
-                'tie' => $tie,
+                'position' => $row['position'],
+                'candidates' => $row['candidates'],
+                'winners' => $row['winners'],
+                'tie' => $earlier ? $row['status'] === 'tie' : in_array($row['status'], ElectionTallyService::UNRESOLVED, true),
             ];
         });
     }
@@ -71,7 +55,8 @@ class ElectionHandoverService
     /**
      * Give each position's winners access to the organization and step the outgoing holders
      * of the same position down to plain students. A tied seat stays open, so its outgoing holders keep access until
-     * someone assigns it by hand. Runs once per election, however many times results are released.
+     * someone assigns it by hand. Runs once per election, however many times results are released. Elections counted
+     * under the current reading (tally version 2) are staged instead, through OfficerAppointmentService.
      *
      * @return array{handed_over: bool, granted: int, demoted: int, ties: int}|null null when nothing ran
      */
@@ -79,6 +64,10 @@ class ElectionHandoverService
     {
         if ($election->access_handed_over_at !== null || ! $this->isReleased($election)) {
             return null;
+        }
+
+        if ((int) $election->tally_version === 2) {
+            return $this->stage($election, $actorSchoolId, $ipAddress);
         }
 
         return DB::transaction(function () use ($election, $actorSchoolId, $ipAddress) {
@@ -144,6 +133,31 @@ class ElectionHandoverService
 
             return ['handed_over' => true, 'granted' => count($granted), 'demoted' => count($demoted), 'ties' => count($ties)];
         });
+    }
+
+    /**
+     * The current reading: winners become Upcoming officer appointments instead of getting access in the same minute.
+     * Access follows on the term start date and the replaced officers step down at the end of the school year, so
+     * the hand over time is set only once the election is completed and every appointment has been prepared.
+     *
+     * @return array{handed_over: bool, granted: int, demoted: int, ties: int}|null
+     */
+    private function stage(Election $election, ?int $actorSchoolId, ?string $ipAddress): ?array
+    {
+        $appointments = app(OfficerAppointmentService::class);
+        $prepared = $appointments->prepare($election, $actorSchoolId, $ipAddress);
+
+        if ($prepared === null) {
+            return null;
+        }
+
+        $appointments->schedule($election->id);
+        $activated = $appointments->activateDue($election->id);
+        $ended = $appointments->expireDue($election->id);
+
+        Election::whereKey($election->id)->whereNotNull('completed_at')->whereNull('access_handed_over_at')->update(['access_handed_over_at' => now()]);
+
+        return ['handed_over' => true, 'granted' => $activated, 'demoted' => $ended, 'ties' => count($prepared['ties'])];
     }
 
     /**
