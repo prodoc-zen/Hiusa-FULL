@@ -299,7 +299,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       priority: task.priority || 'medium',
       assigned_to: task.assigned_to ? String(task.assigned_to) : '',
       event_id: task.event_id ? String(task.event_id) : '',
-      deadline: isoToLocalDateTimeInput(task.deadline).slice(0, 10),
+      deadline: isoToLocalDateTimeInput(task.deadline),
     });
   }
 
@@ -322,7 +322,7 @@ export default function TasksPage({ initialTab = 'board' }) {
         category: editForm.category,
         priority: editForm.priority,
         event_id: editForm.task_kind === 'event_related' ? editForm.event_id : null,
-        deadline: editForm.deadline,
+        ...(editForm.deadline !== isoToLocalDateTimeInput(editingTask.deadline) ? { deadline: editForm.deadline } : {}),
         ...(editForm.assigned_to !== String(editingTask.assigned_to ?? '') ? { assigned_to: editForm.assigned_to } : {}),
       });
       notify.success(`"${editForm.title.trim()}" updated.`);
@@ -1012,7 +1012,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               </Select>
             </Field>
             <Field label="Deadline" required error={editFieldErrors.deadline}>
-              <Input type="date" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} />
+              <Input type="datetime-local" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} />
             </Field>
           </form>
         )}

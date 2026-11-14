@@ -53,7 +53,7 @@ describe('AiInsightCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Why am I seeing this/i }));
 
-    expect(screen.getByText(/busiest \(Ana Cruz, active tasks 4, workload score 20\)/)).toBeInTheDocument();
+    expect(screen.getByText(/busiest \(Ana Cruz, active tasks 4\)/)).toBeInTheDocument();
     expect(screen.getByText(/freest \(Ben Reyes, 0 active task\(s\)\)/)).toBeInTheDocument();
     expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
     expect(screen.queryByText(/null|undefined/)).not.toBeInTheDocument();

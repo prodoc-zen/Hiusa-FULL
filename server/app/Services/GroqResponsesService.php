@@ -178,11 +178,11 @@ class GroqResponsesService implements TextGenerator
         ];
     }
 
-    private function requestSeconds(): float
+    private function requestSeconds(): int|float
     {
         $configured = max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS));
 
-        return $this->timeBudget === null ? (float) $configured : max(1.0, min((float) $configured, $this->timeBudget));
+        return $this->timeBudget === null ? $configured : max(1.0, min((float) $configured, $this->timeBudget));
     }
 
     private function request(array $body): ?array
@@ -199,7 +199,7 @@ class GroqResponsesService implements TextGenerator
         try {
             $response = Http::acceptJson()
                 ->withToken($apiKey)
-                ->connectTimeout(min($seconds, (float) max(1, (int) config('services.groq.connect_timeout', 5))))
+                ->connectTimeout(min($seconds, max(1, (int) config('services.groq.connect_timeout', 5))))
                 ->timeout($seconds)
                 ->post((string) config('services.groq.url'), $body);
 

@@ -488,7 +488,7 @@ class DashboardBriefingTest extends TestCase
         $this->assertNull($overdue['href'], '/dashboard/tasks/assigned-tasks is SBO_OFFICER-only and must never be handed to a STUDENT.');
     }
 
-    public function test_officer_task_workload_insight_href_is_null_since_task_board_is_admin_only(): void
+    public function test_officer_gets_no_task_workload_insight_since_only_the_admin_can_assign_tasks(): void
     {
         config(['services.hiusa_ai.task_max_active_tasks' => 5]);
         $organization = Organization::factory()->create();
@@ -502,10 +502,8 @@ class DashboardBriefingTest extends TestCase
 
         Sanctum::actingAs($officer);
         $response = $this->getJson('/api/dashboard/briefing')->assertOk();
-        $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
 
-        $this->assertNotNull($workload);
-        $this->assertNull($workload['href'], '/dashboard/tasks/task-board is ADMIN-only and must never be handed to an SBO_OFFICER.');
+        $this->assertNull(collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance'));
     }
 
     public function test_task_workload_insight_uses_a_bounded_number_of_queries_regardless_of_officer_count(): void
@@ -892,10 +890,6 @@ class DashboardBriefingTest extends TestCase
 
         Sanctum::actingAs($admin);
         $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
-        $this->app['auth']->forgetGuards();
-        Sanctum::actingAs($director);
-        $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
-
         $draft->update(['submission_status' => 'approved']);
 
         $this->app['auth']->forgetGuards();
@@ -903,7 +897,7 @@ class DashboardBriefingTest extends TestCase
         $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs($director);
-        $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
+        $this->assertSame([], $this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'), 'The SAO briefing carries no insights.');
     }
 
     public function test_admin_is_told_about_events_that_ended_but_were_never_closed(): void

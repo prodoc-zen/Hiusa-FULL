@@ -142,6 +142,25 @@ def test_budget_advice_flags_reduce_allocation_when_risk_is_actually_elevated() 
     assert result["allocation_status"] == "reduce_allocation"
 
 
+def test_budget_advice_rates_the_warning_threshold_high_and_ninety_percent_medium() -> None:
+    # The PHP fallback (BudgetAdviceRules) must give the same labels for these two branches.
+    threshold = advise_budget(BudgetAdviceRequest(
+        predicted_income=1000,
+        predicted_expense=500,
+        current_available_budget=0,
+        warning_threshold=600,
+    ))
+    assert (threshold["overspending_risk"], threshold["forecast_risk"], threshold["allocation_status"]) == ("high", "overspending", "no_funds")
+
+    ratio = advise_budget(BudgetAdviceRequest(
+        predicted_income=1000,
+        predicted_expense=900,
+        current_available_budget=5000,
+        warning_threshold=100,
+    ))
+    assert (ratio["overspending_risk"], ratio["forecast_risk"]) == ("medium", "overspending")
+
+
 def test_infer_task_area_uses_word_boundaries_not_bare_substrings() -> None:
     # "media" must not fire merely because it appears inside "im-media-te".
     assert infer_task_area("Send immediate reminders to officers") != "publicity"
@@ -378,13 +397,93 @@ def test_grievance_classification_stem_matching_does_not_fire_inside_unrelated_w
     assert result["urgency"] == "Low"
 
 
-def test_grievance_classification_files_stealing_from_funds_under_financial_integrity() -> None:
-    result = classify_grievance(GrievanceClassificationRequest.model_validate({
-        "title": "The treasurer has been stealing",
-        "description": "Our collections keep disappearing from the cash box.",
-    }))
+def _classify(title: str, description: str = "Details follow.") -> dict:
+    return classify_grievance(GrievanceClassificationRequest.model_validate({"title": title, "description": description}))
 
+
+@pytest.mark.parametrize("title", [
+    "Our org funds and receipts are missing",
+    "The payments were never accounted for",
+    "Where did the funds go",
+    "Unclear receipts for the budgets",
+])
+def test_grievance_classification_files_plural_finance_words_under_financial_integrity(title: str) -> None:
+    assert _classify(title)["category"] == "Financial Integrity"
+
+
+def test_grievance_classification_reads_inflected_complaints() -> None:
+    result = _classify("The teachers delayed releasing our grades and exams")
+
+    assert result["urgency"] == "Medium"
+    assert result["category"] == "Academic / Faculty"
+    assert result["reasoning"] == (
+        'Marked Medium because the text mentions "delayed"; '
+        'filed under Academic / Faculty because it mentions "grades", "teachers" and "exams".'
+    )
+
+
+def test_grievance_classification_stems_do_not_fire_inside_unrelated_words() -> None:
+    result = _classify("Example of a fundamental rule", "The roommate asked about the exampled text.")
+
+    assert result["category"] == "General"
+
+
+@pytest.mark.parametrize(("title", "description"), [
+    ("This is not an emergency", "just a scheduling question"),
+    ("Not urgent", "Please advise when you can."),
+    ("Walang emergency", "tanong lang po"),
+])
+def test_grievance_classification_ignores_negated_urgency_words(title: str, description: str) -> None:
+    result = _classify(title, description)
+
+    assert result["urgency"] == "Low"
+    assert result["category"] != "Safety & Security"
+
+
+def test_grievance_classification_keeps_a_negated_word_from_hiding_a_real_one() -> None:
+    result = _classify("Not urgent, but the treasurer stole the funds")
+
+    assert result["urgency"] == "High"
+    assert result["reasoning"] == (
+        'Marked High because the text mentions "stole"; '
+        'filed under Financial Integrity because it mentions "funds" and "stole".'
+    )
+
+
+def test_grievance_classification_counts_negation_only_inside_two_words_and_one_clause() -> None:
+    assert _classify("There is no excuse for this threat")["urgency"] == "Critical"
+    assert _classify("I did not sleep. Emergency at the dorm")["urgency"] == "Critical"
+
+
+def test_grievance_classification_files_theft_of_money_under_financial_integrity() -> None:
+    result = _classify("Theft of money")
+
+    assert result["urgency"] == "High"
     assert result["category"] == "Financial Integrity"
+
+
+def test_grievance_classification_reasoning_names_the_words_it_matched() -> None:
+    result = _classify("Harassment near the guard post", "A security guard threatened a student.")
+
+    assert result["reasoning"] == (
+        'Marked Critical because the text mentions "harassment" and "threatened"; '
+        'filed under Safety & Security because it mentions "harassment", "threatened", "security" and "guard".'
+    )
+
+
+def test_grievance_classification_reasoning_says_when_nothing_matched() -> None:
+    result = _classify("Suggestion for the lounge", "More seating would be nice.")
+
+    assert result["reasoning"] == "No urgent or category words were found, so it is Low and General until a reviewer looks at it."
+
+
+def test_grievance_classification_reasoning_covers_a_match_on_one_side_only() -> None:
+    assert _classify("Question about my grades")["reasoning"] == (
+        'No urgent words were found, so it is Low; filed under Academic / Faculty because it mentions "grades".'
+    )
+    assert _classify("There is a problem")["reasoning"] == (
+        'Marked Medium because the text mentions "problem"; no category words were found, so it is filed under General.'
+    )
 
 
 def test_grievance_classification_defaults_to_low_urgency_and_general_category() -> None:

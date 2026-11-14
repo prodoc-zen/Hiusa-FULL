@@ -13,8 +13,8 @@ use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
 use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
-use Illuminate\Http\Request;
 use App\Support\SemesterScope;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class FinancialForecastController extends Controller

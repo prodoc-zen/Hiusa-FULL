@@ -91,6 +91,26 @@ function sortForecasts(forecasts) {
     || String(a.forecast_period ?? '').localeCompare(String(b.forecast_period ?? '')));
 }
 
+// A Department Head sees every college organization's forecasts at once; one chart per organization keeps
+// their lines apart.
+function groupForecastsByOrganization(forecasts) {
+  const groups = new Map();
+  forecasts.forEach((forecast) => {
+    const key = forecast.organization_id ?? 'own';
+    if (!groups.has(key)) {
+      const organization = forecast.organization;
+      groups.set(key, { key, name: organization ? (organization.acronym ? `${organization.name} (${organization.acronym})` : organization.name) : null, forecasts: [] });
+    }
+    groups.get(key).forecasts.push(forecast);
+  });
+  return [...groups.values()];
+}
+
+function dayLabel(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 // A forecast built from no ledger months has nothing to report: its zero balance and zero safe spend are
 // absent data, not results.
 function hasProjection(forecast) {
@@ -787,7 +807,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         delete next[budgetId];
         return next;
       });
-      showFeedback('success', 'Budget advice generated from the latest forecast and available funds.');
+      showFeedback('success', response.data?.forecast_status === 'used'
+        ? `Budget advice generated from this budget's balance and the ${response.data.forecast_period} forecast.`
+        : 'Budget advice generated from this budget\'s balance only. No current forecast was available, so generate a forecast for forecast-based advice.');
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to generate budget advice.');
       setBudgetAdviceErrors((current) => ({ ...current, [budgetId]: message }));
@@ -1470,6 +1492,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <ul className="divide-y divide-line" aria-label="Budgets">
               {budgets.map((b) => {
                 const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
+                const adviceStale = b.advice_stale === true;
+                const adviceInputs = adviceDetail?.advice?.inputs;
                 // Remaining counts income recorded against the budget, so it can sit above Allocated.
                 const aboveAllocated = Number(b.remaining_amount) > Number(b.allocated_amount);
                 return (
@@ -1492,19 +1516,26 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {sentence(b.overspending_risk)} overspending risk
                       </p>
                     )}
-                    {b.recommended_allocation != null && (
+                    {adviceStale && (
+                      <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        The advice from {dayLabel(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
+                      </p>
+                    )}
+                    {!adviceStale && b.recommended_allocation != null && (
                       <p className="mt-1 text-xs text-ink-muted">
                         Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
                       </p>
                     )}
-                    {b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
+                    {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {dayLabel(b.advice_generated_at)}</p>}
+                    {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
                     {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
                       <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">
                         <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{budgetAdviceErrors[b.id]}</span>
                         <Button variant="secondary" size="sm" onClick={() => handleGenerateBudgetAdvice(b.id)}>Retry</Button>
                       </div>
                     )}
-                    {adviceDetail?.advice && (
+                    {adviceDetail?.advice && !adviceStale && (
                       <div className="mt-3 max-w-3xl border-t border-line pt-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <EngineBadge engine={adviceDetail.engine} />
@@ -1529,6 +1560,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <RulesDisclosure
                           label="How this was calculated"
                           items={[
+                            ...(adviceInputs
+                              ? [
+                                `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
+                                adviceInputs.forecast_status === 'used'
+                                  ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
+                                  : 'No current forecast was available, so no forecast income or expenses were used.',
+                              ]
+                              : []),
                             ...(adviceDetail.advice.deterministic_advice
                               ? [`Calculated advice before the written rewrite: "${adviceDetail.advice.deterministic_advice}"`]
                               : []),
@@ -1540,7 +1579,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </div>
                   <TableRowActions subject={formatDisplayText(b.title)} actions={[
                     { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
-                    canGenerateBudgetAdvice && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
+                    canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
                     canProposeBudget && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, onClick: () => askDelete('budget', b) },
                   ]} />
                 </li>
@@ -1573,22 +1612,28 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <EmptyState kind="restricted" title="No forecasts to show yet" description="Only the organization Admin generates forecasts. They appear here once one is generated." />
               )
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {groupForecastsByOrganization(sortedForecasts).map((group) => (
+                <div key={group.key} className="space-y-4">
+                {group.name && <h3 className="text-sm font-semibold text-ink">{formatDisplayText(group.name)}</h3>}
                 {/* The chart's axis text is unreadable at phone width, and each forecast below lists the same figures. */}
-                {sortedForecasts.length > 1 && <div className="hidden sm:block"><FinancialForecastChart forecasts={sortedForecasts} className="" /></div>}
+                {group.forecasts.length > 1 && <div className="hidden sm:block"><FinancialForecastChart forecasts={group.forecasts} className="" /></div>}
                 <ul className="divide-y divide-line border-t border-line">
-                  {[...sortedForecasts].reverse().map((f) => {
+                  {[...group.forecasts].reverse().map((f) => {
                     const reliability = getForecastReliability(f);
                     const clampNotice = getClampNotice(f);
                     const sampleMonths = f.model_details?.sample_months;
                     const populatedMonths = f.model_details?.populated_months;
+                    const summaryText = reliability.reason && f.confidence_note ? f.confidence_note.replace(reliability.reason, '').trim() : f.confidence_note;
                     return (
                       <li key={f.id} className="py-4">
                         <p className="text-sm font-semibold text-ink">Forecast for {f.forecast_period}</p>
                         {hasProjection(f) ? (
                           <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
                             <div><dt className="text-ink-muted">Income</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-success-strong">{fmt(f.predicted_income)}</dd></div>
+                            <div><dt className="text-ink-muted">Expenses</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-danger-strong">{fmt(f.predicted_expense)}</dd></div>
                             <div><dt className="text-ink-muted">Balance</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.predicted_balance)}</dd></div>
+                            {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
                             <div><dt className="text-ink-muted">Safe spend</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.safe_spending_limit)}</dd></div>
                             {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{sentence(f.model_details.risk)}</dd></div>}
                           </dl>
@@ -1596,7 +1641,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                           <p className="mt-3 text-sm text-ink-muted">Not enough ledger history to project this period. Record income and expenses over a few months, then generate again.</p>
                         )}
                         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-ink-muted">
-                          <EngineBadge engine={f.model_details?.engine} />
+                          {f.model_details?.engine === 'manual'
+                            ? <span>Entered manually. Safe spend is 80% of the balance and leaves out approved budgets.</span>
+                            : <EngineBadge engine={f.model_details?.engine} />}
                           {Number.isFinite(Number(sampleMonths)) && <span>{sampleMonths} sample month{Number(sampleMonths) === 1 ? '' : 's'}</span>}
                           {Number.isFinite(Number(populatedMonths)) && <span>{populatedMonths} with recorded transactions</span>}
                         </div>
@@ -1612,13 +1659,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                             {clampNotice}
                           </p>
                         )}
-                        {f.confidence_note && <p className="mt-3 text-xs text-ink-muted">{f.confidence_note}</p>}
+                        {summaryText && <p className="mt-3 text-xs text-ink-muted">{summaryText}</p>}
                         {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-xs font-medium text-warning-strong">The written explanation was unavailable. The forecast figures and risk were calculated normally; generate again to retry the explanation.</p>}
                         {canDeleteForecast && <div className="mt-3 border-t border-line pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, onClick: () => askDelete('forecast', f) }]} /></div>}
                       </li>
                     );
                   })}
                 </ul>
+                </div>
+                ))}
               </div>
             )}
           </div>

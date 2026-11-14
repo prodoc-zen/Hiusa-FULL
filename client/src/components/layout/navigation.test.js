@@ -99,7 +99,7 @@ const SPEC = {
   STUDENT: [
     { label: 'Dashboard', path: '/dashboard/student' },
     { label: 'Ask AI', path: '/dashboard/ask-ai' },
-    { label: 'My payments', children: [['Statement of account', '/dashboard/finance/statement-of-account'], ['Receipts', '/dashboard/finance/personal-receipts']] },
+    { label: 'My payments', children: [['Statement of account', '/dashboard/finance/statement-of-account'], ['Receipts', '/dashboard/finance/personal-receipts'], ['Where your fees go', '/dashboard/finance/where-fees-go']] },
     { label: 'Events', children: [['Events', '/dashboard/events/activity-calendar']] },
     { label: 'Voting', children: [['Vote', '/dashboard/elections/cast-vote'], ['Results', '/dashboard/elections/election-results']] },
     { label: 'Store', children: [['Shop', '/dashboard/merchandise/order-merchandise'], ['My orders', '/dashboard/merchandise/my-orders']] },
@@ -159,7 +159,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     ['ADMIN', 11, 38],
     ['SBO_OFFICER', 12, 26],
     ['DEPARTMENT_HEAD', 15, 18],
-    ['STUDENT', 8, 12],
+    ['STUDENT', 8, 13],
     ['SUPER_ADMIN', 8, 20],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);

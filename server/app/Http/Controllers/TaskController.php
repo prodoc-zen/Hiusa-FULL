@@ -17,6 +17,8 @@ use App\Services\TaskDelegationService;
 use App\Support\FilterValues;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -29,6 +31,10 @@ class TaskController extends Controller
     private ?array $lastDelegation = null;
 
     private ?string $lastExplanationModel = null;
+
+    private ?array $officerStats = null;
+
+    private ?array $activePositionTitles = null;
 
     public function __construct(
         private readonly HiusaAiService $aiService,
@@ -120,11 +126,12 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
+        $this->resetOfficerCaches();
         $semester = AcademicSemester::selected($request);
         if (AcademicSemester::exists() && ! $semester) {
             return response()->json(['message' => 'SAO must activate an academic semester before new tasks can be created.'], 409);
         }
-        $data = $request->validate($this->rules());
+        $data = $this->normalizeDeadline($request->validate($this->rules()));
 
         if (($data['task_kind'] ?? null) === 'event_related' && empty($data['event_id'])) {
             return response()->json(['message' => 'Select a related event for an event task.', 'errors' => ['event_id' => ['Select a related event for an event task.']]], 422);
@@ -148,9 +155,7 @@ class TaskController extends Controller
         }
 
         $assignee = ! empty($data['assigned_to'])
-            ? $this->eligibleOfficerQuery($request)
-                ->where('school_id', $data['assigned_to'])
-                ->first()
+            ? $this->eligibleOfficers($request)->firstWhere('school_id', (int) $data['assigned_to'])
             : null;
 
         if (! $assignee) {
@@ -220,6 +225,7 @@ class TaskController extends Controller
 
     public function recommendation(Request $request)
     {
+        $this->resetOfficerCaches();
         $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'task_type' => ['nullable', 'in:regular,workflow'],
@@ -245,6 +251,7 @@ class TaskController extends Controller
 
     public function update(Request $request, $id)
     {
+        $this->resetOfficerCaches();
         $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (! $task) {
@@ -255,7 +262,17 @@ class TaskController extends Controller
             return response()->json(['message' => 'You are not authorized to edit this task.'], 403);
         }
 
-        $data = $request->validate($this->rules(true));
+        $data = $this->normalizeDeadline($request->validate($this->rules(true)));
+
+        if (isset($data['deadline'])) {
+            $deadlineError = $this->changedDeadlineError($task, Carbon::parse($data['deadline']));
+            if ($deadlineError !== null) {
+                return response()->json(['message' => $deadlineError, 'errors' => ['deadline' => [$deadlineError]]], 422);
+            }
+        }
+        if (isset($data['assigned_to']) && (int) $data['assigned_to'] === (int) $task->assigned_to) {
+            unset($data['assigned_to']);
+        }
 
         if (($data['task_kind'] ?? null) === 'event_related' && empty($data['event_id'] ?? $task->event_id)) {
             return response()->json(['message' => 'Select a related event for an event task.', 'errors' => ['event_id' => ['Select a related event for an event task.']]], 422);
@@ -272,19 +289,45 @@ class TaskController extends Controller
             return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
         }
 
+        $reassigned = false;
         if (! empty($data['assigned_to'])) {
-            $assignee = $this->eligibleOfficerQuery($request)
-                ->where('school_id', $data['assigned_to'])
-                ->first();
+            $assignee = $this->eligibleOfficers($request)->firstWhere('school_id', (int) $data['assigned_to']);
 
             if (! $assignee) {
                 return response()->json(['message' => 'Tasks can only be assigned to active SBO Officers with an assigned position.'], 422);
             }
 
+            $request->merge([
+                'title' => $data['title'] ?? $task->title,
+                'category' => $data['category'] ?? $task->category,
+                'task_type' => $data['task_type'] ?? $task->task_type,
+            ]);
+            $this->recommendOfficer($request);
+            $eligibleIds = collect($this->lastDelegation['rankings'] ?? [])->pluck('officer_id')->map(fn ($id) => (int) $id);
+            if (! $eligibleIds->contains($assignee->school_id)) {
+                return response()->json(['message' => 'The selected officer is not eligible for this task.', 'errors' => ['assigned_to' => ['Choose an officer who is eligible for this task, for example one below the open task limit.']]], 422);
+            }
+
             $data = $this->applyAssignmentScoring($data, $assignee, $request);
+            $reassigned = true;
         }
 
         $task->update($this->normalizeCompletionFields($data, $task));
+        if ($reassigned) {
+            $this->persistRecommendations($task, $this->lastDelegation);
+            AuditLog::create([
+                'organization_id' => $task->organization_id,
+                'user_id' => $request->user()->school_id,
+                'module' => 'task_delegation',
+                'action' => 'task_delegated',
+                'record_type' => Task::class,
+                'record_id' => $task->id,
+                'new_values' => ['assigned_to' => $task->assigned_to, 'recommended_officer_id' => $this->lastDelegation['recommended_officer_id'] ?? null, 'weights' => $this->lastDelegation['weights'] ?? $this->delegation->weights()],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+            $this->recordProgressUpdate($task, $request, 'Task reassigned.');
+        }
         $this->notifyAdminsOfTaskUpdate($request, $task->fresh());
 
         return response()->json($task->fresh()->load([
@@ -381,8 +424,8 @@ class TaskController extends Controller
         return [
             'title' => [...$required, 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'deadline' => [...$required, 'date', 'after_or_equal:today'],
-            'status' => [...$required, 'in:pending,in_progress,completed,overdue'],
+            'deadline' => $partial ? ['sometimes', 'required', 'date'] : ['required', 'date', 'after_or_equal:today'],
+            'status' => $partial ? ['prohibited'] : ['required', 'in:pending,in_progress'],
             'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id' => ['nullable', 'exists:events,id'],
             'task_type' => ['nullable', 'in:regular,workflow'],
@@ -391,9 +434,48 @@ class TaskController extends Controller
             'priority' => ['nullable', 'in:low,medium,high,critical'],
             'preferred_role' => ['nullable', 'string', 'max:100', Rule::exists('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', request()->user()->organization_id)->where('role', 'SBO_OFFICER')->where('is_active', true))],
             'is_ai_generated' => ['boolean'],
-            'progress_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'completed_at' => ['nullable', 'date'],
+            'progress_percent' => $partial ? ['prohibited'] : ['nullable', 'integer', 'min:0', 'max:99'],
+            'completed_at' => ['prohibited'],
         ];
+    }
+
+    // A task due on a date is due at the end of that day, so a bare date is stored as 23:59:59 rather than midnight.
+    private function normalizeDeadline(array $data): array
+    {
+        if (isset($data['deadline']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) $data['deadline']))) {
+            $data['deadline'] = Carbon::parse(trim($data['deadline']), config('app.timezone'))->endOfDay()->toDateTimeString();
+        }
+
+        return $data;
+    }
+
+    // Resending the stored deadline (to rename or reassign an overdue task) is not a change, so only a new date is held to the future and to the workflow phase.
+    private function changedDeadlineError(Task $task, Carbon $deadline): ?string
+    {
+        if ($task->deadline && $task->deadline->format('Y-m-d H:i') === $deadline->format('Y-m-d H:i')) {
+            return null;
+        }
+        if ($deadline->lt(now()->startOfDay())) {
+            return 'The deadline must be today or later.';
+        }
+
+        $event = $task->phase && $task->event_id ? Event::find($task->event_id) : null;
+        if ($event === null) {
+            return null;
+        }
+
+        $matches = match ($task->phase) {
+            'pre_event' => $deadline->lt($event->start_time),
+            'event_day' => $deadline->betweenIncluded($event->start_time, $event->end_time),
+            'post_event' => $deadline->gt($event->end_time) && $deadline->lte($event->end_time->copy()->addDays(30)),
+            default => true,
+        };
+
+        return $matches ? null : 'The deadline for this '.match ($task->phase) {
+            'pre_event' => 'task must be before the event starts.',
+            'event_day' => 'task must be during the event.',
+            default => 'task must be after the event ends and within 30 days.',
+        };
     }
 
     private function normalizeCompletionFields(array $data, ?Task $task = null): array
@@ -449,11 +531,7 @@ class TaskController extends Controller
     private function validOrganizationLinks(Request $request, array $data): bool
     {
         if (! empty($data['assigned_to'])) {
-            $validAssignee = $this->eligibleOfficerQuery($request)
-                ->where('school_id', $data['assigned_to'])
-                ->exists();
-
-            if (! $validAssignee) {
+            if (! $this->eligibleOfficers($request)->contains('school_id', (int) $data['assigned_to'])) {
                 return false;
             }
         }
@@ -517,25 +595,13 @@ class TaskController extends Controller
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $this->delegation->weights(),
             'task_area' => $local['task_area'],
-            'eligibility_rules' => $this->eligibilityRules($local['max_active_tasks']),
+            'eligibility_rules' => $this->delegation->eligibilityRules($local['max_active_tasks']),
             'recommended_officer_id' => $assignee->school_id,
             'rankings' => [$local],
             'engine' => 'php-fallback',
         ];
 
         return $local;
-    }
-
-    private function eligibilityRules(int $maxActiveTasks): array
-    {
-        return [
-            'role must be SBO_OFFICER',
-            'account status must be active',
-            'an SBO position must be assigned',
-            'officer must be marked available',
-            'officer must satisfy organization policy',
-            "active task count must be below {$maxActiveTasks}",
-        ];
     }
 
     // Normalizes a raw HiusaAiService::taskDelegation() result into the same
@@ -547,7 +613,7 @@ class TaskController extends Controller
             'algorithm' => $result['algorithm'] ?? 'rule_based_weighted_scoring',
             'weights' => $result['weights'] ?? $this->delegation->weights(),
             'task_area' => $result['task_area'] ?? TaskDelegationService::DEFAULT_TASK_AREA,
-            'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
+            'eligibility_rules' => $result['eligibility_rules'] ?? $this->delegation->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
             'rankings' => $result['rankings'] ?? [],
             'evaluations' => $result['evaluations'] ?? ($result['rankings'] ?? []),
@@ -569,19 +635,10 @@ class TaskController extends Controller
      */
     private function localAssignmentScores(User $assignee, Request $request): array
     {
-        $activeTasks = Task::where('organization_id', $request->user()->organization_id)
-            ->where('assigned_to', $assignee->id)
-            ->whereIn('status', ['pending', 'in_progress', 'overdue'])
-            ->count();
-
-        $completedTasks = Task::where('organization_id', $request->user()->organization_id)
-            ->where('assigned_to', $assignee->id)
-            ->where('status', 'completed')
-            ->count();
-        $historicalTasks = Task::where('organization_id', $request->user()->organization_id)
-            ->where('assigned_to', $assignee->id)
-            ->whereIn('status', ['completed', 'overdue'])
-            ->count();
+        $history = $this->statsFor($request, $assignee);
+        $activeTasks = $history['active'];
+        $completedTasks = $history['completed'];
+        $historicalTasks = $history['completed'] + $history['overdue'];
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $area = $this->delegation->inferArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type'));
@@ -589,7 +646,7 @@ class TaskController extends Controller
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
         $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : TaskDelegationService::NEUTRAL_PERFORMANCE_SCORE;
-        $daysSinceAssignment = $this->delegation->daysSinceLastAssignment($request->user()->organization_id, $assignee->school_id);
+        $daysSinceAssignment = $this->delegation->daysSince($history['last_assigned_at']);
         $recencyScore = $this->delegation->recencyScore($daysSinceAssignment);
         $weights = $this->delegation->weights();
         $finalScore = round(($roleScore * $weights['position']) + ($workloadScore * $weights['workload']) + ($performanceScore * $weights['performance']) + ($recencyScore * $weights['recency']), 2);
@@ -631,7 +688,7 @@ class TaskController extends Controller
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $this->delegation->weights(),
             'task_area' => $rankings[0]['task_area'] ?? $this->delegation->inferArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type')),
-            'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
+            'eligibility_rules' => $this->delegation->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
             'rankings' => $rankings,
             'engine' => 'php-fallback',
@@ -641,11 +698,11 @@ class TaskController extends Controller
     private function recommendOfficer(Request $request): ?User
     {
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
-        $candidates = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('account_status', 'active'))
-            ->when($request->filled('preferred_role'), fn ($query) => $query->where('users.position_title', $request->preferred_role))
-            ->orderBy('school_id')
-            ->get();
-        $officers = $this->eligibleOfficerQuery($request)->get();
+        $candidates = $this->delegation->officerPool($request->user()->organization_id)
+            ->filter(fn (User $officer) => $officer->account_status === 'active')
+            ->when($request->filled('preferred_role'), fn (Collection $pool) => $pool->filter(fn (User $officer) => $officer->position_title === $request->preferred_role))
+            ->values();
+        $officers = $this->eligibleOfficers($request);
 
         if ($officers->isEmpty()) {
             $this->lastDelegation = $this->buildLocalDelegation([], $request, $maxActiveTasks);
@@ -705,46 +762,57 @@ class TaskController extends Controller
 
     private function officerPayload(User $officer, Request $request): array
     {
-        $baseQuery = Task::where('organization_id', $request->user()->organization_id)
-            ->where('assigned_to', $officer->school_id);
-        $activeTasks = (clone $baseQuery)->whereIn('status', ['pending', 'in_progress', 'overdue'])->count();
+        $history = $this->statsFor($request, $officer);
+        $activeTasks = $history['active'];
 
         return [
             'officer_id' => $officer->school_id,
             'name' => trim("{$officer->first_name} {$officer->last_name}"),
             'role' => $officer->role,
             'position_title' => $officer->position_title,
-            'account_status' => $officer->account_status,
+            'account_status' => $this->delegation->accountIsActive($officer) ? 'active' : 'inactive',
             'is_available' => $activeTasks < (int) config('services.hiusa_ai.task_max_active_tasks', 5),
-            'policy_eligible' => DB::table('sbo_positions')
-                ->where('organization_id', $request->user()->organization_id)
-                ->where('role', 'SBO_OFFICER')
-                ->where('title', $officer->position_title)
-                ->where('is_active', true)
-                ->exists(),
+            'policy_eligible' => in_array($officer->position_title, $this->activePositions($request), true),
             'active_tasks' => $activeTasks,
-            'completed_tasks' => (clone $baseQuery)->where('status', 'completed')->count(),
-            'overdue_tasks' => (clone $baseQuery)->where('status', 'overdue')->count(),
-            'days_since_last_assignment' => $this->delegation->daysSinceLastAssignment($request->user()->organization_id, $officer->school_id),
+            'completed_tasks' => $history['completed'],
+            'overdue_tasks' => $history['overdue'],
+            'days_since_last_assignment' => $this->delegation->daysSince($history['last_assigned_at']),
         ];
     }
 
-    private function eligibleOfficerQuery(Request $request): Builder
+    private function resetOfficerCaches(): void
     {
-        return User::where('users.organization_id', $request->user()->organization_id)
-            ->where('users.role', 'SBO_OFFICER')
-            ->where('users.account_status', 'active')
-            ->when($request->filled('preferred_role'), fn ($query) => $query->where('users.position_title', $request->preferred_role))
-            ->whereNotNull('users.position_title')
-            ->whereRaw("TRIM(users.position_title) <> ''")
-            ->whereExists(function ($query) {
-                $query->selectRaw('1')
-                    ->from('sbo_positions')
-                    ->whereColumn('sbo_positions.organization_id', 'users.organization_id')
-                    ->whereColumn('sbo_positions.title', 'users.position_title')
-                    ->where('sbo_positions.role', 'SBO_OFFICER')
-                    ->where('sbo_positions.is_active', true);
-            });
+        $this->officerStats = null;
+        $this->activePositionTitles = null;
+        $this->aiAssignmentScores = [];
+        $this->aiAssignmentExplanations = [];
+        $this->lastDelegation = null;
+        $this->lastExplanationModel = null;
+    }
+
+    private function activePositions(Request $request): array
+    {
+        return $this->activePositionTitles ??= $this->delegation->activePositionTitles($request->user()->organization_id);
+    }
+
+    private function statsFor(Request $request, User $officer): array
+    {
+        $this->officerStats ??= $this->delegation->officerStats($request->user()->organization_id);
+
+        return $this->delegation->statsFor($this->officerStats, $officer->school_id);
+    }
+
+    /** @return Collection<int, User> */
+    private function eligibleOfficers(Request $request): Collection
+    {
+        $activePositions = $this->activePositions($request);
+
+        return $this->delegation->officerPool($request->user()->organization_id)
+            ->filter(fn (User $officer) => $this->delegation->accountIsActive($officer)
+                && trim((string) $officer->position_title) !== ''
+                && in_array($officer->position_title, $activePositions, true)
+                && (! $request->filled('preferred_role') || $officer->position_title === $request->preferred_role))
+            ->values();
     }
 
     private function rememberAiRankings(?array $result): void
@@ -857,7 +925,7 @@ class TaskController extends Controller
     {
         $payload = $this->officerPayload($officer, $request);
         $result = match (true) {
-            $officer->account_status !== 'active' => 'inactive_account',
+            ! $this->delegation->accountIsActive($officer) => 'inactive_account',
             trim((string) $officer->position_title) === '' => 'missing_position',
             ! $payload['policy_eligible'] => 'inactive_position',
             ! $payload['is_available'] || $payload['active_tasks'] >= $maxActiveTasks => 'overloaded',

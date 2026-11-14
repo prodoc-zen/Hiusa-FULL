@@ -7,12 +7,14 @@ const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
   updateGrievanceStatus: vi.fn(),
   deleteGrievance: vi.fn(),
+  updateGrievanceClassification: vi.fn(),
 }));
 
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
   deleteGrievance: mocks.deleteGrievance,
+  updateGrievanceClassification: mocks.updateGrievanceClassification,
 }));
 
 const ANONYMOUS_GRIEVANCE = {
@@ -45,6 +47,18 @@ describe('OrganizationGrievancesPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete closed grievance?' })).not.toBeInTheDocument());
   });
   beforeEach(() => vi.clearAllMocks());
+
+  it('shows the organization admin why a grievance was rated and the machine rating beside a correction, without a correction form', async () => {
+    mocks.getGrievances.mockResolvedValue(envelope([{ ...ANONYMOUS_GRIEVANCE, urgency: 'Low', category: 'General', classification_engine: 'reviewer', machine_urgency: 'High', machine_category: 'Safety & Security', classification_reasoning: 'Marked High because the text mentions "unsafe".' }]));
+    render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByText('Unsafe stairwell'))[0]);
+
+    expect(await screen.findByText(/Machine rating: High urgency, Safety & Security/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Why the machine rated it this way' }));
+    expect(screen.getByText('Marked High because the text mentions "unsafe".')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Correct classification' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Urgency')).not.toBeInTheDocument();
+  });
 
   it('shows an empty state when the organization has no grievances', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));

@@ -28,9 +28,12 @@ class LatestForecastSelectionTest extends TestCase
 
     private FinancialForecast $latest;
 
+    private string $period;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->period = now('Asia/Manila')->format('Y-m');
         $organization = Organization::factory()->create();
         $this->admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $this->event = Event::factory()->create([
@@ -46,7 +49,7 @@ class LatestForecastSelectionTest extends TestCase
             'predicted_income' => 111, 'predicted_expense' => 99, 'created_at' => now()->subDays(40),
         ]);
         $this->latest = FinancialForecast::factory()->create([
-            'organization_id' => $organization->id, 'forecast_period' => '2026-11',
+            'organization_id' => $organization->id, 'forecast_period' => $this->period, 'model_details' => ['engine' => 'php-fallback'],
             'predicted_income' => 5000, 'predicted_expense' => 3000, 'created_at' => now()->subDay(),
         ]);
         FinancialForecast::factory()->create([
@@ -66,7 +69,7 @@ class LatestForecastSelectionTest extends TestCase
     {
         $this->getJson("/api/events/{$this->event->id}")->assertOk()
             ->assertJsonPath('financial_summary.latest_forecast.id', $this->latest->id)
-            ->assertJsonPath('financial_summary.latest_forecast.forecast_period', '2026-11');
+            ->assertJsonPath('financial_summary.latest_forecast.forecast_period', $this->period);
     }
 
     public function test_a_generated_financial_report_uses_the_most_recently_generated_forecast(): void
@@ -76,7 +79,7 @@ class LatestForecastSelectionTest extends TestCase
             'signatories' => ['treasurer' => 'Taylor Treasurer', 'president' => 'Pat President', 'adviser' => 'Alex Adviser', 'sbo_adviser' => 'Sam SBO Adviser'],
         ])->assertCreated()
             ->assertJsonPath('latest_ols_forecast.id', $this->latest->id)
-            ->assertJsonPath('latest_ols_forecast.forecast_period', '2026-11');
+            ->assertJsonPath('latest_ols_forecast.forecast_period', $this->period);
     }
 
     public function test_forecasts_generated_in_the_same_second_are_ordered_by_id(): void

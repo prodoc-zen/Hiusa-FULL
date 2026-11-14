@@ -46,6 +46,8 @@ class SystemUsersController extends Controller
         'announcements.created_by',
         'ai_outputs.requested_by',
         'ai_outputs.decided_by',
+        'ai_conversations.user_id',
+        'ai_memories.user_id',
         // Moved to the deleting SAO by transferInstitutionalRecords() before the delete.
         'compliance_requirement_types.created_by',
         'clearance_periods.created_by',

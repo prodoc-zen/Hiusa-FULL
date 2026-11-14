@@ -40,6 +40,7 @@ const CollegePeoplePage = lazy(() => import('./pages/roles/department-head/Colle
 const SubmitApprovalRequestPage = lazy(() => import('./pages/modules/approvals/SubmitApprovalRequestPage'));
 const StudentHomePage = lazy(() => import('./pages/roles/student/StudentHomePage'));
 const ApplyOrganizationPage = lazy(() => import('./pages/roles/student/ApplyOrganizationPage'));
+const FeeUsagePage = lazy(() => import('./pages/roles/student/FeeUsagePage'));
 const MyOrganizationApplicationPage = lazy(() => import('./pages/roles/student/MyOrganizationApplicationPage'));
 const AdminUsersPage = lazy(() => import('./pages/roles/admin/AdminUsersPage'));
 const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboPositionsPage'));
@@ -356,6 +357,7 @@ function App() {
             <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
             <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
             <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
+            <Route path="where-fees-go" element={<ProtectedRoute allowedRoles={["STUDENT"]}><FeeUsagePage /></ProtectedRoute>} />
           </Route>
 
           <Route path="merchandise">
