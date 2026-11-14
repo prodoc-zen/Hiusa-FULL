@@ -463,6 +463,7 @@ class AskAiActions
         if ($tokens === [] || $this->isQuestion($message)) {
             return null;
         }
+        $informational = $this->hasQuestionWord($message);
 
         $best = null;
         $bestDistance = PHP_INT_MAX;
@@ -480,6 +481,9 @@ class AskAiActions
             $distance = PHP_INT_MAX;
             foreach ($verbs as [$verbStart, $verbEnd]) {
                 $opens = array_diff(array_slice($tokens, 0, $verbStart), self::POLITE_STARTS) === [];
+                if ($informational && ! $opens) {
+                    continue;
+                }
                 foreach ($nouns as [$nounStart]) {
                     $gap = $nounStart - $verbEnd;
                     if ($gap > 0 && ($opens || $gap <= self::NOUN_REACH + 1)) {
@@ -520,6 +524,15 @@ class AskAiActions
         return $kept;
     }
 
+    /**
+     * A word such as "list" or "show" makes a statement a question for information, unless the request opens with
+     * its own verb ("Create an event for the talent show"), where the word is part of what is being made.
+     */
+    private function hasQuestionWord(string $message): bool
+    {
+        return array_intersect(self::QUESTION_WORDS, $this->tokens($this->withoutNames($message))) !== [];
+    }
+
     private function isQuestion(string $message): bool
     {
         $tokens = $this->tokens($this->withoutNames($message));
@@ -527,7 +540,7 @@ class AskAiActions
             return false;
         }
 
-        if (str_ends_with(rtrim($message), '?') || array_intersect(self::QUESTION_WORDS, $tokens) !== []) {
+        if (str_ends_with(rtrim($message), '?')) {
             return true;
         }
 

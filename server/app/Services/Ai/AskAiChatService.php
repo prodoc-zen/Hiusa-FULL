@@ -9,7 +9,9 @@ use App\Models\AiMessage;
 use App\Models\AiOutput;
 use App\Models\User;
 use App\Services\Dashboard\ClientRouteAccess;
+use Carbon\Carbon;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -31,6 +33,11 @@ class AskAiChatService
     public const CHAT_AUDIT_VERSION = 'ask-ai-chat-v1';
 
     public const ACTION_AUDIT_VERSION = 'ask-ai-action-v1';
+
+    /** How long a card may stay "confirming" before nobody can say whether the action ran. */
+    public const RUNNING_SECONDS = 120;
+
+    public const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
 
     private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory'];
 
@@ -168,6 +175,49 @@ class AskAiChatService
         ];
     }
 
+    /** True for a card still "confirming" that began over the running limit ago, or never recorded when it began. */
+    public function isInterrupted(mixed $payload): bool
+    {
+        $action = is_array($payload) ? ($payload['action'] ?? null) : null;
+        if (! is_array($action) || ($action['status'] ?? null) !== 'confirming') {
+            return false;
+        }
+
+        $started = isset($action['confirming_at']) ? Carbon::parse($action['confirming_at']) : null;
+
+        return $started === null || $started->diffInSeconds(now(), true) >= self::RUNNING_SECONDS;
+    }
+
+    /**
+     * Closes a card that was left "confirming" past the running limit as failed, so a page that shows no Confirm or
+     * Cancel button does not say "Working on it" forever. The check runs again under a row lock so two readers close it once.
+     */
+    public function closeIfInterrupted(User $user, AiMessage $message): AiMessage
+    {
+        if ($message->role !== 'assistant' || ! $this->isInterrupted($message->payload)) {
+            return $message;
+        }
+
+        return DB::transaction(function () use ($user, $message): AiMessage {
+            $locked = AiMessage::query()->whereKey($message->id)->lockForUpdate()->firstOrFail();
+            if ($this->isInterrupted($locked->payload)) {
+                $this->failInterrupted($user, $locked);
+            }
+
+            return $locked;
+        });
+    }
+
+    /** Fails the card with the interrupted sentence and leaves an audit row for the unknown outcome. The caller holds the row lock. */
+    public function failInterrupted(User $user, AiMessage $locked): void
+    {
+        $payload = $locked->payload;
+        $payload['action']['status'] = 'failed';
+        $payload['action']['result'] = ['message' => self::INTERRUPTED];
+        $locked->update(['payload' => $payload, 'content' => self::INTERRUPTED]);
+        $this->recordAction($user, $locked, 'interrupted', null);
+    }
+
     /** The stored JSON turns an empty map into a list, but the action card's errors are a map from field name to messages. */
     private function withErrorsAsMap(mixed $payload): mixed
     {
@@ -187,7 +237,7 @@ class AskAiChatService
     public function presentMessageFor(User $user, AiMessage $message): array
     {
         if ($this->visibleTo($user, $message)) {
-            return $this->presentMessage($message);
+            return $this->presentMessage($this->closeIfInterrupted($user, $message));
         }
 
         return [...$this->presentMessage($message), 'content' => self::HIDDEN_ANSWER, 'payload' => null];

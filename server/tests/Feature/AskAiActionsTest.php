@@ -9,6 +9,7 @@ use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
+use App\Models\AiOutput;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
@@ -147,6 +148,26 @@ class AskAiActionsTest extends TestCase
         $this->assertSame('allow_applicant', $actions->recognise(new User(['role' => 'DEPARTMENT_HEAD']), 'let maria apply for a new organization'));
     }
 
+    public function test_a_request_that_opens_with_the_verb_is_not_made_a_question_by_a_word_later_in_it(): void
+    {
+        $actions = app(AskAiActions::class);
+        $admin = new User(['role' => 'ADMIN']);
+
+        $this->assertSame('create_event', $actions->recognise($admin, 'Create an event for the talent show on Friday'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'Create an event for the variety show'));
+        $this->assertSame('draft_announcement', $actions->recognise($admin, 'Draft an announcement about the fashion show'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'Create a task to list the attendees'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'Create a task to show the venue to the guests'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'please can you create an event for the talent show'));
+
+        $this->assertNull($actions->recognise($admin, 'List the events we plan to host next month'));
+        $this->assertNull($actions->recognise($admin, 'Summarize the budgets we still need to submit'));
+        $this->assertNull($actions->recognise($admin, 'tell me which tasks I should create this week'));
+        $this->assertNull($actions->recognise($admin, 'can you tell me what event to create'));
+        $this->assertNull($actions->recognise($admin, 'Create an event for the talent show?'));
+        $this->assertNull($actions->recognise(new User(['role' => 'STUDENT']), 'My friend wants to file a complaint, what should she do'));
+    }
+
     public function test_everyday_phrasing_is_recognised_for_each_role(): void
     {
         $actions = app(AskAiActions::class);
@@ -177,6 +198,19 @@ class AskAiActionsTest extends TestCase
 
         $this->assertArrayNotHasKey('action', $message['payload']);
         $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
+    }
+
+    public function test_a_request_that_names_no_source_is_not_treated_as_typed(): void
+    {
+        Sanctum::actingAs($this->admin());
+
+        $untagged = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"'])->assertOk();
+        $this->assertArrayNotHasKey('action', $untagged->json('message.payload'));
+        $this->assertSame('link', AiMessage::findOrFail($untagged->json('user_message.id'))->payload['source']);
+        $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
+
+        $typed = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"', 'source' => 'typed'])->assertOk();
+        $this->assertSame('create_event', $typed->json('message.payload.action.key'));
     }
 
     public function test_trying_a_link_message_again_never_turns_it_into_a_card_whatever_the_request_says(): void
@@ -223,7 +257,7 @@ class AskAiActionsTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
 
-        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "Fun Run"'], ['Accept' => 'text/event-stream']);
+        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "Fun Run"', 'source' => 'typed'], ['Accept' => 'text/event-stream']);
         $response->assertOk();
         preg_match_all('/^event: (\w+)$/m', $response->streamedContent(), $names);
 
@@ -699,6 +733,62 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, Event::count());
 
         $this->postJson("/api/ai/assistant/messages/{$message['id']}/action/cancel")->assertStatus(409);
+    }
+
+    public function test_reloading_the_conversation_closes_a_card_left_running_and_writes_one_audit_row(): void
+    {
+        $admin = $this->admin();
+        Sanctum::actingAs($admin);
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now());
+
+        $sentence = 'I could not tell whether this went through. Check the page before trying again.';
+        $page = fn () => collect($this->getJson('/api/ai/assistant/conversations/'.AiMessage::find($message['id'])->conversation_id)->assertOk()->json('messages'))->firstWhere('id', $message['id']);
+
+        $this->travel(60)->seconds();
+        $this->assertSame('confirming', $page()['payload']['action']['status']);
+
+        $this->travel(3)->minutes();
+        $shown = $page();
+        $this->assertSame('failed', $shown['payload']['action']['status']);
+        $this->assertSame($sentence, $shown['content']);
+        $this->assertSame($sentence, $shown['payload']['action']['result']['message']);
+        $this->assertSame('failed', AiMessage::find($message['id'])->payload['action']['status']);
+        $this->assertSame(0, Event::count());
+
+        $page();
+        $audit = AiOutput::query()->where('output_text', 'create_event: interrupted')->get();
+        $this->assertCount(1, $audit);
+        $this->assertSame(['action' => 'create_event', 'role' => 'ADMIN'], $audit->first()->structured_input);
+        $this->assertNull($audit->first()->structured_output['record_id']);
+        $this->assertSame($admin->school_id, $audit->first()->decided_by);
+    }
+
+    public function test_pressing_confirm_on_a_card_left_running_writes_the_interrupted_audit_row(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now()->subMinutes(3));
+
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
+
+        $this->assertSame(1, AiOutput::query()->where('output_text', 'create_event: interrupted')->count());
+        $this->assertSame('I could not tell whether this went through. Check the page before trying again.', AiMessage::find($message['id'])->payload['action']['result']['message']);
+    }
+
+    public function test_a_refused_confirm_gives_the_person_another_full_window_to_fix_the_form(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $good = ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'];
+
+        $this->travel(29)->minutes();
+        $refused = $this->confirm($message['id'], [...$good, 'title' => ''])->assertUnprocessable();
+        $this->assertEqualsWithDelta(now()->addMinutes(30)->timestamp, strtotime($refused->json('assistant_message.payload.action.expires_at')), 5);
+
+        $this->travel(16)->minutes();
+        $this->confirm($message['id'], $good)->assertOk();
+        $this->assertSame(1, Event::count());
     }
 
     public function test_a_throttle_refusal_before_the_action_runs_does_not_burn_the_card(): void
