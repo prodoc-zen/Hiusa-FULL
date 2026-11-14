@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\AccountProfile;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationApplication;
@@ -99,6 +102,18 @@ class ApplicantGrantTest extends TestCase
         }
         $this->postJson('/api/college/applicant-grants', [])->assertUnprocessable()->assertJsonValidationErrors('school_id');
         $this->assertDatabaseCount('organization_applicant_grants', 0);
+    }
+
+    public function test_the_list_says_whether_applications_are_open_so_the_dean_is_warned_before_allowing(): void
+    {
+        $this->getJson('/api/college/applicant-grants', ['Cache-Control' => 'no-cache'])->assertOk()->assertJsonPath('applications_open', false);
+
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+        $this->getJson('/api/college/applicant-grants', ['Cache-Control' => 'no-cache'])->assertOk()->assertJsonPath('applications_open', false);
+
+        ComplianceRequirementType::create(['category' => 'organization', 'academic_year' => $year->label, 'academic_semester_id' => $semester->id, 'name' => 'Constitution', 'deadline_at' => now()->addMonth(), 'is_active' => true, 'created_by' => $this->dean->school_id]);
+        $this->getJson('/api/college/applicant-grants', ['Cache-Control' => 'no-cache'])->assertOk()->assertJsonPath('applications_open', true);
     }
 
     public function test_a_second_open_grant_for_the_same_student_is_refused(): void

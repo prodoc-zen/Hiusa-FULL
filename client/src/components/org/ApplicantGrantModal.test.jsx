@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ApplicantGrantModal from './ApplicantGrantModal';
 
-const mocks = vi.hoisted(() => ({ allowStudentToApply: vi.fn(), searchPeople: vi.fn(), success: vi.fn() }));
-vi.mock('../../services/applicantGrantService', () => ({ allowStudentToApply: mocks.allowStudentToApply }));
+const mocks = vi.hoisted(() => ({ allowStudentToApply: vi.fn(), getApplicantGrants: vi.fn(), searchPeople: vi.fn(), success: vi.fn() }));
+vi.mock('../../services/applicantGrantService', () => ({ allowStudentToApply: mocks.allowStudentToApply, getApplicantGrants: mocks.getApplicantGrants }));
 vi.mock('../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
 vi.mock('../../lib/notify', () => ({ default: { success: mocks.success, error: vi.fn() } }));
 
@@ -20,6 +20,7 @@ describe('ApplicantGrantModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.searchPeople.mockResolvedValue([ana]);
+    mocks.getApplicantGrants.mockResolvedValue({ data: { data: [], applications_open: true } });
   });
 
   it('keeps the button off until a student is picked and searches the college for students', async () => {
@@ -86,6 +87,40 @@ describe('ApplicantGrantModal', () => {
 
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeEnabled();
+  });
+
+  it('marks a student who already belongs to an organization in the result list, before the dean picks them', async () => {
+    mocks.searchPeople.mockResolvedValue([{ ...ana, organizations: [{ id: 7, name: 'Computing Council', position_title: null }], blocked_by: { id: 7, name: 'Computing Council' } }]);
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Allow a student to apply' });
+    fireEvent.change(within(dialog).getByRole('combobox', { name: /Student/ }), { target: { value: 'ana' } });
+
+    const option = await within(dialog).findByRole('option', { name: /Ana Cruz/ });
+    expect(option).toHaveTextContent('Already in Computing Council');
+  });
+
+  it('warns the dean when students cannot apply yet because no semester is open with its requirements', async () => {
+    mocks.getApplicantGrants.mockResolvedValue({ data: { data: [], applications_open: false } });
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Allow a student to apply' });
+
+    expect(await within(dialog).findByText(/Applications are not open yet/)).toBeInTheDocument();
+    await pickAna();
+    expect(within(dialog).getByRole('button', { name: 'Allow to apply' })).toBeEnabled();
+  });
+
+  it('shows no warning while applications are open, or when the check itself fails', async () => {
+    const { unmount } = render(<ApplicantGrantModal open onClose={() => {}} />);
+    await screen.findByRole('dialog', { name: 'Allow a student to apply' });
+    await waitFor(() => expect(mocks.getApplicantGrants).toHaveBeenCalled());
+    expect(screen.queryByText(/Applications are not open yet/)).not.toBeInTheDocument();
+    unmount();
+
+    mocks.getApplicantGrants.mockRejectedValue(new Error('offline'));
+    render(<ApplicantGrantModal open onClose={() => {}} />);
+    await screen.findByRole('dialog', { name: 'Allow a student to apply' });
+    await waitFor(() => expect(mocks.getApplicantGrants).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(/Applications are not open yet/)).not.toBeInTheDocument();
   });
 
   it('starts empty each time it opens', async () => {
