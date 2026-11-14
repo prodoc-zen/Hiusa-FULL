@@ -246,7 +246,7 @@ class AnswerMarkdownTest extends TestCase
 
     public function test_escaped_text_reads_back_as_the_original_in_a_preview(): void
     {
-        $original = "R&D [Fund] *2* | a_b #1 <b>";
+        $original = 'R&D [Fund] *2* | a_b #1 <b>';
 
         $this->assertSame('R&D [Fund] *2* | a_b #1 <b>', AnswerMarkdown::plainText(AnswerMarkdown::escape($original)));
     }

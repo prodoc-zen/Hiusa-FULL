@@ -169,14 +169,15 @@ class AskAiController extends Controller
 
     public function destroyConversation(Request $request, int $conversation): JsonResponse
     {
-        AiConversation::eraseWithOutputs(AiConversation::ownedBy($request->user())->whereKey($conversation)->limit(1));
+        $row = AiConversation::ownedBy($request->user())->findOrFail($conversation);
+        AiConversation::eraseWithOutputs(AiConversation::query()->whereKey($row->id));
 
         return response()->json(['message' => 'Conversation deleted.']);
     }
 
     public function destroyConversations(Request $request): JsonResponse
     {
-        AiConversation::ownedBy($request->user())->delete();
+        AiConversation::eraseWithOutputs(AiConversation::ownedBy($request->user()));
 
         return response()->json(['message' => 'All conversations deleted.']);
     }
@@ -200,7 +201,7 @@ class AskAiController extends Controller
 
     public function memories(Request $request): JsonResponse
     {
-        return response()->json(['data' => AiMemory::ownedBy($request->user())->orderBy('id')->get()->map(fn (AiMemory $memory) => $this->memoryRow($memory))->all()]);
+        return response()->json(['data' => AiMemory::ownedBy($request->user())->orderBy('id')->limit(AiMemory::LIMIT)->get()->map(fn (AiMemory $memory) => $this->memoryRow($memory))->all()]);
     }
 
     public function storeMemory(Request $request): JsonResponse
@@ -208,16 +209,10 @@ class AskAiController extends Controller
         $user = $request->user();
         $validated = $request->validate(['content' => ['required', 'string', 'min:3', 'max:300']]);
 
-        if (AiMemory::ownedBy($user)->count() >= AiMemory::LIMIT) {
+        $memory = AiMemory::remember($user, $validated['content']);
+        if ($memory === null) {
             throw ValidationException::withMessages(['content' => 'You can keep up to '.AiMemory::LIMIT.' memories. Delete one first.']);
         }
-
-        $memory = AiMemory::create([
-            'user_id' => $user->school_id,
-            'organization_id' => $user->organization_id,
-            'role' => $user->role,
-            'content' => $validated['content'],
-        ]);
 
         return response()->json(['memory' => $this->memoryRow($memory)], 201);
     }
