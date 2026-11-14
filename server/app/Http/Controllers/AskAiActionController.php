@@ -51,6 +51,7 @@ class AskAiActionController extends Controller
         }
 
         $done = $outcome['outcome'] === 'done';
+        $this->chat->recordAction($user, $claimed, $outcome['outcome'], $outcome['record_id'] ?? null);
         $this->store($claimed, $outcome['message'], function (array $action) use ($done, $outcome, $definition, $user, $checked): array {
             $action['status'] = $done ? 'done' : 'failed';
             $action['errors'] = [];

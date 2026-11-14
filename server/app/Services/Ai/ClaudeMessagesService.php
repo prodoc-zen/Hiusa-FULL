@@ -55,6 +55,9 @@ class ClaudeMessagesService implements TextGenerator
     // Longest a streaming connection may sit silent. Anthropic sends pings, so a healthy stream is never idle this long.
     private const STREAM_IDLE_SECONDS = 15;
 
+    // A silent stream tells the caller so this often, with an event of type 'tick' and an empty delta.
+    private const TICK_SECONDS = 4;
+
     /**
      * @param  ClientInterface|null  $transporter  PSR-18 client. Tests pass a faked one; production builds Guzzle.
      *                                             The SDK enforces no timeout of its own, the transport must.
@@ -176,10 +179,12 @@ class ClaudeMessagesService implements TextGenerator
         $stopReason = null;
         $callbackError = null;
 
-        $emit = function (string $type, string $delta) use ($onEvent, &$callbackError): void {
+        $lastEmit = $started;
+        $emit = function (string $type, string $delta) use ($onEvent, &$callbackError, &$lastEmit): void {
             if ($onEvent === null) {
                 return;
             }
+            $lastEmit = microtime(true);
             try {
                 $onEvent($type, $delta);
             } catch (\Throwable $exception) {
@@ -190,7 +195,11 @@ class ClaudeMessagesService implements TextGenerator
         };
 
         try {
-            $stream = $this->client($apiKey, $seconds, $started + $seconds)->messages->createStream(
+            $stream = $this->client($apiKey, $seconds, $started + $seconds, function () use ($emit, &$lastEmit): void {
+                if (microtime(true) - $lastEmit >= self::TICK_SECONDS) {
+                    $emit('tick', '');
+                }
+            })->messages->createStream(
                 maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
                 messages: array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
                 model: $this->model(),
@@ -349,7 +358,7 @@ class ClaudeMessagesService implements TextGenerator
         return false;
     }
 
-    private function client(string $apiKey, ?int $seconds = null, ?float $deadline = null): Client
+    private function client(string $apiKey, ?int $seconds = null, ?float $deadline = null, ?\Closure $beforeRead = null): Client
     {
         $total = (float) ($seconds ?? $this->requestSeconds());
         $connect = min($total, (float) max(1, (int) config('services.anthropic.connect_timeout', 3)));
@@ -365,7 +374,7 @@ class ClaudeMessagesService implements TextGenerator
         // maxRetries 0: Groq is the retry, and a second Claude attempt would push the page past its cap.
         return new Client(apiKey: $apiKey, requestOptions: array_filter([
             'transporter' => $transporter,
-            'streamingTransporter' => $deadline === null ? null : new DeadlineTransporter($transporter, $deadline),
+            'streamingTransporter' => $deadline === null ? null : new DeadlineTransporter($transporter, $deadline, $beforeRead),
             'timeout' => $total,
             'maxRetries' => 0,
         ], fn ($option) => $option !== null));

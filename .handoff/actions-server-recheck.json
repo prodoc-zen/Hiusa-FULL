@@ -1,0 +1,105 @@
+{
+ "all_green": false,
+ "commands": [
+  {
+   "command": "php artisan test --filter='AskAi' (in /home/user/Hiusa-FULL/server)",
+   "result": "201 passed, 3218 assertions, 9.23s, no failures, no reruns needed"
+  },
+  {
+   "command": "vendor/bin/pint --test on the 6 changed PHP files (AskAiActions.php, AskAiActionController.php, routes/api.php, AskAiChatService.php, AskAiActionsTest.php, AskAiChatTest.php)",
+   "result": "{\"tool\":\"pint\",\"result\":\"passed\"}"
+  },
+  {
+   "command": "Live probes against http://127.0.0.1:8000/api with the six seeded sign-ins",
+   "result": "All 8 actions proposed a card and executed correctly. Records checked in MySQL and through the app API. Guard probes all behaved as specified. One real problem (invite link stored in chat history). Several minor notes."
+  }
+ ],
+ "live_results": [
+  {
+   "role": "ADMIN 900001",
+   "action": "create_event",
+   "ok": true,
+   "note": "Card: title pre-filled, times empty. Missing end_time gave 422 {errors.end_time}, card stayed awaiting_confirmation. A valid confirm returned 200 and created events.id 5 'Recheck test event' with status planning plus approval_requests 11 (required_role DEPARTMENT_HEAD, pending). A second confirm gave 409 and left one row. A confirm by 900004 gave 404."
+  },
+  {
+   "role": "ADMIN 900001",
+   "action": "create_task",
+   "ok": true,
+   "note": "Card had no title or deadline pre-filled; assigned_to required with options Diego, Ellaine, Franco and others. Missing assignee gave 422. A student id 2100142 as assignee gave 422 'Choose one of the listed options.' Valid confirm gave 200; tasks.id 9 exists (status pending, assigned_to 900004, created_by 900001) and shows in GET /tasks. Second confirm gave 409. The row has task_type 'regular', not the 'standalone' the report mentions (that is the real endpoint's own value)."
+  },
+  {
+   "role": "ADMIN 900001",
+   "action": "propose_budget",
+   "ok": true,
+   "note": "Amount 5000 pre-filled from the message. Missing title gave 422. Valid confirm gave 200; budgets.id 4 has submission_status pending_department_head and approval_requests 12 (budget, DEPARTMENT_HEAD, pending). Second confirm gave 409."
+  },
+  {
+   "role": "ADMIN 900001",
+   "action": "draft_announcement",
+   "ok": true,
+   "note": "Missing title and body gave 422 with both errors. Valid confirm gave 200; announcements.id 11 has is_published 0 and approval_status draft. A student does not see it in GET /announcements. Second confirm gave 409. (Confirming used the same 5/min AI limiter as chat, so one confirm hit 429 and had to be retried after a minute.)"
+  },
+  {
+   "role": "SBO_OFFICER 900004",
+   "action": "draft_announcement",
+   "ok": true,
+   "note": "Card text says it goes to the Admin for approval. Missing fields gave 422. Valid confirm gave 200; announcements.id 10 has is_published 0 and approval_status pending, with approval_requests 13 (announcement, ADMIN, pending). Second confirm gave 409."
+  },
+  {
+   "role": "STUDENT 2100142",
+   "action": "file_grievance",
+   "ok": true,
+   "note": "Missing description gave 422. A confirm by student 2100217 gave 404. Anonymous to organization gave 200 and grievances row has organization_id 2, is_anonymous 1, status submitted. A second confirm gave 409. Student 2100217 addressed to SAO with is_anonymous true gave a row with organization_id NULL and is_anonymous 0, so the flag is dropped as the form does."
+  },
+  {
+   "role": "DEPARTMENT_HEAD 940001",
+   "action": "allow_applicant",
+   "ok": true,
+   "note": "Every seeded student in the dean's college already belongs to an active student organization, so the real endpoint also refuses them (422) and the card correctly arrives with no options. To exercise the success path I inserted a test student (school_id 2199001 'Recheck Testmakoy', profile in the college home org 7). The card then listed only that student. Empty confirm gave 422 'Student is required.' A student not in the options (2100142) gave 422 'Choose one of the listed options.' A confirm by 900001 gave 404. Valid confirm gave 200 and organization_applicant_grants.id 1 exists (open, granted_by 940001), visible in GET /college/applicant-grants. Second confirm gave 409. The student was not pre-filled even though the name matched uniquely (options only, no value); that is minor."
+  },
+  {
+   "role": "SUPER_ADMIN 990001",
+   "action": "add_college",
+   "ok": true,
+   "note": "Missing code gave 422 {errors.code}. A confirm by the dean gave 404. Valid confirm gave 200 and created colleges.id 6 'Recheck Test College' (code RTC, active) plus its COLLEGE home organization id 12. Second confirm gave 409."
+  },
+  {
+   "role": "SUPER_ADMIN 990001",
+   "action": "invite_department_head",
+   "ok": false,
+   "note": "Mechanics work: missing college gave 422; valid confirm for college 6 gave 200 and created department_head_invitations.id 1 (token stored hashed, expires in 48 h, email NULL); second confirm gave 409. FAILS the privacy bar: the full single-use link (accept-invitation?token=...) is saved in plaintext in ai_messages.content (message 180) and in payload.result.message. See problems."
+  },
+  {
+   "role": "ADMIN 900001",
+   "action": "cancel then confirm",
+   "ok": true,
+   "note": "Cancel gave 200 with status cancelled; confirming that card gave 409 'This request is no longer waiting for confirmation.'"
+  },
+  {
+   "role": "ADMIN, SBO_OFFICER, STUDENT, DEPARTMENT_HEAD, SUPER_ADMIN",
+   "action": "source:link on every action",
+   "ok": true,
+   "note": "With \"source\":\"link\", no card was proposed for create_event, create_task, propose_budget, draft_announcement (officer), file_grievance, allow_applicant or add_college; each got an ordinary answer."
+  },
+  {
+   "role": "Roles without the action",
+   "action": "no card, helpful answer",
+   "ok": true,
+   "note": "Student create event, student create task, officer create event, admin file grievance, admin invite dean, admin add college and dean file grievance each gave an explanatory answer naming the role that can do it, with no card. Two answers were odd but harmless: SAO 'draft an announcement' got 'could not tell which task you mean', and officer 'propose a budget' got a budget summary."
+  },
+  {
+   "role": "Expiry (30 minutes)",
+   "action": "confirm after expiry",
+   "ok": true,
+   "note": "Not exercised live (would need a 30 minute wait or editing stored data). Covered only by the PHP tests, which passed."
+  }
+ ],
+ "problems": [
+  "MOST SERIOUS: invite_department_head stores the live single-use Department Head invitation link in plaintext. Request: SAO POST /api/ai/assistant/messages/180/action/confirm {\"fields\":{\"college_id\":\"6\"}}. Result: 200, and ai_messages id 180 content is 'The invitation link is ready... http://127.0.0.1:5173/accept-invitation?token=ruRl...' (also in payload.result.message). The invitation table stores only a hash, so this bypasses that. AskAiChatService::history() (lines 622-636) sends earlier completed messages' content to the language model on every later turn in the same conversation, so the secret would also be sent to the model once one is configured; it also stays readable in conversation history. Anyone who gets the link before the Department Head can accept it and become that college's head. Decide: keep the link out of the stored message (show it only in the confirm response, or have the SAO create it from the college page), or exclude action result messages from history and redact the token after display.",
+  "Minor: a card with no errors serializes 'errors' as [] (empty JSON array) in the chat response, but the contract says a map ({} or keyed by field). After a 422 it is a proper object. A client that tests Object.keys works either way, but the shape is inconsistent.",
+  "Minor: allow_applicant does not pre-fill the student even when the message names exactly one eligible student (value null; the card only lists that student first). The contract allows this, but the dean must still pick.",
+  "Minor: confirm and cancel share the throttle:ai-generation limit (5 per minute per user) with chat, so a person who asks and confirms several things quickly gets 429 'Too many requests' on a confirm. Specified in the report, but worth knowing; the card stays awaiting_confirmation so a retry works.",
+  "Minor: the create_task note says the body adds task_kind standalone, but the stored task has task_type 'regular' (the column is task_type, no task_kind). This is the real endpoint's value, so behaviour matches the form.",
+  "Environment note: all seeded students in the dean's college belong to an active student organization, so allow_applicant can't succeed on seed data alone. I added a test user (school_id 2199001) and account_profiles row to the live DB to prove the success path. Test records left in the dev DB: events 5, tasks 9, budgets 4, announcements 10 and 11, two grievances, applicant grant 1, college 6 with organization 12, department head invitation 1, user 2199001, and approval_requests 11 to 13. Nothing seeded was deleted."
+ ]
+}

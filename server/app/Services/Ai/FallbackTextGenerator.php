@@ -24,6 +24,9 @@ class FallbackTextGenerator implements TextGenerator
     // Both attempts together; matches the cap each provider applies to a single call.
     private const DEADLINE_SECONDS = 12;
 
+    // A provider that has said nothing for this long gets a 'tick' event, so the caller can keep the page alive.
+    private const TICK_SECONDS = 4;
+
     // Added to the chat timeout for the secondary provider's turn.
     private const CHAT_MARGIN_SECONDS = 15;
 
@@ -55,17 +58,22 @@ class FallbackTextGenerator implements TextGenerator
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
     {
         $emitted = false;
-        $track = $onEvent === null ? null : function (string $type, string $delta) use ($onEvent, &$emitted): void {
-            $emitted = true;
+        $lastEvent = microtime(true);
+        $track = $onEvent === null ? null : function (string $type, string $delta) use ($onEvent, &$emitted, &$lastEvent): void {
+            $lastEvent = microtime(true);
+            $emitted = $emitted || $type !== 'tick';
             $onEvent($type, $delta);
         };
         $secondaryTurn = false;
         $chatSeconds = self::chatSeconds();
 
-        return $this->serve('converse', function (TextGenerator $generator) use ($instructions, $messages, $maxOutputTokens, $onEvent, $track, &$emitted, &$secondaryTurn) {
+        return $this->serve('converse', function (TextGenerator $generator) use ($instructions, $messages, $maxOutputTokens, $onEvent, $track, &$emitted, &$secondaryTurn, &$lastEvent) {
             if ($secondaryTurn && $emitted && $onEvent !== null) {
                 $onEvent('reset', '');
                 $emitted = false;
+            }
+            if ($secondaryTurn && $track !== null && microtime(true) - $lastEvent >= self::TICK_SECONDS) {
+                $track('tick', '');
             }
             $secondaryTurn = true;
 
