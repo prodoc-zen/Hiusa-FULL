@@ -355,6 +355,32 @@ class AskAiChatReviewFixesTest extends TestCase
         $this->assertSame('Checking the records. Reading the open tasks', last($events)['data']['message']['payload']['reasoning']['summary']);
     }
 
+    public function test_a_finished_sentence_of_thinking_is_sent_as_it_arrives_and_not_when_the_answer_starts(): void
+    {
+        $admin = $this->admin();
+        $emitted = [];
+        $atEndOfThinking = null;
+        $this->app->instance(TextGenerator::class, new class($emitted, $atEndOfThinking) extends AskAiChatFakeGenerator
+        {
+            public function __construct(private array &$emitted, private ?array &$snapshot) {}
+
+            public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+            {
+                $onEvent('reasoning', 'First sentence done. Second one still going');
+                $this->snapshot = $this->emitted;
+                $onEvent('text', 'The answer.');
+
+                return ['text' => 'The answer.', 'reasoning' => null, 'model' => 'claude-test', 'response_id' => null];
+            }
+        });
+
+        app(AskAiChatService::class)->respond($admin, null, 'What should I do today?', null, false, function (string $event, array $data) use (&$emitted): void {
+            $emitted[] = [$event, $data];
+        });
+
+        $this->assertSame([['reasoning', ['delta' => 'First sentence done.']]], array_values(array_filter($atEndOfThinking, fn ($e) => $e[0] === 'reasoning')));
+    }
+
     // srv-10: regenerate keeps the audit row, deleting the conversation takes it, an action is audited without its values
 
     public function test_regenerate_keeps_the_replaced_audit_row_until_the_conversation_is_deleted(): void
