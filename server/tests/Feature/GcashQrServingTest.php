@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AccountProfile;
+use App\Models\Merchandise;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,6 +96,30 @@ class GcashQrServingTest extends TestCase
 
         $this->getJson('/api/merchandise/gcash-settings')->assertOk()->assertJson(['gcash_qr_open_url' => self::OPEN_URL]);
         $this->get('/api'.self::OPEN_URL)->assertOk();
+    }
+
+    public function test_a_gcash_order_is_refused_when_the_column_is_set_but_the_file_is_gone(): void
+    {
+        $organization = Organization::factory()->create(['gcash_qr_url' => 'gcash-qr/9/missing.png']);
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
+        $item = Merchandise::factory()->create(['organization_id' => $organization->id, 'price' => 100, 'stock_quantity' => 5, 'is_active' => true]);
+        $message = 'GCash payment is unavailable until an administrator uploads the official QR code.';
+        Sanctum::actingAs($buyer);
+
+        $this->post('/api/orders', [
+            'merchandise_id' => $item->id,
+            'quantity' => 1,
+            'payment_method' => 'gcash',
+            'payment_reference' => '1234567890123',
+            'payment_proof' => UploadedFile::fake()->createWithContent('proof.png', base64_decode(self::PNG)),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonPath('message', $message);
+
+        $orderId = $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'cash'])
+            ->assertCreated()->json('id');
+        $this->post("/api/orders/{$orderId}/payment", [
+            'payment_reference' => '1234567890123',
+            'payment_proof' => UploadedFile::fake()->createWithContent('proof.png', base64_decode(self::PNG)),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonPath('message', $message);
     }
 
     public function test_a_saved_value_that_climbs_out_of_the_folder_is_not_served(): void

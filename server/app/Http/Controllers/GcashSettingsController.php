@@ -12,24 +12,19 @@ class GcashSettingsController extends Controller
 {
     private const OPEN_URL = '/merchandise/gcash-settings/qr';
 
-    private const PRIVATE_FOLDER = 'gcash-qr/';
-
-    // QR images saved before they moved to the private disk sit here and are still opened through the route.
-    private const LEGACY_FOLDER = '/uploads/gcash/';
-
     private const TYPES = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp'];
 
     public function show(Request $request)
     {
         $organization = Organization::findOrFail($request->user()->organization_id);
 
-        return response()->json(['gcash_qr_open_url' => $this->openUrl($organization->gcash_qr_url)]);
+        return response()->json(['gcash_qr_open_url' => $this->openUrl($organization)]);
     }
 
     public function image(Request $request)
     {
         $organization = Organization::findOrFail($request->user()->organization_id);
-        $path = $this->filePath($organization->gcash_qr_url);
+        $path = $organization->gcashQrPath();
 
         if (! $path) {
             return response()->json(['message' => 'The GCash QR is not available.'], 404);
@@ -53,19 +48,19 @@ class GcashSettingsController extends Controller
         $file = $request->file('qr_code');
         $extension = strtolower($file->extension());
         $url = Storage::disk('local')->putFileAs(
-            self::PRIVATE_FOLDER.$organization->id,
+            rtrim(Organization::GCASH_QR_PRIVATE_FOLDER, '/').'/'.$organization->id,
             $file,
             Str::uuid().'.'.(isset(self::TYPES[$extension]) ? $extension : 'png'),
         );
         $organization->update(['gcash_qr_url' => $url]);
 
         // The demo-* image is the tracked seed asset shared by every seeded organization, so it is never deleted.
-        if ($oldUrl && str_starts_with($oldUrl, self::LEGACY_FOLDER) && ! str_starts_with(basename($oldUrl), 'demo-')) {
+        if ($oldUrl && str_starts_with($oldUrl, Organization::GCASH_QR_LEGACY_FOLDER) && ! str_starts_with(basename($oldUrl), 'demo-')) {
             $oldPath = public_path(ltrim($oldUrl, '/'));
             if (is_file($oldPath)) {
                 @unlink($oldPath);
             }
-        } elseif ($oldUrl && $this->isPrivatePath($oldUrl)) {
+        } elseif ($oldUrl && Organization::isPrivateGcashQrPath($oldUrl)) {
             Storage::disk('local')->delete($oldUrl);
         }
 
@@ -82,34 +77,11 @@ class GcashSettingsController extends Controller
             'created_at' => now(),
         ]);
 
-        return response()->json(['gcash_qr_open_url' => $this->openUrl($url)]);
+        return response()->json(['gcash_qr_open_url' => $this->openUrl($organization->refresh())]);
     }
 
-    private function openUrl(?string $saved): ?string
+    private function openUrl(Organization $organization): ?string
     {
-        return $this->filePath($saved) ? self::OPEN_URL : null;
-    }
-
-    private function isPrivatePath(string $saved): bool
-    {
-        return str_starts_with($saved, self::PRIVATE_FOLDER) && ! str_contains($saved, '..');
-    }
-
-    private function filePath(?string $saved): ?string
-    {
-        if (! $saved) {
-            return null;
-        }
-
-        if (str_starts_with($saved, self::LEGACY_FOLDER)) {
-            $name = substr($saved, strlen(self::LEGACY_FOLDER));
-            $path = public_path('uploads/gcash/'.$name);
-
-            return $name === basename($name) && is_file($path) ? $path : null;
-        }
-
-        return $this->isPrivatePath($saved) && Storage::disk('local')->exists($saved)
-            ? Storage::disk('local')->path($saved)
-            : null;
+        return $organization->gcashQrPath() ? self::OPEN_URL : null;
     }
 }
