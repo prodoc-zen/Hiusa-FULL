@@ -11,7 +11,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AskAiChatService;
 use App\Services\Dashboard\ClientRouteAccess;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\AskAiChatFakeGenerator;
 use Tests\TestCase;
@@ -24,6 +26,7 @@ class AskAiChatTest extends TestCase
     {
         parent::setUp();
         config(['performance.api_cache.enabled' => false, 'services.groq.key' => '', 'services.anthropic.key' => '']);
+        RateLimiter::for('ai-generation', fn () => Limit::none());
     }
 
     private function admin(?Organization $org = null): User
@@ -149,7 +152,7 @@ class AskAiChatTest extends TestCase
     {
         $admin = $this->admin();
         Sanctum::actingAs($admin);
-        $this->fake(["First line of the answer.\n", "\n", "- A bullet point\n", 'Last line [Ask AI](/dashboard/ask-ai).'], 'Looking at the records.');
+        $this->fake(["First line of the answer.\n", "\n", "- A bullet point\n", 'Last line [Records](/dashboard/records).'], 'Looking at the records.');
 
         [$response, $events] = $this->stream(['message' => 'What should I do today?']);
 
@@ -171,7 +174,7 @@ class AskAiChatTest extends TestCase
         $joined = implode('', array_map(fn ($e) => $e['data']['text'], array_filter($events, fn ($e) => $e['event'] === 'delta')));
         $done = $events[array_key_last($events)]['data'];
         $this->assertSame($joined, $done['message']['content']);
-        $this->assertSame("First line of the answer.\n\n- A bullet point\nLast line [Ask AI](/dashboard/ask-ai).", $joined);
+        $this->assertSame("First line of the answer.\n\n- A bullet point\nLast line [Records](/dashboard/records).", $joined);
         $this->assertSame('Looking at the records.', $done['message']['payload']['reasoning']['summary']);
         $this->assertSame($events[0]['data']['conversation']['id'], $done['conversation']['id']);
         $this->assertSame('What should I do today?', $events[0]['data']['user_message']['content']);
@@ -271,7 +274,8 @@ class AskAiChatTest extends TestCase
         $this->assertStringContainsString('Plain site text.', $content);
         $this->assertStringContainsString('<div class="callout callout-info">Note</div>', $content);
         $this->assertStringNotContainsString('onclick', $content);
-        $this->assertStringContainsString('[Ask AI](/dashboard/ask-ai)', $content);
+        $this->assertStringContainsString('Note</div> Ask AI', $content);
+        $this->assertStringNotContainsString('/dashboard/ask-ai', $content);
     }
 
     public function test_every_href_in_the_payload_passes_the_role_allowlist(): void
