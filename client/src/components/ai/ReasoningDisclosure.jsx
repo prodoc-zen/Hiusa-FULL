@@ -24,8 +24,7 @@ export default function ReasoningDisclosure({ reasoning, live = false, seconds }
             />
           ))}
         </span>
-        <span>Thinking</span>
-        {label && <span className="min-w-0 truncate font-normal text-ink-muted">{label}</span>}
+        <span className="min-w-0 truncate">{label || 'Thinking'}</span>
       </p>
     );
   }
@@ -36,7 +35,7 @@ export default function ReasoningDisclosure({ reasoning, live = false, seconds }
 
   return (
     <details className="group text-xs">
-      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-control font-medium text-ink-muted-strong hover:text-ink [&::-webkit-details-marker]:hidden">
+      <summary className="inline-flex min-h-8 pointer-coarse:min-h-[42px] cursor-pointer list-none items-center gap-1.5 rounded-control font-medium text-ink-muted-strong hover:text-ink [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true" className="inline-block transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none">
           &rsaquo;
         </span>

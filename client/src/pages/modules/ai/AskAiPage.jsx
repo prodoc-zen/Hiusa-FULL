@@ -75,6 +75,13 @@ function failureMessage(err) {
   return 'Could not answer that right now. Try again.';
 }
 
+function briefingTitle(title) {
+  if (!title) return 'Today';
+  if (title !== title.toUpperCase()) return title;
+  const lower = title.toLowerCase().replace(/\b(sao|sbo|hiusa)\b/g, (word) => word.toUpperCase());
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
 function NewConversation({ overview, loading, error, onRetry, onAsk }) {
   if (loading) {
     return (
@@ -111,8 +118,8 @@ function NewConversation({ overview, loading, error, onRetry, onAsk }) {
 
       {briefing?.summary && (
         <section aria-label="Today's briefing" className="rounded-card border border-line bg-surface p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted-strong">{briefing.title || 'Today'}</h3>
-          <p className="mt-1.5 text-sm leading-6 text-ink">{briefing.summary}</p>
+          <h3 className="text-sm font-semibold text-ink">{briefingTitle(briefing.title)}</h3>
+          <p className="mt-1 text-sm leading-6 text-ink">{briefing.summary}</p>
           {priorities.length > 0 && (
             <ul className="mt-3 divide-y divide-line-soft border-t border-line-soft">
               {priorities.map((row, index) => (
@@ -304,6 +311,7 @@ export default function AskAiPage() {
     });
 
     let finished = false;
+    let metaReceived = false;
     const finish = (result) => {
       if (!current() || !result?.message) return;
       finished = true;
@@ -316,6 +324,7 @@ export default function AskAiPage() {
       if (!current()) return;
       const [name, data] = readEvent(first, second);
       if (name === 'meta') {
+        metaReceived = true;
         if (data.conversation?.id) {
           convIdRef.current = data.conversation.id;
           setActiveId(data.conversation.id);
@@ -354,7 +363,7 @@ export default function AskAiPage() {
         patchAnswer(() => ({ streaming: false, status: 'stopped' }));
       } else {
         setMessages((list) => list.filter((m) => m.key !== answerKey));
-        setSendError({ message: failureMessage(err), text, topic, regenerate });
+        setSendError({ message: failureMessage(err), text, topic, regenerate: regenerate || metaReceived });
       }
     } finally {
       if (current()) {
@@ -550,7 +559,7 @@ export default function AskAiPage() {
         title="Ask AI"
         actions={(
           <>
-            <Button variant="secondary" leftIcon={Plus} onClick={newChat}>New chat</Button>
+            {!wide && <Button variant="secondary" leftIcon={Plus} onClick={newChat}>New chat</Button>}
             {!wide && <Button variant="secondary" leftIcon={History} onClick={() => setHistoryOpen(true)}>History</Button>}
             <Button variant="secondary" leftIcon={Brain} onClick={() => setMemoryOpen(true)}>Memory</Button>
           </>
