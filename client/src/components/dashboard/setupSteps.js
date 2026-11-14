@@ -1,19 +1,21 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 
-// Section 7 of docs/UX_FLOW.md fixes which three steps lead for each role. The server sends its own
+// Section 7 of docs/UX_FLOW.md fixes which three steps lead for each role. OFFICE_STAFF is the dean's office staff: the server sends them their own short list under the ADMIN role. The server sends its own
 // order (and a few extra steps), so the client re-sorts; a key not listed goes last in server order.
 const STEP_ORDER = {
   ADMIN: ['positions', 'members', 'event', 'academic', 'compliance', 'budget'],
-  DEPARTMENT_HEAD: ['endorse', 'review'],
-  SUPER_ADMIN: ['academic-year', 'college-heads', 'requirements', 'admins', 'venues', 'announcement'],
+  DEPARTMENT_HEAD: ['student-records', 'office-staff', 'endorse', 'review'],
+  SUPER_ADMIN: ['academic-year', 'semester', 'semester-active', 'colleges', 'college-heads', 'school-records', 'requirements', 'admins', 'venues', 'announcement'],
+  OFFICE_STAFF: ['contact', 'endorse'],
   STUDENT: ['contact', 'event', 'statement', 'fingerprint'],
   SBO_OFFICER: ['contact', 'fingerprint', 'tasks'],
 };
 
 const ACTION_LABELS = {
   ADMIN: { positions: 'Add positions', members: 'Add members', event: 'Propose an event', academic: 'Set up programs', compliance: 'Open compliance', budget: 'Propose a budget' },
-  DEPARTMENT_HEAD: { endorse: 'Review applications', review: 'Open approvals' },
-  SUPER_ADMIN: { 'academic-year': 'Set the academic year', 'college-heads': 'Open colleges', requirements: 'Publish requirements', admins: 'Review applications', venues: 'List venues', announcement: 'Write an announcement' },
+  DEPARTMENT_HEAD: { 'student-records': 'Load student records', 'office-staff': 'Add office staff', endorse: 'Review applications', review: 'Open approvals' },
+  OFFICE_STAFF: { contact: 'Add contact number', endorse: 'See applications' },
+  SUPER_ADMIN: { 'academic-year': 'Set the academic year', semester: 'Add the semesters', 'semester-active': 'Activate a semester', colleges: 'Add the colleges', 'college-heads': 'Open colleges', 'school-records': 'Load school records', requirements: 'Publish requirements', admins: 'Review applications', venues: 'List venues', announcement: 'Write an announcement' },
   STUDENT: { contact: 'Add contact number', event: 'Find an event', statement: 'Open statement' },
   SBO_OFFICER: { contact: 'Add contact number', tasks: 'Open My tasks' },
 };
