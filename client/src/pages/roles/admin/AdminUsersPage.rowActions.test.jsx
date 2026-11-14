@@ -72,11 +72,11 @@ describe('AdminUsersPage row actions and empty values', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Deactivate user' })).not.toBeInTheDocument());
   });
 
-  it('asks the People and access list for five people at a time so the page stays short', async () => {
+  it('asks the People and access list for four people at a time so the page stays short', async () => {
     render(<AdminUsersPage />);
     await screen.findAllByText('Ben Cruz');
 
-    expect(mocks.accessPanel).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 8, pageSize: 5 }));
+    expect(mocks.accessPanel).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 8, pageSize: 4 }));
   });
 
   it('leaves the Program label off a phone card that has nothing to show under it', async () => {
