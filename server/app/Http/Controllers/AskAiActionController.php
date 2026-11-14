@@ -29,7 +29,7 @@ class AskAiActionController extends Controller
         abort_if($definition === null, 404);
 
         $submitted = $request->validate(['fields' => ['sometimes', 'array']])['fields'] ?? [];
-        $claimed = $this->claim($row);
+        $claimed = $this->claim($user, $row);
         if (is_string($claimed)) {
             return response()->json(['message' => $claimed], 409);
         }
@@ -68,7 +68,7 @@ class AskAiActionController extends Controller
     {
         $row = $this->ownedAction($request, $message);
 
-        $claimed = $this->claim($row);
+        $claimed = $this->claim($request->user(), $row);
         if (is_string($claimed)) {
             return response()->json(['message' => $claimed], 409);
         }
@@ -98,12 +98,18 @@ class AskAiActionController extends Controller
      * Moves the action out of awaiting_confirmation under a row lock, so two presses cannot both run it. Returns the
      * claimed row, or the sentence for a 409 when it is no longer waiting or has expired.
      */
-    private function claim(AiMessage $row): AiMessage|string
+    private function claim(User $user, AiMessage $row): AiMessage|string
     {
-        return DB::transaction(function () use ($row): AiMessage|string {
+        return DB::transaction(function () use ($user, $row): AiMessage|string {
             $locked = AiMessage::query()->whereKey($row->id)->lockForUpdate()->firstOrFail();
             $payload = $locked->payload;
             $action = $payload['action'];
+
+            if ($this->chat->isInterrupted($payload)) {
+                $this->chat->failInterrupted($user, $locked);
+
+                return AskAiChatService::INTERRUPTED;
+            }
 
             if (($action['status'] ?? null) !== 'awaiting_confirmation') {
                 return 'This request is no longer waiting for confirmation.';
@@ -117,6 +123,7 @@ class AskAiActionController extends Controller
             }
 
             $payload['action']['status'] = 'confirming';
+            $payload['action']['confirming_at'] = now()->toIso8601String();
             $locked->update(['payload' => $payload]);
 
             return $locked;
@@ -136,6 +143,8 @@ class AskAiActionController extends Controller
     {
         $this->store($row, $row->content, function (array $action) use ($definition, $user, $values, $errors): array {
             $action['status'] = 'awaiting_confirmation';
+            // A person fixing the form is still working on the card, so the refusal gives back a full window.
+            $action['expires_at'] = now()->addMinutes(AskAiActions::EXPIRES_MINUTES)->toIso8601String();
             $action['errors'] = $errors;
             $action['fields'] = $this->actions->presentFields($definition, $user, $values);
 

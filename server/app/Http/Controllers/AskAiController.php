@@ -85,7 +85,8 @@ class AskAiController extends Controller
 
         $message = $regenerate ? null : trim((string) $validated['message']);
         $topic = $validated['topic'] ?? null;
-        $source = $validated['source'] ?? 'typed';
+        // The composer always says 'typed'; a request that names no source is not treated as typed, so it never gets a card.
+        $source = $validated['source'] ?? 'link';
 
         $lock = Cache::lock('ask-ai-chat:'.$user->school_id, FallbackTextGenerator::chatDeadlineSeconds() + 25);
         if (! $lock->get()) {

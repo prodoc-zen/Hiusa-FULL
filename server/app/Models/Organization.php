@@ -9,10 +9,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
 
 class Organization extends Model
 {
     use HasFactory;
+
+    // Uploads live on the private disk under gcash-qr/; QRs saved before that sit in the public uploads folder.
+    public const GCASH_QR_PRIVATE_FOLDER = 'gcash-qr/';
+
+    public const GCASH_QR_LEGACY_FOLDER = '/uploads/gcash/';
 
     protected $guarded = [];
 
@@ -26,6 +32,35 @@ class Organization extends Model
             'reviewed_at' => 'datetime',
             'archived_at' => 'datetime',
         ];
+    }
+
+    /** The one answer to "does this organization's GCash QR file exist": its path on disk, or null when none is saved or the file is gone. */
+    public function gcashQrPath(): ?string
+    {
+        return self::resolveGcashQrPath($this->gcash_qr_url);
+    }
+
+    public static function resolveGcashQrPath(?string $saved): ?string
+    {
+        if (! $saved) {
+            return null;
+        }
+
+        if (str_starts_with($saved, self::GCASH_QR_LEGACY_FOLDER)) {
+            $name = substr($saved, strlen(self::GCASH_QR_LEGACY_FOLDER));
+            $path = public_path('uploads/gcash/'.$name);
+
+            return $name === basename($name) && is_file($path) ? $path : null;
+        }
+
+        return self::isPrivateGcashQrPath($saved) && Storage::disk('local')->exists($saved)
+            ? Storage::disk('local')->path($saved)
+            : null;
+    }
+
+    public static function isPrivateGcashQrPath(string $saved): bool
+    {
+        return str_starts_with($saved, self::GCASH_QR_PRIVATE_FOLDER) && ! str_contains($saved, '..');
     }
 
     public function scopeStudent(Builder $query): Builder

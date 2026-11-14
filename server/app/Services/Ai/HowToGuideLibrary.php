@@ -1095,6 +1095,17 @@ class HowToGuideLibrary
 
         usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
 
+        // A guide written for another role names this role in done_by when this role does the same job: its own guide in the
+        // same category answers instead, so the SAO asking to approve a budget is not given the Department Head's guide.
+        if ($scored !== [] && ! $scored[0]['accessible'] && in_array($role, $scored[0]['guide']['done_by'] ?? [], true)) {
+            foreach ($scored as $i => $candidate) {
+                if ($candidate['accessible'] && $candidate['guide']['category'] === $scored[0]['guide']['category']) {
+                    array_unshift($scored, ...array_splice($scored, $i, 1));
+                    break;
+                }
+            }
+        }
+
         if ($scored === [] || $scored[0]['score'] < 2.5) {
             return ['best' => null, 'accessible' => false, 'related' => [], 'total' => $total, 'categories' => $categories, 'top_confidence' => 0];
         }

@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -275,16 +276,17 @@ class FinancialAccountabilityTest extends TestCase
 
     public function test_only_admin_can_update_the_organization_gcash_qr_code(): void
     {
+        Storage::fake('local');
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
         Sanctum::actingAs($student);
         $this->postJson('/api/merchandise/gcash-settings', ['qr_code' => UploadedFile::fake()->image('qr.png')])->assertForbidden();
 
         Sanctum::actingAs($admin);
-        $response = $this->postJson('/api/merchandise/gcash-settings', ['qr_code' => UploadedFile::fake()->image('qr.png')])
-            ->assertOk()->assertJsonPath('gcash_qr_url', fn ($url) => str_contains($url, '/uploads/gcash/'));
+        $this->postJson('/api/merchandise/gcash-settings', ['qr_code' => UploadedFile::fake()->image('qr.png')])
+            ->assertOk()->assertJsonPath('gcash_qr_open_url', '/merchandise/gcash-settings/qr');
         $storedPath = Organization::findOrFail($admin->organization_id)->gcash_qr_url;
-        @unlink(public_path(ltrim($storedPath, '/')));
+        Storage::disk('local')->assertExists($storedPath);
         $this->assertDatabaseHas('organizations', ['id' => $admin->organization_id, 'gcash_qr_url' => $storedPath]);
     }
 

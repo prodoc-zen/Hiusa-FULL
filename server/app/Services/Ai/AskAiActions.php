@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Contracts\TextGenerator;
+use App\Http\Middleware\EnsureRole;
 use App\Models\AccountProfile;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
@@ -14,7 +15,9 @@ use App\Services\TaskDelegationService;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Facade;
 
 /**
@@ -33,9 +36,19 @@ class AskAiActions
 
     private const STUDENT_OPTION_LIMIT = 300;
 
+    private const STUDENT_SCAN_PAGE = 500;
+
+    private const STUDENT_SCAN_PAGES = 20;
+
     private const QUESTION_STARTS = ['how', 'what', 'where', 'why', 'when', 'who', 'which', 'paano', 'saan', 'ano', 'bakit', 'kailan', 'sino'];
 
     private const QUESTION_PAIRS = ['can i', 'may i', 'do i', 'should i', 'am i', 'is it', 'is there', 'are there', 'does it', 'will it'];
+
+    private const QUESTION_WORDS = ['what', 'which', 'how', 'list', 'show', 'summarize', 'summarise', 'tell'];
+
+    private const POLITE_STARTS = ['please', 'pls', 'plz', 'kindly', 'hey', 'can', 'could', 'would', 'you', 'u', 'i', 'want', 'wanna', 'need', 'like', 'to'];
+
+    private const NOUN_REACH = 3;
 
     private const QUESTION_PHRASES = ['how to', 'how do', 'how can', 'how would', 'how should', 'steps to'];
 
@@ -58,20 +71,30 @@ class AskAiActions
     /** @return array<int, string> the titles of the actions this person can use, for the capabilities answer */
     public function titlesFor(User $user): array
     {
-        return array_values(array_map(fn (array $definition) => $definition['title'], $this->forRole($user->role)));
+        return array_values(array_map(fn (array $definition) => $definition['title'], $this->forUser($user)));
     }
 
     public function definitionFor(User $user, string $key): ?array
     {
         $definition = $this->definitions()[$key] ?? null;
 
-        return $definition !== null && in_array($user->role, $definition['roles'], true) ? $definition : null;
+        return $definition !== null && $this->offeredTo($user, $definition) ? $definition : null;
     }
 
     /** @return array<string, array> */
-    private function forRole(string $role): array
+    private function forUser(User $user): array
     {
-        return array_filter($this->definitions(), fn (array $definition) => in_array($role, $definition['roles'], true));
+        return array_filter($this->definitions(), fn (array $definition) => $this->offeredTo($user, $definition));
+    }
+
+    /** The role gate, and the dean-only list the real route's middleware applies to the dean's office staff. */
+    private function offeredTo(User $user, array $definition): bool
+    {
+        if (! in_array($user->role, $definition['roles'], true)) {
+            return false;
+        }
+
+        return ! ($user->isCollegeOfficeStaff() && in_array($definition['route'][0].' '.ltrim($definition['route'][1], '/'), EnsureRole::DEAN_ONLY, true));
     }
 
     /** @return array<string, array> */
@@ -132,7 +155,7 @@ class AskAiActions
                 $this->field('title', 'Title', 'text', true, 255, null, null, ['parse' => 'title']),
                 $this->field('description', 'Description', 'textarea', false, 5000),
                 $this->field('deadline', 'Due date', 'date', true, null, 'Today or later.'),
-                $this->field('assigned_to', 'Assign to', 'select', true, null, 'Only officers who can take more work are accepted.', fn (User $user): array => $this->eligibleOfficers($user)),
+                $this->field('assigned_to', 'Assign to', 'select', true, null, 'Only officers who can take more work are accepted.', fn (User $user, string $message, array $values): array => $this->eligibleOfficers($user, (string) ($values['title'] ?? $message))),
             ],
             'route' => ['POST', '/api/tasks'],
             'body' => fn (array $v): array => [
@@ -269,7 +292,10 @@ class AskAiActions
             'nouns' => ['organization', 'organizations', 'organisation', 'org', 'orgs', 'club', 'society'],
             'also' => ['new', 'start', 'register', 'establish', 'found', 'form', 'create', 'apply', 'applicant', 'another', 'allow'],
             'fields' => [
-                $this->field('school_id', 'Student', 'select', true, null, 'A student of your college who is not already in a student organization.', fn (User $user, string $message): array => $this->applicantOptions($user, $message), ['model' => false]),
+                $this->field('school_id', 'Student', 'select', true, null, 'A student of your college who is not already in a student organization.', fn (User $user, string $message, array $values): array => $this->applicantOptions($user, $message, $values), [
+                    'model' => false,
+                    'check' => fn (User $user, string $value): bool => $this->applicantEligible($user, $value),
+                ]),
             ],
             'route' => ['POST', '/api/college/applicant-grants'],
             'body' => fn (array $v): array => ['school_id' => (int) $v['school_id']],
@@ -313,61 +339,80 @@ class AskAiActions
     // Option loaders, each scoped to what the person may see
     // -------------------------------------------------------------------------
 
-    /** @return array<int, array{value: string, label: string}> */
-    private function eligibleOfficers(User $user): array
+    /**
+     * The officers the task route will accept, in the delegation ranking, the recommended one marked. They come from the
+     * same delegation result the form's recommendation uses, so an officer at the task limit is not offered.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function eligibleOfficers(User $user, string $title): array
     {
         if ($user->organization_id === null) {
             return [];
         }
 
-        $delegation = app(TaskDelegationService::class);
-        $positions = $delegation->activePositionTitles($user->organization_id);
+        $result = app(TaskDelegationService::class)->recommend($user->organization_id, mb_substr($title, 0, 255));
 
-        return $delegation->officerPool($user->organization_id)
-            ->filter(fn (User $officer) => $delegation->accountIsActive($officer)
-                && trim((string) $officer->position_title) !== ''
-                && $delegation->canonicalPosition($officer->position_title, $positions) !== null)
-            ->map(fn (User $officer) => [
-                'value' => (string) $officer->school_id,
-                'label' => trim("{$officer->first_name} {$officer->last_name}").', '.trim((string) $officer->position_title),
-                'aliases' => [trim("{$officer->first_name} {$officer->last_name}")],
+        return collect($result['rankings'])
+            ->map(fn (array $ranking) => [
+                'value' => (string) $ranking['officer_id'],
+                'label' => trim($ranking['name']).', '.trim((string) $ranking['position_title']).($ranking['officer_id'] === $result['recommended_officer_id'] ? ' (recommended)' : ''),
+                'aliases' => [trim($ranking['name'])],
             ])
             ->values()
             ->all();
     }
 
-    /** @return array<int, array{value: string, label: string}> */
-    private function applicantOptions(User $dean, string $message): array
+    /**
+     * The students this dean may allow, those the message names first. The limit is applied after the same rule the
+     * route applies (not in a student organization, no open permission), so a college with many members still lists
+     * the students who can be picked. A student already chosen on the card stays listed while that choice stands.
+     *
+     * @param  array<string, mixed>  $values
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function applicantOptions(User $dean, string $message, array $values = []): array
     {
-        $home = Organization::whereKey($dean->organization_id)->first(['id', 'organization_type', 'college_id']);
-        if (! $home || $home->organization_type !== 'COLLEGE' || ! $home->college_id) {
+        $collegeId = $this->deanCollegeId($dean);
+        if ($collegeId === null) {
             return [];
         }
 
-        $collegeId = $home->college_id;
-        $students = fn () => User::query()->where('account_status', 'active')->whereIn('school_id', AccountProfile::query()
-            ->select('user_school_id')->where('role', 'STUDENT')->where('account_status', 'active')
-            ->whereIn('organization_id', Organization::query()->select('id')->where('college_id', $collegeId)));
+        $columns = ['school_id', 'first_name', 'last_name'];
+        $open = OrganizationApplicantGrant::open()->where('college_id', $collegeId)->pluck('user_school_id')->map(fn ($id) => (int) $id)->all();
+        $eligible = function (Collection $students) use ($open): Collection {
+            $blocked = OrganizationApplicantGrant::blockingOrganizations($students->pluck('school_id')->map(fn ($id) => (int) $id)->all());
+
+            return $students->reject(fn (User $student) => isset($blocked[(int) $student->school_id]) || in_array((int) $student->school_id, $open, true));
+        };
 
         $named = array_values(array_filter(array_unique(array_map(
             fn (string $word) => mb_strtolower($word),
             preg_split('/[^\p{L}\p{N}]+/u', $message, -1, PREG_SPLIT_NO_EMPTY) ?: [],
         )), fn (string $word) => mb_strlen($word) >= 3 && ! in_array($word, self::NAME_STOPWORDS, true)));
 
-        $matches = $named === [] ? collect() : $students()->where(function ($query) use ($named): void {
+        $listed = $named === [] ? collect() : $eligible($this->collegeStudents($collegeId)->where(function ($query) use ($named): void {
             foreach (array_slice($named, 0, 12) as $word) {
                 $query->orWhereRaw('LOWER(first_name) = ?', [$word])->orWhereRaw('LOWER(last_name) = ?', [$word]);
             }
-        })->orderBy('last_name')->orderBy('first_name')->limit(50)->get(['school_id', 'first_name', 'last_name']);
+        })->orderBy('last_name')->orderBy('first_name')->limit(50)->get($columns));
 
-        $listed = $matches->concat($students()->orderBy('last_name')->orderBy('first_name')->limit(self::STUDENT_OPTION_LIMIT)->get(['school_id', 'first_name', 'last_name']))
-            ->unique('school_id')->values();
+        $rest = collect();
+        for ($page = 1; $page <= self::STUDENT_SCAN_PAGES && $rest->count() < self::STUDENT_OPTION_LIMIT; $page++) {
+            $batch = $this->collegeStudents($collegeId)->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')->forPage($page, self::STUDENT_SCAN_PAGE)->get($columns);
+            if ($batch->isEmpty()) {
+                break;
+            }
+            $rest = $rest->concat($eligible($batch));
+        }
 
-        $blocked = OrganizationApplicantGrant::blockingOrganizations($listed->pluck('school_id')->map(fn ($id) => (int) $id)->all());
-        $open = OrganizationApplicantGrant::open()->where('college_id', $collegeId)->pluck('user_school_id')->map(fn ($id) => (int) $id)->all();
+        $chosen = (string) ($values['school_id'] ?? '');
+        $picked = $chosen !== '' && $this->applicantEligible($dean, $chosen)
+            ? $this->collegeStudents($collegeId)->where('school_id', (int) $chosen)->get($columns)
+            : collect();
 
-        return $listed
-            ->reject(fn (User $student) => isset($blocked[(int) $student->school_id]) || in_array((int) $student->school_id, $open, true))
+        return $picked->concat($listed)->concat($rest->take(self::STUDENT_OPTION_LIMIT))
+            ->unique('school_id')
             ->map(fn (User $student) => [
                 'value' => (string) $student->school_id,
                 'label' => trim("{$student->first_name} {$student->last_name}")." ({$student->school_id})",
@@ -375,6 +420,36 @@ class AskAiActions
             ])
             ->values()
             ->all();
+    }
+
+    /** The one student's eligibility, by the route's own rule: of this college, active, in no student organization, no open permission. */
+    private function applicantEligible(User $dean, string $schoolId): bool
+    {
+        $collegeId = $this->deanCollegeId($dean);
+        if ($collegeId === null || preg_match('/^\d{1,8}$/', $schoolId) !== 1) {
+            return false;
+        }
+
+        $id = (int) $schoolId;
+
+        return $this->collegeStudents($collegeId)->where('school_id', $id)->exists()
+            && OrganizationApplicantGrant::blockingOrganizations([$id]) === []
+            && ! OrganizationApplicantGrant::open()->where('college_id', $collegeId)->where('user_school_id', $id)->exists();
+    }
+
+    private function deanCollegeId(User $dean): ?int
+    {
+        $home = Organization::whereKey($dean->organization_id)->first(['id', 'organization_type', 'college_id']);
+
+        return $home && $home->organization_type === 'COLLEGE' && $home->college_id ? (int) $home->college_id : null;
+    }
+
+    /** Active accounts holding an active student profile anywhere in the college. */
+    private function collegeStudents(int $collegeId): Builder
+    {
+        return User::query()->where('account_status', 'active')->whereIn('school_id', AccountProfile::query()
+            ->select('user_school_id')->where('role', 'STUDENT')->where('account_status', 'active')
+            ->whereIn('organization_id', Organization::query()->select('id')->where('college_id', $collegeId)));
     }
 
     // -------------------------------------------------------------------------
@@ -385,13 +460,14 @@ class AskAiActions
     public function recognise(User $user, string $message): ?string
     {
         $tokens = $this->tokens($message);
-        if ($tokens === [] || $this->isQuestion($tokens)) {
+        if ($tokens === [] || $this->isQuestion($message)) {
             return null;
         }
+        $informational = $this->hasQuestionWord($message);
 
         $best = null;
         $bestDistance = PHP_INT_MAX;
-        foreach ($this->forRole($user->role) as $key => $definition) {
+        foreach ($this->forUser($user) as $key => $definition) {
             if (isset($definition['also']) && array_intersect($definition['also'], $tokens) === []) {
                 continue;
             }
@@ -404,9 +480,15 @@ class AskAiActions
 
             $distance = PHP_INT_MAX;
             foreach ($verbs as [$verbStart, $verbEnd]) {
-                foreach ($nouns as [$nounStart, $nounEnd]) {
-                    $gap = $nounStart > $verbEnd ? $nounStart - $verbEnd : ($verbStart - $nounEnd) + 3;
-                    $distance = min($distance, $gap);
+                $opens = array_diff(array_slice($tokens, 0, $verbStart), self::POLITE_STARTS) === [];
+                if ($informational && ! $opens) {
+                    continue;
+                }
+                foreach ($nouns as [$nounStart]) {
+                    $gap = $nounStart - $verbEnd;
+                    if ($gap > 0 && ($opens || $gap <= self::NOUN_REACH + 1)) {
+                        $distance = min($distance, $gap);
+                    }
                 }
             }
 
@@ -428,8 +510,40 @@ class AskAiActions
         return array_values(array_filter(explode(' ', $clean), fn (string $token) => $token !== ''));
     }
 
-    private function isQuestion(array $tokens): bool
+    /** What the person called or quoted is a name, not part of the request, so a title such as "How to Study" does not make it a question. */
+    private function withoutNames(string $message): string
     {
+        $head = preg_split('/\b(?:called|named|titled|entitled)\b/iu', $message, 2)[0] ?? $message;
+        $kept = '';
+        foreach (explode('"', str_replace(['“', '”'], '"', $head)) as $index => $part) {
+            if ($index % 2 === 0) {
+                $kept .= $part.' ';
+            }
+        }
+
+        return $kept;
+    }
+
+    /**
+     * A word such as "list" or "show" makes a statement a question for information, unless the request opens with
+     * its own verb ("Create an event for the talent show"), where the word is part of what is being made.
+     */
+    private function hasQuestionWord(string $message): bool
+    {
+        return array_intersect(self::QUESTION_WORDS, $this->tokens($this->withoutNames($message))) !== [];
+    }
+
+    private function isQuestion(string $message): bool
+    {
+        $tokens = $this->tokens($this->withoutNames($message));
+        if ($tokens === []) {
+            return false;
+        }
+
+        if (str_ends_with(rtrim($message), '?')) {
+            return true;
+        }
+
         if (in_array($tokens[0], self::QUESTION_STARTS, true)) {
             return true;
         }
@@ -540,7 +654,7 @@ class AskAiActions
     public function presentFields(array $definition, User $user, array $values, string $message = ''): array
     {
         return array_map(function (array $field) use ($user, $values, $message): array {
-            $options = $this->optionsOf($field, $user, $message);
+            $options = $this->optionsOf($field, $user, $message, $values);
 
             return [
                 'name' => $field['name'],
@@ -555,9 +669,21 @@ class AskAiActions
         }, $definition['fields']);
     }
 
-    private function optionsOf(array $field, User $user, string $message = ''): ?array
+    private function optionsOf(array $field, User $user, string $message = '', array $values = []): ?array
     {
-        return $field['options'] === null ? null : ($field['options'])($user, $message);
+        return $field['options'] === null ? null : ($field['options'])($user, $message, $values);
+    }
+
+    /** A field with its own check accepts exactly the value that passes it; the listed options may be only part of the choices. */
+    private function acceptedOptions(array $field, User $user, mixed $submitted): ?array
+    {
+        if (! isset($field['check'])) {
+            return $this->optionsOf($field, $user);
+        }
+
+        $value = is_scalar($submitted) && ! is_bool($submitted) ? trim((string) $submitted) : '';
+
+        return $value !== '' && ($field['check'])($user, $value) ? [['value' => $value, 'label' => $value]] : [];
     }
 
     /** @return array{array<string, mixed>, bool} the understood values and whether a model read the message */
@@ -809,7 +935,7 @@ class AskAiActions
         $errors = [];
         foreach ($definition['fields'] as $field) {
             $name = $field['name'];
-            $clean = $this->clean($field, $submitted[$name] ?? null, $this->optionsOf($field, $user));
+            $clean = $this->clean($field, $submitted[$name] ?? null, $this->acceptedOptions($field, $user, $submitted[$name] ?? null));
             $values[$name] = $clean['ok'] ? $clean['value'] : (is_scalar($submitted[$name] ?? null) ? (string) $submitted[$name] : null);
 
             if (! $clean['ok']) {
@@ -851,7 +977,7 @@ class AskAiActions
         [$method, $path] = $definition['route'];
         $path = preg_replace_callback('/\{(\w+)\}/', fn (array $match) => rawurlencode((string) ($values[$match[1]] ?? '')), $path);
 
-        $server = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'REMOTE_ADDR' => $original->server('REMOTE_ADDR', '127.0.0.1')];
+        $server = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'REMOTE_ADDR' => (string) ($original->ip() ?? '127.0.0.1')];
         foreach (['Authorization' => 'HTTP_AUTHORIZATION', 'X-Academic-Semester' => 'HTTP_X_ACADEMIC_SEMESTER', 'User-Agent' => 'HTTP_USER_AGENT'] as $header => $key) {
             if ($original->headers->has($header)) {
                 $server[$key] = (string) $original->headers->get($header);
@@ -887,6 +1013,10 @@ class AskAiActions
 
         if ($status === 422) {
             return ['outcome' => 'invalid', 'errors' => $this->fieldErrors($definition, $json), 'status' => $status];
+        }
+
+        if ($status === 429) {
+            return ['outcome' => 'invalid', 'errors' => ['_' => ['Too many requests. Wait a moment, then press the button again.']], 'status' => $status];
         }
 
         return ['outcome' => 'failed', 'message' => $this->failureSentence($status, $json), 'status' => $status];
