@@ -40,6 +40,8 @@ export const getMerchandiseAuditLogs = (id) =>
 
 export const getGcashSettings = () => api.get('/merchandise/gcash-settings');
 
+export const getGcashQrImage = (openUrl) => api.get(openUrl, { responseType: 'blob' });
+
 export const uploadGcashQr = (file) => {
   const data = new FormData();
   data.append('qr_code', file);
