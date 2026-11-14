@@ -139,7 +139,7 @@ export default function StudentRecordsPanel({ collegeId }) {
           rows={rows}
           rowKey={(row) => row.id}
           actions={(row) => (row.claimed ? (
-            <span className="max-w-[16rem] text-right text-xs font-normal text-ink-muted">{CLAIMED_REASON}</span>
+            <span className="max-w-[16rem] text-left text-xs sm:text-right font-normal text-ink-muted">{CLAIMED_REASON}</span>
           ) : (
             <span className="inline-flex items-center justify-end gap-2">
               <Button variant="secondary" size="sm" aria-label={`Edit ${row.name}`} onClick={() => setEditing(row)}>Edit</Button>

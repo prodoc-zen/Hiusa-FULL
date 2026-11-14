@@ -165,7 +165,7 @@ export default function SaoClearancesPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold text-ink">{formatDisplayText(period.title)}</p>
-                      {closed && <span className="inline-flex h-6 items-center rounded-full bg-slate-200 px-3 text-xs font-bold text-slate-700">Closed</span>}
+                      {closed && <span className="inline-flex h-6 items-center rounded-full border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F172A]">Closed</span>}
                     </div>
                     <p className="text-xs text-ink-muted">{period.academic_year} · Deadline {period.deadline_at ? manilaDate(period.deadline_at) : 'not set'}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
