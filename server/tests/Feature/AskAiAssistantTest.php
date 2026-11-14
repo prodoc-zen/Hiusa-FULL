@@ -314,8 +314,9 @@ class AskAiAssistantTest extends TestCase
         ])->assertOk();
 
         $studentRes->assertJsonPath('intent', 'how_to_guide');
-        $this->assertStringContainsString('cannot do', $studentRes->json('answer'));
+        $this->assertStringContainsString('A student cannot approve budgets', $studentRes->json('answer'));
         $this->assertSame('Other role', collect($studentRes->json('highlights'))->firstWhere('label', 'Your access')['value']);
+        $this->assertNull(collect($studentRes->json('sections'))->firstWhere('layout', 'steps'), 'the steps written for another role are not shown');
     }
 
     public function test_how_to_guide_matches_dean_magic_link_delegation_and_subaccount_questions(): void

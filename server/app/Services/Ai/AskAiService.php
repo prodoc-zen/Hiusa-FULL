@@ -79,7 +79,7 @@ class AskAiService
         'elections_status' => '~\b(?:elections?|votes?|voted|voting|voters?|ballots?|turnout|candidates?)\b~',
         'merchandise_orders' => '~\b(?:(?<!in )orders?|merch(?:andise)?|claim(?:s|ed|ing)?|payment proofs?|verify payments?|pick-?up)\b~',
         'tasks_workload' => '~\b(?:tasks?|workloads?|assigned|assignees?|assign|delegate|delegation|to-?do)\b~',
-        'money_words' => '~\b(?:balances?|owe[ds]?|owing|unpaid|invoices?|fees?|receipts?|dues|debts?)\b~',
+        'money_words' => '~\b(?:balances?|owe[ds]?|owing|unpaid|invoices?|fees?|receipts?|dues|debts?|utang|bayad|babayaran|bayaran)\b~',
         'missing_requirements' => '~\b(?:requirements?|compliance|accreditation)\b|(?=.*\b(?:files?|documents?|reports?|submi\w*|forms?|papers?)\b)\b(?:missing|incomplete|lacking|outstanding|deadlines?)\b~',
         'pending_approvals' => '~\b(?:approvals?|approve|approving|endorse\w*|pending review|waiting for (?:my |our |the )?(?:review|approval|decision)|my decision|venues?|bookings?|(?:pending|new|waiting|awaiting) registrations?|applications?)\b~',
         'finance_health' => '~\b(?:budgets?|finance|finances|financial|spent|spending|spend|fees?|invoices?|debts?|owe|owed|owes|owing|unpaid|collections?|paid|balances?|receipts?|payments?|dues|how much (?:is |do we have |do i have )?(?:left|remaining))\b~',
@@ -91,7 +91,114 @@ class AskAiService
         'my_submissions' => ['Where our submissions stand', 'Where your event proposals, budget requests and reports are, and who has to act on them next.'],
         'ai_tools' => ['The AI tools', 'What each tool does, who can use it and where to open it.'],
         'fee_usage' => ['Where my fees go', 'How the fees your organization collected were spent, once the SAO has approved the report.'],
+        'unclaimed_students' => ['Students not signed up', 'How many students in the school records have no account yet, and where to see them.'],
+        'my_attendance' => ['My attendance', 'How many events you attended and missed, and your attendance rate.'],
+        'claim_token' => ['My claim token', 'Which of your orders are paid and where the claim token for each one is.'],
+        'glossary' => ['What a word means', 'The meaning of words like SAO, clearance, accreditation and claim token.'],
     ];
+
+    // The question a person can ask for each role intent, offered when their own words matched nothing.
+    private const ROLE_INTENT_QUESTIONS = [
+        'applications_queue' => 'Which organization applications are waiting for my decision?',
+        'my_submissions' => 'Where do our submissions stand?',
+        'ai_tools' => 'What do the AI tools do?',
+        'fee_usage' => 'Where do my membership fees go?',
+        'unclaimed_students' => 'Which students have not signed up yet?',
+        'my_attendance' => 'What is my attendance?',
+        'claim_token' => 'Where is my claim token?',
+        'glossary' => 'What is the SAO?',
+    ];
+
+    // A page that fits a kind of question, by role: [path, button label]. A link is offered only when exactly one kind
+    // of question fits the words used and the person's role can open the page.
+    private const PAGE_HINTS = [
+        'people' => ['~\b(?:students?|roster|members?|people|users?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/users', 'Open University users'],
+            'DEPARTMENT_HEAD' => ['/dashboard/department-head/people', 'Open People'],
+            'ADMIN' => ['/dashboard/admin/users', 'Open Users'],
+            'SBO_OFFICER' => ['/dashboard/admin/users', 'Open Users'],
+        ]],
+        'money' => ['~\b(?:budgets?|spend|spent|spending|expenses?|money|funds?|ledger|transactions?|income)\b~', [
+            'DEPARTMENT_HEAD' => ['/dashboard/finance/budget-allocation', 'Open the budgets'],
+            'ADMIN' => ['/dashboard/finance/budget-allocation', 'Open the budgets'],
+            'SBO_OFFICER' => ['/dashboard/finance/budget-allocation', 'Open the budgets'],
+            'STUDENT' => ['/dashboard/finance/where-fees-go', 'Open Where your fees go'],
+        ]],
+        'events' => ['~\b(?:events?|calendar|schedule|activities)\b~', [
+            'DEPARTMENT_HEAD' => ['/dashboard/events/activity-calendar', 'Open the events calendar'],
+            'ADMIN' => ['/dashboard/events/activity-calendar', 'Open the events calendar'],
+            'SBO_OFFICER' => ['/dashboard/events/activity-calendar', 'Open the events calendar'],
+            'STUDENT' => ['/dashboard/events/activity-calendar', 'Open the events calendar'],
+        ]],
+        'announcements' => ['~\b(?:announcements?|news|memo)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/announcements', 'Open Announcements'],
+            'DEPARTMENT_HEAD' => ['/dashboard/announcements/view-announcements', 'Open the announcements'],
+            'ADMIN' => ['/dashboard/announcements/view-announcements', 'Open the announcements'],
+            'SBO_OFFICER' => ['/dashboard/announcements/view-announcements', 'Open the announcements'],
+            'STUDENT' => ['/dashboard/announcements/view-announcements', 'Open the announcements'],
+        ]],
+        'clearance' => ['~\b(?:clearances?|sign-?offs?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/clearances', 'Open Clearances'],
+            'DEPARTMENT_HEAD' => ['/dashboard/clearances', 'Open Clearances'],
+            'ADMIN' => ['/dashboard/clearances', 'Open Clearances'],
+            'SBO_OFFICER' => ['/dashboard/clearances', 'Open Clearances'],
+            'STUDENT' => ['/dashboard/my-clearance', 'Open My clearance'],
+        ]],
+        'grievance' => ['~\b(?:grievances?|complaints?|concerns?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/grievances', 'Open Grievances'],
+            'ADMIN' => ['/dashboard/grievances', 'Open Grievances'],
+            'STUDENT' => ['/dashboard/my-grievances', 'Open My grievances'],
+        ]],
+        'orders' => ['~\b(?:orders?|merch\w*|shirts?|shop)\b~', [
+            'ADMIN' => ['/dashboard/merchandise/manage-orders', 'Open Manage orders'],
+            'SBO_OFFICER' => ['/dashboard/merchandise/manage-orders', 'Open Manage orders'],
+            'STUDENT' => ['/dashboard/merchandise/my-orders', 'Open My orders'],
+        ]],
+        'elections' => ['~\b(?:elections?|votes?|voting|candidates?|ballots?)\b~', [
+            'DEPARTMENT_HEAD' => ['/dashboard/elections', 'Open the elections'],
+            'ADMIN' => ['/dashboard/elections', 'Open the elections'],
+            'SBO_OFFICER' => ['/dashboard/elections', 'Open the elections'],
+            'STUDENT' => ['/dashboard/elections', 'Open the elections'],
+        ]],
+        'venues' => ['~\b(?:venues?|rooms?|halls?|bookings?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/venues', 'Open Venues'],
+            'ADMIN' => ['/dashboard/venues', 'Open Venues'],
+            'SBO_OFFICER' => ['/dashboard/venues', 'Open Venues'],
+        ]],
+        'compliance' => ['~\b(?:compliance|requirements?|accreditation|documents?|files?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/compliance', 'Open Compliance'],
+            'DEPARTMENT_HEAD' => ['/dashboard/department-head/compliance', 'Open College compliance'],
+            'ADMIN' => ['/dashboard/compliance', 'Open Compliance'],
+        ]],
+        'organizations' => ['~\b(?:organi[sz]ations?|orgs?|clubs?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/organizations', 'Open Organizations'],
+            'DEPARTMENT_HEAD' => ['/dashboard/department-head/organizations', 'Open Organizations'],
+        ]],
+        'tasks' => ['~\b(?:tasks?|to-?do)\b~', [
+            'ADMIN' => ['/dashboard/tasks/task-board', 'Open the task board'],
+            'SBO_OFFICER' => ['/dashboard/tasks/assigned-tasks', 'Open My tasks'],
+        ]],
+        'profile' => ['~\b(?:profile|password|email address)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/profile', 'Open my profile'],
+            'DEPARTMENT_HEAD' => ['/dashboard/profile', 'Open my profile'],
+            'ADMIN' => ['/dashboard/profile', 'Open my profile'],
+            'SBO_OFFICER' => ['/dashboard/profile', 'Open my profile'],
+            'STUDENT' => ['/dashboard/profile', 'Open my profile'],
+        ]],
+        'audit' => ['~\b(?:audit|logs?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/audit-logs', 'Open Audit logs'],
+            'ADMIN' => ['/dashboard/audit-logs', 'Open Audit logs'],
+        ]],
+        'academic' => ['~\b(?:semesters?|academic years?|school years?)\b~', [
+            'SUPER_ADMIN' => ['/dashboard/super-admin/academic-years', 'Open Academic years'],
+        ]],
+    ];
+
+    private const NO_ANSWER_SOURCES = 'No records were used for this answer, because I could not match your question to one I can answer.';
+
+    private const REFUSED_SOURCES = 'No records were read, because this is outside what your account can open.';
+
+    private const NO_RECORD_SOURCES = 'No records were read for this answer.';
 
     private const STUDENT_REDIRECTS = [
         'tasks_workload' => ['organization tasks, which are given to officers', 'The closest thing for you is your own list for today, and I can show it.', 'daily_priorities'],
@@ -302,6 +409,7 @@ class AskAiService
             'rag_metadata' => $response['rag_metadata'] ?? null,
             'sections' => $response['sections'],
             'follow_ups' => $response['follow_ups'],
+            'sources' => $response['sources'],
             'generated_at' => now()->toIso8601String(),
             'engine' => $response['model_name'] ? (str_starts_with($response['model_name'], 'claude') ? 'claude' : 'groq').'+semantic_rag' : 'semantic_rag+deterministic',
         ];
@@ -369,7 +477,7 @@ class AskAiService
     private const STUDENT_FIRST = ['grievances_status', 'clearances_status', 'merchandise_orders', 'elections_status', 'money_words', 'finance_health', 'events_attendance'];
 
     // "What do I owe" asked by someone who is not a student: the answer is their own account, never the organization's budget.
-    private const OWN_BALANCE = '~\b(?:what|how much|how many)\b(?: \w+){0,3} (?:do|did|will|would) i (?:still )?owe\b|\bdo i (?:still )?owe\b|\bwhat i (?:still )?owe\b|\bmy (?:outstanding |unpaid |current )?(?:balance|dues|fees|invoices?|receipts?)\b|\b(?:am|are) i (?:cleared|fully paid|paid up)\b~';
+    private const OWN_BALANCE = '~\b(?:what|how much|how many)\b(?: \w+){0,3} (?:do|did|will|would) i (?:still )?owe\b|\bdo i (?:still )?owe\b|\bwhat i (?:still )?owe\b|\bmy (?:outstanding |unpaid |current )?(?:balance|dues|fees|invoices?|receipts?)\b|\b(?:am|are) i (?:cleared|fully paid|paid up)\b|\b(?:utang|bayarin|balanse) ko\b|\b(?:magkano|ano) (?:ang )?(?:utang|babayaran|bayad) ko\b~';
 
     private function asksOwnBalance(string $q, string $role): bool
     {
@@ -378,19 +486,29 @@ class AskAiService
 
     private function answer(User $user, string $question, string $intent, bool $allowModel, bool $callModel = true): array
     {
+        $payload = $this->composeAnswer($user, $question, $intent, $allowModel, $callModel);
+        $payload['sources'] ??= $this->sourcesFor($user, $intent, $payload);
+
+        return $payload;
+    }
+
+    private function composeAnswer(User $user, string $question, string $intent, bool $allowModel, bool $callModel = true): array
+    {
         if ($intent === 'how_to_guide') {
             return $this->answerHowTo($user, $question);
         }
 
         if (! $this->intentAllowed($user, $intent)) {
-            return $this->enrichWithFormattedBlocksAndCharts($this->refusal($user, $intent), $intent);
+            return $this->enrichWithFormattedBlocksAndCharts([...$this->refusal($user, $intent), 'sources' => self::REFUSED_SOURCES], $intent);
         }
 
         $organizationIds = $this->scopedStudentOrganizationIds($user);
         $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent === 'semantic_rag' || $allowModel);
 
         if ($intent === 'semantic_rag') {
-            $payload = $this->buildSemanticRagPayload($user, $question, $rag, $organizationIds);
+            $payload = $this->asksForRecords($question, $rag)
+                ? $this->buildSemanticRagPayload($user, $question, $rag, $organizationIds)
+                : $this->buildNoAnswer($user, $question);
         } else {
             $payload = match ($intent) {
                 'missing_submissions' => $this->buildMissingSubmissions($user, $organizationIds),
@@ -406,7 +524,7 @@ class AskAiService
                 'elections_status' => $this->buildElectionsStatus($user, $organizationIds),
                 'grievances_status' => $this->buildGrievancesStatus($user),
                 'applications_queue' => $this->withWaitingRequests($user, $organizationIds, $this->roleIntents->build($user, $intent, $question)),
-                'my_submissions', 'ai_tools', 'fee_usage' => $this->roleIntents->build($user, $intent, $question),
+                'my_submissions', 'ai_tools', 'fee_usage', 'unclaimed_students', 'my_attendance', 'claim_token', 'glossary' => $this->roleIntents->build($user, $intent, $question),
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
@@ -421,12 +539,17 @@ class AskAiService
         ));
 
         $modelName = null;
-        if ($allowModel && $callModel) {
+        if ($allowModel && $callModel && empty($payload['no_answer'])) {
             $enhanced = $this->enhanceWithModel($user, $question, $payload, $rag);
             if ($enhanced !== null) {
                 $payload['answer'] = $enhanced['text'];
                 $modelName = $enhanced['model'];
             }
+        }
+
+        // An answer that matched nothing carries none of the records the search happened to rank.
+        if (! empty($payload['no_answer'])) {
+            $rag = [...$rag, 'chunks' => [], 'matched_entities' => [], 'top_confidence' => 0];
         }
 
         $payload['model_name'] = $modelName;
@@ -447,7 +570,12 @@ class AskAiService
             'top_confidence' => $rag['top_confidence'],
         ];
 
-        return $this->enrichWithFormattedBlocksAndCharts($payload, $intent);
+        $payload = $this->enrichWithFormattedBlocksAndCharts($payload, $intent);
+        if (! empty($payload['no_answer'])) {
+            $payload['charts'] = [];
+        }
+
+        return $payload;
     }
 
     // -------------------------------------------------------------------------
@@ -618,6 +746,21 @@ class AskAiService
     }
 
     /** A request in the doing voice: where to do it, what happens next, and where the person stands. */
+    /** A student who has no permission to apply and no application yet cannot use the apply guide today. */
+    private function applyingBlocked(User $user, array $guide): bool
+    {
+        if ($user->role !== 'STUDENT' || ! in_array('own_application', $guide['checks'] ?? [], true)) {
+            return false;
+        }
+
+        $applied = OrganizationApplication::query()
+            ->where('school_id', $user->school_id)
+            ->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)
+            ->exists();
+
+        return ! $applied && ! OrganizationApplicantGrant::query()->usable()->where('user_school_id', $user->school_id)->exists();
+    }
+
     private function buildHowToRequest(User $user, array $guide, bool $accessible, array $related): array
     {
         if (! $accessible) {
@@ -911,6 +1054,10 @@ class AskAiService
 
         if ($guide === null) {
             $payload = $this->buildHowToCatalog($user, $question, $request);
+        } elseif (! $result['accessible'] && in_array($role, ['STUDENT', 'SBO_OFFICER'], true)) {
+            // Steps written for another role name menus and pages this role does not have, so it gets the one sentence
+            // and the closest page it can open instead.
+            $payload = $this->buildHowToWhoCan($user, $guide, $result['related']);
         } elseif ($request) {
             $payload = $this->buildHowToRequest($user, $guide, (bool) $result['accessible'], $result['related']);
         } else {
@@ -938,6 +1085,7 @@ class AskAiService
     private function buildHowToGuide(User $user, array $guide, bool $accessible, array $related): array
     {
         $role = $user->role;
+        $blocked = $accessible && $this->applyingBlocked($user, $guide);
         $steps = array_values($guide['steps']);
         $stepCount = count($steps);
         $allowedRoles = array_map(
@@ -1026,6 +1174,9 @@ class AskAiService
             if ($firstStep !== null) {
                 $answer .= ' Start here: '.rtrim($firstStep['detail'], '.').'.';
             }
+            if ($blocked) {
+                $answer = 'You cannot apply yet: your Department Head has not allowed you to apply. '.$answer;
+            }
         } else {
             $answer = sprintf(
                 'The %s role cannot do "%s". That is done by %s. Here are the steps so you know what they do. %s',
@@ -1057,7 +1208,7 @@ class AskAiService
                 ['label' => 'Steps', 'value' => (string) $stepCount, 'tone' => 'primary'],
                 ['label' => 'Pages involved', 'value' => (string) count($paths), 'tone' => 'info'],
                 ['label' => 'Estimated time', 'value' => $this->plural((int) $guide['minutes'], 'minute'), 'tone' => 'success'],
-                ['label' => 'Your access', 'value' => $accessible ? 'Allowed' : 'Other role', 'tone' => $accessible ? 'success' : 'warning'],
+                ['label' => 'Your access', 'value' => $blocked ? 'Not yet' : ($accessible ? 'Allowed' : 'Other role'), 'tone' => $accessible && ! $blocked ? 'success' : 'warning'],
             ],
             'sections' => $sections,
             'follow_ups' => array_slice($followUps, 0, 3),
@@ -1181,6 +1332,220 @@ class AskAiService
     // -------------------------------------------------------------------------
     // Intent 1: Daily Priorities ("What should I do today?")
     // -------------------------------------------------------------------------
+
+    /**
+     * A question that fell through every intent asks for records only when it uses one of the search words (officers,
+     * stock, a search) or names a person, an organization, an event or another record. Anything else has no answer here.
+     *
+     * @param  array<string, mixed>  $rag
+     */
+    private function asksForRecords(string $question, array $rag): bool
+    {
+        if (($rag['chunks'] ?? []) === []) {
+            return false;
+        }
+
+        if (preg_match(self::INTENT_PATTERNS['semantic_rag'], $this->plainQuestion($question)) === 1 || ($rag['matched_entities'] ?? []) !== []) {
+            return true;
+        }
+
+        foreach ($rag['chunks'] as $chunk) {
+            if (! empty($chunk['names_entity'])) {
+                return true;
+            }
+        }
+
+        // A single distinctive word of the question that is also a word of a record's name ("lanyard", "Angela") is a lookup.
+        $distinctive = array_diff($this->questionWords($question), self::GENERIC_WORDS);
+        foreach ($distinctive === [] ? [] : $rag['chunks'] as $chunk) {
+            $name = $this->questionWords($chunk['primary'].' '.implode(' ', array_map('strval', (array) ($chunk['entity_terms'] ?? []))));
+            if (array_intersect($distinctive, $name) !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Words every kind of record shares, so meeting one of them in a record's name says nothing about what was asked.
+    private const GENERIC_WORDS = ['student', 'organization', 'organisation', 'org', 'college', 'officer', 'member', 'people', 'president', 'vice', 'secretary', 'treasurer', 'auditor', 'adviser', 'advisor', 'admin', 'head', 'dean', 'department', 'account', 'user', 'record', 'week', 'month', 'year', 'time', 'full', 'every', 'name', 'active', 'inactive'];
+
+    /**
+     * One plain sentence that there is no answer, then up to three things this role can ask that are nearest to the words
+     * used, and the page where the thing lives when exactly one page clearly fits. No record is listed as if it answered.
+     */
+    private function buildNoAnswer(User $user, string $question): array
+    {
+        $role = $user->role;
+        $words = $this->questionWords($question);
+
+        $candidates = array_values(array_filter($this->suggestedQuestions($role), fn (array $q) => $this->intentAllowed($user, $q['topic'])));
+        $listed = array_column($candidates, 'topic');
+        foreach (self::ROLE_INTENT_CAPABILITIES as $intent => [$label, $description]) {
+            if (! in_array($intent, $listed, true) && $this->roleIntents->allowed($user, $intent)) {
+                $candidates[] = ['id' => $intent, 'topic' => $intent, 'label' => $label, 'question' => self::ROLE_INTENT_QUESTIONS[$intent], 'description' => $description];
+            }
+        }
+
+        $scored = [];
+        foreach ($candidates as $position => $candidate) {
+            $labelWords = $this->questionWords($candidate['label'].' '.$candidate['question']);
+            $score = 2 * count(array_intersect($words, $labelWords)) + count(array_intersect($words, $this->questionWords($candidate['description'])));
+            $scored[] = ['candidate' => $candidate, 'score' => $score, 'position' => $position];
+        }
+        usort($scored, fn (array $a, array $b) => [$b['score'], $a['position']] <=> [$a['score'], $b['position']]);
+        $near = array_filter($scored, fn (array $s) => $s['score'] > 0);
+        // No shared word at all: the first things the role is shown on its starter list.
+        $offers = array_slice(array_column($near !== [] ? $near : $this->byPosition($scored), 'candidate'), 0, 3);
+
+        $sections = [];
+        $page = $this->pageThatFits($user, $question);
+        if ($page !== null) {
+            $sections[] = [
+                'id' => 'no-answer-page',
+                'title' => 'Where to look',
+                'description' => 'The page that fits the words you used.',
+                'empty_message' => '',
+                'rows' => [[
+                    'id' => 'no-answer-page-link',
+                    'primary' => $page['label'],
+                    'secondary' => 'This is the closest page to what you asked about.',
+                    'status' => 'Closest page',
+                    'status_tone' => 'info',
+                    'meta' => null,
+                    'href' => $page['href'],
+                    'action_label' => $page['label'],
+                ]],
+            ];
+        }
+        $sections[] = [
+            'id' => 'no-answer-offers',
+            'title' => 'What I can answer',
+            'description' => 'The closest things to your words. Ask any of them.',
+            'empty_message' => 'Nothing to offer yet.',
+            'rows' => array_map(fn (array $offer, int $index) => [
+                'id' => 'offer-'.($index + 1),
+                'primary' => $offer['label'],
+                'secondary' => $offer['description'],
+                'status' => 'You can ask',
+                'status_tone' => 'info',
+                'meta' => null,
+                'href' => null,
+                'ask_question' => $offer['question'],
+            ], $offers, array_keys($offers)),
+        ];
+
+        return [
+            'title' => 'I do not have an answer for that',
+            'answer' => 'I do not have an answer for that, but these are the closest things I can answer for you.',
+            'highlights' => [],
+            'sections' => $sections,
+            'follow_ups' => array_map(fn (array $offer) => ['topic' => $offer['topic'], 'label' => $offer['label'], 'question' => $offer['question']], $offers),
+            'no_answer' => true,
+            'sources' => self::NO_ANSWER_SOURCES,
+        ];
+    }
+
+    /** @return array<int, array{candidate: array, score: int, position: int}> */
+    private function byPosition(array $scored): array
+    {
+        usort($scored, fn (array $a, array $b) => $a['position'] <=> $b['position']);
+
+        return $scored;
+    }
+
+    /** The meaningful words of a question: lowercase, no filler, a trailing s dropped so "budgets" meets "budget". */
+    private function questionWords(string $text): array
+    {
+        $stop = ['the', 'and', 'for', 'you', 'your', 'our', 'are', 'was', 'were', 'have', 'has', 'had', 'can', 'could', 'would', 'should', 'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how', 'does', 'did', 'this', 'that', 'with', 'there', 'their', 'them', 'they', 'any', 'all', 'about', 'from', 'into', 'out', 'not', 'yet', 'still', 'give', 'show', 'tell', 'list', 'get', 'got', 'see', 'now', 'today', 'will', 'its', 'but', 'than', 'then', 'too', 'very', 'just', 'some', 'more', 'most', 'over', 'ask', 'need', 'want', 'like'];
+        $words = preg_split('/[^a-z0-9]+/', Str::lower(str_replace(['’', '‘'], "'", $text)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $kept = [];
+        foreach ($words as $word) {
+            $word = strlen($word) > 3 && str_ends_with($word, 's') ? substr($word, 0, -1) : $word;
+            if (strlen($word) >= 3 && ! in_array($word, $stop, true)) {
+                $kept[$word] = $word;
+            }
+        }
+
+        return array_values($kept);
+    }
+
+    /** @return null|array{href: string, label: string} the page for the one kind of question these words fit, if this role can open it */
+    private function pageThatFits(User $user, string $question): ?array
+    {
+        $q = $this->plainQuestion($question);
+        $fits = array_filter(self::PAGE_HINTS, fn (array $hint) => preg_match($hint[0], $q) === 1);
+        if (count($fits) !== 1) {
+            return null;
+        }
+
+        [$path, $label] = reset($fits)[1][$user->role] ?? [null, null];
+        $href = $path === null ? null : $this->linkTo($user, $path);
+
+        return $href === null ? null : ['href' => $href, 'label' => $label];
+    }
+
+    /** Where the facts in an answer came from, in plain words a person can check. */
+    public function sourcesFor(User $user, string $intent, array $payload = []): string
+    {
+        if (in_array($intent, ['greeting', 'capabilities', 'memory'], true)) {
+            return self::NO_RECORD_SOURCES;
+        }
+        if (! empty($payload['no_answer'])) {
+            return self::NO_ANSWER_SOURCES;
+        }
+        if ($intent === 'how_to_guide') {
+            return 'From the HIUSA how-to guides for your role.';
+        }
+        if ($intent === 'glossary') {
+            return 'From the HIUSA glossary.';
+        }
+        if ($intent === 'fee_usage') {
+            return 'From the financial reports the SAO has approved for your organization, read just now';
+        }
+        if ($intent === 'ai_tools') {
+            return 'From the HIUSA descriptions of the AI tools open to your role.';
+        }
+        if ($intent === 'semantic_rag') {
+            $titles = array_values(array_unique(array_filter(array_column($payload['sections'] ?? [], 'title'))));
+
+            return $titles === []
+                ? 'From the records your account can open, read just now'
+                : 'From the records that matched your question ('.implode(', ', array_slice($titles, 0, 4)).'), read just now';
+        }
+
+        $student = $user->role === 'STUDENT';
+        $owner = $student || ($user->role === 'SBO_OFFICER' && $intent === 'tasks_workload') ? 'your own' : $this->ownerPhrase($user);
+        $what = match ($intent) {
+            'daily_priorities' => $student ? 'fees, orders, ballots and clearance' : 'tasks, requests and deadlines',
+            'missing_submissions' => 'compliance requirements and submitted files',
+            'submitted_documents' => 'submitted compliance files and reports',
+            'pending_approvals' => 'approval requests',
+            'organizations_without_admin' => 'registrations and organization heads',
+            'tasks_workload' => 'tasks',
+            'finance_health' => $student ? 'invoices and payments' : 'budgets and transactions',
+            'own_balance' => 'invoices and payments',
+            'merchandise_orders' => $student ? 'orders' : 'merchandise orders',
+            'events_attendance' => 'events and attendance',
+            'clearances_status' => 'clearance signatures',
+            'elections_status' => 'elections and votes',
+            'grievances_status' => 'grievances',
+            'applications_queue' => 'organization applications',
+            'my_submissions' => 'event, budget and report submissions',
+            'unclaimed_students' => 'school records and accounts',
+            'my_attendance' => 'attendance records',
+            'claim_token' => 'merchandise orders',
+            default => 'records',
+        };
+        if (in_array($intent, ['own_balance', 'my_attendance', 'claim_token'], true)) {
+            $owner = 'your own';
+        }
+        if ($intent === 'unclaimed_students') {
+            $owner = $user->role === 'SUPER_ADMIN' ? 'the university\'s' : 'your college\'s';
+        }
+
+        return 'From '.$owner.' '.$what.', read just now';
+    }
 
     private function plural(int $count, string $singular, ?string $plural = null): string
     {
