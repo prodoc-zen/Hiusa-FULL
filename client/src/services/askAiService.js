@@ -37,6 +37,7 @@ const GENERIC_ERROR = 'Could not answer that right now. Try again.';
 function streamError(message, status, data) {
   const error = new Error(message || GENERIC_ERROR);
   if (status) error.status = status;
+  if (message) error.serverMessage = message;
   if (data?.errors) error.validationErrors = data.errors;
   return error;
 }

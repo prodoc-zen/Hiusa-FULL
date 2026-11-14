@@ -25,6 +25,17 @@ class AiMessage extends Model
         return $this->belongsTo(AiConversation::class, 'conversation_id');
     }
 
+    /** Deletes the message and keeps its ai_outputs row, marked superseded, so the audit trail still shows what was said. */
+    public function supersede(): void
+    {
+        DB::transaction(function (): void {
+            if ($this->ai_output_id !== null) {
+                AiOutput::query()->whereKey($this->ai_output_id)->update(['decision_status' => 'superseded', 'decided_at' => now()]);
+            }
+            $this->delete();
+        });
+    }
+
     /** Deletes the message together with the ai_outputs row that holds its text. */
     public function eraseWithOutput(): void
     {

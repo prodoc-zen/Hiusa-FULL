@@ -74,7 +74,7 @@ describe('ActionCard', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
-  it('offers an empty first choice on an optional select only', () => {
+  it('offers None on an optional select and a disabled Choose on a required one', () => {
     const select = { name: 'who', label: 'Who', type: 'select', required: false, value: null, max: null, help: null, options: [{ value: '1', label: 'Ana' }] };
     const { unmount } = render(
       <MemoryRouter>
@@ -89,7 +89,8 @@ describe('ActionCard', () => {
         <ActionCard message={message({ fields: [required] })} action={message({ fields: [required] }).payload.action} onChange={vi.fn()} />
       </MemoryRouter>,
     );
-    expect(Array.from(document.querySelectorAll('select option')).map((o) => o.value)).toEqual(['1']);
+    expect(Array.from(document.querySelectorAll('select option')).map((o) => o.value)).toEqual(['', '1']);
+    expect(document.querySelector('select option').disabled).toBe(true);
   });
 
   it('sends the edited values once even when the button is pressed twice', async () => {
@@ -225,5 +226,49 @@ describe('ActionCard', () => {
     expect(screen.getByLabelText(/^Title/)).toHaveAttribute('readonly');
     expect(screen.getByRole('checkbox', { name: 'Open to everyone' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
+  });
+
+  it('shows a disabled empty first option when a select has no value, required or not, and sends null', async () => {
+    const options = [{ value: '1', label: 'One' }, { value: '2', label: 'Two' }];
+    const fields = [
+      { name: 'pick', label: 'Pick one', type: 'select', required: true, value: null, options },
+      { name: 'maybe', label: 'Maybe', type: 'select', required: false, value: '', options },
+    ];
+    service.confirmAiAction.mockResolvedValue({ data: { message: { id: 8, role: 'assistant', payload: { action: { status: 'done', title: 'x', result: { message: 'ok' } } } } } });
+    renderCard({ msg: message({ fields }) });
+    const pick = screen.getByLabelText(/Pick one/);
+    expect(pick.options[0]).toHaveTextContent('Choose an option');
+    expect(pick.options[0].disabled).toBe(true);
+    expect(pick.selectedOptions[0]).toBe(pick.options[0]);
+    expect(pick).toHaveValue('');
+    const maybe = screen.getByLabelText(/Maybe/);
+    expect(maybe.selectedOptions[0]).toHaveTextContent('None');
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    await waitFor(() => expect(service.confirmAiAction).toHaveBeenCalled());
+    expect(service.confirmAiAction.mock.calls[0][1]).toEqual({ pick: null, maybe: null });
+    fireEvent.change(pick, { target: { value: '2' } });
+    expect(pick.selectedOptions[0]).toHaveTextContent('Two');
+  });
+
+  it('ties a checkbox help and error to the checkbox', () => {
+    const fields = [{ name: 'public', label: 'Open to everyone', type: 'checkbox', required: false, value: false, help: 'Anyone can join.', options: null }];
+    const { rerender } = render(
+      <MemoryRouter>
+        <ActionCard message={message({ fields })} action={message({ fields }).payload.action} live onChange={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const box = screen.getByRole('checkbox');
+    const help = screen.getByText('Anyone can join.');
+    expect(help.id).toBeTruthy();
+    expect(box.getAttribute('aria-describedby')).toBe(help.id);
+    const withError = message({ fields, errors: { public: ['Pick yes.'] } });
+    rerender(
+      <MemoryRouter>
+        <ActionCard key="e" message={withError} action={withError.payload.action} live onChange={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const alert = screen.getByText('Pick yes.');
+    expect(alert.id).toBeTruthy();
+    expect(screen.getByRole('checkbox').getAttribute('aria-describedby')).toBe(alert.id);
   });
 });

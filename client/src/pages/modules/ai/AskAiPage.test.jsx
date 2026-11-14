@@ -319,14 +319,68 @@ describe('AskAiPage', () => {
     expect(await screen.findByRole('heading', { name: "Today's organization action plan" })).toBeInTheDocument();
   });
 
-  it('tells the user to wait on a throttle', async () => {
+  it.each([
+    ['rate limit', 'Too many questions. Try again in a minute.'],
+    ['one running answer', 'Wait for the current answer to finish.'],
+  ])('shows the server message on a 429 (%s), keeps the text in the composer and never retries by itself', async (_name, served) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('question');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      expect(composer()).toHaveValue('');
+      await stream.reject(Object.assign(new Error(served), { status: 429, serverMessage: served }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(served);
+      expect(composer()).toHaveValue('question');
+      expect(screen.queryByText('question', { selector: 'p' })).not.toBeInTheDocument();
+      await act(async () => { vi.advanceTimersByTime(60000); });
+      expect(service.streamAiChat).toHaveBeenCalledTimes(1);
+
+      const second = deferredStream();
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+      expect(service.streamAiChat).toHaveBeenCalledTimes(2);
+      expect(service.streamAiChat.mock.calls[1][0].message).toBe('question');
+      expect(composer()).toHaveValue('');
+      await second.reject(new Error('x'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to the wait message when a 429 carries no server message', async () => {
     const stream = deferredStream();
     renderPage();
     await ready();
     type('question');
     fireEvent.keyDown(composer(), { key: 'Enter' });
-    await stream.reject(Object.assign(new Error('Too many'), { status: 429 }));
+    await stream.reject(Object.assign(new Error('x'), { status: 429 }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Wait a moment');
+  });
+
+  it('links a briefing row only when its address is a safe page', async () => {
+    service.getAiAssistantOverview.mockResolvedValue({
+      data: {
+        ...overview,
+        daily_briefing: {
+          ...overview.daily_briefing,
+          priorities: [
+            { id: 'p1', primary: 'Safe row', href: '/dashboard/super-admin/compliance', action_label: 'Review' },
+            { id: 'p2', primary: 'Loop row', href: '/dashboard/ask-ai?q=hi&topic=x', action_label: 'Loop' },
+            { id: 'p3', primary: 'Topic row', href: '/dashboard/events?topic=finance', action_label: 'Topic' },
+          ],
+        },
+      },
+    });
+    renderPage();
+    await ready();
+    expect(await screen.findByRole('link', { name: /Review/ })).toHaveAttribute('href', '/dashboard/super-admin/compliance');
+    expect(screen.getByText('Loop row')).toBeInTheDocument();
+    expect(screen.getByText('Topic row')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Loop/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Topic/ })).not.toBeInTheDocument();
   });
 
   it('ignores a second send while one is running', async () => {

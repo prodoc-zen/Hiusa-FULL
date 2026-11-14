@@ -25,6 +25,12 @@ class AskAiChatService
 
     private const GUARD_NOTICE = 'The written answer was replaced with the verified summary.';
 
+    private const PROVIDER_NOTICE = 'The writing service did not finish, so the written answer was replaced with the summary from your records.';
+
+    public const CHAT_AUDIT_VERSION = 'ask-ai-chat-v1';
+
+    public const ACTION_AUDIT_VERSION = 'ask-ai-action-v1';
+
     private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory'];
 
     private const LOCAL_PHRASES = [
@@ -58,8 +64,15 @@ class AskAiChatService
 
     public function assertRegenerable(AiConversation $conversation): void
     {
-        if (! $conversation->messages()->where('role', 'user')->exists()) {
+        $lastQuestion = $conversation->messages()->reorder()->where('role', 'user')->orderByDesc('id')->first(['id']);
+        if ($lastQuestion === null) {
             throw ValidationException::withMessages(['regenerate' => 'There is no question to answer again in this conversation.']);
+        }
+
+        $carriesAction = $conversation->messages()->reorder()->where('role', 'assistant')->where('id', '>', $lastQuestion->id)->get(['id', 'payload'])
+            ->contains(fn (AiMessage $answer) => is_array($answer->payload['action'] ?? null));
+        if ($carriesAction) {
+            throw ValidationException::withMessages(['regenerate' => 'That answer is a request you can confirm or cancel, so it cannot be answered again. Ask again to start a new request.']);
         }
     }
 
@@ -76,7 +89,7 @@ class AskAiChatService
             $this->assertRegenerable($conversation);
             $userMessage = $conversation->messages()->reorder()->where('role', 'user')->orderByDesc('id')->first();
             $conversation->messages()->reorder()->where('role', 'assistant')->where('id', '>', $userMessage->id)->get()
-                ->each(fn (AiMessage $replaced) => $replaced->eraseWithOutput());
+                ->each(fn (AiMessage $replaced) => $replaced->supersede());
         } else {
             $conversation ??= AiConversation::create([
                 'user_id' => $user->school_id,
@@ -124,7 +137,8 @@ class AskAiChatService
     public function conversationRow(AiConversation $row, User $user): array
     {
         $source = (string) ($row->getAttribute('preview_source') ?? '');
-        if ($source !== '' && ! $this->intentVisibleTo($user, $this->intentOf($row->getAttribute('preview_payload')))) {
+        $previewIntent = $row->getAttribute('preview_intent');
+        if ($source !== '' && ! $this->intentVisibleTo($user, is_string($previewIntent) ? $previewIntent : null)) {
             $source = self::HIDDEN_ANSWER;
         }
 
@@ -204,38 +218,46 @@ class AskAiChatService
     private function localAnswer(User $user, string $question, bool $typed): ?array
     {
         $plain = trim($question);
-        $lower = mb_strtolower(preg_replace('/\s+/u', ' ', $plain) ?? $plain);
 
-        if ($typed && preg_match('/^(?:(?:please|pls|hey)[\s,]+)?remember\b(?:\s+that\b)?\s*[:\-,]?\s*(?<content>.+)$/isu', $plain, $match) === 1) {
+        $polite = '(?:(?:please|pls|hey|hi|hello)[\s,]+)?';
+
+        if ($typed && preg_match('/^(?:(?:please|pls|hey)[\s,]+)?remember\b(?:\s+that\b)?\s*[:\-,]?\s*(?<content>.+)$/isu', $plain, $match) === 1 && ! $this->readsAsQuestion((string) $match['content'])) {
             return ['intent' => 'memory', 'payload' => $this->saveMemory($user, (string) $match['content'])];
         }
 
-        if ($typed && mb_strlen($lower) < 80) {
-            if (Str::contains($lower, ['forget everything', 'forget all', 'clear your memory', 'clear my memory', 'clear memory', 'clear all memories', 'delete your memory', 'delete my memories', 'erase your memory', 'wipe your memory'])) {
-                $count = AiMemory::ownedBy($user)->count();
-                AiMemory::ownedBy($user)->delete();
+        if ($typed && preg_match('/^'.$polite.'(?:forget\s+(?:everything|it\s+all|all(?:\s+(?:of\s+)?(?:it|that|your\s+memor(?:y|ies)))?)|(?:clear|delete|erase|wipe)\s+(?:all\s+)?(?:(?:your|my)\s+)?memor(?:y|ies))(?:\s+please)?[\s.!]*$/iu', $plain) === 1) {
+            $count = AiMemory::ownedBy($user)->count();
+            AiMemory::ownedBy($user)->delete();
 
-                return ['intent' => 'memory', 'payload' => $this->plainPayload('Memory cleared', $count === 0 ? 'I was not holding anything in memory.' : 'Done. I have forgotten everything you asked me to keep in mind.')];
-            }
+            return ['intent' => 'memory', 'payload' => $this->plainPayload('Memory cleared', $count === 0 ? 'I was not holding anything in memory.' : 'Done. I have forgotten everything you asked me to keep in mind.')];
+        }
 
-            if (Str::contains($lower, ['what do you remember', 'what do you currently remember', 'what have you remembered', "what's in your memory", 'what is in your memory', 'show your memory', 'show my memory', 'show me your memory', 'show memories', 'list memories', 'list your memories', 'show me what you remember', 'what are my memories'])) {
-                return ['intent' => 'memory', 'payload' => $this->listMemories($user)];
-            }
+        if ($typed && preg_match('/^'.$polite.'(?:what\s+do\s+you\s+(?:currently\s+)?remember|what\s+have\s+you\s+remembered|what(?:\'s|\s+is)\s+in\s+your\s+memory|(?:show|list)(?:\s+me)?\s+(?:your\s+|my\s+)?memor(?:y|ies)|show\s+me\s+what\s+you\s+remember|what\s+are\s+my\s+memories)(?:\s+about\s+me)?[\s?.!]*$/iu', $plain) === 1) {
+            return ['intent' => 'memory', 'payload' => $this->listMemories($user)];
         }
 
         if (preg_match('/^(?:hi|hello|hey|hiya|yo|good\s+(?:morning|afternoon|evening)|greetings|hola|kumusta)(?:\s+(?:there|again|everyone|hiusa|assistant))?[\s!.,?]*$/iu', $plain) === 1) {
             return ['intent' => 'greeting', 'payload' => $this->askAi->greetingAnswer($user, false)];
         }
 
-        if (preg_match('/^(?:thanks?|thank\s+you|thank\s+you\s+(?:so|very)\s+much|thanks\s+(?:a\s+lot|so\s+much)|salamat|ty|thx|much\s+appreciated)[\s!.,?]*$/iu', $plain) === 1) {
+        if (preg_match('/^(?:thanks?|thank\s+you|thank\s+you\s+(?:so|very)\s+much|thanks\s+(?:a\s+lot|so\s+much)|salamat|ty|thx|much\s+appreciated)[\s!.,?]*$/iu', $plain) === 1
+            || preg_match('/^(?=[^\pL]*\pL)(?:ok(?:ay)?|great|nice|cool|good|got\s+it|i\s+see|noted|alright|sige)?[\s,!.]*(?:thanks?|thank\s+you|salamat|ty|thx)?[\s!.]*$/iu', $plain) === 1) {
             return ['intent' => 'greeting', 'payload' => $this->askAi->greetingAnswer($user, true)];
         }
 
-        if (mb_strlen($lower) < 100 && Str::contains($lower, ['what can you do', 'what do you do', 'what can i ask', 'how can you help', 'what can you help', 'what are you able', 'your capabilities', 'who are you'])) {
+        if (preg_match('/^'.$polite.'(?:what\s+can\s+you\s+do|what\s+do\s+you\s+do|what\s+can\s+i\s+ask(?:\s+you)?|how\s+can\s+you\s+help(?:\s+me)?|what\s+can\s+you\s+help(?:\s+me)?\s+with|what\s+are\s+you\s+able\s+to\s+do|what\s+are\s+your\s+capabilities|who\s+are\s+you)(?:\s+for\s+me)?[\s?.!]*$/iu', $plain) === 1) {
             return ['intent' => 'capabilities', 'payload' => $this->askAi->capabilitiesAnswer($user)];
         }
 
         return null;
+    }
+
+    /** "remember when the fee was due?" asks something; only a statement is worth saving. */
+    private function readsAsQuestion(string $content): bool
+    {
+        $content = trim($content);
+
+        return str_ends_with($content, '?') || preg_match('/^(?:when|what|who|where|why|how|if|the\s+time)\b/iu', $content) === 1;
     }
 
     private function saveMemory(User $user, string $raw): array
@@ -310,7 +332,9 @@ class AskAiChatService
         $allowedModel = $this->askAi->canAsk($user, $intent);
 
         $messages = $this->modelMessages($history, $facts, $question);
-        $guardFacts = ['facts' => $facts, 'history' => array_column($history, 'content'), 'question' => $question];
+        // Numbers may come from the facts built for this question (which carry the question and the memories) and
+        // from what the person typed earlier, never from text the assistant wrote in earlier turns.
+        $guardFacts = ['facts' => $facts, 'typed' => array_column(array_filter($history, fn (array $turn) => $turn['role'] === 'user'), 'content')];
 
         $deadline = $started + $this->answerSeconds();
         $released = '';
@@ -318,6 +342,7 @@ class AskAiChatService
         $pending = '';
         $reasoningText = '';
         $reasoningPending = '';
+        $reasoningOpen = false;
         $failed = false;
         $stopped = false;
         $wrote = false;
@@ -340,17 +365,17 @@ class AskAiChatService
             return true;
         };
 
-        $keepReasoning = function (string $line) use (&$reasoningText, $guardFacts, $emit): void {
+        $keepReasoning = function (string $line, bool $continues = false) use (&$reasoningText, $guardFacts, $emit): void {
             $clean = $this->reasoningLine($line, $guardFacts);
             if ($clean === null) {
                 return;
             }
-            $piece = ($reasoningText === '' ? '' : "\n").$clean;
+            $piece = ($reasoningText === '' ? '' : ($continues ? ' ' : "\n")).$clean;
             $reasoningText .= $piece;
             $emit('reasoning', ['delta' => $piece]);
         };
 
-        $onEvent = function (string $type, string $delta) use (&$released, &$raw, &$pending, &$reasoningText, &$reasoningPending, &$failed, &$stopped, &$wrote, &$blanks, $release, $keepReasoning, $emit, $aborted, $deadline): void {
+        $onEvent = function (string $type, string $delta) use (&$released, &$raw, &$pending, &$reasoningText, &$reasoningPending, &$reasoningOpen, &$failed, &$stopped, &$wrote, &$blanks, $release, $keepReasoning, $emit, $aborted, $deadline): void {
             if ($aborted !== null && $aborted()) {
                 $stopped = true;
                 throw new ChatInterrupted('client_left');
@@ -364,6 +389,7 @@ class AskAiChatService
                     $emit('replace', ['text' => '', 'notice' => null]);
                 }
                 $released = $raw = $pending = $reasoningText = $reasoningPending = '';
+                $reasoningOpen = false;
                 $blanks = 0;
                 $failed = false;
                 $wrote = false;
@@ -374,8 +400,15 @@ class AskAiChatService
             if ($type === 'reasoning') {
                 $reasoningPending .= $delta;
                 while (($position = strpos($reasoningPending, "\n")) !== false) {
-                    $keepReasoning(substr($reasoningPending, 0, $position));
+                    $keepReasoning(substr($reasoningPending, 0, $position), $reasoningOpen);
                     $reasoningPending = substr($reasoningPending, $position + 1);
+                    $reasoningOpen = false;
+                }
+                // A summary is usually one paragraph without a newline: release it sentence by sentence as it arrives.
+                while (preg_match('/^(.+?[.!?])\s+(.*)$/su', $reasoningPending, $sentence) === 1) {
+                    $keepReasoning($sentence[1], $reasoningOpen);
+                    $reasoningPending = $sentence[2];
+                    $reasoningOpen = true;
                 }
 
                 return;
@@ -384,6 +417,12 @@ class AskAiChatService
             if ($type !== 'text' || $delta === '') {
                 return;
             }
+
+            if (trim($reasoningPending) !== '') {
+                $keepReasoning($reasoningPending, $reasoningOpen);
+            }
+            $reasoningPending = '';
+            $reasoningOpen = false;
 
             if (! $wrote) {
                 $wrote = true;
@@ -395,6 +434,10 @@ class AskAiChatService
             while (($position = strpos($pending, "\n")) !== false) {
                 $line = substr($pending, 0, $position);
                 $pending = substr($pending, $position + 1);
+                if ($aborted !== null && $aborted()) {
+                    $stopped = true;
+                    throw new ChatInterrupted('client_left');
+                }
                 if (! $release($line)) {
                     $failed = true;
                     throw new ChatInterrupted('guard');
@@ -416,7 +459,7 @@ class AskAiChatService
         }
 
         if (trim($reasoningPending) !== '') {
-            $keepReasoning($reasoningPending);
+            $keepReasoning($reasoningPending, $reasoningOpen);
             $reasoningPending = '';
         }
         $thinking = $reasoningText !== '' ? $reasoningText : $this->reasoningSummary($result['reasoning'] ?? null, $guardFacts);
@@ -440,18 +483,21 @@ class AskAiChatService
         if ($failed) {
             $emit('replace', ['text' => $deterministicText, 'notice' => self::GUARD_NOTICE]);
 
-            return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, $deterministicText, $started, self::GUARD_NOTICE, $allowedModel ? 'guard' : null);
+            return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, $deterministicText, $started, self::GUARD_NOTICE, 'guard');
         }
 
         $modelText = $result === null ? '' : trim(AnswerMarkdown::sanitize($raw === '' ? (string) $result['text'] : $raw, $linkCheck));
         if ($result === null || $modelText === '') {
+            $why = $allowedModel ? 'provider' : (isset($det['rag_metadata']) ? null : 'refused');
+            $notice = null;
             if ($released !== '') {
-                $emit('replace', ['text' => $deterministicText, 'notice' => null]);
+                $notice = $why === 'provider' ? self::PROVIDER_NOTICE : null;
+                $emit('replace', ['text' => $deterministicText, 'notice' => $notice]);
             } else {
                 $this->emitLines($deterministicText, $emit, ! $wrote);
             }
 
-            return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, $deterministicText, $started, null, null);
+            return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, $deterministicText, $started, $notice, $why);
         }
 
         if (rtrim($released) !== $modelText) {
@@ -494,7 +540,7 @@ class AskAiChatService
 
     protected function answerSeconds(): int
     {
-        return max(1, min(300, (int) config('services.anthropic.chat_timeout', 60) ?: 60)) + 15;
+        return FallbackTextGenerator::chatDeadlineSeconds();
     }
 
     private function emitLines(string $text, callable $emit, bool $announce): void
@@ -512,7 +558,7 @@ class AskAiChatService
         $summary = $reasoningText === '' ? null : mb_substr($reasoningText, 0, 1500);
 
         $steps = $this->steps($intent, $det);
-        $steps[] = $status === 'stopped' ? 'Stopped writing when you asked; kept the checked part' : 'Wrote the answer in plain words from those records';
+        $steps[] = $status === 'stopped' ? 'Writing stopped before the end; kept the checked part' : 'Wrote the answer in plain words from those records';
         $steps[] = 'Checked every number in the answer against those records';
 
         $engine = $this->engineFor($result['model'] ?? null);
@@ -523,9 +569,15 @@ class AskAiChatService
     private function finishDeterministic(User $user, AiConversation $conversation, AiMessage $userMessage, string $intent, array $payloadBase, array $det, string $content, float $started, ?string $notice, ?string $why): AiMessage
     {
         $steps = $this->steps($intent, $det);
-        $steps[] = $why === 'guard'
-            ? 'Found a figure that did not match your records, so used the verified summary instead'
-            : 'Wrote the answer directly from your records';
+        if ($why === 'refused') {
+            $steps = [$steps[0], 'This is outside what your account can open, so no records were read'];
+        } else {
+            $steps[] = match ($why) {
+                'guard' => 'Found a figure that did not match your records, so used the verified summary instead',
+                'provider' => 'The writing service did not finish, so this is the summary from your records',
+                default => 'Wrote the answer directly from your records',
+            };
+        }
 
         return $this->storeAnswer($user, $conversation, $userMessage, $intent, $payloadBase, $content, 'records', false, $this->reasoning($started, $steps, null), $notice, 'completed', null, $det);
     }
@@ -554,7 +606,7 @@ class AskAiChatService
             'prompt_text' => $userMessage->content,
             'output_text' => $content,
             'model_name' => $modelName,
-            'context_version' => 'ask-ai-chat-v1',
+            'context_version' => self::CHAT_AUDIT_VERSION,
             'structured_input' => [
                 'question' => $userMessage->content,
                 'conversation_id' => $conversation->id,
@@ -587,6 +639,34 @@ class AskAiChatService
         ]);
     }
 
+    /**
+     * The audit row for an action card that was carried out: which action, by whom, and how it ended. It holds the
+     * action key and the created record's id only, never the field values, and is not tied to the conversation,
+     * so deleting the conversation leaves it.
+     */
+    public function recordAction(User $user, AiMessage $card, string $outcome, ?int $recordId): void
+    {
+        $key = (string) ($card->payload['action']['key'] ?? '');
+
+        AiOutput::create([
+            'organization_id' => $user->organization_id,
+            'feature_type' => 'ASK_AI_ASSISTANT',
+            'reference_type' => User::class,
+            'reference_id' => $user->school_id,
+            'prompt_text' => 'Ask AI action: '.$key,
+            'output_text' => $key.': '.$outcome,
+            'context_version' => self::ACTION_AUDIT_VERSION,
+            'structured_input' => ['action' => $key, 'role' => $user->role],
+            'structured_output' => ['outcome' => $outcome, 'record_id' => $recordId],
+            'status' => 'completed',
+            'decision_status' => 'accepted',
+            'requested_by' => $user->school_id,
+            'decided_by' => $user->school_id,
+            'decided_at' => now(),
+            'created_at' => now(),
+        ]);
+    }
+
     // -------------------------------------------------------------------------
     // Intent, facts, history
     // -------------------------------------------------------------------------
@@ -598,24 +678,28 @@ class AskAiChatService
             return $intent;
         }
 
-        $previous = $conversation->messages()->reorder()
+        // A thanks or a memory answer in between does not end the subject; the latest answer about records does.
+        $recent = $conversation->messages()->reorder()
             ->where('role', 'assistant')->where('id', '<', $userMessage->id)
-            ->orderByDesc('id')->first();
-        $previousIntent = $previous?->payload['intent'] ?? null;
+            ->orderByDesc('id')->limit(5)->get(['id', 'payload']);
 
-        return is_string($previousIntent) && ! in_array($previousIntent, self::LOCAL_INTENTS, true) ? $previousIntent : $intent;
+        foreach ($recent as $answer) {
+            $previousIntent = $answer->payload['intent'] ?? null;
+            if (is_string($previousIntent) && ! in_array($previousIntent, self::LOCAL_INTENTS, true)) {
+                return $previousIntent;
+            }
+        }
+
+        return $intent;
     }
 
+    /** Only a message that leans on what came before is read against the previous answer; being short is not enough. */
     private function looksLikeFollowUp(string $question): bool
     {
         $words = preg_split('/\s+/u', trim($question), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $count = count($words);
 
-        if ($count <= 5) {
-            return true;
-        }
-
-        return $count <= 12 && preg_match('/\b(?:that|those|it|them|this|these|more|why|explain|elaborate|what about|how about|and|also)\b/iu', $question) === 1;
+        return count($words) <= 12
+            && preg_match('/\b(?:that|those|it|its|them|they|this|these|more|why|explain|elaborate|what about|how about|same|again|else|instead|the (?:first|second|third|last) one)\b|^\s*(?:and|but|so|also)\b/iu', $question) === 1;
     }
 
     /** @return array<int, array{role: string, content: string}> oldest first */

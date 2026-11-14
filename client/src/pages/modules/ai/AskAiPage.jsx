@@ -14,6 +14,7 @@ import {
   streamAiChat,
 } from '../../../services/askAiService';
 import { actionOf, liveActionId } from '../../../components/ai/actionState';
+import isSafePageHref from '../../../components/ai/safeHref';
 import ChatComposer from './ChatComposer';
 import ChatMessage from './ChatMessage';
 import ConversationList from './ConversationList';
@@ -68,6 +69,8 @@ function withKey(message) {
 
 function failureMessage(err) {
   if (err?.status === 429 || err?.response?.status === 429) {
+    const served = err?.serverMessage || err?.response?.data?.message;
+    if (typeof served === 'string' && served.trim()) return served.trim();
     return 'Too many questions at once. Wait a moment, then try again.';
   }
   if (navigator.onLine === false) {
@@ -146,7 +149,7 @@ function NewConversation({ overview, loading, error, onRetry, onAsk }) {
               {priorities.map((row, index) => (
                 <li key={row.id || index} className="flex items-center justify-between gap-3 py-2">
                   <span className="min-w-0 text-sm font-medium text-ink">{row.primary}</span>
-                  {row.href && (
+                  {isSafePageHref(row.href) && (
                     <Link
                       to={row.href}
                       className="inline-flex min-h-[42px] shrink-0 items-center gap-1 rounded-control text-sm font-semibold text-brand-700 hover:text-brand-800 sm:min-h-9"
@@ -406,10 +409,14 @@ export default function AskAiPage() {
         updateParams((params) => params.delete('c'));
         setMessages([]);
       } else {
+        const throttled = err?.status === 429 || err?.response?.status === 429;
+        const restore = throttled && !metaReceived && !regenerate && source === 'typed';
         setMessages((list) => list.flatMap((m) => {
+          if (restore && m.key === userKey) return [];
           if (m.key !== answerKey) return [m];
           return m.content ? [{ ...m, streaming: false, status: 'failed' }] : [];
         }));
+        if (restore) composerRef.current?.restore(text);
         setSendError({ message: failureMessage(err), text, topic, source, regenerate: regenerate || metaReceived });
       }
     } finally {
@@ -436,6 +443,7 @@ export default function AskAiPage() {
   const retry = useCallback(() => {
     if (!sendError || sendingRef.current) return;
     const { text, topic, regenerate, source } = sendError;
+    composerRef.current?.clearIf(text);
     if (!regenerate) {
       setMessages((list) => (list.at(-1)?.role === 'user' ? list.slice(0, -1) : list));
     }
